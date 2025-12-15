@@ -198,10 +198,10 @@ Gobby HTTP Server (:8765)
 
 ### Key Components
 
-- **Hook System** - Unified interface capturing 11+ event types across CLIs
-- **Session Manager** - Tracks sessions with metadata, status, and parent relationships
-- **MCP Proxy** - Connects to downstream servers (Supabase, Context7, etc.)
-- **Summary Generator** - LLM-powered session summaries for context handoff
+- **Hook System** - Unified interface capturing 14 event types across Claude Code, Gemini CLI, and Codex CLI
+- **Session Manager** - Tracks sessions with metadata, status, parent relationships, and handoff context
+- **MCP Proxy** - Connects to downstream servers (Supabase, Context7, etc.) with progressive tool discovery
+- **Summary Generator** - LLM-powered session summaries for automatic context handoff between sessions
 
 ## Development
 
@@ -225,21 +225,32 @@ uv run mypy src/
 
 ## Hook Types
 
-Gobby captures these hook events from AI CLIs:
+Gobby captures 14 hook event types across Claude Code, Gemini CLI, and Codex CLI. Events are normalized to a unified internal model.
 
-| Hook | Description |
-|------|-------------|
-| `SessionStart` | New coding session begins |
-| `SessionEnd` | Session ends |
-| `UserPromptSubmit` | User sends a message |
-| `PreToolUse` | Before tool execution |
-| `PostToolUse` | After tool execution |
-| `Stop` | Agent stops |
-| `SubagentStart` | Subagent spawned |
-| `SubagentStop` | Subagent finished |
-| `PreCompact` | Before context compaction |
-| `Notification` | System notification |
-| `PermissionRequest` | Permission requested |
+### Unified Event Types
+
+| Event | Claude Code | Gemini CLI | Codex CLI | Description |
+|-------|-------------|------------|-----------|-------------|
+| `SESSION_START` | `session-start` | `SessionStart` | `thread/started` | Session begins |
+| `SESSION_END` | `session-end` | `SessionEnd` | `thread/archive` | Session ends |
+| `BEFORE_AGENT` | `user-prompt-submit` | `BeforeAgent` | `turn/started` | Before processing prompt |
+| `AFTER_AGENT` | `stop` | `AfterAgent` | `turn/completed` | Agent stops |
+| `BEFORE_TOOL` | `pre-tool-use` | `BeforeTool` | `requestApproval` | Before tool execution |
+| `AFTER_TOOL` | `post-tool-use` | `AfterTool` | `item/completed` | After tool execution |
+| `BEFORE_TOOL_SELECTION` | - | `BeforeToolSelection` | - | Before tool selection (Gemini) |
+| `BEFORE_MODEL` | - | `BeforeModel` | - | Before LLM call (Gemini) |
+| `AFTER_MODEL` | - | `AfterModel` | - | After LLM call (Gemini) |
+| `PRE_COMPACT` | `pre-compact` | `PreCompress` | - | Before context compaction |
+| `SUBAGENT_START` | `subagent-start` | - | - | Subagent spawned (Claude) |
+| `SUBAGENT_STOP` | `subagent-stop` | - | - | Subagent finished (Claude) |
+| `PERMISSION_REQUEST` | `permission-request` | - | - | Permission requested (Claude) |
+| `NOTIFICATION` | `notification` | `Notification` | - | System notification |
+
+See [src/install/HOOK_SCHEMAS.md](src/install/HOOK_SCHEMAS.md) for detailed payload schemas.
+
+## Roadmap
+
+- **Workflow Engine** - Deterministic workflows with hook-enforced phases and tool restrictions. See [docs/plans/WORKFLOWS.md](docs/plans/WORKFLOWS.md).
 
 ## License
 
