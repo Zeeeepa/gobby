@@ -129,7 +129,7 @@ class MCPServerConfig:
     description: str | None = None
 
     # Project context
-    project_id: str | None = None  # UUID string if bound to a specific project
+    project_id: str = ""  # Required - UUID string for the project this server belongs to
 
     def validate(self) -> None:
         """Validate configuration based on transport type."""
@@ -497,6 +497,7 @@ class MCPClientManager:
         server_configs: list[MCPServerConfig] | None = None,
         cli_key: str = "",
         project_path: str | None = None,
+        project_id: str | None = None,
         tools_path: Path | None = None,
         token_refresh_callback: Callable[[], Coroutine[Any, Any, str]] | None = None,
         mcp_db_manager: Any | None = None,
@@ -508,14 +509,23 @@ class MCPClientManager:
             server_configs: List of MCP server configurations (optional if mcp_db_manager provided)
             cli_key: Unique session identifier
             project_path: Project root path (optional)
+            project_id: Project ID for scoped server filtering (optional).
+                       When set, loads project-specific servers + global servers,
+                       with project servers taking precedence on name conflicts.
             tools_path: Path to tools directory (deprecated, tools stored in database)
             token_refresh_callback: Async function that returns new auth token
             mcp_db_manager: LocalMCPManager instance for database-backed server/tool storage
         """
+        self.project_id = project_id
+
         # Load server configs from database if not provided
         if server_configs is None:
-            if mcp_db_manager is not None:
-                db_servers = mcp_db_manager.list_servers(enabled_only=False)
+            if mcp_db_manager is not None and project_id:
+                # Load servers for this project
+                db_servers = mcp_db_manager.list_servers(
+                    project_id=project_id,
+                    enabled_only=False,
+                )
                 self.server_configs = [
                     MCPServerConfig(
                         name=s.name,
@@ -527,12 +537,13 @@ class MCPClientManager:
                         headers=s.headers,
                         enabled=s.enabled,
                         description=s.description,
+                        project_id=s.project_id,
                         # Load cached tools from database
-                        tools=self._load_tools_from_db(mcp_db_manager, s.name),
+                        tools=self._load_tools_from_db(mcp_db_manager, s.name, s.project_id),
                     )
                     for s in db_servers
                 ]
-                logger.info(f"Loaded {len(self.server_configs)} MCP servers from database")
+                logger.info(f"Loaded {len(self.server_configs)} MCP servers from database (project {project_id})")
             else:
                 self.server_configs = []
                 logger.warning("No server configs or mcp_db_manager provided")
@@ -556,7 +567,9 @@ class MCPClientManager:
         self._health_check_interval = 60  # seconds
 
     @staticmethod
-    def _load_tools_from_db(mcp_db_manager: Any, server_name: str) -> list[dict[str, str]] | None:
+    def _load_tools_from_db(
+        mcp_db_manager: Any, server_name: str, project_id: str
+    ) -> list[dict[str, str]] | None:
         """
         Load cached tools from database for a server.
 
@@ -565,7 +578,7 @@ class MCPClientManager:
         from gobby.tools.filesystem import generate_brief
 
         try:
-            tools = mcp_db_manager.get_cached_tools(server_name)
+            tools = mcp_db_manager.get_cached_tools(server_name, project_id=project_id)
             if not tools:
                 return None
             return [
@@ -757,6 +770,7 @@ class MCPClientManager:
                     self.mcp_db_manager.upsert(
                         name=config.name,
                         transport=config.transport,
+                        project_id=config.project_id,
                         url=config.url,
                         command=config.command,
                         args=config.args,
@@ -765,11 +779,13 @@ class MCPClientManager:
                         enabled=config.enabled,
                         description=config.description,
                     )
-                    logger.info(f"✓ Persisted MCP server '{config.name}' to database")
+                    logger.info(f"✓ Persisted MCP server '{config.name}' to database (project {config.project_id})")
 
                     # Cache tools to database
                     if full_tool_schemas:
-                        tool_count = self.mcp_db_manager.cache_tools(config.name, full_tool_schemas)
+                        tool_count = self.mcp_db_manager.cache_tools(
+                            config.name, full_tool_schemas, project_id=config.project_id
+                        )
                         logger.info(f"✓ Cached {tool_count} tools for '{config.name}' in database")
                 except Exception as persist_error:
                     logger.warning(
@@ -807,7 +823,7 @@ class MCPClientManager:
                 "message": f"Failed to add server '{config.name}': {error_msg}",
             }
 
-    async def remove_server(self, name: str) -> dict[str, Any]:
+    async def remove_server(self, name: str, project_id: str) -> dict[str, Any]:
         """
         Remove MCP server completely.
 
@@ -820,6 +836,7 @@ class MCPClientManager:
 
         Args:
             name: Server name to remove
+            project_id: Required project ID
 
         Returns:
             Dict with success status and removal info
@@ -827,11 +844,14 @@ class MCPClientManager:
         Raises:
             ValueError: If server name not found in config
         """
-        # Check if server exists in config
-        server_config = next((s for s in self.server_configs if s.name == name), None)
+        # Check if server exists in config (match by name and project_id)
+        server_config = next(
+            (s for s in self.server_configs if s.name == name and s.project_id == project_id),
+            None
+        )
         if not server_config:
             available = ", ".join(s.name for s in self.server_configs)
-            raise ValueError(f"MCP server '{name}' not found in config. Available: [{available}]")
+            raise ValueError(f"MCP server '{name}' (project {project_id}) not found in config. Available: [{available}]")
 
         try:
             # Get transport type for response
@@ -861,23 +881,26 @@ class MCPClientManager:
                 del self.health[name]
                 logger.debug(f"✓ Removed '{name}' from health tracking")
 
-            # 4. Remove from server_configs list
-            self.server_configs = [s for s in self.server_configs if s.name != name]
+            # 4. Remove from server_configs list (match by name and project_id)
+            self.server_configs = [
+                s for s in self.server_configs
+                if not (s.name == name and s.project_id == project_id)
+            ]
 
             # 5. Remove from database if mcp_db_manager is available (cascades to tools)
             if self.mcp_db_manager is not None:
                 try:
-                    removed = self.mcp_db_manager.remove_server(name)
+                    removed = self.mcp_db_manager.remove_server(name, project_id=project_id)
                     if removed:
-                        logger.info(f"✓ Removed MCP server '{name}' from database")
+                        logger.info(f"✓ Removed MCP server '{name}' (project {project_id}) from database")
                     else:
-                        logger.debug(f"Server '{name}' was not in database")
+                        logger.debug(f"Server '{name}' (project {project_id}) was not in database")
                 except Exception as persist_error:
                     logger.warning(
                         f"Failed to remove MCP server '{name}' from database: {persist_error}"
                     )
 
-            logger.info(f"✓ Removed MCP server '{name}' (disconnected and removed from database)")
+            logger.info(f"✓ Removed MCP server '{name}' (project {project_id}) (disconnected and removed from database)")
 
             return {
                 "success": True,

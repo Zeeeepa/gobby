@@ -17,6 +17,7 @@ async def add_mcp_server(
     mcp_manager: MCPClientManager,
     name: str,
     transport: str,
+    project_id: str,
     url: str | None = None,
     headers: dict[str, str] | None = None,
     command: str | None = None,
@@ -32,6 +33,7 @@ async def add_mcp_server(
         mcp_manager: MCP client manager instance
         name: Unique server name
         transport: Transport type (http, stdio, websocket)
+        project_id: Required project ID - all servers must belong to a project
         url: Server URL (for http/websocket)
         headers: Custom HTTP headers
         command: Command to run (for stdio)
@@ -58,6 +60,7 @@ async def add_mcp_server(
             env=env,
             enabled=enabled,
             description=description,
+            project_id=project_id,
         )
 
         # Add server via manager (connects and caches tools)
@@ -95,6 +98,7 @@ async def add_mcp_server(
 async def remove_mcp_server(
     mcp_manager: MCPClientManager,
     name: str,
+    project_id: str,
 ) -> dict[str, Any]:
     """
     Remove an MCP server.
@@ -102,14 +106,15 @@ async def remove_mcp_server(
     Args:
         mcp_manager: MCP client manager instance
         name: Server name to remove
+        project_id: Required project ID
 
     Returns:
         Result dict with success status
     """
     try:
-        result = await mcp_manager.remove_server(name)
+        result = await mcp_manager.remove_server(name, project_id=project_id)
         if result.get("success"):
-            logger.debug(f"Removed MCP server: {name}")
+            logger.debug(f"Removed MCP server: {name} (project {project_id})")
         return result
 
     except Exception as e:
@@ -132,7 +137,8 @@ async def list_mcp_servers(
         mcp_manager: MCP client manager instance
 
     Returns:
-        Dict with servers list and status
+        Dict with servers list and status. Each server includes:
+        - project_id: None for global servers, UUID string for project-scoped
     """
     try:
         servers = []
@@ -140,6 +146,7 @@ async def list_mcp_servers(
             health = mcp_manager.health.get(config.name)
             servers.append({
                 "name": config.name,
+                "project_id": config.project_id,
                 "transport": config.transport,
                 "enabled": config.enabled,
                 "url": config.url,

@@ -29,6 +29,7 @@ class MCPServer:
     description: str | None
     created_at: str
     updated_at: str
+    project_id: str  # Required - all servers must belong to a project
 
     @classmethod
     def from_row(cls, row: Any) -> "MCPServer":
@@ -46,6 +47,7 @@ class MCPServer:
             description=row["description"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+            project_id=row["project_id"],
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -53,6 +55,7 @@ class MCPServer:
         return {
             "id": self.id,
             "name": self.name,
+            "project_id": self.project_id,
             "transport": self.transport,
             "url": self.url,
             "command": self.command,
@@ -72,6 +75,8 @@ class MCPServer:
             "transport": self.transport,
             "enabled": self.enabled,
         }
+        if self.project_id:
+            config["project_id"] = self.project_id
         if self.url:
             config["url"] = self.url
         if self.command:
@@ -136,6 +141,7 @@ class LocalMCPManager:
         self,
         name: str,
         transport: str,
+        project_id: str,
         url: str | None = None,
         command: str | None = None,
         args: list[str] | None = None,
@@ -148,6 +154,13 @@ class LocalMCPManager:
         Insert or update an MCP server in the database.
 
         Server name is normalized to lowercase.
+        Uniqueness is enforced on (name, project_id) - same name can exist
+        in different projects.
+
+        Args:
+            name: Server name (normalized to lowercase)
+            transport: Transport type (http, stdio, websocket)
+            project_id: Required project ID - all servers must belong to a project
         """
         # Normalize server name to lowercase
         name = name.lower()
@@ -158,11 +171,11 @@ class LocalMCPManager:
         self.db.execute(
             """
             INSERT INTO mcp_servers (
-                id, name, transport, url, command, args, env, headers,
+                id, name, project_id, transport, url, command, args, env, headers,
                 enabled, description, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(name) DO UPDATE SET
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(name, project_id) DO UPDATE SET
                 transport = excluded.transport,
                 url = excluded.url,
                 command = excluded.command,
@@ -176,6 +189,7 @@ class LocalMCPManager:
             (
                 server_id,
                 name,
+                project_id,
                 transport,
                 url,
                 command,
@@ -189,12 +203,24 @@ class LocalMCPManager:
             ),
         )
 
-        return self.get_server(name)  # type: ignore
+        return self.get_server(name, project_id=project_id)  # type: ignore
 
-    def get_server(self, name: str) -> MCPServer | None:
-        """Get server by name (case-insensitive lookup)."""
+    def get_server(self, name: str, project_id: str) -> MCPServer | None:
+        """
+        Get server by name (case-insensitive lookup).
+
+        Args:
+            name: Server name
+            project_id: Required project ID
+        """
         # Normalize to lowercase for lookup
-        row = self.db.fetchone("SELECT * FROM mcp_servers WHERE name = ?", (name.lower(),))
+        name = name.lower()
+
+        row = self.db.fetchone(
+            "SELECT * FROM mcp_servers WHERE name = ? AND project_id = ?",
+            (name, project_id),
+        )
+
         return MCPServer.from_row(row) if row else None
 
     def get_server_by_id(self, server_id: str) -> MCPServer | None:
@@ -202,19 +228,44 @@ class LocalMCPManager:
         row = self.db.fetchone("SELECT * FROM mcp_servers WHERE id = ?", (server_id,))
         return MCPServer.from_row(row) if row else None
 
-    def list_servers(self, enabled_only: bool = True) -> list[MCPServer]:
-        """List MCP servers."""
+    def list_servers(
+        self,
+        project_id: str,
+        enabled_only: bool = True,
+    ) -> list[MCPServer]:
+        """
+        List MCP servers for a project.
+
+        Args:
+            project_id: Required project ID
+            enabled_only: Only return enabled servers
+
+        Returns:
+            List of servers for the project.
+        """
+        conditions = ["project_id = ?"]
+        params: list[Any] = [project_id]
+
         if enabled_only:
-            rows = self.db.fetchall(
-                "SELECT * FROM mcp_servers WHERE enabled = 1 ORDER BY name"
-            )
-        else:
-            rows = self.db.fetchall("SELECT * FROM mcp_servers ORDER BY name")
+            conditions.append("enabled = 1")
+
+        where_clause = " AND ".join(conditions)
+        query = f"SELECT * FROM mcp_servers WHERE {where_clause} ORDER BY name"
+        rows = self.db.fetchall(query, tuple(params))
+
         return [MCPServer.from_row(row) for row in rows]
 
-    def update_server(self, name: str, **fields: Any) -> MCPServer | None:
-        """Update server fields."""
-        server = self.get_server(name)
+    def update_server(
+        self, name: str, project_id: str, **fields: Any
+    ) -> MCPServer | None:
+        """
+        Update server fields.
+
+        Args:
+            name: Server name
+            project_id: Required project ID
+        """
+        server = self.get_server(name, project_id=project_id)
         if not server:
             return None
 
@@ -236,21 +287,34 @@ class LocalMCPManager:
         fields["updated_at"] = datetime.utcnow().isoformat()
 
         set_clause = ", ".join(f"{k} = ?" for k in fields)
-        values = list(fields.values()) + [name]
+        # Update by server ID to be precise
+        values = list(fields.values()) + [server.id]
 
         self.db.execute(
-            f"UPDATE mcp_servers SET {set_clause} WHERE name = ?",
+            f"UPDATE mcp_servers SET {set_clause} WHERE id = ?",
             tuple(values),
         )
 
-        return self.get_server(name)
+        return self.get_server(name, project_id=project_id)
 
-    def remove_server(self, name: str) -> bool:
-        """Remove server by name (cascades to tools). Case-insensitive."""
-        cursor = self.db.execute("DELETE FROM mcp_servers WHERE name = ?", (name.lower(),))
+    def remove_server(self, name: str, project_id: str) -> bool:
+        """
+        Remove server by name (cascades to tools). Case-insensitive.
+
+        Args:
+            name: Server name
+            project_id: Required project ID
+        """
+        name = name.lower()
+        cursor = self.db.execute(
+            "DELETE FROM mcp_servers WHERE name = ? AND project_id = ?",
+            (name, project_id),
+        )
         return cursor.rowcount > 0
 
-    def cache_tools(self, server_name: str, tools: list[dict[str, Any]]) -> int:
+    def cache_tools(
+        self, server_name: str, tools: list[dict[str, Any]], project_id: str
+    ) -> int:
         """
         Cache tools for a server.
 
@@ -259,11 +323,12 @@ class LocalMCPManager:
         Args:
             server_name: Server name
             tools: List of tool definitions with name, description, and inputSchema (or args)
+            project_id: Required project ID
 
         Returns:
             Number of tools cached
         """
-        server = self.get_server(server_name)
+        server = self.get_server(server_name, project_id=project_id)
         if not server:
             logger.warning(f"Server not found: {server_name}")
             return 0
@@ -297,9 +362,15 @@ class LocalMCPManager:
 
         return len(tools)
 
-    def get_cached_tools(self, server_name: str) -> list[Tool]:
-        """Get cached tools for a server."""
-        server = self.get_server(server_name)
+    def get_cached_tools(self, server_name: str, project_id: str) -> list[Tool]:
+        """
+        Get cached tools for a server.
+
+        Args:
+            server_name: Server name
+            project_id: Required project ID
+        """
+        server = self.get_server(server_name, project_id=project_id)
         if not server:
             return []
 
@@ -309,7 +380,7 @@ class LocalMCPManager:
         )
         return [Tool.from_row(row) for row in rows]
 
-    def import_from_mcp_json(self, path: str | Path) -> int:
+    def import_from_mcp_json(self, path: str | Path, project_id: str) -> int:
         """
         Import servers from .mcp.json file.
 
@@ -319,6 +390,7 @@ class LocalMCPManager:
 
         Args:
             path: Path to .mcp.json file
+            project_id: Required project ID
 
         Returns:
             Number of servers imported
@@ -354,6 +426,7 @@ class LocalMCPManager:
                     headers=config.get("headers"),
                     enabled=config.get("enabled", True),
                     description=config.get("description"),
+                    project_id=project_id,
                 )
                 imported += 1
 
@@ -371,19 +444,23 @@ class LocalMCPManager:
                     headers=config.get("headers"),
                     enabled=config.get("enabled", True),
                     description=config.get("description"),
+                    project_id=project_id,
                 )
                 imported += 1
 
         return imported
 
-    def import_tools_from_filesystem(self, tools_dir: str | Path | None = None) -> int:
+    def import_tools_from_filesystem(
+        self, project_id: str, tools_dir: str | Path | None = None
+    ) -> int:
         """
         Import tool schemas from filesystem directory.
 
         Reads tool JSON files from ~/.gobby/tools/<server_name>/<tool_name>.json
-        and caches them in the database for servers that exist.
+        and caches them in the database for servers that exist in the project.
 
         Args:
+            project_id: Required project ID
             tools_dir: Path to tools directory (default: ~/.gobby/tools)
 
         Returns:
@@ -406,8 +483,8 @@ class LocalMCPManager:
 
             server_name = server_dir.name
 
-            # Check if server exists in database
-            server = self.get_server(server_name)
+            # Check if server exists in database for this project
+            server = self.get_server(server_name, project_id=project_id)
             if not server:
                 logger.debug(f"Skipping tools for unknown server: {server_name}")
                 continue
@@ -429,7 +506,7 @@ class LocalMCPManager:
 
             # Cache tools to database
             if tools:
-                count = self.cache_tools(server_name, tools)
+                count = self.cache_tools(server_name, tools, project_id=project_id)
                 total_imported += count
                 logger.info(f"Imported {count} tools for server '{server_name}'")
 

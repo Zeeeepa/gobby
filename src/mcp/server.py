@@ -178,12 +178,14 @@ def create_mcp_server(
         List all configured MCP servers and their connection status.
 
         Returns:
-            Dict with servers list
+            Dict with servers list. Each server includes:
+            - project_id: None for global servers, UUID string for project-scoped
         """
         servers = []
         for server_name, connection in mcp_manager.connections.items():
             server_info = {
                 "name": server_name,
+                "project_id": connection.config.project_id,
                 "description": connection.config.description,
                 "connected": connection.is_connected,
             }
@@ -309,13 +311,13 @@ def create_mcp_server(
         args: list[str] | None = None,
         env: dict[str, str] | None = None,
         enabled: bool = True,
-        project_id: str | None = None,
     ) -> dict[str, Any]:
         """
-        Dynamically add a new MCP server connection.
+        Add a new MCP server to the current project.
 
         Supports multiple transport types: http, stdio, websocket.
-        Saves configuration to local .mcp.json file.
+        Servers are always project-scoped. If no project exists for the
+        current directory, one will be created automatically.
 
         Args:
             name: Unique server name
@@ -326,17 +328,26 @@ def create_mcp_server(
             args: Command arguments (optional for stdio)
             env: Environment variables (optional for stdio)
             enabled: Whether server is enabled (default: True)
-            project_id: Optional project ID to associate with
 
         Returns:
             Result dict with success status and server info
         """
         from gobby.mcp.actions import add_mcp_server as add_server_action
+        from gobby.utils.project_init import initialize_project
+
+        # Get or create project for current directory
+        project_id = mcp_manager.project_id
+        if not project_id:
+            init_result = initialize_project()
+            project_id = init_result.project_id
+            # Update manager's project_id for subsequent operations
+            mcp_manager.project_id = project_id
 
         return await add_server_action(
             mcp_manager=mcp_manager,
             name=name,
             transport=transport,
+            project_id=project_id,
             url=url,
             headers=headers,
             command=command,
@@ -346,24 +357,32 @@ def create_mcp_server(
         )
 
     @mcp.tool
-    async def remove_mcp_server(name: str, project_id: str | None = None) -> dict[str, Any]:
+    async def remove_mcp_server(name: str) -> dict[str, Any]:
         """
-        Remove an MCP server connection.
+        Remove an MCP server from the current project.
 
-        Removes from local .mcp.json configuration.
+        Removes from local database (cascades to tools).
 
         Args:
             name: Server name to remove
-            project_id: Optional project ID (unused in local-first mode)
 
         Returns:
             Result dict with success status
         """
         from gobby.mcp.actions import remove_mcp_server as remove_server_action
 
+        project_id = mcp_manager.project_id
+        if not project_id:
+            return {
+                "success": False,
+                "name": name,
+                "error": "No project context - initialize a project first with init_project()",
+            }
+
         return await remove_server_action(
             mcp_manager=mcp_manager,
             name=name,
+            project_id=project_id,
         )
 
     # ===== MCP PROXY DISCOVERY TOOLS =====
@@ -446,6 +465,7 @@ def create_mcp_server(
                     return {
                         "success": True,
                         "server": server,
+                        "project_id": server_config.project_id,
                         "tools": tools_list,
                     }
                 else:
@@ -465,6 +485,7 @@ def create_mcp_server(
                         servers_list.append(
                             {
                                 "name": server_config.name,
+                                "project_id": server_config.project_id,
                                 "tools": tools_list,
                             }
                         )
@@ -544,8 +565,10 @@ def create_mcp_server(
                         "error": "Database manager not available",
                     }
 
-                # Get all cached tools for this server and find the specific one
-                cached_tools = mcp_manager.mcp_db_manager.get_cached_tools(server_name)
+                # Get all cached tools for this server (use server's project_id for lookup)
+                cached_tools = mcp_manager.mcp_db_manager.get_cached_tools(
+                    server_name, project_id=server_config.project_id
+                )
                 tool = next((t for t in cached_tools if t.name == tool_name), None)
 
                 if not tool:

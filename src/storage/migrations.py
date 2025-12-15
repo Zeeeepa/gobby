@@ -140,6 +140,40 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         PRAGMA foreign_keys = ON;
         """,
     ),
+    (
+        7,
+        "Add project_id to mcp_servers (required, no global servers)",
+        """
+        PRAGMA foreign_keys = OFF;
+        CREATE TABLE mcp_servers_new (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            transport TEXT NOT NULL,
+            url TEXT,
+            command TEXT,
+            args TEXT,
+            env TEXT,
+            headers TEXT,
+            enabled INTEGER DEFAULT 1,
+            description TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        INSERT OR IGNORE INTO projects (id, name, repo_path, created_at, updated_at)
+        VALUES ('00000000-0000-0000-0000-000000000001', '_migrated', NULL, datetime('now'), datetime('now'));
+        INSERT INTO mcp_servers_new (id, name, project_id, transport, url, command, args, env, headers, enabled, description, created_at, updated_at)
+        SELECT id, name, '00000000-0000-0000-0000-000000000001', transport, url, command, args, env, headers, enabled, description, created_at, updated_at FROM mcp_servers;
+        DROP TABLE mcp_servers;
+        ALTER TABLE mcp_servers_new RENAME TO mcp_servers;
+        CREATE INDEX IF NOT EXISTS idx_mcp_servers_name ON mcp_servers(name);
+        CREATE INDEX IF NOT EXISTS idx_mcp_servers_project_id ON mcp_servers(project_id);
+        CREATE INDEX IF NOT EXISTS idx_mcp_servers_enabled ON mcp_servers(enabled);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_servers_name_project
+            ON mcp_servers(name, project_id);
+        PRAGMA foreign_keys = ON;
+        """,
+    ),
 ]
 
 
