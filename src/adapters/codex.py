@@ -47,11 +47,11 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from gobby.adapters.base import BaseAdapter
-from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
+from ..hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
+from .base import BaseAdapter
 
 if TYPE_CHECKING:
-    from gobby.hooks.hook_manager import HookManager
+    from ..hooks.hook_manager import HookManager
 
 logger = logging.getLogger(__name__)
 
@@ -1271,24 +1271,19 @@ class CodexNotifyAdapter(BaseAdapter):  # type: ignore[misc]
             "decision": response.decision,
         }
 
-    def handle_native(self, native_event: dict, hook_manager: HookManager | None = None) -> dict:
+    def handle_native(self, native_event: dict, hook_manager: "HookManager") -> dict:
         """Process native Codex notify event.
 
         Args:
             native_event: The payload from HTTP endpoint.
-            hook_manager: Optional HookManager (uses instance if not provided).
+            hook_manager: HookManager instance for processing.
 
         Returns:
             Response dict.
         """
-        manager = hook_manager or self._hook_manager
-        if not manager:
-            logger.warning("No HookManager available for Codex notify event")
-            return {"status": "error", "message": "No HookManager"}
-
         hook_event = self.translate_to_hook_event(native_event)
         if not hook_event:
             return {"status": "skipped", "message": "Unsupported event"}
 
-        hook_response = manager.handle(hook_event)
+        hook_response = hook_manager.handle(hook_event)
         return self.translate_from_hook_response(hook_response)

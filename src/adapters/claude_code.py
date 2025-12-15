@@ -16,13 +16,13 @@ Claude Code Hook Types (12 total):
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, TYPE_CHECKING
 
-from gobby.adapters.base import BaseAdapter
-from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
+from ..hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
+from .base import BaseAdapter
 
 if TYPE_CHECKING:
-    from gobby.hooks.hook_manager import HookManager
+    from ..hooks.hook_manager import HookManager
 
 
 class ClaudeCodeAdapter(BaseAdapter):  # type: ignore[misc]
@@ -192,7 +192,9 @@ class ClaudeCodeAdapter(BaseAdapter):  # type: ignore[misc]
 
         return result
 
-    def handle_native(self, native_event: dict[str, Any]) -> dict[str, Any]:
+    def handle_native(
+        self, native_event: dict[str, Any], hook_manager: "HookManager"
+    ) -> dict[str, Any]:
         """Main entry point for HTTP endpoint.
 
         Strangler fig pattern:
@@ -205,34 +207,19 @@ class ClaudeCodeAdapter(BaseAdapter):  # type: ignore[misc]
 
         Args:
             native_event: Raw payload from Claude Code's hook_dispatcher.py
+            hook_manager: HookManager instance for processing.
 
         Returns:
             Response dict in Claude Code's expected format.
         """
-        if self._hook_manager is None:
-            raise RuntimeError(
-                "ClaudeCodeAdapter requires hook_manager for handle_native(). "
-                "Use translate_to_hook_event() and translate_from_hook_response() "
-                "for translation-only mode."
-            )
-
         # Always translate (validates our mapping is correct)
         hook_event = self.translate_to_hook_event(native_event)
 
-        if self._use_legacy:
-            # Phase 2A-2B: Delegate to existing code path
-            # The existing execute() method is synchronous and handles everything
-            result = self._hook_manager.execute(
-                hook_type=native_event.get("hook_type", ""),
-                input_data=native_event.get("input_data", {}),
-            )
-            # Return native format directly (existing code already formats correctly)
-            return cast(dict[str, Any], result)
-        else:
-            # Phase 2C+: Use new HookEvent-based handler
-            hook_type = native_event.get("hook_type", "")
-            hook_response = self._hook_manager.handle(hook_event)
-            return self.translate_from_hook_response(hook_response, hook_type=hook_type)
+        # Phase 2C+: Use new HookEvent-based handler
+        # Legacy execute() path removed as HookManager.execute is deprecated/removed.
+        hook_type = native_event.get("hook_type", "")
+        hook_response = hook_manager.handle(hook_event)
+        return self.translate_from_hook_response(hook_response, hook_type=hook_type)
 
     def set_legacy_mode(self, use_legacy: bool) -> None:
         """Toggle between legacy and new code paths.

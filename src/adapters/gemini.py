@@ -25,11 +25,11 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from gobby.adapters.base import BaseAdapter
-from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
+from ..hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
+from .base import BaseAdapter
 
 if TYPE_CHECKING:
-    from gobby.hooks.hook_manager import HookManager
+    from ..hooks.hook_manager import HookManager
 
 
 class GeminiAdapter(BaseAdapter):  # type: ignore[misc]
@@ -272,7 +272,9 @@ class GeminiAdapter(BaseAdapter):  # type: ignore[misc]
 
         return result
 
-    def handle_native(self, native_event: dict[str, Any]) -> dict[str, Any]:
+    def handle_native(
+        self, native_event: dict[str, Any], hook_manager: "HookManager"
+    ) -> dict[str, Any]:
         """Main entry point for HTTP endpoint.
 
         Translates native Gemini CLI event, processes through HookManager,
@@ -280,17 +282,11 @@ class GeminiAdapter(BaseAdapter):  # type: ignore[misc]
 
         Args:
             native_event: Raw payload from Gemini CLI's hook_dispatcher.py
+            hook_manager: HookManager instance for processing.
 
         Returns:
             Response dict in Gemini CLI's expected format.
         """
-        if self._hook_manager is None:
-            raise RuntimeError(
-                "GeminiAdapter requires hook_manager for handle_native(). "
-                "Use translate_to_hook_event() and translate_from_hook_response() "
-                "for translation-only mode."
-            )
-
         # Translate to unified HookEvent
         hook_event = self.translate_to_hook_event(native_event)
 
@@ -300,7 +296,7 @@ class GeminiAdapter(BaseAdapter):  # type: ignore[misc]
             hook_type = native_event.get("input_data", {}).get("hook_event_name", "")
 
         # Process through HookManager
-        hook_response = self._hook_manager.handle(hook_event)
+        hook_response = hook_manager.handle(hook_event)
 
         # Translate response back to Gemini format
         return self.translate_from_hook_response(hook_response, hook_type=hook_type)
