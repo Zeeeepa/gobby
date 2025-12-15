@@ -211,4 +211,5 @@ __marimo__/
 .gemini/
 .codex/
 .gobby/
+.agent/
 .DS_Store
