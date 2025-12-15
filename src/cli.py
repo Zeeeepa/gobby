@@ -733,8 +733,6 @@ def _install_claude_hooks(project_path: Path) -> dict[str, Any]:
     hook_files = {
         "hook_dispatcher.py": True,  # Make executable
         "validate_settings.py": True,  # Make executable
-        "README.md": False,
-        "HOOK_SCHEMAS.md": False,
     }
 
     source_hooks_template = claude_install_dir / "hooks-template.json"

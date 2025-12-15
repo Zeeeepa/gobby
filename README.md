@@ -246,7 +246,7 @@ Gobby captures 14 hook event types across Claude Code, Gemini CLI, and Codex CLI
 | `PERMISSION_REQUEST` | `permission-request` | - | - | Permission requested (Claude) |
 | `NOTIFICATION` | `notification` | `Notification` | - | System notification |
 
-See [src/install/HOOK_SCHEMAS.md](src/install/HOOK_SCHEMAS.md) for detailed payload schemas.
+See [docs/hooks/CLAUDE_HOOKS_SCHEMA.md](docs/hooks/CLAUDE_HOOKS_SCHEMA.md) for detailed payload schemas.
 
 ## Roadmap
 
