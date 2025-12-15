@@ -665,9 +665,12 @@ def mcp_info(ctx: click.Context) -> None:
     click.echo("-" * 60)
     click.echo("Codex CLI")
     click.echo("-" * 60)
-    click.echo("Codex uses the OpenAI Responses API, not MCP directly.")
-    click.echo("Use 'gobby install --codex' to set up the notify integration.")
-    click.echo("This enables session tracking via ~/.codex/config.toml.\n")
+    click.echo("Add to ~/.codex/config.toml:\n")
+
+    codex_config = f"""  [mcp_servers.gobby]
+  url = "http://localhost:{http_port}/mcp"
+"""
+    click.echo(codex_config)
 
     # Try to get available tools
     try:
