@@ -442,16 +442,14 @@ class HookManager:
 
         If project_id is given, returns it directly.
         Otherwise, looks up project from .gobby/project.json in the cwd.
+        If no project.json exists, automatically initializes the project.
 
         Args:
             project_id: Optional explicit project ID
             cwd: Current working directory path
 
         Returns:
-            Project ID from .gobby/project.json
-
-        Raises:
-            ValueError: If no project.json found (project not initialized)
+            Project ID (existing or newly created)
         """
         if project_id:
             return project_id
@@ -466,11 +464,12 @@ class HookManager:
         if project_context and project_context.get("id"):
             return str(project_context["id"])
 
-        # No project.json found - require explicit initialization
-        raise ValueError(
-            f"No .gobby/project.json found in {working_dir} or parents. "
-            "Run 'gobby init' to initialize a project."
-        )
+        # No project.json found - auto-initialize the project
+        from gobby.utils.project_init import initialize_project
+
+        result = initialize_project(cwd=working_dir)
+        self.logger.info(f"Auto-initialized project '{result.project_name}' in {working_dir}")
+        return result.project_id
 
     # ==================== EVENT HANDLERS ====================
     # These handlers work with unified HookEvent and return HookResponse.

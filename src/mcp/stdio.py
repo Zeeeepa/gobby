@@ -525,51 +525,38 @@ def create_stdio_mcp_server() -> FastMCP:
         Returns:
             Dict with success status and project details
         """
-        import json
         from pathlib import Path
 
-        from gobby.storage.database import LocalDatabase
-        from gobby.storage.projects import LocalProjectManager
-        from gobby.utils.git import get_github_url as detect_github_url
+        from gobby.utils.project_init import initialize_project
 
         try:
             cwd = Path.cwd()
+            result = initialize_project(cwd=cwd, name=name, github_url=github_url)
 
-            # Auto-detect name from directory if not provided
-            if not name:
-                name = cwd.name
+            project_json_path = cwd / ".gobby" / "project.json"
 
-            # Auto-detect GitHub URL from git remote if not provided
-            if not github_url:
-                github_url = detect_github_url(cwd)
-
-            # Create project in local storage
-            db = LocalDatabase()
-            project_manager = LocalProjectManager(db)
-            project = project_manager.create(
-                name=name,
-                repo_path=str(cwd),
-                github_url=github_url,
-            )
-
-            # Create local .gobby/project.json
-            gobby_dir = cwd / ".gobby"
-            gobby_dir.mkdir(exist_ok=True)
-
-            project_json_path = gobby_dir / "project.json"
-            project_data = {
-                "id": project.id,
-                "name": project.name,
-                "created_at": project.created_at,
-            }
-
-            with open(project_json_path, "w") as f:
-                json.dump(project_data, f, indent=2)
+            if result.already_existed:
+                return {
+                    "success": True,
+                    "message": f"Project '{result.project_name}' already initialized",
+                    "project": {
+                        "id": result.project_id,
+                        "name": result.project_name,
+                        "created_at": result.created_at,
+                    },
+                    "paths": {
+                        "project_json": str(project_json_path),
+                    },
+                }
 
             return {
                 "success": True,
-                "message": f"Project '{project.name}' initialized successfully",
-                "project": project_data,
+                "message": f"Project '{result.project_name}' initialized successfully",
+                "project": {
+                    "id": result.project_id,
+                    "name": result.project_name,
+                    "created_at": result.created_at,
+                },
                 "paths": {
                     "project_json": str(project_json_path),
                 },

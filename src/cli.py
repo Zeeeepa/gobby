@@ -730,73 +730,23 @@ def init(ctx: click.Context, name: str | None, github_url: str | None) -> None:
     """Initialize a new Gobby project in the current directory."""
     from pathlib import Path
 
-    from gobby.storage.database import LocalDatabase
-    from gobby.storage.migrations import run_migrations
-    from gobby.storage.projects import LocalProjectManager
+    from gobby.utils.project_init import initialize_project
 
     cwd = Path.cwd()
-    gobby_dir = cwd / ".gobby"
-    project_file = gobby_dir / "project.json"
-
-    # Check if project already exists locally
-    if project_file.exists():
-        try:
-            with open(project_file) as f:
-                project_data = json.load(f)
-            click.echo(f"Project already initialized: {project_data.get('name')}")
-            click.echo(f"  Project ID: {project_data.get('id')}")
-            return
-        except Exception:
-            click.echo("Found corrupted .gobby/project.json", err=True)
-            if not click.confirm("Do you want to overwrite it?"):
-                sys.exit(1)
-
-    # Auto-detect details if not provided
-    if not name:
-        name = cwd.name
-        click.echo(f"Using project name: {name}")
-
-    if not github_url:
-        from gobby.utils.git import get_github_url
-
-        github_url = get_github_url(cwd)
-        if github_url:
-            click.echo(f"Detected GitHub URL: {github_url}")
-
-    # Initialize local storage
-    db = LocalDatabase()
-    run_migrations(db)
-    project_manager = LocalProjectManager(db)
-
-    # Create project in local database
-    click.echo("Creating project in local storage...")
 
     try:
-        project = project_manager.create(
-            name=name,
-            repo_path=str(cwd),
-            github_url=github_url,
-        )
+        result = initialize_project(cwd=cwd, name=name, github_url=github_url)
     except Exception as e:
-        click.echo(f"Failed to create project: {e}", err=True)
+        click.echo(f"Failed to initialize project: {e}", err=True)
         sys.exit(1)
 
-    # Create local configuration
-    click.echo("Setting up local configuration...")
-    gobby_dir.mkdir(exist_ok=True)
-
-    # Write project.json
-    project_data = {
-        "id": project.id,
-        "name": project.name,
-        "created_at": project.created_at,
-    }
-    with open(project_file, "w") as f:
-        json.dump(project_data, f, indent=2)
-
-    click.echo(f"Initialized project '{name}' in {cwd}")
-    click.echo(f"  Project ID: {project.id}")
-    click.echo(f"  Config: {project_file}")
+    if result.already_existed:
+        click.echo(f"Project already initialized: {result.project_name}")
+        click.echo(f"  Project ID: {result.project_id}")
+    else:
+        click.echo(f"Initialized project '{result.project_name}' in {cwd}")
+        click.echo(f"  Project ID: {result.project_id}")
+        click.echo(f"  Config: {cwd / '.gobby' / 'project.json'}")
 
 
 def _get_install_dir() -> Path:
