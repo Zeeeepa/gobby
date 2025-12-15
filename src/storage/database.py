@@ -3,9 +3,10 @@
 import logging
 import sqlite3
 import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
+from typing import cast
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class LocalDatabase:
             self._local.connection.row_factory = sqlite3.Row
             # Enable foreign keys
             self._local.connection.execute("PRAGMA foreign_keys = ON")
-        return self._local.connection
+        return cast(sqlite3.Connection, self._local.connection)
 
     @property
     def connection(self) -> sqlite3.Connection:
@@ -64,7 +65,7 @@ class LocalDatabase:
     def fetchone(self, sql: str, params: tuple = ()) -> sqlite3.Row | None:
         """Execute query and fetch one row."""
         cursor = self.execute(sql, params)
-        return cursor.fetchone()
+        return cast(sqlite3.Row | None, cursor.fetchone())
 
     def fetchall(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
         """Execute query and fetch all rows."""

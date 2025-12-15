@@ -25,7 +25,7 @@ Example:
 
 import logging
 import threading
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 import httpx
 
@@ -202,7 +202,7 @@ class DaemonClient:
             timeout=timeout,
         )
         response.raise_for_status()
-        return response.json()
+        return cast(dict[str, Any], response.json())
 
     def update_status_cache(self) -> None:
         """Update cached daemon status by calling check_status()."""
@@ -218,12 +218,13 @@ class DaemonClient:
                 f"Daemon status updated: {self.DAEMON_STATUS_TEXT.get(self._cached_status, 'Unknown')}"
             )
 
-    def get_cached_status(self) -> tuple[bool, str | None, str, str | None]:
+    def get_cached_status(self) -> tuple[bool | None, str | None, str | None, str | None]:
         """
         Get cached daemon status without making HTTP calls.
 
         Returns:
             Tuple of (is_ready, message, status, error_reason)
+            Values may be None if status hasn't been checked yet.
         """
         with self._cache_lock:
             return (

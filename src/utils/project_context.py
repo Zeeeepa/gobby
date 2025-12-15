@@ -5,7 +5,7 @@ Utilities for resolving project context.
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ def get_project_context(cwd: Path | None = None) -> dict[str, Any] | None:
         with open(project_file) as f:
             data = json.load(f)
         data["project_path"] = str(root)
-        return data
+        return cast(dict[str, Any], data)
     except Exception as e:
         logger.warning(f"Failed to read project context: {e}")
         return None

@@ -26,6 +26,9 @@ uv run gobby init
 
 # Install hooks for your AI CLIs
 uv run gobby install
+
+# Optional: Install globally to use 'gobby' without 'uv run'
+uv pip install -e .
 ```
 
 ## Requirements
@@ -36,6 +39,48 @@ uv run gobby install
   - [Claude Code](https://claude.ai/code) - `npm install -g @anthropic-ai/claude-code`
   - [Gemini CLI](https://github.com/google-gemini/gemini-cli) - `npm install -g @google/gemini-cli`
   - [Codex CLI](https://github.com/openai/codex) - `npm install -g @openai/codex`
+
+## MCP Server Configuration
+
+After starting the daemon, configure your AI CLI to connect to Gobby's MCP server:
+
+### Claude Code
+
+Add to `.claude/settings.json` (project) or `~/.claude/settings.json` (global):
+
+```json
+{
+  "mcpServers": {
+    "gobby": {
+      "url": "http://localhost:8765/mcp",
+      "transport": "http"
+    }
+  }
+}
+```
+
+### Gemini CLI
+
+Add to `.gemini/settings.json` (project) or `~/.gemini/settings.json` (global):
+
+```json
+{
+  "mcpServers": {
+    "gobby": {
+      "uri": "http://localhost:8765/mcp"
+    }
+  }
+}
+```
+
+### Codex CLI
+
+Add to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.gobby]
+url = "http://localhost:8765/mcp"
+```
 
 ## CLI Commands
 
@@ -48,32 +93,37 @@ uv run gobby install
 | `gobby init` | Initialize a Gobby project in current directory |
 | `gobby install` | Install hooks for detected AI CLIs |
 | `gobby uninstall` | Remove hooks from AI CLIs |
-| `gobby mcp-info` | Show MCP endpoint configuration |
-| `gobby mcp-server` | Run stdio MCP server for Claude Code |
+| `gobby mcp-server` | Run stdio MCP server for any MCP client |
 
 ## MCP Tools
 
 The daemon exposes tools via MCP that can be used by Claude Code and other MCP clients:
 
 ### Daemon Management
+
 - `start()`, `stop()`, `restart()`, `status()` - Lifecycle control
 - `init_project()` - Initialize a new project
 
 ### MCP Server Management
+
 - `list_mcp_servers()` - List connected downstream servers
 - `add_mcp_server()` - Dynamically add an MCP server
 - `remove_mcp_server()` - Remove an MCP server
+- `import_mcp_server()` - Import servers from projects, GitHub, or web search
 
 ### Tool Proxy (Progressive Disclosure)
+
 - `list_tools(server?)` - Get lightweight tool metadata
 - `get_tool_schema(server, tool)` - Get full inputSchema for a tool
 - `call_tool(server, tool, arguments?)` - Execute a tool on a downstream server
 
 ### Code Execution
+
 - `execute_code(code)` - Run Python in Claude's sandbox
 - `process_large_dataset(data, operation)` - Token-optimized data processing
 
 ### AI-Powered
+
 - `recommend_tools(task_description)` - Get intelligent tool recommendations
 
 ## Configuration
@@ -123,7 +173,7 @@ recommend_tools:
 
 ## Architecture
 
-```
+```text
 AI CLI (Claude/Gemini/Codex)
         │ hook fires
         ▼

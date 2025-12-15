@@ -31,7 +31,7 @@ import logging
 import threading
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.sessions.manager import SessionManager
@@ -365,9 +365,7 @@ class HookManager:
                             )
                             # Resolve project_id from cwd
                             cwd = event.data.get("cwd")
-                            project_id = self._resolve_project_id(
-                                event.data.get("project_id"), cwd
-                            )
+                            project_id = self._resolve_project_id(event.data.get("project_id"), cwd)
                             platform_session_id = self._session_manager.register_session(
                                 cli_key=cli_key,
                                 machine_id=machine_id,
@@ -469,7 +467,7 @@ class HookManager:
 
         result = initialize_project(cwd=working_dir)
         self.logger.info(f"Auto-initialized project '{result.project_name}' in {working_dir}")
-        return result.project_id
+        return cast(str, result.project_id)
 
     # ==================== EVENT HANDLERS ====================
     # These handlers work with unified HookEvent and return HookResponse.
@@ -507,9 +505,13 @@ class HookManager:
         session_id_check = self._session_manager.get_session_id(cli_key)
 
         if session_id_check:
-            self.logger.debug(f"🟢 Session start: session {session_id_check}, cli={cli_source}, trigger={trigger_source}")
+            self.logger.debug(
+                f"🟢 Session start: session {session_id_check}, cli={cli_source}, trigger={trigger_source}"
+            )
         else:
-            self.logger.debug(f"🟢 Session start: cli={cli_source}, trigger={trigger_source} (new session)")
+            self.logger.debug(
+                f"🟢 Session start: cli={cli_source}, trigger={trigger_source} (new session)"
+            )
 
         # Get machine ID (from event or generate)
         machine_id = event.machine_id or self.get_machine_id()
@@ -615,14 +617,11 @@ class HookManager:
         input_data = event.data
         transcript_path = input_data.get("transcript_path")
         session_id = event.metadata.get("_platform_session_id")
-        project_id = input_data.get("project_id")
 
         if session_id:
             self.logger.debug(f"🔴 Session end: session {session_id}")
         else:
-            self.logger.warning(
-                f"🔴 Session end: session_id not found for cli_key={cli_key}"
-            )
+            self.logger.warning(f"🔴 Session end: session_id not found for cli_key={cli_key}")
 
         # If not in mapping, query database
         if not session_id and cli_key:

@@ -5,8 +5,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from gobby.config.app import DaemonConfig
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
 from gobby.hooks.hook_manager import HookManager
 from gobby.storage.database import LocalDatabase
@@ -196,10 +194,15 @@ class TestHookManagerSessionEnd:
         self,
         hook_manager_with_mocks: HookManager,
         sample_session_start_event: HookEvent,
+        temp_dir: Path,
     ):
         """Test that session end is allowed."""
         # First start a session
         hook_manager_with_mocks.handle(sample_session_start_event)
+
+        # Create transcript file in temp directory
+        transcript_path = temp_dir / "transcript.jsonl"
+        transcript_path.touch()
 
         # Then end it
         end_event = HookEvent(
@@ -207,7 +210,7 @@ class TestHookManagerSessionEnd:
             session_id="test-cli-key-123",
             source=SessionSource.CLAUDE,
             timestamp=datetime.utcnow(),
-            data={"transcript_path": "/tmp/transcript.jsonl"},
+            data={"transcript_path": str(transcript_path)},
             machine_id="test-machine-id",
         )
 

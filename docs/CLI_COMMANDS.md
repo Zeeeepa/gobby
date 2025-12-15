@@ -168,23 +168,6 @@ gobby uninstall [--claude] [--gemini] [--codex] [--all]
 
 ---
 
-### `gobby mcp-info`
-
-Show MCP server connection information for Claude Code.
-
-```bash
-gobby mcp-info
-```
-
-**Output includes:**
-- Daemon running status
-- MCP server endpoint URL
-- Claude Code configuration JSON snippet
-- List of available MCP tools
-- Connected downstream MCP servers
-
----
-
 ### `gobby mcp-server`
 
 Run stdio MCP server for Claude Code integration.

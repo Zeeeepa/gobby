@@ -9,6 +9,7 @@ import contextvars
 import logging
 import logging.handlers
 import uuid
+from collections.abc import MutableMapping
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -35,7 +36,9 @@ class ContextLogger(logging.LoggerAdapter):
     Supports adding request_id, operation, duration_ms, and other metadata.
     """
 
-    def process(self, msg: str, kwargs: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    def process(
+        self, msg: str, kwargs: MutableMapping[str, Any]
+    ) -> tuple[str, MutableMapping[str, Any]]:
         """Add extra context to log record."""
         extra = kwargs.get("extra", {})
 

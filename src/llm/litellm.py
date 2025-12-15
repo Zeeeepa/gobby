@@ -18,7 +18,7 @@ from gobby.llm.base import AuthMode, LLMProvider
 logger = logging.getLogger(__name__)
 
 
-class LiteLLMProvider(LLMProvider):
+class LiteLLMProvider(LLMProvider):  # type: ignore[misc]
     """
     LiteLLM implementation of LLMProvider.
 

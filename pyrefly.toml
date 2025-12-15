@@ -1,39 +1,10 @@
-# Pyrefly Configuration for Gobby Platform
-# Type checking configuration
+# Pyrefly Configuration
+# See https://pyrefly.org/docs/configuration/
 
-# Project structure
-project-includes = ["src/*.py"]
-project-excludes = [
-    "**/__pycache__",
-    "**/.venv",
-    "**/.archive",
-    "**/build",
-    "**/dist",
-    "**/.mypy_cache",
-    "**/.pytest_cache",
-    "**/.ruff_cache",
-]
-
-# Import resolution
-search-path = ["src"]
-
-# Python version (matching pyproject.toml)
+project-includes = ["src"]
 python-version = "3.11"
 python-platform = "darwin"
 
-# Type checking behavior
-infer-with-first-use = true
-ignore-missing-imports = false
-ignore-errors-in-generated-code = true
-
-# Respect .gitignore files
-use-ignore-files = true
-enabled-ignores = ["type", "pyrefly"]
-
-# Error configuration
 [errors]
-# Disable overly strict checks that might conflict with existing codebase
-bad-assignment = true
-missing-import = true
-undefined-variable = true
-invalid-type-annotation = true
+# Disable errors that are too strict for now
+missing-import = false

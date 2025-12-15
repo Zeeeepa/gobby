@@ -1,7 +1,6 @@
 """Database migrations for local storage."""
 
 import logging
-from typing import Callable
 
 from gobby.storage.database import LocalDatabase
 

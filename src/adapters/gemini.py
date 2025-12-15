@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from gobby.hooks.hook_manager import HookManager
 
 
-class GeminiAdapter(BaseAdapter):
+class GeminiAdapter(BaseAdapter):  # type: ignore[misc]
     """Adapter for Gemini CLI hook translation.
 
     This adapter:

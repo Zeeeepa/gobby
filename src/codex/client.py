@@ -26,7 +26,7 @@ import threading
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +146,12 @@ class CodexAppServerClient:
         await self.start()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
         """Async context manager exit - stops the app-server."""
         await self.stop()
 
@@ -382,7 +387,7 @@ class CodexAppServerClient:
         thread_id: str,
         prompt: str,
         images: list[str] | None = None,
-        **config_overrides,
+        **config_overrides: Any,
     ) -> CodexTurn:
         """
         Start a new turn (send user input and trigger generation).
@@ -442,7 +447,7 @@ class CodexAppServerClient:
         thread_id: str,
         prompt: str,
         images: list[str] | None = None,
-        **config_overrides,
+        **config_overrides: Any,
     ) -> AsyncIterator[dict[str, Any]]:
         """
         Run a turn and yield streaming events.
@@ -584,7 +589,7 @@ class CodexAppServerClient:
 
             # Wait for response
             result = await asyncio.wait_for(future, timeout=timeout)
-            return result
+            return cast(dict[str, Any], result)
 
         except TimeoutError:
             logger.error(f"Request {method} (id={request_id}) timed out")

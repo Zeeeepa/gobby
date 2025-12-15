@@ -16,7 +16,7 @@ Claude Code Hook Types (12 total):
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from gobby.adapters.base import BaseAdapter
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from gobby.hooks.hook_manager import HookManager
 
 
-class ClaudeCodeAdapter(BaseAdapter):
+class ClaudeCodeAdapter(BaseAdapter):  # type: ignore[misc]
     """Adapter for Claude Code CLI hook translation.
 
     This adapter:
@@ -227,7 +227,7 @@ class ClaudeCodeAdapter(BaseAdapter):
                 input_data=native_event.get("input_data", {}),
             )
             # Return native format directly (existing code already formats correctly)
-            return result
+            return cast(dict[str, Any], result)
         else:
             # Phase 2C+: Use new HookEvent-based handler
             hook_type = native_event.get("hook_type", "")

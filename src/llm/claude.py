@@ -11,14 +11,13 @@ import time
 from typing import Any
 
 from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
-
 from gobby.config.app import DaemonConfig
 from gobby.llm.base import LLMProvider
 
 logger = logging.getLogger(__name__)
 
 
-class ClaudeLLMProvider(LLMProvider):
+class ClaudeLLMProvider(LLMProvider):  # type: ignore[misc]
     """
     Claude implementation of LLMProvider using claude_agent_sdk.
 
@@ -156,7 +155,7 @@ class ClaudeLLMProvider(LLMProvider):
         )
 
         # Run async query
-        async def _run_query():
+        async def _run_query() -> str:
             summary_text = ""
             async for message in query(prompt=prompt, options=options):
                 if isinstance(message, AssistantMessage):
@@ -166,15 +165,6 @@ class ClaudeLLMProvider(LLMProvider):
             return summary_text
 
         try:
-            # Use anyio.run for async execution if needed, or await directly if we are in async context
-            # Since this method is async, we can await directly?
-            # But query() is an async generator.
-            # SummaryGenerator used anyio.run(_run_query) because it might have been called from sync context?
-            # No, SummaryGenerator._generate_summary_with_llm was synchronous.
-            # But here generate_summary is async.
-            # However, query() might need to be run in a specific way if it spawns subprocesses.
-            # claude_agent_sdk.query is an async generator.
-
             return await _run_query()
         except Exception as e:
             self.logger.error(f"Failed to generate summary with Claude: {e}")
@@ -209,7 +199,7 @@ class ClaudeLLMProvider(LLMProvider):
         )
 
         # Run async query
-        async def _run_query():
+        async def _run_query() -> str:
             title_text = ""
             async for message in query(prompt=prompt, options=options):
                 if isinstance(message, AssistantMessage):
@@ -219,11 +209,10 @@ class ClaudeLLMProvider(LLMProvider):
             return title_text.strip()
 
         try:
-            # Retry logic for title synthesis (copied from SummaryGenerator)
+            # Retry logic for title synthesis
             max_retries = 3
             for attempt in range(max_retries):
                 try:
-                    # We are in async method, so await directly
                     return await _run_query()
                 except Exception as e:
                     if attempt < max_retries - 1:
@@ -233,6 +222,8 @@ class ClaudeLLMProvider(LLMProvider):
                         await asyncio.sleep(1)
                     else:
                         raise e
+            # This should be unreachable, but mypy can't prove it
+            return None  # pragma: no cover
         except Exception as e:
             self.logger.error(f"Failed to synthesize title with Claude: {e}")
             return None
@@ -289,7 +280,7 @@ class ClaudeLLMProvider(LLMProvider):
         start_time = time.time()
 
         # Run async query
-        async def _run_query():
+        async def _run_query() -> str:
             result_text = ""
             async for message in query(prompt=prompt, options=options):
                 if isinstance(message, AssistantMessage):

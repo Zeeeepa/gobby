@@ -7,7 +7,7 @@ provider routing.
 """
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from gobby.config.app import (
@@ -225,7 +225,7 @@ class LLMService:
         """Get list of enabled provider names."""
         if not self._config.llm_providers:
             return []
-        return self._config.llm_providers.get_enabled_providers()
+        return cast(list[str], self._config.llm_providers.get_enabled_providers())
 
     @property
     def initialized_providers(self) -> list[str]:

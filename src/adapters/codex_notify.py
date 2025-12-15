@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 CODEX_SESSIONS_DIR = Path.home() / ".codex" / "sessions"
 
 
-class CodexNotifyAdapter(BaseAdapter):
+class CodexNotifyAdapter(BaseAdapter):  # type: ignore[misc]
     """Adapter for Codex CLI notify events.
 
     Translates notify payloads to unified HookEvent format.

@@ -230,6 +230,46 @@ Be concise and specific. Recommend 1-3 tools maximum with:
     )
 
 
+DEFAULT_IMPORT_MCP_SERVER_PROMPT = """You are an MCP server configuration extractor. Given documentation for an MCP server, extract the configuration needed to connect to it.
+
+Return ONLY a valid JSON object (no markdown, no code blocks) with these fields:
+- name: Server name (lowercase, no spaces, use hyphens)
+- transport: "http", "stdio", or "websocket"
+- url: Server URL (required for http/websocket transports)
+- command: Command to run (required for stdio, e.g., "npx", "uv", "node")
+- args: Array of command arguments (for stdio)
+- env: Object of environment variables needed (use placeholder "<YOUR_KEY_NAME>" for secrets)
+- headers: Object of HTTP headers needed (use placeholder "<YOUR_KEY_NAME>" for secrets)
+- instructions: How to obtain any required API keys or setup steps
+
+Example stdio server:
+{"name": "filesystem", "transport": "stdio", "command": "npx", "args": ["-y", "@anthropic-ai/filesystem-mcp"], "env": {}, "instructions": "No setup required"}
+
+Example http server with API key:
+{"name": "exa", "transport": "http", "url": "https://mcp.exa.ai/mcp", "headers": {"EXA_API_KEY": "<YOUR_EXA_API_KEY>"}, "instructions": "Get your API key from https://exa.ai/dashboard"}"""
+
+
+class ImportMCPServerConfig(BaseModel):
+    """MCP server import configuration."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable MCP server import tool",
+    )
+    provider: str = Field(
+        default="claude",
+        description="LLM provider to use for config extraction",
+    )
+    model: str = Field(
+        default="claude-haiku-4-5",
+        description="Model to use for config extraction",
+    )
+    prompt: str = Field(
+        default=DEFAULT_IMPORT_MCP_SERVER_PROMPT,
+        description="System prompt for MCP server config extraction",
+    )
+
+
 class MCPClientProxyConfig(BaseModel):
     """MCP client proxy configuration for downstream MCP servers."""
 
@@ -418,6 +458,10 @@ class DaemonConfig(BaseModel):
         default_factory=RecommendToolsConfig,
         description="Tool recommendation configuration",
     )
+    import_mcp_server: ImportMCPServerConfig = Field(
+        default_factory=ImportMCPServerConfig,
+        description="MCP server import configuration",
+    )
 
     def get_code_execution_config(self) -> CodeExecutionConfig:
         """Get code execution configuration."""
@@ -426,6 +470,10 @@ class DaemonConfig(BaseModel):
     def get_recommend_tools_config(self) -> RecommendToolsConfig:
         """Get recommend_tools configuration."""
         return self.recommend_tools
+
+    def get_import_mcp_server_config(self) -> ImportMCPServerConfig:
+        """Get import_mcp_server configuration."""
+        return self.import_mcp_server
 
     def get_mcp_client_proxy_config(self) -> MCPClientProxyConfig:
         """Get MCP client proxy configuration."""

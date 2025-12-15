@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import anyio
-
 from gobby.llm.base import LLMProvider
 from gobby.llm.claude import ClaudeLLMProvider
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
@@ -395,7 +394,7 @@ Respond with ONLY the title, no explanation."""
                 self.logger.debug(f"Session summary updated in database: {session_id}")
                 return True
             else:
-                self.logger.error(f"Failed to update summary in database: session not found")
+                self.logger.error("Failed to update summary in database: session not found")
                 return False
 
         except Exception as e:

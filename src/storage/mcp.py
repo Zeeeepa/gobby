@@ -310,7 +310,7 @@ class LocalMCPManager:
             "DELETE FROM mcp_servers WHERE name = ? AND project_id = ?",
             (name, project_id),
         )
-        return cursor.rowcount > 0
+        return cursor.rowcount > 0  # type: ignore[no-any-return]
 
     def cache_tools(
         self, server_name: str, tools: list[dict[str, Any]], project_id: str

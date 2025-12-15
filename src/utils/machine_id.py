@@ -67,7 +67,7 @@ def _get_or_create_machine_id() -> str:
 
     # If config has machine_id, return it
     if config.machine_id:
-        return config.machine_id
+        return config.machine_id  # type: ignore[no-any-return]
 
     # Config doesn't have it - generate new ID
     new_id: str

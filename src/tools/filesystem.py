@@ -22,7 +22,7 @@ import json
 import logging
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +165,7 @@ def read_tool_schema(
         return None
 
     with open(tool_file) as f:
-        return json.load(f)
+        return cast(dict[str, Any], json.load(f))
 
 
 def remove_server_tools(server_name: str, tools_dir: Path | None = None) -> None:

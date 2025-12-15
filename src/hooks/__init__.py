@@ -12,10 +12,6 @@ Also provides unified hook event models for multi-CLI session management:
 """
 
 # Re-export from new locations for backward compatibility
-from gobby.sessions.manager import SessionManager
-from gobby.sessions.summary import SummaryGenerator
-from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
-
 # Unified hook event models for multi-CLI support
 from gobby.hooks.events import (
     EVENT_TYPE_CLI_SUPPORT,
@@ -24,6 +20,9 @@ from gobby.hooks.events import (
     HookResponse,
     SessionSource,
 )
+from gobby.sessions.manager import SessionManager
+from gobby.sessions.summary import SummaryGenerator
+from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 
 # Backward-compatible alias
 TranscriptProcessor = ClaudeTranscriptParser

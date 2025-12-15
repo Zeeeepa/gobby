@@ -16,7 +16,7 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from gobby.config.app import DaemonConfig
 from gobby.llm.base import AuthMode, LLMProvider
@@ -24,7 +24,7 @@ from gobby.llm.base import AuthMode, LLMProvider
 logger = logging.getLogger(__name__)
 
 
-class CodexProvider(LLMProvider):
+class CodexProvider(LLMProvider):  # type: ignore[misc]
     """
     Codex (OpenAI) implementation of LLMProvider.
 
@@ -124,7 +124,7 @@ class CodexProvider(LLMProvider):
                     api_key = auth_data.get("OPENAI_API_KEY")
                     if api_key:
                         self.logger.debug("Loaded API key from ~/.codex/auth.json")
-                        return api_key
+                        return cast(str | None, api_key)
                 except Exception as e:
                     self.logger.warning(f"Failed to read ~/.codex/auth.json: {e}")
 

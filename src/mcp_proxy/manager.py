@@ -243,6 +243,11 @@ class _HTTPTransportConnection(_BaseTransportConnection):
 
         self._state = ConnectionState.CONNECTING
 
+        # Track what was entered for cleanup
+        transport_entered = False
+        session_entered = False
+        session_context: ClientSession | None = None
+
         try:
             # URL is required for HTTP transport
             assert self.config.url is not None, "URL is required for HTTP transport"
@@ -255,10 +260,12 @@ class _HTTPTransportConnection(_BaseTransportConnection):
 
             # Enter the transport context to get streams
             read_stream, write_stream, _ = await self._transport_context.__aenter__()
+            transport_entered = True
 
-            # Create and initialize session
             session_context = ClientSession(read_stream, write_stream)
             self._session = await session_context.__aenter__()
+            session_entered = True
+
             await self._session.initialize()
 
             self._state = ConnectionState.CONNECTED
@@ -268,10 +275,35 @@ class _HTTPTransportConnection(_BaseTransportConnection):
             return self._session
 
         except Exception as e:
-            self._state = ConnectionState.FAILED
             # Handle exceptions with empty str() (EndOfStream, ClosedResourceError, CancelledError)
             error_msg = str(e) if str(e) else f"{type(e).__name__}: Connection closed or timed out"
             logger.error(f"Failed to connect to HTTP server '{self.config.name}': {error_msg}")
+
+            # Cleanup in reverse order - session first, then transport
+            if session_entered and session_context is not None:
+                try:
+                    await session_context.__aexit__(None, None, None)
+                except Exception as cleanup_error:
+                    logger.warning(
+                        f"Error during session cleanup for {self.config.name}: {cleanup_error}"
+                    )
+
+            if transport_entered and self._transport_context is not None:
+                try:
+                    await self._transport_context.__aexit__(None, None, None)
+                except Exception as cleanup_error:
+                    logger.warning(
+                        f"Error during transport cleanup for {self.config.name}: {cleanup_error}"
+                    )
+
+            # Reset state before raising
+            self._session = None
+            self._transport_context = None
+            self._state = ConnectionState.FAILED
+
+            # Re-raise wrapped in MCPError (don't double-wrap)
+            if isinstance(e, MCPError):
+                raise
             raise MCPError(f"HTTP connection failed: {error_msg}") from e
 
     async def disconnect(self) -> None:
@@ -314,8 +346,14 @@ class _StdioTransportConnection(_BaseTransportConnection):
 
         self._state = ConnectionState.CONNECTING
 
+        # Track what was entered for cleanup
+        transport_entered = False
+        session_entered = False
+        session_context: ClientSession | None = None
+
         try:
             # Create stdio server parameters
+            assert self.config.command is not None, "Command is required for stdio transport"
             params = StdioServerParameters(
                 command=self.config.command,
                 args=self.config.args or [],
@@ -327,10 +365,12 @@ class _StdioTransportConnection(_BaseTransportConnection):
 
             # Enter the transport context to get streams
             read_stream, write_stream = await self._transport_context.__aenter__()
+            transport_entered = True
 
-            # Create and initialize session
             session_context = ClientSession(read_stream, write_stream)
             self._session = await session_context.__aenter__()
+            session_entered = True
+
             await self._session.initialize()
 
             self._state = ConnectionState.CONNECTED
@@ -340,10 +380,35 @@ class _StdioTransportConnection(_BaseTransportConnection):
             return self._session
 
         except Exception as e:
-            self._state = ConnectionState.FAILED
             # Handle exceptions with empty str() (EndOfStream, ClosedResourceError, CancelledError)
             error_msg = str(e) if str(e) else f"{type(e).__name__}: Connection closed or timed out"
             logger.error(f"Failed to connect to stdio server '{self.config.name}': {error_msg}")
+
+            # Cleanup in reverse order - session first, then transport
+            if session_entered and session_context is not None:
+                try:
+                    await session_context.__aexit__(None, None, None)
+                except Exception as cleanup_error:
+                    logger.warning(
+                        f"Error during session cleanup for {self.config.name}: {cleanup_error}"
+                    )
+
+            if transport_entered and self._transport_context is not None:
+                try:
+                    await self._transport_context.__aexit__(None, None, None)
+                except Exception as cleanup_error:
+                    logger.warning(
+                        f"Error during transport cleanup for {self.config.name}: {cleanup_error}"
+                    )
+
+            # Reset state before raising
+            self._session = None
+            self._transport_context = None
+            self._state = ConnectionState.FAILED
+
+            # Re-raise wrapped in MCPError (don't double-wrap)
+            if isinstance(e, MCPError):
+                raise
             raise MCPError(f"Stdio connection failed: {error_msg}") from e
 
     async def disconnect(self) -> None:
@@ -386,6 +451,11 @@ class _WebSocketTransportConnection(_BaseTransportConnection):
 
         self._state = ConnectionState.CONNECTING
 
+        # Track what was entered for cleanup
+        transport_entered = False
+        session_entered = False
+        session_context: ClientSession | None = None
+
         try:
             # URL is required for WebSocket transport
             assert self.config.url is not None, "URL is required for WebSocket transport"
@@ -395,10 +465,12 @@ class _WebSocketTransportConnection(_BaseTransportConnection):
 
             # Enter the transport context to get streams
             read_stream, write_stream = await self._transport_context.__aenter__()
+            transport_entered = True
 
-            # Create and initialize session
             session_context = ClientSession(read_stream, write_stream)
             self._session = await session_context.__aenter__()
+            session_entered = True
+
             await self._session.initialize()
 
             self._state = ConnectionState.CONNECTED
@@ -408,10 +480,35 @@ class _WebSocketTransportConnection(_BaseTransportConnection):
             return self._session
 
         except Exception as e:
-            self._state = ConnectionState.FAILED
             # Handle exceptions with empty str() (EndOfStream, ClosedResourceError, CancelledError)
             error_msg = str(e) if str(e) else f"{type(e).__name__}: Connection closed or timed out"
             logger.error(f"Failed to connect to WebSocket server '{self.config.name}': {error_msg}")
+
+            # Cleanup in reverse order - session first, then transport
+            if session_entered and session_context is not None:
+                try:
+                    await session_context.__aexit__(None, None, None)
+                except Exception as cleanup_error:
+                    logger.warning(
+                        f"Error during session cleanup for {self.config.name}: {cleanup_error}"
+                    )
+
+            if transport_entered and self._transport_context is not None:
+                try:
+                    await self._transport_context.__aexit__(None, None, None)
+                except Exception as cleanup_error:
+                    logger.warning(
+                        f"Error during transport cleanup for {self.config.name}: {cleanup_error}"
+                    )
+
+            # Reset state before raising
+            self._session = None
+            self._transport_context = None
+            self._state = ConnectionState.FAILED
+
+            # Re-raise wrapped in MCPError (don't double-wrap)
+            if isinstance(e, MCPError):
+                raise
             raise MCPError(f"WebSocket connection failed: {error_msg}") from e
 
     async def disconnect(self) -> None:
@@ -549,7 +646,9 @@ class MCPClientManager:
                     )
                     for s in db_servers
                 ]
-                logger.info(f"Loaded {len(self.server_configs)} MCP servers from database (project {project_id})")
+                logger.info(
+                    f"Loaded {len(self.server_configs)} MCP servers from database (project {project_id})"
+                )
             else:
                 self.server_configs = []
                 logger.warning("No server configs or mcp_db_manager provided")
@@ -581,7 +680,7 @@ class MCPClientManager:
 
         Returns lightweight tool metadata for MCPServerConfig.tools field.
         """
-        from gobby.tools.filesystem import generate_brief
+        from ..tools.filesystem import generate_brief
 
         try:
             tools = mcp_db_manager.get_cached_tools(server_name, project_id=project_id)
@@ -736,8 +835,8 @@ class MCPClientManager:
             full_tool_schemas = []
             if connection.is_connected and connection._session:
                 try:
-                    from gobby.tools.filesystem import generate_brief
-                    from gobby.tools.summarizer import summarize_tools
+                    from ..tools.filesystem import generate_brief
+                    from ..tools.summarizer import summarize_tools
 
                     tools_result = await connection._session.list_tools()
                     # Use intelligent summarization for tool descriptions
@@ -746,13 +845,15 @@ class MCPClientManager:
                     # Store lightweight metadata in config (just name + brief)
                     config.tools = [
                         {
-                            "name": tool.get("name"),
-                            "brief": generate_brief(tool.get("description")),
+                            "name": str(tool.get("name", "")),
+                            "brief": generate_brief(str(tool.get("description", ""))),
                         }
                         for tool in full_tool_schemas
                         if tool.get("name")
                     ]
-                    logger.info(f"✓ Fetched {len(config.tools)} tool summaries for '{config.name}'")
+                    logger.info(
+                        f"✓ Fetched {len(config.tools or [])} tool summaries for '{config.name}'"
+                    )
                 except Exception as tool_fetch_error:
                     logger.warning(
                         f"Failed to fetch tool summaries for '{config.name}': {tool_fetch_error}"
@@ -785,7 +886,9 @@ class MCPClientManager:
                         enabled=config.enabled,
                         description=config.description,
                     )
-                    logger.info(f"✓ Persisted MCP server '{config.name}' to database (project {config.project_id})")
+                    logger.info(
+                        f"✓ Persisted MCP server '{config.name}' to database (project {config.project_id})"
+                    )
 
                     # Cache tools to database
                     if full_tool_schemas:
@@ -852,12 +955,13 @@ class MCPClientManager:
         """
         # Check if server exists in config (match by name and project_id)
         server_config = next(
-            (s for s in self.server_configs if s.name == name and s.project_id == project_id),
-            None
+            (s for s in self.server_configs if s.name == name and s.project_id == project_id), None
         )
         if not server_config:
             available = ", ".join(s.name for s in self.server_configs)
-            raise ValueError(f"MCP server '{name}' (project {project_id}) not found in config. Available: [{available}]")
+            raise ValueError(
+                f"MCP server '{name}' (project {project_id}) not found in config. Available: [{available}]"
+            )
 
         try:
             # Get transport type for response
@@ -889,7 +993,8 @@ class MCPClientManager:
 
             # 4. Remove from server_configs list (match by name and project_id)
             self.server_configs = [
-                s for s in self.server_configs
+                s
+                for s in self.server_configs
                 if not (s.name == name and s.project_id == project_id)
             ]
 
@@ -898,7 +1003,9 @@ class MCPClientManager:
                 try:
                     removed = self.mcp_db_manager.remove_server(name, project_id=project_id)
                     if removed:
-                        logger.info(f"✓ Removed MCP server '{name}' (project {project_id}) from database")
+                        logger.info(
+                            f"✓ Removed MCP server '{name}' (project {project_id}) from database"
+                        )
                     else:
                         logger.debug(f"Server '{name}' (project {project_id}) was not in database")
                 except Exception as persist_error:
@@ -906,7 +1013,9 @@ class MCPClientManager:
                         f"Failed to remove MCP server '{name}' from database: {persist_error}"
                     )
 
-            logger.info(f"✓ Removed MCP server '{name}' (project {project_id}) (disconnected and removed from database)")
+            logger.info(
+                f"✓ Removed MCP server '{name}' (project {project_id}) (disconnected and removed from database)"
+            )
 
             return {
                 "success": True,
@@ -1002,9 +1111,8 @@ class MCPClientManager:
                 ) from e
 
         # Make the tool call using MCP SDK ClientSession
+        start_time = datetime.now()
         try:
-            start_time = datetime.now()
-
             # Session must be initialized after connect
             assert connection._session is not None, "Session not initialized"
 
@@ -1035,7 +1143,9 @@ class MCPClientManager:
                     logger.info(f"✓ Reconnected to '{mcp_name}', retrying tool call...")
 
                     # Retry the tool call once after reconnect (with timeout if specified)
-                    assert connection._session is not None, "Session not initialized after reconnect"
+                    assert connection._session is not None, (
+                        "Session not initialized after reconnect"
+                    )
                     if timeout is not None:
                         result = await asyncio.wait_for(
                             connection._session.call_tool(tool_name, args), timeout=timeout
@@ -1088,9 +1198,8 @@ class MCPClientManager:
                 ) from e
 
         # Read resource using MCP SDK ClientSession
+        start_time = datetime.now()
         try:
-            start_time = datetime.now()
-
             # Session must be initialized after connect
             assert connection._session is not None, "Session not initialized"
 

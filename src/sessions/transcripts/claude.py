@@ -53,7 +53,7 @@ class ClaudeTranscriptParser:
             >>> len(last_msgs)
             6  # 3 pairs = 6 messages
         """
-        messages = []
+        messages: list[dict[str, str]] = []
         for turn in reversed(turns):
             # Claude Code transcript structure has message nested
             message = turn.get("message", {})

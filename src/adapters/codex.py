@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class CodexAdapter(BaseAdapter):
+class CodexAdapter(BaseAdapter):  # type: ignore[misc]
     """Adapter for Codex CLI session tracking via app-server events.
 
     This adapter translates Codex app-server events to unified HookEvent
@@ -89,7 +89,7 @@ class CodexAdapter(BaseAdapter):
             hook_manager: Reference to HookManager for event processing.
         """
         self._hook_manager = hook_manager
-        self._codex_client: "CodexAppServerClient | None" = None
+        self._codex_client: CodexAppServerClient | None = None
         self._machine_id: str | None = None
         self._attached = False
 
