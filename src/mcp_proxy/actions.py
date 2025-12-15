@@ -5,9 +5,9 @@ Provides simplified MCP server management without platform sync.
 """
 
 import logging
-from typing import Any
+from typing import Any, cast
 
-from gobby.mcp.manager import MCPClientManager, MCPServerConfig
+from gobby.mcp_proxy.manager import MCPClientManager, MCPServerConfig
 from gobby.tools.summarizer import generate_server_description
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,7 @@ async def add_mcp_server(
         result = await mcp_manager.add_server(config)
 
         if not result.get("success"):
-            return result
+            return cast(dict[str, Any], result)
 
         # Get full tool schemas from add_server result
         full_tool_schemas = result.get("full_tool_schemas", [])
@@ -83,7 +83,7 @@ async def add_mcp_server(
                 logger.warning(f"Failed to generate server description: {e}")
 
         logger.debug(f"Added MCP server: {name} ({transport})")
-        return result
+        return cast(dict[str, Any], result)
 
     except Exception as e:
         logger.error(f"Failed to add MCP server '{name}': {e}")
@@ -115,7 +115,7 @@ async def remove_mcp_server(
         result = await mcp_manager.remove_server(name, project_id=project_id)
         if result.get("success"):
             logger.debug(f"Removed MCP server: {name} (project {project_id})")
-        return result
+        return cast(dict[str, Any], result)
 
     except Exception as e:
         logger.error(f"Failed to remove MCP server '{name}': {e}")
@@ -144,18 +144,20 @@ async def list_mcp_servers(
         servers = []
         for config in mcp_manager.server_configs:
             health = mcp_manager.health.get(config.name)
-            servers.append({
-                "name": config.name,
-                "project_id": config.project_id,
-                "transport": config.transport,
-                "enabled": config.enabled,
-                "url": config.url,
-                "command": config.command,
-                "description": config.description,
-                "connected": config.name in mcp_manager.connections,
-                "state": health.state.value if health else "unknown",
-                "tools": config.tools or [],
-            })
+            servers.append(
+                {
+                    "name": config.name,
+                    "project_id": config.project_id,
+                    "transport": config.transport,
+                    "enabled": config.enabled,
+                    "url": config.url,
+                    "command": config.command,
+                    "description": config.description,
+                    "connected": config.name in mcp_manager.connections,
+                    "state": health.state.value if health else "unknown",
+                    "tools": config.tools or [],
+                }
+            )
 
         return {
             "success": True,

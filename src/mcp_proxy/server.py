@@ -11,7 +11,7 @@ Local-first version: No platform auth, no platform sync.
 import logging
 import os
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from fastmcp import FastMCP
 
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from gobby.hooks.hook_manager import HookManager
     from gobby.llm.base import LLMProvider
     from gobby.llm.service import LLMService
-    from gobby.mcp.manager import MCPClientManager
+    from gobby.mcp_proxy.manager import MCPClientManager
 
 
 def create_mcp_server(
@@ -91,6 +91,9 @@ def create_mcp_server(
         if mcp_proxy_config:
             mcp_proxy_enabled = mcp_proxy_config.enabled
             mcp_tool_timeout = mcp_proxy_config.tool_timeout
+
+    # Extract import_mcp_server config - store the full config object
+    import_mcp_server_config = config
 
     # Extract websocket port from config
     websocket_port = 8766  # Default
@@ -332,7 +335,7 @@ def create_mcp_server(
         Returns:
             Result dict with success status and server info
         """
-        from gobby.mcp.actions import add_mcp_server as add_server_action
+        from gobby.mcp_proxy.actions import add_mcp_server as add_server_action
         from gobby.utils.project_init import initialize_project
 
         # Get or create project for current directory
@@ -343,17 +346,20 @@ def create_mcp_server(
             # Update manager's project_id for subsequent operations
             mcp_manager.project_id = project_id
 
-        return await add_server_action(
-            mcp_manager=mcp_manager,
-            name=name,
-            transport=transport,
-            project_id=project_id,
-            url=url,
-            headers=headers,
-            command=command,
-            args=args,
-            env=env,
-            enabled=enabled,
+        return cast(
+            dict[str, Any],
+            await add_server_action(
+                mcp_manager=mcp_manager,
+                name=name,
+                transport=transport,
+                project_id=project_id,
+                url=url,
+                headers=headers,
+                command=command,
+                args=args,
+                env=env,
+                enabled=enabled,
+            ),
         )
 
     @mcp.tool
@@ -369,7 +375,7 @@ def create_mcp_server(
         Returns:
             Result dict with success status
         """
-        from gobby.mcp.actions import remove_mcp_server as remove_server_action
+        from gobby.mcp_proxy.actions import remove_mcp_server as remove_server_action
 
         project_id = mcp_manager.project_id
         if not project_id:
@@ -379,11 +385,94 @@ def create_mcp_server(
                 "error": "No project context - initialize a project first with init_project()",
             }
 
-        return await remove_server_action(
-            mcp_manager=mcp_manager,
-            name=name,
-            project_id=project_id,
+        return cast(
+            dict[str, Any],
+            await remove_server_action(
+                mcp_manager=mcp_manager,
+                name=name,
+                project_id=project_id,
+            ),
         )
+
+    @mcp.tool
+    async def import_mcp_server(
+        from_project: str | None = None,
+        servers: list[str] | None = None,
+        github_url: str | None = None,
+        query: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Import MCP servers from various sources.
+
+        Three import modes:
+        1. **From project**: Copy servers from another Gobby project
+        2. **From GitHub**: Parse repository README to extract config
+        3. **From query**: Search web to find and configure an MCP server
+
+        If no secrets are needed, the server is added immediately.
+        If secrets are needed (API keys), returns a config to fill in and pass to add_mcp_server().
+
+        Args:
+            from_project: Source project name to import servers from
+            servers: Optional list of specific server names to import (imports all if None)
+            github_url: GitHub repository URL to parse for MCP server config
+            query: Natural language search query (e.g., "exa search mcp server")
+
+        Returns:
+            On success: {"success": True, "imported": ["server1", "server2"]}
+            Needs secrets: {"status": "needs_configuration", "config": {...}, "missing": ["API_KEY"]}
+                          (pass the filled config to add_mcp_server())
+
+        Examples:
+            # Import all servers from another project
+            import_mcp_server(from_project="my-other-project")
+
+            # Import specific servers
+            import_mcp_server(from_project="gobby", servers=["supabase", "context7"])
+
+            # Import from GitHub
+            import_mcp_server(github_url="https://github.com/anthropics/mcp-filesystem")
+
+            # Search and import
+            import_mcp_server(query="exa search mcp server")
+        """
+        from gobby.mcp_proxy.importer import MCPServerImporter
+        from gobby.storage.database import LocalDatabase
+        from gobby.utils.project_init import initialize_project
+
+        # Get or create project for current directory
+        project_id = mcp_manager.project_id
+        if not project_id:
+            init_result = initialize_project()
+            project_id = init_result.project_id
+            mcp_manager.project_id = project_id
+
+        # Initialize database and importer
+        db = LocalDatabase()
+        importer = MCPServerImporter(
+            config=import_mcp_server_config,
+            db=db,
+            current_project_id=project_id,
+            mcp_client_manager=mcp_manager,
+        )
+
+        # Determine which import mode to use
+        if from_project is not None:
+            # Import from another project
+            return cast(dict[str, Any], await importer.import_from_project(from_project, servers))
+
+        if github_url is not None:
+            # Import from GitHub repository
+            return cast(dict[str, Any], await importer.import_from_github(github_url))
+
+        if query is not None:
+            # Search and import
+            return cast(dict[str, Any], await importer.import_from_query(query))
+
+        return {
+            "success": False,
+            "error": "Must provide one of: from_project, github_url, or query",
+        }
 
     # ===== MCP PROXY DISCOVERY TOOLS =====
     # These tools help discover what's available on downstream servers
@@ -659,12 +748,15 @@ def create_mcp_server(
 
                 # Use LLMProvider if available
                 if provider:
-                    return await provider.execute_code(
-                        code=code,
-                        language=language,
-                        context=context,
-                        timeout=timeout,
-                        prompt_template=code_exec_prompt,
+                    return cast(
+                        dict[str, Any],
+                        await provider.execute_code(
+                            code=code,
+                            language=language,
+                            context=context,
+                            timeout=timeout,
+                            prompt_template=code_exec_prompt,
+                        ),
                     )
 
                 # Fallback to legacy implementation

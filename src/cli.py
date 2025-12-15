@@ -12,9 +12,9 @@ import signal
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import click
-
 from gobby.config.app import load_config
 
 logger = logging.getLogger(__name__)
@@ -405,10 +405,9 @@ def start(ctx: click.Context, verbose: bool) -> None:
         time.sleep(2.0)
 
         # Display formatted status
-        from gobby.utils.status import format_status_message
-
         # Try to verify daemon is responding
         import httpx
+        from gobby.utils.status import format_status_message
 
         daemon_healthy = False
         start_time = time.time()
@@ -534,7 +533,6 @@ def status(ctx: click.Context) -> None:
     from pathlib import Path
 
     import psutil
-
     from gobby.utils.status import format_status_message
 
     config = ctx.obj["config"]
@@ -591,125 +589,6 @@ def status(ctx: click.Context) -> None:
 
 @cli.command()
 @click.pass_context
-def mcp_info(ctx: click.Context) -> None:
-    """Show MCP server connection information for AI CLIs."""
-    import json
-    from pathlib import Path
-
-    config = ctx.obj["config"]
-    http_port = config.daemon_port
-
-    click.echo("=" * 60)
-    click.echo("  Gobby Daemon MCP Server Configuration")
-    click.echo("=" * 60 + "\n")
-
-    # Check if daemon is running
-    pid_file = Path.home() / ".gobby" / "gobby.pid"
-    if not pid_file.exists():
-        click.echo("Daemon is not running")
-        click.echo("\nStart the daemon first:")
-        click.echo("  gobby start\n")
-        sys.exit(1)
-
-    try:
-        with open(pid_file) as f:
-            pid = int(f.read().strip())
-        os.kill(pid, 0)  # Check if process exists
-    except (FileNotFoundError, ProcessLookupError, ValueError):
-        click.echo("Daemon is not running")
-        click.echo("\nStart the daemon first:")
-        click.echo("  gobby start\n")
-        sys.exit(1)
-
-    click.echo("Daemon is running\n")
-
-    # MCP server endpoint info
-    click.echo("MCP Server Endpoint:")
-    click.echo(f"  URL: http://localhost:{http_port}/mcp")
-    click.echo("  Transport: HTTP\n")
-
-    # Claude Code configuration
-    click.echo("-" * 60)
-    click.echo("Claude Code")
-    click.echo("-" * 60)
-    click.echo("Add to .claude/settings.json (or ~/.claude/settings.json):\n")
-
-    claude_config = {
-        "mcpServers": {
-            "gobby": {
-                "url": f"http://localhost:{http_port}/mcp",
-                "transport": "http",
-            }
-        }
-    }
-    click.echo("  " + json.dumps(claude_config, indent=2).replace("\n", "\n  "))
-    click.echo()
-
-    # Gemini CLI configuration
-    click.echo("-" * 60)
-    click.echo("Gemini CLI")
-    click.echo("-" * 60)
-    click.echo("Add to .gemini/settings.json (or ~/.gemini/settings.json):\n")
-
-    gemini_config = {
-        "mcpServers": {
-            "gobby": {
-                "uri": f"http://localhost:{http_port}/mcp"
-            }
-        }
-    }
-    click.echo("  " + json.dumps(gemini_config, indent=2).replace("\n", "\n  "))
-    click.echo()
-
-    # Codex CLI configuration
-    click.echo("-" * 60)
-    click.echo("Codex CLI")
-    click.echo("-" * 60)
-    click.echo("Add to ~/.codex/config.toml:\n")
-
-    codex_config = f"""  [mcp_servers.gobby]
-  url = "http://localhost:{http_port}/mcp"
-"""
-    click.echo(codex_config)
-
-    # Try to get available tools
-    try:
-        import httpx
-
-        response = httpx.get(f"http://localhost:{http_port}/admin/status", timeout=2.0)
-        if response.status_code == 200:
-            admin_data = response.json()
-
-            click.echo("-" * 60)
-            click.echo("Available MCP Tools")
-            click.echo("-" * 60)
-            click.echo("  - status - Get daemon health and uptime")
-            click.echo("  - list_mcp_servers - List downstream MCP servers")
-            click.echo("  - list_tools - List tools from downstream servers")
-            click.echo("  - get_tool_schema - Get full schema for a tool")
-            click.echo("  - call_tool - Execute tool on downstream server")
-            click.echo("  - add_mcp_server - Add a new MCP server")
-            click.echo("  - remove_mcp_server - Remove an MCP server")
-
-            # Show downstream servers if any
-            mcp_servers = admin_data.get("mcp_servers", {})
-            if mcp_servers:
-                click.echo(f"\nDownstream MCP Servers ({len(mcp_servers)}):")
-                for server_name, server_info in mcp_servers.items():
-                    status_symbol = "+" if server_info.get("connected") else "-"
-                    click.echo(
-                        f"  {status_symbol} {server_name}: {server_info.get('status', 'unknown')}"
-                    )
-
-    except Exception as e:
-        click.echo(f"\nCould not fetch detailed status: {e}")
-
-    click.echo("\n" + "=" * 60)
-    sys.exit(0)
-
-
-@cli.command()
-@click.pass_context
 def mcp_server(ctx: click.Context) -> None:
     """
     Run stdio MCP server for Claude Code integration.
@@ -724,7 +603,7 @@ def mcp_server(ctx: click.Context) -> None:
     """
     import asyncio
 
-    from gobby.mcp.stdio import main as mcp_main
+    from gobby.mcp_proxy.stdio import main as mcp_main
 
     # Run the stdio MCP server
     asyncio.run(mcp_main())
@@ -810,7 +689,7 @@ def _get_install_dir() -> Path:
     return package_install_dir
 
 
-def _install_claude_hooks(project_path: Path) -> dict:
+def _install_claude_hooks(project_path: Path) -> dict[str, Any]:
     """Install Claude Code hooks to a project.
 
     Args:
@@ -825,10 +704,12 @@ def _install_claude_hooks(project_path: Path) -> dict:
     """
     from shutil import copy2, copytree
 
-    result = {
+    hooks_installed: list[str] = []
+    skills_installed: list[str] = []
+    result: dict[str, Any] = {
         "success": False,
-        "hooks_installed": [],
-        "skills_installed": [],
+        "hooks_installed": hooks_installed,
+        "skills_installed": skills_installed,
         "error": None,
     }
 
@@ -894,7 +775,7 @@ def _install_claude_hooks(project_path: Path) -> dict:
                 if target_skill_dir.exists():
                     shutil.rmtree(target_skill_dir)
                 copytree(skill_dir, target_skill_dir)
-                result["skills_installed"].append(skill_dir.name)
+                skills_installed.append(skill_dir.name)
 
     # Backup existing settings.json if it exists
     if settings_file.exists():
@@ -926,7 +807,7 @@ def _install_claude_hooks(project_path: Path) -> dict:
     gobby_hooks = gobby_settings.get("hooks", {})
     for hook_type, hook_config in gobby_hooks.items():
         existing_settings["hooks"][hook_type] = hook_config
-        result["hooks_installed"].append(hook_type)
+        hooks_installed.append(hook_type)
 
     # Write merged settings back
     with open(settings_file, "w") as f:
@@ -936,7 +817,7 @@ def _install_claude_hooks(project_path: Path) -> dict:
     return result
 
 
-def _install_gemini_hooks(project_path: Path) -> dict:
+def _install_gemini_hooks(project_path: Path) -> dict[str, Any]:
     """Install Gemini CLI hooks to a project.
 
     Args:
@@ -950,9 +831,10 @@ def _install_gemini_hooks(project_path: Path) -> dict:
     """
     from shutil import copy2
 
-    result = {
+    hooks_installed: list[str] = []
+    result: dict[str, Any] = {
         "success": False,
-        "hooks_installed": [],
+        "hooks_installed": hooks_installed,
         "error": None,
     }
 
@@ -1035,7 +917,7 @@ def _install_gemini_hooks(project_path: Path) -> dict:
     gobby_hooks = gobby_settings.get("hooks", {})
     for hook_type, hook_config in gobby_hooks.items():
         existing_settings["hooks"][hook_type] = hook_config
-        result["hooks_installed"].append(hook_type)
+        hooks_installed.append(hook_type)
 
     # Crucially, ensure hooks are enabled in Gemini CLI
     if "general" not in existing_settings:
@@ -1051,7 +933,7 @@ def _install_gemini_hooks(project_path: Path) -> dict:
     return result
 
 
-def _uninstall_claude_hooks(project_path: Path) -> dict:
+def _uninstall_claude_hooks(project_path: Path) -> dict[str, Any]:
     """Uninstall Claude Code hooks from a project.
 
     Args:
@@ -1067,11 +949,14 @@ def _uninstall_claude_hooks(project_path: Path) -> dict:
     """
     import shutil
 
-    result = {
+    hooks_removed: list[str] = []
+    files_removed: list[str] = []
+    skills_removed: list[str] = []
+    result: dict[str, Any] = {
         "success": False,
-        "hooks_removed": [],
-        "files_removed": [],
-        "skills_removed": [],
+        "hooks_removed": hooks_removed,
+        "files_removed": files_removed,
+        "skills_removed": skills_removed,
         "error": None,
     }
 
@@ -1113,7 +998,7 @@ def _uninstall_claude_hooks(project_path: Path) -> dict:
         for hook_type in hook_types:
             if hook_type in settings["hooks"]:
                 del settings["hooks"][hook_type]
-                result["hooks_removed"].append(hook_type)
+                hooks_removed.append(hook_type)
 
         with open(settings_file, "w") as f:
             json.dump(settings, f, indent=2)
@@ -1130,7 +1015,7 @@ def _uninstall_claude_hooks(project_path: Path) -> dict:
         file_path = hooks_dir / filename
         if file_path.exists():
             file_path.unlink()
-            result["files_removed"].append(filename)
+            files_removed.append(filename)
 
     # Remove Gobby skills
     install_dir = _get_install_dir()
@@ -1142,13 +1027,13 @@ def _uninstall_claude_hooks(project_path: Path) -> dict:
                 target_skill_dir = skills_dir / skill_dir.name
                 if target_skill_dir.exists():
                     shutil.rmtree(target_skill_dir)
-                    result["skills_removed"].append(skill_dir.name)
+                    skills_removed.append(skill_dir.name)
 
     result["success"] = True
     return result
 
 
-def _uninstall_gemini_hooks(project_path: Path) -> dict:
+def _uninstall_gemini_hooks(project_path: Path) -> dict[str, Any]:
     """Uninstall Gemini CLI hooks from a project.
 
     Args:
@@ -1161,10 +1046,12 @@ def _uninstall_gemini_hooks(project_path: Path) -> dict:
         - files_removed: list of filenames
         - error: str (if success=False)
     """
-    result = {
+    hooks_removed: list[str] = []
+    files_removed: list[str] = []
+    result: dict[str, Any] = {
         "success": False,
-        "hooks_removed": [],
-        "files_removed": [],
+        "hooks_removed": hooks_removed,
+        "files_removed": files_removed,
         "error": None,
     }
 
@@ -1206,7 +1093,7 @@ def _uninstall_gemini_hooks(project_path: Path) -> dict:
         for hook_type in hook_types:
             if hook_type in settings["hooks"]:
                 del settings["hooks"][hook_type]
-                result["hooks_removed"].append(hook_type)
+                hooks_removed.append(hook_type)
 
         # Also remove the "general" section if "enableHooks" was the only entry
         if "general" in settings and settings["general"].get("enableHooks") is True:
@@ -1223,7 +1110,7 @@ def _uninstall_gemini_hooks(project_path: Path) -> dict:
     dispatcher_file = hooks_dir / "hook-dispatcher.py"
     if dispatcher_file.exists():
         dispatcher_file.unlink()
-        result["files_removed"].append("hook-dispatcher.py")
+        files_removed.append("hook-dispatcher.py")
 
     # Attempt to remove empty hooks directory
     try:
@@ -1236,7 +1123,7 @@ def _uninstall_gemini_hooks(project_path: Path) -> dict:
     return result
 
 
-def _install_codex_notify() -> dict:
+def _install_codex_notify() -> dict[str, Any]:
     """Install Codex notify script and configure ~/.codex/config.toml.
 
     Codex does not use project-local hook directories. Instead, interactive Codex
@@ -1253,9 +1140,10 @@ def _install_codex_notify() -> dict:
     import re
     from shutil import copy2
 
-    result = {
+    files_installed: list[str] = []
+    result: dict[str, Any] = {
         "success": False,
-        "files_installed": [],
+        "files_installed": files_installed,
         "config_updated": False,
         "error": None,
     }
@@ -1276,7 +1164,7 @@ def _install_codex_notify() -> dict:
 
     copy2(source_notify, target_notify)
     target_notify.chmod(0o755)
-    result["files_installed"].append(str(target_notify))
+    files_installed.append(str(target_notify))
 
     # Update ~/.codex/config.toml
     codex_config_dir = Path.home() / ".codex"
@@ -1314,7 +1202,7 @@ def _install_codex_notify() -> dict:
         return result
 
 
-def _uninstall_codex_notify() -> dict:
+def _uninstall_codex_notify() -> dict[str, Any]:
     """Uninstall Codex notify script and remove from ~/.codex/config.toml.
 
     Returns:
@@ -1326,9 +1214,10 @@ def _uninstall_codex_notify() -> dict:
     """
     import re
 
-    result = {
+    files_removed: list[str] = []
+    result: dict[str, Any] = {
         "success": False,
-        "files_removed": [],
+        "files_removed": files_removed,
         "config_updated": False,
         "error": None,
     }
@@ -1337,7 +1226,7 @@ def _uninstall_codex_notify() -> dict:
     notify_file = Path.home() / ".gobby" / "hooks" / "codex" / "notify.py"
     if notify_file.exists():
         notify_file.unlink()
-        result["files_removed"].append(str(notify_file))
+        files_removed.append(str(notify_file))
 
     # Try to remove empty parent directories
     notify_dir = notify_file.parent

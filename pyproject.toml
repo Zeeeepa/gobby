@@ -34,7 +34,7 @@ packages = [
     "gobby.hooks",
     "gobby.install",
     "gobby.llm",
-    "gobby.mcp",
+    "gobby.mcp_proxy",
     "gobby.servers",
     "gobby.sessions",
     "gobby.sessions.transcripts",
@@ -119,4 +119,5 @@ dev = [
     "pytest-mock>=3.14.0",
     "ruff>=0.8.0",
     "types-PyYAML>=6.0.12.12",
+    "pyrefly>=0.1.0",
 ]

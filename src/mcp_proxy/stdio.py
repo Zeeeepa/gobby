@@ -14,11 +14,10 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import httpx
 from fastmcp import FastMCP
-
 from gobby.config.app import load_config
 
 logger = logging.getLogger(__name__)
@@ -271,9 +270,9 @@ async def _call_daemon_tool(
                 try:
                     result = response.json()
                     if "result" in result and "structuredContent" in result["result"]:
-                        return result["result"]["structuredContent"]
+                        return cast(dict[str, Any], result["result"]["structuredContent"])
                     elif "result" in result:
-                        return result["result"]
+                        return cast(dict[str, Any], result["result"])
                     elif "error" in result:
                         return {
                             "success": False,
@@ -289,9 +288,9 @@ async def _call_daemon_tool(
                             json_str = text.split("data: ", 1)[1].strip()
                             result = json.loads(json_str)
                             if "result" in result and "structuredContent" in result["result"]:
-                                return result["result"]["structuredContent"]
+                                return cast(dict[str, Any], result["result"]["structuredContent"])
                             elif "result" in result:
-                                return result["result"]
+                                return cast(dict[str, Any], result["result"])
                             elif "error" in result:
                                 return {
                                     "success": False,
@@ -374,7 +373,7 @@ def create_stdio_mcp_server() -> FastMCP:
 
             # Get formatted status after successful start
             if result["healthy"]:
-                status_result = await status()
+                status_result = await _get_status()
                 result["formatted_message"] = status_result.get("formatted_message")
 
         return result
@@ -429,31 +428,8 @@ def create_stdio_mcp_server() -> FastMCP:
 
         return result
 
-    @mcp.tool
-    async def status() -> dict[str, Any]:
-        """
-        Get comprehensive daemon status and health information.
-
-        Use this to check if the daemon is running and healthy before performing operations.
-        Always call this first when troubleshooting issues.
-
-        Returns a dictionary with:
-        - running: Whether the daemon process is running (bool)
-        - pid: Process ID if running (int or null)
-        - healthy: Whether the daemon is responding to HTTP requests (bool)
-        - http_port: Daemon's HTTP port (typically 8765)
-        - websocket_port: Daemon's WebSocket port (typically 8766)
-        - daemon_details: Additional status info if daemon is healthy
-        - formatted_message: Human-readable status display
-
-        Example workflow:
-        1. Call status() to check current state
-        2. If not running, call start()
-        3. If running but not healthy, call restart()
-
-        Returns:
-            Daemon status dictionary with running, pid, healthy, and port information
-        """
+    async def _get_status() -> dict[str, Any]:
+        """Internal helper to get status."""
         from pathlib import Path
 
         from gobby.utils.status import format_status_message
@@ -509,7 +485,36 @@ def create_stdio_mcp_server() -> FastMCP:
         return result
 
     @mcp.tool
-    async def init_project(name: str | None = None, github_url: str | None = None) -> dict[str, Any]:
+    async def status() -> dict[str, Any]:
+        """
+        Get comprehensive daemon status and health information.
+
+        Use this to check if the daemon is running and healthy before performing operations.
+        Always call this first when troubleshooting issues.
+
+        Returns a dictionary with:
+        - running: Whether the daemon process is running (bool)
+        - pid: Process ID if running (int or null)
+        - healthy: Whether the daemon is responding to HTTP requests (bool)
+        - http_port: Daemon's HTTP port (typically 8765)
+        - websocket_port: Daemon's WebSocket port (typically 8766)
+        - daemon_details: Additional status info if daemon is healthy
+        - formatted_message: Human-readable status display
+
+        Example workflow:
+        1. Call status() to check current state
+        2. If not running, call start()
+        3. If running but not healthy, call restart()
+
+        Returns:
+            Daemon status dictionary with running, pid, healthy, and port information
+        """
+        return await _get_status()
+
+    @mcp.tool
+    async def init_project(
+        name: str | None = None, github_url: str | None = None
+    ) -> dict[str, Any]:
         """
         Initialize a new Gobby project in the current directory.
 
@@ -713,6 +718,65 @@ def create_stdio_mcp_server() -> FastMCP:
             tool_name="remove_mcp_server",
             arguments={"name": name},
             timeout=default_tool_timeout,
+        )
+
+    @mcp.tool
+    async def import_mcp_server(
+        from_project: str | None = None,
+        servers: list[str] | None = None,
+        github_url: str | None = None,
+        query: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Import MCP servers from various sources.
+
+        Three import modes:
+        1. **From project**: Copy servers from another Gobby project
+        2. **From GitHub**: Parse repository README to extract config
+        3. **From query**: Search web to find and configure an MCP server
+
+        If no secrets are needed, the server is added immediately.
+        If secrets are needed (API keys), returns a config to fill in and pass to add_mcp_server().
+
+        Args:
+            from_project: Source project name to import servers from
+            servers: Optional list of specific server names to import (imports all if None)
+            github_url: GitHub repository URL to parse for MCP server config
+            query: Natural language search query (e.g., "exa search mcp server")
+
+        Returns:
+            On success: {"success": True, "imported": ["server1", "server2"]}
+            Needs secrets: {"status": "needs_configuration", "config": {...}, "missing": ["API_KEY"]}
+                          (pass the filled config to add_mcp_server())
+
+        Examples:
+            # Import all servers from another project
+            import_mcp_server(from_project="my-other-project")
+
+            # Import specific servers
+            import_mcp_server(from_project="gobby", servers=["supabase", "context7"])
+
+            # Import from GitHub
+            import_mcp_server(github_url="https://github.com/anthropics/mcp-filesystem")
+
+            # Search and import
+            import_mcp_server(query="exa search mcp server")
+        """
+        arguments: dict[str, Any] = {}
+        if from_project is not None:
+            arguments["from_project"] = from_project
+        if servers is not None:
+            arguments["servers"] = servers
+        if github_url is not None:
+            arguments["github_url"] = github_url
+        if query is not None:
+            arguments["query"] = query
+
+        return await _call_daemon_tool(
+            daemon_port=daemon_port,
+            tool_name="import_mcp_server",
+            arguments=arguments,
+            timeout=120,  # Longer timeout for web search/fetch
         )
 
     @mcp.tool
@@ -958,7 +1022,7 @@ def create_stdio_mcp_server() -> FastMCP:
                 context="Calculate sum of squares from 1 to 1000"
             )
         """
-        arguments = {"code": code, "language": language}
+        arguments: dict[str, Any] = {"code": code, "language": language}
         if context:
             arguments["context"] = context
         if timeout is not None:
@@ -1024,7 +1088,7 @@ def create_stdio_mcp_server() -> FastMCP:
                 operation="Group by product_id and calculate total revenue and count",
             )
         """
-        arguments = {"data": data, "operation": operation}
+        arguments: dict[str, Any] = {"data": data, "operation": operation}
         if parameters:
             arguments["parameters"] = parameters
         if timeout is not None:
@@ -1046,7 +1110,7 @@ def create_stdio_mcp_server() -> FastMCP:
 
         Provides read-only access to daemon status information.
         """
-        return await status()
+        return await _get_status()
 
     logger.debug("✅ Stdio MCP wrapper created with daemon lifecycle tools")
     return mcp

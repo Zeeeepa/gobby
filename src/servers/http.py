@@ -11,21 +11,20 @@ import os
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, cast
 
 import psutil
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
-from pydantic import BaseModel, Field
-
 from gobby.adapters.codex import CodexAdapter
 from gobby.hooks.hook_manager import HookManager
 from gobby.llm import LLMService, create_llm_service
-from gobby.mcp.server import create_mcp_server
+from gobby.mcp_proxy.server import create_mcp_server
 from gobby.storage.sessions import LocalSessionManager
 from gobby.utils.metrics import Counter, get_metrics_collector
 from gobby.utils.version import get_version
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -97,8 +96,7 @@ class HTTPServer:
             try:
                 self.llm_service = create_llm_service(config)
                 logger.debug(
-                    f"LLM service initialized with providers: "
-                    f"{self.llm_service.enabled_providers}"
+                    f"LLM service initialized with providers: {self.llm_service.enabled_providers}"
                 )
             except Exception as e:
                 logger.error(f"Failed to initialize LLM service: {e}")
@@ -197,9 +195,7 @@ class HTTPServer:
             if self.config:
                 # Pass full log file path from config
                 hook_manager_kwargs["log_file"] = self.config.logging.hook_manager
-                hook_manager_kwargs["log_max_bytes"] = (
-                    self.config.logging.max_size_mb * 1024 * 1024
-                )
+                hook_manager_kwargs["log_max_bytes"] = self.config.logging.max_size_mb * 1024 * 1024
                 hook_manager_kwargs["log_backup_count"] = self.config.logging.backup_count
 
             app.state.hook_manager = HookManager(**hook_manager_kwargs)
@@ -383,12 +379,16 @@ class HTTPServer:
                         is_connected = config.name in self.mcp_manager.connections
                         mcp_health[config.name] = {
                             "connected": is_connected,
-                            "status": health.state.value if health else ("connected" if is_connected else "not_started"),
+                            "status": health.state.value
+                            if health
+                            else ("connected" if is_connected else "not_started"),
                             "enabled": config.enabled,
                             "transport": config.transport,
                             "health": health.health.value if health else None,
                             "consecutive_failures": health.consecutive_failures if health else 0,
-                            "last_health_check": health.last_health_check.isoformat() if health and health.last_health_check else None,
+                            "last_health_check": health.last_health_check.isoformat()
+                            if health and health.last_health_check
+                            else None,
                             "response_time_ms": health.response_time_ms if health else None,
                         }
                 except Exception as e:
@@ -527,9 +527,7 @@ class HTTPServer:
 
             try:
                 if self.session_manager is None:
-                    raise HTTPException(
-                        status_code=503, detail="Session manager not available"
-                    )
+                    raise HTTPException(status_code=503, detail="Session manager not available")
 
                 # Get machine_id from request or generate
                 machine_id = request_data.machine_id
@@ -548,9 +546,7 @@ class HTTPServer:
                         git_branch = git_metadata["git_branch"]
 
                 # Resolve project_id from cwd if not provided
-                project_id = self._resolve_project_id(
-                    request_data.project_id, request_data.cwd
-                )
+                project_id = self._resolve_project_id(request_data.project_id, request_data.cwd)
 
                 # Register session in local storage
                 session = self.session_manager.register(
@@ -598,9 +594,7 @@ class HTTPServer:
 
             try:
                 if self.session_manager is None:
-                    raise HTTPException(
-                        status_code=503, detail="Session manager not available"
-                    )
+                    raise HTTPException(status_code=503, detail="Session manager not available")
 
                 session = self.session_manager.get(session_id)
 
@@ -611,7 +605,7 @@ class HTTPServer:
 
                 return {
                     "status": "success",
-                    "session": session.model_dump(),
+                    "session": session.to_dict(),
                     "response_time_ms": response_time_ms,
                 }
 
@@ -630,9 +624,7 @@ class HTTPServer:
             """
             try:
                 if self.session_manager is None:
-                    raise HTTPException(
-                        status_code=503, detail="Session manager not available"
-                    )
+                    raise HTTPException(status_code=503, detail="Session manager not available")
 
                 body = await request.json()
                 cli_key = body.get("cli_key")
@@ -650,7 +642,7 @@ class HTTPServer:
                 if session is None:
                     return {"session": None}
 
-                return {"session": session.model_dump()}
+                return {"session": session.to_dict()}
 
             except HTTPException:
                 raise
@@ -668,9 +660,7 @@ class HTTPServer:
             """
             try:
                 if self.session_manager is None:
-                    raise HTTPException(
-                        status_code=503, detail="Session manager not available"
-                    )
+                    raise HTTPException(status_code=503, detail="Session manager not available")
 
                 body = await request.json()
                 machine_id = body.get("machine_id")
@@ -679,9 +669,7 @@ class HTTPServer:
                 cwd = body.get("cwd")
 
                 if not source:
-                    raise HTTPException(
-                        status_code=400, detail="Required field: source"
-                    )
+                    raise HTTPException(status_code=400, detail="Required field: source")
 
                 if not machine_id:
                     from gobby.utils.machine_id import get_machine_id
@@ -706,7 +694,7 @@ class HTTPServer:
                 if session is None:
                     return {"session": None}
 
-                return {"session": session.model_dump()}
+                return {"session": session.to_dict()}
 
             except HTTPException:
                 raise
@@ -721,9 +709,7 @@ class HTTPServer:
             """
             try:
                 if self.session_manager is None:
-                    raise HTTPException(
-                        status_code=503, detail="Session manager not available"
-                    )
+                    raise HTTPException(status_code=503, detail="Session manager not available")
 
                 body = await request.json()
                 session_id = body.get("session_id")
@@ -739,7 +725,7 @@ class HTTPServer:
                 if session is None:
                     raise HTTPException(status_code=404, detail="Session not found")
 
-                return {"session": session.model_dump()}
+                return {"session": session.to_dict()}
 
             except HTTPException:
                 raise
@@ -754,9 +740,7 @@ class HTTPServer:
             """
             try:
                 if self.session_manager is None:
-                    raise HTTPException(
-                        status_code=503, detail="Session manager not available"
-                    )
+                    raise HTTPException(status_code=503, detail="Session manager not available")
 
                 body = await request.json()
                 session_id = body.get("session_id")
@@ -772,7 +756,7 @@ class HTTPServer:
                 if session is None:
                     raise HTTPException(status_code=404, detail="Session not found")
 
-                return {"session": session.model_dump()}
+                return {"session": session.to_dict()}
 
             except HTTPException:
                 raise
@@ -867,9 +851,7 @@ class HTTPServer:
                         exc_info=True,
                         extra={"server": server_name},
                     )
-                    raise HTTPException(
-                        status_code=500, detail=f"Failed to list tools: {e}"
-                    ) from e
+                    raise HTTPException(status_code=500, detail=f"Failed to list tools: {e}") from e
 
             except HTTPException:
                 raise
@@ -879,9 +861,7 @@ class HTTPServer:
                 raise HTTPException(status_code=500, detail=str(e)) from e
 
         @app.post("/mcp/{server_name}/tools/{tool_name}")
-        async def mcp_proxy(
-            server_name: str, tool_name: str, request: Request
-        ) -> dict[str, Any]:
+        async def mcp_proxy(server_name: str, tool_name: str, request: Request) -> dict[str, Any]:
             """
             Unified MCP proxy endpoint for calling MCP server tools.
 
@@ -1058,7 +1038,7 @@ class HTTPServer:
                         },
                     )
 
-                    return result
+                    return cast(dict[str, Any], result)
 
                 except ValueError as e:
                     self._metrics.inc_counter("hooks_failed_total")

@@ -16,11 +16,10 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from websockets.asyncio.server import Response, serve
+from gobby.mcp_proxy.manager import MCPClientManager
+from websockets.asyncio.server import Response, serve  # type: ignore[attr-defined]
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
-from websockets.http11 import Headers
-
-from gobby.mcp.manager import MCPClientManager
+from websockets.http11 import Headers  # type: ignore[attr-defined]
 
 logger = logging.getLogger(__name__)
 

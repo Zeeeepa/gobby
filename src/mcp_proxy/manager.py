@@ -244,6 +244,9 @@ class _HTTPTransportConnection(_BaseTransportConnection):
         self._state = ConnectionState.CONNECTING
 
         try:
+            # URL is required for HTTP transport
+            assert self.config.url is not None, "URL is required for HTTP transport"
+
             # Create HTTP client context with custom headers
             self._transport_context = streamablehttp_client(
                 self.config.url,
@@ -384,6 +387,9 @@ class _WebSocketTransportConnection(_BaseTransportConnection):
         self._state = ConnectionState.CONNECTING
 
         try:
+            # URL is required for WebSocket transport
+            assert self.config.url is not None, "URL is required for WebSocket transport"
+
             # Create WebSocket client context
             self._transport_context = websocket_client(self.config.url)
 
@@ -999,6 +1005,9 @@ class MCPClientManager:
         try:
             start_time = datetime.now()
 
+            # Session must be initialized after connect
+            assert connection._session is not None, "Session not initialized"
+
             # Call tool via ClientSession with optional timeout
             if timeout is not None:
                 result = await asyncio.wait_for(
@@ -1026,6 +1035,7 @@ class MCPClientManager:
                     logger.info(f"✓ Reconnected to '{mcp_name}', retrying tool call...")
 
                     # Retry the tool call once after reconnect (with timeout if specified)
+                    assert connection._session is not None, "Session not initialized after reconnect"
                     if timeout is not None:
                         result = await asyncio.wait_for(
                             connection._session.call_tool(tool_name, args), timeout=timeout
@@ -1080,6 +1090,9 @@ class MCPClientManager:
         # Read resource using MCP SDK ClientSession
         try:
             start_time = datetime.now()
+
+            # Session must be initialized after connect
+            assert connection._session is not None, "Session not initialized"
 
             # Read resource via ClientSession
             resource = await connection._session.read_resource(resource_uri)
@@ -1174,10 +1187,16 @@ class MCPClientManager:
         client = self.get_client(mcp_name)
 
         try:
-            success = await client.reconnect()
+            # Disconnect first if connected
+            if client.is_connected:
+                await client.disconnect()
+
+            # Reconnect
+            await client.connect()
+            success = client.is_connected
 
             if success:
-                self.health[mcp_name].state = client.connection_state
+                self.health[mcp_name].state = client.state
                 self.health[mcp_name].record_success()
                 logger.info(f"Successfully reconnected to MCP server: {mcp_name}")
             else:

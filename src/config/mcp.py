@@ -10,7 +10,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from gobby.mcp.manager import MCPServerConfig
+from gobby.mcp_proxy.manager import MCPServerConfig
 
 logger = logging.getLogger(__name__)
 

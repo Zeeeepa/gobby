@@ -15,7 +15,7 @@ from pathlib import Path
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 from gobby.config.app import load_config
-from gobby.mcp.manager import MCPClientManager
+from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.servers.http import HTTPServer
 from gobby.servers.websocket import WebSocketConfig, WebSocketServer
 from gobby.storage.database import LocalDatabase
