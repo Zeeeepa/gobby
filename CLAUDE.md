@@ -68,8 +68,8 @@ uv run mypy src/
 **MCP Client Management:**
 
 - `src/mcp/manager.py` - MCPClientManager handles connections to downstream MCP servers (context7, supabase, etc.) with multiple transport support (HTTP, stdio, WebSocket)
-- `src/config/mcp.py` - MCP configuration management, loads from `~/.gobby/.mcp.json`
-- `src/tools/filesystem.py` - Tool schema storage in `~/.gobby/tools/`
+- `src/config/mcp.py` - MCP configuration management
+- `src/storage/mcp.py` - LocalMCPManager for MCP server and tool storage in SQLite
 
 **Hook System:**
 
@@ -111,9 +111,7 @@ uv run mypy src/
 ### Key File Locations
 
 - Config: `~/.gobby/config.yaml`
-- Database: `~/.gobby/gobby.db`
-- MCP server config: `~/.gobby/.mcp.json`
-- Tool schemas: `~/.gobby/tools/<server_name>/<tool_name>.json`
+- Database: `~/.gobby/gobby.db` (sessions, projects, MCP servers, tools)
 - Logs: `~/.gobby/logs/`
 - Session summaries: `~/.gobby/session_summaries/`
 
@@ -122,10 +120,10 @@ uv run mypy src/
 The daemon implements progressive tool discovery to reduce token usage:
 
 1. **list_tools()** - Returns lightweight tool metadata (name + brief description)
-2. **get_tool_schema()** - Returns full inputSchema for a specific tool from filesystem cache
+2. **get_tool_schema()** - Returns full inputSchema for a specific tool from SQLite cache
 3. **call_tool()** - Executes the tool on the downstream MCP server
 
-Tool schemas are cached in `~/.gobby/tools/` and metadata in `~/.gobby/.mcp.json`.
+Tool schemas are cached in SQLite (`mcp_servers` and `tools` tables) via `LocalMCPManager`.
 
 ## Testing
 
@@ -134,8 +132,3 @@ Tests use pytest with asyncio support. Key test configuration in `pyproject.toml
 - `asyncio_mode = "auto"` - Automatic async test detection
 - Coverage threshold: 80%
 - Markers: `slow`, `integration`, `e2e`
-
-
-**Note**: This project uses [bd (beads)](https://github.com/steveyegge/beads)
-for issue tracking. Use `bd` commands instead of markdown TODOs.
-See AGENTS.md for workflow details.
