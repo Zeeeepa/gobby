@@ -184,6 +184,24 @@ class LocalTaskManager:
             raise ValueError(f"Task {task_id} not found")
         return Task.from_row(row)
 
+    def find_task_by_prefix(self, prefix: str) -> Task | None:
+        """Find a task by ID prefix. Returns None if no match or multiple matches."""
+        # First try exact match
+        row = self.db.fetchone("SELECT * FROM tasks WHERE id = ?", (prefix,))
+        if row:
+            return Task.from_row(row)
+
+        # Try prefix match
+        rows = self.db.fetchall("SELECT * FROM tasks WHERE id LIKE ?", (f"{prefix}%",))
+        if len(rows) == 1:
+            return Task.from_row(rows[0])
+        return None
+
+    def find_tasks_by_prefix(self, prefix: str) -> list[Task]:
+        """Find all tasks matching an ID prefix."""
+        rows = self.db.fetchall("SELECT * FROM tasks WHERE id LIKE ?", (f"{prefix}%",))
+        return [Task.from_row(row) for row in rows]
+
     def update_task(
         self,
         task_id: str,

@@ -43,7 +43,8 @@ def format_task_row(task: Task) -> str:
         3: "🔵",  # Low
     }.get(task.priority, "⚪")
 
-    return f"{task.id[:8]} {status_icon} {priority_icon} {task.title}"
+    # Show full ID for usability - users need complete IDs for commands
+    return f"{task.id} {status_icon} {priority_icon} {task.title}"
 
 
 @click.group()
@@ -106,20 +107,39 @@ def create_task(title: str, description: str | None, priority: int, task_type: s
     click.echo(f"Created task {task.id[:8]}: {task.title}")
 
 
+def resolve_task_id(manager: LocalTaskManager, task_id: str) -> Task | None:
+    """Resolve a task ID (exact or prefix match) with user-friendly errors."""
+    # Try exact match first
+    try:
+        return manager.get_task(task_id)
+    except ValueError:
+        pass
+
+    # Try prefix matching
+    matches = manager.find_tasks_by_prefix(task_id)
+
+    if len(matches) == 0:
+        click.echo(f"Task '{task_id}' not found", err=True)
+        return None
+    elif len(matches) == 1:
+        return matches[0]
+    else:
+        click.echo(f"Ambiguous task ID '{task_id}' matches {len(matches)} tasks:", err=True)
+        for task in matches[:5]:
+            click.echo(f"  {task.id}: {task.title}", err=True)
+        if len(matches) > 5:
+            click.echo(f"  ... and {len(matches) - 5} more", err=True)
+        return None
+
+
 @tasks.command("show")
 @click.argument("task_id")
 def show_task(task_id: str) -> None:
     """Show details for a task."""
     manager = get_task_manager()
-    task = manager.get_task(task_id)
+    task = resolve_task_id(manager, task_id)
 
     if not task:
-        # Try finding by partial ID? For now assume exact or we can implement fuzzy lookup
-        # LocalTaskManager.get_task typically expects full ID.
-        # But user might pass short ID.
-        # If get_task fails with short ID, we might need a lookup helper.
-        # For now, simplistic.
-        click.echo(f"Task {task_id} not found", err=True)
         return
 
     click.echo(f"Task: {task.title}")
@@ -146,18 +166,17 @@ def update_task(
 ) -> None:
     """Update a task."""
     manager = get_task_manager()
+    resolved = resolve_task_id(manager, task_id)
+    if not resolved:
+        return
+
     task = manager.update_task(
-        task_id,
+        resolved.id,
         title=title,
         status=status,
         priority=priority,
         assignee=assignee,
     )
-
-    if not task:
-        click.echo(f"Task {task_id} not found", err=True)
-        return
-
     click.echo(f"Updated task {task.id[:8]}")
 
 
@@ -167,12 +186,11 @@ def update_task(
 def close_task(task_id: str, reason: str) -> None:
     """Close a task."""
     manager = get_task_manager()
-    task = manager.close_task(task_id)
-
-    if not task:
-        click.echo(f"Task {task_id} not found", err=True)
+    resolved = resolve_task_id(manager, task_id)
+    if not resolved:
         return
 
+    task = manager.close_task(resolved.id, reason=reason)
     click.echo(f"Closed task {task.id[:8]} ({reason})")
 
 
@@ -183,13 +201,12 @@ def close_task(task_id: str, reason: str) -> None:
 def delete_task(task_id: str, cascade: bool) -> None:
     """Delete a task."""
     manager = get_task_manager()
-    success = manager.delete_task(task_id, cascade=cascade)
-
-    if not success:
-        click.echo(f"Task {task_id} not found", err=True)
+    resolved = resolve_task_id(manager, task_id)
+    if not resolved:
         return
 
-    click.echo(f"Deleted task {task_id}")
+    manager.delete_task(resolved.id, cascade=cascade)
+    click.echo(f"Deleted task {resolved.id}")
 
 
 @tasks.command("sync")
