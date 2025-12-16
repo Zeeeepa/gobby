@@ -391,6 +391,37 @@ class TitleSynthesisConfig(BaseModel):
     )
 
 
+class WebSocketBroadcastConfig(BaseModel):
+    """Configuration for WebSocket event broadcasting."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable broadcasting hook events to WebSocket clients",
+    )
+    broadcast_events: list[str] = Field(
+        default=[
+            "session-start",
+            "session-end",
+            "pre-tool-use",
+            "post-tool-use",
+        ],
+        description="List of hook event types to broadcast",
+    )
+    include_payload: bool = Field(
+        default=True,
+        description="Include event payload data in broadcast messages",
+    )
+
+
+class HookExtensionsConfig(BaseModel):
+    """Configuration for hook extensions (broadcasting, webhooks, plugins)."""
+
+    websocket: WebSocketBroadcastConfig = Field(
+        default_factory=WebSocketBroadcastConfig,
+        description="WebSocket broadcasting configuration",
+    )
+
+
 class DaemonConfig(BaseModel):
     """
     Main configuration for Gobby daemon.
@@ -461,6 +492,10 @@ class DaemonConfig(BaseModel):
     import_mcp_server: ImportMCPServerConfig = Field(
         default_factory=ImportMCPServerConfig,
         description="MCP server import configuration",
+    )
+    hook_extensions: HookExtensionsConfig = Field(
+        default_factory=HookExtensionsConfig,
+        description="Hook extensions configuration",
     )
 
     def get_code_execution_config(self) -> CodeExecutionConfig:

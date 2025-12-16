@@ -20,6 +20,8 @@ from gobby.servers.http import HTTPServer
 from gobby.servers.websocket import WebSocketConfig, WebSocketServer
 from gobby.storage.database import LocalDatabase
 from gobby.storage.mcp import LocalMCPManager
+from gobby.storage.tasks import LocalTaskManager
+from gobby.sync.tasks import TaskSyncManager
 from gobby.storage.migrations import run_migrations
 from gobby.storage.sessions import LocalSessionManager
 from gobby.utils.logging import setup_file_logging, setup_mcp_logging
@@ -46,20 +48,23 @@ class GobbyRunner:
 
         # MCP database manager (stores servers and tools in SQLite)
         self.mcp_db_manager = LocalMCPManager(self.database)
+        self.task_manager = LocalTaskManager(self.database)
+        self.task_sync_manager = TaskSyncManager(self.task_manager)
 
-        # MCP client manager
-        import uuid
+        # Wire up change listener for automatic export
+        self.task_manager.add_change_listener(self.task_sync_manager.trigger_export)
 
-        self.mcp_manager = MCPClientManager(
-            server_configs=None,
-            external_id=str(uuid.uuid4()),
+        self.mcp_proxy = MCPProxyManager(
+            config=self.config,
+            database=self.database,
             mcp_db_manager=self.mcp_db_manager,
+            task_manager=self.task_manager,  # Pass task_manager to proxy
         )
 
         # HTTP server with local session storage
         self.http_server = HTTPServer(
             port=self.config.daemon_port,
-            mcp_manager=self.mcp_manager,
+            mcp_manager=self.mcp_proxy,
             config=self.config,
             session_manager=self.session_manager,
         )
@@ -77,6 +82,8 @@ class GobbyRunner:
                 config=websocket_config,
                 mcp_manager=self.mcp_manager,
             )
+            # Pass WebSocket server reference to HTTP server for broadcasting
+            self.http_server.websocket_server = self.websocket_server
 
         self._shutdown_requested = False
 
@@ -130,7 +137,7 @@ class GobbyRunner:
                 except asyncio.CancelledError:
                     pass
 
-            await self.mcp_manager.disconnect_all()
+            await self.mcp_proxy.disconnect_all()  # Changed from self.mcp_manager to self.mcp_proxy
 
         except Exception as e:
             logger.error(f"Fatal error: {e}", exc_info=True)

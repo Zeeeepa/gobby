@@ -229,6 +229,12 @@ class WebSocketServer:
         elif msg_type == "ping":
             await self._handle_ping(websocket, data)
 
+        elif msg_type == "subscribe":
+            await self._handle_subscribe(websocket, data)
+
+        elif msg_type == "unsubscribe":
+            await self._handle_unsubscribe(websocket, data)
+
         else:
             logger.warning(f"Unknown message type: {msg_type}")
             await self._send_error(websocket, f"Unknown message type: {msg_type}")
@@ -339,12 +345,76 @@ class WebSocketServer:
 
         await websocket.send(json.dumps(error_msg))
 
+    async def _handle_subscribe(self, websocket: Any, data: dict[str, Any]) -> None:
+        """
+        Handle subscribe message to register for specific events.
+
+        Args:
+            websocket: Client WebSocket connection
+            data: Subscribe message with "events" list
+        """
+        events = data.get("events", [])
+        if not isinstance(events, list):
+            await self._send_error(websocket, "events must be a list of strings")
+            return
+
+        if not hasattr(websocket, "subscriptions"):
+            websocket.subscriptions = set()
+
+        websocket.subscriptions.update(events)
+        logger.debug(f"Client {websocket.user_id} subscribed to: {events}")
+
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "subscribe_success",
+                    "events": list(websocket.subscriptions),
+                }
+            )
+        )
+
+    async def _handle_unsubscribe(self, websocket: Any, data: dict[str, Any]) -> None:
+        """
+        Handle unsubscribe message to unregister from specific events.
+
+        Args:
+            websocket: Client WebSocket connection
+            data: Unsubscribe message with "events" list
+        """
+        events = data.get("events", [])
+        if not isinstance(events, list):
+            await self._send_error(websocket, "events must be a list of strings")
+            return
+
+        current_subscriptions = getattr(websocket, "subscriptions", set())
+
+        # If events list is empty or contains "*", unsubscribe from all
+        if not events or "*" in events:
+            current_subscriptions.clear()
+        else:
+            for event in events:
+                current_subscriptions.discard(event)
+
+        logger.debug(f"Client {websocket.user_id} unsubscribed from: {events}")
+
+        await websocket.send(
+            json.dumps(
+                {
+                    "type": "unsubscribe_success",
+                    "events": list(current_subscriptions),
+                }
+            )
+        )
+
     async def broadcast(self, message: dict[str, Any]) -> None:
         """
         Broadcast message to all connected clients.
 
-        Uses synchronous sending to avoid backpressure issues.
-        Skips clients that are closing or in error state.
+        Filters messages based on client subscriptions:
+        1. If message type is NOT 'hook_event', always send (system messages)
+        2. If message type IS 'hook_event':
+           - If client has NO subscriptions, send ALL events (default behavior)
+           - If client HAS subscriptions, only send if event_type in subscriptions
 
         Args:
             message: Dictionary to serialize and send
@@ -357,8 +427,39 @@ class WebSocketServer:
         sent_count = 0
         failed_count = 0
 
+        # Pre-calculate filtering criteria
+        is_hook_event = message.get("type") == "hook_event"
+        event_type = message.get("event_type")
+
         for websocket in list(self.clients.keys()):
             try:
+                # Filter logic
+                if is_hook_event:
+                    # If subscriptions are present, we MUST match.
+                    # If NO subscriptions present, we default to sending everything (backward compatibility/simple tools)
+                    # Wait, strictly speaking, empty set means empty subscriptions.
+                    # But for ease of use, let's say: empty set = receive all?
+                    # No, explicit is better. Let's make it:
+                    # - Default (no attribute): Receive All (legacy/simple)
+                    # - Empty set (subscribed then unsubscribed all): Receive None
+                    # - Set with items: Filter
+
+                    # Ensure attribute exists
+                    if not hasattr(websocket, "subscriptions"):
+                        # Explicitly NO subscriptions set, so sending all (None means not filtering)
+                        pass
+
+                    # Refined Logic:
+                    # 1. New clients have `subscriptions = None` (implicitly if not set) -> Receive All
+                    # 2. subscribe() -> sets `subscriptions` to set(...) -> Filter
+                    # 3. unsubscribe(*) -> sets `subscriptions` to empty set() -> Receive None
+
+                    subs = getattr(websocket, "subscriptions", None)
+                    if subs is not None:
+                        # Filtering active
+                        if event_type not in subs and "*" not in subs:
+                            continue
+
                 await websocket.send(message_str)
                 sent_count += 1
             except ConnectionClosed:
@@ -368,7 +469,7 @@ class WebSocketServer:
                 logger.warning(f"Broadcast failed for client: {e}")
                 failed_count += 1
 
-        logger.debug(f"Broadcast complete: {sent_count} sent, {failed_count} failed")
+        logger.debug(f"Broadcast complete: {sent_count} sent, {failed_count} failed")  # type: ignore
 
     async def broadcast_session_update(self, event: str, **kwargs: Any) -> None:
         """

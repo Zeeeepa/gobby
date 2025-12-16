@@ -18,7 +18,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from gobby.adapters.codex import CodexAdapter
+from gobby.hooks.broadcaster import HookEventBroadcaster
 from gobby.hooks.hook_manager import HookManager
+from gobby.hooks.hook_types import HOOK_INPUT_MODELS, HOOK_OUTPUT_MODELS, HookType
 from gobby.llm import LLMService, create_llm_service
 from gobby.mcp_proxy.server import create_mcp_server
 from gobby.storage.sessions import LocalSessionManager
@@ -71,6 +73,7 @@ class HTTPServer:
         config: Any | None = None,
         codex_client: Any | None = None,
         session_manager: LocalSessionManager | None = None,
+        websocket_server: Any | None = None,
     ) -> None:
         """
         Initialize HTTP server.
@@ -82,6 +85,7 @@ class HTTPServer:
             config: DaemonConfig instance for configuration
             codex_client: CodexAppServerClient instance for Codex integration
             session_manager: LocalSessionManager for session storage
+            websocket_server: Optional WebSocketServer instance for event broadcasting
         """
         self.port = port
         self.test_mode = test_mode
@@ -89,6 +93,12 @@ class HTTPServer:
         self.config = config
         self.codex_client = codex_client
         self.session_manager = session_manager
+        self.codex_client = codex_client
+        self.session_manager = session_manager
+
+        # Initialize WebSocket broadcaster
+        # Note: websocket_server might be None if disabled
+        self.broadcaster = HookEventBroadcaster(websocket_server, config)
 
         self._start_time: float = time.time()
 
@@ -193,6 +203,7 @@ class HTTPServer:
                 "daemon_port": self.port,
                 "llm_service": self.llm_service,
                 "config": self.config,
+                "broadcaster": self.broadcaster,
             }
             if self.config:
                 # Pass full log file path from config
@@ -1026,7 +1037,7 @@ class HTTPServer:
 
                 # Execute hook via adapter
                 try:
-                    result = await asyncio.to_thread(adapter.handle_native, payload)
+                    result = await asyncio.to_thread(adapter.handle_native, payload, hook_manager)
 
                     response_time_ms = (time.perf_counter() - start_time) * 1000
                     self._metrics.inc_counter("hooks_succeeded_total")
