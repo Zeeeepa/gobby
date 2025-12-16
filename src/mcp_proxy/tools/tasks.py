@@ -15,7 +15,10 @@ from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.storage.task_dependencies import TaskDependencyManager
 from gobby.storage.session_tasks import SessionTaskManager
 from gobby.sync.tasks import TaskSyncManager
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
+
+from gobby.utils.project_context import get_project_context
+from gobby.utils.project_init import initialize_project
 
 
 def register_task_tools(
@@ -42,7 +45,7 @@ def register_task_tools(
         title: str,
         description: str | None = None,
         priority: int = 2,
-        type: str = "task",
+        task_type: str = "task",
         parent_task_id: str | None = None,
         blocks: list[str] | None = None,
         labels: list[str] | None = None,
@@ -54,16 +57,27 @@ def register_task_tools(
             title: Task title
             description: Detailed description
             priority: Priority level (1=High, 2=Medium, 3=Low)
-            type: Task type (task, bug, feature, epic)
+            task_type: Task type (task, bug, feature, epic)
             parent_task_id: Optional parent task ID
             blocks: List of task IDs that this new task blocks (optional)
             labels: List of labels (optional)
         """
+        # Get current project context which is required for task creation
+        # Try lightweight read first
+        ctx = get_project_context()
+        if ctx and ctx.get("id"):
+            project_id = ctx["id"]
+        else:
+            # Fallback to full initialization if not found
+            init_result = initialize_project()
+            project_id = init_result.project_id
+
         task = task_manager.create_task(
+            project_id=project_id,
             title=title,
             description=description,
             priority=priority,
-            task_type=type,
+            task_type=task_type,
             parent_task_id=parent_task_id,
             labels=labels,
         )
@@ -174,7 +188,7 @@ def register_task_tools(
     def list_tasks(
         status: str | None = None,
         priority: int | None = None,
-        type: str | None = None,
+        task_type: str | None = None,
         assignee: str | None = None,
         label: str | None = None,
         parent_task_id: str | None = None,
@@ -186,7 +200,7 @@ def register_task_tools(
         Args:
             status: Filter by status
             priority: Filter by priority
-            type: Filter by task type
+            task_type: Filter by task type
             assignee: Filter by assignee
             label: Filter by label presence
             parent_task_id: Filter by parent task
@@ -195,7 +209,7 @@ def register_task_tools(
         tasks = task_manager.list_tasks(
             status=status,
             priority=priority,
-            task_type=type,
+            task_type=task_type,
             assignee=assignee,
             label=label,
             parent_task_id=parent_task_id,
@@ -268,7 +282,7 @@ def register_task_tools(
     @mcp.tool()
     def list_ready_tasks(
         priority: int | None = None,
-        type: str | None = None,
+        task_type: str | None = None,
         assignee: str | None = None,
         limit: int = 10,
     ) -> dict[str, Any]:
@@ -277,13 +291,13 @@ def register_task_tools(
 
         Args:
             priority: Filter by priority
-            type: Filter by type
+            task_type: Filter by type
             assignee: Filter by assignee
             limit: Max results
         """
         tasks = task_manager.list_ready_tasks(
             priority=priority,
-            task_type=type,
+            task_type=task_type,
             assignee=assignee,
             limit=limit,
         )

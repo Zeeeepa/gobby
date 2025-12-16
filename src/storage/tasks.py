@@ -20,7 +20,7 @@ class Task:
     title: str
     status: Literal["open", "in_progress", "closed"]
     priority: int
-    type: str  # bug, feature, task, epic, chore
+    task_type: str  # bug, feature, task, epic, chore
     created_at: str
     updated_at: str
     # Optional fields
@@ -43,7 +43,7 @@ class Task:
             title=row["title"],
             status=row["status"],
             priority=row["priority"],
-            type=row["type"],
+            task_type=row["type"],  # DB column is 'type'
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             description=row["description"],
@@ -53,6 +53,25 @@ class Task:
             labels=labels,
             closed_reason=row["closed_reason"],
         )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert Task to dictionary."""
+        return {
+            "id": self.id,
+            "project_id": self.project_id,
+            "title": self.title,
+            "status": self.status,
+            "priority": self.priority,
+            "type": self.task_type,  # Use 'type' for API compatibility
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "description": self.description,
+            "parent_task_id": self.parent_task_id,
+            "discovered_in_session_id": self.discovered_in_session_id,
+            "assignee": self.assignee,
+            "labels": self.labels,
+            "closed_reason": self.closed_reason,
+        }
 
 
 class TaskIDCollisionError(Exception):
@@ -101,7 +120,7 @@ class LocalTaskManager:
         parent_task_id: str | None = None,
         discovered_in_session_id: str | None = None,
         priority: int = 2,
-        type: str = "task",
+        task_type: str = "task",
         assignee: str | None = None,
         labels: list[str] | None = None,
     ) -> Task:
@@ -133,7 +152,7 @@ class LocalTaskManager:
                             parent_task_id,
                             discovered_in_session_id,
                             priority,
-                            type,
+                            task_type,  # DB column is 'type'
                             assignee,
                             labels_json,
                             now,
@@ -172,7 +191,7 @@ class LocalTaskManager:
         description: str | None = None,
         status: str | None = None,
         priority: int | None = None,
-        type: str | None = None,
+        task_type: str | None = None,
         assignee: str | None = None,
         labels: list[str] | None = None,
         parent_task_id: str | None = None,
@@ -193,9 +212,9 @@ class LocalTaskManager:
         if priority is not None:
             updates.append("priority = ?")
             params.append(priority)
-        if type is not None:
-            updates.append("type = ?")
-            params.append(type)
+        if task_type is not None:
+            updates.append("type = ?")  # DB column is 'type'
+            params.append(task_type)
         if assignee is not None:
             updates.append("assignee = ?")
             params.append(assignee)
@@ -239,8 +258,17 @@ class LocalTaskManager:
         self._notify_listeners()
         return self.get_task(task_id)
 
-    def delete_task(self, task_id: str, cascade: bool = False) -> None:
-        """Delete a task. If cascade is True, delete children recursively."""
+    def delete_task(self, task_id: str, cascade: bool = False) -> bool:
+        """Delete a task. If cascade is True, delete children recursively.
+
+        Returns:
+            True if task was deleted, False if task not found.
+        """
+        # Check if task exists first
+        existing = self.db.fetchone("SELECT 1 FROM tasks WHERE id = ?", (task_id,))
+        if not existing:
+            return False
+
         if not cascade:
             # Check for children
             row = self.db.fetchone("SELECT 1 FROM tasks WHERE parent_task_id = ?", (task_id,))
@@ -257,6 +285,7 @@ class LocalTaskManager:
         with self.db.transaction() as conn:
             conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
         self._notify_listeners()
+        return True
 
     def list_tasks(
         self,
@@ -264,6 +293,8 @@ class LocalTaskManager:
         status: str | None = None,
         priority: int | None = None,
         assignee: str | None = None,
+        task_type: str | None = None,
+        label: str | None = None,
         parent_task_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
@@ -284,6 +315,14 @@ class LocalTaskManager:
         if assignee:
             query += " AND assignee = ?"
             params.append(assignee)
+        if task_type:
+            query += " AND type = ?"  # DB column is 'type'
+            params.append(task_type)
+        if label:
+            # tasks.labels is a JSON list. We use json_each to find if the label is in the list.
+            # Example: WHERE EXISTS (SELECT 1 FROM json_each(tasks.labels) WHERE value = ?)
+            query += " AND EXISTS (SELECT 1 FROM json_each(tasks.labels) WHERE value = ?)"
+            params.append(label)
         if parent_task_id:
             query += " AND parent_task_id = ?"
             params.append(parent_task_id)
@@ -298,6 +337,7 @@ class LocalTaskManager:
         self,
         project_id: str | None = None,
         priority: int | None = None,
+        task_type: str | None = None,
         assignee: str | None = None,
         limit: int = 50,
         offset: int = 0,
@@ -322,6 +362,9 @@ class LocalTaskManager:
         if priority:
             query += " AND t.priority = ?"
             params.append(priority)
+        if task_type:
+            query += " AND t.type = ?"  # DB column is 'type'
+            params.append(task_type)
         if assignee:
             query += " AND t.assignee = ?"
             params.append(assignee)

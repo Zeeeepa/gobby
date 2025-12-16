@@ -19,6 +19,10 @@ from typing import Any, cast
 import httpx
 from fastmcp import FastMCP
 from gobby.config.app import load_config
+from gobby.mcp_proxy.tools.tasks import register_task_tools
+from gobby.storage.database import LocalDatabase
+from gobby.storage.tasks import LocalTaskManager
+from gobby.sync.tasks import TaskSyncManager
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +70,9 @@ async def start_daemon_process() -> dict[str, Any]:
 
     try:
         # Start daemon using subprocess
-        # Use absolute path to ensure it works from any directory
+        # Use sys.executable to ensure we run in the same environment and don't rely on PATH
         result = subprocess.run(
-            ["gobby", "start"],
+            [sys.executable, "-m", "gobby.cli", "start"],
             capture_output=True,
             text=True,
             timeout=10,
@@ -338,6 +342,22 @@ def create_stdio_mcp_server() -> FastMCP:
     # Create base MCP server with lifecycle tools
     # We'll add the HTTP proxy tools below if daemon is running
     mcp = FastMCP(name="Gobby Daemon (Stdio)")
+
+    # Initialize task managers locally for stdio access
+    # This allows direct DB access for tasks without proxying through HTTP
+    try:
+        db = LocalDatabase()
+        task_manager = LocalTaskManager(db)
+        sync_manager = TaskSyncManager(task_manager)
+
+        # Wire up change listener for automatic export in this process too
+        task_manager.add_change_listener(sync_manager.trigger_export)
+
+        # Register task tools
+        register_task_tools(mcp, task_manager, sync_manager)
+        logger.debug("✅ Registered task tools in stdio server")
+    except Exception as e:
+        logger.error(f"Failed to register task tools: {e}")
 
     # ===== DAEMON LIFECYCLE TOOLS =====
 
@@ -1138,7 +1158,11 @@ async def ensure_daemon_running() -> None:
         logger.debug("🚀 Starting daemon...")
         result = await start_daemon_process()
         if not result.get("success"):
-            logger.error(f"❌ Failed to start daemon: {result.get('message')}")
+            error_msg = result.get("message")
+            stderr_output = result.get("error", "")
+            logger.error(f"❌ Failed to start daemon: {error_msg}")
+            if stderr_output:
+                logger.error(f"Daemon stderr: {stderr_output}")
             sys.exit(1)
 
     # Wait for daemon to be healthy
@@ -1155,27 +1179,56 @@ async def ensure_daemon_running() -> None:
 
 async def main() -> None:
     """Main entry point for stdio MCP server."""
-    # Setup logging to stderr only (stdout is reserved for MCP protocol)
-    logging.basicConfig(
-        level=logging.WARNING,  # Only show warnings/errors
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        stream=sys.stderr,
-    )
+    try:
+        # Config log path
+        log_file = Path.home() / ".gobby" / "logs" / "mcp-debug.log"
+        log_file.parent.mkdir(parents=True, exist_ok=True)
 
-    # Ensure daemon is running
-    await ensure_daemon_running()
+        # Setup logging to file AND stderr
+        # Root logger at WARNING to silence noise from libs like docket/httpcore
+        logging.basicConfig(
+            level=logging.WARNING,
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            handlers=[logging.FileHandler(log_file), logging.StreamHandler(sys.stderr)],
+        )
 
-    # Create and run stdio MCP server
-    mcp = create_stdio_mcp_server()
+        # Set gobby (our package) logger to DEBUG
+        logging.getLogger("gobby").setLevel(logging.DEBUG)
+        logging.getLogger("__main__").setLevel(logging.DEBUG)
 
-    # Note: The daemon doesn't expose a standard MCP HTTP endpoint.
-    # It only has custom proxy endpoints for external MCP servers.
-    # The stdio wrapper provides lifecycle management tools instead.
+        # Aggressively silence all other loggers
+        for name in logging.root.manager.loggerDict:
+            if not name.startswith("gobby") and name != "__main__":
+                logging.getLogger(name).setLevel(logging.WARNING)
 
-    # Run stdio MCP server
-    # Use run_async() since we're already in an async context
-    # Suppress banner to avoid interfering with MCP protocol on stdout
-    await mcp.run_async(transport="stdio", show_banner=False)
+        # Explicitly silence known noisy loggers that may be created later
+        # docket.worker polls every 250ms and logs 3 DEBUG lines per poll
+        logging.getLogger("docket").setLevel(logging.WARNING)
+        logging.getLogger("docket.worker").setLevel(logging.WARNING)
+
+        logger.info("Starting MCP server...")
+
+        # Ensure daemon is running
+        await ensure_daemon_running()
+
+        # Create and run stdio MCP server
+        mcp = create_stdio_mcp_server()
+
+        # Note: The daemon doesn't expose a standard MCP HTTP endpoint.
+        # It only has custom proxy endpoints for external MCP servers.
+        # The stdio wrapper provides lifecycle management tools instead.
+
+        # Run stdio MCP server
+        # Use run_async() since we're already in an async context
+        # Suppress banner to avoid interfering with MCP protocol on stdout
+        await mcp.run_async(transport="stdio", show_banner=False)
+    except Exception as e:
+        # Catch and log any startup crashes to stderr
+        import traceback
+
+        sys.stderr.write(f"CRITICAL ERROR: MCP server crashed: {e}\n")
+        traceback.print_exc(file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

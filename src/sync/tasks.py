@@ -161,7 +161,7 @@ class TaskSyncManager:
                             """
                             INSERT OR REPLACE INTO tasks (
                                 id, project_id, title, description, parent_task_id,
-                                status, priority, task_type, created_at, updated_at
+                                status, priority, type, created_at, updated_at
                             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """,
                             (

@@ -1,4 +1,5 @@
 import pytest
+import unittest
 from unittest.mock import MagicMock, ANY
 
 from gobby.mcp_proxy.tools.tasks import register_task_tools
@@ -72,16 +73,21 @@ def test_create_task(mock_mcp, mock_task_manager, mock_sync_manager):
     mock_task.to_dict.return_value = {"id": "t1", "title": "Test Task"}
     mock_task_manager.create_task.return_value = mock_task
 
-    result = mock_mcp.tools["create_task"](title="Test Task", priority=1)
+    # Mock get_project_context
+    with unittest.mock.patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+        mock_ctx.return_value = {"id": "test-project-id"}
 
-    mock_task_manager.create_task.assert_called_with(
-        title="Test Task",
-        description=None,
-        priority=1,
-        task_type="task",
-        parent_task_id=None,
-        labels=None,
-    )
+        result = mock_mcp.tools["create_task"](title="Test Task", priority=1)
+
+        mock_task_manager.create_task.assert_called_with(
+            project_id="test-project-id",
+            title="Test Task",
+            description=None,
+            priority=1,
+            task_type="task",
+            parent_task_id=None,
+            labels=None,
+        )
     assert result == {"id": "t1", "title": "Test Task"}
 
 

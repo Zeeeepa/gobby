@@ -133,9 +133,12 @@ def create_mcp_server(
     # ===== TASK SYSTEM TOOLS =====
 
     if task_manager and task_sync_manager:
-        from gobby.mcp_proxy.tools.tasks import register_task_tools
+        try:
+            from gobby.mcp_proxy.tools.tasks import register_task_tools
 
-        register_task_tools(mcp, task_manager, task_sync_manager)
+            register_task_tools(mcp, task_manager, task_sync_manager)
+        except Exception as e:
+            logger.error(f"Failed to register task tools: {e}")
 
     # ===== STATUS & MONITORING TOOLS =====
 

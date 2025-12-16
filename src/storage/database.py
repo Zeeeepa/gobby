@@ -47,6 +47,7 @@ class LocalDatabase:
             self._local.connection.row_factory = sqlite3.Row
             # Enable foreign keys
             self._local.connection.execute("PRAGMA foreign_keys = ON")
+            self._local.connection.execute("PRAGMA journal_mode = WAL")
         return cast(sqlite3.Connection, self._local.connection)
 
     @property

@@ -29,6 +29,7 @@ build-backend = "setuptools.build_meta"
 packages = [
     "gobby",
     "gobby.adapters",
+    "gobby.cli",
     "gobby.config",
     "gobby.hooks",
     "gobby.install",
