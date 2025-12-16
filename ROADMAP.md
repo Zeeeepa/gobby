@@ -32,7 +32,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 2: Core Task System                                                   │
+│ Sprint 2: Core Task System (Completed)                                       │
 │ TASKS Phases 1-6                                                             │
 │                                                                              │
 │ Deliverable: Task CRUD, dependencies, ready work detection, git sync        │
@@ -41,7 +41,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 3: Task MCP Tools & CLI                                               │
+│ Sprint 3: Task MCP Tools & CLI (Completed)                                   │
 │ TASKS Phases 7-10                                                            │
 │                                                                              │
 │ Deliverable: Task management via MCP tools and CLI                          │
@@ -228,15 +228,19 @@ This document defines the implementation order across all Gobby planning documen
 Some sprints can run in parallel if multiple contributors are available:
 
 ### Track A: Core Platform
+
 Sprints 1 → 4 → 5 → 6 → 7 → 10 → 17
 
 ### Track B: Task System
+
 Sprints 2 → 3 → 11 (joins Track A at Sprint 7)
 
 ### Track C: Hook Extensions
+
 Sprints 1 → 8 → 9 → 16 (joins Track A at Sprint 7)
 
 ### Track D: MCP Improvements
+
 Sprints 12 → 13 → 14 → 15 (independent, can run anytime)
 
 ---
@@ -244,28 +248,33 @@ Sprints 12 → 13 → 14 → 15 (independent, can run anytime)
 ## Milestones
 
 ### Milestone 1: "Observable Gobby" (Sprints 1-3)
+
 - WebSocket event streaming
 - Full task system with CLI
 - **Value**: External tools can monitor sessions, agents can track work
 
 ### Milestone 2: "Workflow Engine" (Sprints 4-7)
+
 - Phase-based workflow enforcement
 - Tool restrictions and transitions
 - Built-in templates
 - **Value**: Deterministic agent behavior without prompt engineering
 
 ### Milestone 3: "Extensible Gobby" (Sprints 8-9)
+
 - Webhook integrations
 - Python plugin system
 - **Value**: Infinite customization without forking
 
 ### Milestone 4: "Smart MCP Proxy" (Sprints 12-15)
+
 - Tool metrics and recommendations
 - Semantic search
 - Self-healing fallbacks
 - **Value**: Intelligent tool orchestration across MCP servers
 
 ### Milestone 5: "Production Ready" (Sprints 16-18)
+
 - Full integration
 - Comprehensive testing
 - Documentation

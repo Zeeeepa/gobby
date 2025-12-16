@@ -10,6 +10,7 @@ A local daemon that makes AI coding assistants smarter by unifying session track
 - **Context continuity** — Sessions don't lose context; automatic handoffs via LLM-generated summaries
 - **Intelligent MCP proxy** — Progressive tool discovery reduces token usage; connect once, access all downstream servers
 - **Local-first** — All data in SQLite, no cloud dependencies, works offline
+- **Task Tracking** — Agent-native task management with dependency tracking and git synchronization
 
 **Coming soon:** Workflow enforcement engine for deterministic AI behavior (plan → execute → validate) without relying on prompts.
 
@@ -136,6 +137,14 @@ The daemon exposes tools via MCP that can be used by Claude Code and other MCP c
 ### AI-Powered
 
 - `recommend_tools(task_description)` - Get intelligent tool recommendations
+
+### Task Management
+
+- `create_task(title, ...)` - Create a new task
+- `update_task(task_id, ...)` - Update task status/details
+- `list_ready_tasks()` - Find unblocked work
+- `add_dependency(task_id, depends_on)` - Manage task dependencies
+- `sync_tasks()` - Sync tasks with .gobby/tasks.jsonl
 
 ## Configuration
 

@@ -22,8 +22,11 @@ from gobby.hooks.broadcaster import HookEventBroadcaster
 from gobby.hooks.hook_manager import HookManager
 from gobby.hooks.hook_types import HOOK_INPUT_MODELS, HOOK_OUTPUT_MODELS, HookType
 from gobby.llm import LLMService, create_llm_service
-from gobby.mcp_proxy.server import create_mcp_server
+from gobby.mcp_proxy.server import create_mcp_server, get_mcp_server
+from gobby.mcp_proxy.tools.tasks import register_task_tools
 from gobby.storage.sessions import LocalSessionManager
+from gobby.storage.tasks import LocalTaskManager
+from gobby.sync.tasks import TaskSyncManager
 from gobby.utils.metrics import Counter, get_metrics_collector
 from gobby.utils.version import get_version
 from pydantic import BaseModel, Field
@@ -74,6 +77,8 @@ class HTTPServer:
         codex_client: Any | None = None,
         session_manager: LocalSessionManager | None = None,
         websocket_server: Any | None = None,
+        task_manager: LocalTaskManager | None = None,
+        task_sync_manager: TaskSyncManager | None = None,
     ) -> None:
         """
         Initialize HTTP server.
@@ -86,6 +91,8 @@ class HTTPServer:
             codex_client: CodexAppServerClient instance for Codex integration
             session_manager: LocalSessionManager for session storage
             websocket_server: Optional WebSocketServer instance for event broadcasting
+            task_manager: LocalTaskManager instance
+            task_sync_manager: TaskSyncManager instance
         """
         self.port = port
         self.test_mode = test_mode
@@ -95,6 +102,8 @@ class HTTPServer:
         self.session_manager = session_manager
         self.codex_client = codex_client
         self.session_manager = session_manager
+        self.task_manager = task_manager
+        self.task_sync_manager = task_sync_manager
 
         # Initialize WebSocket broadcaster
         # Note: websocket_server might be None if disabled
@@ -123,6 +132,8 @@ class HTTPServer:
                 config=config,
                 llm_service=self.llm_service,
                 codex_client=codex_client,
+                task_manager=task_manager,
+                task_sync_manager=task_sync_manager,
             )
             logger.debug("MCP server initialized and will be mounted at /mcp")
 

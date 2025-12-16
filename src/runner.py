@@ -54,11 +54,8 @@ class GobbyRunner:
         # Wire up change listener for automatic export
         self.task_manager.add_change_listener(self.task_sync_manager.trigger_export)
 
-        self.mcp_proxy = MCPProxyManager(
-            config=self.config,
-            database=self.database,
+        self.mcp_proxy = MCPClientManager(
             mcp_db_manager=self.mcp_db_manager,
-            task_manager=self.task_manager,  # Pass task_manager to proxy
         )
 
         # HTTP server with local session storage
@@ -67,6 +64,8 @@ class GobbyRunner:
             mcp_manager=self.mcp_proxy,
             config=self.config,
             session_manager=self.session_manager,
+            task_manager=self.task_manager,
+            task_sync_manager=self.task_sync_manager,
         )
 
         # WebSocket server (optional)
@@ -80,7 +79,7 @@ class GobbyRunner:
             )
             self.websocket_server = WebSocketServer(
                 config=websocket_config,
-                mcp_manager=self.mcp_manager,
+                mcp_manager=self.mcp_proxy,
             )
             # Pass WebSocket server reference to HTTP server for broadcasting
             self.http_server.websocket_server = self.websocket_server
@@ -98,7 +97,7 @@ class GobbyRunner:
 
             # Connect MCP servers
             try:
-                await asyncio.wait_for(self.mcp_manager.connect_all(), timeout=10.0)
+                await asyncio.wait_for(self.mcp_proxy.connect_all(), timeout=10.0)
             except TimeoutError:
                 logger.warning("MCP connection timed out")
             except Exception as e:

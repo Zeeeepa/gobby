@@ -161,16 +161,18 @@ class TaskSyncManager:
                             """
                             INSERT OR REPLACE INTO tasks (
                                 id, project_id, title, description, parent_task_id,
-                                status, created_at, updated_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                status, priority, task_type, created_at, updated_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """,
                             (
                                 task_id,
-                                data["project_id"],
+                                data.get("project_id"),
                                 data["title"],
-                                data["description"],
-                                data["parent_id"],
+                                data.get("description"),
+                                data.get("parent_task_id"),
                                 data["status"],
+                                data.get("priority", 2),
+                                data.get("task_type", "task"),
                                 data["created_at"],
                                 data["updated_at"],
                             ),

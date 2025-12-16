@@ -392,56 +392,56 @@ gobby tasks stats
 
 ### Phase 4: Session Integration
 
-- [ ] Create `src/storage/session_tasks.py` with `SessionTaskManager` class
-- [ ] Implement `link_task()` method
-- [ ] Implement `unlink_task()` method
-- [ ] Implement `get_session_tasks()` method
-- [ ] Implement `get_task_sessions()` method
-- [ ] Add action type validation (worked_on, discovered, mentioned, closed)
-- [ ] Update session summary to include task activity
-- [ ] Add unit tests for SessionTaskManager
+- [x] Create `src/storage/session_tasks.py` with `SessionTaskManager` class
+- [x] Implement `link_task()` method
+- [x] Implement `unlink_task()` method
+- [x] Implement `get_session_tasks()` method
+- [x] Implement `get_task_sessions()` method
+- [x] Add action type validation (worked_on, discovered, mentioned, closed)
+- [x] Update session summary to include task activity
+- [x] Add unit tests for SessionTaskManager
 
 ### Phase 5: Git Sync - Export
 
-- [ ] Create `src/sync/tasks.py` with `TaskSyncManager` class
-- [ ] Implement JSONL serialization for tasks with embedded dependencies
-- [ ] Implement `export_to_jsonl()` method
-- [ ] Implement debounced export (5-second delay)
-- [ ] Create `.gobby/tasks_meta.json` schema
-- [ ] Implement content hash calculation for change detection
-- [ ] Add export trigger after task mutations
-- [ ] Add unit tests for export functionality
+- [x] Create `src/sync/tasks.py` with `TaskSyncManager` class
+- [x] Implement JSONL serialization for tasks with embedded dependencies
+- [x] Implement `export_to_jsonl()` method
+- [x] Implement debounced export (5-second delay)
+- [x] Create `.gobby/tasks_meta.json` schema
+- [x] Implement content hash calculation for change detection
+- [x] Add export trigger after task mutations
+- [x] Add unit tests for export functionality
 
 ### Phase 6: Git Sync - Import
 
-- [ ] Implement JSONL deserialization
-- [ ] Implement `import_from_jsonl()` method
-- [ ] Implement last-write-wins conflict resolution
-- [ ] Handle deleted tasks (tombstone or removal)
-- [ ] Implement `sync_status()` method
-- [ ] Add import trigger on daemon start
-- [ ] Add unit tests for import functionality
-- [ ] Add integration test for round-trip sync
+- [x] Implement JSONL deserialization
+- [x] Implement `import_from_jsonl()` method
+- [x] Implement last-write-wins conflict resolution
+- [x] Handle deleted tasks (tombstone or removal)
+- [x] Implement `sync_status()` method
+- [x] Add import trigger on daemon start
+- [x] Add unit tests for import functionality
+- [x] Add integration test for round-trip sync
 
 ### Phase 7: MCP Tools
 
-- [ ] Add `create_task` tool to MCP server
-- [ ] Add `get_task` tool to MCP server
-- [ ] Add `update_task` tool to MCP server
-- [ ] Add `close_task` tool to MCP server
-- [ ] Add `delete_task` tool to MCP server
-- [ ] Add `list_tasks` tool to MCP server
-- [ ] Add `add_dependency` tool to MCP server
-- [ ] Add `remove_dependency` tool to MCP server
-- [ ] Add `get_dependency_tree` tool to MCP server
-- [ ] Add `check_dependency_cycles` tool to MCP server
-- [ ] Add `list_ready_tasks` tool to MCP server
-- [ ] Add `list_blocked_tasks` tool to MCP server
-- [ ] Add `link_task_to_session` tool to MCP server
-- [ ] Add `get_session_tasks` tool to MCP server
-- [ ] Add `get_task_sessions` tool to MCP server
-- [ ] Add `sync_tasks` tool to MCP server
-- [ ] Add `get_sync_status` tool to MCP server
+- [x] Add `create_task` tool to MCP server
+- [x] Add `get_task` tool to MCP server
+- [x] Add `update_task` tool to MCP server
+- [x] Add `close_task` tool to MCP server
+- [x] Add `delete_task` tool to MCP server
+- [x] Add `list_tasks` tool to MCP server
+- [x] Add `add_dependency` tool to MCP server
+- [x] Add `remove_dependency` tool to MCP server
+- [x] Add `get_dependency_tree` tool to MCP server
+- [x] Add `check_dependency_cycles` tool to MCP server
+- [x] Add `list_ready_tasks` tool to MCP server
+- [x] Add `list_blocked_tasks` tool to MCP server
+- [x] Add `link_task_to_session` tool to MCP server
+- [x] Add `get_session_tasks` tool to MCP server
+- [x] Add `get_task_sessions` tool to MCP server
+- [x] Add `sync_tasks` tool to MCP server
+- [x] Add `get_sync_status` tool to MCP server
 - [ ] Update MCP tool documentation
 
 ### Phase 8: CLI Commands

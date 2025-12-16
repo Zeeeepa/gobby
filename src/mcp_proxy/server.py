@@ -21,7 +21,18 @@ if TYPE_CHECKING:
     from gobby.hooks.hook_manager import HookManager
     from gobby.llm.base import LLMProvider
     from gobby.llm.service import LLMService
+    from gobby.llm.service import LLMService
     from gobby.mcp_proxy.manager import MCPClientManager
+    from gobby.storage.tasks import LocalTaskManager
+    from gobby.sync.tasks import TaskSyncManager
+
+
+_mcp_instance: FastMCP | None = None
+
+
+def get_mcp_server() -> FastMCP | None:
+    """Get the current MCP server instance."""
+    return _mcp_instance
 
 
 def create_mcp_server(
@@ -31,6 +42,8 @@ def create_mcp_server(
     config: Any | None = None,
     llm_service: "LLMService | None" = None,
     codex_client: Any | None = None,
+    task_manager: "LocalTaskManager | None" = None,
+    task_sync_manager: "TaskSyncManager | None" = None,
 ) -> FastMCP:
     """
     Create FastMCP server with daemon control tools.
@@ -46,7 +59,9 @@ def create_mcp_server(
     Returns:
         Configured FastMCP server instance
     """
+    global _mcp_instance
     mcp = FastMCP(name="Gobby Daemon")
+    _mcp_instance = mcp
 
     # Extract code execution config with defaults
     code_exec_enabled = True
@@ -114,6 +129,13 @@ def create_mcp_server(
             except ValueError:
                 pass
         return None
+
+    # ===== TASK SYSTEM TOOLS =====
+
+    if task_manager and task_sync_manager:
+        from gobby.mcp_proxy.tools.tasks import register_task_tools
+
+        register_task_tools(mcp, task_manager, task_sync_manager)
 
     # ===== STATUS & MONITORING TOOLS =====
 
