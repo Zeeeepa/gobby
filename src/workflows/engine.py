@@ -1,12 +1,12 @@
 import logging
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
 
 from gobby.hooks.events import HookEvent, HookResponse
+
 from .definitions import WorkflowDefinition, WorkflowState
 from .evaluator import ConditionEvaluator
-from .state_manager import WorkflowStateManager
 from .loader import WorkflowLoader
+from .state_manager import WorkflowStateManager
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class WorkflowEngine:
         self,
         loader: WorkflowLoader,
         state_manager: WorkflowStateManager,
-        evaluator: Optional[ConditionEvaluator] = None,
+        evaluator: ConditionEvaluator | None = None,
     ):
         self.loader = loader
         self.state_manager = state_manager
@@ -49,7 +49,7 @@ class WorkflowEngine:
         # Stuck prevention: Check if phase duration exceeding limit
         # This is a basic implementation of "Stuck Detection"
         if state.phase_entered_at:
-            duration = (datetime.now(timezone.utc) - state.phase_entered_at).total_seconds()
+            duration = (datetime.now(UTC) - state.phase_entered_at).total_seconds()
             # Hardcoded limit for MVP: 30 minutes
             if duration > 1800:
                 # Force transition to reflect if not already there
@@ -139,7 +139,7 @@ class WorkflowEngine:
 
     async def transition_to(
         self, state: WorkflowState, new_phase_name: str, workflow: WorkflowDefinition
-    ):
+    ) -> None:
         """
         Execute transition logic.
         """
@@ -169,7 +169,7 @@ class WorkflowEngine:
         # Execute on_enter of new phase
         await self._execute_actions(new_phase.on_enter, state)
 
-    async def _execute_actions(self, actions: list[dict], state: WorkflowState):
+    async def _execute_actions(self, actions: list[dict], state: WorkflowState) -> None:
         """
         Execute a list of actions.
         """

@@ -40,14 +40,13 @@ from gobby.sessions.summary import SummaryGenerator
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
-from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.session_tasks import SessionTaskManager
+from gobby.storage.sessions import LocalSessionManager
 from gobby.utils.daemon_client import DaemonClient
 from gobby.workflows.engine import WorkflowEngine
 from gobby.workflows.hooks import WorkflowHookHandler
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
-
 
 # Backward-compatible alias
 TranscriptProcessor = ClaudeTranscriptParser
@@ -105,6 +104,7 @@ class HookManager:
         self.broadcaster = broadcaster
 
         # Capture event loop for thread-safe broadcasting (if running in async context)
+        self._loop: asyncio.AbstractEventLoop | None
         try:
             self._loop = asyncio.get_running_loop()
         except RuntimeError:

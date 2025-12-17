@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     from gobby.hooks.hook_manager import HookManager
     from gobby.llm.base import LLMProvider
     from gobby.llm.service import LLMService
-    from gobby.llm.service import LLMService
     from gobby.mcp_proxy.manager import MCPClientManager
     from gobby.storage.tasks import LocalTaskManager
     from gobby.sync.tasks import TaskSyncManager

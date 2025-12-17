@@ -386,7 +386,7 @@ class WebSocketServer:
             await self._send_error(websocket, "events must be a list of strings")
             return
 
-        current_subscriptions = getattr(websocket, "subscriptions", set())
+        current_subscriptions: set[str] = getattr(websocket, "subscriptions", set())
 
         # If events list is empty or contains "*", unsubscribe from all
         if not events or "*" in events:
@@ -469,7 +469,7 @@ class WebSocketServer:
                 logger.warning(f"Broadcast failed for client: {e}")
                 failed_count += 1
 
-        logger.debug(f"Broadcast complete: {sent_count} sent, {failed_count} failed")  # type: ignore
+        logger.debug(f"Broadcast complete: {sent_count} sent, {failed_count} failed")
 
     async def broadcast_session_update(self, event: str, **kwargs: Any) -> None:
         """

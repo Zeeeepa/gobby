@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from gobby.storage.database import LocalDatabase
@@ -29,7 +29,7 @@ class SessionTaskManager:
         if action not in self.VALID_ACTIONS:
             raise ValueError(f"Invalid action '{action}'. Must be one of {self.VALID_ACTIONS}")
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         with self.db.transaction() as conn:
             # Use INSERT OR IGNORE to handle duplicate links gracefully
@@ -90,25 +90,7 @@ class SessionTaskManager:
         """
         Get all sessions associated with a task.
         """
-        query = """
-        SELECT st.*, s.created_at as session_created_at
-        FROM session_tasks st
-        LEFT JOIN sessions s ON st.session_id = s.id
-        WHERE st.task_id = ?
-        ORDER BY st.created_at DESC
-        """
-        # Note: We join with sessions table to verify existence, but for now
-        # assuming sessions table exists and has 'id' and 'created_at'.
-        # If sessions table schema is different, we might need to adjust.
-        # Given we generated the migration, we assume standard session table.
-
-        # However, checking the TASKS.md, `sessions` table is referenced.
-        # Let's verify if `sessions` table exists or if we should just return what's in session_tasks.
-        # For safety/simplicity in this storage layer, just returning from session_tasks is safer if sessions architecture is separate.
-        # But TASKS.md implies foreign keys, so sessions table must exist.
-
-        # Simpler query that relies only on session_tasks for now to minimize dependencies on Session model details
-        # unless we need session titles etc.
+        # Simple query that relies only on session_tasks to minimize dependencies
         rows = self.db.fetchall(
             "SELECT * FROM session_tasks WHERE task_id = ? ORDER BY created_at DESC", (task_id,)
         )

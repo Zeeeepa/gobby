@@ -20,9 +20,8 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from gobby.adapters.codex import CodexAdapter
 from gobby.hooks.broadcaster import HookEventBroadcaster
 from gobby.hooks.hook_manager import HookManager
-from gobby.hooks.hook_types import HOOK_INPUT_MODELS, HOOK_OUTPUT_MODELS, HookType
 from gobby.llm import LLMService, create_llm_service
-from gobby.mcp_proxy.server import create_mcp_server, get_mcp_server
+from gobby.mcp_proxy.server import create_mcp_server
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.tasks import TaskSyncManager

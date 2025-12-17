@@ -4,9 +4,10 @@ import logging
 import os
 import sqlite3
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Callable, Literal
+from datetime import UTC, datetime
+from typing import Any, Literal
 
 from gobby.storage.database import LocalDatabase
 
@@ -129,7 +130,7 @@ class LocalTaskManager:
     ) -> Task:
         """Create a new task with collision handling."""
         max_retries = 3
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         # Serialize labels
         labels_json = json.dumps(labels) if labels else None
@@ -251,7 +252,7 @@ class LocalTaskManager:
             return self.get_task(task_id)
 
         updates.append("updated_at = ?")
-        params.append(datetime.now(timezone.utc).isoformat())
+        params.append(datetime.now(UTC).isoformat())
 
         params.append(task_id)  # for WHERE clause
 
@@ -267,7 +268,7 @@ class LocalTaskManager:
 
     def close_task(self, task_id: str, reason: str | None = None) -> Task:
         """Close a task."""
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         with self.db.transaction() as conn:
             cursor = conn.execute(
                 "UPDATE tasks SET status = 'closed', closed_reason = ?, updated_at = ? WHERE id = ?",
@@ -335,6 +336,7 @@ class LocalTaskManager:
         task_type: str | None = None,
         label: str | None = None,
         parent_task_id: str | None = None,
+        title_like: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[Task]:
@@ -365,6 +367,9 @@ class LocalTaskManager:
         if parent_task_id:
             query += " AND parent_task_id = ?"
             params.append(parent_task_id)
+        if title_like:
+            query += " AND title LIKE ?"
+            params.append(f"%{title_like}%")
 
         query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])

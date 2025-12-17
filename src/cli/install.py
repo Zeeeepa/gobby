@@ -706,7 +706,7 @@ def install(
     if is_dev_mode:
         click.echo("Mode: Development (using source directory)")
 
-    toggles = [c for c in clis_to_install]
+    toggles = list(clis_to_install)
     if install_hooks:
         toggles.append("git-hooks")
 

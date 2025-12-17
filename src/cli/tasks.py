@@ -4,9 +4,8 @@ Task management commands.
 
 import json
 import logging
-from datetime import datetime
-from typing import Any, Optional
 from pathlib import Path
+from typing import Any
 
 import click
 from gobby.storage.database import LocalDatabase
@@ -280,7 +279,7 @@ def compact_apply(task_id: str, summary: str) -> None:
     if summary.startswith("@"):
         path = summary[1:]
         try:
-            with open(path, "r") as f:
+            with open(path) as f:
                 summary_content = f.read()
         except Exception as e:
             click.echo(f"Error reading summary file: {e}", err=True)
@@ -361,8 +360,9 @@ def import_github(url: str, limit: int) -> None:
     manager = get_sync_manager()
 
     # We need to run async method
-    async def run():
-        return await manager.import_from_github_issues(url, limit=limit)
+    async def run() -> dict[str, Any]:
+        result: dict[str, Any] = await manager.import_from_github_issues(url, limit=limit)
+        return result
 
     try:
         result = asyncio.run(run())
@@ -403,7 +403,7 @@ def stealth_cmd(enable: bool | None) -> None:
 
     # Read current config
     try:
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             config = json.load(f)
     except Exception as e:
         click.echo(f"Error reading project config: {e}", err=True)

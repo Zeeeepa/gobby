@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import yaml
 
@@ -14,7 +14,7 @@ class WorkflowLoader:
         self.workflow_dirs = workflow_dirs
         self._cache: dict[str, WorkflowDefinition] = {}
 
-    def load_workflow(self, name: str) -> Optional[WorkflowDefinition]:
+    def load_workflow(self, name: str) -> WorkflowDefinition | None:
         """
         Load a workflow by name (without extension).
         Supports inheritance via 'extends' field.
@@ -30,7 +30,7 @@ class WorkflowLoader:
 
         try:
             # 2. Parse YAML
-            with open(path, "r") as f:
+            with open(path) as f:
                 data = yaml.safe_load(f)
 
             # 3. Handle inheritance
@@ -51,7 +51,7 @@ class WorkflowLoader:
             logger.error(f"Failed to load workflow '{name}' from {path}: {e}", exc_info=True)
             return None
 
-    def _find_workflow_file(self, name: str) -> Optional[Path]:
+    def _find_workflow_file(self, name: str) -> Path | None:
         filename = f"{name}.yaml"
         for d in self.workflow_dirs:
             candidate = d / filename

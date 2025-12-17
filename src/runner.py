@@ -20,10 +20,10 @@ from gobby.servers.http import HTTPServer
 from gobby.servers.websocket import WebSocketConfig, WebSocketServer
 from gobby.storage.database import LocalDatabase
 from gobby.storage.mcp import LocalMCPManager
-from gobby.storage.tasks import LocalTaskManager
-from gobby.sync.tasks import TaskSyncManager
 from gobby.storage.migrations import run_migrations
 from gobby.storage.sessions import LocalSessionManager
+from gobby.storage.tasks import LocalTaskManager
+from gobby.sync.tasks import TaskSyncManager
 from gobby.utils.logging import setup_file_logging, setup_mcp_logging
 from gobby.utils.machine_id import get_machine_id
 

@@ -8,7 +8,7 @@ This package provides:
 - create_mcp_server: FastMCP server factory
 """
 
-from gobby.mcp_proxy.manager import (
+from .manager import (
     ConnectionState,
     HealthState,
     MCPClientManager,
@@ -16,7 +16,7 @@ from gobby.mcp_proxy.manager import (
     MCPError,
     MCPServerConfig,
 )
-from gobby.mcp_proxy.server import create_mcp_server
+from .server import create_mcp_server
 
 __all__ = [
     "ConnectionState",

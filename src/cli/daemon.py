@@ -4,7 +4,6 @@ Daemon management commands.
 
 import logging
 import os
-import signal
 import subprocess
 import sys
 import time
@@ -21,8 +20,10 @@ from .utils import (
     is_port_available,
     kill_all_gobby_daemons,
     setup_logging,
-    stop_daemon as stop_daemon_util,
     wait_for_port_available,
+)
+from .utils import (
+    stop_daemon as stop_daemon_util,
 )
 
 logger = logging.getLogger(__name__)

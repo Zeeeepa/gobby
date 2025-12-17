@@ -1,9 +1,9 @@
 import asyncio
 import logging
 import threading
-from typing import Optional
 
 from gobby.hooks.events import HookEvent, HookResponse
+
 from .engine import WorkflowEngine
 
 logger = logging.getLogger(__name__)
@@ -15,7 +15,7 @@ class WorkflowHookHandler:
     Wraps the async engine to be callable from synchronous hooks.
     """
 
-    def __init__(self, engine: WorkflowEngine, loop: Optional[asyncio.AbstractEventLoop] = None):
+    def __init__(self, engine: WorkflowEngine, loop: asyncio.AbstractEventLoop | None = None):
         self.engine = engine
         self._loop = loop
 

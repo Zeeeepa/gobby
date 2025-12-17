@@ -23,7 +23,6 @@ from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
     from gobby.llm.service import LLMService
-    from gobby.llm.service import LLMService
     from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.session_tasks import SessionTaskManager
 

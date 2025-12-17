@@ -3,7 +3,6 @@
 import logging
 from typing import Any
 
-from gobby.storage.database import LocalDatabase
 from gobby.storage.tasks import LocalTaskManager
 
 logger = logging.getLogger(__name__)
@@ -27,7 +26,8 @@ class TaskValidator:
             LEFT JOIN tasks t2 ON d.depends_on = t2.id
             WHERE t1.id IS NULL OR t2.id IS NULL
         """
-        return self.db.fetchall(sql)
+        rows = self.db.fetchall(sql)
+        return [dict(row) for row in rows]
 
     def check_invalid_projects(self) -> list[dict[str, Any]]:
         """
@@ -39,7 +39,8 @@ class TaskValidator:
             LEFT JOIN projects p ON t.project_id = p.id
             WHERE p.id IS NULL
         """
-        return self.db.fetchall(sql)
+        rows = self.db.fetchall(sql)
+        return [dict(row) for row in rows]
 
     def check_cycles(self) -> list[list[str]]:
         """
@@ -49,7 +50,8 @@ class TaskValidator:
         from gobby.storage.task_dependencies import TaskDependencyManager
 
         dep_manager = TaskDependencyManager(self.db)
-        return dep_manager.check_cycles()
+        cycles: list[list[str]] = dep_manager.check_cycles()
+        return cycles
 
     def clean_orphans(self) -> int:
         """

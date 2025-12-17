@@ -4,8 +4,8 @@ Hook Event Broadcaster.
 Broadcasting of hook events to WebSocket clients with filtering and sanitization.
 """
 
-from datetime import datetime, timezone
 import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from gobby.config.app import DaemonConfig
@@ -181,7 +181,7 @@ class HookEventBroadcaster:
             payload: dict[str, Any] = {
                 "type": "hook_event",
                 "event_type": event_type.value,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
 
             # Add input data if enabled
@@ -197,9 +197,9 @@ class HookEventBroadcaster:
                 # Add specific fields top-level if needed for convenience
                 # e.g. extract session_id from input
                 if hasattr(event_input, "external_id"):
-                    payload["session_id"] = getattr(event_input, "external_id")
+                    payload["session_id"] = event_input.external_id
                 elif hasattr(event_input, "session_id"):
-                    payload["session_id"] = getattr(event_input, "session_id")
+                    payload["session_id"] = event_input.session_id
 
             # Add output data if present and enabled
             if event_output and ws_config.include_payload:
@@ -207,8 +207,8 @@ class HookEventBroadcaster:
                 payload["result"] = output_data
 
             # Add task_id if present
-            if hasattr(event_input, "task_id") and getattr(event_input, "task_id"):
-                payload["task_id"] = getattr(event_input, "task_id")
+            if hasattr(event_input, "task_id") and event_input.task_id:
+                payload["task_id"] = event_input.task_id
 
             # Broadcast message
             await self.websocket_server.broadcast(payload)

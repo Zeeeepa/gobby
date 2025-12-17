@@ -1,5 +1,6 @@
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
+
 from .definitions import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -11,7 +12,7 @@ class ConditionEvaluator:
     Supports simple boolean logic and variable access.
     """
 
-    def evaluate(self, condition: str, context: Dict[str, Any]) -> bool:
+    def evaluate(self, condition: str, context: dict[str, Any]) -> bool:
         """
         Evaluate a condition string against a context dictionary.
 

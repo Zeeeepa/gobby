@@ -11,8 +11,9 @@ number of tools exposed on the main MCP server.
 
 import asyncio
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +149,7 @@ class InternalRegistryManager:
 
     INTERNAL_PREFIX = "gobby-"
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._registries: dict[str, InternalToolRegistry] = {}
 
     def add_registry(self, registry: InternalToolRegistry) -> None:

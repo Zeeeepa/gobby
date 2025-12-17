@@ -1,9 +1,9 @@
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
 
 from gobby.storage.database import LocalDatabase
+
 from .definitions import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ class WorkflowStateManager:
     def __init__(self, db: LocalDatabase):
         self.db = db
 
-    def get_state(self, session_id: str) -> Optional[WorkflowState]:
+    def get_state(self, session_id: str) -> WorkflowState | None:
         row = self.db.fetchone("SELECT * FROM workflow_states WHERE session_id = ?", (session_id,))
         if not row:
             return None
@@ -29,7 +29,7 @@ class WorkflowStateManager:
                 phase=row["phase"],
                 phase_entered_at=datetime.fromisoformat(row["phase_entered_at"])
                 if row["phase_entered_at"]
-                else datetime.now(timezone.utc),
+                else datetime.now(UTC),
                 phase_action_count=row["phase_action_count"],
                 total_action_count=row["total_action_count"],
                 artifacts=json.loads(row["artifacts"]) if row["artifacts"] else {},
@@ -42,7 +42,7 @@ class WorkflowStateManager:
                 files_modified_this_task=row["files_modified_this_task"],
                 updated_at=datetime.fromisoformat(row["updated_at"])
                 if row["updated_at"]
-                else datetime.now(timezone.utc),
+                else datetime.now(UTC),
             )
         except Exception as e:
             logger.error(
@@ -91,7 +91,7 @@ class WorkflowStateManager:
                 json.dumps(state.task_list) if state.task_list else None,
                 state.current_task_index,
                 state.files_modified_this_task,
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(UTC).isoformat(),
             ),
         )
 
@@ -134,14 +134,14 @@ class WorkflowStateManager:
         """Mark handoff as consumed by a session."""
         self.db.execute(
             """
-            UPDATE workflow_handoffs 
+            UPDATE workflow_handoffs
             SET consumed_at = ?, consumed_by_session = ?
             WHERE id = ?
             """,
-            (datetime.now(timezone.utc).isoformat(), session_id, handoff_id),
+            (datetime.now(UTC).isoformat(), session_id, handoff_id),
         )
 
-    def find_latest_handoff(self, project_id: str) -> Optional[dict]:
+    def find_latest_handoff(self, project_id: str) -> dict | None:
         """Find the latest unconsumed handoff for a project."""
         row = self.db.fetchone(
             """

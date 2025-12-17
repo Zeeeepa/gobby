@@ -1,7 +1,7 @@
 import logging
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from gobby.storage.database import LocalDatabase
@@ -63,7 +63,7 @@ class TaskDependencyManager:
                 f"Adding dependency {task_id} blocks {depends_on} would create a cycle"
             )
 
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
 
         with self.db.transaction() as conn:
             cursor = conn.execute(
@@ -84,7 +84,8 @@ class TaskDependencyManager:
                 "DELETE FROM task_dependencies WHERE task_id = ? AND depends_on = ?",
                 (task_id, depends_on),
             )
-            return cursor.rowcount > 0
+            deleted: bool = cursor.rowcount > 0
+            return deleted
 
     def get_blockers(self, task_id: str) -> list[TaskDependency]:
         """Get tasks that block this task (task_id depends on X)."""
@@ -195,7 +196,7 @@ class TaskDependencyManager:
         path = []
         path_set = set()
 
-        def dfs(u: str):
+        def dfs(u: str) -> None:
             visited.add(u)
             path.append(u)
             path_set.add(u)
