@@ -699,7 +699,7 @@ The `generate_handoff` action generates an LLM-powered session summary and store
    - `{todowrite_list}` - Last TodoWrite tool call contents
    - `{session_tasks}` - Tasks linked to this session
 5. **Call LLM** with rendered template
-6. **Write to `sessions.summary_markdown`** via `session_manager.update_summary()`
+6. **Write summary** (see Storage Location below for strangler fig phases)
 7. **Mark status** as `handoff_ready`
 
 ### ActionContext Requirements
@@ -722,11 +722,20 @@ class ActionContext:
     session_task_manager: Any | None = None      # SessionTaskManager for tasks
 ```
 
-### Storage Location
+### Storage Location (Strangler Fig Phases)
 
-- **Writes to:** `sessions.summary_markdown` column
-- **Does NOT write to:** `workflow_handoffs` table (deprecated)
-- **Does NOT write to:** `~/.gobby/session_summaries/` (separate backup system)
+**Phase A (Validation):** Write to `workflow_handoffs.notes` column
+- Both legacy SummaryGenerator and workflow action run in parallel
+- Compare outputs to validate workflow produces equivalent results
+- Legacy writes to `sessions.summary_markdown`, workflow writes to `workflow_handoffs.notes`
+
+**Phase B (Migration):** Switch to `sessions.summary_markdown` column
+- After validation passes, update action to write to production location
+- Use `session_manager.update_summary(session_id, summary_markdown=content)`
+
+**Phase C (Cleanup):** Remove legacy code and drop `workflow_handoffs` table
+
+**Backup files:** `~/.gobby/session_summaries/` is a separate backup system, not managed by this action
 
 ---
 
