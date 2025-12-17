@@ -210,7 +210,10 @@ __marimo__/
 .claude/
 .gemini/
 .codex/
-.gobby/
+.gobby/*
+!.gobby/project.json
+!.gobby/tasks.jsonl
+!.gobby/tasks_meta.json
 .agent/
 .agentvibes/
 .bmad/
