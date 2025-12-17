@@ -653,12 +653,7 @@ def create_stdio_mcp_server() -> FastMCP:
                 }
             try:
                 result = await registry.call(tool_name, arguments or {})
-                return {
-                    "success": True,
-                    "server": server_name,
-                    "tool": tool_name,
-                    "result": result,
-                }
+                return {"success": True, "result": result}
             except ValueError as e:
                 return {
                     "success": False,
@@ -965,12 +960,7 @@ def create_stdio_mcp_server() -> FastMCP:
                     "error": f"Internal server '{server}' not found",
                     "available_internal_servers": available,
                 }
-            return {
-                "success": True,
-                "server": server,
-                "project_id": "",
-                "tools": registry.list_tools(),
-            }
+            return {"success": True, "tools": registry.list_tools()}
 
         # For external servers or listing all, proxy to daemon
         # The daemon will include internal servers in its response
@@ -1072,11 +1062,7 @@ def create_stdio_mcp_server() -> FastMCP:
                     "available_tools": available_tools,
                 }
 
-            return {
-                "success": True,
-                "server": server_name,
-                "tool": schema,
-            }
+            return {"success": True, "tool": schema}
 
         # Route to HTTP daemon for external servers
         return await _call_daemon_tool(

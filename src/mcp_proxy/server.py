@@ -288,12 +288,7 @@ def create_mcp_server(
                     }
                 try:
                     result = await registry.call(tool_name, arguments or {})
-                    return {
-                        "success": True,
-                        "server": server_name,
-                        "tool": tool_name,
-                        "result": result,
-                    }
+                    return {"success": True, "result": result}
                 except ValueError as e:
                     return {
                         "success": False,
@@ -319,12 +314,7 @@ def create_mcp_server(
                 result = await mcp_manager.call_tool(
                     server_name, tool_name, arguments or {}, timeout=mcp_tool_timeout
                 )
-                return {
-                    "success": True,
-                    "server": server_name,
-                    "tool": tool_name,
-                    "result": result,
-                }
+                return {"success": True, "result": result}
             except TimeoutError:
                 logger.error(
                     f"Tool call timed out after {mcp_tool_timeout}s: {server_name}.{tool_name}"
@@ -367,8 +357,6 @@ def create_mcp_server(
                 resource = await mcp_manager.read_resource(server_name, resource_uri)
                 return {
                     "success": True,
-                    "server": server_name,
-                    "uri": resource_uri,
                     "content": [item.model_dump() for item in resource.contents],
                     "mime_type": resource.mimeType if hasattr(resource, "mimeType") else None,
                 }
@@ -616,12 +604,7 @@ def create_mcp_server(
                                 "error": f"Internal server '{server}' not found",
                                 "available_internal_servers": available_internal,
                             }
-                        return {
-                            "success": True,
-                            "server": server,
-                            "project_id": "",
-                            "tools": registry.list_tools(),
-                        }
+                        return {"success": True, "tools": registry.list_tools()}
 
                     # Find specific downstream server
                     server_config = next(
@@ -650,12 +633,7 @@ def create_mcp_server(
                                 }
                             )
 
-                    return {
-                        "success": True,
-                        "server": server,
-                        "project_id": server_config.project_id,
-                        "tools": tools_list,
-                    }
+                    return {"success": True, "tools": tools_list}
                 else:
                     # Return all servers with their tools (internal + downstream)
                     servers_list = []
@@ -663,11 +641,7 @@ def create_mcp_server(
                     # Add internal servers first
                     for registry in internal_manager.get_all_registries():
                         servers_list.append(
-                            {
-                                "name": registry.name,
-                                "project_id": "",
-                                "tools": registry.list_tools(),
-                            }
+                            {"name": registry.name, "tools": registry.list_tools()}
                         )
 
                     # Add downstream servers
@@ -682,18 +656,9 @@ def create_mcp_server(
                                     }
                                 )
 
-                        servers_list.append(
-                            {
-                                "name": server_config.name,
-                                "project_id": server_config.project_id,
-                                "tools": tools_list,
-                            }
-                        )
+                        servers_list.append({"name": server_config.name, "tools": tools_list})
 
-                    return {
-                        "success": True,
-                        "servers": servers_list,
-                    }
+                    return {"success": True, "servers": servers_list}
 
             except Exception as e:
                 logger.error(f"Failed to list tools: {e}")
@@ -771,11 +736,7 @@ def create_mcp_server(
                             "available_tools": available_tools,
                         }
 
-                    return {
-                        "success": True,
-                        "server": server_name,
-                        "tool": schema,
-                    }
+                    return {"success": True, "tool": schema}
 
                 # Check if downstream server exists in config
                 server_config = next(
@@ -822,11 +783,7 @@ def create_mcp_server(
                     "inputSchema": tool.input_schema or {},
                 }
 
-                return {
-                    "success": True,
-                    "server": server_name,
-                    "tool": tool_schema,
-                }
+                return {"success": True, "tool": tool_schema}
 
             except Exception as e:
                 logger.error(f"Failed to get tool schema for {server_name}/{tool_name}: {e}")
@@ -981,9 +938,7 @@ Execute the code and return the output."""
                 return {
                     "success": True,
                     "result": result_text.strip(),
-                    "language": language,
                     "execution_time": round(execution_time, 2),
-                    "context": context,
                 }
 
             except Exception as e:
@@ -992,7 +947,6 @@ Execute the code and return the output."""
                     "success": False,
                     "error": str(e),
                     "error_type": type(e).__name__,
-                    "language": language,
                 }
 
         @mcp.tool
@@ -1158,7 +1112,6 @@ Use pandas, numpy, or standard Python as needed.""",
                     "processed_size": processed_size,
                     "reduction_percent": reduction_pct,
                     "execution_time": round(execution_time, 2),
-                    "operation": operation,
                 }
 
             except Exception as e:
@@ -1309,19 +1262,12 @@ If no tools are relevant, say so clearly."""
                                 if isinstance(block, TextBlock):
                                     recommendation_text = block.text
 
-                result = {
+                return {
                     "success": True,
-                    "task": task_description,
                     "recommendation": recommendation_text.strip(),
                     "available_servers": list(tools_by_server.keys()),
                     "total_tools": sum(len(tools) for tools in tools_by_server.values()),
                 }
-
-                if agent_id:
-                    result["agent_id"] = agent_id
-                    result["agent_filtering"] = "not_yet_implemented"
-
-                return result
 
             except Exception as e:
                 logger.error(f"Failed to generate tool recommendations: {e}")
@@ -1490,12 +1436,7 @@ If no tools are relevant, say so clearly."""
                     None, lambda: hook_manager.execute(normalized_hook_type, input_data)
                 )
 
-                return {
-                    "success": True,
-                    "hook_type": hook_type,
-                    "normalized_type": normalized_hook_type,
-                    "result": result,
-                }
+                return {"success": True, "result": result}
             finally:
                 # Restore original source
                 if original_source is not None:
@@ -1734,11 +1675,7 @@ If no tools are relevant, say so clearly."""
                 with _codex_session_lock:
                     _codex_session_mapping.pop(thread_id, None)
 
-                return {
-                    "success": True,
-                    "thread_id": thread_id,
-                    "message": f"Thread {thread_id} archived",
-                }
+                return {"success": True}
 
             except Exception as e:
                 logger.error(f"Failed to archive Codex thread: {e}", exc_info=True)
