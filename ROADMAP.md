@@ -32,7 +32,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 2: Core Task System (Completed)                                       │
+│ Sprint 2: Core Task System ✅ COMPLETED                                      │
 │ TASKS Phases 1-6                                                             │
 │                                                                              │
 │ Deliverable: Task CRUD, dependencies, ready work detection, git sync        │
@@ -41,10 +41,10 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 3: Task MCP Tools & CLI (Completed)                                   │
+│ Sprint 3: Task MCP Tools & CLI ✅ COMPLETED                                  │
 │ TASKS Phases 7-10                                                            │
 │                                                                              │
-│ Deliverable: Task management via MCP tools and CLI                          │
+│ Deliverable: Task management via MCP tools and CLI + internal-* proxy       │
 │ Dependencies: Sprint 2                                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
 
@@ -200,26 +200,26 @@ This document defines the implementation order across all Gobby planning documen
 
 ## Sprint Summary Table
 
-| Sprint | Focus | Plan Reference | Dependencies |
-|--------|-------|----------------|--------------|
-| 1 | WebSocket Broadcasting | HOOK_EXTENSIONS Phase 1 | None |
-| 2 | Core Task System | TASKS Phases 1-6 | None |
-| 3 | Task MCP/CLI | TASKS Phases 7-10 | Sprint 2 |
-| 4 | Workflow Foundation | WORKFLOWS Phases 0-2 | None |
-| 5 | Workflow Hooks | WORKFLOWS Phase 3 | Sprint 4 |
-| 6 | Workflow Actions | WORKFLOWS Phase 4 | Sprint 5 |
-| 7 | Context & Templates | WORKFLOWS Phases 5-6 | Sprint 6 |
-| 8 | Webhooks | HOOK_EXTENSIONS Phase 2 | Sprint 1 |
-| 9 | Python Plugins | HOOK_EXTENSIONS Phase 3 | Sprint 1 |
-| 10 | Workflow CLI/MCP | WORKFLOWS Phases 7-8 | Sprint 7 |
-| 11 | Workflow-Task Integration | TASKS Phases 11-13 | Sprints 3, 7 |
-| 12 | Tool Metrics | MCP_PROXY Phase 1 | None |
-| 13 | Lazy Init | MCP_PROXY Phase 2 | None |
-| 14 | Semantic Search | MCP_PROXY Phase 3 | Sprint 12 |
-| 15 | Self-Healing | MCP_PROXY Phases 4-5 | Sprint 14 |
-| 16 | Hook Workflow Integration | HOOK_EXTENSIONS Phases 4-5 | Sprints 7, 9 |
-| 17 | Testing & Recovery | WORKFLOWS Phases 9-11 | Sprint 10 |
-| 18 | Documentation | All Plans | All |
+| Sprint | Focus | Plan Reference | Dependencies | Status |
+|--------|-------|----------------|--------------|--------|
+| 1 | WebSocket Broadcasting | HOOK_EXTENSIONS Phase 1 | None | Pending |
+| 2 | Core Task System | TASKS Phases 1-6 | None | ✅ Completed |
+| 3 | Task MCP/CLI | TASKS Phases 7-10 | Sprint 2 | ✅ Completed |
+| 4 | Workflow Foundation | WORKFLOWS Phases 0-2 | None | Pending |
+| 5 | Workflow Hooks | WORKFLOWS Phase 3 | Sprint 4 | Pending |
+| 6 | Workflow Actions | WORKFLOWS Phase 4 | Sprint 5 | Pending |
+| 7 | Context & Templates | WORKFLOWS Phases 5-6 | Sprint 6 | Pending |
+| 8 | Webhooks | HOOK_EXTENSIONS Phase 2 | Sprint 1 | Pending |
+| 9 | Python Plugins | HOOK_EXTENSIONS Phase 3 | Sprint 1 | Pending |
+| 10 | Workflow CLI/MCP | WORKFLOWS Phases 7-8 | Sprint 7 | Pending |
+| 11 | Workflow-Task Integration | TASKS Phases 11-13 | Sprints 3, 7 | Pending |
+| 12 | Tool Metrics | MCP_PROXY Phase 1 | None | Pending |
+| 13 | Lazy Init | MCP_PROXY Phase 2 | None | Pending |
+| 14 | Semantic Search | MCP_PROXY Phase 3 | Sprint 12 | Pending |
+| 15 | Self-Healing | MCP_PROXY Phases 4-5 | Sprint 14 | Pending |
+| 16 | Hook Workflow Integration | HOOK_EXTENSIONS Phases 4-5 | Sprints 7, 9 | Pending |
+| 17 | Testing & Recovery | WORKFLOWS Phases 9-11 | Sprint 10 | Pending |
+| 18 | Documentation | All Plans | All | Pending |
 
 ---
 

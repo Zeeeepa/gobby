@@ -30,6 +30,7 @@ class Task:
     assignee: str | None = None
     labels: list[str] | None = None
     closed_reason: str | None = None
+    platform_id: str | None = None  # UUID for future fleet sync
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Task":
@@ -52,6 +53,7 @@ class Task:
             assignee=row["assignee"],
             labels=labels,
             closed_reason=row["closed_reason"],
+            platform_id=row["platform_id"] if "platform_id" in row.keys() else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -71,6 +73,7 @@ class Task:
             "assignee": self.assignee,
             "labels": self.labels,
             "closed_reason": self.closed_reason,
+            "platform_id": self.platform_id,
         }
 
 

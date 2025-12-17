@@ -254,6 +254,15 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_session_tasks_task ON session_tasks(task_id);
         """,
     ),
+    (
+        10,
+        "Add platform_id column to tasks for future fleet sync",
+        """
+        ALTER TABLE tasks ADD COLUMN platform_id TEXT;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_platform_id
+            ON tasks(platform_id) WHERE platform_id IS NOT NULL;
+        """,
+    ),
 ]
 
 

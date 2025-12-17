@@ -62,12 +62,14 @@ uv run mypy src/
 
 - `src/servers/http.py` - FastAPI HTTP server with REST endpoints and MCP server
 - `src/servers/websocket.py` - WebSocket server for real-time communication
-- `src/mcp/server.py` - FastMCP server with daemon control tools (status, call_tool, list_tools, etc.)
-- `src/mcp/stdio.py` - Stdio MCP server for Claude Code integration
+- `src/mcp_proxy/server.py` - FastMCP server with daemon control tools (status, call_tool, list_tools, etc.)
+- `src/mcp_proxy/stdio.py` - Stdio MCP server for Claude Code integration
 
-**MCP Client Management:**
+**MCP Proxy & Internal Tools:**
 
-- `src/mcp/manager.py` - MCPClientManager handles connections to downstream MCP servers (context7, supabase, etc.) with multiple transport support (HTTP, stdio, WebSocket)
+- `src/mcp_proxy/manager.py` - MCPClientManager handles connections to downstream MCP servers (context7, supabase, etc.) with multiple transport support (HTTP, stdio, WebSocket)
+- `src/mcp_proxy/tools/internal.py` - InternalToolRegistry and InternalRegistryManager for `internal-*` prefixed servers
+- `src/mcp_proxy/tools/tasks.py` - Task tool registry (create_task, list_ready_tasks, etc.)
 - `src/config/mcp.py` - MCP configuration management
 - `src/storage/mcp.py` - LocalMCPManager for MCP server and tool storage in SQLite
 
@@ -89,7 +91,11 @@ uv run mypy src/
 - `src/storage/database.py` - SQLite database manager with thread-local connections
 - `src/storage/sessions.py` - LocalSessionManager for session CRUD operations
 - `src/storage/projects.py` - LocalProjectManager for project CRUD operations
+- `src/storage/tasks.py` - LocalTaskManager for task CRUD operations
+- `src/storage/task_dependencies.py` - TaskDependencyManager for dependency relationships
+- `src/storage/session_tasks.py` - SessionTaskManager for session-task linking
 - `src/storage/migrations.py` - Database migration system
+- `src/sync/tasks.py` - TaskSyncManager for JSONL import/export
 
 **Configuration:**
 
@@ -111,9 +117,11 @@ uv run mypy src/
 ### Key File Locations
 
 - Config: `~/.gobby/config.yaml`
-- Database: `~/.gobby/gobby.db` (sessions, projects, MCP servers, tools)
+- Database: `~/.gobby/gobby.db` (sessions, projects, tasks, MCP servers, tools)
 - Logs: `~/.gobby/logs/`
 - Session summaries: `~/.gobby/session_summaries/`
+- Project config: `.gobby/project.json`
+- Task sync: `.gobby/tasks.jsonl`, `.gobby/tasks_meta.json`
 
 ## MCP Tool Progressive Disclosure
 
@@ -121,9 +129,33 @@ The daemon implements progressive tool discovery to reduce token usage:
 
 1. **list_tools()** - Returns lightweight tool metadata (name + brief description)
 2. **get_tool_schema()** - Returns full inputSchema for a specific tool from SQLite cache
-3. **call_tool()** - Executes the tool on the downstream MCP server
+3. **call_tool()** - Executes the tool on the appropriate server
 
 Tool schemas are cached in SQLite (`mcp_servers` and `tools` tables) via `LocalMCPManager`.
+
+## Internal Tool Registry Pattern
+
+Internal tools use an `internal-*` prefix for server names and are handled locally:
+
+```python
+# List internal task tools
+list_tools(server="internal-tasks")
+
+# Get schema for a specific tool
+get_tool_schema(server_name="internal-tasks", tool_name="create_task")
+
+# Call an internal tool
+call_tool(server_name="internal-tasks", tool_name="create_task", arguments={"title": "Fix bug"})
+```
+
+**Routing logic:**
+
+- `internal-*` servers → handled locally by `InternalRegistryManager`
+- All others → proxied to downstream MCP servers via `MCPClientManager`
+
+**Available internal servers:**
+
+- `internal-tasks` - Task CRUD, dependencies, ready work detection, git sync
 
 ## Testing
 

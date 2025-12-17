@@ -29,6 +29,16 @@ class TaskDependency:
             created_at=row["created_at"],
         )
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert TaskDependency to dictionary."""
+        return {
+            "id": self.id,
+            "task_id": self.task_id,
+            "depends_on": self.depends_on,
+            "dep_type": self.dep_type,
+            "created_at": self.created_at,
+        }
+
 
 class DependencyCycleError(Exception):
     """Raised when a dependency cycle is detected."""

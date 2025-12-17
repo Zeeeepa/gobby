@@ -1,44 +1,81 @@
-## Issue Tracking with bd (beads)
+## Task Tracking with Gobby
 
-**IMPORTANT**: This project uses **bd (beads)** for ALL issue tracking. Do NOT use markdown TODOs, task lists, or other tracking methods.
+**IMPORTANT**: This project uses **Gobby's native task system** for ALL task tracking. Do NOT use markdown TODOs, task lists, or other tracking methods.
 
-### Why bd?
+### Why Gobby Tasks?
 
-- Dependency-aware: Track blockers and relationships between issues
-- Git-friendly: Auto-syncs to JSONL for version control
-- Agent-optimized: JSON output, ready work detection, discovered-from links
-- Prevents duplicate tracking systems and confusion
+- Dependency-aware: Track blockers and relationships between tasks
+- Git-friendly: Auto-syncs to `.gobby/tasks.jsonl` for version control
+- Agent-optimized: MCP tools + JSON output + ready work detection
+- Session-aware: Tasks link to sessions where discovered/worked
+- Multi-CLI support: Works with Claude Code, Gemini CLI, and Codex
 
-### Quick Start
+### Quick Start (MCP Tools)
 
 **Check for ready work:**
 
-```bash
-bd ready --json
+```python
+mcp__gobby__call_tool(
+    server_name="internal-tasks",
+    tool_name="list_ready_tasks",
+    arguments={"limit": 10}
+)
 ```
 
-**Create new issues:**
+**Create new tasks:**
 
-```bash
-bd create "Issue title" -t bug|feature|task -p 0-4 --json
-bd create "Issue title" -p 1 --deps discovered-from:bd-123 --json
-bd create "Subtask" --parent <epic-id> --json  # Hierarchical subtask (gets ID like epic-id.1)
+```python
+mcp__gobby__call_tool(
+    server_name="internal-tasks",
+    tool_name="create_task",
+    arguments={
+        "title": "Fix authentication bug",
+        "priority": 1,
+        "task_type": "bug"
+    }
+)
 ```
 
 **Claim and update:**
 
-```bash
-bd update bd-42 --status in_progress --json
-bd update bd-42 --priority 1 --json
+```python
+mcp__gobby__call_tool(
+    server_name="internal-tasks",
+    tool_name="update_task",
+    arguments={"task_id": "gt-abc123", "status": "in_progress"}
+)
 ```
 
 **Complete work:**
 
-```bash
-bd close bd-42 --reason "Completed" --json
+```python
+mcp__gobby__call_tool(
+    server_name="internal-tasks",
+    tool_name="close_task",
+    arguments={"task_id": "gt-abc123", "reason": "completed"}
+)
 ```
 
-### Issue Types
+### CLI Commands
+
+```bash
+# List ready work
+gobby tasks list --status open
+
+# Create task
+gobby tasks create "Fix bug" -p 1 -t bug
+
+# Update task
+gobby tasks update gt-abc123 --status in_progress
+
+# Close task
+gobby tasks close gt-abc123 --reason "Fixed"
+
+# Sync with git
+gobby tasks sync
+```
+
+### Task Types
 
 - `bug` - Something broken
 - `feature` - New functionality
@@ -48,55 +85,47 @@ bd close bd-42 --reason "Completed" --json
 
 ### Priorities
 
-- `0` - Critical (security, data loss, broken builds)
 - `1` - High (major features, important bugs)
-- `2` - Medium (default, nice-to-have)
+- `2` - Medium (default)
 - `3` - Low (polish, optimization)
-- `4` - Backlog (future ideas)
 
 ### Workflow for AI Agents
 
-1. **Check ready work**: `bd ready` shows unblocked issues
-2. **Claim your task**: `bd update <id> --status in_progress`
+1. **Check ready work**: `list_ready_tasks` shows unblocked tasks
+2. **Claim your task**: `update_task` with `status="in_progress"`
 3. **Work on it**: Implement, test, document
-4. **Discover new work?** Create linked issue:
-   - `bd create "Found bug" -p 1 --deps discovered-from:<parent-id>`
-5. **Complete**: `bd close <id> --reason "Done"`
-6. **Commit together**: Always commit the `.beads/issues.jsonl` file together with the code changes so issue state stays in sync with code state
+4. **Discover new work?** Create linked task with `add_dependency`
+5. **Complete**: `close_task` with reason
+6. **Commit together**: Include `.gobby/tasks.jsonl` with code changes
 
 ### Auto-Sync
 
-bd automatically syncs with git:
+Gobby tasks automatically sync:
 
-- Exports to `.beads/issues.jsonl` after changes (5s debounce)
-- Imports from JSONL when newer (e.g., after `git pull`)
-- No manual export/import needed!
+- Exports to `.gobby/tasks.jsonl` after changes (5s debounce)
+- Imports from JSONL on daemon start
+- Use `gobby tasks sync` to manually trigger
 
-### GitHub Copilot Integration
+### Available MCP Tools
 
-If using GitHub Copilot, also create `.github/copilot-instructions.md` for automatic instruction loading.
-Run `bd onboard` to get the content, or see step 2 of the onboard instructions.
+All accessed via `call_tool(server_name="internal-tasks", ...)`:
 
-### MCP Server (Recommended)
-
-If using Claude or MCP-compatible clients, install the beads MCP server:
-
-```bash
-pip install beads-mcp
-```
-
-Add to MCP config (e.g., `~/.config/claude/config.json`):
-
-```json
-{
-  "beads": {
-    "command": "beads-mcp",
-    "args": []
-  }
-}
-```
-
-Then use `mcp__beads__*` functions instead of CLI commands.
+| Tool | Description |
+|------|-------------|
+| `create_task` | Create a new task |
+| `get_task` | Get task details with dependencies |
+| `update_task` | Update task fields |
+| `close_task` | Close a task with reason |
+| `delete_task` | Delete a task |
+| `list_tasks` | List tasks with filters |
+| `add_dependency` | Add dependency between tasks |
+| `remove_dependency` | Remove a dependency |
+| `get_dependency_tree` | Get blockers/blocking tasks |
+| `check_dependency_cycles` | Detect circular dependencies |
+| `list_ready_tasks` | List unblocked tasks |
+| `list_blocked_tasks` | List blocked tasks |
+| `sync_tasks` | Trigger import/export |
+| `get_sync_status` | Get sync status |
 
 ### Managing AI-Generated Planning Documents
 
@@ -124,28 +153,21 @@ history/
 
 **Benefits:**
 
-- ✅ Clean repository root
-- ✅ Clear separation between ephemeral and permanent documentation
-- ✅ Easy to exclude from version control if desired
-- ✅ Preserves planning history for archeological research
-- ✅ Reduces noise when browsing the project
-
-### CLI Help
-
-Run `bd <command> --help` to see all available flags for any command.
-For example: `bd create --help` shows `--parent`, `--deps`, `--assignee`, etc.
+- Clean repository root
+- Clear separation between ephemeral and permanent documentation
+- Easy to exclude from version control if desired
+- Preserves planning history for archeological research
+- Reduces noise when browsing the project
 
 ### Important Rules
 
-- ✅ Use bd for ALL task tracking
-- ✅ Always use `--json` flag for programmatic use
-- ✅ Link discovered work with `discovered-from` dependencies
-- ✅ Check `bd ready` before asking "what should I work on?"
-- ✅ Store AI planning docs in `history/` directory
-- ✅ Run `bd <cmd> --help` to discover available flags
-- ❌ Do NOT create markdown TODO lists
-- ❌ Do NOT use external issue trackers
-- ❌ Do NOT duplicate tracking systems
-- ❌ Do NOT clutter repo root with planning documents
+- Use gobby tasks for ALL task tracking
+- Use MCP tools (`internal-tasks`) for programmatic access
+- Check `list_ready_tasks` before asking "what should I work on?"
+- Store AI planning docs in `history/` directory
+- Do NOT create markdown TODO lists
+- Do NOT use external issue trackers
+- Do NOT duplicate tracking systems
+- Do NOT clutter repo root with planning documents
 
-For more details, see README.md and QUICKSTART.md.
+For more details, see [README.md](README.md) and [MCP_TOOLS.md](MCP_TOOLS.md).

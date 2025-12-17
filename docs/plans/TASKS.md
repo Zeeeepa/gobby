@@ -32,15 +32,16 @@ The core task system provides immediate value without workflows. Agents can use 
 
 ```sql
 CREATE TABLE tasks (
-    id TEXT PRIMARY KEY,              -- Hash-based: gt-a1b2c3
+    id TEXT PRIMARY KEY,              -- Human-friendly: gt-xxxxxx (6 chars, collision-resistant)
     project_id TEXT NOT NULL,         -- FK to projects
-    parent_task_id TEXT,              -- For hierarchical breakdown (gt-a1b2.1)
+    platform_id TEXT,                 -- UUID for future platform sync (nullable, populated on sync)
+    parent_task_id TEXT,              -- For hierarchical breakdown (gt-a1b2c3.1)
     discovered_in_session_id TEXT,    -- Session where task was discovered
     title TEXT NOT NULL,
     description TEXT,
     status TEXT DEFAULT 'open',       -- open, in_progress, closed
-    priority INTEGER DEFAULT 2,       -- 0=highest, 4=lowest
-    type TEXT DEFAULT 'task',         -- bug, feature, task, epic, chore
+    priority INTEGER DEFAULT 2,       -- 1=High, 2=Medium, 3=Low
+    task_type TEXT DEFAULT 'task',    -- bug, feature, task, epic, chore
     assignee TEXT,                    -- Agent or human identifier
     labels TEXT,                      -- JSON array
     closed_reason TEXT,
@@ -54,6 +55,7 @@ CREATE TABLE tasks (
 CREATE INDEX idx_tasks_project ON tasks(project_id);
 CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_parent ON tasks(parent_task_id);
+CREATE UNIQUE INDEX idx_tasks_platform_id ON tasks(platform_id) WHERE platform_id IS NOT NULL;
 ```
 
 ### Dependencies Table
@@ -100,11 +102,18 @@ CREATE INDEX idx_session_tasks_task ON session_tasks(task_id);
 | `related` | Soft link - informational only | Two tasks touch same code |
 | `discovered-from` | Task was found while working on another | Bug found during feature work |
 
-## Hash-Based ID Generation
+## ID Generation
+
+Tasks use a hash-based ID with optional platform UUID for fleet sync:
+
+- **`id`**: Human-friendly `gt-{6 chars}` (collision-resistant within central DB)
+- **`platform_id`**: UUID for future platform sync (nullable, generated on first sync)
+
+### ID Format
 
 IDs use the format `gt-{hash}` where hash is 6 hex characters derived from:
 
-- Timestamp (milliseconds)
+- Timestamp (nanoseconds)
 - Random bytes
 - Project ID
 
@@ -116,13 +125,29 @@ import os
 import time
 
 def generate_task_id(project_id: str) -> str:
+    """Generate collision-resistant task ID."""
     data = f"{time.time_ns()}{os.urandom(8).hex()}{project_id}"
     hash_hex = hashlib.sha256(data.encode()).hexdigest()[:6]
     return f"gt-{hash_hex}"
 
 def generate_child_id(parent_id: str, child_num: int) -> str:
+    """Generate child ID from parent."""
     return f"{parent_id}.{child_num}"
+
+def generate_platform_id() -> str:
+    """Generate UUID for platform sync (called lazily on first sync)."""
+    import uuid
+    return uuid.uuid4().hex
 ```
+
+### Platform Sync (Future)
+
+When gobby connects to the remote platform for fleet management:
+
+1. Tasks without `platform_id` get a UUID generated on first sync
+2. Platform uses `platform_id` for cross-machine references
+3. Local tools continue using human-friendly `gt-xxxxxx` IDs
+4. JSONL exports include both `id` and `platform_id` for portability
 
 ## Ready Work Query
 
@@ -159,8 +184,10 @@ LIMIT ?;
 Each line is a complete task record with embedded dependencies:
 
 ```json
-{"id":"gt-a1b2c3","project_id":"proj-123","title":"Fix auth bug","status":"open","priority":1,"type":"bug","dependencies":[{"depends_on":"gt-x9y8z7","dep_type":"blocks"}],"created_at":"2025-01-15T10:00:00Z","updated_at":"2025-01-15T10:00:00Z"}
+{"id":"gt-a1b2c3","platform_id":null,"project_id":"proj-123","title":"Fix auth bug","status":"open","priority":1,"task_type":"bug","dependencies":[{"depends_on":"gt-x9y8z7","dep_type":"blocks"}],"created_at":"2025-01-15T10:00:00Z","updated_at":"2025-01-15T10:00:00Z"}
 ```
+
+Note: `platform_id` is null until first platform sync, then contains UUID.
 
 ### Sync Behavior
 
@@ -200,7 +227,7 @@ def create_task(
     title: str,
     description: str | None = None,
     priority: int = 2,
-    type: str = "task",
+    task_type: str = "task",
     parent_task_id: str | None = None,
     blocks: list[str] | None = None,
     labels: list[str] | None = None,
@@ -228,6 +255,10 @@ def close_task(task_id: str, reason: str) -> dict:
     """Close a task with a reason."""
 
 @mcp.tool()
+def reopen_task(task_id: str, reason: str | None = None) -> dict:
+    """Reopen a closed task with optional reason."""
+
+@mcp.tool()
 def delete_task(task_id: str, cascade: bool = False) -> dict:
     """Delete a task. Use cascade=True to delete children."""
 
@@ -235,13 +266,25 @@ def delete_task(task_id: str, cascade: bool = False) -> dict:
 def list_tasks(
     status: str | None = None,
     priority: int | None = None,
-    type: str | None = None,
+    task_type: str | None = None,
     assignee: str | None = None,
     label: str | None = None,
     parent_task_id: str | None = None,
     limit: int = 50,
 ) -> dict:
     """List tasks with optional filters."""
+```
+
+### Label Management
+
+```python
+@mcp.tool()
+def add_label(task_id: str, label: str) -> dict:
+    """Add a label to a task (appends to existing labels)."""
+
+@mcp.tool()
+def remove_label(task_id: str, label: str) -> dict:
+    """Remove a label from a task."""
 ```
 
 ### Dependency Management
@@ -274,7 +317,7 @@ def check_dependency_cycles() -> dict:
 @mcp.tool()
 def list_ready_tasks(
     priority: int | None = None,
-    type: str | None = None,
+    task_type: str | None = None,
     assignee: str | None = None,
     limit: int = 10,
 ) -> dict:
@@ -317,22 +360,60 @@ def get_sync_status() -> dict:
     """Get sync status: last export time, pending changes, conflicts."""
 ```
 
+### Compaction
+
+```python
+@mcp.tool()
+def analyze_compaction(days: int = 30) -> dict:
+    """Find tasks eligible for compaction (closed longer than threshold)."""
+
+@mcp.tool()
+def compact_task(task_id: str, summary: str) -> dict:
+    """Apply compaction summary to a task. Preserves title, replaces description."""
+
+@mcp.tool()
+def get_compaction_stats() -> dict:
+    """Get compaction statistics: candidates, compacted count, space saved."""
+```
+
+### Maintenance
+
+```python
+@mcp.tool()
+def validate_tasks() -> dict:
+    """Validate task data integrity (foreign keys, orphans, short_ref uniqueness)."""
+
+@mcp.tool()
+def clean_tasks() -> dict:
+    """Clean up orphaned dependencies and compact database."""
+
+@mcp.tool()
+def import_tasks(file_path: str, format: str = "jsonl") -> dict:
+    """Import tasks from file (jsonl or markdown format)."""
+```
+
 ## CLI Commands
 
 ```bash
 # Task management
 gobby tasks list [--status STATUS] [--priority N] [--ready]
-gobby tasks show TASK_ID
+gobby tasks show TASK_ID [--verbose]     # --verbose shows full UUID
 gobby tasks create "Title" [-d DESC] [-p PRIORITY] [-t TYPE]
 gobby tasks update TASK_ID [--status S] [--priority P]
 gobby tasks close TASK_ID --reason "Done"
+gobby tasks reopen TASK_ID [--reason "Reason"]
 gobby tasks delete TASK_ID [--cascade]
 
 # Dependencies
-gobby tasks dep add TASK BLOCKER [--type TYPE]
+gobby tasks dep add TASK BLOCKER [--dep-type TYPE]
 gobby tasks dep remove TASK BLOCKER
 gobby tasks dep tree TASK
 gobby tasks dep cycles
+
+# Labels
+gobby tasks label add TASK LABEL
+gobby tasks label remove TASK LABEL
+gobby tasks label list                   # List all labels in project
 
 # Ready work
 gobby tasks ready [--limit N]
@@ -342,18 +423,39 @@ gobby tasks blocked
 gobby tasks sync [--import] [--export]
 gobby tasks sync --status
 
+# Git hooks
+gobby tasks hooks install                # Install pre-commit, post-merge hooks
+gobby tasks hooks uninstall
+
+# Compaction (memory decay)
+gobby tasks compact --analyze            # List candidates (closed 30+ days)
+gobby tasks compact --apply --id TASK --summary FILE
+gobby tasks compact --stats
+
+# Maintenance
+gobby tasks doctor                       # Validate setup and data integrity
+gobby tasks validate                     # Validate JSONL integrity
+gobby tasks clean                        # Remove orphaned data, compact DB
+
+# Import
+gobby tasks import FILE [--format md|jsonl]
+gobby tasks import --from-beads          # Migrate from beads
+
+# Configuration
+gobby tasks config --stealth [on|off]    # Toggle stealth mode
+
 # Stats
 gobby tasks stats
 ```
 
 ## Implementation Checklist
 
-### Phase 1: Storage Layer
+### Phase 1: Storage Layer (Completed)
 
 - [x] Create database migration for tasks table
 - [x] Create database migration for task_dependencies table
 - [x] Create database migration for session_tasks table
-- [x] Implement hash-based ID generation utility
+- [x] Implement ID generation utility
 - [x] Create `src/storage/tasks.py` with `LocalTaskManager` class
 - [x] Implement `create()` method
 - [x] Implement `get()` method
@@ -362,13 +464,6 @@ gobby tasks stats
 - [x] Implement `list()` method with filters
 - [x] Implement `close()` method
 - [x] Add unit tests for LocalTaskManager
-
-#### ID Collision Handling (Decision 1)
-
-- [x] Add collision detection in `generate_task_id()` function
-- [x] Implement retry loop with incremented salt (max 3 retries)
-- [x] Raise `TaskIDCollisionError` if all retries fail
-- [x] Add unit test for collision handling with mock collision
 
 ### Phase 2: Dependency Management
 
@@ -423,7 +518,7 @@ gobby tasks stats
 - [x] Add unit tests for import functionality
 - [x] Add integration test for round-trip sync
 
-### Phase 7: MCP Tools
+### Phase 7: MCP Tools (Completed)
 
 - [x] Add `create_task` tool to MCP server
 - [x] Add `get_task` tool to MCP server
@@ -442,33 +537,93 @@ gobby tasks stats
 - [x] Add `get_task_sessions` tool to MCP server
 - [x] Add `sync_tasks` tool to MCP server
 - [x] Add `get_sync_status` tool to MCP server
-- [ ] Update MCP tool documentation
+- [x] Update MCP tool documentation
 
-### Phase 8: CLI Commands
+### Phase 8: CLI Commands (Completed)
 
-- [ ] Add `gobby tasks` command group to CLI
-- [ ] Implement `gobby tasks list` command
-- [ ] Implement `gobby tasks show` command
-- [ ] Implement `gobby tasks create` command
-- [ ] Implement `gobby tasks update` command
-- [ ] Implement `gobby tasks close` command
-- [ ] Implement `gobby tasks delete` command
-- [ ] Implement `gobby tasks dep add` command
-- [ ] Implement `gobby tasks dep remove` command
-- [ ] Implement `gobby tasks dep tree` command
-- [ ] Implement `gobby tasks dep cycles` command
-- [ ] Implement `gobby tasks ready` command
-- [ ] Implement `gobby tasks blocked` command
-- [ ] Implement `gobby tasks sync` command
-- [ ] Implement `gobby tasks stats` command
-- [ ] Add CLI help text and examples
+- [x] Add `gobby tasks` command group to CLI
+- [x] Implement `gobby tasks list` command
+- [x] Implement `gobby tasks show` command
+- [x] Implement `gobby tasks create` command
+- [x] Implement `gobby tasks update` command
+- [x] Implement `gobby tasks close` command
+- [x] Implement `gobby tasks delete` command
+- [x] Implement `gobby tasks dep add` command
+- [x] Implement `gobby tasks dep remove` command
+- [x] Implement `gobby tasks dep tree` command
+- [x] Implement `gobby tasks dep cycles` command
+- [x] Implement `gobby tasks ready` command
+- [x] Implement `gobby tasks blocked` command
+- [x] Implement `gobby tasks sync` command
+- [x] Implement `gobby tasks stats` command
+- [x] Add CLI help text and examples
 
-### Phase 9: Hook Integration
+### Phase 9: Hook & Git Integration
 
 - [ ] Add task context to session hooks
-- [ ] Create optional git hooks for sync (`post-merge`, `pre-commit`)
-- [ ] Add `gobby install --hooks` option for git hook installation
+- [ ] Implement `gobby tasks hooks install` command
+- [ ] Create git pre-commit hook (export before commit)
+- [ ] Create git post-merge hook (import after pull)
+- [ ] Create git post-checkout hook (import on branch switch)
+- [ ] Add `gobby install --git-hooks` option for git hook installation
 - [ ] Document git hook setup
+
+### Phase 9.5: Compaction (Memory Decay)
+
+> Reduces old closed tasks to summaries, preventing unbounded growth.
+
+- [ ] Add `compacted_at` and `summary` columns to tasks table (migration)
+- [ ] Implement `TaskCompactor` class in `src/tasks/compaction.py`
+- [ ] Implement `analyze_compaction_candidates()` - find closed tasks older than threshold
+- [ ] Implement `compact_task()` - replace description with LLM summary, mark compacted
+- [ ] Implement `get_compaction_stats()` - count candidates, compacted, space saved
+- [ ] Add `compact_tasks` MCP tool with `--analyze`, `--apply`, `--days` options
+- [ ] Add `gobby tasks compact` CLI command
+  - `gobby tasks compact --analyze` - list candidates
+  - `gobby tasks compact --apply --id TASK --summary FILE` - apply summary
+  - `gobby tasks compact --stats` - show compaction statistics
+- [ ] Add configurable threshold (default: 30 days closed)
+- [ ] Add unit tests for compaction
+
+### Phase 9.6: Label Management
+
+- [ ] Add `add_label` MCP tool (append label to existing)
+- [ ] Add `remove_label` MCP tool (remove specific label)
+- [ ] Add `gobby tasks label add TASK LABEL` CLI command
+- [ ] Add `gobby tasks label remove TASK LABEL` CLI command
+- [ ] Add `gobby tasks label list` CLI command (list all labels in project)
+
+### Phase 9.7: Maintenance Tools
+
+- [ ] Implement `TaskValidator` class for data integrity checks
+- [ ] Add `gobby tasks doctor` CLI command
+  - Check database schema version
+  - Validate foreign key integrity
+  - Check for orphaned dependencies
+  - Verify short_ref uniqueness per project
+- [ ] Add `gobby tasks validate` CLI command (validate JSONL integrity)
+- [ ] Add `gobby tasks clean` CLI command
+  - Remove orphaned dependencies
+  - Compact SQLite database
+  - Clear stale sync metadata
+- [ ] Add `validate_tasks` and `clean_tasks` MCP tools
+
+### Phase 9.8: Import Tools
+
+- [ ] Implement `TaskImporter` class in `src/tasks/import.py`
+- [ ] Add markdown import (parse `- [ ] task` format)
+- [ ] Add bulk JSONL import from file
+- [ ] Add `import_tasks` MCP tool
+- [ ] Add `gobby tasks import FILE [--format md|jsonl]` CLI command
+- [ ] Add `gobby tasks import --from-beads` for beads migration
+
+### Phase 9.9: Stealth Mode
+
+- [ ] Add `tasks_stealth` boolean to project config schema
+- [ ] Update `TaskSyncManager` to check stealth setting
+- [ ] If stealth: export to `~/.gobby/tasks/{project_id}.jsonl` instead of `.gobby/tasks.jsonl`
+- [ ] Add `gobby tasks config --stealth [on|off]` CLI command
+- [ ] Document stealth mode in README
 
 ### Phase 10: Documentation & Polish
 
@@ -478,11 +633,7 @@ gobby tasks stats
 - [ ] Add task-related configuration options to `config.yaml`
 - [ ] Performance testing with 1000+ tasks
 - [ ] Add `gobby tasks` to CLI help output
-
-#### Single Machine Scope (Decision 2)
-
-- [ ] Document in README that Gobby is single-machine focused
-- [ ] Add "Future: gobby_platform" note for fleet management
+- [ ] Document fleet-ready architecture (UUID for future platform sync)
 
 ## Workflow Engine Integration (Future)
 
@@ -722,18 +873,35 @@ For large tasks, use `expand_task(id)` to break them down before starting.
 
 | # | Question | Decision | Rationale |
 |---|----------|----------|-----------|
-| 1 | **Task ID collision handling** | Retry with random salt on collision | SHA-256 with 6 hex chars gives ~16M unique IDs. Collision unlikely for single project, but handle gracefully. |
-| 2 | **Task scope** | Single machine, single user (no multi-tenancy) | MVP focuses on making one machine work well. Multi-tenant fleet management is future (gobby_platform). |
+| 1 | **Task ID format** | `gt-{6 chars}` + optional `platform_id` UUID | Human-friendly IDs for local use. UUID generated lazily on platform sync. Minimal refactor now, fleet-ready later. |
+| 2 | **Task scope** | Single machine now, fleet-ready | Central DB supports multiple projects. `platform_id` column ready for gobby_platform fleet management. |
+| 3 | **Stealth mode** | Store JSONL in `~/.gobby/tasks/{project_id}.jsonl` | Per-project setting to avoid committing tasks to git. |
+| 4 | **ID collision handling** | Retry with random salt on collision | SHA-256 with 6 hex chars gives ~16M unique IDs. Collision unlikely, but handle gracefully with retry. |
 
 ---
 
 ## Future Enhancements
 
+### GitHub Integration (P3)
+
+Sync tasks with GitHub Issues for visibility to non-agent collaborators:
+
+- [ ] Add `github_repo` to project config
+- [ ] Implement `GitHubSyncManager` class
+- [ ] Two-way sync: gobby tasks ↔ GitHub Issues
+- [ ] Map task fields: title, description, status (open/closed), labels, assignee
+- [ ] Add `gobby tasks github sync` CLI command
+- [ ] Add `gobby tasks github link TASK ISSUE_NUM` for manual linking
+- [ ] Handle conflicts (last-write-wins or prompt user)
+- [ ] Add `sync_github` MCP tool
+
+### Other Future Enhancements
+
 - **Auto-discovery from transcripts**: LLM extracts tasks from session transcripts
 - **Task templates**: Pre-defined task structures for common patterns
-- **Bulk operations**: Import/export from external systems (GitHub Issues, Linear)
 - **Task notifications**: WebSocket events when tasks change
 - **Multi-project dependencies**: Cross-project task relationships
 - **Task search**: Full-text search across title and description
-- **Beads import**: One-time migration from existing beads database
-- **gobby_platform**: Remote fleet management for multiple machines (post-MVP)
+- **Visualization**: Web dashboard for task/dependency visualization
+- **JIRA/GitLab integration**: External tracker sync (lower priority than GitHub)
+- **gobby_platform**: Remote fleet management for multiple machines

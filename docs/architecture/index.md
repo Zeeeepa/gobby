@@ -27,6 +27,7 @@
 | [Source Tree](./source-tree.md) | Annotated directory structure |
 | [Development Guide](./development-guide.md) | Setup, commands, workflows |
 | [Technology Stack](./technology-stack.md) | Technologies, patterns, dependencies |
+| [Coding Standards](./coding-standards.md) | Python coding conventions and best practices |
 
 ### Existing Documentation
 

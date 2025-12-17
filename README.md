@@ -138,13 +138,16 @@ The daemon exposes tools via MCP that can be used by Claude Code and other MCP c
 
 - `recommend_tools(task_description)` - Get intelligent tool recommendations
 
-### Task Management
+### Internal Tools (via Proxy)
 
-- `create_task(title, ...)` - Create a new task
-- `update_task(task_id, ...)` - Update task status/details
-- `list_ready_tasks()` - Find unblocked work
-- `add_dependency(task_id, depends_on)` - Manage task dependencies
-- `sync_tasks()` - Sync tasks with .gobby/tasks.jsonl
+Internal tools are accessed via `call_tool(server_name="internal-*", ...)`:
+
+**Task Management** (`internal-tasks`):
+- `create_task`, `get_task`, `update_task`, `close_task`, `delete_task`, `list_tasks`
+- `add_dependency`, `remove_dependency`, `get_dependency_tree`, `check_dependency_cycles`
+- `list_ready_tasks`, `list_blocked_tasks`
+- `link_task_to_session`, `get_session_tasks`, `get_task_sessions`
+- `sync_tasks`, `get_sync_status`
 
 ## Configuration
 
@@ -246,10 +249,12 @@ recommend_tools:
 | Path | Description |
 |------|-------------|
 | `~/.gobby/config.yaml` | Daemon configuration |
-| `~/.gobby/gobby.db` | SQLite database |
+| `~/.gobby/gobby.db` | SQLite database (sessions, projects, tasks, MCP servers) |
 | `~/.gobby/logs/` | Log files |
 | `~/.gobby/session_summaries/` | Generated session summaries |
 | `.gobby/project.json` | Project-level configuration |
+| `.gobby/tasks.jsonl` | Task data for git sync |
+| `.gobby/tasks_meta.json` | Task sync metadata |
 
 ## Architecture
 
@@ -281,7 +286,29 @@ Gobby HTTP Server (:8765)
 - **Hook System** - Unified interface capturing 14 event types across Claude Code, Gemini CLI, and Codex CLI
 - **Session Manager** - Tracks sessions with metadata, status, parent relationships, and handoff context
 - **MCP Proxy** - Connects to downstream servers (Supabase, Context7, etc.) with progressive tool discovery
+- **Internal Tool Registry** - Domain-specific tools (`internal-tasks`, `internal-hooks`) accessed via the proxy pattern
 - **Summary Generator** - LLM-powered session summaries for automatic context handoff between sessions
+
+### Internal Tool Pattern
+
+Internal tools use the same progressive disclosure pattern as downstream MCP servers:
+
+```python
+# List internal task tools
+list_tools(server="internal-tasks")
+
+# Get schema for a specific tool
+get_tool_schema(server_name="internal-tasks", tool_name="create_task")
+
+# Call an internal tool
+call_tool(server_name="internal-tasks", tool_name="create_task", arguments={"title": "Fix bug"})
+```
+
+This pattern enables:
+
+- Consistent interface for all tools (internal and external)
+- Progressive disclosure to reduce token usage
+- Easy extensibility for new internal domains
 
 ## Development
 
@@ -337,13 +364,18 @@ See [docs/hooks/CLAUDE_HOOKS_SCHEMA.md](docs/hooks/CLAUDE_HOOKS_SCHEMA.md) for d
 
 See [ROADMAP.md](ROADMAP.md) for the full implementation plan with sprint ordering and dependencies.
 
+### Implemented Features
+
+| Feature | Description | Details |
+|---------|-------------|---------|
+| **Task Tracking** | Persistent tasks with dependencies and git sync | [TASKS.md](docs/plans/TASKS.md) |
+
 ### Planned Features
 
 | Feature | Description | Plan |
 |---------|-------------|------|
 | **Hook Extensions** | WebSocket event broadcasting, webhooks, Python plugins | [HOOK_EXTENSIONS.md](docs/plans/HOOK_EXTENSIONS.md) |
 | **Workflow Engine** | Phase-based enforcement (plan → execute → validate) | [WORKFLOWS.md](docs/plans/WORKFLOWS.md) |
-| **Task Tracking** | Persistent tasks with dependencies and git sync | [TASKS.md](docs/plans/TASKS.md) |
 | **Smart MCP Proxy** | Tool metrics, semantic search, self-healing | [MCP_PROXY_IMPROVEMENTS.md](docs/plans/MCP_PROXY_IMPROVEMENTS.md) |
 
 ### Milestones
