@@ -68,7 +68,7 @@ uv run mypy src/
 **MCP Proxy & Internal Tools:**
 
 - `src/mcp_proxy/manager.py` - MCPClientManager handles connections to downstream MCP servers (context7, supabase, etc.) with multiple transport support (HTTP, stdio, WebSocket)
-- `src/mcp_proxy/tools/internal.py` - InternalToolRegistry and InternalRegistryManager for `internal-*` prefixed servers
+- `src/mcp_proxy/tools/internal.py` - InternalToolRegistry and InternalRegistryManager for `gobby-*` prefixed servers
 - `src/mcp_proxy/tools/tasks.py` - Task tool registry (create_task, list_ready_tasks, etc.)
 - `src/config/mcp.py` - MCP configuration management
 - `src/storage/mcp.py` - LocalMCPManager for MCP server and tool storage in SQLite
@@ -135,27 +135,27 @@ Tool schemas are cached in SQLite (`mcp_servers` and `tools` tables) via `LocalM
 
 ## Internal Tool Registry Pattern
 
-Internal tools use an `internal-*` prefix for server names and are handled locally:
+Internal tools use a `gobby-*` prefix for server names and are handled locally:
 
 ```python
 # List internal task tools
-list_tools(server="internal-tasks")
+list_tools(server="gobby-tasks")
 
 # Get schema for a specific tool
-get_tool_schema(server_name="internal-tasks", tool_name="create_task")
+get_tool_schema(server_name="gobby-tasks", tool_name="create_task")
 
 # Call an internal tool
-call_tool(server_name="internal-tasks", tool_name="create_task", arguments={"title": "Fix bug"})
+call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title": "Fix bug"})
 ```
 
 **Routing logic:**
 
-- `internal-*` servers → handled locally by `InternalRegistryManager`
+- `gobby-*` servers → handled locally by `InternalRegistryManager`
 - All others → proxied to downstream MCP servers via `MCPClientManager`
 
 **Available internal servers:**
 
-- `internal-tasks` - Task CRUD, dependencies, ready work detection, git sync
+- `gobby-tasks` - Task CRUD, dependencies, ready work detection, git sync
 
 ## Testing
 

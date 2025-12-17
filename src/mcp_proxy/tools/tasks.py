@@ -40,7 +40,7 @@ def create_task_registry(
         InternalToolRegistry with all task tools registered
     """
     registry = InternalToolRegistry(
-        name="internal-tasks",
+        name="gobby-tasks",
         description="Task management - CRUD, dependencies, sync",
     )
 

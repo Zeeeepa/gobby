@@ -16,7 +16,7 @@
 
 ```python
 mcp__gobby__call_tool(
-    server_name="internal-tasks",
+    server_name="gobby-tasks",
     tool_name="list_ready_tasks",
     arguments={"limit": 10}
 )
@@ -26,7 +26,7 @@ mcp__gobby__call_tool(
 
 ```python
 mcp__gobby__call_tool(
-    server_name="internal-tasks",
+    server_name="gobby-tasks",
     tool_name="create_task",
     arguments={
         "title": "Fix authentication bug",
@@ -40,7 +40,7 @@ mcp__gobby__call_tool(
 
 ```python
 mcp__gobby__call_tool(
-    server_name="internal-tasks",
+    server_name="gobby-tasks",
     tool_name="update_task",
     arguments={"task_id": "gt-abc123", "status": "in_progress"}
 )
@@ -50,7 +50,7 @@ mcp__gobby__call_tool(
 
 ```python
 mcp__gobby__call_tool(
-    server_name="internal-tasks",
+    server_name="gobby-tasks",
     tool_name="close_task",
     arguments={"task_id": "gt-abc123", "reason": "completed"}
 )
@@ -108,7 +108,7 @@ Gobby tasks automatically sync:
 
 ### Available MCP Tools
 
-All accessed via `call_tool(server_name="internal-tasks", ...)`:
+All accessed via `call_tool(server_name="gobby-tasks", ...)`:
 
 | Tool | Description |
 |------|-------------|
@@ -162,7 +162,7 @@ history/
 ### Important Rules
 
 - Use gobby tasks for ALL task tracking
-- Use MCP tools (`internal-tasks`) for programmatic access
+- Use MCP tools (`gobby-tasks`) for programmatic access
 - Check `list_ready_tasks` before asking "what should I work on?"
 - Store AI planning docs in `history/` directory
 - Do NOT create markdown TODO lists

@@ -29,7 +29,7 @@ def task_registry(mock_task_manager, mock_sync_manager):
 def test_create_task_registry_returns_registry(task_registry):
     """Test that create_task_registry returns an InternalToolRegistry."""
     assert isinstance(task_registry, InternalToolRegistry)
-    assert task_registry.name == "internal-tasks"
+    assert task_registry.name == "gobby-tasks"
 
 
 def test_create_task_registry_has_all_tools(task_registry):

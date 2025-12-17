@@ -608,7 +608,7 @@ def create_stdio_mcp_server() -> FastMCP:
         Args:
             server_name: Name of the MCP server
                 Examples: "supabase", "gobby-memory", "context7"
-                Internal servers: "internal-tasks", "internal-hooks"
+                Internal servers: "gobby-tasks", "gobby-hooks"
             tool_name: Name of the specific tool to execute
                 Example: "list_tables", "search_memory_nodes", "get-library-docs"
             arguments: Dictionary of arguments required by the tool (optional)
@@ -625,7 +625,7 @@ def create_stdio_mcp_server() -> FastMCP:
            call_tool("context7", "get-library-docs", {"libraryId": "/react/react"})
 
         4. Create a task (internal):
-           call_tool("internal-tasks", "create_task", {"title": "My task"})
+           call_tool("gobby-tasks", "create_task", {"title": "My task"})
 
         Workflow:
         1. Use list_tools(server_name) to see available tools
@@ -927,7 +927,7 @@ def create_stdio_mcp_server() -> FastMCP:
         Args:
             server: Optional server name (e.g., "context7", "supabase").
                    If not provided, returns tools from all servers.
-                   Internal servers: "internal-tasks", "internal-hooks", etc.
+                   Internal servers: "gobby-tasks", "gobby-hooks", etc.
 
         Returns:
             Dict with tool listings:
@@ -936,8 +936,8 @@ def create_stdio_mcp_server() -> FastMCP:
 
         Example:
             # List internal task tools
-            list_tools(server="internal-tasks")
-            > {"server": "internal-tasks", "tools": [
+            list_tools(server="gobby-tasks")
+            > {"server": "gobby-tasks", "tools": [
                 {"name": "create_task", "brief": "Create a new task in the current project."},
                 {"name": "list_tasks", "brief": "List tasks with optional filters."}
               ]}
@@ -945,7 +945,7 @@ def create_stdio_mcp_server() -> FastMCP:
             # List all tools across all servers
             list_tools()
             > {"servers": [
-                {"name": "internal-tasks", "tools": [...]},
+                {"name": "gobby-tasks", "tools": [...]},
                 {"name": "context7", "tools": [...]},
                 {"name": "supabase", "tools": [...]}
               ]}
@@ -1011,7 +1011,7 @@ def create_stdio_mcp_server() -> FastMCP:
 
         Args:
             server_name: Name of the MCP server (e.g., "context7", "supabase")
-                Internal servers: "internal-tasks", "internal-hooks"
+                Internal servers: "gobby-tasks", "gobby-hooks"
             tool_name: Name of the tool (e.g., "get-library-docs", "list_tables")
 
         Returns:
@@ -1040,7 +1040,7 @@ def create_stdio_mcp_server() -> FastMCP:
             get_tool_schema(server_name="context7", tool_name="get-library-docs")
 
             # Or for internal tools
-            get_tool_schema(server_name="internal-tasks", tool_name="create_task")
+            get_tool_schema(server_name="gobby-tasks", tool_name="create_task")
         """
         # Handle internal servers locally
         if internal_manager.is_internal(server_name):

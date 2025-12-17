@@ -131,7 +131,7 @@ def create_mcp_server(
         return None
 
     # ===== INTERNAL TOOL REGISTRIES =====
-    # Internal tools are accessed via call_tool(server="internal-*", ...) for progressive disclosure
+    # Internal tools are accessed via call_tool(server="gobby-*", ...) for progressive disclosure
 
     from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 
@@ -243,7 +243,7 @@ def create_mcp_server(
             Args:
                 server_name: Name of the MCP server
                     Examples: "supabase", "gobby-memory", "context7"
-                    Internal servers: "internal-tasks", "internal-hooks"
+                    Internal servers: "gobby-tasks", "gobby-hooks"
                 tool_name: Name of the specific tool to execute
                     Example: "list_tables", "search_memory_nodes", "get-library-docs"
                 arguments: Dictionary of arguments required by the tool (optional)
@@ -260,7 +260,7 @@ def create_mcp_server(
                call_tool("context7", "get-library-docs", {"libraryId": "/react/react"})
 
             4. Create a task (internal):
-               call_tool("internal-tasks", "create_task", {"title": "My task"})
+               call_tool("gobby-tasks", "create_task", {"title": "My task"})
 
             Workflow:
             1. Use list_tools(server_name) to see available tools
@@ -275,7 +275,7 @@ def create_mcp_server(
             Returns:
                 Dictionary with success status and tool execution result
             """
-            # Route internal tools (internal-tasks, internal-hooks, etc.)
+            # Route internal tools (gobby-tasks, gobby-hooks, etc.)
             if internal_manager.is_internal(server_name):
                 registry = internal_manager.get_registry(server_name)
                 if not registry:
@@ -560,7 +560,7 @@ def create_mcp_server(
             Args:
                 server: Optional downstream server name (e.g., "context7", "supabase").
                        If not provided, returns tools from all downstream servers.
-                       Internal servers: "internal-tasks", "internal-hooks", etc.
+                       Internal servers: "gobby-tasks", "gobby-hooks", etc.
 
             Returns:
                 Dict with tool listings from downstream servers:
@@ -576,8 +576,8 @@ def create_mcp_server(
                   ]}
 
                 # List internal task tools
-                list_tools(server="internal-tasks")
-                > {"server": "internal-tasks", "tools": [
+                list_tools(server="gobby-tasks")
+                > {"server": "gobby-tasks", "tools": [
                     {"name": "create_task", "brief": "Create a new task in the current project."},
                     {"name": "list_tasks", "brief": "List tasks with optional filters."}
                   ]}
@@ -585,14 +585,14 @@ def create_mcp_server(
                 # List all tools across all servers
                 list_tools()
                 > {"servers": [
-                    {"name": "internal-tasks", "tools": [...]},
+                    {"name": "gobby-tasks", "tools": [...]},
                     {"name": "context7", "tools": [...]},
                     {"name": "supabase", "tools": [...]}
                   ]}
             """
             try:
                 if server:
-                    # Handle internal servers (internal-tasks, internal-hooks, etc.)
+                    # Handle internal servers (gobby-tasks, gobby-hooks, etc.)
                     if internal_manager.is_internal(server):
                         registry = internal_manager.get_registry(server)
                         if not registry:
@@ -682,7 +682,7 @@ def create_mcp_server(
 
             Args:
                 server_name: Name of the MCP server (e.g., "context7", "supabase")
-                    Internal servers: "internal-tasks", "internal-hooks"
+                    Internal servers: "gobby-tasks", "gobby-hooks"
                 tool_name: Name of the tool (e.g., "get-library-docs", "list_tables")
 
             Returns:
@@ -711,10 +711,10 @@ def create_mcp_server(
                 get_tool_schema(server_name="context7", tool_name="get-library-docs")
 
                 # Or for internal tools
-                get_tool_schema(server_name="internal-tasks", tool_name="create_task")
+                get_tool_schema(server_name="gobby-tasks", tool_name="create_task")
             """
             try:
-                # Handle internal servers (internal-tasks, internal-hooks, etc.)
+                # Handle internal servers (gobby-tasks, gobby-hooks, etc.)
                 if internal_manager.is_internal(server_name):
                     registry = internal_manager.get_registry(server_name)
                     if not registry:

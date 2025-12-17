@@ -17,7 +17,7 @@ Discover what is available.
 - **List Servers**: Call `mcp_list_mcp_servers()` to see connected downstream servers.
 - **List Tools**: Call `mcp_list_tools(server="<server_name>")` to see tools on a specific server.
   - For downstream servers: `mcp_list_tools(server="context7")`
-  - For internal tools: `mcp_list_tools(server="internal-tasks")`
+  - For internal tools: `mcp_list_tools(server="gobby-tasks")`
 
 ### Step B: Get Tool Schema
 
@@ -25,7 +25,7 @@ Get the full definition for a specific tool before using it.
 
 - **Tool**: `mcp_get_tool_schema`
 - **Arguments**:
-  - `server_name`: Server name (e.g., "context7" or "internal-tasks")
+  - `server_name`: Server name (e.g., "context7" or "gobby-tasks")
   - `tool_name`: The tool you want to use
 
 ### Step C: Call Tool
@@ -40,31 +40,31 @@ Execute the tool on the appropriate server.
 
 **Routing:**
 
-- `internal-*` servers → handled locally by internal registries
+- `gobby-*` servers → handled locally by internal registries
 - All others → proxied to downstream MCP servers
 
 ## 2. Internal Task Management
 
-Use `internal-tasks` for persistent task tracking.
+Use `gobby-tasks` for persistent task tracking.
 
 ```python
 # Create a task
 mcp_call_tool(
-    server_name="internal-tasks",
+    server_name="gobby-tasks",
     tool_name="create_task",
     arguments={"title": "Fix auth bug", "priority": 1}
 )
 
 # Find ready work (no blocking dependencies)
 mcp_call_tool(
-    server_name="internal-tasks",
+    server_name="gobby-tasks",
     tool_name="list_ready_tasks",
     arguments={"limit": 5}
 )
 
 # Close a task
 mcp_call_tool(
-    server_name="internal-tasks",
+    server_name="gobby-tasks",
     tool_name="close_task",
     arguments={"task_id": "gt-abc123", "reason": "completed"}
 )

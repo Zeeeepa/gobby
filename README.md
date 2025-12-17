@@ -140,9 +140,9 @@ The daemon exposes tools via MCP that can be used by Claude Code and other MCP c
 
 ### Internal Tools (via Proxy)
 
-Internal tools are accessed via `call_tool(server_name="internal-*", ...)`:
+Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`:
 
-**Task Management** (`internal-tasks`):
+**Task Management** (`gobby-tasks`):
 
 - `create_task`, `get_task`, `update_task`, `close_task`, `delete_task`, `list_tasks`
 - `add_dependency`, `remove_dependency`, `get_dependency_tree`, `check_dependency_cycles`
@@ -289,7 +289,7 @@ Gobby HTTP Server (:8765)
 - **Hook System** - Unified interface capturing 14 event types across Claude Code, Gemini CLI, and Codex CLI
 - **Session Manager** - Tracks sessions with metadata, status, parent relationships, and handoff context
 - **MCP Proxy** - Connects to downstream servers (Supabase, Context7, etc.) with progressive tool discovery
-- **Internal Tool Registry** - Domain-specific tools (`internal-tasks`, `internal-hooks`) accessed via the proxy pattern
+- **Internal Tool Registry** - Domain-specific tools (`gobby-tasks`, `gobby-hooks`) accessed via the proxy pattern
 - **Summary Generator** - LLM-powered session summaries for automatic context handoff between sessions
 
 ### Internal Tool Pattern
@@ -298,13 +298,13 @@ Internal tools use the same progressive disclosure pattern as downstream MCP ser
 
 ```python
 # List internal task tools
-list_tools(server="internal-tasks")
+list_tools(server="gobby-tasks")
 
 # Get schema for a specific tool
-get_tool_schema(server_name="internal-tasks", tool_name="create_task")
+get_tool_schema(server_name="gobby-tasks", tool_name="create_task")
 
 # Call an internal tool
-call_tool(server_name="internal-tasks", tool_name="create_task", arguments={"title": "Fix bug"})
+call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title": "Fix bug"})
 ```
 
 This pattern enables:

@@ -56,13 +56,13 @@ Execute a tool on a connected MCP server or internal registry.
 
 | Name | Type | Required | Description |
 |------|------|----------|-------------|
-| `server_name` | string | Yes | Server name (e.g., "context7", "internal-tasks") |
+| `server_name` | string | Yes | Server name (e.g., "context7", "gobby-tasks") |
 | `tool_name` | string | Yes | Name of the tool to execute |
 | `arguments` | object | No | Tool-specific arguments |
 
 **Routing:**
 
-- `internal-*` servers → handled locally by internal registries
+- `gobby-*` servers → handled locally by internal registries
 - All others → proxied to downstream MCP servers
 
 **Example:**
@@ -72,7 +72,7 @@ Execute a tool on a connected MCP server or internal registry.
 call_tool("context7", "get-library-docs", {"libraryId": "/react/react"})
 
 # Call internal task tool
-call_tool("internal-tasks", "create_task", {"title": "Fix bug", "priority": 1})
+call_tool("gobby-tasks", "create_task", {"title": "Fix bug", "priority": 1})
 ```
 
 #### `list_tools(server?)`
@@ -90,7 +90,7 @@ List tools with lightweight metadata for progressive disclosure.
 ```json
 {
   "success": true,
-  "server": "internal-tasks",
+  "server": "gobby-tasks",
   "tools": [
     {"name": "create_task", "brief": "Create a new task in the current project."},
     {"name": "list_tasks", "brief": "List tasks with optional filters."}
@@ -114,7 +114,7 @@ Get full inputSchema for a specific tool.
 ```json
 {
   "success": true,
-  "server": "internal-tasks",
+  "server": "gobby-tasks",
   "tool": {
     "name": "create_task",
     "description": "Create a new task in the current project.",
@@ -350,9 +350,9 @@ Archive a Codex thread.
 
 ## Internal Tools (via `call_tool`)
 
-Internal tools are accessed via `call_tool(server_name="internal-*", ...)`.
+Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`.
 
-### Task Management (`internal-tasks`)
+### Task Management (`gobby-tasks`)
 
 17 tools for persistent task tracking with dependencies and git sync.
 
@@ -402,29 +402,29 @@ Internal tools are accessed via `call_tool(server_name="internal-*", ...)`.
 
 ```python
 # 1. List available task tools
-list_tools(server="internal-tasks")
+list_tools(server="gobby-tasks")
 
 # 2. Get schema for create_task
-get_tool_schema(server_name="internal-tasks", tool_name="create_task")
+get_tool_schema(server_name="gobby-tasks", tool_name="create_task")
 
 # 3. Create a task
-call_tool("internal-tasks", "create_task", {
+call_tool("gobby-tasks", "create_task", {
     "title": "Implement authentication",
     "priority": 1,
     "task_type": "feature"
 })
 
 # 4. Find ready work
-call_tool("internal-tasks", "list_ready_tasks", {"limit": 5})
+call_tool("gobby-tasks", "list_ready_tasks", {"limit": 5})
 
 # 5. Claim a task
-call_tool("internal-tasks", "update_task", {
+call_tool("gobby-tasks", "update_task", {
     "task_id": "gt-abc123",
     "status": "in_progress"
 })
 
 # 6. Close when done
-call_tool("internal-tasks", "close_task", {
+call_tool("gobby-tasks", "close_task", {
     "task_id": "gt-abc123",
     "reason": "completed"
 })

@@ -44,7 +44,7 @@ This document defines the implementation order across all Gobby planning documen
 │ Sprint 3: Task MCP Tools & CLI ✅ COMPLETED                                  │
 │ TASKS Phases 7-10                                                            │
 │                                                                              │
-│ Deliverable: Task management via MCP tools and CLI + internal-* proxy       │
+│ Deliverable: Task management via MCP tools and CLI + gobby-* proxy       │
 │ Dependencies: Sprint 2                                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │

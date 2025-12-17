@@ -29,7 +29,7 @@ class InternalTool:
 
 class InternalToolRegistry:
     """
-    Registry for a domain of internal tools (e.g., internal-tasks).
+    Registry for a domain of internal tools (e.g., gobby-tasks).
 
     Each registry represents a logical grouping of tools that can be
     discovered and called via the proxy pattern.
@@ -40,7 +40,7 @@ class InternalToolRegistry:
         Initialize a tool registry.
 
         Args:
-            name: Server name (e.g., "internal-tasks")
+            name: Server name (e.g., "gobby-tasks")
             description: Human-readable description of this tool domain
         """
         self.name = name
@@ -140,13 +140,13 @@ class InternalToolRegistry:
 
 class InternalRegistryManager:
     """
-    Manages multiple internal registries (internal-tasks, internal-hooks, etc.).
+    Manages multiple internal registries (gobby-tasks, gobby-hooks, etc.).
 
     Provides routing logic to dispatch calls to the appropriate registry
     based on server name prefix.
     """
 
-    INTERNAL_PREFIX = "internal-"
+    INTERNAL_PREFIX = "gobby-"
 
     def __init__(self):
         self._registries: dict[str, InternalToolRegistry] = {}
@@ -171,7 +171,7 @@ class InternalRegistryManager:
             server_name: Server name to check
 
         Returns:
-            True if server_name starts with 'internal-'
+            True if server_name starts with 'gobby-'
         """
         if server_name is None:
             return False
@@ -182,7 +182,7 @@ class InternalRegistryManager:
         Get a registry by name.
 
         Args:
-            server_name: Registry name (e.g., "internal-tasks")
+            server_name: Registry name (e.g., "gobby-tasks")
 
         Returns:
             The registry if found, None otherwise
