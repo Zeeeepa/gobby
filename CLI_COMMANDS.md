@@ -148,13 +148,14 @@ claude mcp add --transport stdio gobby-daemon -- gobby mcp-server
 List tasks with optional filters.
 
 ```bash
-gobby tasks list [--status STATUS] [--assignee NAME] [--limit N] [--json]
+gobby tasks list [--status STATUS] [--assignee NAME] [--ready] [--limit N] [--json]
 ```
 
 | Option | Description |
 |--------|-------------|
 | `--status` | Filter by status: `open`, `in_progress`, `completed`, `blocked` |
 | `--assignee` | Filter by assignee |
+| `--ready` | Show only ready tasks (open with no blocking dependencies) |
 | `--limit` | Maximum tasks to show (default: 50) |
 | `--json` | Output as JSON |
 
@@ -257,6 +258,7 @@ gobby install
 # Create and manage tasks
 gobby tasks create "Fix authentication bug" -p 1 -t bug
 gobby tasks list --status open
+gobby tasks list --ready              # Show tasks ready to work on
 gobby tasks update gt-abc123 --status in_progress
 gobby tasks close gt-abc123 --reason "Fixed in commit abc"
 

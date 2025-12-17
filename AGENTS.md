@@ -59,8 +59,8 @@ mcp__gobby__call_tool(
 ### CLI Commands
 
 ```bash
-# List ready work
-gobby tasks list --status open
+# List ready work (open tasks with no blocking dependencies)
+gobby tasks list --ready
 
 # Create task
 gobby tasks create "Fix bug" -p 1 -t bug

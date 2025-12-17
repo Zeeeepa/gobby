@@ -70,30 +70,43 @@ def tasks() -> None:
 @tasks.command("list")
 @click.option("--status", help="Filter by status (open, in_progress, completed, blocked)")
 @click.option("--assignee", help="Filter by assignee")
+@click.option("--ready", is_flag=True, help="Show only ready tasks (open with no blocking deps)")
 @click.option("--limit", default=50, help="Max tasks to show")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
-def list_tasks(status: str | None, assignee: str | None, limit: int, json_format: bool) -> None:
+def list_tasks(
+    status: str | None, assignee: str | None, ready: bool, limit: int, json_format: bool
+) -> None:
     """List tasks."""
     project_ctx = get_project_context()
     project_id = project_ctx.get("id") if project_ctx else None
 
     manager = get_task_manager()
-    tasks_list = manager.list_tasks(
-        project_id=project_id,
-        status=status,
-        assignee=assignee,
-        limit=limit,
-    )
+
+    if ready:
+        # Use ready task detection (open tasks with no unresolved blocking dependencies)
+        tasks_list = manager.list_ready_tasks(
+            project_id=project_id,
+            assignee=assignee,
+            limit=limit,
+        )
+    else:
+        tasks_list = manager.list_tasks(
+            project_id=project_id,
+            status=status,
+            assignee=assignee,
+            limit=limit,
+        )
 
     if json_format:
         click.echo(json.dumps([t.to_dict() for t in tasks_list], indent=2, default=str))
         return
 
     if not tasks_list:
-        click.echo("No tasks found.")
+        click.echo("No tasks found." if not ready else "No ready tasks found.")
         return
 
-    click.echo(f"Found {len(tasks_list)} tasks:")
+    label = "ready tasks" if ready else "tasks"
+    click.echo(f"Found {len(tasks_list)} {label}:")
     for task in tasks_list:
         click.echo(format_task_row(task))
 

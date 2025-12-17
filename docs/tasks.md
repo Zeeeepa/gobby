@@ -21,8 +21,11 @@ gobby tasks list
 
 Shows all open tasks.
 
-* `-a, --all`: Show closed tasks too.
+* `--status <status>`: Filter by status (open, in_progress, completed, blocked).
 * `--assignee <person>`: Filter by assignee.
+* `--ready`: Show only ready tasks (open with no blocking dependencies).
+* `--limit <n>`: Maximum tasks to show.
+* `--json`: Output as JSON.
 
 ### Creating Tasks
 
