@@ -824,47 +824,49 @@ async def list_tools(session_id: str) -> list[Tool]:
 
 Before building new workflow capabilities, extract the current session handoff behavior into a workflow definition. This validates the workflow schema can express existing functionality.
 
-- [ ] Create `templates/session-handoff.yaml` with current behavior
-- [ ] Map `_handle_event_session_start` logic to workflow triggers
-- [ ] Map `_handle_event_session_end` logic to workflow triggers
-- [ ] Map `_handle_event_before_agent` title synthesis to workflow trigger
-- [ ] Document action types needed: `find_parent_session`, `restore_context`, `mark_session_status`, `generate_summary`, `synthesize_title`
-- [ ] Identify any gaps between current code and workflow expressiveness
+- [x] Create `templates/session-handoff.yaml` with current behavior
+- [x] Map `_handle_event_session_start` logic to workflow triggers
+- [x] Map `_handle_event_session_end` logic to workflow triggers
+- [x] Map `_handle_event_before_agent` title synthesis to workflow trigger
+- [x] Document action types needed: `find_parent_session`, `restore_context`, `mark_session_status`, `generate_summary`, `synthesize_title`
+- [x] Identify any gaps between current code and workflow expressiveness
 
 ### Phase 1: Foundation
 
-- [ ] Create `src/workflows/` module structure
-- [ ] Define `WorkflowDefinition` dataclass (parsed YAML representation)
-- [ ] Define `WorkflowState` dataclass
-- [ ] Implement `WorkflowLoader` to parse YAML workflow files
-- [ ] Add workflow state columns to sessions table (migration)
-- [ ] Create `workflow_states` table (migration)
-- [ ] Create `workflow_handoffs` table (migration)
-- [ ] Implement `WorkflowStateManager` for CRUD operations on state
+- [x] Create `src/workflows/` module structure
+- [x] Define `WorkflowDefinition` dataclass (parsed YAML representation)
+- [x] Define `WorkflowState` dataclass
+- [x] Implement `WorkflowLoader` to parse YAML workflow files
+- [x] Add workflow state columns to sessions table (migration)
+- [x] Create `workflow_states` table (migration)
+- [x] Create `workflow_handoffs` table (migration)
+- [x] Implement `WorkflowStateManager` for CRUD operations on state
 
 #### Workflow Inheritance (Decision 1)
-- [ ] Add `extends` field to `WorkflowDefinition` dataclass
-- [ ] Implement `resolve_inheritance(workflow_path)` in `WorkflowLoader`
-- [ ] Deep-merge parent workflow with child overrides (child wins)
-- [ ] Support inheritance chains (grandparent → parent → child)
+
+- [x] Add `extends` field to `WorkflowDefinition` dataclass
+- [x] Implement `resolve_inheritance(workflow_path)` in `WorkflowLoader`
+- [x] Deep-merge parent workflow with child overrides (child wins)
+- [x] Support inheritance chains (grandparent → parent → child)
 - [ ] Add cycle detection for circular inheritance
 - [ ] Add unit tests for inheritance resolution
 
 ### Phase 2: Core Engine
 
-- [ ] Implement `WorkflowEngine` class with phase management
-- [ ] Implement condition evaluator for `when` clauses
-- [ ] Implement `enter_phase()` with on_enter action execution
-- [ ] Implement `exit_phase()` with on_exit action execution
-- [ ] Implement tool permission checking (allowed/blocked lists)
-- [ ] Implement rule evaluation for inline phase rules
-- [ ] Implement transition evaluation and execution
-- [ ] Implement exit condition checking
-- [ ] Implement "Dual Write" pattern (TodoWrite + create_task)
-- [ ] Implement stuck detection (duration & attempt limits)
-- [ ] Optimize Rule Evaluator (pre-compile conditions, short-circuit, cache state)
+- [x] Implement `WorkflowEngine` class with phase management
+- [x] Implement condition evaluator for `when` clauses
+- [x] Implement `enter_phase()` with on_enter action execution
+- [x] Implement `exit_phase()` with on_exit action execution
+- [x] Implement tool permission checking (allowed/blocked lists)
+- [x] Implement rule evaluation for inline phase rules
+- [x] Implement transition evaluation and execution
+- [x] Implement exit condition checking
+- [x] Implement "Dual Write" pattern (TodoWrite + create_task)
+- [x] Implement stuck detection (duration & attempt limits)
+- [x] Optimize Rule Evaluator (pre-compile conditions, short-circuit, cache state)
 
 #### Approval UX (Decision 4)
+
 - [ ] Implement `user_approval` exit condition type
 - [ ] Inject approval prompt into context when condition is checked
 - [ ] Block tool calls until user responds with approval keyword
@@ -964,6 +966,7 @@ Before building new workflow capabilities, extract the current session handoff b
 - [ ] Implement `gobby workflow import <source>`
 
 #### Stop-Edit-Restart Versioning (Decision 6)
+
 - [ ] Ensure `gobby workflow reset` reloads workflow definition from disk
 - [ ] Log workflow version/hash at load time for debugging
 - [ ] Document that workflow YAML is locked at session start; changes require reset

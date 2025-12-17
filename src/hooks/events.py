@@ -101,6 +101,7 @@ class HookEvent:
     # Future extensibility
     user_id: str | None = None
     project_id: str | None = None
+    task_id: str | None = None
     workflow_id: str | None = None
     metadata: dict = field(default_factory=dict)
 

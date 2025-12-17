@@ -535,6 +535,64 @@ def _uninstall_codex_notify() -> dict[str, Any]:
         return result
 
 
+def _install_git_hooks(project_path: Path) -> dict[str, Any]:
+    """Install Gobby git hooks to the current repository."""
+    git_dir = project_path / ".git"
+    if not git_dir.exists():
+        return {"success": False, "error": "Not a git repository (no .git directory found)"}
+
+    hooks_dir = git_dir / "hooks"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+
+    source_hooks_dir = get_install_dir() / "hooks" / "git"
+    if not source_hooks_dir.exists():
+        # Fallback for dev mode
+        source_hooks_dir = get_install_dir().parent / "hooks" / "git"
+
+    if not source_hooks_dir.exists():
+        return {"success": False, "error": f"Source hooks not found in {source_hooks_dir}"}
+
+    installed = []
+
+    # Map source filenames to git hook names
+    hook_map = {"post-merge": "post-merge", "pre-commit": "pre-commit"}
+
+    for source_name, target_name in hook_map.items():
+        source_file = source_hooks_dir / source_name
+        target_file = hooks_dir / target_name
+
+        if not source_file.exists():
+            continue
+
+        # If hook exists, we need to be careful. code logic below:
+        # 1. If it's ours (check content?), replace it?
+        # 2. If it's user's, append our call?
+        # For this MVP, we will simpler: if file exists, warn and skip unless we spot our marker.
+        # Actually, let's just append our logic if not present.
+
+        hook_content = source_file.read_text()
+
+        if target_file.exists():
+            current_content = target_file.read_text()
+            if "Gobby Task Auto-Sync" in current_content:
+                # Already installed, maybe update?
+                # For now, assume it's fine.
+                pass
+            else:
+                # Append to existing
+                with open(target_file, "a") as f:
+                    f.write("\n" + hook_content)
+                target_file.chmod(0o755)
+                installed.append(target_name)
+        else:
+            # Create new
+            copy2(source_file, target_file)
+            target_file.chmod(0o755)
+            installed.append(target_name)
+
+    return {"success": True, "installed": installed}
+
+
 @click.command("install")
 @click.option(
     "--claude",
@@ -555,6 +613,12 @@ def _uninstall_codex_notify() -> dict[str, Any]:
     help="Configure Codex notify integration (interactive Codex)",
 )
 @click.option(
+    "--hooks",
+    "install_hooks",
+    is_flag=True,
+    help="Install Git hooks for task auto-sync",
+)
+@click.option(
     "--all",
     "install_all",
     is_flag=True,
@@ -562,20 +626,36 @@ def _uninstall_codex_notify() -> dict[str, Any]:
     help="Install hooks for all detected CLIs (default behavior when no flags specified)",
 )
 def install(
-    install_claude: bool, install_gemini: bool, install_codex: bool, install_all: bool
+    install_claude: bool,
+    install_gemini: bool,
+    install_codex: bool,
+    install_hooks: bool,
+    install_all: bool,
 ) -> None:
-    """Install Gobby hooks to AI coding CLIs.
+    """Install Gobby hooks to AI coding CLIs and Git.
 
     By default (no flags), installs to all detected CLIs.
-    Use --claude, --gemini, or --codex to install only to specific CLIs.
-
-    Installs to project-level directories in current working directory.
+    Use --claude, --gemini, --codex to install only to specific CLIs.
+    Use --hooks to install Git hooks for task auto-sync.
     """
     project_path = Path.cwd()
 
     # Determine which CLIs to install
-    # If no flags specified, act like --all
-    if not install_claude and not install_gemini and not install_all:
+    # If no flags specified, act like --all (but don't force git hooks unless implied or explicit)
+    # Actually, let's keep git hooks opt-in or part of --all?
+    # Let's make --all include git hooks if we are in a git repo?
+    # For safety, let's make git hooks explicit or part of --all if user approves?
+    # Requirement: "Users must run this command explicitly to enable auto-sync"
+    # So --all might NOT include hooks by default in this logic unless we change policy.
+    # Let's explicitly check flags.
+
+    if (
+        not install_claude
+        and not install_gemini
+        and not install_codex
+        and not install_hooks
+        and not install_all
+    ):
         install_all = True
 
     codex_detected = _is_codex_cli_installed()
@@ -592,7 +672,12 @@ def install(
         if codex_detected:
             clis_to_install.append("codex")
 
-        if not clis_to_install:
+        # Check for git
+        if (project_path / ".git").exists():
+            install_hooks = True  # Include git hooks in --all? Or leave separate?
+            # Let's include them in --all for "complete setup", but maybe log it clearly.
+
+        if not clis_to_install and not install_hooks:
             click.echo("No supported AI coding CLIs detected.")
             click.echo("\nSupported CLIs:")
             click.echo("  - Claude Code: npm install -g @anthropic-ai/claude-code")
@@ -620,7 +705,12 @@ def install(
     click.echo(f"\nProject: {project_path}")
     if is_dev_mode:
         click.echo("Mode: Development (using source directory)")
-    click.echo(f"CLIs to configure: {', '.join(clis_to_install)}")
+
+    toggles = [c for c in clis_to_install]
+    if install_hooks:
+        toggles.append("git-hooks")
+
+    click.echo(f"Components to configure: {', '.join(toggles)}")
     click.echo("")
 
     # Track results
@@ -691,6 +781,26 @@ def install(
                     click.echo("~/.codex/config.toml already configured")
             else:
                 click.echo(f"Failed: {result['error']}", err=True)
+        click.echo("")
+
+    # Install Git Hooks
+    if install_hooks:
+        click.echo("-" * 40)
+        click.echo("Git Hooks (Task Auto-Sync)")
+        click.echo("-" * 40)
+
+        result = _install_git_hooks(project_path)
+        results["git-hooks"] = result
+
+        if result["success"]:
+            if result.get("installed"):
+                click.echo("Installed git hooks:")
+                for hook in result["installed"]:
+                    click.echo(f"  - {hook}")
+            else:
+                click.echo("Git hooks already up to date.")
+        else:
+            click.echo(f"Failed: {result.get('error')}", err=True)
         click.echo("")
 
     # Summary

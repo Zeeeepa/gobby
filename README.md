@@ -143,11 +143,14 @@ The daemon exposes tools via MCP that can be used by Claude Code and other MCP c
 Internal tools are accessed via `call_tool(server_name="internal-*", ...)`:
 
 **Task Management** (`internal-tasks`):
+
 - `create_task`, `get_task`, `update_task`, `close_task`, `delete_task`, `list_tasks`
 - `add_dependency`, `remove_dependency`, `get_dependency_tree`, `check_dependency_cycles`
 - `list_ready_tasks`, `list_blocked_tasks`
 - `link_task_to_session`, `get_session_tasks`, `get_task_sessions`
 - `sync_tasks`, `get_sync_status`
+
+See [docs/tasks.md](docs/tasks.md) for the full Task System guide.
 
 ## Configuration
 

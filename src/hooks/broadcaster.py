@@ -206,6 +206,10 @@ class HookEventBroadcaster:
                 output_data = event_output.model_dump(mode="json", exclude_none=True)
                 payload["result"] = output_data
 
+            # Add task_id if present
+            if hasattr(event_input, "task_id") and getattr(event_input, "task_id"):
+                payload["task_id"] = getattr(event_input, "task_id")
+
             # Broadcast message
             await self.websocket_server.broadcast(payload)
 

@@ -1,0 +1,18 @@
+#!/bin/sh
+# Gobby Task Auto-Sync Hook (pre-commit)
+# Automatically exports tasks to git tracking before commit
+
+# Check if gobby is installed
+if command -v gobby >/dev/null 2>&1; then
+    echo "Running gobby tasks sync --export --auto..."
+    gobby tasks sync --export --auto
+    
+    # If the tasks file was modified by the export, add it to the commit
+    # Note: .gobby/tasks.jsonl is the default file
+    if git diff --name-only --cached | grep -q ".gobby/tasks.jsonl"; then
+        git add .gobby/tasks.jsonl
+    fi
+else
+    # Fail silently
+    :
+fi

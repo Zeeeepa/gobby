@@ -41,6 +41,7 @@ from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.sessions import LocalSessionManager
+from gobby.storage.session_tasks import SessionTaskManager
 from gobby.utils.daemon_client import DaemonClient
 
 # Backward-compatible alias
@@ -144,6 +145,7 @@ class HookManager:
         self._database = LocalDatabase()
         run_migrations(self._database)
         self._session_storage = LocalSessionManager(self._database)
+        self._session_task_manager = SessionTaskManager(self._database)
 
         # Session manager handles registration, lookup, and status updates
         # Note: source is passed explicitly per call (Phase 2C+), not stored in manager
@@ -386,6 +388,22 @@ class HookManager:
                                 project_path=cwd,
                             )
 
+            # Resolve active task for this session if we have a platform session ID
+            if platform_session_id:
+                try:
+                    # Get tasks linked with 'worked_on' action which implies active focus
+                    session_tasks = self._session_task_manager.get_session_tasks(
+                        platform_session_id
+                    )
+                    # Filter for active 'worked_on' tasks - taking the most recent one
+                    active_tasks = [t for t in session_tasks if t.get("action") == "worked_on"]
+                    if active_tasks:
+                        # Use the most recent task
+                        event.task_id = active_tasks[0]["task"].id
+                        event.metadata["_task_title"] = active_tasks[0]["task"].title
+                except Exception as e:
+                    self.logger.warning(f"Failed to resolve active task: {e}")
+
             # Store platform session_id in event metadata for handlers
             event.metadata["_platform_session_id"] = platform_session_id
 
@@ -609,6 +627,12 @@ class HookManager:
             context_parts.append("\n## Previous Session Context\n")
             context_parts.append(restored_context)
 
+        # Inject Active Task Context
+        if event.task_id:
+            task_title = event.metadata.get("_task_title", "Unknown Task")
+            context_parts.append("\n## Active Task Context\n")
+            context_parts.append(f"You are working on task: {task_title} ({event.task_id})")
+
         context_str = "\n".join(context_parts) if context_parts else None
 
         # Step 7: Build user-visible message for handoff notification
@@ -630,6 +654,7 @@ class HookManager:
                 "machine_id": machine_id,
                 "parent_session_id": parent_session_id,
                 "external_id": external_id,
+                "task_id": event.task_id,
             },
         )
 

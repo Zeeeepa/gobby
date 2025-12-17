@@ -263,6 +263,47 @@ MIGRATIONS: list[tuple[int, str, str]] = [
             ON tasks(platform_id) WHERE platform_id IS NOT NULL;
         """,
     ),
+    (
+        11,
+        "Create workflow state and handoff tables",
+        """
+        CREATE TABLE IF NOT EXISTS workflow_states (
+            session_id TEXT PRIMARY KEY,
+            workflow_name TEXT NOT NULL,
+            phase TEXT NOT NULL,
+            phase_entered_at TEXT,
+            phase_action_count INTEGER DEFAULT 0,
+            total_action_count INTEGER DEFAULT 0,
+            artifacts TEXT,
+            observations TEXT,
+            reflection_pending INTEGER DEFAULT 0,
+            context_injected INTEGER DEFAULT 0,
+            variables TEXT,
+            task_list TEXT,
+            current_task_index INTEGER DEFAULT 0,
+            files_modified_this_task INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS workflow_handoffs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            workflow_name TEXT NOT NULL,
+            from_session_id TEXT REFERENCES sessions(id),
+            phase TEXT,
+            artifacts TEXT,
+            pending_tasks TEXT,
+            notes TEXT,
+            consumed_at TEXT,
+            consumed_by_session TEXT REFERENCES sessions(id),
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_workflow_handoffs_project ON workflow_handoffs(project_id);
+        CREATE INDEX IF NOT EXISTS idx_workflow_handoffs_consumed ON workflow_handoffs(consumed_at);
+        """,
+    ),
 ]
 
 

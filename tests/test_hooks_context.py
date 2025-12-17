@@ -1,0 +1,116 @@
+import pytest
+from unittest.mock import MagicMock, patch
+from datetime import datetime
+
+from gobby.hooks.events import HookEvent, HookEventType, SessionSource, HookResponse
+from gobby.hooks.hook_manager import HookManager
+from gobby.storage.sessions import LocalSessionManager
+from gobby.storage.session_tasks import SessionTaskManager
+from gobby.storage.tasks import Task
+
+
+@pytest.fixture
+def mock_hook_manager():
+    # Mock dependencies
+    with (
+        patch("gobby.hooks.hook_manager.LocalDatabase"),
+        patch("gobby.hooks.hook_manager.LocalSessionManager") as MockSessionManager,
+        patch("gobby.hooks.hook_manager.SessionTaskManager") as MockSessionTaskManager,
+        patch("gobby.hooks.hook_manager.DaemonClient"),
+        patch("gobby.hooks.hook_manager.TranscriptProcessor"),
+        patch("gobby.hooks.hook_manager.run_migrations"),
+    ):
+        manager = HookManager(log_file="/tmp/test_hook_manager.log")
+        manager._session_manager = MockSessionManager.return_value
+        manager._session_task_manager = MockSessionTaskManager.return_value
+
+        # Mock cached daemon status
+        manager._cached_daemon_is_ready = True
+
+        return manager
+
+
+def test_hook_event_task_id(mock_hook_manager):
+    """Test that task_id is populated in HookEvent during handling."""
+
+    # Setup
+    external_id = "test-session-123"
+    platform_session_id = "session-uuid"
+    task_id = "task-123"
+    task_title = "Test Task"
+
+    # Mock session lookup
+    mock_hook_manager._session_manager.get_session_id.return_value = platform_session_id
+
+    # Mock active task lookup
+    mock_task = MagicMock(spec=Task)
+    mock_task.id = task_id
+    mock_task.title = task_title
+
+    mock_hook_manager._session_task_manager.get_session_tasks.return_value = [
+        {"task": mock_task, "action": "worked_on"}
+    ]
+
+    # Create event
+    event = HookEvent(
+        event_type=HookEventType.BEFORE_AGENT,
+        session_id=external_id,
+        source=SessionSource.CLAUDE,
+        timestamp=datetime.now(),
+        data={"prompt": "Hello"},
+    )
+
+    # Execute handler
+    # We need to mock the specific handler to avoid side effects
+    mock_handler = MagicMock(return_value=HookResponse(decision="allow"))
+    mock_hook_manager._event_handler_map[HookEventType.BEFORE_AGENT] = mock_handler
+
+    mock_hook_manager.handle(event)
+
+    # Verify task_id was populated on the event object
+    assert event.task_id == task_id
+    assert event.metadata["_task_title"] == task_title
+    assert event.metadata["_platform_session_id"] == platform_session_id
+
+
+def test_session_start_context_injection(mock_hook_manager):
+    """Test that task context is injected into SESSION_START context."""
+
+    external_id = "test-session-123"
+    platform_session_id = "session-uuid"
+    task_id = "task-123"
+    task_title = "Important Feature"
+
+    # Mock session lookup
+    mock_hook_manager._session_manager.get_session_id.return_value = platform_session_id
+    # Mock register_session to return session_id
+    mock_hook_manager._session_manager.register_session.return_value = platform_session_id
+
+    # Mock active task
+    mock_task = MagicMock(spec=Task)
+    mock_task.id = task_id
+    mock_task.title = task_title
+
+    mock_hook_manager._session_task_manager.get_session_tasks.return_value = [
+        {"task": mock_task, "action": "worked_on"}
+    ]
+
+    # Create SESSION_START event
+    event = HookEvent(
+        event_type=HookEventType.SESSION_START,
+        session_id=external_id,
+        source=SessionSource.CLAUDE,
+        timestamp=datetime.now(),
+        data={"cwd": "/tmp"},
+        task_id=task_id,
+        metadata={"_task_title": task_title},
+    )
+
+    # Execute real handler for session start
+    response = mock_hook_manager._handle_event_session_start(event)
+
+    # Verify context injection
+    assert response.metadata["task_id"] == task_id
+    assert response.context is not None
+    assert f"You are working on task: {task_title}" in response.context
+    assert f"({task_id})" in response.context
