@@ -51,7 +51,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 3.5: Task Extensions                                                  │
+│ Sprint 3.5: Task Extensions ✅ COMPLETED                                     │
 │ TASKS Phases 9.5-9.9                                                         │
 │                                                                              │
 │ Deliverable: Compaction, Labels, Maintenance, Import, Stealth Mode          │
@@ -63,7 +63,7 @@ This document defines the implementation order across all Gobby planning documen
 ═══════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 4: Workflow Foundation                                                │
+│ Sprint 4: Workflow Foundation ✅ COMPLETED                                   │
 │ WORKFLOWS Phases 0-2                                                         │
 │                                                                              │
 │ Deliverable: YAML loader, state manager, core engine                        │
@@ -72,7 +72,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 5: Workflow Hook Integration                                          │
+│ Sprint 5: Workflow Hook Integration ✅ COMPLETED                             │
 │ WORKFLOWS Phase 3                                                            │
 │                                                                              │
 │ Deliverable: Workflows evaluate on hook events, tool blocking               │
@@ -81,7 +81,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 6: Workflow Actions                                                   │
+│ Sprint 6: Workflow Actions ✅ COMPLETED                                      │
 │ WORKFLOWS Phase 4                                                            │
 │                                                                              │
 │ Deliverable: inject_context, capture_artifact, generate_handoff, etc.       │
@@ -90,7 +90,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 7: Context Sources & Templates                                        │
+│ Sprint 7: Context Sources & Templates ✅ COMPLETED                           │
 │ WORKFLOWS Phases 5-6                                                         │
 │                                                                              │
 │ Deliverable: Jinja2 templating, built-in workflow templates                 │
@@ -100,6 +100,8 @@ This document defines the implementation order across all Gobby planning documen
 │ - [x] Context sources (session, handoff, state)                              │
 │ - [x] Template engine implementation                                         │
 │ - [x] Built-in templates (plan-execute, plan-act-reflect, session-handoff)  │
+│ - [x] LLM-powered generate_handoff action                                    │
+│ - [x] Git status and file changes context gathering                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -259,11 +261,11 @@ This document defines the implementation order across all Gobby planning documen
 | 1 | WebSocket Broadcasting | HOOK_EXTENSIONS Phase 1 | None | Pending |
 | 2 | Core Task System | TASKS Phases 1-6 | None | ✅ Completed |
 | 3 | Task MCP/CLI | TASKS Phases 7-10 | Sprint 2 | ✅ Completed |
-| 3.5 | Task Extensions | TASKS Phases 9.5-9.9 | Sprint 3 | Pending |
-| 4 | Workflow Foundation | WORKFLOWS Phases 0-2 | None | Pending |
-| 5 | Workflow Hooks | WORKFLOWS Phase 3 | Sprint 4 | Pending |
-| 6 | Workflow Actions | WORKFLOWS Phase 4 | Sprint 5 | Pending |
-| 7 | Context & Templates | WORKFLOWS Phases 5-6 | Sprint 6 | Pending |
+| 3.5 | Task Extensions | TASKS Phases 9.5-9.9 | Sprint 3 | ✅ Completed |
+| 4 | Workflow Foundation | WORKFLOWS Phases 0-2 | None | ✅ Completed |
+| 5 | Workflow Hooks | WORKFLOWS Phase 3 | Sprint 4 | ✅ Completed |
+| 6 | Workflow Actions | WORKFLOWS Phase 4 | Sprint 5 | ✅ Completed |
+| 7 | Context & Templates | WORKFLOWS Phases 5-6 | Sprint 6 | ✅ Completed |
 | 7.5 | Memory Storage & Operations | MEMORY Phases 1-2 | None | Pending |
 | 7.6 | Skill Learning | MEMORY Phases 3-4 | Sprint 7.5 | Pending |
 | 7.7 | Memory MCP/CLI | MEMORY Phases 5-6 | Sprint 7.6 | Pending |

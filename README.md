@@ -12,7 +12,7 @@ A local daemon that makes AI coding assistants smarter by unifying session track
 - **Local-first** — All data in SQLite, no cloud dependencies, works offline
 - **Task Tracking** — Agent-native task management with dependency tracking and git synchronization
 
-**Coming soon:** Workflow enforcement engine for deterministic AI behavior (plan → execute → validate) without relying on prompts.
+**New:** Workflow engine with YAML-defined lifecycle and phase-based workflows. Includes session-handoff workflow with LLM-powered context summaries.
 
 ## CLI Support Status
 
@@ -288,9 +288,10 @@ Gobby HTTP Server (:8765)
 
 - **Hook System** - Unified interface capturing 14 event types across Claude Code, Gemini CLI, and Codex CLI
 - **Session Manager** - Tracks sessions with metadata, status, parent relationships, and handoff context
+- **Workflow Engine** - YAML-defined lifecycle and phase-based workflows with LLM-powered actions
 - **MCP Proxy** - Connects to downstream servers (Supabase, Context7, etc.) with progressive tool discovery
 - **Internal Tool Registry** - Domain-specific tools (`gobby-tasks`, `gobby-hooks`) accessed via the proxy pattern
-- **Summary Generator** - LLM-powered session summaries for automatic context handoff between sessions
+- **Session Handoff** - LLM-powered session summaries with git status, file changes, and context injection
 
 ### Internal Tool Pattern
 
@@ -372,6 +373,7 @@ See [ROADMAP.md](ROADMAP.md) for the full implementation plan with sprint orderi
 | Feature | Description | Details |
 |---------|-------------|---------|
 | **Task Tracking** | Persistent tasks with dependencies and git sync | [TASKS.md](docs/plans/TASKS.md) |
+| **Workflow Engine** | YAML-defined workflows with lifecycle triggers, phase enforcement, and LLM actions | [WORKFLOWS.md](docs/plans/WORKFLOWS.md) |
 
 ### Planned Features
 
@@ -379,13 +381,12 @@ See [ROADMAP.md](ROADMAP.md) for the full implementation plan with sprint orderi
 |---------|-------------|------|
 | **Persistent Memory** | Cross-session memory and skill learning | [MEMORY.md](docs/plans/MEMORY.md) |
 | **Hook Extensions** | WebSocket event broadcasting, webhooks, Python plugins | [HOOK_EXTENSIONS.md](docs/plans/HOOK_EXTENSIONS.md) |
-| **Workflow Engine** | Phase-based enforcement (plan → execute → validate) | [WORKFLOWS.md](docs/plans/WORKFLOWS.md) |
 | **Smart MCP Proxy** | Tool metrics, semantic search, self-healing | [MCP_PROXY_IMPROVEMENTS.md](docs/plans/MCP_PROXY_IMPROVEMENTS.md) |
 
 ### Milestones
 
 1. **Observable Gobby** — WebSocket event streaming + task system
-2. **Workflow Engine** — Deterministic agent behavior without prompt engineering
+2. **Workflow Engine** — ✅ YAML-defined workflows with lifecycle triggers and LLM-powered actions
 3. **Memory-First Agents** — Persistent memory and skill learning across sessions
 4. **Extensible Gobby** — Webhooks and Python plugin system
 5. **Smart MCP Proxy** — Intelligent tool orchestration
