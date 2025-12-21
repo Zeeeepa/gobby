@@ -765,8 +765,10 @@ class HookManager:
             )
 
         # Execute session-handoff workflow triggers (e.g. generate_handoff on /clear)
+        self.logger.debug("Calling workflow handler for session-handoff on session_end")
         try:
-            self._workflow_handler.handle_lifecycle("session-handoff", event)
+            result = self._workflow_handler.handle_lifecycle("session-handoff", event)
+            self.logger.debug(f"Workflow handler returned: {result}")
         except Exception as e:
             self.logger.error(
                 f"Failed to execute session-handoff workflow on session_end: {e}",

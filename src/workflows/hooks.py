@@ -78,6 +78,7 @@ class WorkflowHookHandler:
         """
         Handle a lifecycle workflow event.
         """
+        logger.debug(f"handle_lifecycle called: workflow={workflow_name}, event_type={event.event_type}")
         try:
             if self._loop and self._loop.is_running():
                 if threading.current_thread() is threading.main_thread():
