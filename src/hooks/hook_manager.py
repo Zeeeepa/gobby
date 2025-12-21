@@ -626,13 +626,12 @@ class HookManager:
 
         if trigger_source == "clear":
             self.logger.debug("Checking for session handoff...")
-            parent_session = self._session_manager.find_parent_session(
+            handoff_result = self._session_manager.find_parent_session(
                 machine_id=machine_id, source=cli_source, project_id=project_id
             )
 
-            if parent_session:
-                parent_session_id = parent_session.id
-                db_summary = parent_session.summary_markdown
+            if handoff_result:
+                parent_session_id, db_summary = handoff_result
                 self.logger.debug(f"Found parent session: {parent_session_id}")
 
                 # Step 2: Restore context (database first, file failover)
