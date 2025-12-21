@@ -270,16 +270,15 @@ class ActionExecutor:
 
         # 4. Call LLM
         try:
-            # Assume llm_service.generate(prompt) -> str
-            # We might need to specify model etc via config
-            model = "claude-3-5-sonnet-20241022"  # Default
-            if context.config and hasattr(context.config, "llm_model"):
-                model = context.config.llm_model
-
-            summary_content = await context.llm_service.generate(
-                prompt=prompt,
-                model=model,
-                system="You are a helpful assistant generating session summaries.",
+            # Use the LLM service's generate_summary method
+            llm_context = {
+                "turns": recent_turns,
+                "transcript_summary": transcript_summary,
+                "session": current_session,
+            }
+            summary_content = await context.llm_service.generate_summary(
+                context=llm_context,
+                prompt_template=template,
             )
         except Exception as e:
             logger.error(f"LLM generation failed: {e}")
