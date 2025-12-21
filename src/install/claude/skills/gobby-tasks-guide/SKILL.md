@@ -36,8 +36,8 @@ Internal tools use the same discovery pattern as external tools:
 
 ```python
 # List all gobby-tasks tools
-mcp__gobby-daemon__call_tool(
-    server_name="gobby-daemon",
+mcp__gobby__call_tool(
+    server_name="gobby",
     tool_name="list_tools",
     arguments={"server": "gobby-tasks"}
 )
@@ -49,8 +49,8 @@ Returns tool names and brief descriptions (lightweight).
 
 ```python
 # Get full schema before calling
-mcp__gobby-daemon__call_tool(
-    server_name="gobby-daemon",
+mcp__gobby__call_tool(
+    server_name="gobby",
     tool_name="get_tool_schema",
     arguments={
         "server_name": "gobby-tasks",
@@ -65,14 +65,14 @@ Returns complete inputSchema with all parameters.
 
 ```python
 # Execute the tool
-mcp__gobby-daemon__call_tool(
+mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="create_task",
     arguments={"title": "Implement feature X"}
 )
 ```
 
-Note: `server_name` changes to `gobby-tasks` when calling (not `gobby-daemon`).
+Note: `server_name` changes to `gobby-tasks` when calling (not `gobby`).
 
 ---
 
@@ -104,7 +104,7 @@ open → in_progress → closed
 ### Creating Tasks
 
 ```python
-mcp__gobby-daemon__call_tool(
+mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="create_task",
     arguments={
@@ -121,14 +121,14 @@ mcp__gobby-daemon__call_tool(
 
 ```python
 # List open tasks
-mcp__gobby-daemon__call_tool(
+mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="list_tasks",
     arguments={"status": "open"}
 )
 
 # Filter by priority and type
-mcp__gobby-daemon__call_tool(
+mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="list_tasks",
     arguments={
@@ -141,7 +141,7 @@ mcp__gobby-daemon__call_tool(
 ### Updating Tasks
 
 ```python
-mcp__gobby-daemon__call_tool(
+mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="update_task",
     arguments={
@@ -155,7 +155,7 @@ mcp__gobby-daemon__call_tool(
 ### Closing Tasks
 
 ```python
-mcp__gobby-daemon__call_tool(
+mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="close_task",
     arguments={
@@ -190,7 +190,7 @@ mcp__gobby-daemon__call_tool(
 
 ```python
 # Task A blocks Task B
-mcp__gobby-daemon__call_tool(
+mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="add_dependency",
     arguments={
@@ -207,7 +207,7 @@ Use `blocks` parameter as syntactic sugar:
 
 ```python
 # Create task that blocks others
-mcp__gobby-daemon__call_tool(
+mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="create_task",
     arguments={
@@ -223,7 +223,7 @@ Ready tasks are open tasks with no unresolved blocking dependencies:
 
 ```python
 # What can I work on now?
-mcp__gobby-daemon__call_tool(
+mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="list_ready_tasks",
     arguments={"limit": 10}
@@ -234,7 +234,7 @@ mcp__gobby-daemon__call_tool(
 
 ```python
 # What's waiting on something?
-mcp__gobby-daemon__call_tool(
+mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="list_blocked_tasks",
     arguments={}
@@ -247,7 +247,7 @@ Returns tasks with their blockers listed.
 
 ```python
 # Get full dependency context
-mcp__gobby-daemon__call_tool(
+mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="get_dependency_tree",
     arguments={
@@ -279,14 +279,14 @@ Tasks sync bidirectionally with `.gobby/tasks.jsonl`:
 
 ```python
 # Full sync (import + export)
-mcp__gobby-daemon__call_tool(
+mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="sync_tasks",
     arguments={"direction": "both"}
 )
 
 # Import only
-mcp__gobby-daemon__call_tool(
+mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="sync_tasks",
     arguments={"direction": "import"}
@@ -296,7 +296,7 @@ mcp__gobby-daemon__call_tool(
 ### Check Sync Status
 
 ```python
-mcp__gobby-daemon__call_tool(
+mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="get_sync_status",
     arguments={}
@@ -318,7 +318,7 @@ mcp__gobby-daemon__call_tool(
 ### Linking Tasks to Sessions
 
 ```python
-mcp__gobby-daemon__call_tool(
+mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="link_task_to_session",
     arguments={

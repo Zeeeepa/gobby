@@ -1,13 +1,13 @@
 ---
-name: gobby-daemon-mcp
-description: Use this skill when working with the gobby-daemon to manage the daemon lifecycle (start/stop/restart/status) or discover and use MCP tools. This skill prevents common mistakes like using CLI commands instead of MCP tools for daemon management, or querying live servers instead of using the progressive disclosure system for tool discovery.
+name: gobby-mcp
+description: Use this skill when working with the gobby to manage the daemon lifecycle (start/stop/restart/status) or discover and use MCP tools. This skill prevents common mistakes like using CLI commands instead of MCP tools for daemon management, or querying live servers instead of using the progressive disclosure system for tool discovery.
 ---
 
 # Gobby Daemon MCP
 
 ## Overview
 
-The gobby-daemon exposes two categories of functionality through MCP tools:
+The gobby exposes two categories of functionality through MCP tools:
 1. **Daemon Management**: Tools to control the daemon itself (start, stop, restart, status, etc.)
 2. **MCP Tool Discovery**: Progressive disclosure system to efficiently discover and use downstream MCP tools
 
@@ -17,7 +17,7 @@ This skill teaches the proper usage patterns for both categories and prevents co
 
 ### Critical Rule: Always Use MCP Tools, Never CLI Commands
 
-The gobby-daemon provides MCP tools for all daemon management operations. **Always use these tools instead of Bash/CLI commands.**
+The gobby provides MCP tools for all daemon management operations. **Always use these tools instead of Bash/CLI commands.**
 
 ### ❌ Common Mistakes (DON'T DO THIS)
 
@@ -29,7 +29,7 @@ Bash: uv run gobby stop
 Bash: pkill -f gobby
 
 # WRONG: Using call_tool for daemon management
-call_tool(server_name="gobby-daemon", tool_name="restart", ...)
+call_tool(server_name="gobby", tool_name="restart", ...)
 ```
 
 **Why wrong**:
@@ -39,34 +39,34 @@ call_tool(server_name="gobby-daemon", tool_name="restart", ...)
 
 ### ✅ Correct Usage
 
-Use the dedicated `mcp__gobby-daemon__*` tools:
+Use the dedicated `mcp__gobby__*` tools:
 
 | Operation | Correct Tool | Purpose |
 |-----------|-------------|---------|
-| Start daemon | `mcp__gobby-daemon__start` | Launch the daemon process |
-| Stop daemon | `mcp__gobby-daemon__stop` | Gracefully shutdown daemon |
-| Restart daemon | `mcp__gobby-daemon__restart` | Stop and start in one operation |
-| Check status | `mcp__gobby-daemon__status` | Get daemon health and connection info |
-| Authenticate | `mcp__gobby-daemon__login` | OAuth login to platform |
+| Start daemon | `mcp__gobby__start` | Launch the daemon process |
+| Stop daemon | `mcp__gobby__stop` | Gracefully shutdown daemon |
+| Restart daemon | `mcp__gobby__restart` | Stop and start in one operation |
+| Check status | `mcp__gobby__status` | Get daemon health and connection info |
+| Authenticate | `mcp__gobby__login` | OAuth login to platform |
 
 **Examples**:
 
 ```python
 # Check if daemon is running
-mcp__gobby-daemon__status()
+mcp__gobby__status()
 
 # Restart the daemon
-mcp__gobby-daemon__restart()
+mcp__gobby__restart()
 
 # Start if not running
-status = mcp__gobby-daemon__status()
+status = mcp__gobby__status()
 if not status['running']:
-    mcp__gobby-daemon__start()
+    mcp__gobby__start()
 ```
 
 ### Daemon Management vs. MCP Tool Calls
 
-**Daemon Management Tools** (`mcp__gobby-daemon__*`):
+**Daemon Management Tools** (`mcp__gobby__*`):
 - Control the daemon process itself
 - Used for: start, stop, restart, status, login
 - Direct tool invocation (not through call_tool)
@@ -92,7 +92,7 @@ Daemon Management:           MCP Tool Usage:
 
 ### Progressive Disclosure System
 
-The gobby-daemon implements progressive disclosure to reduce token usage:
+The gobby implements progressive disclosure to reduce token usage:
 - Tool metadata cached locally in `~/.gobby/.mcp.json` (lightweight)
 - Full schemas stored in `~/.gobby/tools/` (loaded on-demand)
 
@@ -104,21 +104,21 @@ This enables a three-step workflow that's **96% more token-efficient** than load
 
 **When**: At the start of a task when discovering what tools are available
 
-**How**: Use the `list_tools` tool (exposed by gobby-daemon)
+**How**: Use the `list_tools` tool (exposed by gobby)
 
-**Important**: This is a gobby-daemon tool, call it directly (not through call_tool proxy)
+**Important**: This is a gobby tool, call it directly (not through call_tool proxy)
 
 ```python
 # List all tools across all servers
-result = mcp__gobby-daemon__call_tool(
-    server_name="gobby-daemon",
+result = mcp__gobby__call_tool(
+    server_name="gobby",
     tool_name="list_tools",
     arguments={}
 )
 
 # List tools for specific server
-result = mcp__gobby-daemon__call_tool(
-    server_name="gobby-daemon",
+result = mcp__gobby__call_tool(
+    server_name="gobby",
     tool_name="list_tools",
     arguments={"server": "context7"}
 )
@@ -132,14 +132,14 @@ result = mcp__gobby-daemon__call_tool(
 
 **When**: After discovering a tool, before calling it
 
-**How**: Use the `get_tool_schema` tool (exposed by gobby-daemon)
+**How**: Use the `get_tool_schema` tool (exposed by gobby)
 
 **Important**: Reads from local filesystem (~/.gobby/tools/), not live server
 
 ```python
 # Get full schema for a specific tool
-result = mcp__gobby-daemon__call_tool(
-    server_name="gobby-daemon",
+result = mcp__gobby__call_tool(
+    server_name="gobby",
     tool_name="get_tool_schema",
     arguments={
         "server_name": "context7",
@@ -156,11 +156,11 @@ result = mcp__gobby-daemon__call_tool(
 
 **When**: After understanding the schema and preparing correct arguments
 
-**How**: Use `mcp__gobby-daemon__call_tool` with the downstream server name
+**How**: Use `mcp__gobby__call_tool` with the downstream server name
 
 ```python
 # Call a tool on a downstream MCP server
-result = mcp__gobby-daemon__call_tool(
+result = mcp__gobby__call_tool(
     server_name="context7",
     tool_name="get-library-docs",
     arguments={
@@ -178,16 +178,16 @@ result = mcp__gobby-daemon__call_tool(
 # Scenario: User asks "Find React hooks documentation"
 
 # Step 1: Discover available tools
-tools = mcp__gobby-daemon__call_tool(
-    server_name="gobby-daemon",
+tools = mcp__gobby__call_tool(
+    server_name="gobby",
     tool_name="list_tools",
     arguments={"server": "context7"}
 )
 # Found: resolve-library-id, get-library-docs
 
 # Step 2: Get schema for resolve-library-id
-schema = mcp__gobby-daemon__call_tool(
-    server_name="gobby-daemon",
+schema = mcp__gobby__call_tool(
+    server_name="gobby",
     tool_name="get_tool_schema",
     arguments={
         "server_name": "context7",
@@ -197,7 +197,7 @@ schema = mcp__gobby-daemon__call_tool(
 # Learned: Takes 'packageName' parameter
 
 # Step 3: Resolve React library ID
-library_id = mcp__gobby-daemon__call_tool(
+library_id = mcp__gobby__call_tool(
     server_name="context7",
     tool_name="resolve-library-id",
     arguments={"packageName": "react"}
@@ -205,7 +205,7 @@ library_id = mcp__gobby-daemon__call_tool(
 # Got: "/react/react"
 
 # Step 4: Get React documentation on hooks
-docs = mcp__gobby-daemon__call_tool(
+docs = mcp__gobby__call_tool(
     server_name="context7",
     tool_name="get-library-docs",
     arguments={
@@ -236,14 +236,14 @@ The `server_name` parameter changes meaning based on what you're calling:
 
 | Tool | server_name value | Meaning |
 |------|------------------|---------|
-| `list_tools` | "gobby-daemon" | Calling gobby-daemon's own tool |
-| `get_tool_schema` | "gobby-daemon" | Calling gobby-daemon's own tool |
-| `call_tool` (for discovery tools) | "gobby-daemon" | Calling gobby-daemon's tool |
+| `list_tools` | "gobby" | Calling gobby's own tool |
+| `get_tool_schema` | "gobby" | Calling gobby's own tool |
+| `call_tool` (for discovery tools) | "gobby" | Calling gobby's tool |
 | `call_tool` (for downstream tools) | "context7", "supabase", etc. | Proxying to downstream server |
 
 ### Available Downstream Servers
 
-Common downstream MCP servers accessible through gobby-daemon:
+Common downstream MCP servers accessible through gobby:
 - **context7**: Documentation lookup and library resolution
 - **supabase**: Database operations and schema management
 - **playwright**: Browser automation and testing
@@ -269,13 +269,13 @@ Use `list_tools()` to see all available servers and their tools.
 ### Daemon Management
 ```python
 # Check status
-mcp__gobby-daemon__status()
+mcp__gobby__status()
 
 # Restart daemon
-mcp__gobby-daemon__restart()
+mcp__gobby__restart()
 
 # Authenticate
-mcp__gobby-daemon__login()
+mcp__gobby__login()
 ```
 
 ### Tool Discovery
@@ -287,7 +287,7 @@ call_tool(server_name="context7", tool_name="...", arguments={...})
 ```
 
 ### Remember
-- Daemon management: Use `mcp__gobby-daemon__*` tools directly
+- Daemon management: Use `mcp__gobby__*` tools directly
 - Tool discovery: Three-step workflow (list → inspect → execute)
 - Never use CLI commands for daemon management
 - Never query live servers for tool schemas (use local cache)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Codex notify script - forwards interactive Codex events to gobby-daemon.
+"""Codex notify script - forwards interactive Codex events to gobby.
 
 Codex supports a `notify = [...]` command in `~/.codex/config.toml`. This script is
 intended to be installed to `~/.gobby/hooks/codex/notify.py` and configured as that
