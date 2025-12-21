@@ -211,7 +211,10 @@ class WorkflowEngine:
         Evaluate triggers for a specific lifecycle workflow (e.g. session-handoff).
         Does not require an active session state.
         """
-        workflow = self.loader.load_workflow(workflow_name)
+        # Get project path from event for project-specific workflow lookup
+        project_path = event.data.get("cwd") if event.data else None
+
+        workflow = self.loader.load_workflow(workflow_name, project_path=project_path)
         if not workflow:
             return HookResponse(decision="allow")
 

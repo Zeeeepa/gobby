@@ -10,22 +10,36 @@ logger = logging.getLogger(__name__)
 
 
 class WorkflowLoader:
-    def __init__(self, workflow_dirs: list[Path]):
-        self.workflow_dirs = workflow_dirs
+    def __init__(self, workflow_dirs: list[Path] | None = None):
+        # Default global workflow directory
+        self.global_dirs = workflow_dirs or [Path.home() / ".gobby" / "workflows"]
         self._cache: dict[str, WorkflowDefinition] = {}
 
-    def load_workflow(self, name: str) -> WorkflowDefinition | None:
+    def load_workflow(self, name: str, project_path: Path | str | None = None) -> WorkflowDefinition | None:
         """
         Load a workflow by name (without extension).
         Supports inheritance via 'extends' field.
+
+        Args:
+            name: Workflow name (without .yaml extension)
+            project_path: Optional project directory for project-specific workflows.
+                         Searches: 1) {project_path}/.gobby/workflows/  2) ~/.gobby/workflows/
         """
-        if name in self._cache:
-            return self._cache[name]
+        # Build cache key including project path for project-specific caching
+        cache_key = f"{project_path or 'global'}:{name}"
+        if cache_key in self._cache:
+            return self._cache[cache_key]
+
+        # Build search directories: project-specific first, then global
+        search_dirs = list(self.global_dirs)
+        if project_path:
+            project_dir = Path(project_path) / ".gobby" / "workflows"
+            search_dirs.insert(0, project_dir)
 
         # 1. Find file
-        path = self._find_workflow_file(name)
+        path = self._find_workflow_file(name, search_dirs)
         if not path:
-            logger.warning(f"Workflow '{name}' not found in {self.workflow_dirs}")
+            logger.warning(f"Workflow '{name}' not found in {search_dirs}")
             return None
 
         try:
@@ -44,16 +58,16 @@ class WorkflowLoader:
 
             # 4. Validate and create model
             definition = WorkflowDefinition(**data)
-            self._cache[name] = definition
+            self._cache[cache_key] = definition
             return definition
 
         except Exception as e:
             logger.error(f"Failed to load workflow '{name}' from {path}: {e}", exc_info=True)
             return None
 
-    def _find_workflow_file(self, name: str) -> Path | None:
+    def _find_workflow_file(self, name: str, search_dirs: list[Path]) -> Path | None:
         filename = f"{name}.yaml"
-        for d in self.workflow_dirs:
+        for d in search_dirs:
             candidate = d / filename
             if candidate.exists():
                 return candidate

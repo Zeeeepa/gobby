@@ -157,12 +157,10 @@ class HookManager:
         from gobby.workflows.actions import ActionExecutor
         from gobby.workflows.templates import TemplateEngine
 
-        # Load order: Project > User Global
-        # Templates are treated as examples and not loaded automatically.
-        # Users must copy them to one of these directories to activate them.
-        workflow_dirs = [Path.cwd() / ".gobby" / "workflows", Path.home() / ".gobby" / "workflows"]
-
-        self._workflow_loader = WorkflowLoader(workflow_dirs=workflow_dirs)
+        # Workflow loader now handles project-specific paths dynamically via project_path parameter
+        # Global workflows are loaded from ~/.gobby/workflows/
+        # Project-specific workflows are loaded from {project_path}/.gobby/workflows/
+        self._workflow_loader = WorkflowLoader()
         self._workflow_state_manager = WorkflowStateManager(self._database)
 
         # Initialize Template Engine
