@@ -244,13 +244,26 @@ class ActionExecutor:
 
         # 1. Process Transcript
         try:
-            # processor.parse returns list of turns or dict?
-            # ClaudeTranscriptParser.parse(path) -> List[Dict] usually
-            turns = context.transcript_processor.parse(transcript_path)
-            # Simple summarization of turns for now (last 50?)
-            # Validated strangler fig logic:
-            recent_turns = turns[-50:] if len(turns) > 50 else turns
-            transcript_summary = context.transcript_processor.format_for_llm(recent_turns)
+            import json
+            from pathlib import Path
+
+            # Read JSONL transcript
+            transcript_file = Path(transcript_path)
+            if not transcript_file.exists():
+                logger.warning(f"Transcript file not found: {transcript_path}")
+                return {"error": "Transcript not found"}
+
+            turns = []
+            with open(transcript_file) as f:
+                for line in f:
+                    if line.strip():
+                        turns.append(json.loads(line))
+
+            # Get turns since last /clear (up to 50 turns)
+            recent_turns = context.transcript_processor.extract_turns_since_clear(turns, max_turns=50)
+
+            # Format turns for LLM
+            transcript_summary = self._format_turns_for_llm(recent_turns)
         except Exception as e:
             logger.error(f"Failed to process transcript: {e}")
             return {"error": str(e)}
@@ -292,3 +305,36 @@ class ActionExecutor:
 
         logger.info(f"Generated handoff summary for session {context.session_id}")
         return {"handoff_created": True, "summary_length": len(summary_content)}
+
+    def _format_turns_for_llm(self, turns: list[dict]) -> str:
+        """
+        Format transcript turns for LLM analysis.
+
+        Args:
+            turns: List of transcript turn dicts
+
+        Returns:
+            Formatted string with turn summaries
+        """
+        formatted = []
+        for i, turn in enumerate(turns):
+            message = turn.get("message", {})
+            role = message.get("role", "unknown")
+            content = message.get("content", "")
+
+            # Assistant messages have content as array of blocks
+            if isinstance(content, list):
+                text_parts = []
+                for block in content:
+                    if isinstance(block, dict):
+                        if block.get("type") == "text":
+                            text_parts.append(block.get("text", ""))
+                        elif block.get("type") == "thinking":
+                            text_parts.append(f"[Thinking: {block.get('thinking', '')}]")
+                        elif block.get("type") == "tool_use":
+                            text_parts.append(f"[Tool: {block.get('name', 'unknown')}]")
+                content = " ".join(text_parts)
+
+            formatted.append(f"[Turn {i + 1} - {role}]: {content}")
+
+        return "\n\n".join(formatted)
