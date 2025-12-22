@@ -11,6 +11,7 @@ This document defines the implementation order across all Gobby planning documen
 | HOOK_EXTENSIONS | `docs/plans/HOOK_EXTENSIONS.md` | WebSocket events, webhooks, plugins |
 | WORKFLOWS | `docs/plans/WORKFLOWS.md` | Phase-based workflow enforcement |
 | TASKS | `docs/plans/TASKS.md` | Persistent task tracking system |
+| SESSION_TRACKING | `docs/plans/SESSION_TRACKING.md` | Async JSONL processing, multi-CLI message storage |
 | MEMORY | `docs/plans/MEMORY.md` | Persistent memory and skill learning |
 | MCP_PROXY_IMPROVEMENTS | `docs/plans/MCP_PROXY_IMPROVEMENTS.md` | Tool metrics, semantic search, self-healing |
 
@@ -72,7 +73,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 5: Workflow Hook Integration ✅ COMPLETED                             │
+│ Sprint 5: Workflow Hook Integration                                          │
 │ WORKFLOWS Phase 3                                                            │
 │                                                                              │
 │ Deliverable: Workflows evaluate on hook events, tool blocking               │
@@ -81,7 +82,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 6: Workflow Actions ✅ COMPLETED                                      │
+│ Sprint 6: Workflow Actions                                                   │
 │ WORKFLOWS Phase 4                                                            │
 │                                                                              │
 │ Deliverable: inject_context, capture_artifact, generate_handoff, etc.       │
@@ -90,18 +91,57 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 7: Context Sources & Templates ✅ COMPLETED                           │
+│ Sprint 7: Context Sources & Templates                                        │
 │ WORKFLOWS Phases 5-6                                                         │
 │                                                                              │
 │ Deliverable: Jinja2 templating, built-in workflow templates                 │
 │ Dependencies: Sprint 6                                                       │
 │                                                                              │
-│ - [x] Jinja2 integration                                                     │
-│ - [x] Context sources (session, handoff, state)                              │
-│ - [x] Template engine implementation                                         │
-│ - [x] Built-in templates (plan-execute, plan-act-reflect, session-handoff)  │
-│ - [x] LLM-powered generate_handoff action                                    │
-│ - [x] Git status and file changes context gathering                          │
+│ - [ ] Jinja2 integration                                                     │
+│ - [ ] Context sources (session, handoff, state)                              │
+│ - [ ] Template engine implementation                                         │
+│ - [ ] Built-in templates (plan-execute, plan-act-reflect, session-handoff)  │
+│ - [ ] LLM-powered generate_handoff action                                    │
+│ - [ ] Git status and file changes context gathering                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+                            SESSION MESSAGE TRACKING
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Sprint 7.1: Session Message Foundation                                       │
+│ SESSION_TRACKING Phase 1                                                     │
+│                                                                              │
+│ Deliverable: Database schema, LocalMessageManager, ParsedMessage dataclass  │
+│ Dependencies: None                                                           │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Sprint 7.2: Async Message Processor                                          │
+│ SESSION_TRACKING Phase 2                                                     │
+│                                                                              │
+│ Deliverable: SessionMessageProcessor with byte-offset polling, debouncing   │
+│ Dependencies: Sprint 7.1                                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Sprint 7.3: Session Tracking Integration                                     │
+│ SESSION_TRACKING Phases 3-4                                                  │
+│                                                                              │
+│ Deliverable: Runner/HookManager integration, WebSocket broadcasting         │
+│ Dependencies: Sprint 7.2                                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Sprint 7.4: Multi-CLI Parsers & API                                          │
+│ SESSION_TRACKING Phases 5-6                                                  │
+│                                                                              │
+│ Deliverable: Gemini/Codex parsers, parser registry, query API, MCP tools    │
+│ Dependencies: Sprint 7.3                                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -263,10 +303,14 @@ This document defines the implementation order across all Gobby planning documen
 | 3 | Task MCP/CLI | TASKS Phases 7-10 | Sprint 2 | ✅ Completed |
 | 3.5 | Task Extensions | TASKS Phases 9.5-9.9 | Sprint 3 | ✅ Completed |
 | 4 | Workflow Foundation | WORKFLOWS Phases 0-2 | None | ✅ Completed |
-| 5 | Workflow Hooks | WORKFLOWS Phase 3 | Sprint 4 | ✅ Completed |
-| 6 | Workflow Actions | WORKFLOWS Phase 4 | Sprint 5 | ✅ Completed |
-| 7 | Context & Templates | WORKFLOWS Phases 5-6 | Sprint 6 | ✅ Completed |
-| 7.5 | Memory Storage & Operations | MEMORY Phases 1-2 | None | Pending |
+| 5 | Workflow Hooks | WORKFLOWS Phase 3 | Sprint 4 | Pending |
+| 6 | Workflow Actions | WORKFLOWS Phase 4 | Sprint 5 | Pending |
+| 7 | Context & Templates | WORKFLOWS Phases 5-6 | Sprint 6 | Pending |
+| 7.1 | Session Message Foundation | SESSION_TRACKING Phase 1 | None | Pending |
+| 7.2 | Async Message Processor | SESSION_TRACKING Phase 2 | Sprint 7.1 | Pending |
+| 7.3 | Session Tracking Integration | SESSION_TRACKING Phases 3-4 | Sprint 7.2 | Pending |
+| 7.4 | Multi-CLI Parsers & API | SESSION_TRACKING Phases 5-6 | Sprint 7.3 | Pending |
+| 7.5 | Memory Storage & Operations | MEMORY Phases 1-2 | Sprint 7.4 | Pending |
 | 7.6 | Skill Learning | MEMORY Phases 3-4 | Sprint 7.5 | Pending |
 | 7.7 | Memory MCP/CLI | MEMORY Phases 5-6 | Sprint 7.6 | Pending |
 | 7.8 | Memory Sync & Enhancements | MEMORY Phases 7-10 | Sprint 7.7 | Pending |
@@ -304,9 +348,9 @@ Sprints 1 → 8 → 9 → 16 (joins Track A at Sprint 7)
 
 Sprints 12 → 13 → 14 → 15 (independent, can run anytime)
 
-### Track E: Memory System
+### Track E: Session & Memory
 
-Sprints 7.5 → 7.6 → 7.7 → 7.8 (independent, can run anytime after session tracking exists)
+Sprints 7.1 → 7.2 → 7.3 → 7.4 → 7.5 → 7.6 → 7.7 → 7.8 (Session Tracking feeds Memory System)
 
 ---
 
@@ -324,6 +368,14 @@ Sprints 7.5 → 7.6 → 7.7 → 7.8 (independent, can run anytime after session 
 - Tool restrictions and transitions
 - Built-in templates
 - **Value**: Deterministic agent behavior without prompt engineering
+
+### Milestone 2.5: "Session Recording" (Sprints 7.1-7.4)
+
+- Async JSONL message processing for all CLIs
+- Multi-CLI parsers (Claude, Gemini, Codex, Antigravity)
+- Real-time WebSocket message streaming
+- Message search and query API
+- **Value**: Full conversation history for memory, analytics, and debugging
 
 ### Milestone 3: "Memory-First Agents" (Sprints 7.5-7.8)
 

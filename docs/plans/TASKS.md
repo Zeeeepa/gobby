@@ -39,12 +39,16 @@ CREATE TABLE tasks (
     discovered_in_session_id TEXT,    -- Session where task was discovered
     title TEXT NOT NULL,
     description TEXT,
-    status TEXT DEFAULT 'open',       -- open, in_progress, closed
+    status TEXT DEFAULT 'open',       -- open, in_progress, closed, failed
     priority INTEGER DEFAULT 2,       -- 1=High, 2=Medium, 3=Low
     task_type TEXT DEFAULT 'task',    -- bug, feature, task, epic, chore
     assignee TEXT,                    -- Agent or human identifier
     labels TEXT,                      -- JSON array
     closed_reason TEXT,
+    -- Validation fields (Phase 12.5)
+    validation_criteria TEXT,         -- Natural language prompt for validating completion
+    use_external_validator BOOLEAN DEFAULT FALSE,  -- Use separate validation agent vs completing agent
+    validation_fail_count INTEGER DEFAULT 0,       -- Track consecutive validation failures
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (project_id) REFERENCES projects(id),
@@ -392,6 +396,103 @@ def import_tasks(file_path: str, format: str = "jsonl") -> dict:
     """Import tasks from file (jsonl or markdown format)."""
 ```
 
+### LLM Expansion (gobby-tasks internal server)
+
+```python
+@mcp.tool()
+def expand_task(
+    task_id: str,
+    strategy: str = "checklist",  # checklist, parallel, epic, tdd
+    max_subtasks: int = 10,
+    analyze_codebase: bool = True,
+    infer_validation: bool = True,
+) -> dict:
+    """
+    Use LLM to decompose a task into subtasks with codebase analysis.
+
+    When analyze_codebase=True:
+    - Reads relevant files for context
+    - Infers which files/modules each subtask will touch
+    - Auto-creates dependency relationships based on code structure
+
+    When infer_validation=True:
+    - Generates validation_criteria for each subtask
+
+    Returns created subtask IDs with dependencies.
+    """
+
+@mcp.tool()
+def expand_from_spec(
+    spec_content: str,
+    spec_type: str = "prd",  # prd, user_story, bug_report, rfc
+    parent_task_id: str | None = None,
+    strategy: str = "epic",
+    analyze_codebase: bool = True,
+) -> dict:
+    """
+    Parse a specification and generate a task tree with dependencies.
+
+    For PRDs: Creates epic with feature tasks
+    For user stories: Creates acceptance criteria as subtasks
+    For bug reports: Creates investigation → fix → verify tasks
+    For RFCs: Creates research → design → implement tasks
+
+    Returns root task ID and full task tree with validation criteria.
+    """
+
+@mcp.tool()
+def suggest_next_task(
+    context: str | None = None,
+) -> dict:
+    """
+    LLM analyzes current session context and suggests which ready task to work on.
+
+    Considers:
+    - Files already read/modified in session
+    - Recent task activity
+    - Priority and dependencies
+
+    Returns recommended task with reasoning.
+    """
+```
+
+### Validation (gobby-tasks internal server)
+
+```python
+@mcp.tool()
+def validate_task(task_id: str) -> dict:
+    """
+    Validate task completion against its validation_criteria.
+
+    - Gathers context (files changed, test results, etc.)
+    - Runs validation prompt against current state
+    - If use_external_validator=True, spawns separate validation agent
+
+    On failure:
+    - Increments validation_fail_count
+    - Creates fix subtask if create_fix_subtask config is true
+    - Sets status to 'failed' if max_validation_fails exceeded
+
+    Returns validation result with pass/fail and reasoning.
+    """
+
+@mcp.tool()
+def get_validation_status(task_id: str) -> dict:
+    """
+    Get validation status for a task.
+
+    Returns:
+    - validation_criteria (if set)
+    - use_external_validator setting
+    - validation_fail_count
+    - Last validation result (if any)
+    """
+
+@mcp.tool()
+def reset_validation_count(task_id: str) -> dict:
+    """Reset validation_fail_count to 0 for manual retry."""
+```
+
 ## CLI Commands
 
 ```bash
@@ -441,12 +542,69 @@ gobby tasks clean                        # Remove orphaned data, compact DB
 gobby tasks import FILE [--format md|jsonl]
 gobby tasks import --from-beads          # Migrate from beads
 
+# LLM Expansion
+gobby tasks expand TASK_ID [--strategy S] [--no-codebase] [--no-validation]
+gobby tasks import-spec FILE [--type prd|user_story|bug_report|rfc]
+gobby tasks suggest                      # Suggest next task based on context
+
+# Validation
+gobby tasks validate TASK_ID             # Run validation against criteria
+gobby tasks list --status failed         # List tasks that failed validation
+gobby tasks reset-validation TASK_ID     # Reset validation_fail_count for retry
+
 # Configuration
 gobby tasks config --stealth [on|off]    # Toggle stealth mode
 
 # Stats
 gobby tasks stats
 ```
+
+## Configuration (config.yaml)
+
+Task expansion and validation use the same LLM provider infrastructure as other gobby features (session summaries, tool recommendations, etc.). Providers can be subscription-based SDKs (Claude Agent SDK, Codex SDK, Gemini SDK) or API-key based (LiteLLM).
+
+```yaml
+# Task Expansion Configuration
+task_expansion:
+  enabled: true
+  provider: "claude"                    # claude, codex, gemini, litellm
+  model: "claude-sonnet-4-5"            # Higher reasoning model for codebase analysis
+  analyze_codebase: true                # Read relevant files during expansion
+  max_context_files: 20                 # Max files to include for context
+  max_subtasks: 15                      # Max subtasks per expansion
+  infer_validation: true                # Auto-generate validation_criteria for subtasks
+  prompt: null                          # Custom expansion prompt (optional)
+
+# Task Validation Configuration
+task_validation:
+  enabled: true
+  provider: "claude"                    # Provider for validation agent
+  model: "claude-haiku-4-5"             # Fast model for validation checks
+  max_validation_fails: 3               # Mark task 'failed' after this many failures
+  create_fix_subtask: true              # Create "fix validation" subtask on failure
+  prompt: null                          # Custom validation prompt (optional)
+```
+
+### Provider Selection
+
+- **claude**: Claude Agent SDK (requires Claude subscription)
+- **codex**: OpenAI Codex SDK (requires OpenAI subscription)
+- **gemini**: Gemini SDK (requires Google AI subscription)
+- **litellm**: Any LLM via API key (configured in `llm_providers.litellm`)
+
+### Validation Behavior
+
+1. When a task has `validation_criteria` set, validation can be triggered:
+   - By the completing agent calling `validate_task(task_id)`
+   - By workflow automation after task marked closed
+   - By external validation agent if `use_external_validator: true`
+
+2. On validation failure:
+   - `validation_fail_count` is incremented
+   - If `create_fix_subtask: true`, creates a subtask describing what failed
+   - If `validation_fail_count >= max_validation_fails`, task status → `failed`
+
+3. `failed` status alerts humans that automated resolution failed
 
 ## Implementation Checklist
 
@@ -844,20 +1002,109 @@ For large tasks, use `expand_task(id)` to break them down before starting.
 - [ ] Implement ID mapping in `persist_decomposed_tasks` (map temp indices 1,2.. to gt-{hash})
 - [ ] Add unit tests for workflow-task integration
 
-### Phase 12: LLM-Powered Expansion
+### Phase 12: LLM-Powered Expansion (with Codebase Analysis)
+
+> Uses configured `task_expansion` provider (Claude Agent SDK, Codex SDK, Gemini SDK, or LiteLLM).
+> Tools are registered in `gobby-tasks` internal MCP server.
+
+**Core Implementation:**
 
 - [ ] Create `src/tasks/expansion.py` with `TaskExpander` class
+- [ ] Create `TaskExpansionConfig` in `src/config/app.py`
 - [ ] Implement expansion prompt templates per strategy
 - [ ] Implement `expand_task()` method
 - [ ] Implement `expand_from_spec()` method
 - [ ] Implement `suggest_next_task()` method
-- [ ] Add `expand_task` MCP tool
-- [ ] Add `expand_from_spec` MCP tool
-- [ ] Add `suggest_next_task` MCP tool
-- [ ] Add `gobby tasks expand TASK_ID [--strategy S]` CLI command
-- [ ] Add `gobby tasks import-spec FILE [--type T]` CLI command
+
+**Codebase Analysis (when `analyze_codebase: true`):**
+
+- [ ] Implement `gather_codebase_context()` - uses Glob/Grep to find relevant files
+- [ ] Read key files for context (respecting `max_context_files`)
+- [ ] Pass codebase context + task description to LLM
+- [ ] Infer which files/modules each subtask will touch
+
+**Automated Dependency Mapping:**
+
+- [ ] LLM analyzes code relationships during expansion
+- [ ] Auto-create `blocks` dependencies based on:
+  - Sequential file dependencies (e.g., schema before API, API before tests)
+  - Import/export relationships in code
+  - Logical ordering from task descriptions
+- [ ] Implement `analyze_dependencies()` helper method
+
+**Validation Criteria Generation (when `infer_validation: true`):**
+
+- [ ] Generate `validation_criteria` for each subtask during expansion
+- [ ] Include file-level checks (e.g., "file X exists and exports Y")
+- [ ] Include behavioral checks (e.g., "tests pass", "endpoint returns 200")
+
+**MCP Tools (gobby-tasks internal server):**
+
+- [ ] Add `expand_task` tool to `src/mcp_proxy/tools/tasks.py`
+- [ ] Add `expand_from_spec` tool to `src/mcp_proxy/tools/tasks.py`
+- [ ] Add `suggest_next_task` tool to `src/mcp_proxy/tools/tasks.py`
+
+**CLI Commands:**
+
+- [ ] Add `gobby tasks expand TASK_ID [--strategy S] [--no-codebase]` command
+- [ ] Add `gobby tasks import-spec FILE [--type T]` command
+
+**Testing:**
+
 - [ ] Add unit tests for TaskExpander
 - [ ] Add integration tests with mock LLM
+- [ ] Test codebase analysis with real project
+
+### Phase 12.5: Task Validation
+
+> Uses configured `task_validation` provider. Validates task completion against `validation_criteria`.
+> Tools are registered in `gobby-tasks` internal MCP server.
+
+**Schema Migration:**
+
+- [ ] Add `validation_criteria` column to tasks table
+- [ ] Add `use_external_validator` column to tasks table
+- [ ] Add `validation_fail_count` column to tasks table
+- [ ] Add `failed` as valid status value
+
+**Core Implementation:**
+
+- [ ] Create `TaskValidationConfig` in `src/config/app.py`
+- [ ] Create `src/tasks/validation.py` with `TaskValidator` class
+- [ ] Implement `validate_task()` method - runs validation prompt against current state
+- [ ] Implement `gather_validation_context()` - reads relevant files, test results, etc.
+
+**Failure Handling:**
+
+- [ ] Increment `validation_fail_count` on failure
+- [ ] If `create_fix_subtask: true`, create subtask with failure details
+- [ ] If `validation_fail_count >= max_validation_fails`, set status → `failed`
+- [ ] `failed` tasks surface in `list_tasks(status="failed")` for human review
+
+**External Validator Support:**
+
+- [ ] When `use_external_validator: true` on task, spawn separate validation agent
+- [ ] Validation agent uses configured provider/model from `task_validation`
+- [ ] Pass task context, files changed, test results to validation agent
+
+**MCP Tools (gobby-tasks internal server):**
+
+- [ ] Add `validate_task` tool to `src/mcp_proxy/tools/tasks.py`
+- [ ] Add `get_validation_status` tool to `src/mcp_proxy/tools/tasks.py`
+- [ ] Add `reset_validation_count` tool (for manual retry)
+
+**CLI Commands:**
+
+- [ ] Add `gobby tasks validate TASK_ID` command
+- [ ] Add `gobby tasks list --status failed` filter
+- [ ] Add `gobby tasks reset-validation TASK_ID` command
+
+**Testing:**
+
+- [ ] Add unit tests for TaskValidator
+- [ ] Add integration tests with mock LLM
+- [ ] Test failure → subtask creation flow
+- [ ] Test max_validation_fails → failed status flow
 
 ### Phase 13: Agent Instructions
 
@@ -877,6 +1124,10 @@ For large tasks, use `expand_task(id)` to break them down before starting.
 | 2 | **Task scope** | Single machine now, fleet-ready | Central DB supports multiple projects. `platform_id` column ready for gobby_platform fleet management. |
 | 3 | **Stealth mode** | Store JSONL in `~/.gobby/tasks/{project_id}.jsonl` | Per-project setting to avoid committing tasks to git. |
 | 4 | **ID collision handling** | Retry with random salt on collision | SHA-256 with 6 hex chars gives ~16M unique IDs. Collision unlikely, but handle gracefully with retry. |
+| 5 | **LLM provider for expansion/validation** | Use existing `llm_providers` infrastructure | Subscription SDKs (Claude/Codex/Gemini) or LiteLLM for API keys. Same pattern as session summaries, tool recommendations. |
+| 6 | **Validation failure handling** | Create subtask + increment counter + fail after max | Gives agent multiple attempts to fix. `failed` status alerts humans. Subtask documents what went wrong. |
+| 7 | **Codebase analysis during expansion** | Enabled by default, configurable | LLM reads relevant files to understand context. Infers dependencies from code structure. Can disable with `--no-codebase`. |
+| 8 | **Validation criteria format** | Natural language prompt | Simple, flexible. LLM evaluates against current state. No rigid schema needed. |
 
 ---
 
