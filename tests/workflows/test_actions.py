@@ -109,24 +109,41 @@ async def test_capture_artifact(action_executor, action_context, tmp_path):
 
 @pytest.mark.asyncio
 async def test_generate_handoff(
-    action_executor, action_context, session_manager, sample_project, mock_services
+    action_executor, action_context, session_manager, sample_project, mock_services, tmp_path
 ):
-    # Setup session
+    # Create a real transcript file
+    transcript_file = tmp_path / "transcript.jsonl"
+    import json
+    transcript_data = [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "Hi there!"},
+    ]
+    with open(transcript_file, "w") as f:
+        for entry in transcript_data:
+            f.write(json.dumps(entry) + "\n")
+
+    # Setup session with real transcript path
     session = session_manager.register(
         external_id="handoff-ext",
         machine_id="test-machine",
         source="test-source",
         project_id=sample_project["id"],
-        jsonl_path="/path/to/transcript.jsonl",
+        jsonl_path=str(transcript_file),
     )
     action_context.session_id = session.id
 
-    # Setup mocks
-    transcript = [{"role": "user", "content": "hello"}]
-    mock_services["transcript_processor"].parse.return_value = transcript
-    mock_services["transcript_processor"].format_for_llm.return_value = "User: hello"
+    # Setup mocks for transcript processor methods
+    mock_services["transcript_processor"].extract_turns_since_clear.return_value = transcript_data
+    mock_services["transcript_processor"].extract_last_messages.return_value = transcript_data
     mock_services["template_engine"].render.return_value = "Summarize: User: hello"
-    mock_services["llm_service"].generate.return_value = "Session Summary."
+
+    # Setup LLM service mock chain: llm_service.get_default_provider().generate_summary()
+    # Note: get_default_provider is sync, generate_summary is async
+    mock_provider = MagicMock()
+    mock_provider.generate_summary = AsyncMock(return_value="Session Summary.")
+    mock_llm_service = MagicMock()
+    mock_llm_service.get_default_provider.return_value = mock_provider
+    mock_services["llm_service"] = mock_llm_service
 
     # Update context services manually since ActionContext fixture doesn't use the mock_services
     # In a real app, engine handles this. Here we manually patch.
@@ -145,5 +162,5 @@ async def test_generate_handoff(
     assert updated_session.summary_markdown == "Session Summary."
     assert updated_session.status == "handoff_ready"
 
-    # Verify LLM called
-    mock_services["llm_service"].generate.assert_called_once()
+    # Verify LLM called via get_default_provider().generate_summary()
+    mock_provider.generate_summary.assert_called_once()
