@@ -213,10 +213,14 @@ class WorkflowEngine:
         """
         # Get project path from event for project-specific workflow lookup
         project_path = event.data.get("cwd") if event.data else None
+        logger.debug(f"evaluate_lifecycle_triggers: workflow={workflow_name}, project_path={project_path}")
 
         workflow = self.loader.load_workflow(workflow_name, project_path=project_path)
         if not workflow:
+            logger.warning(f"Workflow '{workflow_name}' not found in project_path={project_path}")
             return HookResponse(decision="allow")
+
+        logger.debug(f"Workflow '{workflow_name}' loaded, triggers={list(workflow.triggers.keys()) if workflow.triggers else []}")
 
         # Map hook event to trigger name
         # TODO: Move this mapping to a shared constant or config
@@ -224,9 +228,10 @@ class WorkflowEngine:
 
         triggers = workflow.triggers.get(trigger_name) if workflow.triggers else []
         if not triggers:
+            logger.debug(f"No triggers for '{trigger_name}' in workflow '{workflow_name}'")
             return HookResponse(decision="allow")
 
-        logger.info(f"Executing lifecycle triggers for '{workflow_name}' on '{trigger_name}'")
+        logger.info(f"Executing lifecycle triggers for '{workflow_name}' on '{trigger_name}', count={len(triggers)}")
 
         # Create a temporary/ephemeral context for execution
         from .actions import ActionContext
@@ -274,7 +279,9 @@ class WorkflowEngine:
                 eval_ctx = {"event": event, "workflow_state": state, "handoff": context_data or {}}
                 if context_data:
                     eval_ctx.update(context_data)
-                if not self.evaluator.evaluate(when_condition, eval_ctx):
+                eval_result = self.evaluator.evaluate(when_condition, eval_ctx)
+                logger.debug(f"When condition '{when_condition}' evaluated to {eval_result}, event.data.reason={event.data.get('reason') if event.data else None}")
+                if not eval_result:
                     continue
 
             # Execute action
@@ -282,6 +289,7 @@ class WorkflowEngine:
             if not action_type:
                 continue
 
+            logger.info(f"Executing action '{action_type}' for trigger")
             try:
                 # Pass triggers definition as kwargs
                 kwargs = trigger.copy()
@@ -289,6 +297,7 @@ class WorkflowEngine:
                 kwargs.pop("when", None)
 
                 result = await self.action_executor.execute(action_type, action_ctx, **kwargs)
+                logger.debug(f"Action '{action_type}' returned: {type(result).__name__}, keys={list(result.keys()) if isinstance(result, dict) else 'N/A'}")
 
                 if result:
                     # Update context for subsequent actions
@@ -299,6 +308,7 @@ class WorkflowEngine:
                         state.variables.update(result)
 
                     if "inject_context" in result:
+                        logger.debug(f"Found inject_context in result, length={len(result['inject_context'])}")
                         injected_context.append(result["inject_context"])
 
             except Exception as e:

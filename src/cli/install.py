@@ -19,6 +19,75 @@ from .utils import get_install_dir
 logger = logging.getLogger(__name__)
 
 
+def _install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list[str]]:
+    """Install shared content from src/install/shared/.
+
+    Skills are CLI-specific and go to {cli_path}/skills/.
+    Workflows are cross-CLI and go to {project_path}/.gobby/workflows/.
+    """
+    shared_dir = get_install_dir() / "shared"
+    installed: dict[str, list[str]] = {"skills": [], "workflows": []}
+
+    # Install shared skills to CLI directory
+    shared_skills = shared_dir / "skills"
+    if shared_skills.exists():
+        target_skills = cli_path / "skills"
+        target_skills.mkdir(parents=True, exist_ok=True)
+        for skill_dir in shared_skills.iterdir():
+            if skill_dir.is_dir():
+                target_skill = target_skills / skill_dir.name
+                if target_skill.exists():
+                    shutil.rmtree(target_skill)
+                copytree(skill_dir, target_skill)
+                installed["skills"].append(skill_dir.name)
+
+    # Install shared workflows to .gobby/workflows/ (cross-CLI)
+    shared_workflows = shared_dir / "workflows"
+    if shared_workflows.exists():
+        target_workflows = project_path / ".gobby" / "workflows"
+        target_workflows.mkdir(parents=True, exist_ok=True)
+        for workflow_file in shared_workflows.iterdir():
+            if workflow_file.is_file():
+                copy2(workflow_file, target_workflows / workflow_file.name)
+                installed["workflows"].append(workflow_file.name)
+
+    return installed
+
+
+def _install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]]:
+    """Install CLI-specific skills/workflows (layered on top of shared).
+
+    CLI-specific content can add to or override shared content.
+    """
+    cli_dir = get_install_dir() / cli_name
+    installed: dict[str, list[str]] = {"skills": [], "workflows": []}
+
+    # CLI-specific skills (can override shared)
+    cli_skills = cli_dir / "skills"
+    if cli_skills.exists():
+        target_skills = target_path / "skills"
+        target_skills.mkdir(parents=True, exist_ok=True)
+        for skill_dir in cli_skills.iterdir():
+            if skill_dir.is_dir():
+                target_skill = target_skills / skill_dir.name
+                if target_skill.exists():
+                    shutil.rmtree(target_skill)
+                copytree(skill_dir, target_skill)
+                installed["skills"].append(skill_dir.name)
+
+    # CLI-specific workflows
+    cli_workflows = cli_dir / "workflows"
+    if cli_workflows.exists():
+        target_workflows = target_path / "workflows"
+        target_workflows.mkdir(parents=True, exist_ok=True)
+        for workflow_file in cli_workflows.iterdir():
+            if workflow_file.is_file():
+                copy2(workflow_file, target_workflows / workflow_file.name)
+                installed["workflows"].append(workflow_file.name)
+
+    return installed
+
+
 def _is_claude_code_installed() -> bool:
     """Check if Claude Code CLI is installed."""
     return shutil.which("claude") is not None
@@ -34,14 +103,14 @@ def _is_codex_cli_installed() -> bool:
     return shutil.which("codex") is not None
 
 
-def _install_claude_hooks(project_path: Path) -> dict[str, Any]:
-    """Install Claude Code hooks to a project."""
+def _install_claude(project_path: Path) -> dict[str, Any]:
+    """Install Gobby integration for Claude Code (hooks, skills, workflows)."""
     hooks_installed: list[str] = []
-    skills_installed: list[str] = []
     result: dict[str, Any] = {
         "success": False,
         "hooks_installed": hooks_installed,
-        "skills_installed": skills_installed,
+        "skills_installed": [],
+        "workflows_installed": [],
         "error": None,
     }
 
@@ -51,15 +120,12 @@ def _install_claude_hooks(project_path: Path) -> dict[str, Any]:
     # Ensure .claude subdirectories exist
     claude_path.mkdir(parents=True, exist_ok=True)
     hooks_dir = claude_path / "hooks"
-    skills_dir = claude_path / "skills"
     hooks_dir.mkdir(parents=True, exist_ok=True)
-    skills_dir.mkdir(parents=True, exist_ok=True)
 
     # Get source files
     install_dir = get_install_dir()
     claude_install_dir = install_dir / "claude"
     install_hooks_dir = claude_install_dir / "hooks"
-    install_skills_dir = claude_install_dir / "skills"
 
     # Hook files to copy
     hook_files = {
@@ -95,17 +161,13 @@ def _install_claude_hooks(project_path: Path) -> dict[str, Any]:
         if make_executable:
             target_file.chmod(0o755)
 
-    # Copy skills
-    if install_skills_dir.exists():
-        import shutil
+    # Install shared content (skills, workflows)
+    shared = _install_shared_content(claude_path, project_path)
+    # Install CLI-specific content (can override shared)
+    cli = _install_cli_content("claude", claude_path)
 
-        for skill_dir in install_skills_dir.iterdir():
-            if skill_dir.is_dir():
-                target_skill_dir = skills_dir / skill_dir.name
-                if target_skill_dir.exists():
-                    shutil.rmtree(target_skill_dir)
-                copytree(skill_dir, target_skill_dir)
-                skills_installed.append(skill_dir.name)
+    result["skills_installed"] = shared["skills"] + cli["skills"]
+    result["workflows_installed"] = shared["workflows"] + cli["workflows"]
 
     # Backup existing settings.json if it exists
     if settings_file.exists():
@@ -147,12 +209,14 @@ def _install_claude_hooks(project_path: Path) -> dict[str, Any]:
     return result
 
 
-def _install_gemini_hooks(project_path: Path) -> dict[str, Any]:
-    """Install Gemini CLI hooks to a project."""
+def _install_gemini(project_path: Path) -> dict[str, Any]:
+    """Install Gobby integration for Gemini CLI (hooks, skills, workflows)."""
     hooks_installed: list[str] = []
     result: dict[str, Any] = {
         "success": False,
         "hooks_installed": hooks_installed,
+        "skills_installed": [],
+        "workflows_installed": [],
         "error": None,
     }
 
@@ -168,7 +232,6 @@ def _install_gemini_hooks(project_path: Path) -> dict[str, Any]:
     install_dir = get_install_dir()
     gemini_install_dir = install_dir / "gemini"
     install_hooks_dir = gemini_install_dir / "hooks"
-    install_skills_dir = gemini_install_dir / "skills"
     source_hooks_template = gemini_install_dir / "hooks-template.json"
 
     # Verify source files exist
@@ -188,19 +251,13 @@ def _install_gemini_hooks(project_path: Path) -> dict[str, Any]:
     copy2(dispatcher_file, target_dispatcher)
     target_dispatcher.chmod(0o755)
 
-    # Copy skills
-    import shutil
+    # Install shared content (skills, workflows)
+    shared = _install_shared_content(gemini_path, project_path)
+    # Install CLI-specific content (can override shared)
+    cli = _install_cli_content("gemini", gemini_path)
 
-    skills_installed = []
-    if install_skills_dir.exists():
-        for skill_dir in install_skills_dir.iterdir():
-            if skill_dir.is_dir():
-                target_skill_dir = gemini_path / "skills" / skill_dir.name
-                target_skill_dir.parent.mkdir(parents=True, exist_ok=True)
-                if target_skill_dir.exists():
-                    shutil.rmtree(target_skill_dir)
-                copytree(skill_dir, target_skill_dir)
-                skills_installed.append(skill_dir.name)
+    result["skills_installed"] = shared["skills"] + cli["skills"]
+    result["workflows_installed"] = shared["workflows"] + cli["workflows"]
 
     # Backup existing settings.json if it exists
     if settings_file.exists():
@@ -262,7 +319,6 @@ def _install_gemini_hooks(project_path: Path) -> dict[str, Any]:
     with open(settings_file, "w") as f:
         json.dump(existing_settings, f, indent=2)
 
-    result["skills_installed"] = skills_installed
     result["success"] = True
     return result
 
@@ -275,6 +331,8 @@ def _install_codex_notify() -> dict[str, Any]:
     result: dict[str, Any] = {
         "success": False,
         "files_installed": files_installed,
+        "skills_installed": [],
+        "workflows_installed": [],
         "config_updated": False,
         "error": None,
     }
@@ -297,24 +355,15 @@ def _install_codex_notify() -> dict[str, Any]:
     target_notify.chmod(0o755)
     files_installed.append(str(target_notify))
 
-    # Install skills
+    # Install shared content - skills to ~/.codex, workflows to ~/.gobby
     codex_home = Path.home() / ".codex"
-    install_skills_dir = install_dir / "codex" / "skills"
-    skills_installed: list[str] = []
+    gobby_home = Path.home()  # workflows go to ~/.gobby/workflows/
+    shared = _install_shared_content(codex_home, gobby_home)
+    # Install CLI-specific content (can override shared)
+    cli = _install_cli_content("codex", codex_home)
 
-    if install_skills_dir.exists():
-        skills_target_dir = codex_home / "skills"
-        skills_target_dir.mkdir(parents=True, exist_ok=True)
-        import shutil
-
-        for skill_dir in install_skills_dir.iterdir():
-            if skill_dir.is_dir():
-                target_skill_dir = skills_target_dir / skill_dir.name
-                if target_skill_dir.exists():
-                    shutil.rmtree(target_skill_dir)
-                copytree(skill_dir, target_skill_dir)
-                skills_installed.append(skill_dir.name)
-        result["skills_installed"] = skills_installed
+    result["skills_installed"] = shared["skills"] + cli["skills"]
+    result["workflows_installed"] = shared["workflows"] + cli["workflows"]
 
     # Update ~/.codex/config.toml
     codex_config_dir = codex_home
@@ -353,8 +402,8 @@ def _install_codex_notify() -> dict[str, Any]:
         return result
 
 
-def _uninstall_claude_hooks(project_path: Path) -> dict[str, Any]:
-    """Uninstall Claude Code hooks from a project."""
+def _uninstall_claude(project_path: Path) -> dict[str, Any]:
+    """Uninstall Gobby integration from Claude Code."""
     import shutil
 
     hooks_removed: list[str] = []
@@ -439,8 +488,8 @@ def _uninstall_claude_hooks(project_path: Path) -> dict[str, Any]:
     return result
 
 
-def _uninstall_gemini_hooks(project_path: Path) -> dict[str, Any]:
-    """Uninstall Gemini CLI hooks from a project."""
+def _uninstall_gemini(project_path: Path) -> dict[str, Any]:
+    """Uninstall Gobby integration from Gemini CLI."""
     hooks_removed: list[str] = []
     files_removed: list[str] = []
     result: dict[str, Any] = {
@@ -629,14 +678,14 @@ def _install_git_hooks(project_path: Path) -> dict[str, Any]:
     return {"success": True, "installed": installed}
 
 
-def _install_antigravity_hooks(project_path: Path) -> dict[str, Any]:
-    """Install Antigravity agent hooks to a project."""
+def _install_antigravity(project_path: Path) -> dict[str, Any]:
+    """Install Gobby integration for Antigravity agent (hooks, skills, workflows)."""
     hooks_installed: list[str] = []
-    skills_installed: list[str] = []
     result: dict[str, Any] = {
         "success": False,
         "hooks_installed": hooks_installed,
-        "skills_installed": skills_installed,
+        "skills_installed": [],
+        "workflows_installed": [],
         "error": None,
     }
 
@@ -646,15 +695,12 @@ def _install_antigravity_hooks(project_path: Path) -> dict[str, Any]:
     # Ensure .antigravity subdirectories exist
     antigravity_path.mkdir(parents=True, exist_ok=True)
     hooks_dir = antigravity_path / "hooks"
-    skills_dir = antigravity_path / "skills"
     hooks_dir.mkdir(parents=True, exist_ok=True)
-    skills_dir.mkdir(parents=True, exist_ok=True)
 
     # Get source files
     install_dir = get_install_dir()
     antigravity_install_dir = install_dir / "antigravity"
     install_hooks_dir = antigravity_install_dir / "hooks"
-    install_skills_dir = antigravity_install_dir / "skills"
     source_hooks_template = antigravity_install_dir / "hooks-template.json"
 
     # Verify source files exist
@@ -674,17 +720,13 @@ def _install_antigravity_hooks(project_path: Path) -> dict[str, Any]:
     copy2(dispatcher_file, target_dispatcher)
     target_dispatcher.chmod(0o755)
 
-    # Copy skills
-    if install_skills_dir.exists():
-        import shutil
+    # Install shared content (skills, workflows)
+    shared = _install_shared_content(antigravity_path, project_path)
+    # Install CLI-specific content (can override shared)
+    cli = _install_cli_content("antigravity", antigravity_path)
 
-        for skill_dir in install_skills_dir.iterdir():
-            if skill_dir.is_dir():
-                target_skill_dir = skills_dir / skill_dir.name
-                if target_skill_dir.exists():
-                    shutil.rmtree(target_skill_dir)
-                copytree(skill_dir, target_skill_dir)
-                skills_installed.append(skill_dir.name)
+    result["skills_installed"] = shared["skills"] + cli["skills"]
+    result["workflows_installed"] = shared["workflows"] + cli["workflows"]
 
     # Backup existing settings.json if it exists
     if settings_file.exists():
@@ -884,7 +926,7 @@ def install(
         click.echo("Claude Code")
         click.echo("-" * 40)
 
-        result = _install_claude_hooks(project_path)
+        result = _install_claude(project_path)
         results["claude"] = result
 
         if result["success"]:
@@ -895,6 +937,10 @@ def install(
                 click.echo(f"Installed {len(result['skills_installed'])} skills")
                 for skill in result["skills_installed"]:
                     click.echo(f"  - {skill}")
+            if result.get("workflows_installed"):
+                click.echo(f"Installed {len(result['workflows_installed'])} workflows")
+                for workflow in result["workflows_installed"]:
+                    click.echo(f"  - {workflow}")
             click.echo(f"Configuration: {project_path / '.claude' / 'settings.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
@@ -906,7 +952,7 @@ def install(
         click.echo("Gemini CLI")
         click.echo("-" * 40)
 
-        result = _install_gemini_hooks(project_path)
+        result = _install_gemini(project_path)
         results["gemini"] = result
 
         if result["success"]:
@@ -917,6 +963,10 @@ def install(
                 click.echo(f"Installed {len(result['skills_installed'])} skills")
                 for skill in result["skills_installed"]:
                     click.echo(f"  - {skill}")
+            if result.get("workflows_installed"):
+                click.echo(f"Installed {len(result['workflows_installed'])} workflows")
+                for workflow in result["workflows_installed"]:
+                    click.echo(f"  - {workflow}")
             click.echo(f"Configuration: {project_path / '.gemini' / 'settings.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
@@ -950,6 +1000,10 @@ def install(
                     click.echo(f"Installed {len(result['skills_installed'])} skills")
                     for skill in result["skills_installed"]:
                         click.echo(f"  - {skill}")
+                if result.get("workflows_installed"):
+                    click.echo(f"Installed {len(result['workflows_installed'])} workflows")
+                    for workflow in result["workflows_installed"]:
+                        click.echo(f"  - {workflow}")
             else:
                 click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -981,7 +1035,7 @@ def install(
         click.echo("Antigravity Agent")
         click.echo("-" * 40)
 
-        result = _install_antigravity_hooks(project_path)
+        result = _install_antigravity(project_path)
         results["antigravity"] = result
 
         if result["success"]:
@@ -992,6 +1046,10 @@ def install(
                 click.echo(f"Installed {len(result['skills_installed'])} skills")
                 for skill in result["skills_installed"]:
                     click.echo(f"  - {skill}")
+            if result.get("workflows_installed"):
+                click.echo(f"Installed {len(result['workflows_installed'])} workflows")
+                for workflow in result["workflows_installed"]:
+                    click.echo(f"  - {workflow}")
             click.echo(f"Configuration: {project_path / '.antigravity' / 'settings.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
@@ -1110,7 +1168,7 @@ def uninstall(
         click.echo("Claude Code")
         click.echo("-" * 40)
 
-        result = _uninstall_claude_hooks(project_path)
+        result = _uninstall_claude(project_path)
         results["claude"] = result
 
         if result["success"]:
@@ -1134,7 +1192,7 @@ def uninstall(
         click.echo("Gemini CLI")
         click.echo("-" * 40)
 
-        result = _uninstall_gemini_hooks(project_path)
+        result = _uninstall_gemini(project_path)
         results["gemini"] = result
 
         if result["success"]:

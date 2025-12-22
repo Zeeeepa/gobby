@@ -327,10 +327,13 @@ class ActionExecutor:
         """
         Find and link a parent session for handoff.
         """
+        logger.info(f"find_parent_session: Looking for parent for session {context.session_id}")
         current_session = context.session_manager.get(context.session_id)
         if not current_session:
             logger.warning(f"find_parent_session: Current session {context.session_id} not found")
             return {"parent_session_found": False}
+
+        logger.info(f"find_parent_session: machine_id={current_session.machine_id}, project_id={current_session.project_id}")
 
         # Logic matches SessionManager.find_parent_session but uses storage directly
         parent = context.session_manager.find_parent(
@@ -340,13 +343,16 @@ class ActionExecutor:
         )
 
         if parent:
+            logger.info(f"find_parent_session: Found parent {parent.id}, linking...")
             # Link it
             context.session_manager.update_parent_session_id(context.session_id, parent.id)
+            logger.info(f"find_parent_session: Linked {context.session_id} -> {parent.id}")
             return {
                 "parent_session_found": True,
                 "parent_session_id": parent.id,
             }
 
+        logger.warning(f"find_parent_session: No parent found with status=handoff_ready")
         return {"parent_session_found": False}
 
     async def _handle_restore_context(
