@@ -315,7 +315,7 @@ CREATE INDEX idx_webhook_deliveries_event ON webhook_deliveries(event_type);
 
 ## Implementation Checklist
 
-### Phase 1: WebSocket Event Broadcasting (Core Done, Tests Pending)
+### Phase 1: WebSocket Event Broadcasting ✅ COMPLETE (Tests/Docs Pending)
 
 #### Infrastructure Setup
 - [x] Add `websocket_server` reference to HTTPServer class (`src/servers/http.py`)
@@ -330,10 +330,10 @@ CREATE INDEX idx_webhook_deliveries_event ON webhook_deliveries(event_type);
 - [x] Add `include_payload` config option
 
 #### Client Subscription (Decision 3)
-- [ ] Define subscription message format: `{"type": "subscribe", "events": ["session_start", ...]}`
-- [ ] Add `subscriptions` dict to WebSocket connection state
-- [ ] Filter broadcasts based on client subscriptions (default: all events)
-- [ ] Add `{"type": "unsubscribe", "events": [...]}` support
+- [x] Define subscription message format: `{"type": "subscribe", "events": ["session_start", ...]}`
+- [x] Add `subscriptions` dict to WebSocket connection state
+- [x] Filter broadcasts based on client subscriptions (default: all events)
+- [x] Add `{"type": "unsubscribe", "events": [...]}` support
 - [ ] Document subscription protocol in WebSocket event schema docs
 
 #### Configuration
