@@ -17,9 +17,10 @@ from typing import Any
 from uuid import uuid4
 
 from gobby.mcp_proxy.manager import MCPClientManager
-from websockets.asyncio.server import Response, serve  # type: ignore[attr-defined]
+from websockets.asyncio.server import serve
+from websockets.datastructures import Headers
 from websockets.exceptions import ConnectionClosed, ConnectionClosedError
-from websockets.http11 import Headers  # type: ignore[attr-defined]
+from websockets.http11 import Response
 
 logger = logging.getLogger(__name__)
 
