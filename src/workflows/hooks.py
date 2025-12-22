@@ -32,6 +32,43 @@ class WorkflowHookHandler:
             except RuntimeError:
                 pass
 
+    def handle_all_lifecycles(self, event: HookEvent) -> HookResponse:
+        """
+        Handle a hook event by discovering and evaluating all lifecycle workflows.
+
+        This is the preferred method - it automatically discovers all lifecycle
+        workflows and evaluates them in priority order. Replaces the need to
+        call handle_lifecycle() with a specific workflow name.
+
+        Args:
+            event: The hook event to handle
+
+        Returns:
+            Merged HookResponse from all workflows
+        """
+        try:
+            if self._loop and self._loop.is_running():
+                if threading.current_thread() is threading.main_thread():
+                    return HookResponse(decision="allow")
+                else:
+                    future = asyncio.run_coroutine_threadsafe(
+                        self.engine.evaluate_all_lifecycle_workflows(event),
+                        self._loop,
+                    )
+                    return future.result(timeout=self.timeout)
+
+            try:
+                return asyncio.run(self.engine.evaluate_all_lifecycle_workflows(event))
+            except RuntimeError:
+                logger.warning(
+                    "Could not run workflow engine: Event loop is already running."
+                )
+                return HookResponse(decision="allow")
+
+        except Exception as e:
+            logger.error(f"Error handling all lifecycle workflows: {e}", exc_info=True)
+            return HookResponse(decision="allow")
+
     def handle(self, event: HookEvent) -> HookResponse:
         """
         Handle a hook event by delegating to the workflow engine.

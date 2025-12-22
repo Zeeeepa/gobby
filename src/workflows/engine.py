@@ -1,5 +1,6 @@
 import logging
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.events import HookEvent, HookResponse
 
@@ -7,8 +8,6 @@ from .definitions import WorkflowDefinition, WorkflowState
 from .evaluator import ConditionEvaluator
 from .loader import WorkflowLoader
 from .state_manager import WorkflowStateManager
-
-from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .actions import ActionExecutor
@@ -204,6 +203,218 @@ class WorkflowEngine:
                 # Log context injection for now
                 logger.info(f"Context injected: {result['inject_context'][:50]}...")
 
+    # Trigger name aliases for backward compatibility with WORKFLOWS.md naming
+    # Maps alternative names to canonical event type names
+    TRIGGER_ALIASES: dict[str, list[str]] = {
+        "on_before_agent": ["on_prompt_submit"],
+        "on_before_tool": ["on_tool_call"],
+        "on_after_tool": ["on_tool_result"],
+    }
+
+    # Maximum iterations to prevent infinite loops
+    MAX_TRIGGER_ITERATIONS = 10
+
+    async def evaluate_all_lifecycle_workflows(
+        self, event: HookEvent, context_data: dict[str, Any] | None = None
+    ) -> HookResponse:
+        """
+        Discover and evaluate all lifecycle workflows for the given event.
+
+        Workflows are evaluated in order (project first by priority/alpha, then global).
+        Loops until no more triggers fire (up to MAX_TRIGGER_ITERATIONS).
+
+        Args:
+            event: The hook event to evaluate
+            context_data: Optional context data passed between actions
+
+        Returns:
+            Merged HookResponse with combined context and first non-allow decision.
+        """
+        project_path = event.data.get("cwd") if event.data else None
+
+        # Discover all lifecycle workflows
+        workflows = self.loader.discover_lifecycle_workflows(project_path)
+
+        if not workflows:
+            logger.debug("No lifecycle workflows discovered")
+            return HookResponse(decision="allow")
+
+        logger.debug(
+            f"Discovered {len(workflows)} lifecycle workflow(s): "
+            f"{[w.name for w in workflows]}"
+        )
+
+        # Accumulate context from all workflows
+        all_context: list[str] = []
+        final_decision = "allow"
+        final_reason: str | None = None
+
+        # Initialize shared context for chaining between workflows
+        if context_data is None:
+            context_data = {}
+
+        # Loop until no triggers fire (or max iterations)
+        for iteration in range(self.MAX_TRIGGER_ITERATIONS):
+            triggers_fired = False
+
+            for discovered in workflows:
+                workflow = discovered.definition
+
+                response = await self._evaluate_workflow_triggers(
+                    workflow, event, context_data
+                )
+
+                # Accumulate context
+                if response.context:
+                    all_context.append(response.context)
+                    triggers_fired = True
+
+                # First non-allow decision wins
+                if response.decision != "allow" and final_decision == "allow":
+                    final_decision = response.decision
+                    final_reason = response.reason
+
+                # If blocked, stop immediately
+                if response.decision == "block":
+                    logger.info(
+                        f"Workflow '{discovered.name}' blocked event: {response.reason}"
+                    )
+                    return HookResponse(
+                        decision="block",
+                        reason=response.reason,
+                        context="\n\n".join(all_context) if all_context else None,
+                    )
+
+            # If no triggers fired this iteration, we're done
+            if not triggers_fired:
+                logger.debug(f"No triggers fired in iteration {iteration + 1}, stopping")
+                break
+
+            logger.debug(f"Triggers fired in iteration {iteration + 1}, continuing")
+
+        return HookResponse(
+            decision=final_decision,
+            reason=final_reason,
+            context="\n\n".join(all_context) if all_context else None,
+        )
+
+    async def _evaluate_workflow_triggers(
+        self,
+        workflow: "WorkflowDefinition",
+        event: HookEvent,
+        context_data: dict[str, Any],
+    ) -> HookResponse:
+        """
+        Evaluate triggers for a single workflow definition.
+
+        Args:
+            workflow: The workflow definition to evaluate
+            event: The hook event
+            context_data: Shared context for chaining (mutated by actions)
+
+        Returns:
+            HookResponse from this workflow's triggers
+        """
+        from .definitions import WorkflowState
+
+        # Map hook event to trigger name
+        trigger_name = f"on_{event.event_type.name.lower()}"
+
+        # Look up triggers - try canonical name first, then aliases
+        triggers = []
+        if workflow.triggers:
+            triggers = workflow.triggers.get(trigger_name, [])
+            if not triggers:
+                aliases = self.TRIGGER_ALIASES.get(trigger_name, [])
+                for alias in aliases:
+                    triggers = workflow.triggers.get(alias, [])
+                    if triggers:
+                        break
+
+        if not triggers:
+            return HookResponse(decision="allow")
+
+        logger.debug(
+            f"Evaluating {len(triggers)} trigger(s) for '{trigger_name}' "
+            f"in workflow '{workflow.name}'"
+        )
+
+        # Create ephemeral state for action execution
+        from .actions import ActionContext
+
+        session_id = event.metadata.get("_platform_session_id") or "global"
+
+        state = WorkflowState(
+            session_id=session_id,
+            workflow_name=workflow.name,
+            phase="global",
+            phase_entered_at=datetime.now(UTC),
+            phase_action_count=0,
+            total_action_count=0,
+            artifacts=event.data.get("artifacts", {}) if event.data else {},
+            observations=[],
+            reflection_pending=False,
+            context_injected=False,
+            variables=context_data,
+            task_list=None,
+            current_task_index=0,
+            files_modified_this_task=0,
+        )
+
+        action_ctx = ActionContext(
+            session_id=session_id,
+            state=state,
+            db=self.action_executor.db,
+            session_manager=self.action_executor.session_manager,
+            template_engine=self.action_executor.template_engine,
+            llm_service=self.action_executor.llm_service,
+            transcript_processor=self.action_executor.transcript_processor,
+            config=self.action_executor.config,
+        )
+
+        injected_context: list[str] = []
+
+        for trigger in triggers:
+            # Check 'when' condition if present
+            when_condition = trigger.get("when")
+            if when_condition:
+                eval_ctx = {"event": event, "workflow_state": state, "handoff": context_data}
+                eval_ctx.update(context_data)
+                if not self.evaluator.evaluate(when_condition, eval_ctx):
+                    continue
+
+            # Execute action
+            action_type = trigger.get("action")
+            if not action_type:
+                continue
+
+            logger.debug(f"Executing action '{action_type}' in workflow '{workflow.name}'")
+            try:
+                kwargs = trigger.copy()
+                kwargs.pop("action", None)
+                kwargs.pop("when", None)
+
+                result = await self.action_executor.execute(action_type, action_ctx, **kwargs)
+
+                if result and isinstance(result, dict):
+                    # Update shared context for chaining
+                    context_data.update(result)
+                    state.variables.update(result)
+
+                    if "inject_context" in result:
+                        injected_context.append(result["inject_context"])
+
+            except Exception as e:
+                logger.error(
+                    f"Failed to execute action '{action_type}' in '{workflow.name}': {e}",
+                    exc_info=True,
+                )
+
+        return HookResponse(
+            decision="allow",
+            context="\n\n".join(injected_context) if injected_context else None,
+        )
+
     async def evaluate_lifecycle_triggers(
         self, workflow_name: str, event: HookEvent, context_data: dict[str, Any] | None = None
     ) -> HookResponse:
@@ -222,11 +433,22 @@ class WorkflowEngine:
 
         logger.debug(f"Workflow '{workflow_name}' loaded, triggers={list(workflow.triggers.keys()) if workflow.triggers else []}")
 
-        # Map hook event to trigger name
-        # TODO: Move this mapping to a shared constant or config
-        trigger_name = f"on_{event.event_type.name.lower()}"  # e.g. on_session_start
+        # Map hook event to trigger name (canonical name based on HookEventType)
+        trigger_name = f"on_{event.event_type.name.lower()}"  # e.g. on_session_start, on_before_agent
 
-        triggers = workflow.triggers.get(trigger_name) if workflow.triggers else []
+        # Look up triggers - try canonical name first, then aliases
+        triggers = []
+        if workflow.triggers:
+            triggers = workflow.triggers.get(trigger_name, [])
+            # If no triggers found, check aliases (e.g., on_prompt_submit for on_before_agent)
+            if not triggers:
+                aliases = self.TRIGGER_ALIASES.get(trigger_name, [])
+                for alias in aliases:
+                    triggers = workflow.triggers.get(alias, [])
+                    if triggers:
+                        logger.debug(f"Using alias '{alias}' for trigger '{trigger_name}'")
+                        break
+
         if not triggers:
             logger.debug(f"No triggers for '{trigger_name}' in workflow '{workflow_name}'")
             return HookResponse(decision="allow")

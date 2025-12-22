@@ -981,16 +981,16 @@ Before building new workflow capabilities, extract the current session handoff b
 - [ ] Add timeout option for approval conditions (default: no timeout)
 - [ ] Add unit tests for approval flow
 
-### Phase 3: Hook Integration (Partial - Session Lifecycle Done)
+### Phase 3: Hook Integration ✅
 
 - [x] Create `WorkflowHookHandler` that wraps existing hook system
 - [x] Integrate workflow evaluation into `on_session_start` hook
 - [x] Integrate workflow evaluation into `on_session_end` hook
 - [x] Implement `HookResponse` with block/modify/continue actions
 - [x] Add context injection to hook responses
-- [ ] Integrate workflow evaluation into `on_prompt_submit` hook
-- [ ] Integrate workflow evaluation into `on_tool_call` hook
-- [ ] Integrate workflow evaluation into `on_tool_result` hook
+- [x] Integrate workflow evaluation into `on_prompt_submit` hook
+- [x] Integrate workflow evaluation into `on_tool_call` hook
+- [x] Integrate workflow evaluation into `on_tool_result` hook
 
 ### Phase 4: Actions (Partial - Handoff Actions Done)
 

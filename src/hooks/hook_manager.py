@@ -36,7 +36,6 @@ from typing import TYPE_CHECKING, Any, cast
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.sessions.manager import SessionManager
-
 from gobby.sessions.summary import SummaryFileGenerator
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.storage.database import LocalDatabase
@@ -635,9 +634,9 @@ class HookManager:
         # This is required so the workflow engine can access the session correctly
         event.metadata["_platform_session_id"] = session_id
 
-        # Step 4: Execute session-handoff workflow
-        # This handles: find_parent_session, restore_context, mark_session_status
-        wf_response = self._workflow_handler.handle_lifecycle("session-handoff", event)
+        # Step 4: Execute lifecycle workflows (discovers all workflows, evaluates triggers)
+        # This handles: find_parent_session, restore_context, mark_session_status, etc.
+        wf_response = self._workflow_handler.handle_all_lifecycles(event)
 
         # Step 5: Build response with context and system message
         context_parts = []
@@ -708,14 +707,14 @@ class HookManager:
                 external_id, source=event.source.value, machine_id=machine_id
             )
 
-        # Execute session-handoff workflow triggers (e.g. generate_handoff on /clear)
-        self.logger.debug("Calling workflow handler for session-handoff on session_end")
+        # Execute lifecycle workflow triggers (e.g. generate_handoff on /clear)
+        self.logger.debug("Calling workflow handler for all lifecycle workflows on session_end")
         try:
-            result = self._workflow_handler.handle_lifecycle("session-handoff", event)
+            result = self._workflow_handler.handle_all_lifecycles(event)
             self.logger.debug(f"Workflow handler returned: {result}")
         except Exception as e:
             self.logger.error(
-                f"Failed to execute session-handoff workflow on session_end: {e}",
+                f"Failed to execute lifecycle workflows on session_end: {e}",
                 exc_info=True,
             )
 
@@ -748,18 +747,21 @@ class HookManager:
         Handle BEFORE_AGENT event (user prompt submit).
 
         Synthesizes session title if null and updates status to active.
+        Executes lifecycle workflow triggers for on_before_agent / on_prompt_submit.
 
         Args:
             event: HookEvent with prompt data
 
         Returns:
-            HookResponse (always allow)
+            HookResponse with optional context injection
         """
         input_data = event.data
         prompt = input_data.get("prompt", "")
 
         transcript_path = input_data.get("transcript_path")
         session_id = event.metadata.get("_platform_session_id")
+
+        context_parts = []
 
         if session_id:
             self.logger.debug(f"💬 User prompt: session {session_id}")
@@ -777,22 +779,30 @@ class HookManager:
                     self.logger.warning(f"Failed to update session status: {e}")
 
             # Handle /clear command - prepare handoff
+            # Note: The lifecycle workflows will handle this via on_before_agent triggers
+            # with appropriate 'when' conditions (e.g., prompt == '/clear')
             if prompt_lower in ("/clear", "/exit") and transcript_path:
-                self.logger.debug(f"Detected {prompt_lower} command - handling session handoff")
+                self.logger.debug(f"Detected {prompt_lower} command - lifecycle workflows will handle handoff")
 
-                # Execute session-handoff workflow triggers (e.g. generate_handoff)
-                try:
-                    self._workflow_handler.handle_lifecycle("session-handoff", event)
-                except Exception as e:
-                    self.logger.error(
-                        f"Failed to execute session-handoff workflow on {prompt_lower}: {e}",
-                        exc_info=True,
-                    )
+        # Execute all lifecycle workflow triggers for on_before_agent / on_prompt_submit
+        # This allows workflows to inject phase context, handle /clear, check pending reflection, etc.
+        try:
+            wf_response = self._workflow_handler.handle_all_lifecycles(event)
+            if wf_response.context:
+                context_parts.append(wf_response.context)
+            # If workflow blocks, return immediately
+            if wf_response.decision != "allow":
+                return wf_response
+        except Exception as e:
+            self.logger.error(
+                f"Failed to execute lifecycle workflows on before_agent: {e}",
+                exc_info=True,
+            )
 
-                # The workflow 'generate_handoff' action creates the DB record.
-                # SummaryFileGenerator (failover) is called in _handle_event_session_end.
-
-        return HookResponse(decision="allow")
+        return HookResponse(
+            decision="allow",
+            context="\n\n".join(context_parts) if context_parts else None,
+        )
 
     def _handle_event_after_agent(self, event: HookEvent) -> HookResponse:
         """
@@ -828,13 +838,14 @@ class HookManager:
         """
         Handle BEFORE_TOOL event (pre-tool-use).
 
-        Currently logs the tool usage. Future: workflow policy evaluation.
+        Logs tool usage and executes lifecycle workflow triggers for on_before_tool / on_tool_call.
+        Workflows can validate tool permissions, evaluate rules, and check transitions.
 
         Args:
             event: HookEvent with tool_name and tool_input
 
         Returns:
-            HookResponse (allow by default)
+            HookResponse (allow by default, or block/modify from workflow)
         """
         input_data = event.data
         tool_name = input_data.get("tool_name", "unknown")
@@ -845,23 +856,41 @@ class HookManager:
         else:
             self.logger.debug(f"🔧 Pre-tool: {tool_name}")
 
-        # Future: workflow policy evaluation would happen here
-        # if self._workflow_engine:
-        #     return await self._workflow_engine.evaluate(event)
+        # Execute all lifecycle workflow triggers for on_before_tool / on_tool_call
+        # This allows workflows to validate tool permissions, evaluate rules, block tools, etc.
+        context_parts = []
+        try:
+            wf_response = self._workflow_handler.handle_all_lifecycles(event)
+            if wf_response.context:
+                context_parts.append(wf_response.context)
+            # If workflow blocks or modifies, return immediately
+            if wf_response.decision != "allow":
+                self.logger.info(f"Workflow {wf_response.decision} tool '{tool_name}': {wf_response.reason}")
+                return wf_response
+        except Exception as e:
+            self.logger.error(
+                f"Failed to execute lifecycle workflows on before_tool: {e}",
+                exc_info=True,
+            )
 
-        return HookResponse(decision="allow")
+        return HookResponse(
+            decision="allow",
+            context="\n\n".join(context_parts) if context_parts else None,
+        )
 
     def _handle_event_after_tool(self, event: HookEvent) -> HookResponse:
         """
         Handle AFTER_TOOL event (post-tool-use).
 
-        Logs tool execution results.
+        Logs tool execution results and executes lifecycle workflow triggers
+        for on_after_tool / on_tool_result. Workflows can capture observations,
+        update action counts, and check error transitions.
 
         Args:
             event: HookEvent with tool_name, tool_input, and tool_output
 
         Returns:
-            HookResponse (always allow)
+            HookResponse with optional context injection
         """
         input_data = event.data
         tool_name = input_data.get("tool_name", "unknown")
@@ -877,7 +906,27 @@ class HookManager:
             status = "❌" if is_failure else "✅"
             self.logger.debug(f"{status} Post-tool: {tool_name}")
 
-        return HookResponse(decision="allow")
+        # Execute all lifecycle workflow triggers for on_after_tool / on_tool_result
+        # This allows workflows to capture observations, update action counts,
+        # check error transitions, etc.
+        context_parts = []
+        try:
+            wf_response = self._workflow_handler.handle_all_lifecycles(event)
+            if wf_response.context:
+                context_parts.append(wf_response.context)
+            # If workflow modifies response, return it
+            if wf_response.decision != "allow":
+                return wf_response
+        except Exception as e:
+            self.logger.error(
+                f"Failed to execute lifecycle workflows on after_tool: {e}",
+                exc_info=True,
+            )
+
+        return HookResponse(
+            decision="allow",
+            context="\n\n".join(context_parts) if context_parts else None,
+        )
 
     def _handle_event_pre_compact(self, event: HookEvent) -> HookResponse:
         """
