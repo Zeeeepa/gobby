@@ -76,7 +76,8 @@ State machine workflows that enforce phases with tool restrictions, transition c
 - `type: phase` (default)
 - Has `phases` section with allowed/blocked tools
 - Has `transitions` and `exit_conditions`
-- Only one phase-based workflow active per session
+- Only one phase-based workflow active at a time per session (can end one and start another)
+- Multiple concurrent sessions can each run their own workflow
 - Can coexist with lifecycle workflows
 
 ---
@@ -1157,7 +1158,7 @@ Before building new workflow capabilities, extract the current session handoff b
 | # | Question | Decision | Rationale |
 |---|----------|----------|-----------|
 | 1 | **Workflow inheritance** | Yes - support `extends:` with property overrides | Standard pattern in YAML systems (Docker Compose, GitHub Actions). Reduces duplication. |
-| 2 | **Multi-workflow support** | One phase-based workflow *active at a time*, unlimited lifecycle workflows | Phase-based workflows enforce tool restrictions; lifecycle workflows are event-driven observers. A phase workflow can complete (terminal phase or explicit end), allowing another to be activated via MCP tool or CLI. |
+| 2 | **Multi-workflow support** | One phase-based workflow *active at a time per session*, unlimited lifecycle workflows | Phase-based workflows enforce tool restrictions; lifecycle workflows are event-driven observers. A phase workflow can complete (terminal phase or explicit end), allowing another to be activated. Multiple concurrent sessions can each have their own active workflow. |
 | 3 | **Cross-session state** | Workflow state is session-local; persistence via task system | Ephemeral workflow state in SQLite for current session. Durable work tracked in tasks table for cross-session continuity. |
 | 4 | **Approval UX** | Inject question via context, block tool until approval | Reuse existing patterns (similar to AskUserQuestion). No new UX paradigm needed. |
 | 5 | **Escape hatches** | ✅ Resolved - `--force`, `reset`, `disable` CLI commands | See CLI Commands section. |
