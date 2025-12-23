@@ -563,7 +563,7 @@ class ActionExecutor:
         """
         # Reuse generate_summary logic
         summary_result = await self._handle_generate_summary(context, **kwargs)
-        if kwargs.get("error") or (summary_result and "error" in summary_result):
+        if summary_result and "error" in summary_result:
             return summary_result
 
         # Mark Session Status
@@ -640,26 +640,15 @@ class ActionExecutor:
         git_status = self._get_git_status()
         file_changes = self._get_file_changes()
 
-        render_context = {
-            "transcript_summary": transcript_summary,
-            "session": current_session,
-            "state": context.state,
-            "last_messages": last_messages_str,
-            "git_status": git_status,
-            "file_changes": file_changes,
-        }
-
-        # 3. Render Prompt
-        # 3. Render Prompt (skipped, provider handles it)
-        # prompt = context.template_engine.render(template, render_context)
-
-        # 4. Call LLM
+        # 3. Call LLM
         try:
-            # Get provider from LLM service and call generate_summary
             llm_context = {
                 "turns": recent_turns,
                 "transcript_summary": transcript_summary,
                 "session": current_session,
+                "last_messages": last_messages_str,
+                "git_status": git_status,
+                "file_changes": file_changes,
             }
             provider = context.llm_service.get_default_provider()
             summary_content = await provider.generate_summary(
