@@ -111,7 +111,7 @@ State machine workflows that enforce phases with tool restrictions, transition c
 ### File Locations
 
 | Location | Purpose |
-|----------|---------|
+| ---------- | --------- |
 | `~/.gobby/workflows/` | Global workflow definitions |
 | `.gobby/workflows/` | Project-specific workflows |
 | `~/.gobby/workflows/templates/` | Built-in templates (Plan-Execute, ReAct, etc.) |
@@ -341,7 +341,7 @@ triggers:
 ### Hook → Workflow Mapping
 
 | Hook Event | Workflow Actions |
-|------------|------------------|
+| ------------ | ------------------ |
 | `session_start` | Initialize state, restore handoff, enter initial phase |
 | `prompt_submit` | Inject phase context, check pending reflection |
 | `tool_call` | Validate tool allowed, evaluate rules, check transitions |
@@ -747,7 +747,7 @@ class ActionContext:
 ### Sources
 
 | Source | Description |
-|--------|-------------|
+| -------- | ------------- |
 | `previous_session_summary` | LLM-generated summary from last session |
 | `handoff` | Structured handoff data (phase, artifacts, pending tasks) |
 | `artifacts` | Contents of captured artifacts (plans, specs) |
@@ -1156,7 +1156,7 @@ Before building new workflow capabilities, extract the current session handoff b
 ## Decisions
 
 | # | Question | Decision | Rationale |
-|---|----------|----------|-----------|
+| --- | ---------- | ---------- | ----------- |
 | 1 | **Workflow inheritance** | Yes - support `extends:` with property overrides | Standard pattern in YAML systems (Docker Compose, GitHub Actions). Reduces duplication. |
 | 2 | **Multi-workflow support** | One phase-based workflow *active at a time per session*, unlimited lifecycle workflows | Phase-based workflows enforce tool restrictions; lifecycle workflows are event-driven observers. A phase workflow can complete (terminal phase or explicit end), allowing another to be activated. Multiple concurrent sessions can each have their own active workflow. |
 | 3 | **Cross-session state** | Workflow state is session-local; persistence via task system | Ephemeral workflow state in SQLite for current session. Durable work tracked in tasks table for cross-session continuity. |
