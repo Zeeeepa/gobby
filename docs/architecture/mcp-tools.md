@@ -136,10 +136,10 @@ Read a resource from a downstream MCP server.
 
 **Parameters:**
 
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `server_name` | string | Yes | Server name |
-| `resource_uri` | string | Yes | URI of the resource |
+| Name          | Type   | Required | Description         |
+|---------------|--------|----------|---------------------|
+| `server_name` | string | Yes      | Server name         |
+| `resource_uri`| string | Yes      | URI of the resource |
 
 ### Server Management
 
@@ -189,9 +189,9 @@ Remove an MCP server from the current project.
 
 **Parameters:**
 
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `name` | string | Yes | Server name to remove |
+| Name   | Type   | Required | Description            |
+|--------|--------|----------|------------------------|
+| `name` | string | Yes      | Server name to remove  |
 
 #### `import_mcp_server(...)`
 
@@ -199,12 +199,12 @@ Import MCP servers from various sources.
 
 **Parameters (one required):**
 
-| Name | Type | Description |
-|------|------|-------------|
-| `from_project` | string | Source project name to import from |
-| `servers` | array | Specific server names to import (all if omitted) |
-| `github_url` | string | GitHub repository URL |
-| `query` | string | Natural language search query |
+| Name           | Type   | Description                                     |
+|----------------|--------|-------------------------------------------------|
+| `from_project` | string | Source project name to import from              |
+| `servers`      | array  | Specific server names to import (all if omitted)|
+| `github_url`   | string | GitHub repository URL                           |
+| `query`        | string | Natural language search query                   |
 
 **Returns:**
 
@@ -219,12 +219,12 @@ Execute code in Claude's sandbox.
 
 **Parameters:**
 
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `code` | string | Yes | Code to execute |
-| `language` | string | No | Language (default: "python") |
-| `context` | string | No | Instructions for Claude |
-| `timeout` | integer | No | Max execution time in seconds |
+| Name       | Type    | Required | Description                    |
+|------------|---------|----------|--------------------------------|
+| `code`     | string  | Yes      | Code to execute                |
+| `language` | string  | No       | Language (default: "python")   |
+| `context`  | string  | No       | Instructions for Claude        |
+| `timeout`  | integer | No       | Max execution time in seconds  |
 
 **Returns:**
 
@@ -296,11 +296,11 @@ Trigger session hooks for non-Claude-Code CLIs.
 
 **Parameters:**
 
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `hook_type` | string | Yes | Hook type (see below) |
-| `params` | object | No | Hook-specific parameters |
-| `source` | string | No | CLI source (e.g., "Codex", "Gemini") |
+| Name        | Type   | Required | Description                       |
+|-------------|--------|----------|-----------------------------------|
+| `hook_type` | string | Yes      | Hook type (see below)             |
+| `params`    | object | No       | Hook-specific parameters          |
+| `source`    | string | No       | CLI source (e.g., "Codex", "Gemini")|
 
 **Hook Types:**
 
@@ -329,14 +329,14 @@ Run Codex with automatic session tracking.
 
 **Parameters:**
 
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| `prompt` | string | Yes | User prompt |
-| `thread_id` | string | No | Continue existing thread |
-| `cwd` | string | No | Working directory |
-| `model` | string | No | Model override |
-| `sandbox` | string | No | Sandbox mode |
-| `approval_policy` | string | No | Approval policy |
+| Name              | Type    | Required | Description             |
+|-------------------|---------|----------|-------------------------|
+| `prompt`          | string  | Yes      | User prompt             |
+| `thread_id`       | string  | No       | Continue existing thread|
+| `cwd`             | string  | No       | Working directory       |
+| `model`           | string  | No       | Model override          |
+| `sandbox`         | string  | No       | Sandbox mode            |
+| `approval_policy` | string  | No       | Approval policy         |
 
 #### `codex_list_threads(limit?, cursor?)`
 
@@ -358,45 +358,45 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`.
 
 #### CRUD Operations
 
-| Tool | Description |
-|------|-------------|
-| `create_task` | Create a new task |
-| `get_task` | Get task details with dependencies |
-| `update_task` | Update task fields |
-| `close_task` | Close a task with reason |
+| Tool          | Description                      |
+|---------------|----------------------------------|
+| `create_task` | Create a new task                |
+| `get_task`    | Get task details with dependencies|
+| `update_task` | Update task fields               |
+| `close_task`  | Close a task with reason         |
 | `delete_task` | Delete a task (optional cascade) |
-| `list_tasks` | List tasks with filters |
+| `list_tasks`  | List tasks with filters          |
 
 #### Dependency Management
 
-| Tool | Description |
-|------|-------------|
-| `add_dependency` | Add dependency between tasks |
-| `remove_dependency` | Remove a dependency |
-| `get_dependency_tree` | Get blockers/blocking tasks |
+| Tool                     | Description                   |
+|--------------------------|-------------------------------|
+| `add_dependency`         | Add dependency between tasks  |
+| `remove_dependency`      | Remove a dependency           |
+| `get_dependency_tree`    | Get blockers/blocking tasks   |
 | `check_dependency_cycles` | Detect circular dependencies |
 
 #### Ready Work
 
-| Tool | Description |
-|------|-------------|
-| `list_ready_tasks` | List unblocked tasks |
-| `list_blocked_tasks` | List blocked tasks with blockers |
+| Tool                  | Description                      |
+|-----------------------|----------------------------------|
+| `list_ready_tasks`    | List unblocked tasks             |
+| `list_blocked_tasks`  | List blocked tasks with blockers |
 
 #### Session Integration
 
-| Tool | Description |
-|------|-------------|
-| `link_task_to_session` | Link task to session |
-| `get_session_tasks` | Get tasks for a session |
-| `get_task_sessions` | Get sessions that touched a task |
+| Tool                   | Description                      |
+|------------------------|----------------------------------|
+| `link_task_to_session` | Link task to session             |
+| `get_session_tasks`    | Get tasks for a session          |
+| `get_task_sessions`    | Get sessions that touched a task |
 
 #### Git Sync
 
-| Tool | Description |
-|------|-------------|
-| `sync_tasks` | Import/export tasks to JSONL |
-| `get_sync_status` | Get sync status |
+| Tool              | Description                    |
+|-------------------|--------------------------------|
+| `sync_tasks`      | Import/export tasks to JSONL   |
+| `get_sync_status` | Get sync status                |
 
 ### Example: Task Workflow
 
