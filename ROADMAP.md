@@ -93,7 +93,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 7: Context Sources & Templates 🔶 PARTIAL                             │
+│ Sprint 7: Context Sources & Templates ✅ COMPLETED                           │
 │ WORKFLOWS Phases 5-6                                                         │
 │                                                                              │
 │ Deliverable: Jinja2 templating, built-in workflow templates                 │
@@ -101,11 +101,11 @@ This document defines the implementation order across all Gobby planning documen
 │                                                                              │
 │ - [x] Jinja2 integration                                                     │
 │ - [x] Template engine implementation                                         │
-│ - [x] Built-in templates (session-handoff only)                              │
+│ - [x] Context sources (previous_session_summary, handoff, artifacts, etc.)  │
 │ - [x] LLM-powered generate_handoff action                                    │
 │ - [x] Git status and file changes context gathering                          │
-│ - [ ] Context sources (observations, workflow_state)                         │
-│ - [ ] Additional templates (plan-execute, react, plan-act-reflect)           │
+│ - [x] All 7 built-in templates (session-handoff, plan-execute, react,       │
+│       plan-act-reflect, plan-to-tasks, architect, test-driven)               │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -308,7 +308,7 @@ This document defines the implementation order across all Gobby planning documen
 | 4 | Workflow Foundation | WORKFLOWS Phases 0-2 | None | ✅ Completed |
 | 5 | Workflow Hooks | WORKFLOWS Phase 3 | Sprint 4 | 🔶 Partial (session lifecycle) |
 | 6 | Workflow Actions | WORKFLOWS Phase 4 | Sprint 5 | 🔶 Partial (handoff actions) |
-| 7 | Context & Templates | WORKFLOWS Phases 5-6 | Sprint 6 | 🔶 Partial (session-handoff) |
+| 7 | Context & Templates | WORKFLOWS Phases 5-6 | Sprint 6 | ✅ Completed |
 | 7.1 | Session Message Foundation | SESSION_TRACKING Phase 1 | None | Pending |
 | 7.2 | Async Message Processor | SESSION_TRACKING Phase 2 | Sprint 7.1 | Pending |
 | 7.3 | Session Tracking Integration | SESSION_TRACKING Phases 3-4 | Sprint 7.2 | Pending |
@@ -365,16 +365,17 @@ Sprints 7.1 → 7.2 → 7.3 → 7.4 → 7.5 → 7.6 → 7.7 → 7.8 (Session Tra
 - Full task system with CLI
 - **Value**: External tools can monitor sessions, agents can track work
 
-### Milestone 2: "Workflow Engine" (Sprints 4-7) 🔶 PARTIAL
+### Milestone 2: "Workflow Engine" (Sprints 4-7) ✅ COMPLETE
 
 - [x] Workflow foundation (loader, state manager, engine)
 - [x] Session lifecycle hooks (session_start, session_end)
 - [x] Handoff actions (find_parent, restore_context, generate_handoff)
 - [x] LLM-powered session summaries with context handoff
-- [ ] Tool hooks (prompt_submit, tool_call, tool_result)
-- [ ] Phase-based tool restrictions and transitions
-- [ ] Additional templates (plan-execute, react, plan-act-reflect)
-- **Value**: Session handoff working; full workflow enforcement pending
+- [x] Context sources (previous_session_summary, handoff, artifacts, observations, workflow_state)
+- [x] Jinja2 templating for context injection
+- [x] All 7 built-in templates (session-handoff, plan-execute, react, plan-act-reflect, plan-to-tasks, architect, test-driven)
+- **Value**: Complete workflow templating system ready for phase-based enforcement
+- **Next**: Tool hooks and phase-based restrictions (Sprint 10: Workflow CLI/MCP)
 
 ### Milestone 2.5: "Session Recording" (Sprints 7.1-7.4)
 

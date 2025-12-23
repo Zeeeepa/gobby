@@ -1072,26 +1072,26 @@ Before building new workflow capabilities, extract the current session handoff b
 
 - [x] Implement `call_mcp_tool` action (invoke any gobby MCP tool by name)
 
-### Phase 5: Context Sources
+### Phase 5: Context Sources ✅
 
-- [ ] Implement `previous_session_summary` context source
-- [ ] Implement `handoff` context source
-- [ ] Implement `artifacts` context source
-- [ ] Implement `observations` context source (ReAct buffer)
-- [ ] Implement `workflow_state` context source
-- [ ] Add Jinja2 templating for context injection
+- [x] Implement `previous_session_summary` context source
+- [x] Implement `handoff` context source
+- [x] Implement `artifacts` context source
+- [x] Implement `observations` context source (ReAct buffer)
+- [x] Implement `workflow_state` context source
+- [x] Add Jinja2 templating for context injection
 
-### Phase 6: Built-in Templates
+### Phase 6: Built-in Templates ✅
 
-- [ ] Create `templates/session-handoff.yaml` (lifecycle, from Phase 0)
-- [ ] Create `templates/plan-execute.yaml` (phase-based)
-- [ ] Create `templates/react.yaml` (phase-based)
-- [ ] Create `templates/plan-act-reflect.yaml` (phase-based)
-- [ ] Create `templates/plan-to-tasks.yaml` (phase-based, task decomposition)
-- [ ] Create `templates/architect.yaml` (phase-based)
-- [ ] Create `templates/test-driven.yaml` (phase-based)
-- [ ] Install templates to `~/.gobby/workflows/templates/` on first run
-- [ ] Enable `session-handoff` by default for all projects
+- [x] Create `templates/session-handoff.yaml` (lifecycle, from Phase 0)
+- [x] Create `templates/plan-execute.yaml` (phase-based)
+- [x] Create `templates/react.yaml` (phase-based)
+- [x] Create `templates/plan-act-reflect.yaml` (phase-based)
+- [x] Create `templates/plan-to-tasks.yaml` (phase-based, task decomposition)
+- [x] Create `templates/architect.yaml` (phase-based)
+- [x] Create `templates/test-driven.yaml` (phase-based)
+- [x] Install templates to `~/.gobby/workflows/templates/` on first run
+- [x] Enable `session-handoff` by default for all projects
 
 ### Phase 7: CLI Commands
 

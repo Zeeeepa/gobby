@@ -387,7 +387,7 @@ See [ROADMAP.md](ROADMAP.md) for the full implementation plan with sprint orderi
 ### Milestones
 
 1. **Observable Gobby** — ✅ WebSocket event streaming + task system
-2. **Workflow Engine** — 🔶 Session handoff complete; phase-based enforcement pending
+2. **Workflow Engine** — ✅ Context sources, Jinja2 templating, 7 built-in workflow templates
 3. **Memory-First Agents** — Persistent memory and skill learning across sessions
 4. **Extensible Gobby** — Webhooks and Python plugin system
 5. **Smart MCP Proxy** — Intelligent tool orchestration
