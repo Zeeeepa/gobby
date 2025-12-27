@@ -557,6 +557,84 @@ class SessionLifecycleConfig(BaseModel):
         return v
 
 
+class MemoryConfig(BaseModel):
+    """Memory system configuration."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable persistent memory system",
+    )
+    auto_extract: bool = Field(
+        default=True,
+        description="Automatically extract memories from sessions",
+    )
+    injection_limit: int = Field(
+        default=10,
+        description="Maximum number of memories to inject per session",
+    )
+    importance_threshold: float = Field(
+        default=0.3,
+        description="Minimum importance score for memory injection",
+    )
+    decay_enabled: bool = Field(
+        default=True,
+        description="Enable memory importance decay over time",
+    )
+    decay_rate: float = Field(
+        default=0.05,
+        description="Importance decay rate per month",
+    )
+    decay_floor: float = Field(
+        default=0.1,
+        description="Minimum importance score after decay",
+    )
+
+    @field_validator("injection_limit")
+    @classmethod
+    def validate_positive(cls, v: int) -> int:
+        """Validate value is non-negative."""
+        if v < 0:
+            raise ValueError("Value must be non-negative")
+        return v
+
+    @field_validator("importance_threshold", "decay_rate", "decay_floor")
+    @classmethod
+    def validate_probability(cls, v: float) -> float:
+        """Validate value is between 0.0 and 1.0."""
+        if not (0.0 <= v <= 1.0):
+            raise ValueError("Value must be between 0.0 and 1.0")
+        return v
+
+
+class SkillConfig(BaseModel):
+    """Skill learning configuration."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable skill learning system",
+    )
+    auto_suggest: bool = Field(
+        default=True,
+        description="Automatically suggest skills matching user prompts",
+    )
+    max_suggestions: int = Field(
+        default=3,
+        description="Maximum number of skills to suggest",
+    )
+    learning_model: str = Field(
+        default="claude-haiku-4-5",
+        description="LLM model to use for skill extraction",
+    )
+
+    @field_validator("max_suggestions")
+    @classmethod
+    def validate_positive(cls, v: int) -> int:
+        """Validate value is non-negative."""
+        if v < 0:
+            raise ValueError("Value must be non-negative")
+        return v
+
+
 class DaemonConfig(BaseModel):
     """
     Main configuration for Gobby daemon.
@@ -640,6 +718,14 @@ class DaemonConfig(BaseModel):
         default_factory=TaskValidationConfig,
         description="Task validation configuration",
     )
+    memory: MemoryConfig = Field(
+        default_factory=MemoryConfig,
+        description="Memory system configuration",
+    )
+    skills: SkillConfig = Field(
+        default_factory=SkillConfig,
+        description="Skill learning configuration",
+    )
     message_tracking: MessageTrackingConfig = Field(
         default_factory=MessageTrackingConfig,
         description="Session message tracking configuration",
@@ -664,6 +750,14 @@ class DaemonConfig(BaseModel):
     def get_mcp_client_proxy_config(self) -> MCPClientProxyConfig:
         """Get MCP client proxy configuration."""
         return self.mcp_client_proxy
+
+    def get_memory_config(self) -> MemoryConfig:
+        """Get memory configuration."""
+        return self.memory
+
+    def get_skills_config(self) -> SkillConfig:
+        """Get skills configuration."""
+        return self.skills
 
     @field_validator("daemon_port")
     @classmethod
