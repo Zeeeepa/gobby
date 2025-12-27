@@ -1427,19 +1427,29 @@ def create_mcp_server(
 
     # Register Memory Tools
     if memory_manager:
-        mcp.add_tool(tools.remember)
-        mcp.add_tool(tools.recall)
-        mcp.add_tool(tools.forget)
-        logger.debug("Memory tools registered")
+        try:
+            from gobby.mcp_proxy.tools.memory import create_memory_registry
+
+            internal_manager.add_registry(create_memory_registry(memory_manager))
+            logger.debug("Memory internal registry created")
+        except Exception as e:
+            logger.error(f"Failed to create memory registry: {e}")
 
     # Register Skill Tools
     if skill_learner:
-        mcp.add_tool(tools.learn_skill_from_session)
-        mcp.add_tool(tools.list_skills)
-        mcp.add_tool(tools.get_skill)
-        mcp.add_tool(tools.delete_skill)
-        mcp.add_tool(tools.match_skills)
-        logger.debug("Skill tools registered")
+        try:
+            from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+            internal_manager.add_registry(
+                create_skills_registry(
+                    storage=skill_learner.storage,
+                    learner=skill_learner,
+                    session_manager=session_manager,
+                )
+            )
+            logger.debug("Skills internal registry created")
+        except Exception as e:
+            logger.error(f"Failed to create skills registry: {e}")
 
     # Register resources
     mcp.add_resource(tools.get_daemon_config, "gobby://config")

@@ -341,26 +341,96 @@ def create_stdio_mcp_server() -> FastMCP:
     long_operation_timeout = 30.0  # For operations like sync, add/remove servers
 
     # Create base MCP server with lifecycle tools
-    # We'll add the HTTP proxy tools below if daemon is running
     mcp = FastMCP(name="Gobby Daemon (Stdio)")
 
-    # Initialize internal tool registries locally for stdio access
-    # This allows direct DB access for tasks without proxying through HTTP
+    # ===== INTERNAL TOOL REGISTRIES =====
+    from gobby.mcp_proxy.tools.internal import InternalRegistryManager
+    from gobby.storage.database import LocalDatabase
+    from gobby.storage.messages import LocalMessageManager
+    from gobby.storage.sessions import LocalSessionManager
+    from gobby.storage.tasks import LocalTaskManager
+    from gobby.sync.tasks import TaskSyncManager
+
     internal_manager = InternalRegistryManager()
 
+    # Initialize shared managers
     try:
         db = LocalDatabase()
+
+        # Core managers
         task_manager = LocalTaskManager(db)
-        sync_manager = TaskSyncManager(task_manager)
+        task_sync_manager = TaskSyncManager(task_manager)
+        message_manager = LocalMessageManager(db)
+        session_manager = LocalSessionManager(db)
 
         # Wire up change listener for automatic export in this process too
-        task_manager.add_change_listener(sync_manager.trigger_export)
+        task_manager.add_change_listener(task_sync_manager.trigger_export)
 
-        # Create task registry for internal tools (LLM tools proxied to daemon)
-        internal_manager.add_registry(create_task_registry(task_manager, sync_manager))
-        logger.debug("✅ Created internal task registry in stdio server")
     except Exception as e:
-        logger.error(f"Failed to create task registry: {e}")
+        logger.error(f"Failed to initialize local managers: {e}")
+        # Managers will be None, so registries won't be created
+        db = None
+        task_manager = None
+        task_sync_manager = None
+        message_manager = None
+        session_manager = None
+
+    if message_manager:
+        try:
+            from gobby.mcp_proxy.tools.messages import create_messages_registry
+
+            internal_manager.add_registry(create_messages_registry(message_manager))
+        except Exception as e:
+            logger.error(f"Failed to create messages registry: {e}")
+
+    if task_manager and task_sync_manager:
+        try:
+            from gobby.mcp_proxy.tools.tasks import create_task_registry
+            from gobby.tasks.expansion import TaskExpander
+            from gobby.tasks.validation import TaskValidator
+
+            # stdio generally doesn't have LLM service initialized
+            internal_manager.add_registry(
+                create_task_registry(
+                    task_manager,
+                    task_sync_manager,
+                    task_expander=None,
+                    task_validator=None,
+                )
+            )
+            logger.debug("✅ Created internal task registry in stdio server")
+        except Exception as e:
+            logger.error(f"Failed to create task registry: {e}")
+
+    # Initialize Memory & Skills for stdio internal access
+    if db:
+        try:
+            if hasattr(config, "memory"):
+                from gobby.memory.manager import MemoryManager
+                from gobby.mcp_proxy.tools.memory import create_memory_registry
+
+                memory_manager = MemoryManager(db, config.memory)
+                internal_manager.add_registry(create_memory_registry(memory_manager))
+                logger.debug("✅ Created internal memory registry in stdio server")
+        except Exception as e:
+            logger.error(f"Failed to create memory registry: {e}")
+
+        try:
+            # For skills, we only initialize storage for local read access
+            from gobby.storage.skills import LocalSkillManager
+            from gobby.mcp_proxy.tools.skills import create_skills_registry
+
+            skill_storage = LocalSkillManager(db)
+            internal_manager.add_registry(
+                create_skills_registry(
+                    storage=skill_storage,
+                    learner=None,
+                    session_manager=session_manager,
+                )
+            )
+            logger.debug("✅ Created internal skills registry in stdio server")
+        except Exception as e:
+            logger.error(f"Failed to create skills registry: {e}")
 
     # ===== DAEMON LIFECYCLE TOOLS =====
 
@@ -641,7 +711,12 @@ def create_stdio_mcp_server() -> FastMCP:
             Dictionary with success status and tool execution result
         """
         # Tools that require LLM service - proxy to HTTP daemon
-        LLM_TOOLS = {"expand_task", "validate_task"}
+        LLM_TOOLS = {
+            "expand_task",
+            "validate_task",
+            "learn_skill_from_session",
+            "match_skills",
+        }
 
         # Route internal tools locally (no HTTP round-trip), except LLM tools
         if internal_manager.is_internal(server_name) and tool_name not in LLM_TOOLS:
@@ -1223,231 +1298,6 @@ def create_stdio_mcp_server() -> FastMCP:
         )
 
     # ===== MEMORY =====
-
-    @mcp.tool
-    async def remember(
-        content: str,
-        memory_type: str = "fact",
-        importance: float = 0.5,
-        project_id: str | None = None,
-        source_type: str = "user",
-        source_session_id: str | None = None,
-        tags: list[str] | None = None,
-    ) -> dict[str, Any]:
-        """
-        Store a new memory.
-
-        Args:
-            content: The content of the memory (e.g., "User prefers dark mode")
-            memory_type: Type of memory (fact, preference, decision, context)
-            importance: Float from 0.0 to 1.0 indicating importance
-            project_id: Optional project to associate with
-            source_type: Source of the memory (user, system, agent)
-            source_session_id: Optional session ID where memory originated
-            tags: Optional list of tags for categorization
-
-        Returns:
-            Created memory object
-        """
-        arguments: dict[str, Any] = {
-            "content": content,
-            "memory_type": memory_type,
-            "importance": importance,
-            "source_type": source_type,
-        }
-        if project_id:
-            arguments["project_id"] = project_id
-        if source_session_id:
-            arguments["source_session_id"] = source_session_id
-        if tags:
-            arguments["tags"] = tags
-
-        return await _call_daemon_tool(
-            daemon_port=daemon_port,
-            tool_name="remember",
-            arguments=arguments,
-            timeout=default_tool_timeout,
-        )
-
-    @mcp.tool
-    async def recall(
-        query: str | None = None,
-        project_id: str | None = None,
-        limit: int = 10,
-        min_importance: float | None = None,
-        memory_type: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """
-        Retrieve relevant memories.
-
-        Args:
-            query: Search query string (semantic search if supported, else keyword)
-            project_id: Filter by project
-            limit: Max number of memories to return
-            min_importance: Filter by minimum importance score
-            memory_type: Filter by memory type
-
-        Returns:
-            List of matching memory objects
-        """
-        arguments: dict[str, Any] = {"limit": limit}
-        if query:
-            arguments["query"] = query
-        if project_id:
-            arguments["project_id"] = project_id
-        if min_importance is not None:
-            arguments["min_importance"] = min_importance
-        if memory_type:
-            arguments["memory_type"] = memory_type
-
-        result = await _call_daemon_tool(
-            daemon_port=daemon_port,
-            tool_name="recall",
-            arguments=arguments,
-            timeout=default_tool_timeout,
-        )
-        return result if isinstance(result, list) else []
-
-    @mcp.tool
-    async def forget(memory_id: str) -> bool:
-        """
-        Delete a memory by ID.
-
-        Args:
-            memory_id: ID of the memory to delete
-
-        Returns:
-            True if deleted, False if not found
-        """
-        result = await _call_daemon_tool(
-            daemon_port=daemon_port,
-            tool_name="forget",
-            arguments={"memory_id": memory_id},
-            timeout=default_tool_timeout,
-        )
-        return bool(result)
-
-    # ===== SKILLS =====
-
-    @mcp.tool
-    async def learn_skill_from_session(session_id: str) -> list[dict[str, Any]]:
-        """
-        Extract and learn skills from a session.
-
-        Analyzes the session interaction to identify reusable patterns or solutions
-        and creates structured skills from them.
-
-        Args:
-            session_id: ID of the session to analyze
-
-        Returns:
-            List of learned skill objects
-        """
-        result = await _call_daemon_tool(
-            daemon_port=daemon_port,
-            tool_name="learn_skill_from_session",
-            arguments={"session_id": session_id},
-            timeout=long_operation_timeout,
-        )
-        return result if isinstance(result, list) else []
-
-    @mcp.tool
-    async def list_skills(
-        project_id: str | None = None,
-        tag: str | None = None,
-        limit: int = 50,
-        offset: int = 0,
-    ) -> list[dict[str, Any]]:
-        """
-        List available skills with filtering.
-
-        Args:
-            project_id: Filter by project
-            tag: Filter by tag
-            limit: Max results
-            offset: Pagination offset
-
-        Returns:
-            List of skill objects
-        """
-        arguments: dict[str, Any] = {"limit": limit, "offset": offset}
-        if project_id:
-            arguments["project_id"] = project_id
-        if tag:
-            arguments["tag"] = tag
-
-        result = await _call_daemon_tool(
-            daemon_port=daemon_port,
-            tool_name="list_skills",
-            arguments=arguments,
-            timeout=default_tool_timeout,
-        )
-        return result if isinstance(result, list) else []
-
-    @mcp.tool
-    async def get_skill(skill_id: str) -> dict[str, Any] | None:
-        """
-        Get a specific skill by ID.
-
-        Args:
-            skill_id: ID of the skill to retrieve
-
-        Returns:
-            Skill object or None if not found
-        """
-        return await _call_daemon_tool(
-            daemon_port=daemon_port,
-            tool_name="get_skill",
-            arguments={"skill_id": skill_id},
-            timeout=default_tool_timeout,
-        )
-
-    @mcp.tool
-    async def delete_skill(skill_id: str) -> bool:
-        """
-        Delete a skill by ID.
-
-        Args:
-            skill_id: ID of the skill to delete
-
-        Returns:
-            True if deleted, False if not found
-        """
-        result = await _call_daemon_tool(
-            daemon_port=daemon_port,
-            tool_name="delete_skill",
-            arguments={"skill_id": skill_id},
-            timeout=default_tool_timeout,
-        )
-        return bool(result)
-
-    @mcp.tool
-    async def match_skills(
-        query: str,
-        project_id: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """
-        Find skills matching a natural language query/task description.
-
-        Args:
-            query: Description of what you want to do (e.g., "deploy to vercel")
-            project_id: Optional project context
-
-        Returns:
-            List of matching skills sorted by relevance
-        """
-        arguments: dict[str, Any] = {"query": query}
-        if project_id:
-            arguments["project_id"] = project_id
-
-        result = await _call_daemon_tool(
-            daemon_port=daemon_port,
-            tool_name="match_skills",
-            arguments=arguments,
-            timeout=default_tool_timeout,
-        )
-        return result if isinstance(result, list) else []
-
     # ===== RESOURCES =====
 
     @mcp.resource("gobby://daemon/status")
