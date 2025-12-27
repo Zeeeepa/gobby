@@ -24,6 +24,7 @@ from gobby.storage.migrations import run_migrations
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.tasks import TaskSyncManager
+from gobby.sessions.processor import SessionMessageProcessor
 from gobby.utils.logging import setup_file_logging, setup_mcp_logging
 from gobby.utils.machine_id import get_machine_id
 
@@ -37,9 +38,11 @@ class GobbyRunner:
         setup_file_logging(verbose=verbose)
         setup_mcp_logging(verbose=verbose)
 
-        self.config = load_config(config_path)
+        config_file = str(config_path) if config_path else None
+        self.config = load_config(config_file)
         self.verbose = verbose
         self.machine_id = get_machine_id()
+        self._shutdown_requested = False
 
         # Initialize local storage
         self.database = LocalDatabase()
@@ -58,6 +61,18 @@ class GobbyRunner:
             mcp_db_manager=self.mcp_db_manager,
         )
 
+        # Configured WebSocket (created later if enabled)
+        self.websocket_server = None
+
+        # Message Processor
+        self.message_processor = None
+        if self.config.message_tracking.enabled:
+            # We pass None for websocket_server initially, will attach later if enabled
+            self.message_processor = SessionMessageProcessor(
+                db=self.database,
+                poll_interval=self.config.message_tracking.poll_interval,
+            )
+
         # HTTP server with local session storage
         self.http_server = HTTPServer(
             port=self.config.daemon_port,
@@ -68,8 +83,16 @@ class GobbyRunner:
             task_sync_manager=self.task_sync_manager,
         )
 
+        # Share message processor with HTTP server (for HookManager injection)
+        # Note: HTTPServer doesn't accept message_processor in init, but we can attach it to app state later
+        # or update HTTPServer to accept it.
+        # For now, let's inject it into app.state in run() after app creation,
+        # BUT HookManager is created in lifespan handler in HTTPServer._create_app.
+        # So we should probably pass it to HTTPServer constructor.
+        # Let's update HTTPServer constructor in next step. For now, just keep reference.
+        self.http_server.message_processor = self.message_processor
+
         # WebSocket server (optional)
-        self.websocket_server = None
         if self.config.websocket and getattr(self.config.websocket, "enabled", True):
             websocket_config = WebSocketConfig(
                 host="localhost",
@@ -83,8 +106,6 @@ class GobbyRunner:
             )
             # Pass WebSocket server reference to HTTP server for broadcasting
             self.http_server.websocket_server = self.websocket_server
-
-        self._shutdown_requested = False
 
     def _setup_signal_handlers(self) -> None:
         loop = asyncio.get_running_loop()
@@ -102,6 +123,10 @@ class GobbyRunner:
                 logger.warning("MCP connection timed out")
             except Exception as e:
                 logger.error(f"MCP connection failed: {e}")
+
+            # Start Message Processor
+            if self.message_processor:
+                await self.message_processor.start()
 
             # Start WebSocket server
             websocket_task = None
@@ -128,6 +153,9 @@ class GobbyRunner:
             # Cleanup
             server.should_exit = True
             await server_task
+
+            if self.message_processor:
+                await self.message_processor.stop()
 
             if websocket_task:
                 websocket_task.cancel()

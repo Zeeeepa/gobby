@@ -485,6 +485,39 @@ class WorkflowConfig(BaseModel):
         return v
 
 
+class MessageTrackingConfig(BaseModel):
+    """Configuration for session message tracking."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable session message tracking",
+    )
+    poll_interval: float = Field(
+        default=5.0,
+        description="Polling interval in seconds for transcript updates",
+    )
+    debounce_delay: float = Field(
+        default=1.0,
+        description="Debounce delay in seconds for message processing",
+    )
+    max_message_length: int = Field(
+        default=10000,
+        description="Maximum length of a single message content",
+    )
+    broadcast_enabled: bool = Field(
+        default=True,
+        description="Enable broadcasting message events",
+    )
+
+    @field_validator("poll_interval", "debounce_delay")
+    @classmethod
+    def validate_positive(cls, v: float) -> float:
+        """Validate value is positive."""
+        if v <= 0:
+            raise ValueError("Value must be positive")
+        return v
+
+
 class DaemonConfig(BaseModel):
     """
     Main configuration for Gobby daemon.
@@ -571,6 +604,10 @@ class DaemonConfig(BaseModel):
     task_validation: TaskValidationConfig = Field(
         default_factory=TaskValidationConfig,
         description="Task validation configuration",
+    )
+    message_tracking: MessageTrackingConfig = Field(
+        default_factory=MessageTrackingConfig,
+        description="Session message tracking configuration",
     )
 
     def get_code_execution_config(self) -> CodeExecutionConfig:
