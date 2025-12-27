@@ -179,6 +179,18 @@ class LocalSkillManager:
         self._notify_listeners()
         return True
 
+    def increment_usage(self, skill_id: str) -> bool:
+        with self.db.transaction() as conn:
+            cursor = conn.execute(
+                "UPDATE skills SET usage_count = usage_count + 1 WHERE id = ?",
+                (skill_id,),
+            )
+            if cursor.rowcount == 0:
+                return False
+
+        self._notify_listeners()
+        return True
+
     def list_skills(
         self,
         project_id: str | None = None,

@@ -32,6 +32,7 @@ class TestGobbyRunnerInit:
             patch("gobby.runner.LocalSessionManager"),
             patch("gobby.runner.LocalMCPManager"),
             patch("gobby.runner.MCPClientManager"),
+            patch("gobby.runner.SessionLifecycleManager"),
             patch("gobby.runner.HTTPServer") as mock_http,
             patch("gobby.runner.WebSocketServer") as mock_ws,
         ):
@@ -61,6 +62,7 @@ class TestGobbyRunnerInit:
             patch("gobby.runner.LocalSessionManager"),
             patch("gobby.runner.LocalMCPManager"),
             patch("gobby.runner.MCPClientManager"),
+            patch("gobby.runner.SessionLifecycleManager"),
             patch("gobby.runner.HTTPServer"),
             patch("gobby.runner.WebSocketServer") as mock_ws,
         ):
@@ -85,6 +87,7 @@ class TestGobbyRunnerInit:
             patch("gobby.runner.LocalSessionManager"),
             patch("gobby.runner.LocalMCPManager"),
             patch("gobby.runner.MCPClientManager"),
+            patch("gobby.runner.SessionLifecycleManager"),
             patch("gobby.runner.HTTPServer"),
             patch("gobby.runner.WebSocketServer") as mock_ws,
         ):
@@ -112,6 +115,7 @@ class TestGobbyRunnerSignalHandlers:
             patch("gobby.runner.LocalSessionManager"),
             patch("gobby.runner.LocalMCPManager"),
             patch("gobby.runner.MCPClientManager"),
+            patch("gobby.runner.SessionLifecycleManager"),
             patch("gobby.runner.HTTPServer"),
         ):
             runner = GobbyRunner()
@@ -154,6 +158,7 @@ class TestGobbyRunnerRun:
             patch("gobby.runner.LocalSessionManager"),
             patch("gobby.runner.LocalMCPManager"),
             patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
+            patch("gobby.runner.SessionLifecycleManager"),
             patch("gobby.runner.HTTPServer") as mock_http,
         ):
             runner = GobbyRunner()
@@ -198,6 +203,7 @@ class TestGobbyRunnerRun:
             patch("gobby.runner.LocalSessionManager"),
             patch("gobby.runner.LocalMCPManager"),
             patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
+            patch("gobby.runner.SessionLifecycleManager"),
             patch("gobby.runner.HTTPServer") as mock_http,
         ):
             runner = GobbyRunner()
@@ -238,6 +244,7 @@ class TestGobbyRunnerRun:
             patch("gobby.runner.LocalSessionManager"),
             patch("gobby.runner.LocalMCPManager"),
             patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
+            patch("gobby.runner.SessionLifecycleManager"),
             patch("gobby.runner.HTTPServer") as mock_http,
         ):
             runner = GobbyRunner()
@@ -285,6 +292,7 @@ class TestGobbyRunnerRun:
             patch("gobby.runner.LocalSessionManager"),
             patch("gobby.runner.LocalMCPManager"),
             patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
+            patch("gobby.runner.SessionLifecycleManager"),
             patch("gobby.runner.HTTPServer") as mock_http,
             patch("gobby.runner.WebSocketServer", return_value=mock_ws_server),
         ):
@@ -335,6 +343,7 @@ class TestGobbyRunnerRun:
             patch("gobby.runner.LocalSessionManager"),
             patch("gobby.runner.LocalMCPManager"),
             patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
+            patch("gobby.runner.SessionLifecycleManager"),
             patch("gobby.runner.HTTPServer") as mock_http,
             patch("gobby.runner.WebSocketServer", return_value=mock_ws_server),
         ):

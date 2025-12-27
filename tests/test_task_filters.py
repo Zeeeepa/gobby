@@ -23,7 +23,10 @@ def task_manager():
                 status TEXT,
                 created_at TEXT,
                 updated_at TEXT,
-                closed_reason TEXT
+                closed_reason TEXT,
+                validation_status TEXT,
+                validation_feedback TEXT,
+                original_instruction TEXT
             )
         """)
         conn.execute("""
