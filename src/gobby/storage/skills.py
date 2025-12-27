@@ -195,6 +195,7 @@ class LocalSkillManager:
         self,
         project_id: str | None = None,
         name_like: str | None = None,
+        tag: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[Skill]:
@@ -208,6 +209,12 @@ class LocalSkillManager:
         if name_like:
             query += " AND name LIKE ?"
             params.append(f"%{name_like}%")
+
+        if tag:
+            # Check if tag exists in JSON array. JSON stores as ["tag1", "tag2"]
+            # We can use LIKE %"tag"% as a simple heuristic for now.
+            query += " AND tags LIKE ?"
+            params.append(f'%"{tag}"%')
 
         query += " ORDER BY usage_count DESC, created_at DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])

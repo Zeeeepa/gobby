@@ -15,6 +15,7 @@ from pathlib import Path
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 from gobby.config.app import load_config
+from gobby.llm import create_llm_service
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.servers.http import HTTPServer
 from gobby.servers.websocket import WebSocketConfig, WebSocketServer
@@ -22,9 +23,14 @@ from gobby.sessions.lifecycle import SessionLifecycleManager
 from gobby.sessions.processor import SessionMessageProcessor
 from gobby.storage.database import LocalDatabase
 from gobby.storage.mcp import LocalMCPManager
+from gobby.storage.messages import LocalMessageManager
+from gobby.storage.messages import LocalMessageManager
 from gobby.storage.migrations import run_migrations
 from gobby.storage.sessions import LocalSessionManager
+from gobby.storage.skills import LocalSkillManager
 from gobby.storage.tasks import LocalTaskManager
+from gobby.memory.manager import MemoryManager
+from gobby.memory.skills import SkillLearner
 from gobby.sync.tasks import TaskSyncManager
 from gobby.utils.logging import setup_file_logging, setup_mcp_logging
 from gobby.utils.machine_id import get_machine_id
@@ -49,6 +55,36 @@ class GobbyRunner:
         self.database = LocalDatabase()
         run_migrations(self.database)
         self.session_manager = LocalSessionManager(self.database)
+        self.skill_storage = LocalSkillManager(self.database)
+        self.message_manager = LocalMessageManager(self.database)
+
+        # Initialize LLM Service (needed for SkillLearner)
+        self.llm_service = None
+        try:
+            self.llm_service = create_llm_service(self.config)
+            logger.debug(f"LLM service initialized: {self.llm_service.enabled_providers}")
+        except Exception as e:
+            logger.error(f"Failed to initialize LLM service: {e}")
+
+        # Initialize Memory & Skills
+        self.memory_manager = None
+        if hasattr(self.config, "memory"):
+            try:
+                self.memory_manager = MemoryManager(self.database, self.config.memory)
+            except Exception as e:
+                logger.error(f"Failed to initialize MemoryManager: {e}")
+
+        self.skill_learner = None
+        if hasattr(self.config, "skills") and self.llm_service:
+            try:
+                self.skill_learner = SkillLearner(
+                    storage=self.skill_storage,
+                    message_manager=self.message_manager,
+                    llm_service=self.llm_service,
+                    config=self.config.skills,
+                )
+            except Exception as e:
+                logger.error(f"Failed to initialize SkillLearner: {e}")
 
         # MCP database manager (stores servers and tools in SQLite)
         self.mcp_db_manager = LocalMCPManager(self.database)
@@ -64,11 +100,6 @@ class GobbyRunner:
 
         # Configured WebSocket (created later if enabled)
         self.websocket_server = None
-
-        # Message Manager (Storage)
-        from gobby.storage.messages import LocalMessageManager
-
-        self.message_manager = LocalMessageManager(self.database)
 
         # Message Processor
         self.message_processor = None
@@ -94,6 +125,9 @@ class GobbyRunner:
             task_manager=self.task_manager,
             task_sync_manager=self.task_sync_manager,
             message_manager=self.message_manager,
+            memory_manager=self.memory_manager,
+            skill_learner=self.skill_learner,
+            llm_service=self.llm_service,
         )
 
         # Share message processor with HTTP server (for HookManager injection)

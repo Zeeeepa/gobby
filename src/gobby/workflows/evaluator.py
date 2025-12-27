@@ -63,6 +63,7 @@ class ConditionEvaluator:
             "variables": state.variables,
             "task_list": state.task_list,
         }
+        context.update(state.variables)
 
         for condition in conditions:
             cond_type = condition.get("type")

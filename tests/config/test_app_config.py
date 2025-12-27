@@ -8,12 +8,24 @@ import yaml
 from gobby.config.app import (
     CodeExecutionConfig,
     DaemonConfig,
+    HookExtensionsConfig,
+    ImportMCPServerConfig,
     LLMProviderConfig,
     LLMProvidersConfig,
     LoggingSettings,
     MCPClientProxyConfig,
+    MemoryConfig,
+    MessageTrackingConfig,
+    RecommendToolsConfig,
+    SessionLifecycleConfig,
     SessionSummaryConfig,
+    SkillConfig,
+    TaskExpansionConfig,
+    TaskValidationConfig,
+    TitleSynthesisConfig,
+    WebSocketBroadcastConfig,
     WebSocketSettings,
+    WorkflowConfig,
     apply_cli_overrides,
     generate_default_config,
     load_config,
@@ -237,9 +249,7 @@ class TestLoadYaml:
     def test_load_yaml_file(self, temp_dir: Path):
         """Test loading YAML file."""
         config_file = temp_dir / "config.yaml"
-        config_file.write_text(
-            yaml.dump({"daemon_port": 9000, "logging": {"level": "debug"}})
-        )
+        config_file.write_text(yaml.dump({"daemon_port": 9000, "logging": {"level": "debug"}}))
 
         data = load_yaml(str(config_file))
         assert data["daemon_port"] == 9000
@@ -403,3 +413,179 @@ class TestSaveConfig:
         save_config(default_config, str(config_file))
 
         assert config_file.exists()
+
+
+class TestRecommendToolsConfig:
+    """Tests for RecommendToolsConfig."""
+
+    def test_default_values(self):
+        """Test default recommend tools config."""
+        config = RecommendToolsConfig()
+        assert config.enabled is True
+        assert config.provider == "claude"
+        assert config.model == "claude-sonnet-4-5"
+        assert "CRITICAL PRIORITIZATION RULES" in config.prompt
+
+
+class TestImportMCPServerConfig:
+    """Tests for ImportMCPServerConfig."""
+
+    def test_default_values(self):
+        """Test default import MCP server config."""
+        config = ImportMCPServerConfig()
+        assert config.enabled is True
+        assert config.provider == "claude"
+        assert config.model == "claude-haiku-4-5"
+        assert "transport" in config.prompt
+
+
+class TestTitleSynthesisConfig:
+    """Tests for TitleSynthesisConfig."""
+
+    def test_default_values(self):
+        """Test default title synthesis config."""
+        config = TitleSynthesisConfig()
+        assert config.enabled is True
+        assert config.provider == "claude"
+        assert config.model == "claude-haiku-4-5"
+        assert config.prompt is None
+
+
+class TestWebSocketBroadcastConfig:
+    """Tests for WebSocketBroadcastConfig."""
+
+    def test_default_values(self):
+        """Test default WebSocket broadcast config."""
+        config = WebSocketBroadcastConfig()
+        assert config.enabled is True
+        assert "session-start" in config.broadcast_events
+        assert config.include_payload is True
+
+
+class TestHookExtensionsConfig:
+    """Tests for HookExtensionsConfig."""
+
+    def test_default_values(self):
+        """Test default hook extensions config."""
+        config = HookExtensionsConfig()
+        assert isinstance(config.websocket, WebSocketBroadcastConfig)
+
+
+class TestTaskExpansionConfig:
+    """Tests for TaskExpansionConfig."""
+
+    def test_default_values(self):
+        """Test default task expansion config."""
+        config = TaskExpansionConfig()
+        assert config.enabled is True
+        assert config.provider == "claude"
+        assert config.model == "claude-haiku-4-5"
+        assert config.prompt is None
+
+
+class TestTaskValidationConfig:
+    """Tests for TaskValidationConfig."""
+
+    def test_default_values(self):
+        """Test default task validation config."""
+        config = TaskValidationConfig()
+        assert config.enabled is True
+        assert config.provider == "claude"
+        assert config.model == "claude-haiku-4-5"
+        assert config.prompt is None
+
+
+class TestWorkflowConfig:
+    """Tests for WorkflowConfig."""
+
+    def test_default_values(self):
+        """Test default workflow config."""
+        config = WorkflowConfig()
+        assert config.enabled is True
+        assert config.timeout == 30.0
+
+    def test_timeout_validation(self):
+        """Test timeout must be positive."""
+        with pytest.raises(ValidationError):
+            WorkflowConfig(timeout=0)
+
+
+class TestMessageTrackingConfig:
+    """Tests for MessageTrackingConfig."""
+
+    def test_default_values(self):
+        """Test default message tracking config."""
+        config = MessageTrackingConfig()
+        assert config.enabled is True
+        assert config.poll_interval == 5.0
+        assert config.debounce_delay == 1.0
+        assert config.max_message_length == 10000
+        assert config.broadcast_enabled is True
+
+    def test_positive_validation(self):
+        """Test positive values validation."""
+        with pytest.raises(ValidationError):
+            MessageTrackingConfig(poll_interval=0)
+        with pytest.raises(ValidationError):
+            MessageTrackingConfig(debounce_delay=0)
+
+
+class TestSessionLifecycleConfig:
+    """Tests for SessionLifecycleConfig."""
+
+    def test_default_values(self):
+        """Test default session lifecycle config."""
+        config = SessionLifecycleConfig()
+        assert config.stale_session_timeout_hours == 24
+        assert config.expire_check_interval_minutes == 60
+        assert config.transcript_processing_interval_minutes == 5
+        assert config.transcript_processing_batch_size == 10
+
+    def test_positive_validation(self):
+        """Test positive values validation."""
+        with pytest.raises(ValidationError):
+            SessionLifecycleConfig(stale_session_timeout_hours=0)
+
+
+class TestMemoryConfig:
+    """Tests for MemoryConfig."""
+
+    def test_default_values(self):
+        """Test default memory config."""
+        config = MemoryConfig()
+        assert config.enabled is True
+        assert config.auto_extract is True
+        assert config.injection_limit == 10
+        assert config.importance_threshold == 0.3
+        assert config.decay_enabled is True
+        assert config.decay_rate == 0.05
+        assert config.decay_floor == 0.1
+
+    def test_injection_limit_validation(self):
+        """Test injection limit validation."""
+        with pytest.raises(ValidationError):
+            MemoryConfig(injection_limit=-1)
+
+    def test_probability_validation(self):
+        """Test probability fields validation."""
+        with pytest.raises(ValidationError):
+            MemoryConfig(importance_threshold=1.5)
+        with pytest.raises(ValidationError):
+            MemoryConfig(decay_rate=-0.1)
+
+
+class TestSkillConfig:
+    """Tests for SkillConfig."""
+
+    def test_default_values(self):
+        """Test default skill config."""
+        config = SkillConfig()
+        assert config.enabled is True
+        assert config.auto_suggest is True
+        assert config.max_suggestions == 3
+        assert config.learning_model == "claude-haiku-4-5"
+
+    def test_max_suggestions_validation(self):
+        """Test max_suggestions validation."""
+        with pytest.raises(ValidationError):
+            SkillConfig(max_suggestions=-1)

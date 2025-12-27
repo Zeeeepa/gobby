@@ -955,8 +955,14 @@ def create_stdio_mcp_server() -> FastMCP:
         """
         # LLM-dependent tools that are proxied to daemon but belong to gobby-tasks
         LLM_TOOLS = [
-            {"name": "expand_task", "brief": "Expand a high-level task into smaller subtasks using AI."},
-            {"name": "validate_task", "brief": "Validate if a task is completed according to its description."},
+            {
+                "name": "expand_task",
+                "brief": "Expand a high-level task into smaller subtasks using AI.",
+            },
+            {
+                "name": "validate_task",
+                "brief": "Validate if a task is completed according to its description.",
+            },
         ]
 
         # Handle internal servers locally
@@ -1215,6 +1221,232 @@ def create_stdio_mcp_server() -> FastMCP:
             arguments=arguments,
             timeout=max(timeout or 30, 30) + 5,  # Add 5s buffer to daemon timeout
         )
+
+    # ===== MEMORY =====
+
+    @mcp.tool
+    async def remember(
+        content: str,
+        memory_type: str = "fact",
+        importance: float = 0.5,
+        project_id: str | None = None,
+        source_type: str = "user",
+        source_session_id: str | None = None,
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Store a new memory.
+
+        Args:
+            content: The content of the memory (e.g., "User prefers dark mode")
+            memory_type: Type of memory (fact, preference, decision, context)
+            importance: Float from 0.0 to 1.0 indicating importance
+            project_id: Optional project to associate with
+            source_type: Source of the memory (user, system, agent)
+            source_session_id: Optional session ID where memory originated
+            tags: Optional list of tags for categorization
+
+        Returns:
+            Created memory object
+        """
+        arguments: dict[str, Any] = {
+            "content": content,
+            "memory_type": memory_type,
+            "importance": importance,
+            "source_type": source_type,
+        }
+        if project_id:
+            arguments["project_id"] = project_id
+        if source_session_id:
+            arguments["source_session_id"] = source_session_id
+        if tags:
+            arguments["tags"] = tags
+
+        return await _call_daemon_tool(
+            daemon_port=daemon_port,
+            tool_name="remember",
+            arguments=arguments,
+            timeout=default_tool_timeout,
+        )
+
+    @mcp.tool
+    async def recall(
+        query: str | None = None,
+        project_id: str | None = None,
+        limit: int = 10,
+        min_importance: float | None = None,
+        memory_type: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Retrieve relevant memories.
+
+        Args:
+            query: Search query string (semantic search if supported, else keyword)
+            project_id: Filter by project
+            limit: Max number of memories to return
+            min_importance: Filter by minimum importance score
+            memory_type: Filter by memory type
+
+        Returns:
+            List of matching memory objects
+        """
+        arguments: dict[str, Any] = {"limit": limit}
+        if query:
+            arguments["query"] = query
+        if project_id:
+            arguments["project_id"] = project_id
+        if min_importance is not None:
+            arguments["min_importance"] = min_importance
+        if memory_type:
+            arguments["memory_type"] = memory_type
+
+        result = await _call_daemon_tool(
+            daemon_port=daemon_port,
+            tool_name="recall",
+            arguments=arguments,
+            timeout=default_tool_timeout,
+        )
+        return result if isinstance(result, list) else []
+
+    @mcp.tool
+    async def forget(memory_id: str) -> bool:
+        """
+        Delete a memory by ID.
+
+        Args:
+            memory_id: ID of the memory to delete
+
+        Returns:
+            True if deleted, False if not found
+        """
+        result = await _call_daemon_tool(
+            daemon_port=daemon_port,
+            tool_name="forget",
+            arguments={"memory_id": memory_id},
+            timeout=default_tool_timeout,
+        )
+        return bool(result)
+
+    # ===== SKILLS =====
+
+    @mcp.tool
+    async def learn_skill_from_session(session_id: str) -> list[dict[str, Any]]:
+        """
+        Extract and learn skills from a session.
+
+        Analyzes the session interaction to identify reusable patterns or solutions
+        and creates structured skills from them.
+
+        Args:
+            session_id: ID of the session to analyze
+
+        Returns:
+            List of learned skill objects
+        """
+        result = await _call_daemon_tool(
+            daemon_port=daemon_port,
+            tool_name="learn_skill_from_session",
+            arguments={"session_id": session_id},
+            timeout=long_operation_timeout,
+        )
+        return result if isinstance(result, list) else []
+
+    @mcp.tool
+    async def list_skills(
+        project_id: str | None = None,
+        tag: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """
+        List available skills with filtering.
+
+        Args:
+            project_id: Filter by project
+            tag: Filter by tag
+            limit: Max results
+            offset: Pagination offset
+
+        Returns:
+            List of skill objects
+        """
+        arguments: dict[str, Any] = {"limit": limit, "offset": offset}
+        if project_id:
+            arguments["project_id"] = project_id
+        if tag:
+            arguments["tag"] = tag
+
+        result = await _call_daemon_tool(
+            daemon_port=daemon_port,
+            tool_name="list_skills",
+            arguments=arguments,
+            timeout=default_tool_timeout,
+        )
+        return result if isinstance(result, list) else []
+
+    @mcp.tool
+    async def get_skill(skill_id: str) -> dict[str, Any] | None:
+        """
+        Get a specific skill by ID.
+
+        Args:
+            skill_id: ID of the skill to retrieve
+
+        Returns:
+            Skill object or None if not found
+        """
+        return await _call_daemon_tool(
+            daemon_port=daemon_port,
+            tool_name="get_skill",
+            arguments={"skill_id": skill_id},
+            timeout=default_tool_timeout,
+        )
+
+    @mcp.tool
+    async def delete_skill(skill_id: str) -> bool:
+        """
+        Delete a skill by ID.
+
+        Args:
+            skill_id: ID of the skill to delete
+
+        Returns:
+            True if deleted, False if not found
+        """
+        result = await _call_daemon_tool(
+            daemon_port=daemon_port,
+            tool_name="delete_skill",
+            arguments={"skill_id": skill_id},
+            timeout=default_tool_timeout,
+        )
+        return bool(result)
+
+    @mcp.tool
+    async def match_skills(
+        query: str,
+        project_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Find skills matching a natural language query/task description.
+
+        Args:
+            query: Description of what you want to do (e.g., "deploy to vercel")
+            project_id: Optional project context
+
+        Returns:
+            List of matching skills sorted by relevance
+        """
+        arguments: dict[str, Any] = {"query": query}
+        if project_id:
+            arguments["project_id"] = project_id
+
+        result = await _call_daemon_tool(
+            daemon_port=daemon_port,
+            tool_name="match_skills",
+            arguments=arguments,
+            timeout=default_tool_timeout,
+        )
+        return result if isinstance(result, list) else []
 
     # ===== RESOURCES =====
 

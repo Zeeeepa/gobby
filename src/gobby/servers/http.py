@@ -24,6 +24,8 @@ from gobby.hooks.broadcaster import HookEventBroadcaster
 from gobby.hooks.hook_manager import HookManager
 from gobby.llm import LLMService, create_llm_service
 from gobby.mcp_proxy.server import create_mcp_server
+from gobby.memory.manager import MemoryManager
+from gobby.memory.skills import SkillLearner
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.tasks import TaskSyncManager
@@ -80,6 +82,9 @@ class HTTPServer:
         task_sync_manager: TaskSyncManager | None = None,
         message_processor: Any | None = None,
         message_manager: Any | None = None,  # LocalMessageManager
+        memory_manager: "MemoryManager | None" = None,
+        skill_learner: "SkillLearner | None" = None,
+        llm_service: "LLMService | None" = None,
     ) -> None:
         """
         Initialize HTTP server.
@@ -95,7 +100,11 @@ class HTTPServer:
             task_manager: LocalTaskManager instance
             task_sync_manager: TaskSyncManager instance
             message_processor: SessionMessageProcessor instance
+            message_processor: SessionMessageProcessor instance
             message_manager: LocalMessageManager instance for retrieval
+            memory_manager: MemoryManager instance
+            skill_learner: SkillLearner instance
+            llm_service: LLMService instance
         """
         self.port = port
         self.test_mode = test_mode
@@ -107,7 +116,10 @@ class HTTPServer:
         self.task_sync_manager = task_sync_manager
         self.message_processor = message_processor
         self.message_manager = message_manager
+        self.memory_manager = memory_manager
+        self.skill_learner = skill_learner
         self.websocket_server = websocket_server
+        self.llm_service = llm_service
 
         # Initialize WebSocket broadcaster
         # Note: websocket_server might be None if disabled
@@ -115,9 +127,8 @@ class HTTPServer:
 
         self._start_time: float = time.time()
 
-        # Create LLM service for multi-provider support
-        self.llm_service: LLMService | None = None
-        if config:
+        # Create LLM service if not provided
+        if not self.llm_service and config:
             try:
                 self.llm_service = create_llm_service(config)
                 logger.debug(
@@ -139,6 +150,9 @@ class HTTPServer:
                 task_manager=task_manager,
                 task_sync_manager=task_sync_manager,
                 message_manager=message_manager,
+                session_manager=session_manager,
+                memory_manager=memory_manager,
+                skill_learner=skill_learner,
             )
             logger.debug("MCP server initialized and will be mounted at /mcp")
 

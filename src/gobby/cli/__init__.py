@@ -10,6 +10,8 @@ from .init import init
 from .install import install, uninstall
 from .mcp import mcp_server
 from .tasks import tasks
+from .memory import memory
+from .skills import skills
 
 
 @click.group()
@@ -35,4 +37,7 @@ cli.add_command(mcp_server)
 cli.add_command(init)
 cli.add_command(install)
 cli.add_command(uninstall)
+cli.add_command(uninstall)
 cli.add_command(tasks)
+cli.add_command(memory)
+cli.add_command(skills)

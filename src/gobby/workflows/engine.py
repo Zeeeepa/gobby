@@ -2,7 +2,7 @@ import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from gobby.hooks.events import HookEvent, HookResponse
+from gobby.hooks.events import HookEvent, HookResponse, HookEventType
 
 from .definitions import WorkflowDefinition, WorkflowState
 from .evaluator import ConditionEvaluator
@@ -99,7 +99,7 @@ class WorkflowEngine:
             return HookResponse(decision="allow")
 
         # Check blocked tools
-        if event.event_type.value == "tool_call":  # Adjust enum check
+        if event.event_type == HookEventType.BEFORE_TOOL:
             tool_name = eval_context["tool_name"]
 
             # Check blocked list
@@ -143,7 +143,7 @@ class WorkflowEngine:
             pass
 
         # Update stats (generic)
-        if event.event_type.value == "tool_result":  # Adjust enum value
+        if event.event_type == HookEventType.AFTER_TOOL:
             state.phase_action_count += 1
             state.total_action_count += 1
             self.state_manager.save_state(state)  # Persist updates
@@ -239,8 +239,7 @@ class WorkflowEngine:
             return HookResponse(decision="allow")
 
         logger.debug(
-            f"Discovered {len(workflows)} lifecycle workflow(s): "
-            f"{[w.name for w in workflows]}"
+            f"Discovered {len(workflows)} lifecycle workflow(s): {[w.name for w in workflows]}"
         )
 
         # Accumulate context from all workflows
@@ -259,9 +258,7 @@ class WorkflowEngine:
             for discovered in workflows:
                 workflow = discovered.definition
 
-                response = await self._evaluate_workflow_triggers(
-                    workflow, event, context_data
-                )
+                response = await self._evaluate_workflow_triggers(workflow, event, context_data)
 
                 # Accumulate context
                 if response.context:
@@ -275,9 +272,7 @@ class WorkflowEngine:
 
                 # If blocked, stop immediately
                 if response.decision == "block":
-                    logger.info(
-                        f"Workflow '{discovered.name}' blocked event: {response.reason}"
-                    )
+                    logger.info(f"Workflow '{discovered.name}' blocked event: {response.reason}")
                     return HookResponse(
                         decision="block",
                         reason=response.reason,
@@ -423,17 +418,23 @@ class WorkflowEngine:
         """
         # Get project path from event for project-specific workflow lookup
         project_path = event.data.get("cwd") if event.data else None
-        logger.debug(f"evaluate_lifecycle_triggers: workflow={workflow_name}, project_path={project_path}")
+        logger.debug(
+            f"evaluate_lifecycle_triggers: workflow={workflow_name}, project_path={project_path}"
+        )
 
         workflow = self.loader.load_workflow(workflow_name, project_path=project_path)
         if not workflow:
             logger.warning(f"Workflow '{workflow_name}' not found in project_path={project_path}")
             return HookResponse(decision="allow")
 
-        logger.debug(f"Workflow '{workflow_name}' loaded, triggers={list(workflow.triggers.keys()) if workflow.triggers else []}")
+        logger.debug(
+            f"Workflow '{workflow_name}' loaded, triggers={list(workflow.triggers.keys()) if workflow.triggers else []}"
+        )
 
         # Map hook event to trigger name (canonical name based on HookEventType)
-        trigger_name = f"on_{event.event_type.name.lower()}"  # e.g. on_session_start, on_before_agent
+        trigger_name = (
+            f"on_{event.event_type.name.lower()}"  # e.g. on_session_start, on_before_agent
+        )
 
         # Look up triggers - try canonical name first, then aliases
         triggers = []
@@ -452,7 +453,9 @@ class WorkflowEngine:
             logger.debug(f"No triggers for '{trigger_name}' in workflow '{workflow_name}'")
             return HookResponse(decision="allow")
 
-        logger.info(f"Executing lifecycle triggers for '{workflow_name}' on '{trigger_name}', count={len(triggers)}")
+        logger.info(
+            f"Executing lifecycle triggers for '{workflow_name}' on '{trigger_name}', count={len(triggers)}"
+        )
 
         # Create a temporary/ephemeral context for execution
         from .actions import ActionContext
@@ -501,7 +504,9 @@ class WorkflowEngine:
                 if context_data:
                     eval_ctx.update(context_data)
                 eval_result = self.evaluator.evaluate(when_condition, eval_ctx)
-                logger.debug(f"When condition '{when_condition}' evaluated to {eval_result}, event.data.reason={event.data.get('reason') if event.data else None}")
+                logger.debug(
+                    f"When condition '{when_condition}' evaluated to {eval_result}, event.data.reason={event.data.get('reason') if event.data else None}"
+                )
                 if not eval_result:
                     continue
 
@@ -518,7 +523,9 @@ class WorkflowEngine:
                 kwargs.pop("when", None)
 
                 result = await self.action_executor.execute(action_type, action_ctx, **kwargs)
-                logger.debug(f"Action '{action_type}' returned: {type(result).__name__}, keys={list(result.keys()) if isinstance(result, dict) else 'N/A'}")
+                logger.debug(
+                    f"Action '{action_type}' returned: {type(result).__name__}, keys={list(result.keys()) if isinstance(result, dict) else 'N/A'}"
+                )
 
                 if result:
                     # Update context for subsequent actions
@@ -529,7 +536,9 @@ class WorkflowEngine:
                         state.variables.update(result)
 
                     if "inject_context" in result:
-                        logger.debug(f"Found inject_context in result, length={len(result['inject_context'])}")
+                        logger.debug(
+                            f"Found inject_context in result, length={len(result['inject_context'])}"
+                        )
                         injected_context.append(result["inject_context"])
 
             except Exception as e:
