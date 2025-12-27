@@ -137,7 +137,7 @@ class LocalMessageManager:
             byte_offset: New byte offset in source file
             message_index: Index of last processed message
         """
-        query = """
+        sql = """
         INSERT INTO session_message_state (
             session_id, last_byte_offset, last_message_index,
             last_processed_at, updated_at
@@ -148,4 +148,74 @@ class LocalMessageManager:
             last_processed_at=excluded.last_processed_at,
             updated_at=excluded.updated_at
         """
-        self.db.execute(query, (session_id, byte_offset, message_index))
+        self.db.execute(sql, (session_id, byte_offset, message_index))
+
+    async def count_messages(self, session_id: str) -> int:
+        """
+        Count messages for a session.
+
+        Args:
+            session_id: Session ID
+
+        Returns:
+            Number of messages
+        """
+        result = self.db.fetchone(
+            "SELECT COUNT(*) as count FROM session_messages WHERE session_id = ?",
+            (session_id,),
+        )
+        return result["count"] if result else 0
+
+    async def get_all_counts(self) -> dict[str, int]:
+        """
+        Get message counts for all sessions.
+
+        Returns:
+            Dictionary mapping session_id to count
+        """
+        rows = self.db.fetchall(
+            "SELECT session_id, COUNT(*) as count FROM session_messages GROUP BY session_id"
+        )
+        return {row["session_id"]: row["count"] for row in rows}
+
+    async def search_messages(
+        self,
+        query_text: str,
+        limit: int = 20,
+        offset: int = 0,
+        session_id: str | None = None,
+        project_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Search messages using simple text matching.
+
+        Args:
+            query_text: Text to search for
+            limit: Max results
+            offset: Pagination offset
+            session_id: Optional session ID to filter by
+            project_id: Optional project ID to filter by
+
+        Returns:
+            List of matchin messages
+        """
+        sql = "SELECT m.* FROM session_messages m"
+        params: list[Any] = []
+        conditions: list[str] = ["m.content LIKE ?"]
+        params.append(f"%{query_text}%")
+
+        if project_id:
+            sql += " JOIN sessions s ON m.session_id = s.session_id"
+            conditions.append("s.project_id = ?")
+            params.append(project_id)
+
+        if session_id:
+            conditions.append("m.session_id = ?")
+            params.append(session_id)
+
+        sql += " WHERE " + " AND ".join(conditions)
+        sql += " ORDER BY m.timestamp DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+
+        rows = self.db.fetchall(sql, tuple(params))
+        return [dict(row) for row in rows]

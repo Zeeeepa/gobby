@@ -18,6 +18,7 @@ from fastmcp import FastMCP
 logger = logging.getLogger("gobby.mcp.server")
 
 if TYPE_CHECKING:
+    from gobby.config.app import DaemonConfig
     from gobby.hooks.hook_manager import HookManager
     from gobby.llm.base import LLMProvider
     from gobby.llm.service import LLMService
@@ -38,11 +39,12 @@ def create_mcp_server(
     mcp_manager: "MCPClientManager",
     daemon_port: int,
     start_time: float,
-    config: Any | None = None,
+    config: "DaemonConfig | None" = None,
     llm_service: "LLMService | None" = None,
     codex_client: Any | None = None,
     task_manager: "LocalTaskManager | None" = None,
     task_sync_manager: "TaskSyncManager | None" = None,
+    message_manager: "Any | None" = None,  # LocalMessageManager typed as Any to avoid circular deps
 ) -> FastMCP:
     """
     Create FastMCP server with daemon control tools.
@@ -54,9 +56,7 @@ def create_mcp_server(
         config: Optional DaemonConfig instance for tool configuration
         llm_service: Optional LLMService for multi-provider support
         codex_client: Optional CodexAppServerClient for Codex integration
-
-    Returns:
-        Configured FastMCP server instance
+        message_manager: Optional LocalMessageManager instance
     """
     global _mcp_instance
     mcp = FastMCP(name="Gobby Daemon")
@@ -135,6 +135,14 @@ def create_mcp_server(
     from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 
     internal_manager = InternalRegistryManager()
+
+    if message_manager:
+        try:
+            from gobby.mcp_proxy.tools.messages import create_messages_registry
+
+            internal_manager.add_registry(create_messages_registry(message_manager))
+        except Exception as e:
+            logger.error(f"Failed to create messages registry: {e}")
 
     if task_manager and task_sync_manager:
         try:
@@ -439,20 +447,17 @@ def create_mcp_server(
             # Update manager's project_id for subsequent operations
             mcp_manager.project_id = project_id
 
-        return cast(
-            dict[str, Any],
-            await add_server_action(
-                mcp_manager=mcp_manager,
-                name=name,
-                transport=transport,
-                project_id=project_id,
-                url=url,
-                headers=headers,
-                command=command,
-                args=args,
-                env=env,
-                enabled=enabled,
-            ),
+        return await add_server_action(
+            mcp_manager=mcp_manager,
+            name=name,
+            transport=transport,
+            project_id=project_id,
+            url=url,
+            headers=headers,
+            command=command,
+            args=args,
+            env=env,
+            enabled=enabled,
         )
 
     @mcp.tool
@@ -478,13 +483,10 @@ def create_mcp_server(
                 "error": "No project context - initialize a project first with init_project()",
             }
 
-        return cast(
-            dict[str, Any],
-            await remove_server_action(
-                mcp_manager=mcp_manager,
-                name=name,
-                project_id=project_id,
-            ),
+        return await remove_server_action(
+            mcp_manager=mcp_manager,
+            name=name,
+            project_id=project_id,
         )
 
     @mcp.tool
@@ -543,7 +545,7 @@ def create_mcp_server(
         # Initialize database and importer
         db = LocalDatabase()
         importer = MCPServerImporter(
-            config=import_mcp_server_config,
+            config=cast(Any, import_mcp_server_config),
             db=db,
             current_project_id=project_id,
             mcp_client_manager=mcp_manager,
@@ -552,15 +554,15 @@ def create_mcp_server(
         # Determine which import mode to use
         if from_project is not None:
             # Import from another project
-            return cast(dict[str, Any], await importer.import_from_project(from_project, servers))
+            return await importer.import_from_project(from_project, servers)
 
         if github_url is not None:
             # Import from GitHub repository
-            return cast(dict[str, Any], await importer.import_from_github(github_url))
+            return await importer.import_from_github(github_url)
 
         if query is not None:
             # Search and import
-            return cast(dict[str, Any], await importer.import_from_query(query))
+            return await importer.import_from_query(query)
 
         return {
             "success": False,
@@ -665,9 +667,7 @@ def create_mcp_server(
 
                     # Add internal servers first
                     for registry in internal_manager.get_all_registries():
-                        servers_list.append(
-                            {"name": registry.name, "tools": registry.list_tools()}
-                        )
+                        servers_list.append({"name": registry.name, "tools": registry.list_tools()})
 
                     # Add downstream servers
                     for server_config in mcp_manager.server_configs:
@@ -1221,7 +1221,7 @@ Use pandas, numpy, or standard Python as needed.""",
                         args_info = ""
                         if tool.get("args") and tool["args"].get("properties"):
                             required = tool["args"].get("required", [])
-                            params = []
+                            params: list[str] = []
                             for param_name, param_info in tool["args"]["properties"].items():
                                 param_type = param_info.get("type", "any")
                                 req_marker = "*" if param_name in required else ""
@@ -1255,7 +1255,7 @@ If no tools are relevant, say so clearly."""
                 # Try to use LLMProvider's recommend_tools if available
                 if provider and hasattr(provider, "recommend_tools"):
                     try:
-                        recommendation_text = await provider.recommend_tools(
+                        recommendation_text = await cast(Any, provider).recommend_tools(
                             task_description=task_description,
                             tools_summary="".join(tools_summary),
                             system_prompt=recommend_tools_prompt,
@@ -1441,12 +1441,14 @@ If no tools are relevant, say so clearly."""
             original_source = None
             original_session_manager_source = None
             if source:
-                original_source = hook_manager.SOURCE
-                hook_manager.SOURCE = source
+                original_source = cast(Any, hook_manager).SOURCE
+                cast(Any, hook_manager).SOURCE = source
                 # Also update SessionManager source (uses .source not ._source)
                 if hasattr(hook_manager, "_session_manager"):
-                    original_session_manager_source = hook_manager._session_manager.source
-                    hook_manager._session_manager.source = source
+                    original_session_manager_source = cast(
+                        Any, hook_manager
+                    )._session_manager.source
+                    cast(Any, hook_manager)._session_manager.source = source
 
             try:
                 # Force daemon status to "ready" since we're inside the daemon
@@ -1458,17 +1460,19 @@ If no tools are relevant, say so clearly."""
 
                 # Execute hook in thread pool (HookManager uses sync code)
                 result = await asyncio.get_event_loop().run_in_executor(
-                    None, lambda: hook_manager.execute(normalized_hook_type, input_data)
+                    None, lambda: cast(Any, hook_manager).execute(normalized_hook_type, input_data)
                 )
 
                 return {"success": True, "result": result}
             finally:
                 # Restore original source
                 if original_source is not None:
-                    hook_manager.SOURCE = original_source
+                    cast(Any, hook_manager).SOURCE = original_source
                 if original_session_manager_source is not None:
                     if hasattr(hook_manager, "_session_manager"):
-                        hook_manager._session_manager.source = original_session_manager_source
+                        cast(
+                            Any, hook_manager
+                        )._session_manager.source = original_session_manager_source
 
         except Exception as e:
             logger.error(f"Failed to execute hook {hook_type}: {e}", exc_info=True)

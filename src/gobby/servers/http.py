@@ -14,9 +14,11 @@ from contextlib import asynccontextmanager
 from typing import Any, cast
 
 import psutil
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
+from pydantic import BaseModel, Field
+
 from gobby.adapters.codex import CodexAdapter
 from gobby.hooks.broadcaster import HookEventBroadcaster
 from gobby.hooks.hook_manager import HookManager
@@ -27,7 +29,6 @@ from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.tasks import TaskSyncManager
 from gobby.utils.metrics import Counter, get_metrics_collector
 from gobby.utils.version import get_version
-from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,7 @@ class HTTPServer:
         task_manager: LocalTaskManager | None = None,
         task_sync_manager: TaskSyncManager | None = None,
         message_processor: Any | None = None,
+        message_manager: Any | None = None,  # LocalMessageManager
     ) -> None:
         """
         Initialize HTTP server.
@@ -93,6 +95,7 @@ class HTTPServer:
             task_manager: LocalTaskManager instance
             task_sync_manager: TaskSyncManager instance
             message_processor: SessionMessageProcessor instance
+            message_manager: LocalMessageManager instance for retrieval
         """
         self.port = port
         self.test_mode = test_mode
@@ -103,6 +106,7 @@ class HTTPServer:
         self.task_manager = task_manager
         self.task_sync_manager = task_sync_manager
         self.message_processor = message_processor
+        self.message_manager = message_manager
         self.websocket_server = websocket_server
 
         # Initialize WebSocket broadcaster
@@ -134,6 +138,7 @@ class HTTPServer:
                 codex_client=codex_client,
                 task_manager=task_manager,
                 task_sync_manager=task_sync_manager,
+                message_manager=message_manager,
             )
             logger.debug("MCP server initialized and will be mounted at /mcp")
 
@@ -604,6 +609,70 @@ class HTTPServer:
                     status_code=500, detail=f"Internal error during session registration: {e}"
                 ) from e
 
+        @app.get("/sessions")
+        async def list_sessions(
+            project_id: str | None = None,
+            status: str | None = None,
+            source: str | None = None,
+            limit: int = Query(100, ge=1, le=1000),
+        ) -> dict[str, Any]:
+            """
+            List sessions with optional filtering and message counts.
+
+            Args:
+                project_id: Filter by project ID
+                status: Filter by status (active, archived, etc)
+                source: Filter by source (Claude Code, Gemini, etc)
+                limit: Max results (default 100)
+
+            Returns:
+                List of session objects with message counts
+            """
+            self._metrics.inc_counter("http_requests_total")
+            start_time = time.perf_counter()
+
+            try:
+                if self.session_manager is None:
+                    raise HTTPException(status_code=503, detail="Session manager not available")
+
+                sessions = self.session_manager.list(
+                    project_id=project_id,
+                    status=status,
+                    source=source,
+                    limit=limit,
+                )
+
+                # Fetch message counts if message manager is available
+                message_counts = {}
+                if self.message_manager:
+                    try:
+                        message_counts = await self.message_manager.get_all_counts()
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch message counts: {e}")
+
+                # Enrich sessions with counts
+                session_list = []
+                for session in sessions:
+                    session_data = session.to_dict()
+                    session_data["message_count"] = message_counts.get(session.id, 0)
+                    session_list.append(session_data)
+
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+
+                return {
+                    "sessions": session_list,
+                    "count": len(session_list),
+                    "response_time_ms": response_time_ms,
+                }
+
+            except HTTPException:
+                self._metrics.inc_counter("http_requests_errors_total")
+                raise
+            except Exception as e:
+                self._metrics.inc_counter("http_requests_errors_total")
+                logger.error(f"Error listing sessions: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e)) from e
+
         @app.get("/sessions/{session_id}")
         async def sessions_get(session_id: str) -> dict[str, Any]:
             """
@@ -639,6 +708,52 @@ class HTTPServer:
                 raise
             except Exception as e:
                 logger.error(f"Sessions get error: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e)) from e
+
+        @app.get("/sessions/{session_id}/messages")
+        async def sessions_get_messages(
+            session_id: str,
+            limit: int = 100,
+            offset: int = 0,
+            role: str | None = None,
+        ) -> dict[str, Any]:
+            """
+            Get messages for a session.
+
+            Args:
+                session_id: Session ID
+                limit: Max messages to return (default 100)
+                offset: Pagination offset
+                role: Filter by role (user, assistant, tool)
+
+            Returns:
+                List of messages and total count key
+            """
+            start_time = time.perf_counter()
+            self._metrics.inc_counter("http_requests_total")
+
+            try:
+                if self.message_manager is None:
+                    raise HTTPException(status_code=503, detail="Message manager not available")
+
+                messages = await self.message_manager.get_messages(
+                    session_id=session_id, limit=limit, offset=offset, role=role
+                )
+
+                count = await self.message_manager.count_messages(session_id)
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+
+                return {
+                    "status": "success",
+                    "messages": messages,
+                    "total_count": count,
+                    "response_time_ms": response_time_ms,
+                }
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Get messages error: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e)) from e
 
         @app.post("/sessions/find_current")

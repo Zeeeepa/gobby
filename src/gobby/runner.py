@@ -65,6 +65,11 @@ class GobbyRunner:
         # Configured WebSocket (created later if enabled)
         self.websocket_server = None
 
+        # Message Manager (Storage)
+        from gobby.storage.messages import LocalMessageManager
+
+        self.message_manager = LocalMessageManager(self.database)
+
         # Message Processor
         self.message_processor = None
         if self.config.message_tracking.enabled:
@@ -88,15 +93,10 @@ class GobbyRunner:
             session_manager=self.session_manager,
             task_manager=self.task_manager,
             task_sync_manager=self.task_sync_manager,
+            message_manager=self.message_manager,
         )
 
         # Share message processor with HTTP server (for HookManager injection)
-        # Note: HTTPServer doesn't accept message_processor in init, but we can attach it to app state later
-        # or update HTTPServer to accept it.
-        # For now, let's inject it into app.state in run() after app creation,
-        # BUT HookManager is created in lifespan handler in HTTPServer._create_app.
-        # So we should probably pass it to HTTPServer constructor.
-        # Let's update HTTPServer constructor in next step. For now, just keep reference.
         self.http_server.message_processor = self.message_processor
 
         # WebSocket server (optional)
