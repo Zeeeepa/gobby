@@ -874,97 +874,22 @@ def create_mcp_server(
                 # Get LLM provider for code execution
                 provider = get_llm_provider_for_feature(code_exec_provider)
 
-                # Use LLMProvider if available
-                if provider:
-                    return cast(
-                        dict[str, Any],
-                        await provider.execute_code(
-                            code=code,
-                            language=language,
-                            context=context,
-                            timeout=timeout,
-                            prompt_template=code_exec_prompt,
-                        ),
-                    )
-
-                # Fallback to legacy implementation
-                import time
-
-                from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
-
-                # Validate language
-                if language.lower() != "python":
+                if not provider:
                     return {
                         "success": False,
-                        "error": f"Language '{language}' not supported. Only Python is currently supported.",
+                        "error": f"Code execution provider '{code_exec_provider}' not found or not configured",
                     }
 
-                # Build prompt for Claude to execute the code
-                if context:
-                    prompt = f"""Execute this Python code and return the result.
-
-Context: {context}
-
-Code:
-```python
-{code}
-```
-
-Execute the code and return the output."""
-                else:
-                    prompt = f"""Execute this Python code and return the result.
-
-Code:
-```python
-{code}
-```
-
-Execute the code and return the output."""
-
-                # Use configured timeout or parameter timeout
-                actual_timeout = timeout if timeout is not None else code_exec_timeout
-
-                # Configure Claude Agent SDK with code execution tool enabled
-                options = ClaudeAgentOptions(
-                    system_prompt="You are a code execution assistant. Execute the provided code and return results.",
-                    max_turns=code_exec_max_turns,
-                    model=code_exec_model,
-                    allowed_tools=["code_execution"],  # Enable code execution tool
-                    permission_mode="default",
+                return cast(
+                    dict[str, Any],
+                    await provider.execute_code(
+                        code=code,
+                        language=language,
+                        context=context,
+                        timeout=timeout,
+                        prompt_template=code_exec_prompt,
+                    ),
                 )
-
-                # Track execution time
-                start_time_exec = time.time()
-
-                # Run async query with code execution enabled (with timeout)
-                async def _run_query() -> str:
-                    result_text = ""
-                    async for message in query(prompt=prompt, options=options):
-                        if isinstance(message, AssistantMessage):
-                            for block in message.content:
-                                if isinstance(block, TextBlock):
-                                    result_text += block.text
-                    return result_text
-
-                import asyncio
-
-                try:
-                    result_text: str = await asyncio.wait_for(_run_query(), timeout=actual_timeout)
-                except TimeoutError:
-                    return {
-                        "success": False,
-                        "error": f"Code execution timed out after {actual_timeout} seconds",
-                        "error_type": "TimeoutError",
-                        "timeout": actual_timeout,
-                    }
-
-                execution_time = time.time() - start_time_exec
-
-                return {
-                    "success": True,
-                    "result": result_text.strip(),
-                    "execution_time": round(execution_time, 2),
-                }
 
             except Exception as e:
                 logger.error(f"Code execution failed: {e}")
@@ -1031,7 +956,14 @@ Execute the code and return the output."""
                 import json
                 import time
 
-                from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
+                from claude_agent_sdk import (
+                    AssistantMessage,
+                    ClaudeAgentOptions,
+                    TextBlock,
+                    ToolResultBlock,
+                    UserMessage,
+                    query,
+                )
 
                 # Calculate original size
                 if isinstance(data, list):
@@ -1071,11 +1003,12 @@ Requirements:
 You have access to a dataset with {original_size} items.
 Execute Python code to process the data according to the user's operation.
 The variable 'data' contains: {json.dumps(data[:2] if isinstance(data, list) else data)}
-Use pandas, numpy, or standard Python as needed.""",
+Use pandas, numpy, or standard Python as needed.
+Always use code execution tools - never just describe what the code would do.""",
                     max_turns=code_exec_max_turns,
                     model=code_exec_model,
                     allowed_tools=["code_execution"],
-                    permission_mode="default",
+                    permission_mode="bypassPermissions",
                 )
 
                 # Use configured timeout or parameter timeout
@@ -1087,11 +1020,20 @@ Use pandas, numpy, or standard Python as needed.""",
                 # Run async query with code execution enabled (with timeout)
                 async def _run_dataset_query() -> str:
                     result_text = ""
+                    tool_results: list[str] = []
                     async for message in query(prompt=prompt, options=options):
-                        if isinstance(message, AssistantMessage):
+                        if isinstance(message, UserMessage):
+                            # Tool results come as UserMessage with ToolResultBlock
+                            for block in message.content:
+                                if isinstance(block, ToolResultBlock):
+                                    tool_results.append(str(block.content))
+                        elif isinstance(message, AssistantMessage):
                             for block in message.content:
                                 if isinstance(block, TextBlock):
                                     result_text += block.text
+                    # Prefer actual tool results over Claude's summary
+                    if tool_results:
+                        return "\n".join(tool_results)
                     return result_text
 
                 import asyncio

@@ -10,7 +10,16 @@ import shutil
 import time
 from typing import Any
 
-from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
+from claude_agent_sdk import (
+    AssistantMessage,
+    ClaudeAgentOptions,
+    ResultMessage,
+    TextBlock,
+    ToolResultBlock,
+    ToolUseBlock,
+    UserMessage,
+    query,
+)
 from gobby.config.app import DaemonConfig
 from gobby.llm.base import LLMProvider
 
@@ -269,11 +278,11 @@ class ClaudeLLMProvider(LLMProvider):  # type: ignore[misc]
         # Configure Claude Agent SDK
         code_exec_config = self.config.code_execution
         options = ClaudeAgentOptions(
-            system_prompt="You are a code execution assistant. Execute the provided code and return results.",
+            system_prompt="You are a code execution assistant. Execute the provided code using the code_execution tool and return the results. Always use the code_execution tool - never just describe what the code would do.",
             max_turns=code_exec_config.max_turns,
             model=code_exec_config.model,
             allowed_tools=["code_execution"],
-            permission_mode="default",
+            permission_mode="bypassPermissions",
             cli_path=cli_path,
         )
 
@@ -283,11 +292,44 @@ class ClaudeLLMProvider(LLMProvider):  # type: ignore[misc]
         # Run async query
         async def _run_query() -> str:
             result_text = ""
+            tool_results: list[str] = []
+            final_result: str | None = None
             async for message in query(prompt=prompt, options=options):
-                if isinstance(message, AssistantMessage):
+                self.logger.debug(f"Message type: {type(message).__name__}")
+                if isinstance(message, ResultMessage):
+                    # ResultMessage contains the final result from the agent
+                    if message.result:
+                        final_result = message.result
+                    self.logger.debug(f"ResultMessage: result={message.result}")
+                elif isinstance(message, UserMessage):
+                    # UserMessage may contain tool results
+                    for block in message.content:
+                        if isinstance(block, ToolResultBlock):
+                            # Capture actual tool execution output
+                            tool_results.append(str(block.content))
+                            self.logger.debug(
+                                f"ToolResultBlock (UserMessage): {block.content}"
+                            )
+                elif isinstance(message, AssistantMessage):
                     for block in message.content:
                         if isinstance(block, TextBlock):
                             result_text += block.text
+                        elif isinstance(block, ToolResultBlock):
+                            # Capture actual code execution output
+                            tool_results.append(str(block.content))
+                            self.logger.debug(
+                                f"ToolResultBlock (AssistantMessage): {block.content}"
+                            )
+                        elif isinstance(block, ToolUseBlock):
+                            self.logger.debug(
+                                f"ToolUseBlock: tool={block.name}, input={block.input}"
+                            )
+            # Priority: tool_results > final_result (summary) > text
+            # We want the actual execution output, not the summary
+            if tool_results:
+                return "\n".join(tool_results)
+            if final_result:
+                return final_result
             return result_text
 
         try:
