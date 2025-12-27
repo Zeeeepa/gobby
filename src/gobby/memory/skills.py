@@ -1,14 +1,12 @@
 import json
 import logging
 import re
-from typing import Any
 
 from gobby.config.app import SkillConfig
 from gobby.llm.service import LLMService
 from gobby.storage.messages import LocalMessageManager
 from gobby.storage.sessions import Session
 from gobby.storage.skills import LocalSkillManager, Skill
-from gobby.templates.prompts.skill_extraction import SKILL_EXTRACTION_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +57,7 @@ class SkillLearner:
             provider = self.llm_service.get_default_provider()
             model = self.config.learning_model
 
-            prompt = SKILL_EXTRACTION_PROMPT.format(transcript=transcript_text)
+            prompt = self.config.prompt.format(transcript=transcript_text)
 
             response = await provider.generate_text(
                 prompt=prompt,

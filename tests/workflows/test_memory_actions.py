@@ -2,11 +2,11 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from gobby.memory.manager import MemoryManager
+from gobby.memory.skills import SkillLearner
 from gobby.workflows.actions import ActionContext, ActionExecutor
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.templates import TemplateEngine
-from gobby.memory.manager import MemoryManager
-from gobby.memory.skills import SkillLearner
 
 
 @pytest.fixture
@@ -19,6 +19,7 @@ def mock_mem_services():
         "mcp_manager": AsyncMock(),
         "memory_manager": MagicMock(spec=MemoryManager),
         "skill_learner": AsyncMock(spec=SkillLearner),
+        "memory_sync_manager": AsyncMock(),
     }
     # Manually attach config mocks because spec might strict on attributes not in class __init__
     services["memory_manager"].config = MagicMock()
@@ -40,6 +41,7 @@ def mem_action_executor(temp_db, session_manager, mock_mem_services):
         mcp_manager=mock_mem_services["mcp_manager"],
         memory_manager=mock_mem_services["memory_manager"],
         skill_learner=mock_mem_services["skill_learner"],
+        memory_sync_manager=mock_mem_services["memory_sync_manager"],
     )
     # Ensure handlers are registered
     return executor
@@ -63,6 +65,7 @@ def mem_action_context(temp_db, session_manager, mem_workflow_state, mock_mem_se
         mcp_manager=mock_mem_services["mcp_manager"],
         memory_manager=mock_mem_services["memory_manager"],
         skill_learner=mock_mem_services["skill_learner"],
+        memory_sync_manager=mock_mem_services["memory_sync_manager"],
     )
 
 
@@ -165,3 +168,31 @@ async def test_skills_learn(
     assert result is not None
     assert result["skills_learned"] == 1
     mock_mem_services["skill_learner"].learn_from_session.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_memory_sync_import(mem_action_executor, mem_action_context, mock_mem_services):
+    mock_mem_services["memory_sync_manager"].import_from_files.return_value = {
+        "memories": 10,
+        "skills": 5,
+    }
+
+    result = await mem_action_executor.execute("memory.sync_import", mem_action_context)
+
+    assert result is not None
+    assert result["imported"] == {"memories": 10, "skills": 5}
+    mock_mem_services["memory_sync_manager"].import_from_files.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_memory_sync_export(mem_action_executor, mem_action_context, mock_mem_services):
+    mock_mem_services["memory_sync_manager"].export_to_files.return_value = {
+        "memories": 10,
+        "skills": 5,
+    }
+
+    result = await mem_action_executor.execute("memory.sync_export", mem_action_context)
+
+    assert result is not None
+    assert result["exported"] == {"memories": 10, "skills": 5}
+    mock_mem_services["memory_sync_manager"].export_to_files.assert_called_once()

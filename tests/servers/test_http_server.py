@@ -394,23 +394,41 @@ class TestMCPEndpoints:
         assert response.status_code == 503
 
 
+class FakeConnection:
+    def __init__(self):
+        self.is_connected = True
+        self._session = MagicMock()
+        self.config = MagicMock()
+        self.config.transport = "stdio"
+        self.config.project_id = "test-project"
+        self.config.description = "Test Server"
+
+
+class FakeMCPManager:
+    def __init__(self):
+        self.server_configs = []
+        self.connections = {}
+        self.health = {}
+        self.get_client = MagicMock()
+        self.call_tool = AsyncMock()
+        self.project_id = "test-project"
+        self.mcp_db_manager = None
+
+
 class TestMCPEndpointsWithManager:
     """Tests for MCP endpoints with mock manager."""
 
     @pytest.fixture
     def mock_mcp_manager(self):
         """Create a mock MCP manager."""
-        manager = MagicMock()
-        manager.server_configs = []
-        manager.connections = {}
-        manager.health = {}
-        return manager
+
+        return FakeMCPManager()
 
     @pytest.fixture
     def http_server_with_mcp(
         self,
         session_storage: LocalSessionManager,
-        mock_mcp_manager: MagicMock,
+        mock_mcp_manager: FakeMCPManager,
     ) -> HTTPServer:
         """Create HTTP server with mock MCP manager."""
         return HTTPServer(
@@ -422,9 +440,10 @@ class TestMCPEndpointsWithManager:
         )
 
     @pytest.fixture
-    def mcp_client(self, http_server_with_mcp: HTTPServer) -> TestClient:
+    def mcp_client(self, http_server_with_mcp: HTTPServer):
         """Create test client with MCP manager."""
-        return TestClient(http_server_with_mcp.app)
+        with TestClient(http_server_with_mcp.app) as client:
+            yield client
 
     def test_mcp_tools_server_not_found(
         self,
@@ -434,6 +453,7 @@ class TestMCPEndpointsWithManager:
         """Test MCP tools listing for unknown server."""
         http_server_with_mcp.mcp_manager.get_client.side_effect = ValueError("Server not found")
 
+        # No try/except needed if we fixed the root cause, but leaving assertion
         response = mcp_client.get("/mcp/unknown-server/tools")
         assert response.status_code == 404
 

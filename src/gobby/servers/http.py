@@ -85,6 +85,7 @@ class HTTPServer:
         memory_manager: "MemoryManager | None" = None,
         skill_learner: "SkillLearner | None" = None,
         llm_service: "LLMService | None" = None,
+        memory_sync_manager: Any | None = None,
     ) -> None:
         """
         Initialize HTTP server.
@@ -120,6 +121,7 @@ class HTTPServer:
         self.skill_learner = skill_learner
         self.websocket_server = websocket_server
         self.llm_service = llm_service
+        self.memory_sync_manager = memory_sync_manager
 
         # Initialize WebSocket broadcaster
         # Note: websocket_server might be None if disabled
@@ -236,6 +238,7 @@ class HTTPServer:
                 "broadcaster": self.broadcaster,
                 "mcp_manager": self.mcp_manager,
                 "message_processor": self.message_processor,
+                "memory_sync_manager": self.memory_sync_manager,
             }
             if self.config:
                 # Pass full log file path from config
@@ -243,7 +246,9 @@ class HTTPServer:
                 hook_manager_kwargs["log_max_bytes"] = self.config.logging.max_size_mb * 1024 * 1024
                 hook_manager_kwargs["log_backup_count"] = self.config.logging.backup_count
 
-            app.state.hook_manager = HookManager(**hook_manager_kwargs)
+                print("DEBUG: Entering lifespan...")
+                app.state.hook_manager = HookManager(**hook_manager_kwargs)
+                print("DEBUG: HookManager initialized.")
             logger.debug("HookManager initialized in daemon")
 
             # Initialize CodexAdapter for session tracking

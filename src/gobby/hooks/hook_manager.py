@@ -90,6 +90,7 @@ class HookManager:
         broadcaster: Any | None = None,
         mcp_manager: Any | None = None,
         message_processor: Any | None = None,
+        memory_sync_manager: Any | None = None,
     ):
         """
         Initialize HookManager with subsystems.
@@ -105,6 +106,7 @@ class HookManager:
             broadcaster: Optional HookEventBroadcaster instance
             mcp_manager: Optional MCPClientManager instance
             message_processor: SessionMessageProcessor instance
+            memory_sync_manager: Optional MemorySyncManager instance
         """
         self.daemon_host = daemon_host
         self.daemon_port = daemon_port
@@ -115,6 +117,7 @@ class HookManager:
         self.broadcaster = broadcaster
         self.mcp_manager = mcp_manager
         self._message_processor = message_processor
+        self.memory_sync_manager = memory_sync_manager
 
         # Capture event loop for thread-safe broadcasting (if running in async context)
         self._loop: asyncio.AbstractEventLoop | None
@@ -236,6 +239,7 @@ class HookManager:
             mcp_manager=self.mcp_manager,
             memory_manager=self._memory_manager,
             skill_learner=self._skill_learner,
+            memory_sync_manager=self.memory_sync_manager,
         )
         self._workflow_engine = WorkflowEngine(
             loader=self._workflow_loader,
@@ -784,7 +788,6 @@ class HookManager:
                 f"Failed to execute lifecycle workflows on session_end: {e}",
                 exc_info=True,
             )
-
 
         # FAILOVER: Generate independent session summary file
         # This acts as a flight recorder, independent of workflow success/failure

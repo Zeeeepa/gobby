@@ -31,6 +31,7 @@ from gobby.storage.skills import LocalSkillManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.memory.manager import MemoryManager
 from gobby.memory.skills import SkillLearner
+from gobby.sync.memories import MemorySyncManager
 from gobby.sync.tasks import TaskSyncManager
 from gobby.utils.logging import setup_file_logging, setup_mcp_logging
 from gobby.utils.machine_id import get_machine_id
@@ -94,6 +95,28 @@ class GobbyRunner:
         # Wire up change listener for automatic export
         self.task_manager.add_change_listener(self.task_sync_manager.trigger_export)
 
+        # Initialize Memory Sync Manager (Phase 7) & Wire up listeners
+        self.memory_sync_manager = None
+        if hasattr(self.config, "memory_sync") and self.config.memory_sync.enabled:
+            # Only if memory/skills are enabled
+            if self.memory_manager:
+                try:
+                    self.memory_sync_manager = MemorySyncManager(
+                        db=self.database,
+                        memory_manager=self.memory_manager,
+                        skill_manager=self.skill_storage,
+                        config=self.config.memory_sync,
+                    )
+                    # Wire up listeners to trigger export on changes
+                    # Access underlying storage for listener registration
+                    self.memory_manager.storage.add_change_listener(
+                        self.memory_sync_manager.trigger_export
+                    )
+                    self.skill_storage.add_change_listener(self.memory_sync_manager.trigger_export)
+                    logger.debug("MemorySyncManager initialized and listeners attached")
+                except Exception as e:
+                    logger.error(f"Failed to initialize MemorySyncManager: {e}")
+
         self.mcp_proxy = MCPClientManager(
             mcp_db_manager=self.mcp_db_manager,
         )
@@ -128,6 +151,7 @@ class GobbyRunner:
             memory_manager=self.memory_manager,
             skill_learner=self.skill_learner,
             llm_service=self.llm_service,
+            memory_sync_manager=self.memory_sync_manager,
         )
 
         # Share message processor with HTTP server (for HookManager injection)

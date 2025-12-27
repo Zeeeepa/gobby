@@ -26,6 +26,7 @@ class ActionContext:
     mcp_manager: Any | None = None
     memory_manager: Any | None = None
     skill_learner: Any | None = None
+    memory_sync_manager: Any | None = None
 
 
 class ActionHandler(Protocol):
@@ -48,6 +49,7 @@ class ActionExecutor:
         mcp_manager: Any | None = None,
         memory_manager: Any | None = None,
         skill_learner: Any | None = None,
+        memory_sync_manager: Any | None = None,
     ):
         self.db = db
         self.session_manager = session_manager
@@ -58,6 +60,7 @@ class ActionExecutor:
         self.mcp_manager = mcp_manager
         self.memory_manager = memory_manager
         self.skill_learner = skill_learner
+        self.memory_sync_manager = memory_sync_manager
         self._handlers: dict[str, ActionHandler] = {}
         self._register_defaults()
 
@@ -89,6 +92,8 @@ class ActionExecutor:
         self.register("call_mcp_tool", self._handle_call_mcp_tool)
         self.register("memory_inject", self._handle_memory_inject)
         self.register("skills_learn", self._handle_skills_learn)
+        self.register("memory.sync_import", self._handle_memory_sync_import)
+        self.register("memory.sync_export", self._handle_memory_sync_export)
 
     async def execute(
         self, action_type: str, context: ActionContext, **kwargs
@@ -541,6 +546,28 @@ class ActionExecutor:
         except Exception as e:
             logger.error(f"mark_todo_complete: Failed: {e}")
             return {"error": str(e)}
+
+    async def _handle_memory_sync_import(
+        self, context: ActionContext, **kwargs
+    ) -> dict[str, Any] | None:
+        """Import memories and skills from filesystem."""
+        if not context.memory_sync_manager:
+            return {"error": "Memory Sync Manager not available"}
+
+        result = await context.memory_sync_manager.import_from_files()
+        logger.info(f"Memory sync import result: {result}")
+        return {"imported": result}
+
+    async def _handle_memory_sync_export(
+        self, context: ActionContext, **kwargs
+    ) -> dict[str, Any] | None:
+        """Export memories and skills to filesystem."""
+        if not context.memory_sync_manager:
+            return {"error": "Memory Sync Manager not available"}
+
+        result = await context.memory_sync_manager.export_to_files()
+        logger.info(f"Memory sync export result: {result}")
+        return {"exported": result}
 
     async def _handle_persist_tasks(
         self, context: ActionContext, **kwargs

@@ -12,18 +12,16 @@ from pathlib import Path
 import click
 import httpx
 import psutil
-from gobby.utils.status import format_status_message
 
+from gobby.utils.status import format_status_message
 from .utils import (
     format_uptime,
     init_local_storage,
     is_port_available,
     kill_all_gobby_daemons,
     setup_logging,
-    wait_for_port_available,
-)
-from .utils import (
     stop_daemon as stop_daemon_util,
+    wait_for_port_available,
 )
 
 logger = logging.getLogger(__name__)

@@ -606,6 +606,31 @@ class MemoryConfig(BaseModel):
         return v
 
 
+class MemorySyncConfig(BaseModel):
+    """Memory synchronization configuration (Git sync)."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable memory synchronization to filesystem",
+    )
+    stealth: bool = Field(
+        default=False,
+        description="If True, store in ~/.gobby/ (local only). If False, store in .gobby/ (git committed).",
+    )
+    export_debounce: float = Field(
+        default=5.0,
+        description="Seconds to wait before exporting after a change",
+    )
+
+    @field_validator("export_debounce")
+    @classmethod
+    def validate_positive(cls, v: float) -> float:
+        """Validate value is non-negative."""
+        if v < 0:
+            raise ValueError("Value must be non-negative")
+        return v
+
+
 class SkillConfig(BaseModel):
     """Skill learning configuration."""
 
@@ -624,6 +649,25 @@ class SkillConfig(BaseModel):
     learning_model: str = Field(
         default="claude-haiku-4-5",
         description="LLM model to use for skill extraction",
+    )
+    prompt: str = Field(
+        default="""Analyze the following session transcript and extract any reusable skills.
+A "skill" is a repeatable process or pattern that can be used in future sessions.
+
+Transcript:
+{transcript}
+
+Return a list of skills in JSON format:
+[
+  {{
+    "name": "short-kebab-case-name",
+    "description": "Brief description of what the skill does",
+    "trigger_pattern": "regex|pattern|to|match",
+    "instructions": "Markdown instructions on how to perform the skill",
+    "tags": ["tag1", "tag2"]
+  }}
+]""",
+        description="System prompt for skill extraction",
     )
 
     @field_validator("max_suggestions")
@@ -722,6 +766,10 @@ class DaemonConfig(BaseModel):
         default_factory=MemoryConfig,
         description="Memory system configuration",
     )
+    memory_sync: MemorySyncConfig = Field(
+        default_factory=MemorySyncConfig,
+        description="Memory synchronization configuration",
+    )
     skills: SkillConfig = Field(
         default_factory=SkillConfig,
         description="Skill learning configuration",
@@ -754,6 +802,10 @@ class DaemonConfig(BaseModel):
     def get_memory_config(self) -> MemoryConfig:
         """Get memory configuration."""
         return self.memory
+
+    def get_memory_sync_config(self) -> MemorySyncConfig:
+        """Get memory sync configuration."""
+        return self.memory_sync
 
     def get_skills_config(self) -> SkillConfig:
         """Get skills configuration."""
