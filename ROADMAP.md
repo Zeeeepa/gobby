@@ -309,9 +309,9 @@ This document defines the implementation order across all Gobby planning documen
 | 5 | Workflow Hooks | WORKFLOWS Phase 3 | Sprint 4 | 🔶 Partial (session lifecycle) |
 | 6 | Workflow Actions | WORKFLOWS Phase 4 | Sprint 5 | 🔶 Partial (handoff actions) |
 | 7 | Context & Templates | WORKFLOWS Phases 5-6 | Sprint 6 | ✅ Completed |
-| 7.1 | Session Message Foundation | SESSION_TRACKING Phase 1 | None | Pending |
-| 7.2 | Async Message Processor | SESSION_TRACKING Phase 2 | Sprint 7.1 | Pending |
-| 7.3 | Session Tracking Integration | SESSION_TRACKING Phases 3-4 | Sprint 7.2 | Pending |
+| 7.1 | Session Message Foundation | SESSION_TRACKING Phase 1 | None | ✅ Completed |
+| 7.2 | Async Message Processor | SESSION_TRACKING Phase 2 | Sprint 7.1 | ✅ Completed |
+| 7.3 | Session Tracking Integration | SESSION_TRACKING Phases 3-4 | Sprint 7.2 | ✅ Completed (Perf deferred) |
 | 7.4 | Multi-CLI Parsers & API | SESSION_TRACKING Phases 5-6 | Sprint 7.3 | Pending |
 | 7.5 | Memory Storage & Operations | MEMORY Phases 1-2 | Sprint 7.4 | Pending |
 | 7.6 | Skill Learning | MEMORY Phases 3-4 | Sprint 7.5 | Pending |

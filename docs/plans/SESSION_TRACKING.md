@@ -9,10 +9,12 @@ Async processing of session JSONL files from Claude Code, Gemini, Codex, and Ant
 ## Processing Strategy
 
 **Hybrid approach:**
+
 1. Poll every 5-10 seconds during active sessions (incremental byte-offset reads)
 2. Final pass on SESSION_END to ensure completeness
 
 **Consumers:**
+
 - Memory system (Sprint 7.5+) - skill learning from trajectories
 - WebSocket broadcasting - real-time message streaming
 - Search/query API - conversation history search
@@ -248,34 +250,34 @@ class MessageTrackingConfig:
 
 ### Phase 1: Foundation
 
-- [ ] 1.1 Add migration 14 for `session_messages` and `session_message_state` tables
-- [ ] 1.2 Create `LocalMessageManager` in `src/storage/messages.py`
-- [ ] 1.3 Add `ParsedMessage` dataclass to `src/sessions/transcripts/base.py`
-- [ ] 1.4 Extend `ClaudeTranscriptParser` with `parse_line()` and `parse_lines()` methods
-- [ ] 1.5 Write unit tests for message storage and parsing
+- [x] 1.1 Add migration 14 for `session_messages` and `session_message_state` tables
+- [x] 1.2 Create `LocalMessageManager` in `src/storage/messages.py`
+- [x] 1.3 Add `ParsedMessage` dataclass to `src/sessions/transcripts/base.py`
+- [x] 1.4 Extend `ClaudeTranscriptParser` with `parse_line()` and `parse_lines()` methods
+- [x] 1.5 Write unit tests for message storage and parsing
 
 ### Phase 2: Async Processor
 
-- [ ] 2.1 Create `SessionMessageProcessor` in `src/sessions/processor.py`
-- [ ] 2.2 Create `SessionTracker` dataclass
-- [ ] 2.3 Implement byte offset tracking for incremental reads
-- [ ] 2.4 Add debounce logic (reference `TaskSyncManager` pattern)
-- [ ] 2.5 Write integration tests for polling loop
+- [x] 2.1 Create `SessionMessageProcessor` in `src/sessions/processor.py`
+- [x] 2.2 Create `SessionTracker` dataclass
+- [x] 2.3 Implement byte offset tracking for incremental reads
+- [x] 2.4 Add debounce logic (reference `TaskSyncManager` pattern)
+- [x] 2.5 Write integration tests for polling loop
 
 ### Phase 3: Integration
 
-- [ ] 3.1 Integrate `SessionMessageProcessor` into `GobbyRunner`
-- [ ] 3.2 Hook into `HookManager` session start/end events
-- [ ] 3.3 Add `MessageTrackingConfig` to `DaemonConfig`
-- [ ] 3.4 Handle graceful shutdown with final flush
-- [ ] 3.5 End-to-end testing with mock sessions
+- [x] 3.1 Integrate `SessionMessageProcessor` into `GobbyRunner`
+- [x] 3.2 Hook into `HookManager` session start/end events
+- [x] 3.3 Add `MessageTrackingConfig` to `DaemonConfig`
+- [x] 3.4 Handle graceful shutdown with final flush
+- [x] 3.5 End-to-end testing with mock sessions
 
 ### Phase 4: WebSocket Broadcasting
 
-- [ ] 4.1 Add `session_message` event type to WebSocket
-- [ ] 4.2 Implement subscription filtering for message events
-- [ ] 4.3 Add content truncation config
-- [ ] 4.4 Performance testing with high message volume
+- [x] 4.1 Add `session_message` event type to WebSocket
+- [x] 4.2 Implement subscription filtering for message events
+- [x] 4.3 Add content truncation config
+- [-] 4.4 Performance testing with high message volume (Deferred)
 
 ### Phase 5: Additional Parsers
 
