@@ -169,7 +169,7 @@ class GobbyRunner:
         self.http_server = HTTPServer(
             port=self.config.daemon_port,
             mcp_manager=self.mcp_proxy,
-            mcp_db_manager=self.database,
+            mcp_db_manager=self.mcp_db_manager,
             config=self.config,
             session_manager=self.session_manager,
             task_manager=self.task_manager,

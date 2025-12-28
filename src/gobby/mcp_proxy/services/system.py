@@ -24,10 +24,20 @@ class SystemService:
         """Get system status."""
         health = self._mcp_manager.get_server_health()
 
+        # Aggregate health: system is healthy if all servers are healthy
+        all_healthy = (
+            all(
+                server_health.get("state") in ["connected", "healthy"]
+                for server_health in health.values()
+            )
+            if health
+            else True
+        )
+
         return {
             "running": True,
             "pid": os.getpid(),
-            "healthy": True,  # Aggregate health logic here
+            "healthy": all_healthy,
             "http_port": self._port,
             "websocket_port": self._websocket_port,
             "mcp_servers": health,

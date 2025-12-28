@@ -80,8 +80,13 @@ class TestRequestIDFilter:
         set_request_id("test-filter-id")
 
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0,
-            msg="test message", args=(), exc_info=None
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test message",
+            args=(),
+            exc_info=None,
         )
 
         filter_obj = RequestIDFilter()
@@ -97,8 +102,13 @@ class TestRequestIDFilter:
         clear_request_id()
 
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0,
-            msg="test message", args=(), exc_info=None
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test message",
+            args=(),
+            exc_info=None,
         )
 
         filter_obj = RequestIDFilter()
@@ -149,23 +159,32 @@ class TestExtraFieldsFormatter:
         formatter = ExtraFieldsFormatter("%(short_name)s - %(message)s")
 
         record = logging.LogRecord(
-            name="gobby.http_server", level=logging.INFO, pathname="", lineno=0,
-            msg="test message", args=(), exc_info=None
+            name="gobby.http_server",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test message",
+            args=(),
+            exc_info=None,
         )
 
         result = formatter.format(record)
 
-        # Note: gobby. is 6 chars but code says 13 - need to check actual impl
-        # The test verifies the short_name is set
-        assert hasattr(record, 'short_name')
+        result = formatter.format(record)
+        assert record.short_name == "http_server"
 
     def test_format_no_prefix(self):
         """Test formatting without gobby prefix."""
         formatter = ExtraFieldsFormatter("%(short_name)s - %(message)s")
 
         record = logging.LogRecord(
-            name="other.module", level=logging.INFO, pathname="", lineno=0,
-            msg="test message", args=(), exc_info=None
+            name="other.module",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test message",
+            args=(),
+            exc_info=None,
         )
 
         formatter.format(record)
@@ -177,8 +196,13 @@ class TestExtraFieldsFormatter:
         formatter = ExtraFieldsFormatter("%(message)s")
 
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="", lineno=0,
-            msg="test message", args=(), exc_info=None
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="test message",
+            args=(),
+            exc_info=None,
         )
         record.custom_field = "custom_value"
         record.another_field = 123
@@ -193,8 +217,13 @@ class TestExtraFieldsFormatter:
         formatter = ExtraFieldsFormatter("%(message)s")
 
         record = logging.LogRecord(
-            name="test", level=logging.INFO, pathname="test.py", lineno=42,
-            msg="test message", args=(), exc_info=None
+            name="test",
+            level=logging.INFO,
+            pathname="test.py",
+            lineno=42,
+            msg="test message",
+            args=(),
+            exc_info=None,
         )
 
         result = formatter.format(record)
@@ -218,7 +247,7 @@ class TestSetupFileLogging:
         mock_config.logging.level = "INFO"
         mock_config.logging.format = "text"
 
-        with patch('gobby.config.app.load_config', return_value=mock_config):
+        with patch("gobby.config.app.load_config", return_value=mock_config):
             setup_file_logging(verbose=False)
 
         assert (tmp_path / "logs").exists()
@@ -233,7 +262,7 @@ class TestSetupFileLogging:
         mock_config.logging.level = "INFO"
         mock_config.logging.format = "text"
 
-        with patch('gobby.config.app.load_config', return_value=mock_config):
+        with patch("gobby.config.app.load_config", return_value=mock_config):
             setup_file_logging(verbose=True)
 
         pkg_logger = logging.getLogger("gobby")
@@ -249,12 +278,13 @@ class TestSetupFileLogging:
         mock_config.logging.level = "INFO"
         mock_config.logging.format = "json"
 
-        with patch('gobby.config.app.load_config', return_value=mock_config):
+        with patch("gobby.config.app.load_config", return_value=mock_config):
             setup_file_logging(verbose=False)
 
         # Verify logger was configured (handlers added)
         pkg_logger = logging.getLogger("gobby")
-        assert len(pkg_logger.handlers) >= 0  # May be cleared in cleanup
+        pkg_logger = logging.getLogger("gobby")
+        assert len(pkg_logger.handlers) > 0
 
 
 class TestSetupMCPLogging:
@@ -270,7 +300,7 @@ class TestSetupMCPLogging:
         mock_config.logging.level = "INFO"
         mock_config.logging.format = "text"
 
-        with patch('gobby.config.app.load_config', return_value=mock_config):
+        with patch("gobby.config.app.load_config", return_value=mock_config):
             server_logger, client_logger = setup_mcp_logging(verbose=False)
 
         assert server_logger.name == "gobby.mcp.server"
@@ -286,7 +316,7 @@ class TestSetupMCPLogging:
         mock_config.logging.level = "INFO"
         mock_config.logging.format = "text"
 
-        with patch('gobby.config.app.load_config', return_value=mock_config):
+        with patch("gobby.config.app.load_config", return_value=mock_config):
             server_logger, client_logger = setup_mcp_logging(verbose=True)
 
         assert server_logger.level == logging.DEBUG

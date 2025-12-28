@@ -320,9 +320,15 @@ class MemorySyncManager:
             # Extract description (strip trigger phrase prefix if present)
             description = frontmatter.get("description", "")
             if description.startswith("This skill should be used when"):
-                # Try to extract the base description after the trigger phrases
-                if ". " in description:
-                    description = description.split(". ", 1)[-1]
+                # Extract base description after the first sentence
+                # Look for the pattern: "trigger phrase. Base description"
+                match = description.find(". ")
+                if match != -1:
+                    # Find the end of trigger phrases (look for pattern ending)
+                    # More robust: find where the base description starts
+                    remaining = description[match + 2 :]
+                    if remaining:
+                        description = remaining
 
             existing = self._get_skill_by_name(name)
 
@@ -368,42 +374,50 @@ class MemorySyncManager:
             skills = self.skill_manager.list_skills()
 
             for skill in skills:
-                # Create directory per skill (Claude Code format)
-                safe_name = "".join(c for c in skill.name if c.isalnum() or c in "-_").lower()
-                if not safe_name:
-                    safe_name = skill.id
-                skill_dir = skills_dir / safe_name
-                skill_dir.mkdir(parents=True, exist_ok=True)
+                try:
+                    # Create directory per skill (Claude Code format)
+                    safe_name = "".join(c for c in skill.name if c.isalnum() or c in "-_").lower()
+                    if not safe_name:
+                        safe_name = skill.id
 
-                # Build Claude Code compatible description with trigger phrases
-                description = self._build_trigger_description(skill)
+                    # Append deterministic suffix to ensure uniqueness (first 8 chars of ID)
+                    safe_name = f"{safe_name}-{skill.id[:8]}"
 
-                # Claude Code frontmatter format (name + description only)
-                frontmatter = {
-                    "name": skill.name,
-                    "description": description,
-                }
+                    skill_dir = skills_dir / safe_name
+                    skill_dir.mkdir(parents=True, exist_ok=True)
 
-                content = "---\n"
-                content += yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True)
-                content += "---\n\n"
-                content += skill.instructions
+                    # Build Claude Code compatible description with trigger phrases
+                    description = self._build_trigger_description(skill)
 
-                # Write to SKILL.md (Claude Code convention)
-                skill_file = skill_dir / "SKILL.md"
-                with open(skill_file, "w") as f:
-                    f.write(content)
+                    # Claude Code frontmatter format (name + description only)
+                    frontmatter = {
+                        "name": skill.name,
+                        "description": description,
+                    }
 
-                # Also write metadata for Gobby's internal use
-                meta_file = skill_dir / ".gobby-meta.json"
-                meta = {
-                    "id": skill.id,
-                    "trigger_pattern": skill.trigger_pattern or "",
-                    "tags": skill.tags or [],
-                    "usage_count": skill.usage_count,
-                }
-                with open(meta_file, "w") as f:
-                    json.dump(meta, f, indent=2)
+                    content = "---\n"
+                    content += yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True)
+                    content += "---\n\n"
+                    content += skill.instructions
+
+                    # Write to SKILL.md (Claude Code convention)
+                    skill_file = skill_dir / "SKILL.md"
+                    with open(skill_file, "w") as f:
+                        f.write(content)
+
+                    # Also write metadata for Gobby's internal use
+                    meta_file = skill_dir / ".gobby-meta.json"
+                    meta = {
+                        "id": skill.id,
+                        "trigger_pattern": skill.trigger_pattern or "",
+                        "tags": skill.tags or [],
+                        "usage_count": skill.usage_count,
+                    }
+                    with open(meta_file, "w") as f:
+                        json.dump(meta, f, indent=2)
+                except Exception as e:
+                    logger.error(f"Failed to export skill '{skill.name}' ({skill.id}): {e}")
+                    continue
 
             return len(skills)
         except Exception as e:
@@ -436,6 +450,6 @@ class MemorySyncManager:
 
         if trigger_phrases:
             triggers = ", ".join(trigger_phrases[:5])  # Limit to 5 phrases
-            return f'This skill should be used when the user asks to {triggers}. {base_desc}'
+            return f"This skill should be used when the user asks to {triggers}. {base_desc}"
         else:
-            return f'This skill should be used when working with {skill.name}. {base_desc}'
+            return f"This skill should be used when working with {skill.name}. {base_desc}"

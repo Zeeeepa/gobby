@@ -35,7 +35,7 @@ def mock_llm_service(mock_llm_provider):
 
 @pytest.fixture
 def skill_config():
-    return SkillConfig(enabled=True, auto_suggest=True, max_suggestions=3)
+    return SkillConfig(enabled=True)
 
 
 @pytest.fixture
@@ -97,34 +97,6 @@ async def test_learn_from_session_success(
     assert skills[0] == created_skill
     mock_storage.create_skill.assert_called_once()
     assert mock_storage.create_skill.call_args.kwargs["project_id"] == "project_1"
-
-
-@pytest.mark.asyncio
-async def test_match_skills(skill_learner, mock_storage):
-    skill1 = Skill(
-        id="1", name="s1", instructions="i1", created_at="", updated_at="", trigger_pattern="test"
-    )
-    skill1.usage_count = 5
-    skill2 = Skill(
-        id="2", name="s2", instructions="i2", created_at="", updated_at="", trigger_pattern="build"
-    )
-    skill2.usage_count = 2
-
-    mock_storage.list_skills.return_value = [skill1, skill2]
-
-    # Match "test"
-    matches = await skill_learner.match_skills("how to test?")
-    assert len(matches) == 1
-    assert matches[0] == skill1
-
-    # Match "build"
-    matches = await skill_learner.match_skills("run build")
-    assert len(matches) == 1
-    assert matches[0] == skill2
-
-    # Match none
-    matches = await skill_learner.match_skills("foo")
-    assert len(matches) == 0
 
 
 @pytest.mark.asyncio

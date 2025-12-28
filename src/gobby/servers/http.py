@@ -170,7 +170,8 @@ class HTTPServer:
                 local_session_manager=session_manager,
                 memory_sync_manager=memory_sync_manager,
             )
-            logger.debug(f"Internal registries initialized: {len(self._internal_manager)} registries")
+            registry_count = len(self._internal_manager)
+            logger.debug(f"Internal registries initialized: {registry_count} registries")
 
             # Create tools handler
             tools_handler = GobbyDaemonTools(
@@ -1058,6 +1059,535 @@ class HTTPServer:
             except Exception as e:
                 self._metrics.inc_counter("http_requests_errors_total")
                 logger.error(f"MCP list tools error: {server_name}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e)) from e
+
+        @app.get("/mcp/servers")
+        async def list_mcp_servers() -> dict[str, Any]:
+            """
+            List all configured MCP servers.
+
+            Returns:
+                List of servers with connection status
+            """
+            start_time = time.perf_counter()
+            self._metrics.inc_counter("http_requests_total")
+
+            try:
+                server_list = []
+
+                # Add internal servers (gobby-tasks, gobby-memory, etc.)
+                if self._internal_manager:
+                    for name in self._internal_manager.list_registries():
+                        server_list.append({
+                            "name": name,
+                            "state": "connected",
+                            "connected": True,
+                            "transport": "internal",
+                        })
+
+                # Add external MCP servers
+                if self.mcp_manager:
+                    for config in self.mcp_manager.server_configs:
+                        health = self.mcp_manager.health.get(config.name)
+                        is_connected = config.name in self.mcp_manager.connections
+                        server_list.append({
+                            "name": config.name,
+                            "state": health.state.value if health else "unknown",
+                            "connected": is_connected,
+                            "transport": config.transport,
+                            "enabled": config.enabled,
+                        })
+
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+
+                return {
+                    "servers": server_list,
+                    "total_count": len(server_list),
+                    "connected_count": len([s for s in server_list if s.get("connected")]),
+                    "response_time_ms": response_time_ms,
+                }
+
+            except Exception as e:
+                self._metrics.inc_counter("http_requests_errors_total")
+                logger.error(f"List MCP servers error: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e)) from e
+
+        @app.get("/mcp/tools")
+        async def list_all_mcp_tools(server: str | None = None) -> dict[str, Any]:
+            """
+            List tools from MCP servers.
+
+            Args:
+                server: Optional server name to filter by
+
+            Returns:
+                Dict of server names to tool lists
+            """
+            start_time = time.perf_counter()
+            self._metrics.inc_counter("http_requests_total")
+
+            try:
+                tools_by_server: dict[str, list[dict[str, Any]]] = {}
+
+                # If specific server requested
+                if server:
+                    # Check internal first
+                    if self._internal_manager and self._internal_manager.is_internal(server):
+                        registry = self._internal_manager.get_registry(server)
+                        if registry:
+                            tools_by_server[server] = registry.list_tools()
+                    elif self.mcp_manager:
+                        try:
+                            connection = self.mcp_manager.get_client(server)
+                            if connection.is_connected and connection._session:
+                                tools_result = await connection._session.list_tools()
+                                tools_list = []
+                                for t in tools_result.tools:
+                                    desc = getattr(t, "description", "") or ""
+                                    tools_list.append({
+                                        "name": t.name,
+                                        "brief": desc[:100],
+                                    })
+                                tools_by_server[server] = tools_list
+                        except ValueError:
+                            pass
+                else:
+                    # Get tools from all servers
+                    # Internal servers
+                    if self._internal_manager:
+                        for name in self._internal_manager.list_registries():
+                            registry = self._internal_manager.get_registry(name)
+                            if registry:
+                                tools_by_server[name] = registry.list_tools()
+
+                    # External MCP servers
+                    if self.mcp_manager:
+                        for config in self.mcp_manager.server_configs:
+                            if config.name in self.mcp_manager.connections:
+                                try:
+                                    connection = self.mcp_manager.connections[config.name]
+                                    if connection.is_connected and connection._session:
+                                        tools_result = await connection._session.list_tools()
+                                        tools_by_server[config.name] = [
+                                            {
+                                                "name": t.name,
+                                                "brief": (t.description or "")[:100] if hasattr(t, "description") else "",
+                                            }
+                                            for t in tools_result.tools
+                                        ]
+                                except Exception as e:
+                                    logger.warning(f"Failed to list tools from {config.name}: {e}")
+                                    tools_by_server[config.name] = []
+
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+
+                return {
+                    "tools": tools_by_server,
+                    "response_time_ms": response_time_ms,
+                }
+
+            except Exception as e:
+                self._metrics.inc_counter("http_requests_errors_total")
+                logger.error(f"List MCP tools error: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e)) from e
+
+        @app.post("/mcp/tools/schema")
+        async def get_tool_schema(request: Request) -> dict[str, Any]:
+            """
+            Get full schema for a specific tool.
+
+            Request body:
+                {
+                    "server_name": "supabase",
+                    "tool_name": "list_tables"
+                }
+
+            Returns:
+                Tool schema with inputSchema
+            """
+            start_time = time.perf_counter()
+            self._metrics.inc_counter("http_requests_total")
+
+            try:
+                body = await request.json()
+                server_name = body.get("server_name")
+                tool_name = body.get("tool_name")
+
+                if not server_name or not tool_name:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Required fields: server_name, tool_name"
+                    )
+
+                # Check internal first
+                if self._internal_manager and self._internal_manager.is_internal(server_name):
+                    registry = self._internal_manager.get_registry(server_name)
+                    if registry:
+                        schema = registry.get_tool_schema(tool_name)
+                        if schema:
+                            response_time_ms = (time.perf_counter() - start_time) * 1000
+                            return {
+                                "name": tool_name,
+                                "server": server_name,
+                                "inputSchema": schema,
+                                "response_time_ms": response_time_ms,
+                            }
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"Tool '{tool_name}' not found on server '{server_name}'"
+                        )
+
+                if self.mcp_manager is None:
+                    raise HTTPException(status_code=503, detail="MCP manager not available")
+
+                # Get from external MCP server
+                try:
+                    schema = await self.mcp_manager.get_tool_input_schema(server_name, tool_name)
+                    response_time_ms = (time.perf_counter() - start_time) * 1000
+
+                    return {
+                        "name": tool_name,
+                        "server": server_name,
+                        "inputSchema": schema,
+                        "response_time_ms": response_time_ms,
+                    }
+
+                except Exception as e:
+                    raise HTTPException(status_code=404, detail=str(e)) from e
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                self._metrics.inc_counter("http_requests_errors_total")
+                logger.error(f"Get tool schema error: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e)) from e
+
+        @app.post("/mcp/tools/call")
+        async def call_mcp_tool(request: Request) -> dict[str, Any]:
+            """
+            Call an MCP tool.
+
+            Request body:
+                {
+                    "server_name": "supabase",
+                    "tool_name": "list_tables",
+                    "arguments": {}
+                }
+
+            Returns:
+                Tool execution result
+            """
+            start_time = time.perf_counter()
+            self._metrics.inc_counter("http_requests_total")
+            self._metrics.inc_counter("mcp_tool_calls_total")
+
+            try:
+                body = await request.json()
+                server_name = body.get("server_name")
+                tool_name = body.get("tool_name")
+                arguments = body.get("arguments", {})
+
+                if not server_name or not tool_name:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Required fields: server_name, tool_name"
+                    )
+
+                # Check internal first
+                if self._internal_manager and self._internal_manager.is_internal(server_name):
+                    registry = self._internal_manager.get_registry(server_name)
+                    if registry:
+                        try:
+                            result = await registry.call(tool_name, arguments or {})
+                            response_time_ms = (time.perf_counter() - start_time) * 1000
+                            self._metrics.inc_counter("mcp_tool_calls_succeeded_total")
+                            return {
+                                "success": True,
+                                "result": result,
+                                "response_time_ms": response_time_ms,
+                            }
+                        except Exception as e:
+                            self._metrics.inc_counter("mcp_tool_calls_failed_total")
+                            return {
+                                "success": False,
+                                "error": str(e),
+                            }
+
+                if self.mcp_manager is None:
+                    raise HTTPException(status_code=503, detail="MCP manager not available")
+
+                # Call external MCP tool
+                try:
+                    result = await self.mcp_manager.call_tool(server_name, tool_name, arguments)
+                    response_time_ms = (time.perf_counter() - start_time) * 1000
+                    self._metrics.inc_counter("mcp_tool_calls_succeeded_total")
+
+                    return {
+                        "success": True,
+                        "result": result,
+                        "response_time_ms": response_time_ms,
+                    }
+
+                except Exception as e:
+                    self._metrics.inc_counter("mcp_tool_calls_failed_total")
+                    return {
+                        "success": False,
+                        "error": str(e),
+                    }
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                self._metrics.inc_counter("mcp_tool_calls_failed_total")
+                logger.error(f"Call MCP tool error: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e)) from e
+
+        @app.post("/mcp/servers")
+        async def add_mcp_server(request: Request) -> dict[str, Any]:
+            """
+            Add a new MCP server configuration.
+
+            Request body:
+                {
+                    "name": "my-server",
+                    "transport": "http",
+                    "url": "https://...",
+                    "enabled": true
+                }
+
+            Returns:
+                Success status
+            """
+            self._metrics.inc_counter("http_requests_total")
+
+            try:
+                body = await request.json()
+                name = body.get("name")
+                transport = body.get("transport")
+
+                if not name or not transport:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Required fields: name, transport"
+                    )
+
+                # Import here to avoid circular imports
+                from gobby.mcp_proxy.models import MCPServerConfig
+
+                config = MCPServerConfig(
+                    name=name,
+                    transport=transport,
+                    url=body.get("url"),
+                    command=body.get("command"),
+                    args=body.get("args"),
+                    env=body.get("env"),
+                    headers=body.get("headers"),
+                    enabled=body.get("enabled", True),
+                )
+
+                if self.mcp_manager is None:
+                    raise HTTPException(status_code=503, detail="MCP manager not available")
+
+                await self.mcp_manager.add_server(config)
+
+                return {
+                    "success": True,
+                    "message": f"Added MCP server: {name}",
+                }
+
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e)) from e
+            except HTTPException:
+                raise
+            except Exception as e:
+                self._metrics.inc_counter("http_requests_errors_total")
+                logger.error(f"Add MCP server error: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e)) from e
+
+        @app.delete("/mcp/servers/{name}")
+        async def remove_mcp_server(name: str) -> dict[str, Any]:
+            """
+            Remove an MCP server configuration.
+
+            Args:
+                name: Server name to remove
+
+            Returns:
+                Success status
+            """
+            self._metrics.inc_counter("http_requests_total")
+
+            try:
+                if self.mcp_manager is None:
+                    raise HTTPException(status_code=503, detail="MCP manager not available")
+
+                await self.mcp_manager.remove_server(name)
+
+                return {
+                    "success": True,
+                    "message": f"Removed MCP server: {name}",
+                }
+
+            except ValueError as e:
+                raise HTTPException(status_code=404, detail=str(e)) from e
+            except Exception as e:
+                self._metrics.inc_counter("http_requests_errors_total")
+                logger.error(f"Remove MCP server error: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e)) from e
+
+        @app.post("/mcp/tools/recommend")
+        async def recommend_mcp_tools(request: Request) -> dict[str, Any]:
+            """
+            Get AI-powered tool recommendations for a task.
+
+            Request body:
+                {
+                    "task_description": "I need to query a database",
+                    "agent_id": "optional-agent-id"
+                }
+
+            Returns:
+                List of tool recommendations
+            """
+            start_time = time.perf_counter()
+            self._metrics.inc_counter("http_requests_total")
+
+            try:
+                body = await request.json()
+                task_description = body.get("task_description")
+                agent_id = body.get("agent_id")
+
+                if not task_description:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Required field: task_description"
+                    )
+
+                # Use LLM service for recommendations if available
+                recommendations = []
+                if self.llm_service and self.mcp_manager:
+                    try:
+                        # Collect available tools
+                        available_tools = []
+
+                        # Internal tools
+                        if self._internal_manager:
+                            for name in self._internal_manager.list_registries():
+                                registry = self._internal_manager.get_registry(name)
+                                if registry:
+                                    for tool in registry.list_tools():
+                                        available_tools.append({
+                                            "server": name,
+                                            "name": tool.get("name"),
+                                            "description": tool.get("description", ""),
+                                        })
+
+                        # External MCP tools
+                        for config in self.mcp_manager.server_configs:
+                            if config.name in self.mcp_manager.connections:
+                                try:
+                                    connection = self.mcp_manager.connections[config.name]
+                                    if connection.is_connected and connection._session:
+                                        tools_result = await connection._session.list_tools()
+                                        for t in tools_result.tools:
+                                            available_tools.append({
+                                                "server": config.name,
+                                                "name": t.name,
+                                                "description": getattr(t, "description", "") or "",
+                                            })
+                                except Exception:
+                                    pass
+
+                        # Simple keyword matching for now (LLM-based matching can be added)
+                        task_lower = task_description.lower()
+                        for tool in available_tools:
+                            tool_text = f"{tool['name']} {tool['description']}".lower()
+                            # Check for keyword overlap
+                            task_words = set(task_lower.split())
+                            tool_words = set(tool_text.split())
+                            if task_words & tool_words:
+                                recommendations.append({
+                                    "server": tool["server"],
+                                    "tool": tool["name"],
+                                    "reason": tool["description"][:100] if tool["description"] else "Keyword match",
+                                })
+
+                    except Exception as e:
+                        logger.warning(f"Tool recommendation failed: {e}")
+
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+
+                return {
+                    "recommendations": recommendations[:10],  # Limit to 10
+                    "response_time_ms": response_time_ms,
+                }
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                self._metrics.inc_counter("http_requests_errors_total")
+                logger.error(f"Recommend tools error: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e)) from e
+
+        @app.get("/mcp/status")
+        async def get_mcp_status() -> dict[str, Any]:
+            """
+            Get MCP proxy status and health.
+
+            Returns:
+                Status summary with server counts and health info
+            """
+            start_time = time.perf_counter()
+            self._metrics.inc_counter("http_requests_total")
+
+            try:
+                total_servers = 0
+                connected_servers = 0
+                cached_tools = 0
+                server_health: dict[str, dict[str, Any]] = {}
+
+                # Count internal servers
+                if self._internal_manager:
+                    for name in self._internal_manager.list_registries():
+                        total_servers += 1
+                        connected_servers += 1
+                        registry = self._internal_manager.get_registry(name)
+                        if registry:
+                            cached_tools += len(registry.list_tools())
+                        server_health[name] = {
+                            "state": "connected",
+                            "health": "healthy",
+                            "failures": 0,
+                        }
+
+                # Count external servers
+                if self.mcp_manager:
+                    for config in self.mcp_manager.server_configs:
+                        total_servers += 1
+                        health = self.mcp_manager.health.get(config.name)
+                        is_connected = config.name in self.mcp_manager.connections
+                        if is_connected:
+                            connected_servers += 1
+
+                        server_health[config.name] = {
+                            "state": health.state.value if health else "unknown",
+                            "health": health.health.value if health else "unknown",
+                            "failures": health.consecutive_failures if health else 0,
+                        }
+
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+
+                return {
+                    "total_servers": total_servers,
+                    "connected_servers": connected_servers,
+                    "cached_tools": cached_tools,
+                    "server_health": server_health,
+                    "response_time_ms": response_time_ms,
+                }
+
+            except Exception as e:
+                self._metrics.inc_counter("http_requests_errors_total")
+                logger.error(f"Get MCP status error: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e)) from e
 
         @app.post("/mcp/{server_name}/tools/{tool_name}")

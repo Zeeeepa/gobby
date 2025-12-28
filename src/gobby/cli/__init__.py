@@ -9,6 +9,7 @@ from .daemon import restart, start, status, stop
 from .init import init
 from .install import install, uninstall
 from .mcp import mcp_server
+from .mcp_proxy import mcp_proxy
 from .memory import memory
 from .skills import skills
 from .tasks import tasks
@@ -40,3 +41,4 @@ cli.add_command(uninstall)
 cli.add_command(tasks)
 cli.add_command(memory)
 cli.add_command(skills)
+cli.add_command(mcp_proxy)

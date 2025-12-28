@@ -22,5 +22,5 @@ class RecommendationService:
             "success": True,
             "task": task_description,
             "recommendation": "Stubbed recommendation",
-            "available_servers": list(self._mcp_manager._configs.keys()),
+            "available_servers": self._mcp_manager.get_available_servers(),
         }

@@ -4,7 +4,7 @@ import asyncio
 import logging
 import os
 import signal
-import subprocess
+import signal
 import sys
 from typing import Any
 
@@ -76,24 +76,31 @@ async def start_daemon_process(port: int, websocket_port: int) -> dict[str, Any]
     ]
 
     try:
-        # Using subprocess.run as seemingly expected by tests / handling logic
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        # Use asyncio.create_subprocess_exec to avoid blocking the event loop
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
 
-        if result.returncode == 0:
-            # Allow some time for startup if needed, though run waits for process exit if it doesn't daemonize.
-            # Assuming "gobby daemon start" prints "Daemon started" and exits (forking).
+        stdout, stderr = await proc.communicate()
+        stdout_str = stdout.decode().strip() if stdout else ""
+        stderr_str = stderr.decode().strip() if stderr else ""
+
+        if proc.returncode == 0:
+            # Allow some time for startup if needed
             await asyncio.sleep(0.5)
             pid = get_daemon_pid()
             return {
                 "success": True,
                 "pid": pid,
-                "output": result.stdout.strip() or "Daemon started",
+                "output": stdout_str or "Daemon started",
             }
         else:
             return {
                 "success": False,
                 "message": "Start failed",
-                "error": result.stderr or "Unknown error",
+                "error": stderr_str or "Unknown error",
             }
 
     except Exception as e:

@@ -132,6 +132,10 @@ class MCPClientManager:
         """List active server connections."""
         return [self._configs[name] for name in self._connections.keys()]
 
+    def get_available_servers(self) -> list[str]:
+        """Get list of available server names."""
+        return list(self._configs.keys())
+
     def get_client(self, server_name: str) -> BaseTransportConnection:
         """Get client connection by name."""
         if server_name not in self._configs:
@@ -517,6 +521,8 @@ class MCPClientManager:
         if name in self._configs:
             del self._configs[name]
         if name in self._connections:
-            # We should disconnect first ideally, but this is just config removal
-            # The caller should ensure disconnect happens
-            pass
+            # Log warning about orphaned connection
+            logger.warning(
+                f"Removing config for '{name}' but connection still exists. "
+                "Call remove_server() instead for proper cleanup."
+            )

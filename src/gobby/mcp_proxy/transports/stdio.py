@@ -29,7 +29,8 @@ class StdioTransportConnection(BaseTransportConnection):
 
         try:
             # Create stdio server parameters
-            assert self.config.command is not None, "Command is required for stdio transport"
+            if self.config.command is None:
+                raise RuntimeError("Command is required for stdio transport")
             params = StdioServerParameters(
                 command=self.config.command,
                 args=self.config.args or [],

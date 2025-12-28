@@ -75,4 +75,5 @@ def test_list_skills(skill_manager, db):
 
     # Filter by name
     skills = skill_manager.list_skills(name_like="skill")
-    assert len(skills) == 2  # skill-a, skill-b
+    assert len(skills) == 2
+    assert {s.name for s in skills} == {"skill-a", "skill-b"}

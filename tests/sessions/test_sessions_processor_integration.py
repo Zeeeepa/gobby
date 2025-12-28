@@ -64,6 +64,9 @@ def transcript_file(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.slow
 async def test_processor_lifecycle(processor, transcript_file, mock_db):
     # 1. Start processor
     await processor.start()
@@ -95,6 +98,9 @@ async def test_processor_lifecycle(processor, transcript_file, mock_db):
 
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.slow
 async def test_incremental_processing(processor, transcript_file, mock_db):
     await processor.start()
     processor.register_session("session-1", str(transcript_file))
@@ -136,6 +142,9 @@ async def test_incremental_processing(processor, transcript_file, mock_db):
 
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.slow
 async def test_recovery_after_restart(processor, transcript_file, mock_db):
     # Pre-seed file with 2 messages
     msgs = [
@@ -185,6 +194,9 @@ async def test_recovery_after_restart(processor, transcript_file, mock_db):
 
 
 @pytest.mark.asyncio
+@pytest.mark.asyncio
+@pytest.mark.integration
+@pytest.mark.slow
 async def test_concurrent_sessions(processor, tmp_path, mock_db):
     # Create two transcript files
     file1 = tmp_path / "t1.jsonl"

@@ -110,6 +110,7 @@ class TestSummarizeTools:
 
             assert len(result) == 1
             assert result[0]["name"] == "long_tool"
+            assert result[0]["description"] == "Shortened description"
             mock_summarize.assert_called_once_with(long_desc)
 
 

@@ -153,6 +153,14 @@ class CodeExecutionConfig(BaseModel):
         default=30,
         description="Default timeout in seconds for code execution",
     )
+    learning_threshold: float = Field(
+        default=0.7,
+        description="Threshold for skill learning (0-1)",
+    )
+    max_context_skills: int = Field(
+        default=5,
+        description="Maximum number of skills to include in context window",
+    )
     max_dataset_preview: int = Field(
         default=3,
         description="Maximum number of dataset items to show in preview",
@@ -172,6 +180,22 @@ class CodeExecutionConfig(BaseModel):
         """Validate timeout is positive."""
         if v <= 0:
             raise ValueError("default_timeout must be positive")
+        return v
+
+    @field_validator("learning_threshold")
+    @classmethod
+    def validate_threshold(cls, v: float) -> float:
+        """Validate threshold is between 0 and 1."""
+        if not 0 <= v <= 1:
+            raise ValueError("learning_threshold must be between 0 and 1")
+        return v
+
+    @field_validator("max_context_skills")
+    @classmethod
+    def validate_max_skills(cls, v: int) -> int:
+        """Validate max_context_skills is positive."""
+        if v <= 0:
+            raise ValueError("max_context_skills must be positive")
         return v
 
     @field_validator("max_dataset_preview")

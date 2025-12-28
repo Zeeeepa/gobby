@@ -1,6 +1,16 @@
 from gobby.storage.memories import Memory
 
 
+def _strip_leading_bullet(content: str) -> str:
+    """Strip leading bullet points (- or *) from content."""
+    content = content.strip()
+    if content.startswith("- "):
+        return content[2:]
+    elif content.startswith("* "):
+        return content[2:]
+    return content
+
+
 def build_memory_context(memories: list[Memory]) -> str:
     """
     Build a formatted markdown context string from memories.
@@ -33,12 +43,7 @@ def build_memory_context(memories: list[Memory]) -> str:
     if pref_memories:
         parts.append("## Preferences\n")
         for mem in pref_memories:
-            # Strip bullet points if present to avoid double bullets
-            content = mem.content.strip()
-            if content.startswith("- "):
-                content = content[2:]
-            elif content.startswith("* "):
-                content = content[2:]
+            content = _strip_leading_bullet(mem.content)
             parts.append(f"- {content}")
         parts.append("")
 
@@ -46,11 +51,7 @@ def build_memory_context(memories: list[Memory]) -> str:
     if pattern_memories:
         parts.append("## Patterns\n")
         for mem in pattern_memories:
-            content = mem.content.strip()
-            if content.startswith("- "):
-                content = content[2:]
-            elif content.startswith("* "):
-                content = content[2:]
+            content = _strip_leading_bullet(mem.content)
             parts.append(f"- {content}")
         parts.append("")
 
@@ -58,11 +59,7 @@ def build_memory_context(memories: list[Memory]) -> str:
     if fact_memories:
         parts.append("## Facts\n")
         for mem in fact_memories:
-            content = mem.content.strip()
-            if content.startswith("- "):
-                content = content[2:]
-            elif content.startswith("* "):
-                content = content[2:]
+            content = _strip_leading_bullet(mem.content)
             parts.append(f"- {content}")
         parts.append("")
 

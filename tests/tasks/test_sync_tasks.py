@@ -21,6 +21,8 @@ def task_manager(temp_db):
 
 
 class TestTaskSyncManager:
+    @pytest.mark.integration
+    @pytest.mark.slow
     def test_export_to_jsonl(self, sync_manager, task_manager, sample_project):
         # Create tasks
         t1 = task_manager.create_task(sample_project["id"], "Task 1")
@@ -76,6 +78,7 @@ class TestTaskSyncManager:
 
         sync_manager.stop()
 
+    @pytest.mark.integration
     def test_mutation_triggers_export(self, task_manager, tmp_path, sample_project):
         """Test that task mutations trigger export."""
         export_path = tmp_path / "tasks.jsonl"
@@ -104,6 +107,7 @@ class TestTaskSyncManager:
         task_manager.delete_task(task.id)
         assert sync_manager.trigger_export.call_count == 4
 
+    @pytest.mark.integration
     def test_import_from_jsonl(self, sync_manager, task_manager, sample_project):
         """Test importing tasks from JSONL."""
         # Create JSONL file content
@@ -160,6 +164,7 @@ class TestTaskSyncManager:
         assert len(deps) == 1
         assert deps[0]["depends_on"] == t1.id
 
+    @pytest.mark.integration
     def test_import_conflict_resolution(self, sync_manager, task_manager, sample_project):
         """Test LWW conflict resolution during import."""
         # 1. Local Task is NEWER (should keep local)

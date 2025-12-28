@@ -17,7 +17,8 @@ def dep_manager(temp_db):
     return TaskDependencyManager(temp_db)
 
 
-def test_orphan_dependencies(manager, dep_manager, sample_project):
+@pytest.mark.integration
+async def test_orphan_dependencies(manager, dep_manager, sample_project):
     """Test detection and cleanup of orphan dependencies."""
     proj_id = sample_project["id"]
     t1 = manager.create_task(proj_id, "Task 1")
@@ -50,7 +51,8 @@ def test_orphan_dependencies(manager, dep_manager, sample_project):
     assert len(dep_manager.get_blockers(t2.id)) == 1
 
 
-def test_invalid_projects(manager, sample_project):
+@pytest.mark.integration
+async def test_invalid_projects(manager, sample_project):
     """Test detection of tasks with invalid projects."""
     proj_id = sample_project["id"]
     manager.create_task(proj_id, "Valid Task")

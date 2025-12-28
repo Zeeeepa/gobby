@@ -138,8 +138,12 @@ class TestHookInput:
 
     def test_strips_whitespace(self):
         """Test that string whitespace is stripped."""
-        # HookInput itself has no string fields, but subclasses should inherit this
-        pass
+
+        class TestModel(HookInput):
+            field: str
+
+        input_data = TestModel(field="  value  ", external_id="key")
+        assert input_data.field == "value"
 
 
 class TestHookOutput:

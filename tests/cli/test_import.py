@@ -13,6 +13,7 @@ def sync_manager(temp_db, sample_project):
     return TaskSyncManager(tm, export_path=".gobby/tasks.jsonl")
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_import_from_github_issues(sync_manager, temp_db):
     # Setup project with matching URL
@@ -54,24 +55,45 @@ async def test_import_from_github_issues(sync_manager, temp_db):
 
 
 @pytest.mark.asyncio
-async def test_import_from_github_issues_mocked(sync_manager):
-    # We'll use a wrapper or patching sys.modules
-    with patch.dict("sys.modules", {"claude_agent_sdk": MagicMock()}):
-        # We need to mock the import specifically within the function scope or globally before function call
-        # But 'from claude_agent_sdk import ...' inside function will trigger import.
+async def test_import_project_id_resolution(sync_manager, temp_db):
+    """
+    Test that import_from_github_issues correctly resolves the project_id
+    from the database based on the repo URL, without needing claude_agent_sdk.
+    """
+    # Setup: Insert a project with a known GitHub URL
+    repo_url = "https://github.com/test/resolution"
+    expected_project_id = "proj-resolution-test"
+    temp_db.execute(
+        "INSERT INTO projects (id, repo_path, name, github_url) VALUES (?, ?, ?, ?)",
+        (expected_project_id, "/tmp/resolution", "Resolution Project", repo_url),
+    )
 
-        # Let's try to patch the method to return a predefined result if we can't easily mock the internal import
-        # But we want to test the logic.
+    # Mock subprocess.run to return a dummy issue
+    with patch("subprocess.run") as mock_run:
+        mock_run.side_effect = [
+            MagicMock(returncode=0),  # gh version check
+            MagicMock(
+                returncode=0,
+                stdout=json.dumps(
+                    [
+                        {
+                            "number": 101,
+                            "title": "Resolved Issue",
+                            "body": "Body",
+                            "createdAt": "2023-01-01T00:00:00Z",
+                        }
+                    ]
+                ),
+            ),  # gh issue list
+        ]
 
-        # Alternative: We can mock the `query` function if we patch it where it is used.
-        # But it is imported inside the method.
+        # Act: Import without specifying project_id
+        result = await sync_manager.import_from_github_issues(repo_url)
 
-        # Let's skip the intricacies of mocking internal imports for now and focus on Integration/End-to-End structure logic
-        # avoiding the LLM call.
+    # Assert
+    assert result["success"] is True
+    assert result["count"] == 1
 
-        # Actually, simpler test: Test project ID resolution logic which doesn't use SDK.
-        pass
-
-
-def test_placeholder():
-    assert True
+    # Verify the task was created with the correct project_id
+    row = temp_db.fetchone("SELECT project_id FROM tasks WHERE id = ?", ("gh-101",))
+    assert row["project_id"] == expected_project_id

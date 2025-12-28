@@ -57,6 +57,7 @@ class TestWebSocketSettings:
         assert settings.enabled is False
         assert settings.port == 9000
         assert settings.ping_interval == 60
+        assert settings.ping_timeout == 20
 
     def test_port_validation_too_low(self):
         """Test port validation rejects ports below 1024."""
@@ -595,11 +596,4 @@ class TestSkillConfig:
         """Test default skill config."""
         config = SkillConfig()
         assert config.enabled is True
-        assert config.auto_suggest is True
-        assert config.max_suggestions == 3
         assert config.learning_model == "claude-haiku-4-5"
-
-    def test_max_suggestions_validation(self):
-        """Test max_suggestions validation."""
-        with pytest.raises(ValidationError):
-            SkillConfig(max_suggestions=-1)

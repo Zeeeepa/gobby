@@ -29,7 +29,8 @@ class WebSocketTransportConnection(BaseTransportConnection):
 
         try:
             # URL is required for WebSocket transport
-            assert self.config.url is not None, "URL is required for WebSocket transport"
+            if self.config.url is None:
+                raise RuntimeError("URL is required for WebSocket transport")
 
             # Create WebSocket client context
             self._transport_context = websocket_client(self.config.url)

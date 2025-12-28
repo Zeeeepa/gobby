@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 
 import click
 
@@ -36,6 +37,69 @@ def get_skill_learner(ctx: click.Context) -> SkillLearner | None:
 def skills() -> None:
     """Manage Gobby skills."""
     pass
+
+
+def _read_safe_file(filepath: str, base_dir: Path | None = None) -> str:
+    """
+    Safely read a file, ensuring it's within the allowed base directory.
+    Prevents path traversal attacks relative to the base directory.
+
+    Args:
+        filepath: The path to the file to read.
+        base_dir: The base directory to restrict access to. Defaults to CWD.
+
+    Returns:
+        The content of the file.
+
+    Raises:
+        ValueError: If a path traversal attempt is detected.
+        FileNotFoundError: If the file does not exist.
+        IOError: For other IO errors.
+    """
+    # Use CWD if no base_dir provided
+    if base_dir is None:
+        base_dir = Path.cwd()
+
+    # Resolve base directory to absolute path
+    base_dir = base_dir.resolve()
+
+    # Create path object from input
+    candidate_path = Path(filepath)
+
+    # Handle absolute paths:
+    # If it's absolute, we check if it's within base_dir.
+    # If it's relative, we join with base_dir and resolve.
+    if not candidate_path.is_absolute():
+        candidate_path = base_dir / candidate_path
+
+    # Resolve the candidate path to eliminate .. components
+    try:
+        resolved_path = candidate_path.resolve()
+    except FileNotFoundError:
+        # If file doesn't exist, resolve() might fail or raise depending on python version/path strictness
+        # In newer python resolve(strict=True) is default.
+        # But we want to preserve FileNotFoundError from the operational open() if possible,
+        # or raise it here if we can't resolve.
+        # Let's try to resolve blindly or just check existence first.
+        if not candidate_path.exists():
+            raise FileNotFoundError(f"File not found: {filepath}")
+        raise
+
+    # Check traversal
+    if not resolved_path.is_relative_to(base_dir):
+        raise ValueError(
+            f"Path traversal detected: {filepath} is outside base directory {base_dir}"
+        )
+
+    # Check existence to ensure correct error type
+    if not resolved_path.exists():
+        raise FileNotFoundError(f"File not found: {filepath}")
+
+    # Check if it is a file
+    if not resolved_path.is_file():
+        raise ValueError(f"Not a file: {filepath}")
+
+    return resolved_path.read_text()
 
 
 @skills.command("list")
@@ -177,10 +241,9 @@ def add(
     if instructions.startswith("@"):
         filepath = instructions[1:]
         try:
-            with open(filepath) as f:
-                instructions = f.read()
-        except FileNotFoundError:
-            click.echo(f"File not found: {filepath}", err=True)
+            instructions = _read_safe_file(filepath)
+        except (ValueError, FileNotFoundError) as e:
+            click.echo(f"Error reading file: {e}", err=True)
             return
 
     tag_list = [t.strip() for t in tags.split(",")] if tags else None
@@ -224,10 +287,9 @@ def update(
     if instructions and instructions.startswith("@"):
         filepath = instructions[1:]
         try:
-            with open(filepath) as f:
-                instructions = f.read()
-        except FileNotFoundError:
-            click.echo(f"File not found: {filepath}", err=True)
+            instructions = _read_safe_file(filepath)
+        except (ValueError, FileNotFoundError) as e:
+            click.echo(f"Error reading file: {e}", err=True)
             return
 
     tag_list = [t.strip() for t in tags.split(",")] if tags else None
@@ -279,8 +341,14 @@ def apply(ctx: click.Context, skill_id: str) -> None:
 
 @skills.command()
 @click.option("--output", "-o", type=click.Path(), help="Output directory (default: .gobby)")
-@click.option("--format", "-f", "fmt", type=click.Choice(["claude", "legacy"]), default="claude",
-              help="Export format: 'claude' (plugin format) or 'legacy' (flat files)")
+@click.option(
+    "--format",
+    "-f",
+    "fmt",
+    type=click.Choice(["claude", "legacy"]),
+    default="claude",
+    help="Export format: 'claude' (plugin format) or 'legacy' (flat files)",
+)
 @click.pass_context
 def export(ctx: click.Context, output: str | None, fmt: str) -> None:
     """Export skills to Claude Code plugin format.
@@ -413,6 +481,6 @@ def _build_trigger_description(skill: Skill) -> str:
 
     if trigger_phrases:
         triggers = ", ".join(trigger_phrases[:5])
-        return f'This skill should be used when the user asks to {triggers}. {base_desc}'
+        return f"This skill should be used when the user asks to {triggers}. {base_desc}"
     else:
-        return f'This skill should be used when working with {skill.name}. {base_desc}'
+        return f"This skill should be used when working with {skill.name}. {base_desc}"
