@@ -110,7 +110,11 @@ def delete(ctx: click.Context, skill_id: str) -> None:
 def get(ctx: click.Context, skill_id: str) -> None:
     """Get skill details."""
     storage = get_skill_storage(ctx)
-    skill = storage.get_skill(skill_id)
+    try:
+        skill = storage.get_skill(skill_id)
+    except ValueError:
+        click.echo(f"Skill not found: {skill_id}")
+        return
     if not skill:
         click.echo(f"Skill not found: {skill_id}")
         return

@@ -61,7 +61,7 @@ class SkillLearner:
 
             response = await provider.generate_text(
                 prompt=prompt,
-                system_prompt="You are an expert at extracting reusable developer skills from transcripts.",
+                system_prompt="You are an expert at extracting reusable developer skills from transcripts. You MUST respond with ONLY valid JSON - no markdown, no explanations, no code blocks. Output a JSON array directly.",
                 model=model,
             )
 
