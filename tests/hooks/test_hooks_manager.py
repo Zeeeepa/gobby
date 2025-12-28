@@ -54,7 +54,21 @@ def hook_manager_with_mocks(temp_dir: Path, mock_daemon_client: MagicMock):
 
         yield manager
 
-        # Cleanup
+        # Cleanup: Remove test sessions from HookManager's database (uses production DB)
+        # The HookManager creates its own LocalDatabase() connection to ~/.gobby/gobby.db
+        test_external_ids = [
+            "test-external-id-123",
+            "test-resume-session-123",
+            "test",
+        ]
+        try:
+            manager._database.execute(
+                f"DELETE FROM sessions WHERE external_id IN ({','.join('?' * len(test_external_ids))})",
+                test_external_ids,
+            )
+        except Exception:
+            pass  # Best effort cleanup
+
         manager.shutdown()
         db.close()
 
