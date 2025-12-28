@@ -9,7 +9,6 @@ import uvicorn
 
 from gobby.config.app import load_config
 from gobby.hooks.broadcaster import HookEventBroadcaster
-from gobby.hooks.hook_manager import HookManager
 from gobby.llm import LLMService, create_llm_service
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.memory.manager import MemoryManager
@@ -127,25 +126,13 @@ class GobbyRunner:
                     logger.error(f"Failed to initialize MemorySyncManager: {e}")
 
         # Session Message Processor (Phase 6)
-        # Needs to be created before HookManager to register sessions
+        # Created here and passed to HTTPServer which injects it into HookManager
         self.message_processor: SessionMessageProcessor | None = None
         if getattr(self.config, "message_tracking", None) and self.config.message_tracking.enabled:
             self.message_processor = SessionMessageProcessor(
                 db=self.database,
                 poll_interval=self.config.message_tracking.poll_interval,
             )
-
-        # Hook Manager
-        self.hook_manager = HookManager(
-            daemon_host="localhost",
-            daemon_port=self.config.daemon_port,
-            llm_service=self.llm_service,
-            config=self.config,
-            broadcaster=self.broadcaster,
-            mcp_manager=self.mcp_proxy,
-            message_processor=self.message_processor,
-            memory_sync_manager=self.memory_sync_manager,
-        )
 
         # Initialize Task Managers (Phase 7.1)
         self.task_expander: TaskExpander | None = None
@@ -195,8 +182,7 @@ class GobbyRunner:
             memory_sync_manager=self.memory_sync_manager,
         )
 
-        # Share message processor with HTTP server (for HookManager injection if needed)
-        # HTTP Server already receives message_processor in init, but ensuring property is set:
+        # Ensure message_processor property is set (redundant but explicit):
         self.http_server.message_processor = self.message_processor
 
         # WebSocket Server (Optional)
