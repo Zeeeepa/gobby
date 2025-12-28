@@ -1,6 +1,7 @@
 """Tests for src/utils/logging.py - Logging Utilities."""
 
 import logging
+from typing import Any, cast
 from unittest.mock import MagicMock, patch
 
 from gobby.utils.logging import (
@@ -90,7 +91,8 @@ class TestRequestIDFilter:
         result = filter_obj.filter(record)
 
         assert result is True
-        assert record.request_id == "test-filter-id"
+        assert result is True
+        assert cast(Any, record).request_id == "test-filter-id"
 
         clear_request_id()
 
@@ -111,7 +113,7 @@ class TestRequestIDFilter:
         filter_obj = RequestIDFilter()
         filter_obj.filter(record)
 
-        assert record.request_id == "-"
+        assert cast(Any, record).request_id == "-"
 
 
 class TestContextLogger:
@@ -145,6 +147,7 @@ class TestContextLogger:
         logger = get_context_logger("test.module", {"extra_key": "extra_value"})
 
         assert isinstance(logger, ContextLogger)
+        assert logger.extra is not None
         assert logger.extra["extra_key"] == "extra_value"
 
 
@@ -168,7 +171,8 @@ class TestExtraFieldsFormatter:
         formatter.format(record)
 
         formatter.format(record)
-        assert record.short_name == "http_server"
+        formatter.format(record)
+        assert cast(Any, record).short_name == "http_server"
 
     def test_format_no_prefix(self):
         """Test formatting without gobby prefix."""
@@ -186,7 +190,7 @@ class TestExtraFieldsFormatter:
 
         formatter.format(record)
 
-        assert record.short_name == "other.module"
+        assert cast(Any, record).short_name == "other.module"
 
     def test_format_includes_extra_fields(self):
         """Test that extra fields are included in output."""

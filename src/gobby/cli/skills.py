@@ -134,7 +134,7 @@ def learn(ctx: click.Context, session_id: str) -> None:
         click.echo("Skill learning not verified/configured.", err=True)
         return
 
-    async def _run() -> list[Skill]:
+    async def _run(learner: SkillLearner) -> list[Skill]:
         db = LocalDatabase()
         session_manager = LocalSessionManager(db)
         session = session_manager.get(session_id)
@@ -147,7 +147,7 @@ def learn(ctx: click.Context, session_id: str) -> None:
 
         return await learner.learn_from_session(session)
 
-    skills = asyncio.run(_run())
+    skills = asyncio.run(_run(learner))
     if skills:
         click.echo(f"Learned {len(skills)} new skills:")
         for s in skills:

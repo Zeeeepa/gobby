@@ -480,8 +480,6 @@ class MCPClientManager:
             t_name = getattr(tool, "name", tool.get("name") if isinstance(tool, dict) else None)
             if t_name == tool_name:
                 # Return schema
-                if hasattr(tool, "inputSchema"):
-                    return cast(dict[str, Any], tool.inputSchema)
                 if isinstance(tool, dict) and "inputSchema" in tool:
                     return cast(dict[str, Any], tool["inputSchema"])
 
