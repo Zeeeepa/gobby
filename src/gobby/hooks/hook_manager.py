@@ -747,6 +747,14 @@ class HookManager:
             project_path=cwd,
         )
 
+        # Step 2b: Mark parent session as expired after successful handoff
+        if parent_session_id:
+            try:
+                self._session_manager.mark_session_expired(parent_session_id)
+                self.logger.debug(f"Marked parent session {parent_session_id} as expired")
+            except Exception as e:
+                self.logger.warning(f"Failed to mark parent session as expired: {e}")
+
         # Step 3: Track registered session
         if transcript_path:
             try:
