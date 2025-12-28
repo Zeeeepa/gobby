@@ -318,6 +318,9 @@ class HookManager:
         # Start background health check monitoring
         self._start_health_check_monitoring()
 
+        # Re-register active sessions with message processor (after daemon restart)
+        self._reregister_active_sessions()
+
         self.logger.debug("HookManager initialized")
 
     def _setup_logging(self) -> logging.Logger:
@@ -356,6 +359,44 @@ class HookManager:
         logger.addHandler(file_handler)
 
         return logger
+
+    def _reregister_active_sessions(self) -> None:
+        """
+        Re-register active sessions with the message processor.
+
+        Called during HookManager initialization to restore message processing
+        for sessions that were active before a daemon restart.
+        """
+        if not self._message_processor:
+            return
+
+        try:
+            # Query active sessions from storage
+            active_sessions = self._session_storage.list(status="active", limit=100)
+            registered_count = 0
+
+            for session in active_sessions:
+                jsonl_path = getattr(session, "jsonl_path", None)
+                if jsonl_path:
+                    try:
+                        # Determine source from session (default to claude)
+                        source = getattr(session, "source", "claude") or "claude"
+                        self._message_processor.register_session(
+                            session.id, jsonl_path, source=source
+                        )
+                        registered_count += 1
+                    except Exception as e:
+                        self.logger.warning(
+                            f"Failed to re-register session {session.id}: {e}"
+                        )
+
+            if registered_count > 0:
+                self.logger.info(
+                    f"Re-registered {registered_count} active sessions with message processor"
+                )
+
+        except Exception as e:
+            self.logger.warning(f"Failed to re-register active sessions: {e}")
 
     def _start_health_check_monitoring(self) -> None:
         """Start background daemon health check monitoring."""
