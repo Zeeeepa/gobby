@@ -18,7 +18,7 @@ async def check_daemon_http_health(port: int, timeout: float = 2.0) -> bool:
     """Check if daemon is healthy via HTTP."""
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.get(f"http://localhost:{port}/health", timeout=timeout)
+            resp = await client.get(f"http://localhost:{port}/admin/status", timeout=timeout)
             return resp.status_code == 200
     except Exception:
         return False
@@ -33,11 +33,13 @@ def get_daemon_pid() -> int | None:
                 continue
 
             cmdline = proc.info["cmdline"]
-            if (
-                cmdline
-                and "gobby.cli.app" in cmdline
-                and "daemon" in cmdline
-                and "start" in cmdline
+            if not cmdline:
+                continue
+
+            cmdline_str = " ".join(cmdline)
+            # Match either gobby.runner or gobby.cli daemon start
+            if "gobby.runner" in cmdline_str or (
+                "gobby.cli" in cmdline_str and "daemon" in cmdline_str
             ):
                 return proc.info["pid"]
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):

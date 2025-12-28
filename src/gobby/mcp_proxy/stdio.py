@@ -512,3 +512,7 @@ async def main() -> None:
     # Create and run the MCP server
     mcp = create_stdio_mcp_server()
     await mcp.run_stdio_async()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
