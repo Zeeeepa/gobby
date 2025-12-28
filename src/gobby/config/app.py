@@ -549,10 +549,15 @@ class SessionLifecycleConfig(BaseModel):
     """Configuration for session lifecycle management.
 
     Handles:
+    - Pausing active sessions with no recent activity
     - Expiring stale sessions (active/paused for too long)
     - Background transcript processing for expired sessions
     """
 
+    active_session_pause_minutes: int = Field(
+        default=30,
+        description="Minutes of inactivity before active sessions are marked paused",
+    )
     stale_session_timeout_hours: int = Field(
         default=24,
         description="Hours after which inactive sessions are marked expired",
@@ -571,6 +576,7 @@ class SessionLifecycleConfig(BaseModel):
     )
 
     @field_validator(
+        "active_session_pause_minutes",
         "stale_session_timeout_hours",
         "expire_check_interval_minutes",
         "transcript_processing_interval_minutes",

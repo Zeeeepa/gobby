@@ -302,6 +302,7 @@ message_tracking:
   max_message_length: 10000
   broadcast_enabled: true
 session_lifecycle:
+  active_session_pause_minutes: 30
   stale_session_timeout_hours: 24
   expire_check_interval_minutes: 60
   transcript_processing_interval_minutes: 5

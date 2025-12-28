@@ -110,11 +110,19 @@ class SessionLifecycleManager:
                 break
 
     async def _expire_stale_sessions(self) -> int:
-        """Expire sessions that have been inactive too long."""
-        count = self.session_manager.expire_stale_sessions(
+        """Pause inactive active sessions and expire stale sessions."""
+        # First, pause active sessions that have been idle too long
+        # This catches orphaned sessions that never got AFTER_AGENT hook
+        paused = self.session_manager.pause_inactive_active_sessions(
+            timeout_minutes=self.config.active_session_pause_minutes
+        )
+
+        # Then expire sessions that have been paused/active for too long
+        expired = self.session_manager.expire_stale_sessions(
             timeout_hours=self.config.stale_session_timeout_hours
         )
-        return count
+
+        return paused + expired
 
     async def _process_pending_transcripts(self) -> int:
         """Process transcripts for expired sessions."""
