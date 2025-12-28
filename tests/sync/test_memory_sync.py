@@ -89,13 +89,14 @@ async def test_get_sync_dir_project(sync_manager):
     sync_manager.config.stealth = False
     with patch("pathlib.Path.cwd", return_value=Path("/tmp/project")):
         path = sync_manager._get_sync_dir()
-        assert path == Path("/tmp/project/.gobby")
+        assert path == Path("/tmp/project") / ".gobby" / "sync"
 
 
 @pytest.mark.asyncio
 async def test_export_to_files(sync_manager, tmp_path):
-    # Override _get_sync_dir to use tmp_path
+    # Override _get_sync_dir and _get_skills_dir to use tmp_path
     sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
+    sync_manager._get_skills_dir = MagicMock(return_value=tmp_path / "skills")
 
     await sync_manager.export_to_files()
 
@@ -107,32 +108,21 @@ async def test_export_to_files(sync_manager, tmp_path):
     data = json.loads(lines[0])
     assert data["content"] == "test memory"
 
-    # Check skills (Claude Code plugin format: skills/<name>/SKILL.md)
-    skill_file = tmp_path / "skills" / "test_skill" / "SKILL.md"
+    # Check skills (Flat file format: skills/<name>.md)
+    skill_file = tmp_path / "skills" / "test_skill.md"
     assert skill_file.exists()
     content = skill_file.read_text()
     assert "name: test_skill" in content
-    assert "This skill should be used when" in content  # Trigger description
+    assert "description: test skill" in content
+    assert "trigger_pattern: test" in content
     assert "do test" in content
-
-    # Check plugin manifest
-    manifest_file = tmp_path / ".claude-plugin" / "plugin.json"
-    assert manifest_file.exists()
-    manifest = json.loads(manifest_file.read_text())
-    assert manifest["name"] == "gobby-skills"
-
-    # Check Gobby metadata
-    meta_file = tmp_path / "skills" / "test_skill" / ".gobby-meta.json"
-    assert meta_file.exists()
-    meta = json.loads(meta_file.read_text())
-    assert meta["id"] == "s1"
-    assert meta["trigger_pattern"] == "test"
 
 
 @pytest.mark.asyncio
 async def test_import_from_files_legacy(sync_manager, tmp_path):
     """Test importing from legacy flat file format."""
     sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
+    sync_manager._get_skills_dir = MagicMock(return_value=tmp_path / "skills")
 
     # Create dummy files
     mem_file = tmp_path / "memories.jsonl"
@@ -172,6 +162,7 @@ imported instructions
 async def test_import_from_files_claude_format(sync_manager, tmp_path):
     """Test importing from Claude Code plugin format."""
     sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
+    sync_manager._get_skills_dir = MagicMock(return_value=tmp_path / "skills")
 
     # Create Claude Code format skill
     skill_dir = tmp_path / "skills" / "my-skill"
@@ -188,12 +179,16 @@ Step-by-step instructions here
 
     # Gobby metadata
     meta_file = skill_dir / ".gobby-meta.json"
-    meta_file.write_text(json.dumps({
-        "id": "sk-abc123",
-        "trigger_pattern": "do something|help",
-        "tags": ["helper", "test"],
-        "usage_count": 5
-    }))
+    meta_file.write_text(
+        json.dumps(
+            {
+                "id": "sk-abc123",
+                "trigger_pattern": "do something|help",
+                "tags": ["helper", "test"],
+                "usage_count": 5,
+            }
+        )
+    )
 
     await sync_manager.import_from_files()
 

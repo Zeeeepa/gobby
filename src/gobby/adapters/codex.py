@@ -36,7 +36,6 @@ import json
 import logging
 import os
 import platform
-import shutil
 import subprocess
 import threading
 import uuid
@@ -736,15 +735,6 @@ def _get_machine_id() -> str:
     return str(uuid.uuid4())
 
 
-def is_codex_available() -> bool:
-    """Check if Codex CLI is installed and available.
-
-    Returns:
-        True if `codex` command is found in PATH.
-    """
-    return shutil.which("codex") is not None
-
-
 # =============================================================================
 # App-Server Adapter (for programmatic control)
 # =============================================================================
@@ -806,6 +796,17 @@ class CodexAdapter(BaseAdapter):
         self._codex_client: CodexAppServerClient | None = None
         self._machine_id: str | None = None
         self._attached = False
+
+    @staticmethod
+    def is_codex_available() -> bool:
+        """Check if Codex CLI is installed and available.
+
+        Returns:
+            True if `codex` command is found in PATH.
+        """
+        import shutil
+
+        return shutil.which("codex") is not None
 
     def _get_machine_id(self) -> str:
         """Get or generate a machine identifier."""

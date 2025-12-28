@@ -9,12 +9,11 @@ import asyncio
 import logging
 import os
 
-
 from gobby.servers.websocket import WebSocketServer
 from gobby.sessions.transcripts import get_parser
 from gobby.sessions.transcripts.base import TranscriptParser
 from gobby.storage.database import LocalDatabase
-from gobby.storage.messages import LocalMessageManager
+from gobby.storage.session_messages import LocalSessionMessageManager
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +35,7 @@ class SessionMessageProcessor:
         websocket_server: WebSocketServer | None = None,
     ):
         self.db = db
-        self.message_manager = LocalMessageManager(db)
+        self.message_manager = LocalSessionMessageManager(db)
         self.poll_interval = poll_interval
         self.websocket_server = websocket_server
 
@@ -149,7 +148,7 @@ class SessionMessageProcessor:
         try:
             # Note: synchronous file I/O for simplicity; could use aiofiles if blocking is an issue
             # but reading incremental logs is usually fast.
-            with open(transcript_path, "r", encoding="utf-8") as f:
+            with open(transcript_path, encoding="utf-8") as f:
                 # Seek to last known position
                 f.seek(last_offset)
 

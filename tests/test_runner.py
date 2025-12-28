@@ -1,13 +1,13 @@
 """Tests for src/runner.py - Gobby Daemon Runner."""
 
-import asyncio
 import signal
-import pytest
 from contextlib import ExitStack
 from pathlib import Path
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from gobby.runner import GobbyRunner, run_gobby, main
+import pytest
+
+from gobby.runner import GobbyRunner, main, run_gobby
 
 
 @pytest.fixture
@@ -61,7 +61,7 @@ def create_base_patches(mock_config):
         patch("gobby.runner.run_migrations"),
         patch("gobby.runner.LocalSessionManager"),
         patch("gobby.runner.LocalSkillManager"),
-        patch("gobby.runner.LocalMessageManager"),
+        patch("gobby.runner.LocalSessionMessageManager"),
         patch("gobby.runner.LocalTaskManager"),
         patch("gobby.runner.SessionTaskManager"),
         patch("gobby.runner.MCPClientManager", return_value=mock_mcp),
@@ -69,7 +69,6 @@ def create_base_patches(mock_config):
         patch("gobby.runner.TaskSyncManager"),
         patch("gobby.runner.MemorySyncManager"),
         patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
-        patch("gobby.runner.HookManager"),
         patch("gobby.runner.TaskExpander"),
         patch("gobby.runner.TaskValidator"),
         patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
@@ -99,7 +98,7 @@ class TestGobbyRunnerInit:
             patch("gobby.runner.run_migrations"),
             patch("gobby.runner.LocalSessionManager"),
             patch("gobby.runner.LocalSkillManager"),
-            patch("gobby.runner.LocalMessageManager"),
+            patch("gobby.runner.LocalSessionMessageManager"),
             patch("gobby.runner.LocalTaskManager"),
             patch("gobby.runner.SessionTaskManager"),
             patch("gobby.runner.MCPClientManager", return_value=mock_mcp),
@@ -107,7 +106,6 @@ class TestGobbyRunnerInit:
             patch("gobby.runner.TaskSyncManager"),
             patch("gobby.runner.MemorySyncManager"),
             patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
-            patch("gobby.runner.HookManager"),
             patch("gobby.runner.TaskExpander"),
             patch("gobby.runner.TaskValidator"),
             patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
@@ -208,7 +206,7 @@ class TestGobbyRunnerRun:
             patch("gobby.runner.run_migrations"),
             patch("gobby.runner.LocalSessionManager"),
             patch("gobby.runner.LocalSkillManager"),
-            patch("gobby.runner.LocalMessageManager"),
+            patch("gobby.runner.LocalSessionMessageManager"),
             patch("gobby.runner.LocalTaskManager"),
             patch("gobby.runner.SessionTaskManager"),
             patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
@@ -216,7 +214,6 @@ class TestGobbyRunnerRun:
             patch("gobby.runner.TaskSyncManager"),
             patch("gobby.runner.MemorySyncManager"),
             patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
-            patch("gobby.runner.HookManager"),
             patch("gobby.runner.TaskExpander"),
             patch("gobby.runner.TaskValidator"),
             patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
@@ -248,7 +245,7 @@ class TestGobbyRunnerRun:
     async def test_run_handles_mcp_timeout(self, mock_config):
         """Test that run handles MCP connection timeout."""
         mock_mcp_manager = AsyncMock()
-        mock_mcp_manager.connect_all = AsyncMock(side_effect=asyncio.TimeoutError())
+        mock_mcp_manager.connect_all = AsyncMock(side_effect=TimeoutError())
         mock_mcp_manager.disconnect_all = AsyncMock()
 
         mock_http = MagicMock()
@@ -263,7 +260,7 @@ class TestGobbyRunnerRun:
             patch("gobby.runner.run_migrations"),
             patch("gobby.runner.LocalSessionManager"),
             patch("gobby.runner.LocalSkillManager"),
-            patch("gobby.runner.LocalMessageManager"),
+            patch("gobby.runner.LocalSessionMessageManager"),
             patch("gobby.runner.LocalTaskManager"),
             patch("gobby.runner.SessionTaskManager"),
             patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
@@ -271,7 +268,6 @@ class TestGobbyRunnerRun:
             patch("gobby.runner.TaskSyncManager"),
             patch("gobby.runner.MemorySyncManager"),
             patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
-            patch("gobby.runner.HookManager"),
             patch("gobby.runner.TaskExpander"),
             patch("gobby.runner.TaskValidator"),
             patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
@@ -316,7 +312,7 @@ class TestGobbyRunnerRun:
             patch("gobby.runner.run_migrations"),
             patch("gobby.runner.LocalSessionManager"),
             patch("gobby.runner.LocalSkillManager"),
-            patch("gobby.runner.LocalMessageManager"),
+            patch("gobby.runner.LocalSessionMessageManager"),
             patch("gobby.runner.LocalTaskManager"),
             patch("gobby.runner.SessionTaskManager"),
             patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
@@ -324,7 +320,6 @@ class TestGobbyRunnerRun:
             patch("gobby.runner.TaskSyncManager"),
             patch("gobby.runner.MemorySyncManager"),
             patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
-            patch("gobby.runner.HookManager"),
             patch("gobby.runner.TaskExpander"),
             patch("gobby.runner.TaskValidator"),
             patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
@@ -372,7 +367,7 @@ class TestGobbyRunnerRun:
             patch("gobby.runner.run_migrations"),
             patch("gobby.runner.LocalSessionManager"),
             patch("gobby.runner.LocalSkillManager"),
-            patch("gobby.runner.LocalMessageManager"),
+            patch("gobby.runner.LocalSessionMessageManager"),
             patch("gobby.runner.LocalTaskManager"),
             patch("gobby.runner.SessionTaskManager"),
             patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
@@ -380,7 +375,6 @@ class TestGobbyRunnerRun:
             patch("gobby.runner.TaskSyncManager"),
             patch("gobby.runner.MemorySyncManager"),
             patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
-            patch("gobby.runner.HookManager"),
             patch("gobby.runner.TaskExpander"),
             patch("gobby.runner.TaskValidator"),
             patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
@@ -430,7 +424,7 @@ class TestGobbyRunnerRun:
             patch("gobby.runner.run_migrations"),
             patch("gobby.runner.LocalSessionManager"),
             patch("gobby.runner.LocalSkillManager"),
-            patch("gobby.runner.LocalMessageManager"),
+            patch("gobby.runner.LocalSessionMessageManager"),
             patch("gobby.runner.LocalTaskManager"),
             patch("gobby.runner.SessionTaskManager"),
             patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
@@ -438,7 +432,6 @@ class TestGobbyRunnerRun:
             patch("gobby.runner.TaskSyncManager"),
             patch("gobby.runner.MemorySyncManager"),
             patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
-            patch("gobby.runner.HookManager"),
             patch("gobby.runner.TaskExpander"),
             patch("gobby.runner.TaskValidator"),
             patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
@@ -484,7 +477,7 @@ class TestMainFunction:
     def test_main_runs_asyncio(self):
         """Test that main runs the async runner."""
         with patch("asyncio.run") as mock_run:
-            with patch("gobby.runner.run_gobby") as mock_run_gobby:
+            with patch("gobby.runner.run_gobby"):
                 main(config_path=Path("/tmp/config.yaml"), verbose=True)
 
             mock_run.assert_called_once()

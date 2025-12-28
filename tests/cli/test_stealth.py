@@ -1,7 +1,7 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-import shutil
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+
 from gobby.cli.tasks import get_sync_manager
 
 
@@ -29,22 +29,19 @@ def mock_normal_config(tmp_path):
 
 @patch("gobby.cli.tasks.get_project_context")
 @patch("gobby.cli.tasks.get_task_manager")
-def test_stealth_mode_enabled(mock_tm, mock_ctx, mock_stealth_config):
+def test_stealth_mode_enabled(mock_tm, mock_ctx, mock_stealth_config, tmp_path):
     mock_ctx.return_value = mock_stealth_config
     mock_tm.return_value = MagicMock()
 
-    # We need to mock Path.home to point to a temporary location to avoid messing with real home
-    # But since we're just checking the path string, maybe okay.
-    # Actually, the code calls mkdir on home/.gobby...
-
+    # Mock Path.home() to point to a temporary location
     with patch("pathlib.Path.home") as mock_home:
-        temp_home = Path("/tmp/mock_home")
-        mock_home.return_value = temp_home
+        mock_home.return_value = tmp_path
 
+        # Mock get_sync_manager inside the context where correct config is returned
         manager = get_sync_manager()
 
-        expected_path = str(temp_home / ".gobby" / "stealth_tasks" / "test_project_123.jsonl")
-        assert manager.export_path == Path(expected_path)
+        expected_path = tmp_path / ".gobby" / "stealth_tasks" / "test_project_123.jsonl"
+        assert manager.export_path == expected_path
 
 
 @patch("gobby.cli.tasks.get_project_context")

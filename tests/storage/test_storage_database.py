@@ -5,6 +5,7 @@ import threading
 from pathlib import Path
 
 import pytest
+
 from gobby.storage.database import LocalDatabase
 
 

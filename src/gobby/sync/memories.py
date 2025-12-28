@@ -52,6 +52,17 @@ class MemorySyncManager:
         if self._export_task is None or self._export_task.done():
             self._export_task = asyncio.create_task(self._process_export_queue())
 
+    async def shutdown(self) -> None:
+        """Gracefully shutdown the export task."""
+        self._shutdown_requested = True
+        if self._export_task:
+            if not self._export_task.done():
+                try:
+                    await self._export_task
+                except asyncio.CancelledError:
+                    pass
+            self._export_task = None
+
     async def _process_export_queue(self) -> None:
         """Process export task with debounce."""
         if not self.config.enabled:
@@ -74,6 +85,18 @@ class MemorySyncManager:
             wait_time = max(0.1, self.config.export_debounce - elapsed)
             await asyncio.sleep(wait_time)
 
+    def _get_sync_dir(self) -> Path:
+        """Get the directory for syncing."""
+        if self.config.stealth:
+            return Path("~/.gobby/sync").expanduser()
+
+        # Default to project-local .gobby/sync
+        return Path.cwd() / ".gobby" / "sync"
+
+    def _get_skills_dir(self) -> Path:
+        """Get the directory for skills syncing."""
+        return self._get_sync_dir() / "skills"
+
     async def import_from_files(self) -> dict[str, int]:
         """
         Import memories and skills from filesystem.
@@ -86,7 +109,8 @@ class MemorySyncManager:
 
         sync_dir = self._get_sync_dir()
         if not sync_dir.exists():
-            return {"memories": 0, "skills": 0}
+            # If sync dir doesn't exist, we might still have skills in .claude/skills
+            pass
 
         result = {"memories": 0, "skills": 0}
 
@@ -100,7 +124,7 @@ class MemorySyncManager:
 
         # Import Skills from .claude/skills/ (Claude Code native format)
         if self.skill_manager:
-            skills_dir = Path(".claude/skills").absolute()
+            skills_dir = self._get_skills_dir()
             if skills_dir.exists():
                 count = await asyncio.to_thread(self._import_skills_sync, skills_dir)
                 result["skills"] = count
@@ -118,11 +142,12 @@ class MemorySyncManager:
             return {"memories": 0, "skills": 0}
 
         sync_dir = self._get_sync_dir()
+        skills_dir = self._get_skills_dir()
 
         # IO operations in thread
-        return await asyncio.to_thread(self._export_to_files_sync, sync_dir)
+        return await asyncio.to_thread(self._export_to_files_sync, sync_dir, skills_dir)
 
-    def _export_to_files_sync(self, sync_dir: Path) -> dict[str, int]:
+    def _export_to_files_sync(self, sync_dir: Path, skills_dir: Path) -> dict[str, int]:
         """Synchronous implementation of export."""
         sync_dir.mkdir(parents=True, exist_ok=True)
         result = {"memories": 0, "skills": 0}
@@ -136,19 +161,11 @@ class MemorySyncManager:
         # Export Skills to .claude/skills/ (Claude Code native format)
         # Skills always go to .claude/skills/ for Claude Code discovery
         if self.skill_manager:
-            skills_dir = Path(".claude/skills").absolute()
+            # skills_dir passed as argument
             count = self._export_skills_sync(skills_dir)
             result["skills"] = count
 
-        logger.info(f"Memory sync export complete: {result}")
         return result
-
-    def _get_sync_dir(self) -> Path:
-        """Get synchronization directory based on config."""
-        if self.config.stealth:
-            return Path("~/.gobby/sync").expanduser()
-        else:
-            return Path(".gobby").absolute()
 
     def _import_memories_sync(self, file_path: Path) -> int:
         """Import memories from JSONL file (sync)."""
@@ -355,17 +372,7 @@ class MemorySyncManager:
             return False
 
     def _export_skills_sync(self, skills_dir: Path) -> int:
-        """Export skills to Claude Code native format (sync).
-
-        Creates skills in the format expected by Claude Code:
-        - .claude/skills/<skill-name>/SKILL.md (one directory per skill)
-
-        The SKILL.md format uses Claude Code's frontmatter convention:
-        - name: Skill name
-        - description: Third-person trigger description
-
-        Claude Code automatically discovers skills in .claude/skills/.
-        """
+        """Export skills to flat Markdown files (sync)."""
         if not self.skill_manager:
             return 0
 
@@ -375,24 +382,20 @@ class MemorySyncManager:
 
             for skill in skills:
                 try:
-                    # Create directory per skill (Claude Code format)
+                    # Sanitize name for filename
                     safe_name = "".join(c for c in skill.name if c.isalnum() or c in "-_").lower()
                     if not safe_name:
                         safe_name = skill.id
 
-                    # Append deterministic suffix to ensure uniqueness (first 8 chars of ID)
-                    safe_name = f"{safe_name}-{skill.id[:8]}"
+                    filename = f"{safe_name}.md"
+                    skill_file = skills_dir / filename
 
-                    skill_dir = skills_dir / safe_name
-                    skill_dir.mkdir(parents=True, exist_ok=True)
-
-                    # Build Claude Code compatible description with trigger phrases
-                    description = self._build_trigger_description(skill)
-
-                    # Claude Code frontmatter format (name + description only)
+                    # Prepare frontmatter
                     frontmatter = {
                         "name": skill.name,
-                        "description": description,
+                        "description": skill.description or "",
+                        "trigger_pattern": skill.trigger_pattern or "",
+                        "tags": skill.tags or [],
                     }
 
                     content = "---\n"
@@ -400,23 +403,11 @@ class MemorySyncManager:
                     content += "---\n\n"
                     content += skill.instructions
 
-                    # Write to SKILL.md (Claude Code convention)
-                    skill_file = skill_dir / "SKILL.md"
-                    with open(skill_file, "w") as f:
+                    with open(skill_file, "w", encoding="utf-8") as f:
                         f.write(content)
 
-                    # Also write metadata for Gobby's internal use
-                    meta_file = skill_dir / ".gobby-meta.json"
-                    meta = {
-                        "id": skill.id,
-                        "trigger_pattern": skill.trigger_pattern or "",
-                        "tags": skill.tags or [],
-                        "usage_count": skill.usage_count,
-                    }
-                    with open(meta_file, "w", encoding="utf-8") as f:
-                        json.dump(meta, f, indent=2, ensure_ascii=False)
                 except Exception as e:
-                    logger.error(f"Failed to export skill '{skill.name}' ({skill.id}): {e}")
+                    logger.error(f"Failed to export skill '{skill.name}': {e}")
                     continue
 
             return len(skills)

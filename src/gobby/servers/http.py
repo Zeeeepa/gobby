@@ -11,7 +11,7 @@ import os
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any, cast
+from typing import Any
 
 import psutil
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
+from gobby.adapters.base import BaseAdapter
 from gobby.adapters.codex import CodexAdapter
 from gobby.hooks.broadcaster import HookEventBroadcaster
 from gobby.hooks.hook_manager import HookManager
@@ -83,7 +84,7 @@ class HTTPServer:
         task_manager: LocalTaskManager | None = None,
         task_sync_manager: TaskSyncManager | None = None,
         message_processor: Any | None = None,
-        message_manager: Any | None = None,  # LocalMessageManager
+        message_manager: Any | None = None,  # LocalSessionMessageManager
         memory_manager: "MemoryManager | None" = None,
         skill_learner: "SkillLearner | None" = None,
         llm_service: "LLMService | None" = None,
@@ -105,9 +106,9 @@ class HTTPServer:
             websocket_server: Optional WebSocketServer instance for event broadcasting
             task_manager: LocalTaskManager instance
             task_sync_manager: TaskSyncManager instance
+            task_sync_manager: TaskSyncManager instance
             message_processor: SessionMessageProcessor instance
-            message_processor: SessionMessageProcessor instance
-            message_manager: LocalMessageManager instance for retrieval
+            message_manager: LocalSessionMessageManager instance for retrieval
             memory_manager: MemoryManager instance
             skill_learner: SkillLearner instance
             llm_service: LLMService instance
@@ -613,6 +614,10 @@ class HTTPServer:
 
                     machine_id = get_machine_id()
 
+                if not machine_id:
+                    # Should unlikely happen if get_machine_id works, but type safe
+                    machine_id = "unknown-machine"
+
                 # Extract git branch if project path exists but git_branch not provided
                 git_branch = request_data.git_branch
                 if request_data.project_path and not git_branch:
@@ -620,7 +625,7 @@ class HTTPServer:
 
                     git_metadata = get_git_metadata(request_data.project_path)
                     if git_metadata.get("git_branch"):
-                        git_branch = git_metadata["git_branch"]
+                        git_branch = git_metadata.get("git_branch")
 
                 # Resolve project_id from cwd if not provided
                 project_id = self._resolve_project_id(request_data.project_id, request_data.cwd)
@@ -863,6 +868,9 @@ class HTTPServer:
 
                     machine_id = get_machine_id()
 
+                if not machine_id:
+                    machine_id = "unknown-machine"
+
                 # Resolve project_id from cwd if not provided
                 if not project_id:
                     if not cwd:
@@ -1076,25 +1084,29 @@ class HTTPServer:
                 # Add internal servers (gobby-tasks, gobby-memory, etc.)
                 if self._internal_manager:
                     for registry in self._internal_manager.get_all_registries():
-                        server_list.append({
-                            "name": registry.name,
-                            "state": "connected",
-                            "connected": True,
-                            "transport": "internal",
-                        })
+                        server_list.append(
+                            {
+                                "name": registry.name,
+                                "state": "connected",
+                                "connected": True,
+                                "transport": "internal",
+                            }
+                        )
 
                 # Add external MCP servers
                 if self.mcp_manager:
                     for config in self.mcp_manager.server_configs:
                         health = self.mcp_manager.health.get(config.name)
                         is_connected = config.name in self.mcp_manager.connections
-                        server_list.append({
-                            "name": config.name,
-                            "state": health.state.value if health else "unknown",
-                            "connected": is_connected,
-                            "transport": config.transport,
-                            "enabled": config.enabled,
-                        })
+                        server_list.append(
+                            {
+                                "name": config.name,
+                                "state": health.state.value if health else "unknown",
+                                "connected": is_connected,
+                                "transport": config.transport,
+                                "enabled": config.enabled,
+                            }
+                        )
 
                 response_time_ms = (time.perf_counter() - start_time) * 1000
 
@@ -1142,10 +1154,12 @@ class HTTPServer:
                                 tools_list = []
                                 for t in tools_result.tools:
                                     desc = getattr(t, "description", "") or ""
-                                    tools_list.append({
-                                        "name": t.name,
-                                        "brief": desc[:100],
-                                    })
+                                    tools_list.append(
+                                        {
+                                            "name": t.name,
+                                            "brief": desc[:100],
+                                        }
+                                    )
                                 tools_by_server[server] = tools_list
                         except ValueError:
                             pass
@@ -1167,15 +1181,15 @@ class HTTPServer:
                                         tools_list = []
                                         for t in tools_result.tools:
                                             desc = getattr(t, "description", "") or ""
-                                            tools_list.append({
-                                                "name": t.name,
-                                                "brief": desc[:100],
-                                            })
+                                            tools_list.append(
+                                                {
+                                                    "name": t.name,
+                                                    "brief": desc[:100],
+                                                }
+                                            )
                                         tools_by_server[config.name] = tools_list
                                 except Exception as e:
-                                    logger.warning(
-                                        f"Failed to list tools from {config.name}: {e}"
-                                    )
+                                    logger.warning(f"Failed to list tools from {config.name}: {e}")
                                     tools_by_server[config.name] = []
 
                 response_time_ms = (time.perf_counter() - start_time) * 1000
@@ -1214,8 +1228,7 @@ class HTTPServer:
 
                 if not server_name or not tool_name:
                     raise HTTPException(
-                        status_code=400,
-                        detail="Required fields: server_name, tool_name"
+                        status_code=400, detail="Required fields: server_name, tool_name"
                     )
 
                 # Check internal first
@@ -1233,7 +1246,7 @@ class HTTPServer:
                             }
                         raise HTTPException(
                             status_code=404,
-                            detail=f"Tool '{tool_name}' not found on server '{server_name}'"
+                            detail=f"Tool '{tool_name}' not found on server '{server_name}'",
                         )
 
                 if self.mcp_manager is None:
@@ -1288,8 +1301,7 @@ class HTTPServer:
 
                 if not server_name or not tool_name:
                     raise HTTPException(
-                        status_code=400,
-                        detail="Required fields: server_name, tool_name"
+                        status_code=400, detail="Required fields: server_name, tool_name"
                     )
 
                 # Check internal first
@@ -1365,10 +1377,7 @@ class HTTPServer:
                 transport = body.get("transport")
 
                 if not name or not transport:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Required fields: name, transport"
-                    )
+                    raise HTTPException(status_code=400, detail="Required fields: name, transport")
 
                 # Import here to avoid circular imports
                 from gobby.mcp_proxy.models import MCPServerConfig
@@ -1431,18 +1440,23 @@ class HTTPServer:
                 if not from_project and not github_url and not query:
                     raise HTTPException(
                         status_code=400,
-                        detail="Specify at least one: from_project, github_url, or query"
+                        detail="Specify at least one: from_project, github_url, or query",
                     )
 
                 # Get current project ID from context
                 from gobby.utils.project_context import get_project_context
+
                 project_ctx = get_project_context()
                 if not project_ctx or not project_ctx.get("id"):
                     raise HTTPException(
-                        status_code=400,
-                        detail="No current project. Run 'gobby init' first."
+                        status_code=400, detail="No current project. Run 'gobby init' first."
                     )
                 current_project_id = project_ctx["id"]
+
+                if not self.config:
+                    raise HTTPException(
+                        status_code=500, detail="Daemon configuration not available"
+                    )
 
                 # Create importer
                 from gobby.mcp_proxy.importer import MCPServerImporter
@@ -1533,27 +1547,26 @@ class HTTPServer:
                 _ = body.get("agent_id")
 
                 if not task_description:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Required field: task_description"
-                    )
+                    raise HTTPException(status_code=400, detail="Required field: task_description")
 
                 # Use LLM service for recommendations if available
                 recommendations = []
                 if self.llm_service and self.mcp_manager:
                     try:
                         # Collect available tools
-                        available_tools = []
+                        available_tools: list[dict[str, str]] = []
 
                         # Internal tools
                         if self._internal_manager:
                             for registry in self._internal_manager.get_all_registries():
                                 for tool in registry.list_tools():
-                                    available_tools.append({
-                                        "server": registry.name,
-                                        "name": tool.get("name"),
-                                        "description": tool.get("description", ""),
-                                    })
+                                    available_tools.append(
+                                        {
+                                            "server": registry.name,
+                                            "name": tool.get("name") or "",
+                                            "description": tool.get("description", "") or "",
+                                        }
+                                    )
 
                         # External MCP tools
                         for config in self.mcp_manager.server_configs:
@@ -1563,11 +1576,14 @@ class HTTPServer:
                                     if connection.is_connected and connection._session:
                                         tools_result = await connection._session.list_tools()
                                         for t in tools_result.tools:
-                                            available_tools.append({
-                                                "server": config.name,
-                                                "name": t.name,
-                                                "description": getattr(t, "description", "") or "",
-                                            })
+                                            available_tools.append(
+                                                {
+                                                    "server": config.name,
+                                                    "name": t.name,
+                                                    "description": getattr(t, "description", "")
+                                                    or "",
+                                                }
+                                            )
                                 except Exception:
                                     pass
 
@@ -1581,11 +1597,13 @@ class HTTPServer:
                             if task_words & tool_words:
                                 desc = tool["description"]
                                 reason = desc[:100] if desc else "Keyword match"
-                                recommendations.append({
-                                    "server": tool["server"],
-                                    "tool": tool["name"],
-                                    "reason": reason,
-                                })
+                                recommendations.append(
+                                    {
+                                        "server": tool["server"],
+                                        "tool": tool["name"],
+                                        "reason": reason,
+                                    }
+                                )
 
                     except Exception as e:
                         logger.warning(f"Tool recommendation failed: {e}")
@@ -1834,7 +1852,7 @@ class HTTPServer:
                 from gobby.adapters.gemini import GeminiAdapter
 
                 if source == "claude":
-                    adapter = ClaudeCodeAdapter(hook_manager=hook_manager)
+                    adapter: BaseAdapter = ClaudeCodeAdapter(hook_manager=hook_manager)
                 elif source == "gemini":
                     adapter = GeminiAdapter(hook_manager=hook_manager)
                 elif source == "codex":
@@ -1861,7 +1879,7 @@ class HTTPServer:
                         },
                     )
 
-                    return cast(dict[str, Any], result)
+                    return result
 
                 except ValueError as e:
                     self._metrics.inc_counter("hooks_failed_total")

@@ -3,9 +3,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from gobby.storage.messages import LocalMessageManager
 from gobby.sessions.transcripts.base import ParsedMessage
 from gobby.storage.database import LocalDatabase
+from gobby.storage.session_messages import LocalSessionMessageManager
 
 
 @pytest.fixture
@@ -15,7 +15,7 @@ def mock_db():
 
 @pytest.fixture
 def manager(mock_db):
-    return LocalMessageManager(mock_db)
+    return LocalSessionMessageManager(mock_db)
 
 
 @pytest.fixture

@@ -1,7 +1,6 @@
 """Tests for the MCP proxy stdio module."""
 
 import signal
-import subprocess
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -114,58 +113,87 @@ class TestStartDaemonProcess:
     @pytest.mark.asyncio
     async def test_starts_daemon_successfully(self):
         """Test successful daemon start."""
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Daemon started"
-        mock_result.stderr = ""
+        mock_proc = MagicMock()
+        mock_proc.returncode = None
+        mock_proc.pid = 12345
 
         with patch("gobby.mcp_proxy.daemon_control.is_daemon_running", return_value=False):
-            with patch("gobby.mcp_proxy.daemon_control.subprocess.run", return_value=mock_result):
+            with patch(
+                "gobby.mcp_proxy.daemon_control.asyncio.create_subprocess_exec",
+                new_callable=AsyncMock,
+            ) as mock_exec:
+                mock_exec.return_value = mock_proc
                 with patch("gobby.mcp_proxy.daemon_control.get_daemon_pid", return_value=12345):
                     with patch(
-                        "gobby.mcp_proxy.daemon_control.asyncio.sleep", new_callable=AsyncMock
+                        "gobby.mcp_proxy.daemon_control.check_daemon_http_health",
+                        new_callable=AsyncMock,
+                        return_value=True,
                     ):
-                        result = await start_daemon_process(8765, 8766)
+                        with patch(
+                            "gobby.mcp_proxy.daemon_control.asyncio.sleep", new_callable=AsyncMock
+                        ):
+                            result = await start_daemon_process(8765, 8766)
 
-                        assert result["success"] is True
-                        assert result["pid"] == 12345
-                        assert result["output"] == "Daemon started"
+                            assert result["success"] is True
+                            assert result["pid"] == 12345
+                            assert "started successfully" in result["output"]
 
     @pytest.mark.asyncio
     async def test_handles_start_failure(self):
         """Test handles daemon start failure."""
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        mock_result.stdout = ""
-        mock_result.stderr = "Start failed"
+        mock_proc = MagicMock()
+        mock_proc.returncode = 1
+        mock_proc.communicate = AsyncMock(return_value=(b"", b"Start failed"))
 
         with patch("gobby.mcp_proxy.daemon_control.is_daemon_running", return_value=False):
-            with patch("gobby.mcp_proxy.daemon_control.subprocess.run", return_value=mock_result):
-                result = await start_daemon_process(8765, 8766)
+            with patch(
+                "gobby.mcp_proxy.daemon_control.asyncio.create_subprocess_exec",
+                new_callable=AsyncMock,
+            ) as mock_exec:
+                mock_exec.return_value = mock_proc
+                with patch("gobby.mcp_proxy.daemon_control.asyncio.sleep", new_callable=AsyncMock):
+                    result = await start_daemon_process(8765, 8766)
 
-                assert result["success"] is False
-                assert "failed" in result["message"].lower()
-                assert result["error"] == "Start failed"
+                    assert result["success"] is False
+                    assert "process exited immediately" in result["message"]
+                    assert result["error"] == "Start failed"
 
     @pytest.mark.asyncio
     async def test_handles_timeout(self):
-        """Test handles start command timeout."""
+        """Test handles start command checks timeout."""
+        # Simulated by process running but health check failing/timing out
+        mock_proc = MagicMock()
+        mock_proc.returncode = None
+        mock_proc.pid = 12345
+
         with patch("gobby.mcp_proxy.daemon_control.is_daemon_running", return_value=False):
             with patch(
-                "gobby.mcp_proxy.daemon_control.subprocess.run",
-                side_effect=subprocess.TimeoutExpired("gobby", 10),
-            ):
-                result = await start_daemon_process(8765, 8766)
+                "gobby.mcp_proxy.daemon_control.asyncio.create_subprocess_exec",
+                new_callable=AsyncMock,
+            ) as mock_exec:
+                mock_exec.return_value = mock_proc
+                with patch(
+                    "gobby.mcp_proxy.daemon_control.check_daemon_http_health",
+                    new_callable=AsyncMock,
+                    return_value=False,
+                ):
+                    with patch(
+                        "gobby.mcp_proxy.daemon_control.get_daemon_pid", return_value=None
+                    ):  # Simulates start but not properly registered/listening
+                        with patch(
+                            "gobby.mcp_proxy.daemon_control.asyncio.sleep", new_callable=AsyncMock
+                        ):
+                            result = await start_daemon_process(8765, 8766)
 
-                assert result["success"] is False
-                assert "timed out" in result["message"].lower()
+                            assert result["success"] is False
+                            assert "unhealthy" in result["message"]
 
     @pytest.mark.asyncio
     async def test_handles_exception(self):
         """Test handles unexpected exception."""
         with patch("gobby.mcp_proxy.daemon_control.is_daemon_running", return_value=False):
             with patch(
-                "gobby.mcp_proxy.daemon_control.subprocess.run",
+                "gobby.mcp_proxy.daemon_control.asyncio.create_subprocess_exec",
                 side_effect=Exception("Unexpected error"),
             ):
                 result = await start_daemon_process(8765, 8766)
@@ -190,12 +218,22 @@ class TestStopDaemonProcess:
     async def test_stops_daemon_successfully(self):
         """Test successful daemon stop."""
         with patch("gobby.mcp_proxy.daemon_control.get_daemon_pid", return_value=12345):
-            with patch("gobby.mcp_proxy.daemon_control.os.kill") as mock_kill:
-                result = await stop_daemon_process()
+            # os.kill side effect: First call (SIGTERM) succeeds, second call (check) raises ProcessLookupError
+            def kill_side_effect(pid, sig):
+                if sig == 0:
+                    raise ProcessLookupError("Process gone")
+                return None
 
-                assert result["success"] is True
-                assert result["output"] == "Daemon stopped"
-                mock_kill.assert_called_once_with(12345, signal.SIGTERM)
+            with patch(
+                "gobby.mcp_proxy.daemon_control.os.kill", side_effect=kill_side_effect
+            ) as mock_kill:
+                with patch("gobby.mcp_proxy.daemon_control.asyncio.sleep", new_callable=AsyncMock):
+                    result = await stop_daemon_process()
+
+                    assert result["success"] is True
+                    assert result["output"] == "Daemon stopped"
+                    # Verify SIGTERM was sent
+                    mock_kill.assert_any_call(12345, signal.SIGTERM)
 
     @pytest.mark.asyncio
     async def test_handles_stop_failure_permission(self):

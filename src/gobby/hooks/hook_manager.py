@@ -32,7 +32,7 @@ import logging
 import threading
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.memory.manager import MemoryManager
@@ -42,7 +42,7 @@ from gobby.sessions.summary import SummaryFileGenerator
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import LocalMemoryManager
-from gobby.storage.messages import LocalMessageManager
+from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.skills import LocalSkillManager
@@ -168,7 +168,7 @@ class HookManager:
         # Initialize Memory & Skills (Phase 4)
         self._memory_storage = LocalMemoryManager(self._database)
         self._skill_storage = LocalSkillManager(self._database)
-        self._message_manager = LocalMessageManager(self._database)
+        self._message_manager = LocalSessionMessageManager(self._database)
 
         # Use config or defaults
         memory_config = (
@@ -386,9 +386,7 @@ class HookManager:
                         )
                         registered_count += 1
                     except Exception as e:
-                        self.logger.warning(
-                            f"Failed to re-register session {session.id}: {e}"
-                        )
+                        self.logger.warning(f"Failed to re-register session {session.id}: {e}")
 
             if registered_count > 0:
                 self.logger.info(
@@ -603,7 +601,7 @@ class HookManager:
                     else:
                         self.logger.debug("No event loop available for broadcasting")
 
-            return response
+            return cast(HookResponse, response)
         except Exception as e:
             self.logger.error(f"Event handler {event.event_type} failed: {e}", exc_info=True)
             # Fail-open on handler errors
@@ -732,9 +730,7 @@ class HookManager:
                     parent_session_id = parent.id
                     self.logger.debug(f"Found parent session: {parent_session_id}")
             except Exception as e:
-                self.logger.warning(
-                    f"Error finding parent session, continuing without parent: {e}"
-                )
+                self.logger.warning(f"Error finding parent session, continuing without parent: {e}")
 
         # Step 2: Register new session with parent if found
         session_id = self._session_manager.register_session(

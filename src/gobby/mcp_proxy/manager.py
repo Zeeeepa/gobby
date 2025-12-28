@@ -22,6 +22,15 @@ from gobby.mcp_proxy.transports.factory import create_transport_connection
 # Alias for backward compatibility with tests
 _create_transport_connection = create_transport_connection
 
+__all__ = [
+    "MCPClientManager",
+    "MCPServerConfig",
+    "ConnectionState",
+    "HealthState",
+    "MCPConnectionHealth",
+    "MCPError",
+]
+
 logger = logging.getLogger("gobby.mcp.manager")
 
 
@@ -144,17 +153,43 @@ class MCPClientManager:
             return self._connections[server_name]
         raise ValueError(f"Client '{server_name}' not connected")
 
-    async def add_server(self, config: MCPServerConfig) -> None:
+    def has_server(self, server_name: str) -> bool:
+        """Check if server is configured and exists."""
+        return server_name in self._configs
+
+    async def add_server(self, config: MCPServerConfig) -> dict[str, Any]:
         """Add and connect to a server."""
         if config.name in self._configs:
             raise ValueError(f"MCP server '{config.name}' already exists")
 
         self._configs[config.name] = config
+
+        tool_schemas: list[dict[str, Any]] = []
         # Attempt connect
         if config.enabled:
-            await self._connect_server(config)
+            session = await self._connect_server(config)
+            if session:
+                try:
+                    tools_result = await session.list_tools()
+                    # Convert Tool objects to dicts
+                    for t in tools_result.tools:
+                        tool_schemas.append(
+                            {
+                                "name": t.name,
+                                "description": getattr(t, "description", "") or "",
+                                "inputSchema": getattr(t, "inputSchema", {}) or {},
+                            }
+                        )
+                except Exception as e:
+                    logger.warning(f"Failed to list tools for {config.name}: {e}")
 
-    async def remove_server(self, name: str, project_id: str | None = None) -> None:
+        return {
+            "success": True,
+            "name": config.name,
+            "full_tool_schemas": tool_schemas,
+        }
+
+    async def remove_server(self, name: str, project_id: str | None = None) -> dict[str, Any]:
         """Remove a server."""
         if name not in self._configs:
             raise ValueError(f"MCP server '{name}' not found")
@@ -168,14 +203,10 @@ class MCPClientManager:
         if name in self.health:
             del self.health[name]
 
+        return {"success": True, "name": name}
+
     async def get_health_report(self) -> dict[str, Any]:
         """Get async health report."""
-        # Just wrap sync health report or enhance?
-        # Tests expect dict result.
-        # Format: {name: {state: ..., health: ...}}
-        # My get_server_health returns exactly this.
-        # However, test_get_health_report_with_tracking expects 'state', 'health' strings.
-        # My enum values are strings ("connected", "healthy").
         return self.get_server_health()
 
     @property
@@ -298,7 +329,7 @@ class MCPClientManager:
             self.health[config.name].state = ConnectionState.CONNECTED
             self.health[config.name].record_success()
 
-            return session
+            return cast(ClientSession | None, session)
 
         except Exception as e:
             self.health[config.name].state = ConnectionState.FAILED
@@ -415,9 +446,16 @@ class MCPClientManager:
                 # Inspecting mcp-python-sdk, list_tools returns ListToolsResult.
                 # Let's return the raw object or access .tools
                 if hasattr(tools, "tools"):
-                    results[name] = tools.tools
+                    results[name] = [
+                        {
+                            "name": t.name,
+                            "description": getattr(t, "description", "") or "",
+                            "inputSchema": getattr(t, "inputSchema", {}) or {},
+                        }
+                        for t in tools.tools
+                    ]
                 else:
-                    results[name] = tools  # Fallback
+                    results[name] = []
 
                 self.health[name].record_success()
             except Exception as e:
@@ -443,9 +481,9 @@ class MCPClientManager:
             if t_name == tool_name:
                 # Return schema
                 if hasattr(tool, "inputSchema"):
-                    return getattr(tool, "inputSchema")
+                    return cast(dict[str, Any], tool.inputSchema)
                 if isinstance(tool, dict) and "inputSchema" in tool:
-                    return tool["inputSchema"]
+                    return cast(dict[str, Any], tool["inputSchema"])
 
         raise MCPError(f"Tool {tool_name} not found on server {server_name}")
 

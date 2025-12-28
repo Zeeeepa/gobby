@@ -63,7 +63,15 @@ class ConditionEvaluator:
             "variables": state.variables,
             "task_list": state.task_list,
         }
-        context.update(state.variables)
+        # Add variables safely to avoid shadowing internal context keys
+        for key, value in state.variables.items():
+            if key in context:
+                # Log warning or namespace? For now just skip or simple duplicate warn
+                logger.debug(
+                    f"Variable '{key}' shadows internal context key, skipping direct merge"
+                )
+                continue
+            context[key] = value
 
         for condition in conditions:
             cond_type = condition.get("type")

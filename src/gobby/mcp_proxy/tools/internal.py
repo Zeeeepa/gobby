@@ -114,13 +114,13 @@ class InternalToolRegistry:
                     continue
 
                 param_type = "string"
-                if param.annotation == int:
+                if param.annotation is int:
                     param_type = "integer"
-                elif param.annotation == bool:
+                elif param.annotation is bool:
                     param_type = "boolean"
-                elif param.annotation == dict:
+                elif param.annotation is dict:
                     param_type = "object"
-                elif param.annotation == list:
+                elif param.annotation is list:
                     param_type = "array"
 
                 properties[param_name] = {"type": param_type}

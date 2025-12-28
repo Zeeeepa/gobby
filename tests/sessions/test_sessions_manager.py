@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+
 from gobby.sessions.manager import SessionManager
 from gobby.storage.database import LocalDatabase
 from gobby.storage.projects import LocalProjectManager

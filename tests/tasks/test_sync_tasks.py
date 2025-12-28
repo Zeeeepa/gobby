@@ -1,11 +1,11 @@
 import json
 import time
-import pytest
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from gobby.sync.tasks import TaskSyncManager
+import pytest
+
 from gobby.storage.tasks import LocalTaskManager
+from gobby.sync.tasks import TaskSyncManager
 
 
 @pytest.fixture
@@ -102,7 +102,6 @@ class TestTaskSyncManager:
         task_manager.close_task(task.id)
         assert sync_manager.trigger_export.call_count == 3
 
-        # Delete task -> should trigger
         # Delete task -> should trigger
         task_manager.delete_task(task.id)
         assert sync_manager.trigger_export.call_count == 4

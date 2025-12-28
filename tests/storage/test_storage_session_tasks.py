@@ -1,8 +1,9 @@
+
 import pytest
-from unittest.mock import patch, MagicMock
+
 from gobby.storage.session_tasks import SessionTaskManager
-from gobby.storage.tasks import LocalTaskManager
 from gobby.storage.sessions import LocalSessionManager
+from gobby.storage.tasks import LocalTaskManager
 
 
 @pytest.fixture

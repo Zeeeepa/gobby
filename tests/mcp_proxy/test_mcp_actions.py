@@ -1,12 +1,13 @@
 """Tests for src/mcp_proxy/actions.py - MCP Actions."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock, AsyncMock
 
 from gobby.mcp_proxy.actions import (
     add_mcp_server,
-    remove_mcp_server,
     list_mcp_servers,
+    remove_mcp_server,
 )
 
 
@@ -136,7 +137,7 @@ class TestAddMcpServer:
         ) as mock_gen:
             mock_gen.return_value = "Generated description"
 
-            result = await add_mcp_server(
+            await add_mcp_server(
                 mcp_manager=mock_manager,
                 name="test-server",
                 transport="http",
@@ -162,7 +163,7 @@ class TestAddMcpServer:
         with patch(
             "gobby.mcp_proxy.actions.generate_server_description", new_callable=AsyncMock
         ) as mock_gen:
-            result = await add_mcp_server(
+            await add_mcp_server(
                 mcp_manager=mock_manager,
                 name="test-server",
                 transport="http",

@@ -17,7 +17,7 @@ from gobby.llm.base import AuthMode, LLMProvider
 logger = logging.getLogger(__name__)
 
 
-class GeminiProvider(LLMProvider):  # type: ignore[misc]
+class GeminiProvider(LLMProvider):
     """
     Gemini implementation of LLMProvider using google-generativeai package.
 

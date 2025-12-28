@@ -1,10 +1,11 @@
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 
 from gobby.config.app import SkillConfig
 from gobby.llm.service import LLMService
 from gobby.memory.skills import SkillLearner
-from gobby.storage.messages import LocalMessageManager
+from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import Session
 from gobby.storage.skills import LocalSkillManager, Skill
 
@@ -16,7 +17,7 @@ def mock_storage():
 
 @pytest.fixture
 def mock_message_manager():
-    return AsyncMock(spec=LocalMessageManager)
+    return AsyncMock(spec=LocalSessionMessageManager)
 
 
 @pytest.fixture

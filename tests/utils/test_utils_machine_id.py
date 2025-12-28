@@ -1,17 +1,15 @@
 """Tests for src/utils/machine_id.py - Machine ID Utility."""
 
-import os
+from unittest.mock import MagicMock, patch
+
 import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 from gobby.utils.machine_id import (
-    get_machine_id,
+    _generate_machine_id,
     _get_or_create_machine_id,
     _write_file_secure,
-    _generate_machine_id,
     clear_cache,
-    MACHINE_ID_FILE,
+    get_machine_id,
 )
 
 
@@ -163,7 +161,8 @@ class TestGenerateMachineId:
         with patch.dict("sys.modules", {"machineid": mock_machineid}):
             # Need to reimport to pick up the mock
             from gobby.utils import machine_id as mid
-            result = mid._generate_machine_id()
+
+            mid._generate_machine_id()
 
         # Should attempt to use machineid
         mock_machineid.id.assert_called_once()

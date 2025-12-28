@@ -32,7 +32,7 @@ class ActionContext:
 class ActionHandler(Protocol):
     """Protocol for action handlers."""
 
-    async def __call__(self, context: ActionContext, **kwargs) -> dict[str, Any] | None: ...
+    async def __call__(self, context: ActionContext, **kwargs: Any) -> dict[str, Any] | None: ...
 
 
 class ActionExecutor:
@@ -95,7 +95,7 @@ class ActionExecutor:
         self.register("memory.sync_export", self._handle_memory_sync_export)
 
     async def execute(
-        self, action_type: str, context: ActionContext, **kwargs
+        self, action_type: str, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Execute an action."""
         handler = self._handlers.get(action_type)
@@ -112,7 +112,7 @@ class ActionExecutor:
     # --- Action Implementations ---
 
     async def _handle_inject_context(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Inject context from a source.
@@ -168,7 +168,7 @@ class ActionExecutor:
             # Render content if template is used
             template = kwargs.get("template")
             if template:
-                render_context = {
+                render_context: dict[str, Any] = {
                     "session": context.session_manager.get(context.session_id),
                     "state": context.state,
                     "artifacts": context.state.artifacts,
@@ -197,7 +197,7 @@ class ActionExecutor:
         return None
 
     async def _handle_inject_message(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Inject a message to the user/assistant, rendering it as a template.
@@ -228,7 +228,7 @@ class ActionExecutor:
         return {"inject_message": rendered_content}
 
     async def _handle_capture_artifact(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Capture an artifact (file) and store its path/content in state.
@@ -267,7 +267,7 @@ class ActionExecutor:
         return {"captured": filepath}
 
     async def _handle_read_artifact(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Read an artifact's content into a workflow variable.
@@ -312,7 +312,7 @@ class ActionExecutor:
             return None
 
     async def _handle_load_workflow_state(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Load workflow state from DB."""
         from .state_manager import WorkflowStateManager
@@ -327,7 +327,7 @@ class ActionExecutor:
 
             # For now, let's update attributes manualy or via __dict__?
             # Safe way:
-            for field in loaded_state.__dataclass_fields__:
+            for field in loaded_state.model_fields:
                 val = getattr(loaded_state, field)
                 setattr(context.state, field, val)
 
@@ -336,7 +336,7 @@ class ActionExecutor:
         return {"state_loaded": False}
 
     async def _handle_save_workflow_state(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Save workflow state to DB."""
         from .state_manager import WorkflowStateManager
@@ -345,7 +345,9 @@ class ActionExecutor:
         state_manager.save_state(context.state)
         return {"state_saved": True}
 
-    async def _handle_set_variable(self, context: ActionContext, **kwargs) -> dict[str, Any] | None:
+    async def _handle_set_variable(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
         """Set a workflow variable."""
         name = kwargs.get("name")
         value = kwargs.get("value")
@@ -359,7 +361,7 @@ class ActionExecutor:
         return {"variable_set": name, "value": value}
 
     async def _handle_increment_variable(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Increment a numeric workflow variable."""
         name = kwargs.get("name")
@@ -379,7 +381,9 @@ class ActionExecutor:
         context.state.variables[name] = new_value
         return {"variable_incremented": name, "value": new_value}
 
-    async def _handle_call_llm(self, context: ActionContext, **kwargs) -> dict[str, Any] | None:
+    async def _handle_call_llm(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
         """Call LLM with a prompt template and store result in variable."""
         prompt = kwargs.get("prompt")
         output_as = kwargs.get("output_as")
@@ -427,7 +431,7 @@ class ActionExecutor:
             return {"error": str(e)}
 
     async def _handle_synthesize_title(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Synthesize and set a session title."""
         if not context.llm_service or not context.transcript_processor:
@@ -482,7 +486,9 @@ class ActionExecutor:
             logger.error(f"synthesize_title: Failed: {e}")
             return {"error": str(e)}
 
-    async def _handle_write_todos(self, context: ActionContext, **kwargs) -> dict[str, Any] | None:
+    async def _handle_write_todos(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
         """Write todos to a file (default TODO.md)."""
         todos = kwargs.get("todos", [])
         import os
@@ -511,7 +517,7 @@ class ActionExecutor:
             return {"error": str(e)}
 
     async def _handle_mark_todo_complete(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Mark a todo as complete in TODO.md."""
         todo_text = kwargs.get("todo_text")
@@ -547,7 +553,7 @@ class ActionExecutor:
             return {"error": str(e)}
 
     async def _handle_memory_sync_import(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Import memories and skills from filesystem."""
         if not context.memory_sync_manager:
@@ -558,7 +564,7 @@ class ActionExecutor:
         return {"imported": result}
 
     async def _handle_memory_sync_export(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Export memories and skills to filesystem."""
         if not context.memory_sync_manager:
@@ -569,7 +575,7 @@ class ActionExecutor:
         return {"exported": result}
 
     async def _handle_persist_tasks(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Persist a list of task dicts to Gobby task system."""
         tasks = kwargs.get("tasks", [])
@@ -611,7 +617,7 @@ class ActionExecutor:
     async def _handle_call_mcp_tool(
         self,
         context: ActionContext,
-        **kwargs,
+        **kwargs: Any,
     ) -> dict[str, Any] | None:
         """Call an MCP tool on a connected server.
 
@@ -652,7 +658,7 @@ class ActionExecutor:
             return {"error": str(e)}
 
     async def _handle_generate_handoff(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Generate a handoff record by summarizing the session and saving to sessions.summary_markdown.
@@ -672,7 +678,7 @@ class ActionExecutor:
         return {"handoff_created": True, "summary_length": summary_result.get("summary_length", 0)}
 
     async def _handle_generate_summary(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Generate a session summary using LLM and store it in the session record.
@@ -766,7 +772,7 @@ class ActionExecutor:
         return {"summary_generated": True, "summary_length": len(summary_content)}
 
     async def _handle_restore_context(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Restore context from linked parent session.
@@ -794,7 +800,7 @@ class ActionExecutor:
         return {"inject_context": content}
 
     async def _handle_memory_inject(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Inject memory context into the session.
@@ -844,7 +850,9 @@ class ActionExecutor:
             logger.error(f"memory_inject: Failed: {e}", exc_info=True)
             return {"error": str(e)}
 
-    async def _handle_skills_learn(self, context: ActionContext, **kwargs) -> dict[str, Any] | None:
+    async def _handle_skills_learn(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
         """
         Trigger skill learning from session.
         """
@@ -882,7 +890,7 @@ class ActionExecutor:
             return {"error": str(e)}
 
     async def _handle_mark_session_status(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Mark a session status (current or parent).
@@ -903,7 +911,9 @@ class ActionExecutor:
         context.session_manager.update_status(session_id, status)
         return {"status_updated": True, "session_id": session_id, "status": status}
 
-    async def _handle_switch_mode(self, context: ActionContext, **kwargs) -> dict[str, Any] | None:
+    async def _handle_switch_mode(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
         """
         Signal the agent to switch modes (e.g., PLAN, ACT).
         """

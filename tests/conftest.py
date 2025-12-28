@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from gobby.config.app import DaemonConfig
 from gobby.storage.database import LocalDatabase
 from gobby.storage.mcp import LocalMCPManager

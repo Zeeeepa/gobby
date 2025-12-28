@@ -1,24 +1,21 @@
 """Tests for src/utils/logging.py - Logging Utilities."""
 
 import logging
-import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from gobby.utils.logging import (
-    request_id_var,
-    RequestIDFilter,
     ContextLogger,
     ExtraFieldsFormatter,
-    generate_request_id,
-    set_request_id,
-    get_request_id,
+    RequestIDFilter,
     clear_request_id,
+    generate_request_id,
     get_context_logger,
+    get_mcp_client_logger,
+    get_mcp_server_logger,
+    get_request_id,
+    set_request_id,
     setup_file_logging,
     setup_mcp_logging,
-    get_mcp_server_logger,
-    get_mcp_client_logger,
 )
 
 
@@ -168,9 +165,9 @@ class TestExtraFieldsFormatter:
             exc_info=None,
         )
 
-        result = formatter.format(record)
+        formatter.format(record)
 
-        result = formatter.format(record)
+        formatter.format(record)
         assert record.short_name == "http_server"
 
     def test_format_no_prefix(self):

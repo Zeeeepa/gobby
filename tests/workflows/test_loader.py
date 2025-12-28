@@ -1,8 +1,9 @@
-import pytest
-from unittest.mock import MagicMock, mock_open, patch
 from pathlib import Path
+from unittest.mock import mock_open, patch
+
+import pytest
+
 from gobby.workflows.loader import WorkflowLoader
-from gobby.workflows.definitions import WorkflowDefinition
 
 
 @pytest.fixture

@@ -1,12 +1,13 @@
-import asyncio
+from datetime import datetime
+
 import pytest
 from fastapi.testclient import TestClient
+
 from gobby.servers.http import HTTPServer
-from gobby.storage.database import LocalDatabase
-from gobby.storage.messages import LocalMessageManager
-from gobby.storage.sessions import LocalSessionManager
 from gobby.sessions.transcripts.base import ParsedMessage
-from datetime import datetime
+from gobby.storage.database import LocalDatabase
+from gobby.storage.session_messages import LocalSessionMessageManager
+from gobby.storage.sessions import LocalSessionManager
 
 
 @pytest.fixture
@@ -22,7 +23,7 @@ def mock_db():
     shared_conn.execute("PRAGMA journal_mode = WAL")
 
     # Patch _get_connection to return the shared connection
-    db._get_connection = lambda: shared_conn
+    db._get_connection = lambda: shared_conn  # type: ignore
 
     # Create tables using the shared connection
     db.execute("""
@@ -78,7 +79,7 @@ def mock_db():
 @pytest.fixture
 def server(mock_db):
     session_manager = LocalSessionManager(mock_db)
-    message_manager = LocalMessageManager(mock_db)
+    message_manager = LocalSessionMessageManager(mock_db)
     server = HTTPServer(
         port=0, test_mode=True, session_manager=session_manager, message_manager=message_manager
     )
@@ -94,7 +95,7 @@ def client(server):
 async def test_get_session_messages(client, mock_db):
     # Setup data
     session_manager = LocalSessionManager(mock_db)
-    message_manager = LocalMessageManager(mock_db)
+    message_manager = LocalSessionMessageManager(mock_db)
 
     session = session_manager.register(
         external_id="ext-1",
@@ -143,7 +144,7 @@ async def test_get_session_messages(client, mock_db):
 async def test_list_sessions_with_counts(client, mock_db):
     # Setup data
     session_manager = LocalSessionManager(mock_db)
-    message_manager = LocalMessageManager(mock_db)
+    message_manager = LocalSessionMessageManager(mock_db)
 
     # Create two sessions
     session1 = session_manager.register(

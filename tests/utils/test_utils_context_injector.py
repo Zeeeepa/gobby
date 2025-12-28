@@ -1,6 +1,5 @@
 """Tests for the context injector utilities."""
 
-import pytest
 
 from gobby.utils.context_injector import (
     build_restored_context,

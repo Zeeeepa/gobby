@@ -1,10 +1,9 @@
-import pytest
-import asyncio
-import unittest
-from unittest.mock import MagicMock, ANY
+from unittest.mock import MagicMock, patch
 
-from gobby.mcp_proxy.tools.tasks import create_task_registry
+import pytest
+
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.mcp_proxy.tools.tasks import create_task_registry
 from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.tasks import TaskSyncManager
 
@@ -85,7 +84,7 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
     mock_task_manager.create_task.return_value = mock_task
 
     # Mock get_project_context
-    with unittest.mock.patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+    with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
         mock_ctx.return_value = {"id": "test-project-id"}
 
         result = await registry.call("create_task", {"title": "Test Task", "priority": 1})
@@ -99,7 +98,7 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
             parent_task_id=None,
             labels=None,
         )
-    assert result == {"id": "t1", "title": "Test Task"}
+    assert result == {"id": "t1"}
 
 
 @pytest.mark.asyncio

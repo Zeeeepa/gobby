@@ -1,10 +1,10 @@
 """Tests for task validation and maintenance."""
 
 import pytest
-from gobby.storage.database import LocalDatabase
+
+from gobby.storage.task_dependencies import TaskDependencyManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.utils.validation import TaskValidator
-from gobby.storage.task_dependencies import TaskDependencyManager
 
 
 @pytest.fixture
@@ -66,7 +66,7 @@ async def test_invalid_projects(manager, sample_project):
     try:
         manager.db.execute(
             """
-            INSERT INTO tasks (id, project_id, title, status, created_at, updated_at) 
+            INSERT INTO tasks (id, project_id, title, status, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
             (

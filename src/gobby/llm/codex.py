@@ -24,7 +24,7 @@ from gobby.llm.base import AuthMode, LLMProvider
 logger = logging.getLogger(__name__)
 
 
-class CodexProvider(LLMProvider):  # type: ignore[misc]
+class CodexProvider(LLMProvider):
     """
     Codex (OpenAI) implementation of LLMProvider.
 

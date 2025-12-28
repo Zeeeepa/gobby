@@ -5,6 +5,7 @@ Gobby CLI entry point.
 import click
 
 from gobby.config.app import load_config
+
 from .daemon import restart, start, status, stop
 from .init import init
 from .install import install, uninstall

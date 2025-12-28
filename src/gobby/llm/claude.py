@@ -20,13 +20,14 @@ from claude_agent_sdk import (
     UserMessage,
     query,
 )
+
 from gobby.config.app import DaemonConfig
 from gobby.llm.base import LLMProvider
 
 logger = logging.getLogger(__name__)
 
 
-class ClaudeLLMProvider(LLMProvider):  # type: ignore[misc]
+class ClaudeLLMProvider(LLMProvider):
     """
     Claude implementation of LLMProvider using claude_agent_sdk.
 

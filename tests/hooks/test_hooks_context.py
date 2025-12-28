@@ -1,11 +1,10 @@
-import pytest
-from unittest.mock import MagicMock, patch
 from datetime import datetime
+from unittest.mock import MagicMock, patch
 
-from gobby.hooks.events import HookEvent, HookEventType, SessionSource, HookResponse
+import pytest
+
+from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
 from gobby.hooks.hook_manager import HookManager
-from gobby.storage.sessions import LocalSessionManager
-from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.tasks import Task
 
 

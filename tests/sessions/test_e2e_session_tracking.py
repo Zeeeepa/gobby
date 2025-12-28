@@ -1,13 +1,13 @@
 import asyncio
 import json
-from datetime import datetime
 from collections.abc import AsyncGenerator
+from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from gobby.hooks.hook_manager import HookManager
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
+from gobby.hooks.hook_manager import HookManager
 from gobby.sessions.processor import SessionMessageProcessor
 from gobby.storage.database import LocalDatabase
 

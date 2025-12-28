@@ -12,6 +12,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger("gobby.mcp.server")
 
 
+def safe_truncate(text: str | bytes | None, length: int = 100) -> str:
+    """Safely truncate text to length by unicode code points."""
+    if text is None:
+        return ""
+    if isinstance(text, bytes):
+        text = text.decode("utf-8", errors="replace")
+    if len(text) <= length:
+        return text
+    return text[:length] + "..."
+
+
 class ToolProxyService:
     """Service for proxying tool calls and resource reads to underlying MCP servers."""
 
@@ -36,32 +47,51 @@ class ToolProxyService:
             - If no server: {"servers": [{"name": "...", "tools": [...]}, ...]}
         """
         # Check if requesting a specific internal server
-        if server_name and self._internal_manager and self._internal_manager.is_internal(server_name):
+        if (
+            server_name
+            and self._internal_manager
+            and self._internal_manager.is_internal(server_name)
+        ):
             registry = self._internal_manager.get_registry(server_name)
             if registry:
                 return {"server": server_name, "tools": registry.list_tools()}
-            return {"server": server_name, "tools": [], "error": f"Internal server '{server_name}' not found"}
+            return {
+                "server": server_name,
+                "tools": [],
+                "error": f"Internal server '{server_name}' not found",
+            }
 
         # Check if requesting a specific external server
         if server_name:
-            if server_name in self._mcp_manager._connections:
+            if self._mcp_manager.has_server(server_name):
                 tools_map = await self._mcp_manager.list_tools(server_name)
                 tools_list = tools_map.get(server_name, [])
                 # Convert to lightweight format
                 brief_tools = []
                 for tool in tools_list:
                     if isinstance(tool, dict):
-                        brief_tools.append({
-                            "name": tool.get("name", "unknown"),
-                            "brief": (tool.get("description", "")[:100] or "No description"),
-                        })
+                        brief_tools.append(
+                            {
+                                "name": tool.get("name", "unknown"),
+                                "brief": safe_truncate(tool.get("description", "")),
+                            }
+                        )
                     else:
-                        brief_tools.append({
-                            "name": tool.name,
-                            "brief": (tool.description[:100] if tool.description else "No description"),
-                        })
+                        brief_tools.append(
+                            {
+                                "name": tool.name,
+                                "brief": safe_truncate(tool.description),
+                            }
+                        )
                 return {"server": server_name, "tools": brief_tools}
-            return {"server": server_name, "tools": [], "error": f"Server '{server_name}' not found"}
+
+            # NOTE: Keeping return-dict error pattern for list_tools as it returns "data"
+            # But for action-oriented methods we switch to raising MCPError
+            return {
+                "server": server_name,
+                "tools": [],
+                "error": f"Server '{server_name}' not found",
+            }
 
         # No server specified - return all servers
         servers_result = []
@@ -69,10 +99,12 @@ class ToolProxyService:
         # Add internal servers first
         if self._internal_manager:
             for registry in self._internal_manager.get_all_registries():
-                servers_result.append({
-                    "name": registry.name,
-                    "tools": registry.list_tools(),
-                })
+                servers_result.append(
+                    {
+                        "name": registry.name,
+                        "tools": registry.list_tools(),
+                    }
+                )
 
         # Add external servers
         tools_map = await self._mcp_manager.list_tools()
@@ -80,15 +112,19 @@ class ToolProxyService:
             brief_tools = []
             for tool in tools_list:
                 if isinstance(tool, dict):
-                    brief_tools.append({
-                        "name": tool.get("name", "unknown"),
-                        "brief": (tool.get("description", "")[:100] or "No description"),
-                    })
+                    brief_tools.append(
+                        {
+                            "name": tool.get("name", "unknown"),
+                            "brief": safe_truncate(tool.get("description", "")),
+                        }
+                    )
                 else:
-                    brief_tools.append({
-                        "name": tool.name,
-                        "brief": (tool.description[:100] if tool.description else "No description"),
-                    })
+                    brief_tools.append(
+                        {
+                            "name": tool.name,
+                            "brief": safe_truncate(tool.description),
+                        }
+                    )
             servers_result.append({"name": srv_name, "tools": brief_tools})
 
         return {"servers": servers_result}
@@ -123,8 +159,17 @@ class ToolProxyService:
                 schema = registry.get_schema(tool_name)
                 if schema:
                     return {"success": True, "server": server_name, "tool": schema}
-                return {"success": False, "error": f"Tool '{tool_name}' not found on '{server_name}'"}
+                return {
+                    "success": False,
+                    "error": f"Tool '{tool_name}' not found on '{server_name}'",
+                }
             return {"success": False, "error": f"Internal server '{server_name}' not found"}
 
+        if not self._mcp_manager.has_server(server_name):
+            raise MCPError(f"Server '{server_name}' not found")
+
         # Use MCP manager for external servers
-        return await self._mcp_manager.get_tool_input_schema(server_name, tool_name)
+        try:
+            return await self._mcp_manager.get_tool_input_schema(server_name, tool_name)
+        except Exception as e:
+            raise MCPError(f"Failed to get schema for {tool_name} on {server_name}: {e}") from e

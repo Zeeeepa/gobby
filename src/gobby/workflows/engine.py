@@ -1,8 +1,8 @@
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
-from gobby.hooks.events import HookEvent, HookResponse, HookEventType
+from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 
 from .definitions import WorkflowDefinition, WorkflowState
 from .evaluator import ConditionEvaluator
@@ -244,7 +244,7 @@ class WorkflowEngine:
 
         # Accumulate context from all workflows
         all_context: list[str] = []
-        final_decision = "allow"
+        final_decision: Literal["allow", "deny", "ask", "block", "modify"] = "allow"
         final_reason: str | None = None
         final_system_message: str | None = None
 

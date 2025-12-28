@@ -12,7 +12,7 @@ from gobby.storage.database import LocalDatabase
 logger = logging.getLogger(__name__)
 
 
-class LocalMessageManager:
+class LocalSessionMessageManager:
     """Manages storage of session messages and processing state."""
 
     def __init__(self, database: LocalDatabase):

@@ -1,6 +1,5 @@
 """Tests for src/utils/status.py - Status Message Formatting."""
 
-import pytest
 
 from gobby.utils.status import format_status_message
 

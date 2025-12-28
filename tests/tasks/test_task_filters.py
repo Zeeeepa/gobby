@@ -1,6 +1,7 @@
 import pytest
-from gobby.storage.tasks import LocalTaskManager
+
 from gobby.storage.database import LocalDatabase
+from gobby.storage.tasks import LocalTaskManager
 
 
 @pytest.fixture
@@ -41,6 +42,7 @@ def task_manager():
     return LocalTaskManager(db)
 
 
+@pytest.mark.integration
 def test_list_tasks_filter_by_type(task_manager):
     task_manager.create_task("p1", "Task 1", task_type="bug")
     task_manager.create_task("p1", "Task 2", task_type="feature")
@@ -55,6 +57,7 @@ def test_list_tasks_filter_by_type(task_manager):
     assert features[0].title == "Task 2"
 
 
+@pytest.mark.integration
 def test_list_tasks_filter_by_label(task_manager):
     task_manager.create_task("p1", "Task 1", labels=["frontend", "urgent"])
     task_manager.create_task("p1", "Task 2", labels=["backend"])
@@ -71,6 +74,7 @@ def test_list_tasks_filter_by_label(task_manager):
     assert urgent_tasks[0].title == "Task 1"
 
 
+@pytest.mark.integration
 def test_list_ready_tasks_filter_by_type(task_manager):
     # Setup: Task 1 (bug) blocks Task 2 (feature). Task 3 (bug) is independent.
     t1 = task_manager.create_task("p1", "Task 1", task_type="bug")

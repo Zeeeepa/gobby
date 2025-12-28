@@ -1,5 +1,6 @@
 import asyncio
 from pathlib import Path
+from typing import Any
 
 import click
 
@@ -7,7 +8,7 @@ from gobby.config.app import DaemonConfig
 from gobby.llm import create_llm_service
 from gobby.memory.skills import SkillLearner
 from gobby.storage.database import LocalDatabase
-from gobby.storage.messages import LocalMessageManager
+from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.skills import LocalSkillManager, Skill
 
@@ -24,7 +25,7 @@ def get_skill_learner(ctx: click.Context) -> SkillLearner | None:
 
     db = LocalDatabase()
     storage = LocalSkillManager(db)
-    message_manager = LocalMessageManager(db)
+    message_manager = LocalSessionMessageManager(db)
     try:
         llm_service = create_llm_service(config)
         return SkillLearner(storage, message_manager, llm_service, config.skills)
@@ -82,7 +83,7 @@ def _read_safe_file(filepath: str, base_dir: Path | None = None) -> str:
         # or raise it here if we can't resolve.
         # Let's try to resolve blindly or just check existence first.
         if not candidate_path.exists():
-            raise FileNotFoundError(f"File not found: {filepath}")
+            raise FileNotFoundError(f"File not found: {filepath}") from None
         raise
 
     # Check traversal
@@ -459,7 +460,7 @@ def export(ctx: click.Context, output: str | None, fmt: str) -> None:
         else:
             # Legacy format: skills/<name>.md
             filename = skills_dir / f"{safe_name}.md"
-            frontmatter = {
+            legacy_frontmatter: dict[str, Any] = {
                 "id": skill.id,
                 "name": skill.name,
                 "description": skill.description or "",
@@ -468,7 +469,7 @@ def export(ctx: click.Context, output: str | None, fmt: str) -> None:
             }
 
             content = "---\n"
-            content += yaml.dump(frontmatter)
+            content += yaml.dump(legacy_frontmatter)
             content += "---\n\n"
             content += skill.instructions
 

@@ -1,9 +1,10 @@
 """Tests for src/config/mcp.py - MCP Configuration Manager."""
 
 import json
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
+import pytest
 
 from gobby.config.mcp import MCPConfigManager
 from gobby.mcp_proxy.manager import MCPServerConfig
@@ -16,7 +17,7 @@ class TestMCPConfigManagerInit:
         """Test that init creates config file with empty servers if it doesn't exist."""
         config_path = tmp_path / "test_mcp.json"
 
-        manager = MCPConfigManager(str(config_path))
+        MCPConfigManager(str(config_path))
 
         assert config_path.exists()
         with open(config_path) as f:
@@ -26,10 +27,12 @@ class TestMCPConfigManagerInit:
     def test_init_uses_existing_config_file(self, tmp_path):
         """Test that init doesn't overwrite existing config file."""
         config_path = tmp_path / "test_mcp.json"
-        existing_config = {"servers": [{"name": "test", "transport": "http", "url": "http://localhost"}]}
+        existing_config = {
+            "servers": [{"name": "test", "transport": "http", "url": "http://localhost"}]
+        }
         config_path.write_text(json.dumps(existing_config))
 
-        manager = MCPConfigManager(str(config_path))
+        MCPConfigManager(str(config_path))
 
         with open(config_path) as f:
             config = json.load(f)
@@ -39,16 +42,16 @@ class TestMCPConfigManagerInit:
         """Test that init creates parent directory if it doesn't exist."""
         config_path = tmp_path / "subdir" / "test_mcp.json"
 
-        manager = MCPConfigManager(str(config_path))
+        MCPConfigManager(str(config_path))
 
         assert config_path.parent.exists()
         assert config_path.exists()
 
     def test_init_with_default_path(self):
         """Test that init uses default path when not specified."""
-        with patch.object(Path, 'expanduser', return_value=Path("/tmp/test/.gobby/.mcp.json")):
-            with patch.object(Path, 'mkdir'):
-                with patch.object(Path, 'exists', return_value=True):
+        with patch.object(Path, "expanduser", return_value=Path("/tmp/test/.gobby/.mcp.json")):
+            with patch.object(Path, "mkdir"):
+                with patch.object(Path, "exists", return_value=True):
                     manager = MCPConfigManager()
                     assert ".mcp.json" in str(manager.config_path)
 
@@ -59,7 +62,9 @@ class TestMCPConfigManagerReadConfig:
     def test_read_config_valid_json(self, tmp_path):
         """Test reading valid JSON config."""
         config_path = tmp_path / "test_mcp.json"
-        config_data = {"servers": [{"name": "test", "transport": "http", "url": "http://localhost"}]}
+        config_data = {
+            "servers": [{"name": "test", "transport": "http", "url": "http://localhost"}]
+        }
         config_path.write_text(json.dumps(config_data))
 
         manager = MCPConfigManager(str(config_path))
@@ -178,12 +183,14 @@ class TestMCPConfigManagerLoadServers:
         """Test loading server with HTTP transport."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {
-            "servers": [{
-                "name": "test-http",
-                "enabled": True,
-                "transport": "http",
-                "url": "http://localhost:8080/mcp"
-            }]
+            "servers": [
+                {
+                    "name": "test-http",
+                    "enabled": True,
+                    "transport": "http",
+                    "url": "http://localhost:8080/mcp",
+                }
+            ]
         }
         config_path.write_text(json.dumps(config_data))
 
@@ -199,13 +206,15 @@ class TestMCPConfigManagerLoadServers:
         """Test loading server with stdio transport."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {
-            "servers": [{
-                "name": "test-stdio",
-                "enabled": True,
-                "transport": "stdio",
-                "command": "uvx",
-                "args": ["test-mcp"]
-            }]
+            "servers": [
+                {
+                    "name": "test-stdio",
+                    "enabled": True,
+                    "transport": "stdio",
+                    "command": "uvx",
+                    "args": ["test-mcp"],
+                }
+            ]
         }
         config_path.write_text(json.dumps(config_data))
 
@@ -224,7 +233,7 @@ class TestMCPConfigManagerLoadServers:
         config_data = {
             "servers": [
                 {"transport": "http", "url": "http://localhost"},  # Missing name
-                {"name": "valid", "transport": "http", "url": "http://localhost"}
+                {"name": "valid", "transport": "http", "url": "http://localhost"},
             ]
         }
         config_path.write_text(json.dumps(config_data))
@@ -239,13 +248,15 @@ class TestMCPConfigManagerLoadServers:
         """Test loading server with OAuth configuration."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {
-            "servers": [{
-                "name": "oauth-server",
-                "transport": "http",
-                "url": "http://localhost:8080/mcp",
-                "requires_oauth": True,
-                "oauth_provider": "github"
-            }]
+            "servers": [
+                {
+                    "name": "oauth-server",
+                    "transport": "http",
+                    "url": "http://localhost:8080/mcp",
+                    "requires_oauth": True,
+                    "oauth_provider": "github",
+                }
+            ]
         }
         config_path.write_text(json.dumps(config_data))
 
@@ -278,10 +289,7 @@ class TestMCPConfigManagerSaveServers:
         config_path.write_text(json.dumps({"servers": []}))
 
         server = MCPServerConfig(
-            name="test-http",
-            enabled=True,
-            transport="http",
-            url="http://localhost:8080/mcp"
+            name="test-http", enabled=True, transport="http", url="http://localhost:8080/mcp"
         )
 
         manager = MCPConfigManager(str(config_path))
@@ -306,7 +314,7 @@ class TestMCPConfigManagerSaveServers:
             transport="stdio",
             command="uvx",
             args=["test-mcp"],
-            env={"KEY": "value"}
+            env={"KEY": "value"},
         )
 
         manager = MCPConfigManager(str(config_path))
@@ -329,9 +337,7 @@ class TestMCPConfigManagerAddServer:
         config_path.write_text(json.dumps({"servers": []}))
 
         server = MCPServerConfig(
-            name="new-server",
-            transport="http",
-            url="http://localhost:8080/mcp"
+            name="new-server", transport="http", url="http://localhost:8080/mcp"
         )
 
         manager = MCPConfigManager(str(config_path))
@@ -345,19 +351,13 @@ class TestMCPConfigManagerAddServer:
         """Test adding server with duplicate name raises ValueError."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {
-            "servers": [{
-                "name": "existing",
-                "transport": "http",
-                "url": "http://localhost:8080/mcp"
-            }]
+            "servers": [
+                {"name": "existing", "transport": "http", "url": "http://localhost:8080/mcp"}
+            ]
         }
         config_path.write_text(json.dumps(config_data))
 
-        server = MCPServerConfig(
-            name="existing",
-            transport="http",
-            url="http://localhost:9090/mcp"
-        )
+        server = MCPServerConfig(name="existing", transport="http", url="http://localhost:9090/mcp")
 
         manager = MCPConfigManager(str(config_path))
 
@@ -372,11 +372,9 @@ class TestMCPConfigManagerRemoveServer:
         """Test removing a server successfully."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {
-            "servers": [{
-                "name": "to-remove",
-                "transport": "http",
-                "url": "http://localhost:8080/mcp"
-            }]
+            "servers": [
+                {"name": "to-remove", "transport": "http", "url": "http://localhost:8080/mcp"}
+            ]
         }
         config_path.write_text(json.dumps(config_data))
 
@@ -404,18 +402,16 @@ class TestMCPConfigManagerUpdateServer:
         """Test updating a server successfully."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {
-            "servers": [{
-                "name": "to-update",
-                "transport": "http",
-                "url": "http://localhost:8080/mcp"
-            }]
+            "servers": [
+                {"name": "to-update", "transport": "http", "url": "http://localhost:8080/mcp"}
+            ]
         }
         config_path.write_text(json.dumps(config_data))
 
         updated_server = MCPServerConfig(
             name="to-update",
             transport="http",
-            url="http://localhost:9090/mcp"  # Changed URL
+            url="http://localhost:9090/mcp",  # Changed URL
         )
 
         manager = MCPConfigManager(str(config_path))
@@ -431,9 +427,7 @@ class TestMCPConfigManagerUpdateServer:
         config_path.write_text(json.dumps({"servers": []}))
 
         server = MCPServerConfig(
-            name="non-existent",
-            transport="http",
-            url="http://localhost:8080/mcp"
+            name="non-existent", transport="http", url="http://localhost:8080/mcp"
         )
 
         manager = MCPConfigManager(str(config_path))
@@ -449,11 +443,9 @@ class TestMCPConfigManagerGetServer:
         """Test getting an existing server."""
         config_path = tmp_path / "test_mcp.json"
         config_data = {
-            "servers": [{
-                "name": "test-server",
-                "transport": "http",
-                "url": "http://localhost:8080/mcp"
-            }]
+            "servers": [
+                {"name": "test-server", "transport": "http", "url": "http://localhost:8080/mcp"}
+            ]
         }
         config_path.write_text(json.dumps(config_data))
 
@@ -494,7 +486,7 @@ class TestMCPConfigManagerListServers:
             "servers": [
                 {"name": "server1", "transport": "http", "url": "http://localhost:8080"},
                 {"name": "server2", "transport": "http", "url": "http://localhost:8081"},
-                {"name": "server3", "transport": "http", "url": "http://localhost:8082"}
+                {"name": "server3", "transport": "http", "url": "http://localhost:8082"},
             ]
         }
         config_path.write_text(json.dumps(config_data))

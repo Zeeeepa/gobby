@@ -50,7 +50,9 @@ def call_mcp_api(
     try:
         response = client.call_http_api(endpoint, method=method, json_data=json_data)
         if response.status_code == 200:
-            return response.json()
+            from typing import cast
+
+            return cast(dict[str, Any], response.json())
         else:
             error_msg = response.text or f"HTTP {response.status_code}"
             click.echo(f"Error: {error_msg}", err=True)

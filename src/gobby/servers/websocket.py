@@ -283,11 +283,15 @@ class WebSocketServer:
         tool_name = data.get("tool")
         args = data.get("args", {})
 
-        if not all([request_id, mcp_name, tool_name]):
+        if (
+            not isinstance(request_id, str)
+            or not isinstance(mcp_name, str)
+            or not isinstance(tool_name, str)
+        ):
             await self._send_error(
                 websocket,
-                "Missing required fields: request_id, mcp, tool",
-                request_id=request_id,
+                "Missing or invalid required fields: request_id, mcp, tool (must be strings)",
+                request_id=str(request_id) if request_id else None,
             )
             return
 

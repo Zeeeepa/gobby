@@ -236,52 +236,37 @@ class MemoryManager:
         # For now, let's just implement the logic here iterating over ALL memories
         # which is fine for < 1000 memories.
 
+        # Use snapshot-based iteration to avoid pagination issues during updates
         count = 0
-        limit = 500
-        offset = 0
 
-        while True:
-            # Get next batch
-            memories = self.storage.list_memories(
-                min_importance=floor + 0.001,  # Only decay those above floor
-                limit=limit,
-                offset=offset,
-            )
+        # Note: listing all memories (limit=10000) to avoid pagination drift when modifying them.
+        # If dataset grows larger, we should implement a cursor-based approach or add list_memories_ids.
+        memories = self.storage.list_memories(min_importance=floor + 0.001, limit=10000)
 
-            if not memories:
-                break
+        for memory in memories:
+            # Calculate simple linear decay since last update
+            last_update = datetime.fromisoformat(memory.updated_at)
+            hours_since = (datetime.now(UTC) - last_update).total_seconds() / 3600
 
-            for memory in memories:
-                # Calculate simple linear decay since last update?
-                # Or just apply the rate once per call (assuming called monthly)?
-                # The config says "decay_rate per month".
-                # We need to know when it was last decayed.
-                # `updated_at` tells us last update.
+            # If it's been less than 24h, skip to avoid over-decaying if called frequently
+            if hours_since < 24:
+                continue
 
-                last_update = datetime.fromisoformat(memory.updated_at)
-                hours_since = (datetime.now(UTC) - last_update).total_seconds() / 3600
+            # Decay factor: rate * (days since) / 30
+            # Linear decay
+            months_passed = hours_since / (24 * 30)
+            decay_amount = rate * months_passed
 
-                # If it's been less than 24h, skip to avoid over-decaying if called frequently
-                if hours_since < 24:
-                    continue
+            if decay_amount < 0.001:
+                continue
 
-                # Decay factor: rate * (days since) / 30
-                # Linear decay
-                months_passed = hours_since / (24 * 30)
-                decay_amount = rate * months_passed
+            new_importance = max(floor, memory.importance - decay_amount)
 
-                if decay_amount < 0.001:
-                    continue
-
-                new_importance = max(floor, memory.importance - decay_amount)
-
-                if new_importance != memory.importance:
-                    self.storage.update_memory(
-                        memory.id,
-                        importance=new_importance,
-                    )
-                    count += 1
-
-            offset += limit
+            if new_importance != memory.importance:
+                self.storage.update_memory(
+                    memory.id,
+                    importance=new_importance,
+                )
+                count += 1
 
         return count

@@ -1,16 +1,15 @@
 """Tests for HookEventBroadcaster."""
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from gobby.config.app import DaemonConfig, HookExtensionsConfig, WebSocketBroadcastConfig
+
+from gobby.config.app import DaemonConfig
 from gobby.hooks.broadcaster import HookEventBroadcaster
 from gobby.hooks.hook_types import (
     HookType,
     SessionStartInput,
     SessionStartSource,
-    SessionStartOutput,
 )
 
 

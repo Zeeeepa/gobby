@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import anyio
+
 from gobby.llm.base import LLMProvider
 from gobby.llm.claude import ClaudeLLMProvider
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser

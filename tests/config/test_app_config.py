@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 import yaml
+from pydantic import ValidationError
+
 from gobby.config.app import (
     CodeExecutionConfig,
     DaemonConfig,
@@ -32,7 +34,6 @@ from gobby.config.app import (
     load_yaml,
     save_config,
 )
-from pydantic import ValidationError
 
 
 class TestWebSocketSettings:

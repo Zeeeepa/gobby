@@ -31,7 +31,7 @@ class BaseAdapter(ABC):
     source: SessionSource
 
     @abstractmethod
-    def translate_to_hook_event(self, native_event: dict) -> HookEvent:
+    def translate_to_hook_event(self, native_event: dict) -> HookEvent | None:
         """Convert native CLI event to unified HookEvent.
 
         Args:
@@ -61,9 +61,7 @@ class BaseAdapter(ABC):
         """
         pass
 
-    def handle_native(
-        self, native_event: dict, hook_manager: "HookManager"
-    ) -> dict:
+    def handle_native(self, native_event: dict, hook_manager: "HookManager") -> dict:
         """Main entry point for HTTP endpoints.
 
         This method handles the full round-trip:
@@ -86,5 +84,8 @@ class BaseAdapter(ABC):
             Response dict in CLI-specific format.
         """
         hook_event = self.translate_to_hook_event(native_event)
+        if hook_event is None:
+            # Event ignored by adapter
+            return {}
         hook_response = hook_manager.handle(hook_event)
         return self.translate_from_hook_response(hook_response)

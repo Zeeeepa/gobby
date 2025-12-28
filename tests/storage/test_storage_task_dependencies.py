@@ -1,7 +1,9 @@
+from datetime import UTC, datetime
+
 import pytest
-from datetime import datetime, timezone
+
+from gobby.storage.task_dependencies import DependencyCycleError, TaskDependencyManager
 from gobby.storage.tasks import LocalTaskManager
-from gobby.storage.task_dependencies import TaskDependencyManager, DependencyCycleError
 
 
 @pytest.fixture
@@ -81,7 +83,7 @@ class TestTaskDependencyManager:
         dep_manager.add_dependency(t1.id, t2.id)
 
         # Manually insert back edge to force cycle
-        now = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(UTC).isoformat()
         with dep_manager.db.transaction() as conn:
             conn.execute(
                 "INSERT INTO task_dependencies (task_id, depends_on, dep_type, created_at) VALUES (?, ?, 'blocks', ?)",

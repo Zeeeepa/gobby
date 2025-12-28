@@ -1,11 +1,10 @@
 """Tests for task compaction."""
 
-import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
+
 from gobby.storage.compaction import TaskCompactor
-from gobby.storage.database import LocalDatabase
 from gobby.storage.tasks import LocalTaskManager
 
 
@@ -14,6 +13,7 @@ def manager(temp_db):
     return LocalTaskManager(temp_db)
 
 
+@pytest.mark.integration
 def test_find_candidates(manager, sample_project):
     """Test identifying tasks eligible for compaction."""
     proj_id = sample_project["id"]
@@ -28,7 +28,7 @@ def test_find_candidates(manager, sample_project):
     manager.close_task(t2.id)
 
     # Manually update updated_at to be old
-    old_date = (datetime.now(timezone.utc) - timedelta(days=40)).isoformat()
+    old_date = (datetime.now(UTC) - timedelta(days=40)).isoformat()
     manager.db.execute("UPDATE tasks SET updated_at = ? WHERE id = ?", (old_date, t2.id))
 
     # 3. Open task (not candidate)
@@ -43,6 +43,7 @@ def test_find_candidates(manager, sample_project):
     assert candidates[0]["id"] == t2.id
 
 
+@pytest.mark.integration
 def test_compact_task(manager, sample_project):
     """Test compaction application."""
     proj_id = sample_project["id"]
@@ -66,6 +67,7 @@ def test_compact_task(manager, sample_project):
     assert row["compacted_at"] is not None
 
 
+@pytest.mark.integration
 def test_get_stats(manager, sample_project):
     """Test statistics calculation."""
     proj_id = sample_project["id"]

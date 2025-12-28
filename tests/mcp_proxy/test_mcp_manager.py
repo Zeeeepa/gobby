@@ -1,9 +1,10 @@
 """Tests for the MCP Client Manager."""
 
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
+
 from gobby.mcp_proxy.manager import (
     ConnectionState,
     HealthState,

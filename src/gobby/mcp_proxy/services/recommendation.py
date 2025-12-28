@@ -1,5 +1,6 @@
 """Recommendation service."""
 
+import json
 import logging
 from typing import Any
 
@@ -44,8 +45,6 @@ Return a JSON object with this structure:
 
             # Parse response (assuming service returns raw string that might need JSON parsing)
             # In a real impl, we might use a structured output mode if available
-            import json
-
             try:
                 # Naive JSON extraction if response contains markdown code blocks
                 if "```json" in response:
@@ -55,10 +54,10 @@ Return a JSON object with this structure:
 
                 data = json.loads(response)
                 recommendations = data.get("recommendations", [])
-            except Exception:
+            except (json.JSONDecodeError, KeyError, IndexError) as e:
                 # Fallback if parsing fails
                 recommendations = []
-                logger.warning("Failed to parse LLM recommendation response")
+                logger.warning(f"Failed to parse LLM recommendation response: {e}")
 
             return {
                 "success": True,

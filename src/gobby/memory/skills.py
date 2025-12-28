@@ -3,7 +3,7 @@ import logging
 
 from gobby.config.app import SkillConfig
 from gobby.llm.service import LLMService
-from gobby.storage.messages import LocalMessageManager
+from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import Session
 from gobby.storage.skills import LocalSkillManager, Skill
 
@@ -18,7 +18,7 @@ class SkillLearner:
     def __init__(
         self,
         storage: LocalSkillManager,
-        message_manager: LocalMessageManager,
+        message_manager: LocalSessionMessageManager,
         llm_service: LLMService,
         config: SkillConfig,
     ):

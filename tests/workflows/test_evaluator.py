@@ -1,8 +1,9 @@
-import pytest
 from unittest.mock import MagicMock
-from datetime import datetime, UTC
-from gobby.workflows.evaluator import ConditionEvaluator
+
+import pytest
+
 from gobby.workflows.definitions import WorkflowState
+from gobby.workflows.evaluator import ConditionEvaluator
 
 
 @pytest.fixture

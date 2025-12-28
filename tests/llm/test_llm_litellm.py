@@ -1,6 +1,5 @@
 """Tests for the LiteLLMProvider LLM implementation."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 

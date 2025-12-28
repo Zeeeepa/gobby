@@ -13,7 +13,7 @@ import os
 from gobby.config.app import SessionLifecycleConfig
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.storage.database import LocalDatabase
-from gobby.storage.messages import LocalMessageManager
+from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class SessionLifecycleManager:
         self.db = db
         self.config = config
         self.session_manager = LocalSessionManager(db)
-        self.message_manager = LocalMessageManager(db)
+        self.message_manager = LocalSessionMessageManager(db)
 
         self._running = False
         self._expire_task: asyncio.Task | None = None
@@ -167,7 +167,7 @@ class SessionLifecycleManager:
 
         # Read entire file
         try:
-            with open(jsonl_path, "r", encoding="utf-8") as f:
+            with open(jsonl_path, encoding="utf-8") as f:
                 lines = f.readlines()
         except Exception as e:
             logger.error(f"Error reading transcript {jsonl_path}: {e}")

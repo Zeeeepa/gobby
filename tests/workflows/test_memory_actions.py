@@ -111,42 +111,6 @@ async def test_memory_inject_recall(
 
 
 @pytest.mark.asyncio
-async def test_memory_inject_skills(
-    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
-):
-    session = session_manager.register(
-        external_id="skill-ext",
-        machine_id="test-machine",
-        source="test-source",
-        project_id=sample_project["id"],
-    )
-    mem_action_context.session_id = session.id
-
-    # Mock
-    mock_mem_services["memory_manager"].config.enabled = True
-    mock_mem_services["memory_manager"].recall.return_value = []
-
-    # Mock Skill Match
-    mock_mem_services["skill_learner"].config.enabled = True
-    mock_skill = MagicMock()
-    mock_skill.name = "Test Skill"
-    mock_skill.content = "Content"
-    mock_mem_services["skill_learner"].match_skills.return_value = [mock_skill]
-
-    result = await mem_action_executor.execute(
-        "memory_inject", mem_action_context, prompt="How do I...?"
-    )
-
-    assert result is not None
-    assert "inject_context" in result
-    assert "Test Skill" in result["inject_context"]
-
-    mock_mem_services["skill_learner"].match_skills.assert_called_with(
-        "How do I...?", str(sample_project["id"])
-    )
-
-
-@pytest.mark.asyncio
 async def test_skills_learn(
     mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
 ):

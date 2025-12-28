@@ -12,24 +12,24 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.storage.messages import LocalMessageManager
+from gobby.storage.session_messages import LocalSessionMessageManager
 
 
-def create_messages_registry(
-    message_manager: LocalMessageManager,
+def create_session_messages_registry(
+    message_manager: LocalSessionMessageManager,
 ) -> InternalToolRegistry:
     """
     Create a messages tool registry with all message-related tools.
 
     Args:
-        message_manager: LocalMessageManager instance
+        message_manager: LocalSessionMessageManager instance
 
     Returns:
         InternalToolRegistry with all message tools registered
     """
     registry = InternalToolRegistry(
-        name="gobby-messages",
-        description="Message querying - retrieval, search",
+        name="gobby-sessions",
+        description="Session message querying - retrieval, search",
     )
 
     @registry.tool(

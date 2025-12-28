@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from gobby.memory.manager import MemoryManager
     from gobby.memory.skills import SkillLearner
     from gobby.sessions.manager import SessionManager
-    from gobby.storage.messages import LocalMessageManager
+    from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.skills import LocalSkillManager
     from gobby.storage.tasks import LocalTaskManager
@@ -25,7 +25,7 @@ logger = logging.getLogger("gobby.mcp.registries")
 
 
 def setup_internal_registries(
-    _config: DaemonConfig,
+    _config: DaemonConfig | None,
     _session_manager: SessionManager | None = None,
     memory_manager: MemoryManager | None = None,
     skill_learner: SkillLearner | None = None,
@@ -33,7 +33,7 @@ def setup_internal_registries(
     sync_manager: TaskSyncManager | None = None,
     task_expander: TaskExpander | None = None,
     task_validator: TaskValidator | None = None,
-    message_manager: LocalMessageManager | None = None,
+    message_manager: LocalSessionMessageManager | None = None,
     skill_storage: LocalSkillManager | None = None,
     local_session_manager: LocalSessionManager | None = None,
     memory_sync_manager: MemorySyncManager | None = None,
@@ -89,13 +89,13 @@ def setup_internal_registries(
 
     # Initialize messages registry if message_manager is available
     if message_manager is not None:
-        from gobby.mcp_proxy.tools.messages import create_messages_registry
+        from gobby.mcp_proxy.tools.session_messages import create_session_messages_registry
 
-        messages_registry = create_messages_registry(
+        session_messages_registry = create_session_messages_registry(
             message_manager=message_manager,
         )
-        manager.add_registry(messages_registry)
-        logger.debug("Messages registry initialized")
+        manager.add_registry(session_messages_registry)
+        logger.debug("Session messages registry initialized")
 
     # Initialize memory registry if memory_manager is available
     if memory_manager is not None:

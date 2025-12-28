@@ -24,6 +24,16 @@ from gobby.mcp_proxy.daemon_control import (
 )
 from gobby.mcp_proxy.registries import setup_internal_registries
 
+__all__ = [
+    "create_stdio_mcp_server",
+    "check_daemon_http_health",
+    "get_daemon_pid",
+    "is_daemon_running",
+    "restart_daemon_process",
+    "start_daemon_process",
+    "stop_daemon_process",
+]
+
 logger = logging.getLogger("gobby.mcp.stdio")
 
 
@@ -51,7 +61,8 @@ class DaemonProxy:
                     timeout=timeout,
                 )
                 if resp.status_code == 200:
-                    return resp.json()
+                    data: dict[str, Any] = resp.json()
+                    return data
                 else:
                     return {"success": False, "error": f"HTTP {resp.status_code}: {resp.text}"}
         except httpx.ConnectError:
@@ -77,7 +88,10 @@ class DaemonProxy:
             result = await self._request("GET", f"/mcp/{srv_name}/tools")
             if result.get("status") == "success":
                 all_tools[srv_name] = result.get("tools", [])
-        return {"status": "success", "servers": [{"name": n, "tools": t} for n, t in all_tools.items()]}
+        return {
+            "status": "success",
+            "servers": [{"name": n, "tools": t} for n, t in all_tools.items()],
+        }
 
     async def call_tool(
         self, server_name: str, tool_name: str, arguments: dict[str, Any] | None = None
@@ -106,7 +120,10 @@ class DaemonProxy:
                         "inputSchema": tool.get("inputSchema"),
                     },
                 }
-        return {"status": "error", "error": f"Tool '{tool_name}' not found on server '{server_name}'"}
+        return {
+            "status": "error",
+            "error": f"Tool '{tool_name}' not found on server '{server_name}'",
+        }
 
     async def list_mcp_servers(self) -> dict[str, Any]:
         """List configured MCP servers."""
@@ -116,14 +133,16 @@ class DaemonProxy:
         servers = status.get("mcp_servers", {})
         server_list = []
         for name, info in servers.items():
-            server_list.append({
-                "name": name,
-                "state": info.get("status", "unknown"),
-                "connected": info.get("connected", False),
-                "transport": info.get("transport", "unknown"),
-                "tools": info.get("tools", []),
-                "tool_count": info.get("tool_count", 0),
-            })
+            server_list.append(
+                {
+                    "name": name,
+                    "state": info.get("status", "unknown"),
+                    "connected": info.get("connected", False),
+                    "transport": info.get("transport", "unknown"),
+                    "tools": info.get("tools", []),
+                    "tool_count": info.get("tool_count", 0),
+                }
+            )
         return {
             "servers": server_list,
             "total_count": len(server_list),
@@ -268,7 +287,9 @@ def create_stdio_mcp_server() -> FastMCP:
             "http_port": config.daemon_port,
             "websocket_port": config.websocket.port,
             "daemon_details": daemon_details,
-            "formatted_message": _format_status_message(pid, healthy, config.daemon_port, config.websocket.port),
+            "formatted_message": _format_status_message(
+                pid, healthy, config.daemon_port, config.websocket.port
+            ),
         }
 
     # --- MCP Server Management Tools ---
@@ -342,9 +363,7 @@ def create_stdio_mcp_server() -> FastMCP:
         return await proxy.call_tool(server_name, tool_name, arguments)
 
     @mcp.tool()
-    async def recommend_tools(
-        task_description: str, agent_id: str | None = None
-    ) -> dict[str, Any]:
+    async def recommend_tools(task_description: str, agent_id: str | None = None) -> dict[str, Any]:
         """
         Get intelligent tool recommendations for a given task.
 
@@ -453,9 +472,7 @@ def create_stdio_mcp_server() -> FastMCP:
     return mcp
 
 
-def _format_status_message(
-    pid: int | None, healthy: bool, http_port: int, ws_port: int
-) -> str:
+def _format_status_message(pid: int | None, healthy: bool, http_port: int, ws_port: int) -> str:
     """Format a human-readable status message."""
     lines = [
         "=" * 70,
@@ -465,15 +482,17 @@ def _format_status_message(
         f"Status: {'Running' if pid else 'Not Running'}",
     ]
     if pid:
-        lines.extend([
-            f"  PID: {pid}",
-            f"  PID file: ~/.gobby/gobby.pid",
-            f"  Log files: ~/.gobby/logs",
-            "",
-            "Server Configuration:",
-            f"  HTTP Port: {http_port}",
-            f"  WebSocket Port: {ws_port}",
-        ])
+        lines.extend(
+            [
+                f"  PID: {pid}",
+                "  PID file: ~/.gobby/gobby.pid",
+                "  Log files: ~/.gobby/logs",
+                "",
+                "Server Configuration:",
+                f"  HTTP Port: {http_port}",
+                f"  WebSocket Port: {ws_port}",
+            ]
+        )
     lines.append("")
     lines.append("=" * 70)
     return "\n".join(lines)

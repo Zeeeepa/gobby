@@ -1,7 +1,7 @@
 """Tests for task labels."""
 
 import pytest
-from gobby.storage.database import LocalDatabase
+
 from gobby.storage.tasks import LocalTaskManager
 
 

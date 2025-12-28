@@ -1,5 +1,5 @@
 import sys
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
@@ -46,7 +46,12 @@ module_mock.TextBlock = TextBlock
 module_mock.ToolResultBlock = ToolResultBlock
 module_mock.ClaudeAgentOptions = ClaudeAgentOptions
 module_mock.query = mock_query_gen
-sys.modules["claude_agent_sdk"] = module_mock
+
+
+@pytest.fixture(autouse=True)
+def mock_claude_sdk():
+    with patch.dict(sys.modules, {"claude_agent_sdk": module_mock}):
+        yield
 
 
 @pytest.fixture
@@ -74,9 +79,12 @@ def mock_llm_service():
     service = MagicMock()
     provider = MagicMock()
     provider.execute_code = AsyncMock(return_value={"success": True, "result": "42"})
-    provider.recommend_tools = AsyncMock(return_value="Use tool X")
     service.get_provider.return_value = provider
     service.get_default_provider.return_value = provider
+    # Mock generate directly on the service instance since RecommendationService calls it
+    service.generate = AsyncMock(
+        return_value='{"recommendations": [{"server": "s1", "tool": "t1", "reason": "r1"}]}'
+    )
     return service
 
 

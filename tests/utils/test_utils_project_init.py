@@ -4,8 +4,6 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from gobby.utils.project_init import InitResult, _write_project_json
 
 
@@ -170,7 +168,7 @@ class TestInitializeProject:
 
                             mock_pm_cls.return_value = mock_pm_instance
 
-                            result = initialize_project(tmp_path, name="custom-name")
+                            initialize_project(tmp_path, name="custom-name")
 
                             call_kwargs = mock_pm_instance.create.call_args
                             assert call_kwargs.kwargs["name"] == "custom-name"
@@ -195,12 +193,14 @@ class TestInitializeProject:
 
                             mock_pm_cls.return_value = mock_pm_instance
 
-                            result = initialize_project(
+                            initialize_project(
                                 tmp_path, github_url="https://github.com/custom/repo"
                             )
 
                             call_kwargs = mock_pm_instance.create.call_args
-                            assert call_kwargs.kwargs["github_url"] == "https://github.com/custom/repo"
+                            assert (
+                                call_kwargs.kwargs["github_url"] == "https://github.com/custom/repo"
+                            )
 
     def test_auto_detects_github_url(self, tmp_path: Path):
         """Test that github URL is auto-detected from git remote."""
@@ -224,10 +224,13 @@ class TestInitializeProject:
 
                             mock_pm_cls.return_value = mock_pm_instance
 
-                            result = initialize_project(tmp_path)
+                            initialize_project(tmp_path)
 
                             call_kwargs = mock_pm_instance.create.call_args
-                            assert call_kwargs.kwargs["github_url"] == "https://github.com/detected/repo"
+                            assert (
+                                call_kwargs.kwargs["github_url"]
+                                == "https://github.com/detected/repo"
+                            )
 
     def test_existing_db_project_no_local_json(self, tmp_path: Path):
         """Test handling when project exists in DB but no local project.json."""
@@ -266,9 +269,16 @@ class TestInitializeProject:
         """Test that current working directory is used when cwd is None."""
         from gobby.utils.project_init import initialize_project
 
-        mock_project_context = {"id": "id", "name": "name", "project_path": "/test", "created_at": "2024"}
+        mock_project_context = {
+            "id": "id",
+            "name": "name",
+            "project_path": "/test",
+            "created_at": "2024",
+        }
 
-        with patch("gobby.utils.project_context.get_project_context", return_value=mock_project_context):
+        with patch(
+            "gobby.utils.project_context.get_project_context", return_value=mock_project_context
+        ):
             with patch("pathlib.Path.cwd") as mock_cwd:
                 mock_cwd.return_value = Path("/some/path")
 

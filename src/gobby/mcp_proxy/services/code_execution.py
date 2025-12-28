@@ -1,6 +1,5 @@
 """Code execution service."""
 
-import asyncio
 import logging
 from typing import Any
 
@@ -23,7 +22,9 @@ class CodeExecutionService:
         try:
             # Delegate to codex client
             result = await self._codex_client.execute(code, language, context, timeout)
-            return result
+            from typing import cast
+
+            return cast(dict[str, Any], result)
         except Exception as e:
             return {"success": False, "error": str(e)}
 

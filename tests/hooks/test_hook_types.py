@@ -4,33 +4,36 @@ import pytest
 from pydantic import ValidationError
 
 from gobby.hooks.hook_types import (
-    # Enums
-    HookType,
-    SessionStartSource,
-    SessionEndReason,
+    # Mappings
+    HOOK_INPUT_MODELS,
+    HOOK_OUTPUT_MODELS,
     CompactTrigger,
-    NotificationSeverity,
+    ContextItem,
     # Base models
     HookInput,
     HookOutput,
-    # Session Start
-    SessionStartInput,
-    SessionStartOutput,
-    # Session End
-    SessionEndInput,
-    SessionEndOutput,
-    # User Prompt Submit
-    UserPromptSubmitInput,
-    UserPromptSubmitOutput,
-    # Pre/Post Tool Use
-    PreToolUseInput,
-    PreToolUseOutput,
-    ContextItem,
+    # Enums
+    HookType,
+    # Notification
+    NotificationInput,
+    NotificationOutput,
+    NotificationSeverity,
     PostToolUseInput,
     PostToolUseOutput,
     # Pre-Compact
     PreCompactInput,
     PreCompactOutput,
+    # Pre/Post Tool Use
+    PreToolUseInput,
+    PreToolUseOutput,
+    # Session End
+    SessionEndInput,
+    SessionEndOutput,
+    SessionEndReason,
+    # Session Start
+    SessionStartInput,
+    SessionStartOutput,
+    SessionStartSource,
     # Stop
     StopInput,
     StopOutput,
@@ -39,12 +42,9 @@ from gobby.hooks.hook_types import (
     SubagentStartOutput,
     SubagentStopInput,
     SubagentStopOutput,
-    # Notification
-    NotificationInput,
-    NotificationOutput,
-    # Mappings
-    HOOK_INPUT_MODELS,
-    HOOK_OUTPUT_MODELS,
+    # User Prompt Submit
+    UserPromptSubmitInput,
+    UserPromptSubmitOutput,
 )
 
 

@@ -1,8 +1,8 @@
 """Tests for src/utils/daemon_client.py - Daemon HTTP Client."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-import httpx
 
 from gobby.utils.daemon_client import DaemonClient
 

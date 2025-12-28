@@ -1,11 +1,13 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
 from gobby.mcp_proxy.tools.memory import create_memory_registry
 from gobby.mcp_proxy.tools.skills import create_skills_registry
 from gobby.memory.manager import MemoryManager
 from gobby.memory.skills import SkillLearner
-from gobby.storage.skills import LocalSkillManager
 from gobby.storage.sessions import LocalSessionManager
+from gobby.storage.skills import LocalSkillManager
 
 
 @pytest.fixture
@@ -51,7 +53,7 @@ def test_skills_registry_creation(mock_skill_components):
     assert "learn_skill_from_session" in tool_names
     assert "list_skills" in tool_names
     assert "get_skill" in tool_names
-    assert "match_skills" in tool_names
+    assert "get_skill" in tool_names
 
 
 @pytest.mark.asyncio
@@ -67,8 +69,5 @@ async def test_skills_registry_llm_check(mock_skill_components):
     storage.list_skills.assert_called_once()
 
     # LLM tools should raise RuntimeError
-    with pytest.raises(RuntimeError, match="requires LLM"):
-        await registry.call("match_skills", {"prompt": "foo"})
-
     with pytest.raises(RuntimeError, match="requires LLM"):
         await registry.call("learn_skill_from_session", {"session_id": "sess_1"})

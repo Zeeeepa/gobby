@@ -29,7 +29,7 @@ def create_transport_connection(
     Raises:
         ValueError: If transport type is unsupported
     """
-    transport_map = {
+    transport_map: dict[str, type[BaseTransportConnection]] = {
         "http": HTTPTransportConnection,
         "stdio": StdioTransportConnection,
         "websocket": WebSocketTransportConnection,

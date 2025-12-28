@@ -4,7 +4,7 @@ import json
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -166,7 +166,7 @@ class LocalMCPManager:
         name = name.lower()
 
         server_id = str(uuid.uuid4())
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
 
         self.db.execute(
             """
@@ -203,7 +203,10 @@ class LocalMCPManager:
             ),
         )
 
-        return self.get_server(name, project_id=project_id)  # type: ignore
+        server = self.get_server(name, project_id=project_id)
+        if not server:
+            raise RuntimeError(f"Failed to retrieve server '{name}' after upsert")
+        return server
 
     def get_server(self, name: str, project_id: str) -> MCPServer | None:
         """
@@ -274,9 +277,7 @@ class LocalMCPManager:
         rows = self.db.fetchall(query, ())
         return [MCPServer.from_row(row) for row in rows]
 
-    def update_server(
-        self, name: str, project_id: str, **fields: Any
-    ) -> MCPServer | None:
+    def update_server(self, name: str, project_id: str, **fields: Any) -> MCPServer | None:
         """
         Update server fields.
 
@@ -288,7 +289,16 @@ class LocalMCPManager:
         if not server:
             return None
 
-        allowed = {"transport", "url", "command", "args", "env", "headers", "enabled", "description"}
+        allowed = {
+            "transport",
+            "url",
+            "command",
+            "args",
+            "env",
+            "headers",
+            "enabled",
+            "description",
+        }
         fields = {k: v for k, v in fields.items() if k in allowed}
         if not fields:
             return server
@@ -303,7 +313,7 @@ class LocalMCPManager:
         if "enabled" in fields:
             fields["enabled"] = 1 if fields["enabled"] else 0
 
-        fields["updated_at"] = datetime.utcnow().isoformat()
+        fields["updated_at"] = datetime.now(timezone.utc).isoformat()
 
         set_clause = ", ".join(f"{k} = ?" for k in fields)
         # Update by server ID to be precise
@@ -329,11 +339,9 @@ class LocalMCPManager:
             "DELETE FROM mcp_servers WHERE name = ? AND project_id = ?",
             (name, project_id),
         )
-        return cursor.rowcount > 0  # type: ignore[no-any-return]
+        return cursor.rowcount > 0
 
-    def cache_tools(
-        self, server_name: str, tools: list[dict[str, Any]], project_id: str
-    ) -> int:
+    def cache_tools(self, server_name: str, tools: list[dict[str, Any]], project_id: str) -> int:
         """
         Cache tools for a server.
 
@@ -356,7 +364,7 @@ class LocalMCPManager:
         self.db.execute("DELETE FROM tools WHERE mcp_server_id = ?", (server.id,))
 
         # Insert new tools
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         for tool in tools:
             tool_id = str(uuid.uuid4())
             # Handle both 'inputSchema' and 'args' keys (internal vs MCP standard)
@@ -514,11 +522,13 @@ class LocalMCPManager:
                 try:
                     with open(tool_file) as f:
                         tool_data = json.load(f)
-                    tools.append({
-                        "name": tool_data.get("name", tool_file.stem),
-                        "description": tool_data.get("description"),
-                        "inputSchema": tool_data.get("inputSchema", {}),
-                    })
+                    tools.append(
+                        {
+                            "name": tool_data.get("name", tool_file.stem),
+                            "description": tool_data.get("description"),
+                            "inputSchema": tool_data.get("inputSchema", {}),
+                        }
+                    )
                 except (json.JSONDecodeError, OSError) as e:
                     logger.warning(f"Failed to read tool file {tool_file}: {e}")
                     continue

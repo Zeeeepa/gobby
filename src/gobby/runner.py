@@ -19,8 +19,8 @@ from gobby.sessions.lifecycle import SessionLifecycleManager
 from gobby.sessions.processor import SessionMessageProcessor
 from gobby.storage.database import LocalDatabase
 from gobby.storage.mcp import LocalMCPManager
-from gobby.storage.messages import LocalMessageManager
 from gobby.storage.migrations import run_migrations
+from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.skills import LocalSkillManager
@@ -55,7 +55,7 @@ class GobbyRunner:
         run_migrations(self.database)
         self.session_manager = LocalSessionManager(self.database)
         self.skill_storage = LocalSkillManager(self.database)
-        self.message_manager = LocalMessageManager(self.database)
+        self.message_manager = LocalSessionMessageManager(self.database)
         self.task_manager = LocalTaskManager(self.database)
         self.session_task_manager = SessionTaskManager(self.database)
 

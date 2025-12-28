@@ -1,12 +1,11 @@
 """Tests for the MCP proxy importer module."""
 
-import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from gobby.config.app import DaemonConfig, ImportMCPServerConfig
-from gobby.mcp_proxy.importer import MCPServerImporter, SECRET_PLACEHOLDER_PATTERN
+from gobby.mcp_proxy.importer import SECRET_PLACEHOLDER_PATTERN, MCPServerImporter
 
 
 @pytest.fixture
@@ -195,12 +194,7 @@ class TestFindMissingSecrets:
 
     def test_finds_placeholder_in_nested_dict(self, importer):
         """Test finds placeholder in nested dict."""
-        config = {
-            "name": "server",
-            "headers": {
-                "Authorization": "Bearer <YOUR_TOKEN>"
-            }
-        }
+        config = {"name": "server", "headers": {"Authorization": "Bearer <YOUR_TOKEN>"}}
 
         result = importer._find_missing_secrets(config)
 
@@ -208,9 +202,7 @@ class TestFindMissingSecrets:
 
     def test_finds_placeholder_in_list(self, importer):
         """Test finds placeholder in list."""
-        config = {
-            "args": ["--key", "<YOUR_SECRET_KEY>"]
-        }
+        config = {"args": ["--key", "<YOUR_SECRET_KEY>"]}
 
         result = importer._find_missing_secrets(config)
 
@@ -290,11 +282,17 @@ class TestImportFromProject:
         mock_server.description = "Test server"
 
         with patch.object(importer.project_manager, "get_by_name", return_value=mock_project):
-            with patch.object(importer.mcp_db_manager, "list_servers", side_effect=[
-                [mock_server],  # Source servers
-                [],  # Existing servers (none)
-            ]):
-                with patch.object(importer, "_add_server", new_callable=AsyncMock, return_value={"success": True}):
+            with patch.object(
+                importer.mcp_db_manager,
+                "list_servers",
+                side_effect=[
+                    [mock_server],  # Source servers
+                    [],  # Existing servers (none)
+                ],
+            ):
+                with patch.object(
+                    importer, "_add_server", new_callable=AsyncMock, return_value={"success": True}
+                ):
                     result = await importer.import_from_project("source-project")
 
                     assert result["success"] is True
@@ -315,10 +313,14 @@ class TestImportFromProject:
         existing_server.name = "existing-server"
 
         with patch.object(importer.project_manager, "get_by_name", return_value=mock_project):
-            with patch.object(importer.mcp_db_manager, "list_servers", side_effect=[
-                [mock_server],  # Source servers
-                [existing_server],  # Existing servers
-            ]):
+            with patch.object(
+                importer.mcp_db_manager,
+                "list_servers",
+                side_effect=[
+                    [mock_server],  # Source servers
+                    [existing_server],  # Existing servers
+                ],
+            ):
                 result = await importer.import_from_project("source-project")
 
                 assert "existing-server" in result.get("skipped", [])
@@ -346,12 +348,20 @@ class TestImportFromProject:
         server2.transport = "http"
 
         with patch.object(importer.project_manager, "get_by_name", return_value=mock_project):
-            with patch.object(importer.mcp_db_manager, "list_servers", side_effect=[
-                [server1, server2],  # Source
-                [],  # Existing
-            ]):
-                with patch.object(importer, "_add_server", new_callable=AsyncMock, return_value={"success": True}):
-                    result = await importer.import_from_project("project", servers=["wanted-server"])
+            with patch.object(
+                importer.mcp_db_manager,
+                "list_servers",
+                side_effect=[
+                    [server1, server2],  # Source
+                    [],  # Existing
+                ],
+            ):
+                with patch.object(
+                    importer, "_add_server", new_callable=AsyncMock, return_value={"success": True}
+                ):
+                    result = await importer.import_from_project(
+                        "project", servers=["wanted-server"]
+                    )
 
                     assert "wanted-server" in result["imported"]
                     assert "unwanted-server" not in result.get("imported", [])
@@ -422,7 +432,7 @@ class TestParseAndAddConfig:
         with patch.object(importer, "_add_server", new_callable=AsyncMock) as mock_add:
             mock_add.return_value = {"success": True, "imported": ["no-secrets"]}
 
-            result = await importer._parse_and_add_config(text)
+            await importer._parse_and_add_config(text)
 
             mock_add.assert_called_once()
             call_kwargs = mock_add.call_args.kwargs
