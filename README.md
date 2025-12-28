@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="Gobby" width="200">
+</p>
+
 # Gobby
 
 ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/GobbyAI/gobby?utm_source=oss&utm_medium=github&utm_campaign=GobbyAI%2Fgobby&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
@@ -8,11 +12,12 @@ A local daemon that makes AI coding assistants smarter by unifying session track
 
 - **Multi-CLI support** — One daemon handles Claude Code, Gemini CLI, and Codex
 - **Context continuity** — Sessions don't lose context; automatic handoffs via LLM-generated summaries
+- **Memory & Skills** — Agents remember facts, learn skills from sessions, and apply them automatically
 - **Intelligent MCP proxy** — Progressive tool discovery reduces token usage; connect once, access all downstream servers
 - **Local-first** — All data in SQLite, no cloud dependencies, works offline
 - **Task Tracking** — Agent-native task management with dependency tracking and git synchronization
 
-**New:** Workflow engine with YAML-defined lifecycle and phase-based workflows. Includes session-handoff workflow with LLM-powered context summaries.
+**New:** Memory system with persistent facts and learned skills. Agents can remember context across sessions and automatically apply learned patterns.
 
 ## CLI Support Status
 
@@ -109,6 +114,12 @@ url = "http://localhost:8765/mcp"
 | `gobby install` | Install hooks for detected AI CLIs |
 | `gobby uninstall` | Remove hooks from AI CLIs |
 | `gobby mcp-server` | Run stdio MCP server for any MCP client |
+| `gobby memory list` | List stored memories |
+| `gobby memory add` | Add a new memory |
+| `gobby memory sync` | Sync memories to/from JSONL |
+| `gobby skills list` | List learned skills |
+| `gobby skills learn` | Learn skills from a session |
+| `gobby skills export` | Export skills to markdown files |
 
 ## MCP Tools
 
@@ -154,6 +165,24 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`:
 - `sync_tasks`, `get_sync_status`
 
 See [docs/tasks.md](docs/tasks.md) for the full Task System guide.
+
+**Memory Management** (`gobby-memory`):
+
+- `remember` - Store a memory with content, type, importance, and tags
+- `recall` - Retrieve memories by query with importance ranking
+- `forget` - Delete a memory by ID
+- `list_memories` - List all memories with filtering (type, importance, project)
+- `get_memory`, `update_memory` - CRUD operations
+- `memory_stats` - Get statistics (count by type, average importance)
+
+**Skill Management** (`gobby-skills`):
+
+- `learn_skill_from_session` - Extract skills from completed sessions via LLM
+- `create_skill`, `get_skill`, `update_skill`, `delete_skill` - CRUD operations
+- `list_skills` - List available skills with filtering
+- `match_skills` - Find skills matching a prompt (trigger pattern)
+- `apply_skill` - Return skill instructions and mark as used
+- `export_skills` - Export skills to `.gobby/skills/` as markdown files
 
 ## Configuration
 
@@ -257,12 +286,15 @@ recommend_tools:
 | Path | Description |
 |------|-------------|
 | `~/.gobby/config.yaml` | Daemon configuration |
-| `~/.gobby/gobby.db` | SQLite database (sessions, projects, tasks, MCP servers) |
+| `~/.gobby/gobby.db` | SQLite database (sessions, projects, tasks, memories, skills, MCP servers) |
 | `~/.gobby/logs/` | Log files |
 | `~/.gobby/session_summaries/` | Generated session summaries |
 | `.gobby/project.json` | Project-level configuration |
 | `.gobby/tasks.jsonl` | Task data for git sync |
 | `.gobby/tasks_meta.json` | Task sync metadata |
+| `.gobby/memories.jsonl` | Memory data for git sync |
+| `.gobby/memories_meta.json` | Memory sync metadata |
+| `.gobby/skills/` | Exported skill markdown files |
 
 ## Architecture
 
@@ -295,7 +327,7 @@ Gobby HTTP Server (:8765)
 - **Session Manager** - Tracks sessions with metadata, status, parent relationships, and handoff context
 - **Workflow Engine** - YAML-defined lifecycle and phase-based workflows with LLM-powered actions
 - **MCP Proxy** - Connects to downstream servers (Supabase, Context7, etc.) with progressive tool discovery
-- **Internal Tool Registry** - Domain-specific tools (`gobby-tasks`, `gobby-hooks`) accessed via the proxy pattern
+- **Internal Tool Registry** - Domain-specific tools (`gobby-tasks`, `gobby-memory`, `gobby-skills`) accessed via the proxy pattern
 - **Session Handoff** - LLM-powered session summaries with git status, file changes, and context injection
 
 ### Internal Tool Pattern
@@ -380,12 +412,13 @@ See [ROADMAP.md](ROADMAP.md) for the full implementation plan with sprint orderi
 | **Task Tracking** | Persistent tasks with dependencies and git sync | [TASKS.md](docs/plans/TASKS.md) |
 | **Workflow Engine** | YAML-defined workflows with lifecycle triggers, phase enforcement, and LLM actions | [WORKFLOWS.md](docs/plans/WORKFLOWS.md) |
 | **WebSocket Broadcasting** | Real-time hook event streaming to connected clients | [HOOK_EXTENSIONS.md](docs/plans/HOOK_EXTENSIONS.md) |
+| **Memory System** | Persistent memory with remember/recall/forget operations, JSONL sync | [MEMORY.md](docs/plans/MEMORY.md) |
+| **Skill Learning** | Extract skills from sessions via LLM, trigger matching, auto-apply | [MEMORY.md](docs/plans/MEMORY.md) |
 
 ### Planned Features
 
 | Feature | Description | Plan |
 |---------|-------------|------|
-| **Persistent Memory** | Cross-session memory and skill learning | [MEMORY.md](docs/plans/MEMORY.md) |
 | **Webhooks & Plugins** | HTTP callouts, Python plugin system | [HOOK_EXTENSIONS.md](docs/plans/HOOK_EXTENSIONS.md) |
 | **Smart MCP Proxy** | Tool metrics, semantic search, self-healing | [MCP_PROXY_IMPROVEMENTS.md](docs/plans/MCP_PROXY_IMPROVEMENTS.md) |
 
@@ -393,7 +426,7 @@ See [ROADMAP.md](ROADMAP.md) for the full implementation plan with sprint orderi
 
 1. **Observable Gobby** — ✅ WebSocket event streaming + task system
 2. **Workflow Engine** — ✅ Context sources, Jinja2 templating, 7 built-in workflow templates
-3. **Memory-First Agents** — Persistent memory and skill learning across sessions
+3. **Memory-First Agents** — ✅ Persistent memory, skill learning, MCP tools, CLI, and JSONL sync
 4. **Extensible Gobby** — Webhooks and Python plugin system
 5. **Smart MCP Proxy** — Intelligent tool orchestration
 6. **Production Ready** — Full integration and documentation

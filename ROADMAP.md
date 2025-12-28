@@ -152,7 +152,7 @@ This document defines the implementation order across all Gobby planning documen
 ═══════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 7.5: Memory Storage & Operations                                      │
+│ Sprint 7.5: Memory Storage & Operations ✅ COMPLETED                         │
 │ MEMORY Phases 1-2                                                            │
 │                                                                              │
 │ Deliverable: Memory storage layer, remember/recall/forget operations        │
@@ -161,7 +161,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 7.6: Skill Learning                                                   │
+│ Sprint 7.6: Skill Learning ✅ COMPLETED                                      │
 │ MEMORY Phases 3-4                                                            │
 │                                                                              │
 │ Deliverable: Skill extraction from sessions, trigger matching, hook inject  │
@@ -170,7 +170,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 7.7: Memory MCP Tools & CLI                                           │
+│ Sprint 7.7: Memory MCP Tools & CLI ✅ COMPLETED                              │
 │ MEMORY Phases 5-6                                                            │
 │                                                                              │
 │ Deliverable: Full MCP tool suite, CLI commands for memory/skill management  │
@@ -179,7 +179,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 7.8: Memory Git Sync & Enhancements                                   │
+│ Sprint 7.8: Memory Git Sync & Enhancements ✅ COMPLETED                      │
 │ MEMORY Phases 7-10                                                           │
 │                                                                              │
 │ Deliverable: JSONL sync, semantic search, auto-extraction, documentation    │
@@ -313,10 +313,10 @@ This document defines the implementation order across all Gobby planning documen
 | 7.2 | Async Message Processor | SESSION_TRACKING Phase 2 | Sprint 7.1 | ✅ Completed |
 | 7.3 | Session Tracking Integration | SESSION_TRACKING Phases 3-4 | Sprint 7.2 | ✅ Completed (Perf deferred) |
 | 7.4 | Multi-CLI Parsers & API | SESSION_TRACKING Phases 5-6 | Sprint 7.3 | ✅ Completed |
-| 7.5 | Memory Storage & Operations | MEMORY Phases 1-2 | Sprint 7.4 | Pending |
-| 7.6 | Skill Learning | MEMORY Phases 3-4 | Sprint 7.5 | Pending |
-| 7.7 | Memory MCP/CLI | MEMORY Phases 5-6 | Sprint 7.6 | Pending |
-| 7.8 | Memory Sync & Enhancements | MEMORY Phases 7-10 | Sprint 7.7 | Pending |
+| 7.5 | Memory Storage & Operations | MEMORY Phases 1-2 | Sprint 7.4 | ✅ Completed |
+| 7.6 | Skill Learning | MEMORY Phases 3-4 | Sprint 7.5 | ✅ Completed |
+| 7.7 | Memory MCP/CLI | MEMORY Phases 5-6 | Sprint 7.6 | ✅ Completed |
+| 7.8 | Memory Sync & Enhancements | MEMORY Phases 7-10 | Sprint 7.7 | ✅ Completed |
 | 8 | Webhooks | HOOK_EXTENSIONS Phase 2 | Sprint 1 | Pending |
 | 9 | Python Plugins | HOOK_EXTENSIONS Phase 3 | Sprint 1 | Pending |
 | 10 | Workflow CLI/MCP | WORKFLOWS Phases 7-8 | Sprint 7 | Pending |
@@ -385,12 +385,14 @@ Sprints 7.1 → 7.2 → 7.3 → 7.4 → 7.5 → 7.6 → 7.7 → 7.8 (Session Tra
 - Message search and query API
 - **Value**: Full conversation history for memory, analytics, and debugging
 
-### Milestone 3: "Memory-First Agents" (Sprints 7.5-7.8)
+### Milestone 3: "Memory-First Agents" (Sprints 7.5-7.8) ✅ COMPLETE
 
-- Persistent memory across sessions
-- Skill learning from trajectories
-- Automatic context injection
-- Cross-CLI memory sharing
+- [x] Persistent memory across sessions (remember/recall/forget operations)
+- [x] Skill learning from session trajectories via LLM extraction
+- [x] MCP tools for memory and skill management (`gobby-memory`, `gobby-skills`)
+- [x] CLI commands for memory and skill operations
+- [x] JSONL sync for memories and skills (`.gobby/memories.jsonl`, `.gobby/skills/`)
+- [x] Cross-CLI memory sharing via unified storage
 - **Value**: Agents that learn and remember like coworkers, not contractors
 
 ### Milestone 4: "Extensible Gobby" (Sprints 8-9)
