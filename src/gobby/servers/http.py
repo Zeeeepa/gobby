@@ -166,7 +166,7 @@ class HTTPServer:
                 task_expander=None,  # Could be wired up if needed
                 task_validator=None,  # Could be wired up if needed
                 message_manager=message_manager,
-                skill_storage=None,  # Use skill_learner's storage if available
+                skill_storage=skill_learner.storage if skill_learner else None,
                 local_session_manager=session_manager,
                 memory_sync_manager=memory_sync_manager,
             )

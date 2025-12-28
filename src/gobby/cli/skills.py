@@ -43,7 +43,9 @@ def skills() -> None:
 @click.option("--tag", "-t", help="Filter by tag")
 @click.option("--limit", "-n", default=20, help="Max results")
 @click.pass_context
-def list_skills_cmd(ctx: click.Context, project_id: str | None, tag: str | None, limit: int) -> None:
+def list_skills_cmd(
+    ctx: click.Context, project_id: str | None, tag: str | None, limit: int
+) -> None:
     """List skills."""
     storage = get_skill_storage(ctx)
     # Note: list_skills in storage.skills now supports tag filtering
@@ -128,7 +130,9 @@ def get(ctx: click.Context, skill_id: str) -> None:
 
 @skills.command()
 @click.argument("name")
-@click.option("--instructions", "-i", required=True, help="Skill instructions (or @file to read from file)")
+@click.option(
+    "--instructions", "-i", required=True, help="Skill instructions (or @file to read from file)"
+)
 @click.option("--description", "-d", help="Skill description")
 @click.option("--trigger", "-t", "trigger_pattern", help="Trigger pattern (regex)")
 @click.option("--tags", help="Comma-separated tags")
@@ -274,6 +278,8 @@ def export(ctx: click.Context, output: str | None) -> None:
     for skill in skills_list:
         # Create safe filename
         safe_name = "".join(c for c in skill.name if c.isalnum() or c in "-_").lower()
+        if not safe_name:
+            safe_name = skill.id  # Fallback to ID if name has no safe characters
         filename = output_dir / f"{safe_name}.md"
 
         # Build frontmatter
