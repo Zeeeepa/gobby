@@ -6,11 +6,13 @@ Exposes functionality for:
 - Listing skills (list_skills)
 - Getting skills (get_skill)
 - Deleting skills (delete_skill)
-- Matching skills (match_skills)
 - Creating skills (create_skill)
 - Updating skills (update_skill)
 - Applying skills (apply_skill)
 - Exporting skills (export_skills)
+
+Skills are exported to .claude/skills/<name>/ in Claude Code native format,
+making them automatically available to Claude Code sessions.
 
 These tools are registered with the InternalToolRegistry and accessed
 via the downstream proxy pattern (call_tool).
@@ -47,7 +49,7 @@ def create_skills_registry(
     """
     registry = InternalToolRegistry(
         name="gobby-skills",
-        description="Skill management - learn, list, get, delete, match",
+        description="Skill management - learn, list, get, delete, create, update, apply, export",
     )
 
     @registry.tool(
@@ -170,7 +172,7 @@ def create_skills_registry(
                 # Also remove from exported directory if it exists
                 if skill_name:
                     safe_name = "".join(c for c in skill_name if c.isalnum() or c in "-_").lower()
-                    skill_dir = Path(".gobby/skills") / safe_name
+                    skill_dir = Path(".claude/skills") / safe_name
                     if skill_dir.exists() and skill_dir.is_dir():
                         shutil.rmtree(skill_dir)
                         result["uninstalled"] = str(skill_dir)
@@ -178,33 +180,6 @@ def create_skills_registry(
                 return result
             else:
                 return {"success": False, "error": "Skill not found"}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    @registry.tool(
-        name="match_skills",
-        description="Find applicable skills for a prompt.",
-    )
-    async def match_skills(
-        prompt: str,
-        project_id: str | None = None,
-    ) -> dict[str, Any]:
-        """
-        Find applicable skills for a prompt.
-
-        Args:
-            prompt: User prompt/request
-            project_id: Optional project context
-        """
-        if not learner:
-            raise RuntimeError("Skill matching is not enabled (requires LLM)")
-
-        try:
-            skills = await learner.match_skills(prompt, project_id)
-            return {
-                "success": True,
-                "matches": [s.to_dict() for s in skills],
-            }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -320,13 +295,13 @@ def create_skills_registry(
 
     @registry.tool(
         name="export_skills",
-        description="Export skills to markdown files in the .gobby/skills directory.",
+        description="Export skills to markdown files in the .claude/skills directory.",
     )
     async def export_skills() -> dict[str, Any]:
         """
         Export all skills to markdown files.
 
-        Skills are exported to .gobby/skills/ as individual markdown files
+        Skills are exported to .claude/skills/ as individual markdown files
         with YAML frontmatter containing metadata.
         """
         if not sync_manager:
@@ -343,7 +318,7 @@ def create_skills_registry(
                     "skills": result.get("skills", 0),
                     "memories": result.get("memories", 0),
                 },
-                "message": f"Exported {result.get('skills', 0)} skills to .gobby/skills/",
+                "message": f"Exported {result.get('skills', 0)} skills to .claude/skills/",
             }
         except Exception as e:
             return {"success": False, "error": str(e)}

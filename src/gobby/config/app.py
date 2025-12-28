@@ -665,32 +665,31 @@ class MemorySyncConfig(BaseModel):
 
 
 class SkillConfig(BaseModel):
-    """Skill learning configuration."""
+    """Skill learning configuration.
+
+    Skills are exported to .claude/skills/<name>/ in Claude Code native format,
+    making them automatically available to Claude Code sessions.
+    """
 
     enabled: bool = Field(
         default=True,
         description="Enable skill learning system",
-    )
-    auto_suggest: bool = Field(
-        default=True,
-        description="Automatically suggest skills matching user prompts",
-    )
-    max_suggestions: int = Field(
-        default=3,
-        description="Maximum number of skills to suggest",
     )
     learning_model: str = Field(
         default="claude-haiku-4-5",
         description="LLM model to use for skill extraction",
     )
     prompt: str = Field(
-        default="""Analyze the following session transcript and extract any reusable skills.
+        default="""You are an expert at extracting reusable developer skills from transcripts.
+Respond with ONLY valid JSON - no markdown, no explanations, no code blocks.
+
+Analyze the following session transcript and extract any reusable skills.
 A "skill" is a repeatable process or pattern that can be used in future sessions.
 
 Transcript:
 {transcript}
 
-Return a list of skills in JSON format:
+Return a JSON array directly:
 [
   {{
     "name": "short-kebab-case-name",
@@ -700,16 +699,8 @@ Return a list of skills in JSON format:
     "tags": ["tag1", "tag2"]
   }}
 ]""",
-        description="System prompt for skill extraction",
+        description="Prompt template for skill extraction (use {transcript} placeholder)",
     )
-
-    @field_validator("max_suggestions")
-    @classmethod
-    def validate_positive(cls, v: int) -> int:
-        """Validate value is non-negative."""
-        if v < 0:
-            raise ValueError("Value must be non-negative")
-        return v
 
 
 class DaemonConfig(BaseModel):

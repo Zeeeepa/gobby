@@ -307,3 +307,26 @@ session_lifecycle:
   expire_check_interval_minutes: 60
   transcript_processing_interval_minutes: 5
   transcript_processing_batch_size: 10
+skills:
+  enabled: true
+  learning_model: claude-haiku-4-5
+  prompt: |
+    You are an expert at extracting reusable developer skills from transcripts.
+    Respond with ONLY valid JSON - no markdown, no explanations, no code blocks.
+
+    Analyze the following session transcript and extract any reusable skills.
+    A "skill" is a repeatable process or pattern that can be used in future sessions.
+
+    Transcript:
+    {transcript}
+
+    Return a JSON array directly:
+    [
+      {{
+        "name": "short-kebab-case-name",
+        "description": "Brief description of what the skill does",
+        "trigger_pattern": "regex|pattern|to|match",
+        "instructions": "Markdown instructions on how to perform the skill",
+        "tags": ["tag1", "tag2"]
+      }}
+    ]

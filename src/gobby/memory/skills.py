@@ -1,6 +1,5 @@
 import json
 import logging
-import re
 
 from gobby.config.app import SkillConfig
 from gobby.llm.service import LLMService
@@ -61,7 +60,6 @@ class SkillLearner:
 
             response = await provider.generate_text(
                 prompt=prompt,
-                system_prompt="You are an expert at extracting reusable developer skills from transcripts. You MUST respond with ONLY valid JSON - no markdown, no explanations, no code blocks. Output a JSON array directly.",
                 model=model,
             )
 
@@ -111,43 +109,6 @@ class SkillLearner:
         except Exception as e:
             logger.error(f"Error learning skills from session {session.id}: {e}")
             return []
-
-    async def match_skills(self, user_prompt: str, project_id: str | None = None) -> list[Skill]:
-        """
-        Find skills matching the user prompt via trigger patterns.
-
-        Args:
-            user_prompt: The user's input/request.
-            project_id: Optional project context.
-
-        Returns:
-            List of matching skills.
-        """
-        if not self.config.auto_suggest:
-            return []
-
-        # Get all relevant skills (global + project)
-        all_skills = self.storage.list_skills(project_id=project_id, limit=1000)
-
-        matches = []
-        for skill in all_skills:
-            if not skill.trigger_pattern:
-                continue
-
-            try:
-                # Case-insensitive match
-                if re.search(skill.trigger_pattern, user_prompt, re.IGNORECASE):
-                    matches.append(skill)
-            except re.error:
-                logger.warning(
-                    f"Invalid regex pattern for skill {skill.id}: {skill.trigger_pattern}"
-                )
-                continue
-
-        # Sort by usage/success
-        matches.sort(key=lambda s: s.usage_count, reverse=True)
-
-        return matches[: self.config.max_suggestions]
 
     async def record_usage(self, skill_id: str, success: bool = True) -> None:
         """

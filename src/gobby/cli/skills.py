@@ -115,7 +115,7 @@ def delete(ctx: click.Context, skill_id: str) -> None:
         # Also remove from exported directory if it exists
         if skill_name:
             safe_name = "".join(c for c in skill_name if c.isalnum() or c in "-_").lower()
-            skill_dir = Path(".gobby/skills") / safe_name
+            skill_dir = Path(".claude/skills") / safe_name
             if skill_dir.exists() and skill_dir.is_dir():
                 shutil.rmtree(skill_dir)
                 click.echo(f"Removed exported skill directory: {skill_dir}")

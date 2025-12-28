@@ -797,8 +797,10 @@ class ActionExecutor:
         self, context: ActionContext, **kwargs
     ) -> dict[str, Any] | None:
         """
-        Inject memory context (memories + skills) into the session.
-        Uses memory_manager.recall and skill_learner.match_skills.
+        Inject memory context into the session.
+
+        Skills are no longer injected here - they are provided via the
+        Claude Code native format (.claude/skills/<name>/).
         """
         if not context.memory_manager:
             return None  # Memory system disabled or not initialized
@@ -818,36 +820,19 @@ class ActionExecutor:
             logger.warning("memory_inject: No project_id found")
             return None
 
-        import asyncio
-        import logging
         from gobby.memory.context import build_memory_context
 
         try:
-            # 1. Recall Project Memories
-            # Default to reasonable importance if not specified
+            # Recall Project Memories
             min_importance = kwargs.get("min_importance", 0.5)
             project_memories = context.memory_manager.recall(
                 project_id=project_id, min_importance=min_importance
             )
 
-            # 2. Match Skills (if prompt provided)
-            # This action might be called with 'initial_prompt' from session-start event
-            skills = []
-            prompt = kwargs.get("prompt")
+            if not project_memories:
+                return {"injected": False, "reason": "No memories found"}
 
-            if prompt and context.skill_learner and context.skill_learner.config.enabled:
-                try:
-                    # Skill matching is async
-                    skills = await context.skill_learner.match_skills(prompt, project_id)
-                except Exception as e:
-                    logger.warning(f"memory_inject: Skill matching failed: {e}")
-
-            # 3. Build Context
-            # Only build if we have something
-            if not project_memories and not skills:
-                return {"injected": False, "reason": "No memories or skills found"}
-
-            memory_context = build_memory_context(project_memories, skills)
+            memory_context = build_memory_context(project_memories)
 
             if not memory_context:
                 return {"injected": False}

@@ -179,11 +179,11 @@ Skills are reusable instructions extracted from successful work patterns.
 │     • Trigger pattern (when to suggest)                          │
 │     • Step-by-step instructions                                  │
 │                                                                  │
-│  4. Skill saved to database and optionally .gobby/skills/       │
+│  4. Skill saved to database and exported to .claude/skills/     │
 │                                                                  │
 │  5. Future sessions:                                             │
-│     • Match trigger pattern against user prompt                  │
-│     • Inject skill instructions when relevant                    │
+│     • Claude Code automatically discovers skills in .claude/    │
+│     • No runtime matching or injection needed                    │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -192,7 +192,7 @@ Skills are reusable instructions extracted from successful work patterns.
 
 ### Session Start Hook
 
-On `session_start`, inject relevant context:
+On `session_start`, inject relevant memories:
 
 ```python
 def on_session_start(session: Session, project: Project) -> HookResponse:
@@ -203,14 +203,9 @@ def on_session_start(session: Session, project: Project) -> HookResponse:
         min_importance=0.3
     )
 
-    # Find skills matching the initial prompt (if available)
-    skills = skill_manager.match_skills(
-        project_id=project.id,
-        query=session.initial_prompt
-    )
-
-    # Build context injection
-    context = build_memory_context(memories, skills)
+    # Build context injection (memories only)
+    # Skills are provided via Claude Code native format (.claude/skills/<name>/)
+    context = build_memory_context(memories)
 
     return HookResponse(
         action="continue",
@@ -399,12 +394,17 @@ gobby skill stats
 ```text
 .gobby/
 ├── memories.jsonl        # Memory records (optional, stealth mode disables)
-├── skills/               # Skill files (markdown format)
-│   ├── run-tests.md
-│   ├── deploy.md
-│   └── debug-api.md
 ├── memory_meta.json      # Sync metadata
 └── gobby.db              # SQLite cache (not committed)
+
+.claude/
+└── skills/               # Skill files (Claude Code native format)
+    ├── run-tests/
+    │   └── SKILL.md
+    ├── deploy/
+    │   └── SKILL.md
+    └── debug-api/
+        └── SKILL.md
 ```
 
 ### Skill File Format
@@ -412,7 +412,7 @@ gobby skill stats
 Skills can also be stored as markdown files for easy editing:
 
 ```markdown
-<!-- .gobby/skills/run-tests.md -->
+<!-- .claude/skills/run-tests/SKILL.md -->
 ---
 id: sk-a1b2c3
 name: run-tests
@@ -432,7 +432,7 @@ This project uses pytest with specific configuration:
 
 ## Context Injection Format
 
-When memories/skills are injected at session start:
+When memories are injected at session start:
 
 ```markdown
 <project-memory>
@@ -451,15 +451,15 @@ This is a CLI tool for managing Docker containers.
 - API routes follow /api/v1/{resource} pattern
 - All database models inherit from BaseModel
 
-## Relevant Skills
+## Facts
 
-### run-tests
-This project uses pytest with specific configuration:
-1. Run all tests: `uv run pytest`
-2. Run single file: `uv run pytest tests/test_example.py -v`
+- Uses pytest with conftest.py fixtures
+- Database is PostgreSQL with SQLAlchemy ORM
 
 </project-memory>
 ```
+
+**Note:** Skills are no longer injected via `<project-memory>`. Instead, skills are exported to `.claude/skills/<name>/` in Claude Code native format, making them automatically available to Claude Code sessions without runtime injection.
 
 ## Implementation Checklist
 
@@ -495,7 +495,7 @@ This project uses pytest with specific configuration:
 - [x] Create `src/memory/skills.py` with `SkillLearner` class
 - [x] Implement `learn_from_session()` method
 - [x] Implement skill extraction prompt template
-- [x] Implement `match_skills()` method (trigger pattern matching)
+- [x] ~~Implement `match_skills()` method (trigger pattern matching)~~ **REMOVED** - Skills now use Claude Code plugin format
 - [x] Implement skill usage tracking
 - [x] Add unit tests for skill learning
 
@@ -551,7 +551,7 @@ MCP tools and CLI commands should have parity. Each operation is implemented in 
 | Create directly | `create_skill` | `gobby skill add` | MCP+CLI | |
 | Update | `update_skill` | `gobby skill update` | MCP+CLI | Supports name, instructions, trigger, tags |
 | Apply/Use | `apply_skill` | `gobby skill apply` | MCP+CLI | Returns instructions, increments usage |
-| Export to files | `export_skills` | `gobby skill export` | MCP+CLI | Exports to .gobby/skills/ as markdown |
+| Export to files | `export_skills` | `gobby skill export` | MCP+CLI | Exports to .claude/skills/ as markdown |
 
 #### Checklist
 
@@ -565,7 +565,7 @@ MCP tools and CLI commands should have parity. Each operation is implemented in 
 - [x] Add `list_skills` MCP tool + `skill list` CLI command
 - [x] Add `get_skill` MCP tool + `skill get` CLI command
 - [x] Add `delete_skill` MCP tool + `skill delete` CLI command
-- [x] Add `match_skills` MCP tool (MCP-only, used by workflows)
+- [x] ~~Add `match_skills` MCP tool (MCP-only, used by workflows)~~ **REMOVED** - Skills now use Claude Code plugin format
 
 - [x] Add `list_memories` MCP tool + `memory list` CLI command
 - [x] Add `get_memory` MCP tool + `memory show` CLI command
@@ -637,9 +637,8 @@ memory:
 
 skills:
   enabled: true
-  auto_suggest: true              # Suggest skills matching prompts
-  max_suggestions: 3              # Max skills to suggest
   learning_model: claude-haiku-4-5
+  # Skills are exported to .claude/skills/<name>/ in Claude Code native format
 
 memory_sync:
   enabled: true
@@ -669,19 +668,17 @@ actions:
 ### Skill-Based Workflows
 
 ```yaml
-# Workflow that uses skills
-name: skill-assisted-development
+# Workflow that learns skills from sessions
+name: skill-learning
 triggers:
-  - event: session_start
-    actions:
-      - type: match_skills
-        inject: true
-
   - event: session_end
     actions:
-      - type: suggest_skill_learning
-        if: session.tool_count > 10
+      - type: skills_learn
+        # Skills are automatically available via Claude Code plugin format
+        # after export to .claude/skills/<name>/
 ```
+
+**Note:** Skills no longer need runtime injection via workflows. Once exported to `.claude/skills/<name>/`, they are automatically available to Claude Code as project skills.
 
 ## Decisions
 
@@ -692,6 +689,7 @@ triggers:
 | 3 | **Injection timing** | Session start hook | Early injection ensures LLM has context from the beginning |
 | 4 | **Decay model** | Time-based with access boost | Unused memories fade, frequently accessed ones stay important |
 | 5 | **Embedding storage** | SQLite BLOB | Simple, no external dependencies |
+| 6 | **Skill delivery** | Claude Code native format | Skills exported to `.claude/skills/<name>/` are automatically available to Claude Code without runtime injection. Removed `match_skills` method/tool and `auto_suggest`/`max_suggestions` config. Memories still use runtime injection via `<project-memory>` tags. |
 
 ## Future Enhancements
 

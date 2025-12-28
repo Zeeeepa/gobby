@@ -98,9 +98,9 @@ class MemorySyncManager:
                 count = await asyncio.to_thread(self._import_memories_sync, memories_file)
                 result["memories"] = count
 
-        # Import Skills (Markdown)
+        # Import Skills from .claude/skills/ (Claude Code native format)
         if self.skill_manager:
-            skills_dir = sync_dir / "skills"
+            skills_dir = Path(".claude/skills").absolute()
             if skills_dir.exists():
                 count = await asyncio.to_thread(self._import_skills_sync, skills_dir)
                 result["skills"] = count
@@ -127,15 +127,16 @@ class MemorySyncManager:
         sync_dir.mkdir(parents=True, exist_ok=True)
         result = {"memories": 0, "skills": 0}
 
-        # Export Memories (JSONL)
+        # Export Memories (JSONL) to sync_dir
         if self.memory_manager:
             memories_file = sync_dir / "memories.jsonl"
             count = self._export_memories_sync(memories_file)
             result["memories"] = count
 
-        # Export Skills (Markdown)
+        # Export Skills to .claude/skills/ (Claude Code native format)
+        # Skills always go to .claude/skills/ for Claude Code discovery
         if self.skill_manager:
-            skills_dir = sync_dir / "skills"
+            skills_dir = Path(".claude/skills").absolute()
             count = self._export_skills_sync(skills_dir)
             result["skills"] = count
 
@@ -348,26 +349,21 @@ class MemorySyncManager:
             return False
 
     def _export_skills_sync(self, skills_dir: Path) -> int:
-        """Export skills to Claude Code plugin format (sync).
+        """Export skills to Claude Code native format (sync).
 
         Creates skills in the format expected by Claude Code:
-        - .gobby/.claude-plugin/plugin.json (plugin manifest)
-        - .gobby/skills/<skill-name>/SKILL.md (one directory per skill)
+        - .claude/skills/<skill-name>/SKILL.md (one directory per skill)
 
         The SKILL.md format uses Claude Code's frontmatter convention:
         - name: Skill name
         - description: Third-person trigger description
+
+        Claude Code automatically discovers skills in .claude/skills/.
         """
         if not self.skill_manager:
             return 0
 
         try:
-            # Get the .gobby directory (parent of skills_dir)
-            gobby_dir = skills_dir.parent
-
-            # Ensure plugin manifest exists
-            self._ensure_plugin_manifest(gobby_dir)
-
             skills_dir.mkdir(parents=True, exist_ok=True)
             skills = self.skill_manager.list_skills()
 
@@ -413,22 +409,6 @@ class MemorySyncManager:
         except Exception as e:
             logger.error(f"Failed to export skills: {e}")
             return 0
-
-    def _ensure_plugin_manifest(self, gobby_dir: Path) -> None:
-        """Ensure .claude-plugin/plugin.json exists."""
-        plugin_dir = gobby_dir / ".claude-plugin"
-        plugin_dir.mkdir(parents=True, exist_ok=True)
-
-        manifest_file = plugin_dir / "plugin.json"
-        if not manifest_file.exists():
-            manifest = {
-                "name": "gobby-skills",
-                "version": "1.0.0",
-                "description": "Skills learned and managed by Gobby",
-            }
-            with open(manifest_file, "w") as f:
-                json.dump(manifest, f, indent=2)
-            logger.info(f"Created Claude Code plugin manifest: {manifest_file}")
 
     def _build_trigger_description(self, skill: Skill) -> str:
         """Build Claude Code compatible trigger description.

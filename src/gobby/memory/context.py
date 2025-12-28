@@ -1,19 +1,17 @@
 from gobby.storage.memories import Memory
-from gobby.storage.skills import Skill
 
 
-def build_memory_context(memories: list[Memory], skills: list[Skill]) -> str:
+def build_memory_context(memories: list[Memory]) -> str:
     """
-    Build a formatted markdown context string from memories and skills.
+    Build a formatted markdown context string from memories.
 
     Args:
         memories: List of Memory objects to include
-        skills: List of Skill objects to include
 
     Returns:
         Formatted markdown string wrapped in <project-memory> tags
     """
-    if not memories and not skills:
+    if not memories:
         return ""
 
     parts = ["<project-memory>"]
@@ -67,13 +65,6 @@ def build_memory_context(memories: list[Memory], skills: list[Skill]) -> str:
                 content = content[2:]
             parts.append(f"- {content}")
         parts.append("")
-
-    # 5. Relevant Skills
-    if skills:
-        parts.append("## Relevant Skills\n")
-        for skill in skills:
-            parts.append(f"### {skill.name}")
-            parts.append(f"{skill.instructions}\n")
 
     parts.append("</project-memory>")
 
