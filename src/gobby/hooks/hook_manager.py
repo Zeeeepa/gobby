@@ -723,7 +723,7 @@ class HookManager:
                 f"⏺ Context restored from previous session.\n"
                 f"  Session ID: {session_id}\n"
                 f"  Parent ID: {current_session.parent_session_id}\n"
-                f"  Project: {project_id}"
+                f"  Project ID: {project_id}"
             )
         else:
             # Include any workflow context even if no parent linked (e.g. greeting)

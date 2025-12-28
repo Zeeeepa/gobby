@@ -484,7 +484,7 @@ def doctor_cmd() -> None:
         issues_found = True
         click.echo(f"Found {len(invalid_projects)} tasks with invalid projects:", err=True)
         for t in invalid_projects:
-            click.echo(f"  Task {t['id']}: {t['title']} (Project: {t['project_id']})", err=True)
+            click.echo(f"  Task {t['id']}: {t['title']} (Project ID: {t['project_id']})", err=True)
     else:
         click.echo("✓ No invalid projects")
 
