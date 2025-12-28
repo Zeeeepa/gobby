@@ -246,6 +246,7 @@ class WorkflowEngine:
         all_context: list[str] = []
         final_decision = "allow"
         final_reason: str | None = None
+        final_system_message: str | None = None
 
         # Initialize shared context for chaining between workflows
         if context_data is None:
@@ -265,6 +266,10 @@ class WorkflowEngine:
                     all_context.append(response.context)
                     triggers_fired = True
 
+                # Capture system_message (last one wins)
+                if response.system_message:
+                    final_system_message = response.system_message
+
                 # First non-allow decision wins
                 if response.decision != "allow" and final_decision == "allow":
                     final_decision = response.decision
@@ -277,6 +282,7 @@ class WorkflowEngine:
                         decision="block",
                         reason=response.reason,
                         context="\n\n".join(all_context) if all_context else None,
+                        system_message=final_system_message,
                     )
 
             # If no triggers fired this iteration, we're done
@@ -290,6 +296,7 @@ class WorkflowEngine:
             decision=final_decision,
             reason=final_reason,
             context="\n\n".join(all_context) if all_context else None,
+            system_message=final_system_message,
         )
 
     async def _evaluate_workflow_triggers(
@@ -367,6 +374,7 @@ class WorkflowEngine:
         )
 
         injected_context: list[str] = []
+        system_message: str | None = None
 
         for trigger in triggers:
             # Check 'when' condition if present
@@ -398,6 +406,10 @@ class WorkflowEngine:
                     if "inject_context" in result:
                         injected_context.append(result["inject_context"])
 
+                    # Capture system_message (last one wins)
+                    if "system_message" in result:
+                        system_message = result["system_message"]
+
             except Exception as e:
                 logger.error(
                     f"Failed to execute action '{action_type}' in '{workflow.name}': {e}",
@@ -407,6 +419,7 @@ class WorkflowEngine:
         return HookResponse(
             decision="allow",
             context="\n\n".join(injected_context) if injected_context else None,
+            system_message=system_message,
         )
 
     async def evaluate_lifecycle_triggers(
@@ -493,7 +506,8 @@ class WorkflowEngine:
             config=self.action_executor.config,
         )
 
-        injected_context = []
+        injected_context: list[str] = []
+        system_message: str | None = None
 
         for trigger in triggers:
             # Check 'when' condition if present
@@ -541,13 +555,17 @@ class WorkflowEngine:
                         )
                         injected_context.append(result["inject_context"])
 
+                    # Capture system_message (last one wins)
+                    if "system_message" in result:
+                        system_message = result["system_message"]
+
             except Exception as e:
                 logger.error(
                     f"Failed to execute lifecycle action '{action_type}': {e}", exc_info=True
                 )
 
-        response = HookResponse(decision="allow")
-        if injected_context:
-            response.context = "\n\n".join(injected_context)
-
-        return response
+        return HookResponse(
+            decision="allow",
+            context="\n\n".join(injected_context) if injected_context else None,
+            system_message=system_message,
+        )

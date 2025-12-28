@@ -771,6 +771,8 @@ class ActionExecutor:
     ) -> dict[str, Any] | None:
         """
         Find and link a parent session for handoff.
+
+        Returns system_message to notify user of context restoration.
         """
         logger.info(f"find_parent_session: Looking for parent for session {context.session_id}")
         current_session = context.session_manager.get(context.session_id)
@@ -794,9 +796,19 @@ class ActionExecutor:
             # Link it
             context.session_manager.update_parent_session_id(context.session_id, parent.id)
             logger.info(f"find_parent_session: Linked {context.session_id} -> {parent.id}")
+
+            # Build system_message for user notification
+            system_message = (
+                f"⏺ Context restored from previous session.\n"
+                f"  Session ID: {context.session_id}\n"
+                f"  Parent ID: {parent.id}\n"
+                f"  Project ID: {current_session.project_id}"
+            )
+
             return {
                 "parent_session_found": True,
                 "parent_session_id": parent.id,
+                "system_message": system_message,
             }
 
         logger.warning("find_parent_session: No parent found with status=handoff_ready")

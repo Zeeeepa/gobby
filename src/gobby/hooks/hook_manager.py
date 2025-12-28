@@ -651,12 +651,21 @@ class HookManager:
         """
         Handle SESSION_START event.
         Register session and execute session-handoff workflow.
+
+        Claude Code `source` field values:
+        - "startup": Normal launch (new session)
+        - "resume": From /resume command (continuing same session)
+        - "clear": From /clear command (new session after handoff)
+        - "compact": From auto/manual compact (same session)
         """
         external_id = event.session_id
         input_data = event.data
         transcript_path = input_data.get("transcript_path")
         cli_source = event.source.value
         cwd = input_data.get("cwd")
+
+        # Get session source for workflow trigger conditions
+        session_source = input_data.get("source", "startup")
 
         # Resolve project_id (auto-creates if needed)
         project_id = self._resolve_project_id(input_data.get("project_id"), cwd)
@@ -665,7 +674,7 @@ class HookManager:
         machine_id = event.machine_id or self.get_machine_id()
 
         self.logger.debug(
-            f"🟢 Session start: cli={cli_source}, project={project_id}, source={input_data.get('source')}"
+            f"🟢 Session start: cli={cli_source}, project={project_id}, source={session_source}"
         )
 
         # Step 1: Register new session (no parent initially)
@@ -703,32 +712,36 @@ class HookManager:
 
         # Step 4: Execute lifecycle workflows (discovers all workflows, evaluates triggers)
         # This handles: find_parent_session, restore_context, mark_session_status, etc.
+        # Workflow triggers have 'when' conditions that check session_source (e.g., source == 'clear')
         wf_response = self._workflow_handler.handle_all_lifecycles(event)
 
         # Step 5: Build response with context and system message
         context_parts = []
         context_parts.append(f"Session registered: {session_id}")
-        system_message = None
 
-        # Reload session to check if workflow linked a parent
+        # Include any workflow context
+        if wf_response.context:
+            context_parts.append(wf_response.context)
+
+        # Reload session to get current state (workflow may have linked parent)
         current_session = self._session_storage.get(session_id)
-        if current_session and current_session.parent_session_id:
-            context_parts.append(f"Parent session: {current_session.parent_session_id}")
-            context_parts.append("Handoff completed successfully.")
+        parent_session_id = current_session.parent_session_id if current_session else None
 
-            if wf_response.context:
-                context_parts.append(wf_response.context)
+        if parent_session_id:
+            context_parts.append(f"Parent session: {parent_session_id}")
 
-            system_message = (
-                f"⏺ Context restored from previous session.\n"
-                f"  Session ID: {session_id}\n"
-                f"  Parent ID: {current_session.parent_session_id}\n"
-                f"  Project ID: {project_id}"
-            )
+        # Use workflow's system_message if provided, otherwise build basic session info
+        # The workflow's find_parent_session action sets the "Context restored" message
+        if wf_response.system_message:
+            system_message = wf_response.system_message
         else:
-            # Include any workflow context even if no parent linked (e.g. greeting)
-            if wf_response.context:
-                context_parts.append(wf_response.context)
+            # Basic session info for startup/resume/compact (no handoff message)
+            system_message = (
+                f"Session ID: {session_id}\n"
+                f"Project ID: {project_id}"
+            )
+            if parent_session_id:
+                system_message += f"\nParent ID: {parent_session_id}"
 
         # Inject active task context if available
         if event.task_id:

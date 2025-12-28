@@ -188,6 +188,46 @@ class TestHookManagerSessionStart:
         assert response.context is not None
         assert "Session registered" in response.context
 
+    def test_session_resume_no_handoff_message(
+        self,
+        hook_manager_with_mocks: HookManager,
+        temp_dir: Path,
+    ):
+        """Test that resume source doesn't show 'Context restored' system_message.
+
+        The workflow has 'when' conditions that only trigger on source='clear'.
+        The find_parent_session action (which sets the 'Context restored' message)
+        only runs when source='clear', so on resume we get basic session info only.
+        """
+        # Create a resume event (source="resume" means continuing same session)
+        resume_event = HookEvent(
+            event_type=HookEventType.SESSION_START,
+            session_id="test-resume-session-123",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={
+                "source": "resume",  # Key: this is a resume, not startup
+                "cwd": str(temp_dir),
+                "transcript_path": str(temp_dir / "transcript.jsonl"),
+            },
+            machine_id="test-machine-id",
+        )
+
+        response = hook_manager_with_mocks.handle(resume_event)
+
+        # Should be allowed
+        assert response.decision == "allow"
+
+        # Should have session registered in context
+        assert response.context is not None
+        assert "Session registered" in response.context
+
+        # Should have basic session info but NOT "Context restored" message
+        # The workflow's find_parent_session action only runs on source='clear'
+        assert response.system_message is not None
+        assert "Session ID:" in response.system_message
+        assert "Context restored" not in response.system_message
+
 
 class TestHookManagerSessionEnd:
     """Tests for session end handling."""
