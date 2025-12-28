@@ -465,94 +465,118 @@ This project uses pytest with specific configuration:
 
 ### Phase 1: Storage Layer
 
-- [ ] Create database migration for memories table
-- [ ] Create database migration for skills table
-- [ ] Create database migration for session_memories table
-- [ ] Implement ID generation utility (mm-{hash}, sk-{hash})
-- [ ] Create `src/storage/memories.py` with `LocalMemoryManager` class
-- [ ] Implement `create()`, `get()`, `update()`, `delete()` methods
-- [ ] Implement `list()` method with filters
-- [ ] Implement `search()` method (text-based initially)
-- [ ] Create `src/storage/skills.py` with `LocalSkillManager` class
-- [ ] Implement skill CRUD methods
-- [ ] Add unit tests for storage layer
+- [x] Create database migration for memories table
+- [x] Create database migration for skills table
+- [x] Create database migration for session_memories table
+- [x] Implement ID generation utility (mm-{hash}, sk-{hash})
+- [x] Create `src/storage/memories.py` with `LocalMemoryManager` class
+- [x] Implement `create()`, `get()`, `update()`, `delete()` methods
+- [x] Implement `list()` method with filters
+- [x] Implement `search()` method (text-based initially)
+- [x] Create `src/storage/skills.py` with `LocalSkillManager` class
+- [x] Implement skill CRUD methods
+- [x] Add unit tests for storage layer
 
 ### Phase 2: Memory Operations
 
-- [ ] Create `src/memory/manager.py` with `MemoryManager` class
-- [ ] Implement `remember()` method
-- [ ] Implement `recall()` method with importance ranking
-- [ ] Implement `forget()` method
-- [ ] Implement memory importance decay (background job)
-- [ ] Add access tracking (update access_count, last_accessed_at)
-- [ ] Add unit tests for memory operations
+- [x] Create `src/memory/manager.py` with `MemoryManager` class
+- [x] Implement `remember()` method
+- [x] Implement `recall()` method with importance ranking
+- [x] Implement `forget()` method
+- [x] Implement memory importance decay (background job)
+- [ ] Add access tracking (update access_count, last_accessed_at) - stubbed, not implemented
+- [x] Add unit tests for memory operations
 
 ### Phase 3: Skill Learning
 
-- [ ] Create `src/memory/skills.py` with `SkillLearner` class
-- [ ] Implement `learn_from_session()` method
-- [ ] Implement skill extraction prompt template
-- [ ] Implement `match_skills()` method (trigger pattern matching)
-- [ ] Implement skill usage tracking
-- [ ] Add unit tests for skill learning
+- [x] Create `src/memory/skills.py` with `SkillLearner` class
+- [x] Implement `learn_from_session()` method
+- [x] Implement skill extraction prompt template
+- [x] Implement `match_skills()` method (trigger pattern matching)
+- [x] Implement skill usage tracking
+- [x] Add unit tests for skill learning
 
-### Phase 4: Hook Integration
+### Phase 4: Hook/Workflow Integration
 
-- [ ] Update `session_start` hook to inject memories
-- [ ] Update `session_end` hook to extract memories
-- [ ] Create memory context builder
-- [ ] Implement selective injection (relevance threshold)
-- [ ] Add memory injection to workflow actions
-- [ ] Add unit tests for hook integration
+Note: Memory injection/extraction should be done via workflow actions, not hardcoded in hook_manager.
 
-### Phase 5: MCP Tools
+- [x] Create memory context builder (`src/memory/context.py`)
+- [x] Implement selective injection (relevance threshold via min_importance)
+- [x] Add `memory_inject` workflow action
+- [x] Add `memory.sync_import` workflow action
+- [x] Add `memory.sync_export` workflow action
+- [x] Add `skills_learn` workflow action
+- [x] Add unit tests for workflow memory actions
+- [ ] Create example workflow using memory injection at session_start
+- [ ] Create example workflow using memory extraction at session_end
 
-- [ ] Add `remember` tool to MCP server
-- [ ] Add `recall` tool to MCP server
-- [ ] Add `forget` tool to MCP server
-- [ ] Add `list_memories` tool to MCP server
-- [ ] Add `update_memory` tool to MCP server
-- [ ] Add `learn_skill` tool to MCP server
-- [ ] Add `get_skill` tool to MCP server
-- [ ] Add `list_skills` tool to MCP server
-- [ ] Add `apply_skill` tool to MCP server
-- [ ] Add `update_skill` tool to MCP server
-- [ ] Add `delete_skill` tool to MCP server
-- [ ] Add `init_memory` tool to MCP server
-- [ ] Update MCP tool documentation
+### Phase 5-6: MCP Tools & CLI Commands (Unified)
 
-### Phase 6: CLI Commands
+MCP tools and CLI commands should have parity. Each operation is implemented in both interfaces.
 
-- [ ] Add `gobby memory` command group
-- [ ] Implement `gobby memory list` command
-- [ ] Implement `gobby memory show` command
-- [ ] Implement `gobby memory add` command
-- [ ] Implement `gobby memory update` command
-- [ ] Implement `gobby memory delete` command
-- [ ] Implement `gobby memory search` command
-- [ ] Add `gobby skill` command group
-- [ ] Implement `gobby skill list` command
-- [ ] Implement `gobby skill show` command
-- [ ] Implement `gobby skill add` command
-- [ ] Implement `gobby skill learn` command
-- [ ] Implement `gobby skill update` command
-- [ ] Implement `gobby skill delete` command
-- [ ] Implement `gobby skill export` command
-- [ ] Implement `gobby memory init` command
-- [ ] Implement `gobby memory stats` command
-- [ ] Add CLI help text and examples
+#### Memory Operations
+
+| Operation | MCP Tool | CLI Command | Status |
+|-----------|----------|-------------|--------|
+| Create | `remember` | `gobby memory remember` | Done |
+| Retrieve/Search | `recall` | `gobby memory recall` | Done |
+| Delete | `forget` | `gobby memory forget` | Done |
+| List all | `list_memories` | `gobby memory list` | TODO |
+| Show one | `get_memory` | `gobby memory show` | TODO |
+| Update | `update_memory` | `gobby memory update` | TODO |
+| Initialize | `init_memory` | `gobby memory init` | TODO |
+| Stats | `memory_stats` | `gobby memory stats` | TODO |
+
+#### Skill Operations
+
+| Operation | MCP Tool | CLI Command | Status |
+|-----------|----------|-------------|--------|
+| Learn from session | `learn_skill` | `gobby skill learn` | Done |
+| List | `list_skills` | `gobby skill list` | Done |
+| Show/Get | `get_skill` | `gobby skill get` | Done |
+| Delete | `delete_skill` | `gobby skill delete` | Done |
+| Create directly | `create_skill` | `gobby skill add` | TODO |
+| Update | `update_skill` | `gobby skill update` | TODO |
+| Apply/Use | `apply_skill` | `gobby skill apply` | TODO |
+| Export to files | `export_skills` | `gobby skill export` | TODO |
+
+#### Checklist
+
+**Done:**
+- [x] Add `gobby memory` command group
+- [x] Add `gobby skill` command group
+- [x] Add `remember` MCP tool + CLI command
+- [x] Add `recall` MCP tool + CLI command
+- [x] Add `forget` MCP tool + CLI command
+- [x] Add `learn_skill` MCP tool + `skill learn` CLI command
+- [x] Add `list_skills` MCP tool + `skill list` CLI command
+- [x] Add `get_skill` MCP tool + `skill get` CLI command
+- [x] Add `delete_skill` MCP tool + `skill delete` CLI command
+- [x] Add `match_skills` MCP tool (MCP-only, used by workflows)
+
+**TODO:**
+- [ ] Add `list_memories` MCP tool + `memory list` CLI command
+- [ ] Add `get_memory` MCP tool + `memory show` CLI command
+- [ ] Add `update_memory` MCP tool + `memory update` CLI command
+- [ ] Add `init_memory` MCP tool + `memory init` CLI command
+- [ ] Add `memory_stats` MCP tool + `memory stats` CLI command
+- [ ] Add `create_skill` MCP tool + `skill add` CLI command
+- [ ] Add `update_skill` MCP tool + `skill update` CLI command
+- [ ] Add `apply_skill` MCP tool + `skill apply` CLI command
+- [ ] Add `export_skills` MCP tool + `skill export` CLI command
+- [ ] Update MCP tool documentation in CLAUDE.md
 
 ### Phase 7: Git Sync
 
-- [ ] Create `src/sync/memories.py` with `MemorySyncManager` class
-- [ ] Implement JSONL serialization for memories
-- [ ] Implement markdown serialization for skills
-- [ ] Implement `export_to_jsonl()` method
-- [ ] Implement `import_from_jsonl()` method
-- [ ] Implement skill file read/write
-- [ ] Add stealth mode support
-- [ ] Add sync trigger after memory mutations
-- [ ] Add unit tests for sync functionality
+- [x] Create `src/sync/memories.py` with `MemorySyncManager` class
+- [x] Implement JSONL serialization for memories
+- [x] Implement markdown serialization for skills
+- [x] Implement `export_to_files()` method
+- [x] Implement `import_from_files()` method
+- [x] Implement skill file read/write
+- [x] Add stealth mode support
+- [x] Add debounced sync trigger after memory mutations
+- [x] Add unit tests for sync functionality
 
 ### Phase 8: Semantic Search (Enhancement)
 

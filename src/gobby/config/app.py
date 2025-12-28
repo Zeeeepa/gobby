@@ -307,6 +307,21 @@ class MCPClientProxyConfig(BaseModel):
         return v
 
 
+class GobbyTasksConfig(BaseModel):
+    """Configuration for gobby-tasks internal MCP server."""
+
+    model_config = {"populate_by_name": True}
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable gobby-tasks internal MCP server",
+    )
+    show_result_on_create: bool = Field(
+        default=False,
+        description="Show full task result on create_task (False = minimal output with just id)",
+    )
+
+
 class LLMProviderConfig(BaseModel):
     """Configuration for a single LLM provider."""
 
@@ -703,6 +718,8 @@ class DaemonConfig(BaseModel):
     Note: machine_id is stored separately in ~/.gobby/machine_id
     """
 
+    model_config = {"populate_by_name": True}
+
     # Daemon settings
     daemon_port: int = Field(
         default=8765,
@@ -735,6 +752,12 @@ class DaemonConfig(BaseModel):
     mcp_client_proxy: MCPClientProxyConfig = Field(
         default_factory=MCPClientProxyConfig,
         description="MCP client proxy configuration",
+    )
+    gobby_tasks: GobbyTasksConfig = Field(
+        default_factory=GobbyTasksConfig,
+        alias="gobby-tasks",
+        serialization_alias="gobby-tasks",
+        description="gobby-tasks internal MCP server configuration",
     )
 
     # Multi-provider LLM configuration
@@ -822,6 +845,10 @@ class DaemonConfig(BaseModel):
     def get_skills_config(self) -> SkillConfig:
         """Get skills configuration."""
         return self.skills
+
+    def get_gobby_tasks_config(self) -> GobbyTasksConfig:
+        """Get gobby-tasks configuration."""
+        return self.gobby_tasks
 
     @field_validator("daemon_port")
     @classmethod

@@ -23,10 +23,13 @@ from gobby.adapters.codex import CodexAdapter
 from gobby.hooks.broadcaster import HookEventBroadcaster
 from gobby.hooks.hook_manager import HookManager
 from gobby.llm import LLMService, create_llm_service
+from gobby.mcp_proxy.registries import setup_internal_registries
 from gobby.mcp_proxy.server import GobbyDaemonTools, create_mcp_server
 from gobby.memory.manager import MemoryManager
 from gobby.memory.skills import SkillLearner
+from gobby.storage.messages import LocalMessageManager
 from gobby.storage.sessions import LocalSessionManager
+from gobby.storage.skills import LocalSkillManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.tasks import TaskSyncManager
 from gobby.utils.metrics import Counter, get_metrics_collector
@@ -145,11 +148,28 @@ class HTTPServer:
 
         # Create MCP server instance
         self._mcp_server = None
+        self._internal_manager = None
         if mcp_manager:
             # Determine WebSocket port
             ws_port = 8766
             if config and hasattr(config, "websocket") and config.websocket:
                 ws_port = config.websocket.port
+
+            # Setup internal registries (gobby-tasks, gobby-memory, gobby-skills, etc.)
+            self._internal_manager = setup_internal_registries(
+                _config=config,
+                _session_manager=None,  # Not needed for internal registries
+                memory_manager=memory_manager,
+                skill_learner=skill_learner,
+                task_manager=task_manager,
+                sync_manager=task_sync_manager,
+                task_expander=None,  # Could be wired up if needed
+                task_validator=None,  # Could be wired up if needed
+                message_manager=message_manager,
+                skill_storage=None,  # Use skill_learner's storage if available
+                local_session_manager=session_manager,
+            )
+            logger.debug(f"Internal registries initialized: {len(self._internal_manager)} registries")
 
             # Create tools handler
             tools_handler = GobbyDaemonTools(
@@ -157,7 +177,7 @@ class HTTPServer:
                 daemon_port=port,
                 websocket_port=ws_port,
                 start_time=self._start_time,
-                internal_manager=None,  # Not used or handled by runner
+                internal_manager=self._internal_manager,
                 config=config,
                 llm_service=self.llm_service,
                 codex_client=codex_client,
@@ -946,6 +966,18 @@ class HTTPServer:
             self._metrics.inc_counter("http_requests_total")
 
             try:
+                # Check internal registries first (gobby-tasks, gobby-memory, etc.)
+                if self._internal_manager and self._internal_manager.is_internal(server_name):
+                    registry = self._internal_manager.get_registry(server_name)
+                    if registry:
+                        tools = registry.list_tools()
+                        elapsed = time.perf_counter() - start_time
+                        self._metrics.observe_histogram("list_mcp_tools", elapsed)
+                        return {"server": server_name, "tools": tools}
+                    raise HTTPException(
+                        status_code=404, detail=f"Internal server '{server_name}' not found"
+                    )
+
                 if self.mcp_manager is None:
                     raise HTTPException(status_code=503, detail="MCP manager not available")
 
@@ -1047,6 +1079,26 @@ class HTTPServer:
             try:
                 # Parse request body as tool arguments
                 args = await request.json()
+
+                # Check internal registries first (gobby-tasks, gobby-memory, etc.)
+                if self._internal_manager and self._internal_manager.is_internal(server_name):
+                    registry = self._internal_manager.get_registry(server_name)
+                    if registry:
+                        try:
+                            result = await registry.call(tool_name, args or {})
+                            response_time_ms = (time.perf_counter() - start_time) * 1000
+                            self._metrics.inc_counter("mcp_tool_calls_succeeded_total")
+                            return {
+                                "status": "success",
+                                "result": result,
+                                "response_time_ms": response_time_ms,
+                            }
+                        except Exception as e:
+                            self._metrics.inc_counter("mcp_tool_calls_failed_total")
+                            raise HTTPException(status_code=500, detail=str(e)) from e
+                    raise HTTPException(
+                        status_code=404, detail=f"Internal server '{server_name}' not found"
+                    )
 
                 if self.mcp_manager is None:
                     raise HTTPException(status_code=503, detail="MCP manager not available")

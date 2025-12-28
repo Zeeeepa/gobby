@@ -51,7 +51,7 @@ class DaemonProxy:
                     timeout=timeout,
                 )
                 if resp.status_code == 200:
-                    return {"success": True, **resp.json()}
+                    return resp.json()
                 else:
                     return {"success": False, "error": f"HTTP {resp.status_code}: {resp.text}"}
         except httpx.ConnectError:
@@ -69,15 +69,15 @@ class DaemonProxy:
             return await self._request("GET", f"/mcp/{server}/tools")
         # List all - need to get server list first
         status = await self.get_status()
-        if not status.get("success"):
+        if status.get("status") != "success" and "error" in status:
             return status
         servers = status.get("mcp_servers", {})
         all_tools: dict[str, list[dict[str, Any]]] = {}
         for srv_name in servers:
             result = await self._request("GET", f"/mcp/{srv_name}/tools")
-            if result.get("success"):
+            if result.get("status") == "success":
                 all_tools[srv_name] = result.get("tools", [])
-        return {"success": True, "servers": [{"name": n, "tools": t} for n, t in all_tools.items()]}
+        return {"status": "success", "servers": [{"name": n, "tools": t} for n, t in all_tools.items()]}
 
     async def call_tool(
         self, server_name: str, tool_name: str, arguments: dict[str, Any] | None = None
@@ -92,13 +92,13 @@ class DaemonProxy:
     async def get_tool_schema(self, server_name: str, tool_name: str) -> dict[str, Any]:
         """Get schema for a specific tool."""
         result = await self._request("GET", f"/mcp/{server_name}/tools")
-        if not result.get("success"):
+        if result.get("status") != "success":
             return result
         tools = result.get("tools", [])
         for tool in tools:
             if tool.get("name") == tool_name:
                 return {
-                    "success": True,
+                    "status": "success",
                     "server": server_name,
                     "tool": {
                         "name": tool.get("name"),
@@ -106,12 +106,12 @@ class DaemonProxy:
                         "inputSchema": tool.get("inputSchema"),
                     },
                 }
-        return {"success": False, "error": f"Tool '{tool_name}' not found on server '{server_name}'"}
+        return {"status": "error", "error": f"Tool '{tool_name}' not found on server '{server_name}'"}
 
     async def list_mcp_servers(self) -> dict[str, Any]:
         """List configured MCP servers."""
         status = await self.get_status()
-        if not status.get("success"):
+        if "error" in status:
             return status
         servers = status.get("mcp_servers", {})
         server_list = []
@@ -135,25 +135,25 @@ class DaemonProxy:
     ) -> dict[str, Any]:
         """Get tool recommendations for a task."""
         # This would need a dedicated endpoint - for now return not implemented
-        return {"success": False, "error": "recommend_tools not yet available via stdio proxy"}
+        return {"status": "error", "error": "recommend_tools not yet available via stdio proxy"}
 
     async def add_mcp_server(self, **kwargs: Any) -> dict[str, Any]:
         """Add an MCP server - not available via stdio."""
-        return {"success": False, "error": "add_mcp_server not available via stdio proxy"}
+        return {"status": "error", "error": "add_mcp_server not available via stdio proxy"}
 
     async def remove_mcp_server(self, name: str) -> dict[str, Any]:
         """Remove an MCP server - not available via stdio."""
-        return {"success": False, "error": "remove_mcp_server not available via stdio proxy"}
+        return {"status": "error", "error": "remove_mcp_server not available via stdio proxy"}
 
     async def import_mcp_server(self, **kwargs: Any) -> dict[str, Any]:
         """Import an MCP server - not available via stdio."""
-        return {"success": False, "error": "import_mcp_server not available via stdio proxy"}
+        return {"status": "error", "error": "import_mcp_server not available via stdio proxy"}
 
     async def init_project(
         self, name: str | None = None, github_url: str | None = None
     ) -> dict[str, Any]:
         """Initialize a project - not available via stdio."""
-        return {"success": False, "error": "init_project not available via stdio proxy"}
+        return {"status": "error", "error": "init_project not available via stdio proxy"}
 
 
 def create_stdio_mcp_server() -> FastMCP:
@@ -252,7 +252,7 @@ def create_stdio_mcp_server() -> FastMCP:
         daemon_details = None
         if healthy:
             result = await proxy.get_status()
-            if result.get("success"):
+            if "error" not in result:
                 daemon_details = result
 
         return {

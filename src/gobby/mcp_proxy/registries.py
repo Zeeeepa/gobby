@@ -57,8 +57,9 @@ def setup_internal_registries(
     """
     manager = InternalRegistryManager()
 
-    # Initialize tasks registry if task_manager is available
-    if task_manager is not None and sync_manager is not None:
+    # Initialize tasks registry if enabled and task_manager is available
+    gobby_tasks_enabled = _config.get_gobby_tasks_config().enabled if _config else True
+    if gobby_tasks_enabled and task_manager is not None and sync_manager is not None:
         from gobby.mcp_proxy.tools.tasks import create_task_registry
 
         tasks_registry = create_task_registry(
@@ -66,9 +67,12 @@ def setup_internal_registries(
             sync_manager=sync_manager,
             task_expander=task_expander,
             task_validator=task_validator,
+            config=_config,
         )
         manager.add_registry(tasks_registry)
         logger.debug("Tasks registry initialized")
+    elif not gobby_tasks_enabled:
+        logger.debug("Tasks registry disabled by config")
 
     # Initialize messages registry if message_manager is available
     if message_manager is not None:

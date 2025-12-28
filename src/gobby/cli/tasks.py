@@ -4,16 +4,30 @@ Task management commands.
 
 import json
 import logging
+import sys
 from pathlib import Path
 from typing import Any
 
 import click
+from gobby.config.app import load_config
 from gobby.storage.database import LocalDatabase
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.sync.tasks import TaskSyncManager
 from gobby.utils.project_context import get_project_context
 
 logger = logging.getLogger(__name__)
+
+
+def check_tasks_enabled() -> None:
+    """Check if gobby-tasks is enabled, exit if not."""
+    try:
+        config = load_config()
+        if not config.gobby_tasks.enabled:
+            click.echo("Error: gobby-tasks is disabled in config.yaml", err=True)
+            sys.exit(1)
+    except Exception:
+        # If config can't be loaded, allow tasks to run (fail open)
+        pass
 
 
 def get_task_manager() -> LocalTaskManager:
@@ -64,7 +78,7 @@ def format_task_row(task: Task) -> str:
 @click.group()
 def tasks() -> None:
     """Manage development tasks."""
-    pass
+    check_tasks_enabled()
 
 
 @tasks.command("list")

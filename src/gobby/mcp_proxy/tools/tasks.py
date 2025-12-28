@@ -12,7 +12,7 @@ These tools are registered with the InternalToolRegistry and accessed
 via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 """
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.session_tasks import SessionTaskManager
@@ -27,12 +27,16 @@ from gobby.tasks.validation import TaskValidator
 from gobby.utils.project_context import get_project_context
 from gobby.utils.project_init import initialize_project
 
+if TYPE_CHECKING:
+    from gobby.config.app import DaemonConfig
+
 
 def create_task_registry(
     task_manager: LocalTaskManager,
     sync_manager: TaskSyncManager,
     task_expander: TaskExpander | None = None,
     task_validator: TaskValidator | None = None,
+    config: "DaemonConfig | None" = None,
 ) -> InternalToolRegistry:
     """
     Create a task tool registry with all task-related tools.
@@ -42,10 +46,15 @@ def create_task_registry(
         sync_manager: TaskSyncManager instance
         task_expander: TaskExpander instance (optional)
         task_validator: TaskValidator instance (optional)
+        config: DaemonConfig instance (optional)
 
     Returns:
         InternalToolRegistry with all task tools registered
     """
+    # Get show_result_on_create setting from config
+    show_result_on_create = False
+    if config is not None:
+        show_result_on_create = config.get_gobby_tasks_config().show_result_on_create
     registry = InternalToolRegistry(
         name="gobby-tasks",
         description="Task management - CRUD, dependencies, sync",
@@ -179,8 +188,10 @@ def create_task_registry(
             for blocked_id in blocks:
                 dep_manager.add_dependency(task.id, blocked_id, "blocks")
 
-        result: dict[str, Any] = task.to_dict()
-        return result
+        # Return minimal or full result based on config
+        if show_result_on_create:
+            return task.to_dict()
+        return {"id": task.id}
 
     registry.register(
         name="create_task",

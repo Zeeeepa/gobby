@@ -20,6 +20,9 @@ mcp_client_proxy:
   connect_timeout: 30.0
   proxy_timeout: 30
   tool_timeout: 30
+gobby-tasks:
+  enabled: true
+  show_result_on_create: false
 llm_providers:
   claude:
     models: claude-haiku-4-5,claude-sonnet-4-5,claude-opus-4-5
