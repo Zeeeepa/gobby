@@ -408,6 +408,98 @@ def recommend_tools(
             click.echo(f"    {reason}")
 
 
+@mcp_proxy.command("import-server")
+@click.option("--from-project", "-p", help="Import from another Gobby project")
+@click.option("--github", "-g", "github_url", help="Import from GitHub repository URL")
+@click.option("--query", "-q", help="Search for MCP server by name/description")
+@click.option("--server", "-s", "servers", multiple=True, help="Specific servers to import")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+@click.pass_context
+def import_server(
+    ctx: click.Context,
+    from_project: str | None,
+    github_url: str | None,
+    query: str | None,
+    servers: tuple[str, ...],
+    json_format: bool,
+) -> None:
+    """Import MCP server(s) from various sources.
+
+    Examples:
+        gobby mcp-proxy import-server --from-project my-other-project
+        gobby mcp-proxy import-server --from-project prod -s context7 -s exa
+        gobby mcp-proxy import-server --github https://github.com/user/mcp-server
+        gobby mcp-proxy import-server --query "supabase mcp server"
+    """
+    client = get_daemon_client(ctx)
+    if not check_daemon_running(client):
+        sys.exit(1)
+
+    # Validate that at least one source is specified
+    if not from_project and not github_url and not query:
+        click.echo(
+            "Error: Specify at least one source: --from-project, --github, or --query",
+            err=True,
+        )
+        sys.exit(1)
+
+    result = call_mcp_api(
+        client,
+        "/mcp/servers/import",
+        method="POST",
+        json_data={
+            "from_project": from_project,
+            "github_url": github_url,
+            "query": query,
+            "servers": list(servers) if servers else None,
+        },
+    )
+    if result is None:
+        sys.exit(1)
+
+    if json_format:
+        click.echo(json.dumps(result, indent=2))
+        return
+
+    # Handle different result statuses
+    if result.get("status") == "needs_configuration":
+        click.echo("Server configuration extracted but needs secrets:")
+        config = result.get("config", {})
+        click.echo(f"  Name: {config.get('name')}")
+        click.echo(f"  Transport: {config.get('transport')}")
+        missing = result.get("missing", [])
+        if missing:
+            click.echo(f"  Missing secrets: {', '.join(missing)}")
+        if result.get("instructions"):
+            click.echo(f"\nInstructions:\n{result['instructions']}")
+        click.echo("\nUse 'gobby mcp-proxy add-server' to add with required values.")
+        return
+
+    if result.get("success"):
+        imported = result.get("imported", [])
+        if imported:
+            click.echo(f"Imported {len(imported)} server(s):")
+            for name in imported:
+                click.echo(f"  + {name}")
+
+        skipped = result.get("skipped", [])
+        if skipped:
+            click.echo(f"Skipped {len(skipped)} existing server(s):")
+            for name in skipped:
+                click.echo(f"  - {name}")
+
+        failed = result.get("failed", [])
+        if failed:
+            click.echo(f"Failed to import {len(failed)} server(s):")
+            for item in failed:
+                click.echo(f"  x {item.get('name')}: {item.get('error')}")
+    else:
+        click.echo(f"Error: {result.get('error', 'Import failed')}", err=True)
+        if result.get("available_projects"):
+            click.echo(f"Available projects: {', '.join(result['available_projects'])}")
+        sys.exit(1)
+
+
 @mcp_proxy.command("status")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 @click.pass_context

@@ -27,9 +27,7 @@ from gobby.mcp_proxy.registries import setup_internal_registries
 from gobby.mcp_proxy.server import GobbyDaemonTools, create_mcp_server
 from gobby.memory.manager import MemoryManager
 from gobby.memory.skills import SkillLearner
-from gobby.storage.messages import LocalMessageManager
 from gobby.storage.sessions import LocalSessionManager
-from gobby.storage.skills import LocalSkillManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.tasks import TaskSyncManager
 from gobby.utils.metrics import Counter, get_metrics_collector
@@ -1077,9 +1075,9 @@ class HTTPServer:
 
                 # Add internal servers (gobby-tasks, gobby-memory, etc.)
                 if self._internal_manager:
-                    for name in self._internal_manager.list_registries():
+                    for registry in self._internal_manager.get_all_registries():
                         server_list.append({
-                            "name": name,
+                            "name": registry.name,
                             "state": "connected",
                             "connected": True,
                             "transport": "internal",
@@ -1155,10 +1153,8 @@ class HTTPServer:
                     # Get tools from all servers
                     # Internal servers
                     if self._internal_manager:
-                        for name in self._internal_manager.list_registries():
-                            registry = self._internal_manager.get_registry(name)
-                            if registry:
-                                tools_by_server[name] = registry.list_tools()
+                        for registry in self._internal_manager.get_all_registries():
+                            tools_by_server[registry.name] = registry.list_tools()
 
                     # External MCP servers
                     if self.mcp_manager:
@@ -1168,15 +1164,18 @@ class HTTPServer:
                                     connection = self.mcp_manager.connections[config.name]
                                     if connection.is_connected and connection._session:
                                         tools_result = await connection._session.list_tools()
-                                        tools_by_server[config.name] = [
-                                            {
+                                        tools_list = []
+                                        for t in tools_result.tools:
+                                            desc = getattr(t, "description", "") or ""
+                                            tools_list.append({
                                                 "name": t.name,
-                                                "brief": (t.description or "")[:100] if hasattr(t, "description") else "",
-                                            }
-                                            for t in tools_result.tools
-                                        ]
+                                                "brief": desc[:100],
+                                            })
+                                        tools_by_server[config.name] = tools_list
                                 except Exception as e:
-                                    logger.warning(f"Failed to list tools from {config.name}: {e}")
+                                    logger.warning(
+                                        f"Failed to list tools from {config.name}: {e}"
+                                    )
                                     tools_by_server[config.name] = []
 
                 response_time_ms = (time.perf_counter() - start_time) * 1000
@@ -1223,7 +1222,7 @@ class HTTPServer:
                 if self._internal_manager and self._internal_manager.is_internal(server_name):
                     registry = self._internal_manager.get_registry(server_name)
                     if registry:
-                        schema = registry.get_tool_schema(tool_name)
+                        schema = registry.get_schema(tool_name)
                         if schema:
                             response_time_ms = (time.perf_counter() - start_time) * 1000
                             return {
@@ -1404,6 +1403,81 @@ class HTTPServer:
                 logger.error(f"Add MCP server error: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e)) from e
 
+        @app.post("/mcp/servers/import")
+        async def import_mcp_server(request: Request) -> dict[str, Any]:
+            """
+            Import MCP server(s) from various sources.
+
+            Request body:
+                {
+                    "from_project": "other-project",  # Import from project
+                    "github_url": "https://...",      # Import from GitHub
+                    "query": "supabase mcp",          # Search and import
+                    "servers": ["name1", "name2"]     # Specific servers to import
+                }
+
+            Returns:
+                Import result with imported/skipped/failed lists
+            """
+            self._metrics.inc_counter("http_requests_total")
+
+            try:
+                body = await request.json()
+                from_project = body.get("from_project")
+                github_url = body.get("github_url")
+                query = body.get("query")
+                servers = body.get("servers")
+
+                if not from_project and not github_url and not query:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Specify at least one: from_project, github_url, or query"
+                    )
+
+                # Get current project ID from context
+                from gobby.utils.project_context import get_project_context
+                project_ctx = get_project_context()
+                if not project_ctx or not project_ctx.get("id"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="No current project. Run 'gobby init' first."
+                    )
+                current_project_id = project_ctx["id"]
+
+                # Create importer
+                from gobby.mcp_proxy.importer import MCPServerImporter
+                from gobby.storage.database import LocalDatabase
+
+                db = LocalDatabase()
+                importer = MCPServerImporter(
+                    config=self.config,
+                    db=db,
+                    current_project_id=current_project_id,
+                    mcp_client_manager=self.mcp_manager,
+                )
+
+                # Execute import based on source
+                if from_project:
+                    result = await importer.import_from_project(
+                        source_project=from_project,
+                        servers=servers,
+                    )
+                elif github_url:
+                    result = await importer.import_from_github(github_url)
+                elif query:
+                    result = await importer.import_from_query(query)
+                else:
+                    result = {"success": False, "error": "No import source specified"}
+
+                return result
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                self._metrics.inc_counter("http_requests_errors_total")
+                logger.error(f"Import MCP server error: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e)) from e
+
         @app.delete("/mcp/servers/{name}")
         async def remove_mcp_server(name: str) -> dict[str, Any]:
             """
@@ -1455,7 +1529,8 @@ class HTTPServer:
             try:
                 body = await request.json()
                 task_description = body.get("task_description")
-                agent_id = body.get("agent_id")
+                # agent_id can be used for filtered recommendations (future enhancement)
+                _ = body.get("agent_id")
 
                 if not task_description:
                     raise HTTPException(
@@ -1472,15 +1547,13 @@ class HTTPServer:
 
                         # Internal tools
                         if self._internal_manager:
-                            for name in self._internal_manager.list_registries():
-                                registry = self._internal_manager.get_registry(name)
-                                if registry:
-                                    for tool in registry.list_tools():
-                                        available_tools.append({
-                                            "server": name,
-                                            "name": tool.get("name"),
-                                            "description": tool.get("description", ""),
-                                        })
+                            for registry in self._internal_manager.get_all_registries():
+                                for tool in registry.list_tools():
+                                    available_tools.append({
+                                        "server": registry.name,
+                                        "name": tool.get("name"),
+                                        "description": tool.get("description", ""),
+                                    })
 
                         # External MCP tools
                         for config in self.mcp_manager.server_configs:
@@ -1506,10 +1579,12 @@ class HTTPServer:
                             task_words = set(task_lower.split())
                             tool_words = set(tool_text.split())
                             if task_words & tool_words:
+                                desc = tool["description"]
+                                reason = desc[:100] if desc else "Keyword match"
                                 recommendations.append({
                                     "server": tool["server"],
                                     "tool": tool["name"],
-                                    "reason": tool["description"][:100] if tool["description"] else "Keyword match",
+                                    "reason": reason,
                                 })
 
                     except Exception as e:
@@ -1548,13 +1623,11 @@ class HTTPServer:
 
                 # Count internal servers
                 if self._internal_manager:
-                    for name in self._internal_manager.list_registries():
+                    for registry in self._internal_manager.get_all_registries():
                         total_servers += 1
                         connected_servers += 1
-                        registry = self._internal_manager.get_registry(name)
-                        if registry:
-                            cached_tools += len(registry.list_tools())
-                        server_health[name] = {
+                        cached_tools += len(registry.list_tools())
+                        server_health[registry.name] = {
                             "state": "connected",
                             "health": "healthy",
                             "failures": 0,
