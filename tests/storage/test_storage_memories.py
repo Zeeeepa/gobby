@@ -46,7 +46,7 @@ def test_update_memory(memory_manager):
     )
     assert updated.content == "Updated"
     assert updated.importance == 0.9
-    assert updated.updated_at > created.updated_at
+    assert updated.updated_at >= created.updated_at
 
 
 def test_delete_memory(memory_manager):

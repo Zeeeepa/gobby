@@ -9,9 +9,10 @@ from gobby.storage.database import LocalDatabase
 
 
 @pytest.fixture
-def mock_db() -> LocalDatabase:
-    # Use in-memory DB for tests
-    return LocalDatabase(":memory:")
+def mock_db(tmp_path) -> LocalDatabase:
+    # Use file-based DB for tests (in-memory doesn't work with asyncio.to_thread
+    # because each thread gets a separate connection/database)
+    return LocalDatabase(tmp_path / "test.db")
 
 
 @pytest.fixture
@@ -104,7 +105,7 @@ async def test_incremental_processing(processor, transcript_file, mock_db):
     processor.register_session("session-1", str(transcript_file))
 
     # Initial write
-    msg1 = json.dumps({"type": "user", "message": {"content": "msg1"}})
+    msg1 = json.dumps({"type": "user", "message": {"content": "msg1"}, "timestamp": "2024-01-01T10:00:00Z"})
     with open(transcript_file, "w") as f:
         f.write(msg1 + "\n")
 
@@ -123,7 +124,7 @@ async def test_incremental_processing(processor, transcript_file, mock_db):
     assert state["last_message_index"] == 0
 
     # Append new msg
-    msg2 = json.dumps({"type": "agent", "message": {"content": "msg2"}})
+    msg2 = json.dumps({"type": "agent", "message": {"content": "msg2"}, "timestamp": "2024-01-01T10:01:00Z"})
     with open(transcript_file, "a") as f:
         f.write(msg2 + "\n")
 
@@ -145,8 +146,8 @@ async def test_incremental_processing(processor, transcript_file, mock_db):
 async def test_recovery_after_restart(processor, transcript_file, mock_db):
     # Pre-seed file with 2 messages
     msgs = [
-        json.dumps({"type": "user", "message": {"content": "msg1"}}),
-        json.dumps({"type": "agent", "message": {"content": "msg2"}}),
+        json.dumps({"type": "user", "message": {"content": "msg1"}, "timestamp": "2024-01-01T10:00:00Z"}),
+        json.dumps({"type": "agent", "message": {"content": "msg2"}, "timestamp": "2024-01-01T10:01:00Z"}),
     ]
     with open(transcript_file, "w") as f:
         f.write(msgs[0] + "\n")
@@ -206,10 +207,10 @@ async def test_concurrent_sessions(processor, tmp_path, mock_db):
 
     # Write to both
     with open(file1, "w") as f:
-        f.write(json.dumps({"type": "user", "message": {"content": "s1_msg"}}) + "\n")
+        f.write(json.dumps({"type": "user", "message": {"content": "s1_msg"}, "timestamp": "2024-01-01T10:00:00Z"}) + "\n")
 
     with open(file2, "w") as f:
-        f.write(json.dumps({"type": "user", "message": {"content": "s2_msg"}}) + "\n")
+        f.write(json.dumps({"type": "user", "message": {"content": "s2_msg"}, "timestamp": "2024-01-01T10:00:00Z"}) + "\n")
 
     await asyncio.sleep(0.3)
 

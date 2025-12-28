@@ -8,7 +8,6 @@ from pathlib import Path
 import uvicorn
 
 from gobby.config.app import load_config
-from gobby.hooks.broadcaster import HookEventBroadcaster
 from gobby.llm import LLMService, create_llm_service
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.memory.manager import MemoryManager
@@ -95,9 +94,6 @@ class GobbyRunner:
         # MCPClientManager loads servers from database on init
         self.mcp_proxy = MCPClientManager(mcp_db_manager=self.mcp_db_manager)
 
-        # Hook Event Broadcaster
-        # Check if websocket config exists first to avoid NoneType errors
-        self.broadcaster = HookEventBroadcaster(websocket_server=None, config=self.config)
 
         # Task Sync Manager
         self.task_sync_manager = TaskSyncManager(self.task_manager)
@@ -217,10 +213,8 @@ class GobbyRunner:
             )
             # Pass WebSocket server reference to HTTP server for broadcasting
             self.http_server.websocket_server = self.websocket_server
-
-            # Pass WebSocket server to global broadcaster
-            if self.broadcaster:
-                self.broadcaster.websocket_server = self.websocket_server
+            # Also update the HTTPServer's broadcaster to use the same websocket_server
+            self.http_server.broadcaster.websocket_server = self.websocket_server
 
             # Pass WebSocket server to message processor if enabled
             if self.message_processor:

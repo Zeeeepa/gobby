@@ -20,7 +20,7 @@ def mock_db():
     shared_conn = sqlite3.connect(":memory:", check_same_thread=False, isolation_level=None)
     shared_conn.row_factory = sqlite3.Row
     shared_conn.execute("PRAGMA foreign_keys = ON")
-    shared_conn.execute("PRAGMA journal_mode = WAL")
+    # WAL mode is not supported for in-memory databases, skip it
 
     # Patch _get_connection to return the shared connection
     db._get_connection = lambda: shared_conn  # type: ignore

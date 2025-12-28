@@ -41,12 +41,28 @@ class ServerManagementService:
         env: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
         enabled: bool = True,
+        project_id: str | None = None,
     ) -> dict[str, Any]:
         """Add a new MCP server."""
         try:
+            # Resolve project ID
+            if not project_id:
+                from gobby.utils.project_context import get_project_context
+
+                ctx = get_project_context()
+                if ctx and ctx.get("id"):
+                    project_id = ctx["id"]
+
+            if not project_id:
+                return {
+                    "success": False,
+                    "error": "project_id is required. Run 'gobby init' or provide project_id.",
+                }
+
             # Create config object
             server_config = MCPServerConfig(
                 name=name,
+                project_id=project_id,
                 transport=transport,
                 url=url,
                 command=command,
@@ -90,9 +106,30 @@ class ServerManagementService:
             return {"success": False, "error": str(e)}
 
     async def remove_server(self, name: str) -> dict[str, Any]:
-        """Remove an MCP server."""
+        """Remove an MCP server.
+
+        Disconnects the server first if connected, then removes the configuration.
+        """
         try:
-            # Remove from runtime
+            # First disconnect if connected
+            if name in self._mcp_manager._connections:
+                try:
+                    connection = self._mcp_manager._connections[name]
+                    if connection.is_connected:
+                        await connection.disconnect()
+                    # Update health state
+                    if name in self._mcp_manager.health:
+                        from gobby.mcp_proxy.models import ConnectionState
+
+                        self._mcp_manager.health[name].state = ConnectionState.DISCONNECTED
+                    # Remove from connections
+                    del self._mcp_manager._connections[name]
+                    logger.info(f"Disconnected server {name} before removal")
+                except Exception as e:
+                    logger.warning(f"Error disconnecting server {name}: {e}")
+                    # Continue with removal even if disconnect fails
+
+            # Remove from runtime config
             self._mcp_manager.remove_server_config(name)
 
             # Persist
@@ -100,6 +137,7 @@ class ServerManagementService:
 
             return {"success": True, "message": f"Server {name} removed"}
         except Exception as e:
+            logger.error(f"Failed to remove server {name}: {e}")
             return {"success": False, "error": str(e)}
 
     async def import_server(

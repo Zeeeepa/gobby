@@ -289,7 +289,7 @@ class TestMCPConfigManagerSaveServers:
         config_path.write_text(json.dumps({"servers": []}))
 
         server = MCPServerConfig(
-            name="test-http", enabled=True, transport="http", url="http://localhost:8080/mcp"
+            name="test-http", project_id="global", enabled=True, transport="http", url="http://localhost:8080/mcp"
         )
 
         manager = MCPConfigManager(str(config_path))
@@ -310,6 +310,7 @@ class TestMCPConfigManagerSaveServers:
 
         server = MCPServerConfig(
             name="test-stdio",
+            project_id="global",
             enabled=True,
             transport="stdio",
             command="uvx",
@@ -337,7 +338,7 @@ class TestMCPConfigManagerAddServer:
         config_path.write_text(json.dumps({"servers": []}))
 
         server = MCPServerConfig(
-            name="new-server", transport="http", url="http://localhost:8080/mcp"
+            name="new-server", project_id="global", transport="http", url="http://localhost:8080/mcp"
         )
 
         manager = MCPConfigManager(str(config_path))
@@ -357,7 +358,7 @@ class TestMCPConfigManagerAddServer:
         }
         config_path.write_text(json.dumps(config_data))
 
-        server = MCPServerConfig(name="existing", transport="http", url="http://localhost:9090/mcp")
+        server = MCPServerConfig(name="existing", project_id="global", transport="http", url="http://localhost:9090/mcp")
 
         manager = MCPConfigManager(str(config_path))
 
@@ -410,6 +411,7 @@ class TestMCPConfigManagerUpdateServer:
 
         updated_server = MCPServerConfig(
             name="to-update",
+            project_id="global",
             transport="http",
             url="http://localhost:9090/mcp",  # Changed URL
         )
@@ -427,7 +429,7 @@ class TestMCPConfigManagerUpdateServer:
         config_path.write_text(json.dumps({"servers": []}))
 
         server = MCPServerConfig(
-            name="non-existent", transport="http", url="http://localhost:8080/mcp"
+            name="non-existent", project_id="global", transport="http", url="http://localhost:8080/mcp"
         )
 
         manager = MCPConfigManager(str(config_path))

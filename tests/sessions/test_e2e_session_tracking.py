@@ -22,14 +22,17 @@ class MockWebSocketServer:
 
 
 @pytest.fixture
-def mock_db() -> LocalDatabase:
-    db = LocalDatabase(":memory:")
+def mock_db(tmp_path) -> LocalDatabase:
+    # Use file-based DB for tests (in-memory doesn't work with asyncio.to_thread)
+    db = LocalDatabase(tmp_path / "test.db")
     return db
 
 
 @pytest.fixture
 async def env(tmp_path) -> AsyncGenerator[dict, None]:
-    db = LocalDatabase(":memory:")
+    # Use file-based DB for tests (in-memory doesn't work with asyncio.to_thread
+    # because each thread gets a separate connection/database)
+    db = LocalDatabase(tmp_path / "test.db")
 
     # Initialize migrations manually for this memory DB
     # Using run_migrations to ensure schema is correct

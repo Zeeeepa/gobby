@@ -9,7 +9,10 @@ import asyncio
 import logging
 import os
 
-from gobby.servers.websocket import WebSocketServer
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from gobby.servers.websocket import WebSocketServer
 from gobby.sessions.transcripts import get_parser
 from gobby.sessions.transcripts.base import TranscriptParser
 from gobby.storage.database import LocalDatabase
@@ -28,11 +31,13 @@ class SessionMessageProcessor:
     - stores normalized messages in the database
     """
 
+    websocket_server: "WebSocketServer | None" = None
+
     def __init__(
         self,
         db: LocalDatabase,
         poll_interval: float = 2.0,
-        websocket_server: WebSocketServer | None = None,
+        websocket_server: "WebSocketServer | None" = None,
     ):
         self.db = db
         self.message_manager = LocalSessionMessageManager(db)

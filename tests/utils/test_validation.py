@@ -18,7 +18,7 @@ def dep_manager(temp_db):
 
 
 @pytest.mark.integration
-async def test_orphan_dependencies(manager, dep_manager, sample_project):
+def test_orphan_dependencies(manager, dep_manager, sample_project):
     """Test detection and cleanup of orphan dependencies."""
     proj_id = sample_project["id"]
     t1 = manager.create_task(proj_id, "Task 1")
@@ -54,7 +54,7 @@ async def test_orphan_dependencies(manager, dep_manager, sample_project):
 
 
 @pytest.mark.integration
-async def test_invalid_projects(manager, sample_project):
+def test_invalid_projects(manager, sample_project):
     """Test detection of tasks with invalid projects."""
     proj_id = sample_project["id"]
     manager.create_task(proj_id, "Valid Task")
@@ -87,7 +87,7 @@ async def test_invalid_projects(manager, sample_project):
 
 
 @pytest.mark.integration
-async def test_cycles_check(manager, dep_manager, sample_project):
+def test_cycles_check(manager, dep_manager, sample_project):
     """Test cycle detection via validator."""
     proj_id = sample_project["id"]
     t1 = manager.create_task(proj_id, "T1")

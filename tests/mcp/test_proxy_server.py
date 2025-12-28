@@ -58,6 +58,7 @@ def mock_claude_sdk():
 def mock_mcp_manager():
     manager = MagicMock(spec=MCPClientManager)
     manager.connections = {}
+    manager._connections = {}  # Private attr used by ServerManagementService
     manager.project_id = "test-project-id"
     manager.call_tool = AsyncMock()
     manager.read_resource = AsyncMock()

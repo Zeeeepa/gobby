@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,8 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.skills import LocalSkillManager, Skill
+
+logger = logging.getLogger(__name__)
 
 
 def get_skill_storage(ctx: click.Context) -> LocalSkillManager:
@@ -419,70 +422,80 @@ def export(ctx: click.Context, output: str | None, fmt: str) -> None:
             click.echo(f"Created plugin manifest: {manifest_file}")
 
     count = 0
+    skipped = 0
     for skill in skills_list:
-        # Create safe name
-        safe_name = "".join(c for c in skill.name if c.isalnum() or c in "-_").lower()
-        if not safe_name:
-            safe_name = skill.id
+        try:
+            # Create safe name
+            safe_name = "".join(c for c in skill.name if c.isalnum() or c in "-_").lower()
+            if not safe_name:
+                safe_name = skill.id
 
-        if fmt == "claude":
-            # Claude Code format: skills/<name>/SKILL.md
-            skill_dir = skills_dir / safe_name
-            skill_dir.mkdir(parents=True, exist_ok=True)
+            if fmt == "claude":
+                # Claude Code format: skills/<name>/SKILL.md
+                skill_dir = skills_dir / safe_name
+                skill_dir.mkdir(parents=True, exist_ok=True)
 
-            # Build trigger description
-            description = _build_trigger_description(skill)
+                # Build trigger description
+                description = _build_trigger_description(skill)
 
-            frontmatter = {
-                "name": skill.name,
-                "description": description,
-            }
+                frontmatter = {
+                    "name": skill.name,
+                    "description": description,
+                }
 
-            content = "---\n"
-            content += yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True)
-            content += "---\n\n"
-            content += skill.instructions
+                content = "---\n"
+                content += yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True)
+                content += "---\n\n"
+                content += skill.instructions
 
-            skill_file = skill_dir / "SKILL.md"
-            with open(skill_file, "w") as f:
-                f.write(content)
+                skill_file = skill_dir / "SKILL.md"
+                with open(skill_file, "w") as f:
+                    f.write(content)
 
-            # Write Gobby metadata
-            meta_file = skill_dir / ".gobby-meta.json"
-            meta = {
-                "id": skill.id,
-                "trigger_pattern": skill.trigger_pattern or "",
-                "tags": skill.tags or [],
-                "usage_count": skill.usage_count,
-            }
-            with open(meta_file, "w") as f:
-                json.dump(meta, f, indent=2)
-        else:
-            # Legacy format: skills/<name>.md
-            filename = skills_dir / f"{safe_name}.md"
-            legacy_frontmatter: dict[str, Any] = {
-                "id": skill.id,
-                "name": skill.name,
-                "description": skill.description or "",
-                "trigger_pattern": skill.trigger_pattern or "",
-                "tags": skill.tags or [],
-            }
+                # Write Gobby metadata
+                meta_file = skill_dir / ".gobby-meta.json"
+                meta = {
+                    "id": skill.id,
+                    "trigger_pattern": skill.trigger_pattern or "",
+                    "tags": skill.tags or [],
+                    "usage_count": skill.usage_count,
+                }
+                with open(meta_file, "w") as f:
+                    json.dump(meta, f, indent=2)
+            else:
+                # Legacy format: skills/<name>.md
+                filename = skills_dir / f"{safe_name}.md"
+                legacy_frontmatter: dict[str, Any] = {
+                    "id": skill.id,
+                    "name": skill.name,
+                    "description": skill.description or "",
+                    "trigger_pattern": skill.trigger_pattern or "",
+                    "tags": skill.tags or [],
+                }
 
-            content = "---\n"
-            content += yaml.dump(legacy_frontmatter)
-            content += "---\n\n"
-            content += skill.instructions
+                content = "---\n"
+                content += yaml.dump(legacy_frontmatter)
+                content += "---\n\n"
+                content += skill.instructions
 
-            with open(filename, "w") as f:
-                f.write(content)
+                with open(filename, "w") as f:
+                    f.write(content)
 
-        count += 1
+            count += 1
+        except Exception as e:
+            logger.error(f"Failed to export skill {skill.id} ({skill.name}): {e}")
+            skipped += 1
+            continue
 
     if fmt == "claude":
         click.echo(f"Exported {count} skills to {gobby_dir}/ (Claude Code plugin format)")
+        if skipped > 0:
+            click.echo(f"Skipped {skipped} skills due to errors (check logs for details)")
         click.echo("Skills will be auto-discovered by Claude Code.")
     else:
         click.echo(f"Exported {count} skills to {skills_dir}/ (legacy format)")
+        if skipped > 0:
+            click.echo(f"Skipped {skipped} skills due to errors (check logs for details)")
 
 
 def _build_trigger_description(skill: Skill) -> str:

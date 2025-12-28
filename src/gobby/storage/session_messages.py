@@ -2,6 +2,7 @@
 Local storage for session messages.
 """
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -32,8 +33,9 @@ class LocalSessionMessageManager:
         if not messages:
             return 0
 
-        count = 0
-        try:
+        def _store_blocking() -> int:
+            """Blocking DB insert operations to run in thread."""
+            count = 0
             for msg in messages:
                 # Convert dicts to JSON strings for storage
                 tool_input = json.dumps(msg.tool_input) if msg.tool_input is not None else None
@@ -71,9 +73,10 @@ class LocalSessionMessageManager:
                     ),
                 )
                 count += 1
-
             return count
 
+        try:
+            return await asyncio.to_thread(_store_blocking)
         except Exception as e:
             logger.error(f"Failed to store messages for session {session_id}: {e}")
             raise
@@ -107,7 +110,7 @@ class LocalSessionMessageManager:
         query += " ORDER BY message_index ASC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
 
-        rows = self.db.fetchall(query, tuple(params))
+        rows = await asyncio.to_thread(self.db.fetchall, query, tuple(params))
         return [dict(row) for row in rows]
 
     async def get_state(self, session_id: str) -> dict[str, Any] | None:
@@ -120,7 +123,8 @@ class LocalSessionMessageManager:
         Returns:
             State dictionary or None if not found
         """
-        row = self.db.fetchone(
+        row = await asyncio.to_thread(
+            self.db.fetchone,
             "SELECT * FROM session_message_state WHERE session_id = ?",
             (session_id,),
         )
@@ -151,7 +155,7 @@ class LocalSessionMessageManager:
             last_processed_at=excluded.last_processed_at,
             updated_at=excluded.updated_at
         """
-        self.db.execute(sql, (session_id, byte_offset, message_index))
+        await asyncio.to_thread(self.db.execute, sql, (session_id, byte_offset, message_index))
 
     async def count_messages(self, session_id: str) -> int:
         """
@@ -163,7 +167,8 @@ class LocalSessionMessageManager:
         Returns:
             Number of messages
         """
-        result = self.db.fetchone(
+        result = await asyncio.to_thread(
+            self.db.fetchone,
             "SELECT COUNT(*) as count FROM session_messages WHERE session_id = ?",
             (session_id,),
         )
@@ -176,8 +181,9 @@ class LocalSessionMessageManager:
         Returns:
             Dictionary mapping session_id to count
         """
-        rows = self.db.fetchall(
-            "SELECT session_id, COUNT(*) as count FROM session_messages GROUP BY session_id"
+        rows = await asyncio.to_thread(
+            self.db.fetchall,
+            "SELECT session_id, COUNT(*) as count FROM session_messages GROUP BY session_id",
         )
         return {row["session_id"]: row["count"] for row in rows}
 
@@ -222,5 +228,5 @@ class LocalSessionMessageManager:
         sql += " ORDER BY m.timestamp DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
 
-        rows = self.db.fetchall(sql, tuple(params))
+        rows = await asyncio.to_thread(self.db.fetchall, sql, tuple(params))
         return [dict(row) for row in rows]

@@ -5,6 +5,8 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from gobby.utils.git import (
     get_git_branch,
     get_git_metadata,
@@ -68,6 +70,7 @@ class TestMachineId:
 class TestGitUtils:
     """Tests for git utility functions."""
 
+    @pytest.mark.integration
     def test_run_git_command_success(self, temp_dir: Path):
         """Test running a successful git command."""
         # Initialize git repo
@@ -98,6 +101,7 @@ class TestGitUtils:
         result = run_git_command(["git", "status"], temp_dir)
         assert result is None
 
+    @pytest.mark.integration
     def test_get_github_url_with_origin(self, temp_dir: Path):
         """Test getting GitHub URL from origin remote."""
         # Initialize git repo with remote
@@ -112,6 +116,7 @@ class TestGitUtils:
         result = get_github_url(temp_dir)
         assert result == "https://github.com/test/repo.git"
 
+    @pytest.mark.integration
     def test_get_github_url_no_remote(self, temp_dir: Path):
         """Test getting GitHub URL when no remote exists."""
         subprocess.run(["git", "init"], cwd=temp_dir, check=True, capture_output=True)
@@ -119,6 +124,7 @@ class TestGitUtils:
         result = get_github_url(temp_dir)
         assert result is None
 
+    @pytest.mark.integration
     def test_get_git_branch(self, temp_dir: Path):
         """Test getting current git branch."""
         # Initialize git repo and create initial commit
@@ -155,6 +161,7 @@ class TestGitUtils:
         result = get_git_branch(temp_dir)
         assert result is None
 
+    @pytest.mark.integration
     def test_get_git_metadata(self, temp_dir: Path):
         """Test getting comprehensive git metadata."""
         # Initialize git repo

@@ -183,7 +183,7 @@ async def restart_daemon_process(
         except OSError:
             return False
 
-    for attempt in range(10):
+    for _ in range(10):
         if await asyncio.to_thread(is_port_free, port) and await asyncio.to_thread(
             is_port_free, websocket_port
         ):

@@ -91,7 +91,11 @@ class MCPConnectionHealth:
 class MCPServerConfig:
     """Configuration for a single MCP server with transport support."""
 
+    # Required fields (no defaults) - must come first
     name: str
+    project_id: str  # UUID string for the project this server belongs to
+
+    # Optional fields with defaults
     enabled: bool = True
 
     # Transport configuration
@@ -115,9 +119,6 @@ class MCPServerConfig:
 
     # Server description (what it does, when to use it)
     description: str | None = None
-
-    # Project context
-    project_id: str = ""  # Required - UUID string for the project this server belongs to
 
     # Connection timeout (seconds) for establishing connections
     connect_timeout: float = 30.0

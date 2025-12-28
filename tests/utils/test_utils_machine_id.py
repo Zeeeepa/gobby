@@ -158,14 +158,22 @@ class TestGenerateMachineId:
         mock_machineid = MagicMock()
         mock_machineid.id.return_value = "hardware-id"
 
-        with patch.dict("sys.modules", {"machineid": mock_machineid}):
-            # Need to reimport to pick up the mock
-            from gobby.utils import machine_id as mid
+        # Remove machineid from sys.modules if cached, so the mock is picked up
+        import sys
 
-            mid._generate_machine_id()
+        cached_module = sys.modules.pop("machineid", None)
+        try:
+            with patch.dict("sys.modules", {"machineid": mock_machineid}):
+                # Call directly - the function does runtime import
+                result = _generate_machine_id()
 
-        # Should attempt to use machineid
-        mock_machineid.id.assert_called_once()
+                # Should return the mocked value
+                assert result == "hardware-id"
+                mock_machineid.id.assert_called_once()
+        finally:
+            # Restore if it was cached
+            if cached_module is not None:
+                sys.modules["machineid"] = cached_module
 
     def test_falls_back_to_uuid_when_import_fails(self):
         """Test falls back to UUID when machineid unavailable."""

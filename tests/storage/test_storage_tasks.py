@@ -21,6 +21,7 @@ def project_id(sample_project):
     return sample_project["id"]
 
 
+@pytest.mark.integration
 class TestLocalTaskManager:
     def test_create_task(self, task_manager, project_id):
         task = task_manager.create_task(

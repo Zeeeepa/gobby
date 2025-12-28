@@ -39,6 +39,7 @@ class TestMCPServerConfig:
         """Test HTTP config without URL raises error."""
         config = MCPServerConfig(
             name="test-server",
+            project_id="test-project-uuid",
             transport="http",
             url=None,
         )
@@ -50,6 +51,7 @@ class TestMCPServerConfig:
         """Test valid stdio config."""
         config = MCPServerConfig(
             name="stdio-server",
+            project_id="test-project-uuid",
             transport="stdio",
             command="npx",
             args=["-y", "@test/server"],
@@ -65,6 +67,7 @@ class TestMCPServerConfig:
         """Test stdio config without command raises error."""
         config = MCPServerConfig(
             name="test-server",
+            project_id="test-project-uuid",
             transport="stdio",
             command=None,
         )
@@ -76,6 +79,7 @@ class TestMCPServerConfig:
         """Test valid WebSocket config."""
         config = MCPServerConfig(
             name="ws-server",
+            project_id="test-project-uuid",
             transport="websocket",
             url="ws://localhost:8080/mcp",
         )
@@ -87,6 +91,7 @@ class TestMCPServerConfig:
         """Test unsupported transport raises error."""
         config = MCPServerConfig(
             name="test-server",
+            project_id="test-project-uuid",
             transport="invalid",
         )
 
@@ -97,6 +102,7 @@ class TestMCPServerConfig:
         """Test HTTP config with custom headers."""
         config = MCPServerConfig(
             name="api-server",
+            project_id="test-project-uuid",
             transport="http",
             url="https://api.example.com/mcp",
             headers={"Authorization": "Bearer token123", "X-API-Key": "secret"},
@@ -109,6 +115,7 @@ class TestMCPServerConfig:
         """Test connect_timeout has default value of 30.0."""
         config = MCPServerConfig(
             name="test-server",
+            project_id="test-project-uuid",
             transport="http",
             url="http://localhost:8080/mcp",
         )
@@ -120,6 +127,7 @@ class TestMCPServerConfig:
         """Test connect_timeout can be customized."""
         config = MCPServerConfig(
             name="test-server",
+            project_id="test-project-uuid",
             transport="http",
             url="http://localhost:8080/mcp",
             connect_timeout=60.0,
@@ -132,6 +140,7 @@ class TestMCPServerConfig:
         """Test connect_timeout of zero raises error."""
         config = MCPServerConfig(
             name="test-server",
+            project_id="test-project-uuid",
             transport="http",
             url="http://localhost:8080/mcp",
             connect_timeout=0,
@@ -144,6 +153,7 @@ class TestMCPServerConfig:
         """Test negative connect_timeout raises error."""
         config = MCPServerConfig(
             name="test-server",
+            project_id="test-project-uuid",
             transport="http",
             url="http://localhost:8080/mcp",
             connect_timeout=-5.0,
@@ -221,6 +231,7 @@ class TestCreateTransportConnection:
         """Test creating HTTP transport connection."""
         config = MCPServerConfig(
             name="http-server",
+            project_id="test-project-uuid",
             transport="http",
             url="http://localhost:8080/mcp",
         )
@@ -234,6 +245,7 @@ class TestCreateTransportConnection:
         """Test creating stdio transport connection."""
         config = MCPServerConfig(
             name="stdio-server",
+            project_id="test-project-uuid",
             transport="stdio",
             command="npx",
             args=["-y", "@test/server"],
@@ -248,6 +260,7 @@ class TestCreateTransportConnection:
         """Test creating WebSocket transport connection."""
         config = MCPServerConfig(
             name="ws-server",
+            project_id="test-project-uuid",
             transport="websocket",
             url="ws://localhost:8080/mcp",
         )
@@ -261,6 +274,7 @@ class TestCreateTransportConnection:
         """Test unsupported transport raises error."""
         config = MCPServerConfig(
             name="invalid-server",
+            project_id="test-project-uuid",
             transport="invalid",
         )
 
@@ -274,8 +288,8 @@ class TestMCPClientManagerInit:
     def test_init_with_configs(self):
         """Test initialization with server configs."""
         configs = [
-            MCPServerConfig(name="server1", transport="http", url="http://localhost:8001"),
-            MCPServerConfig(name="server2", transport="http", url="http://localhost:8002"),
+            MCPServerConfig(name="server1", project_id="test-project-uuid", transport="http", url="http://localhost:8001"),
+            MCPServerConfig(name="server2", project_id="test-project-uuid", transport="http", url="http://localhost:8002"),
         ]
 
         manager = MCPClientManager(server_configs=configs)
@@ -293,7 +307,7 @@ class TestMCPClientManagerInit:
 
     def test_init_with_project_context(self):
         """Test initialization with project context."""
-        configs = [MCPServerConfig(name="server1", transport="http", url="http://localhost:8001")]
+        configs = [MCPServerConfig(name="server1", project_id="test-project-uuid", transport="http", url="http://localhost:8001")]
 
         manager = MCPClientManager(
             server_configs=configs,
@@ -329,6 +343,7 @@ class TestMCPClientManagerConnections:
         configs = [
             MCPServerConfig(
                 name="disabled-server",
+                project_id="test-project-uuid",
                 transport="http",
                 url="http://localhost:8001",
                 enabled=False,
@@ -399,7 +414,7 @@ class TestMCPClientManagerServerOperations:
     @pytest.mark.asyncio
     async def test_add_server_duplicate_raises(self):
         """Test adding duplicate server raises error."""
-        configs = [MCPServerConfig(name="server1", transport="http", url="http://localhost:8001")]
+        configs = [MCPServerConfig(name="server1", project_id="test-project-uuid", transport="http", url="http://localhost:8001")]
 
         manager = MCPClientManager(server_configs=configs)
 
@@ -411,7 +426,7 @@ class TestMCPClientManagerServerOperations:
         # Try to add same server
         with pytest.raises(ValueError, match="MCP server 'server1' already exists"):
             await manager.add_server(
-                MCPServerConfig(name="server1", transport="http", url="http://localhost:8001")
+                MCPServerConfig(name="server1", project_id="test-project-uuid", transport="http", url="http://localhost:8001")
             )
 
     @pytest.mark.asyncio

@@ -2,7 +2,7 @@ import json
 import logging
 import sqlite3
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
@@ -25,7 +25,7 @@ class Skill:
     source_session_id: str | None = None
     usage_count: int = 0
     success_rate: float | None = None
-    tags: list[str] | None = None
+    tags: list[str] = field(default_factory=list)
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Skill":

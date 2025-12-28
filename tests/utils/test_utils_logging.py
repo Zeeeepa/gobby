@@ -91,7 +91,6 @@ class TestRequestIDFilter:
         result = filter_obj.filter(record)
 
         assert result is True
-        assert result is True
         assert cast(Any, record).request_id == "test-filter-id"
 
         clear_request_id()
@@ -280,7 +279,6 @@ class TestSetupFileLogging:
             setup_file_logging(verbose=False)
 
         # Verify logger was configured (handlers added)
-        pkg_logger = logging.getLogger("gobby")
         pkg_logger = logging.getLogger("gobby")
         assert len(pkg_logger.handlers) > 0
 
