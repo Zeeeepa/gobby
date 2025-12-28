@@ -680,15 +680,20 @@ class HookManager:
         # Step 1: Find parent session if this is a handoff (source='clear')
         parent_session_id = None
         if session_source == "clear":
-            parent = self._session_storage.find_parent(
-                machine_id=machine_id,
-                project_id=project_id,
-                source=cli_source,
-                status="handoff_ready",
-            )
-            if parent:
-                parent_session_id = parent.id
-                self.logger.debug(f"Found parent session: {parent_session_id}")
+            try:
+                parent = self._session_storage.find_parent(
+                    machine_id=machine_id,
+                    project_id=project_id,
+                    source=cli_source,
+                    status="handoff_ready",
+                )
+                if parent:
+                    parent_session_id = parent.id
+                    self.logger.debug(f"Found parent session: {parent_session_id}")
+            except Exception as e:
+                self.logger.warning(
+                    f"Error finding parent session, continuing without parent: {e}"
+                )
 
         # Step 2: Register new session with parent if found
         session_id = self._session_manager.register_session(
