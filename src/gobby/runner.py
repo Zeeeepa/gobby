@@ -19,6 +19,7 @@ from gobby.servers.websocket import WebSocketConfig, WebSocketServer
 from gobby.sessions.lifecycle import SessionLifecycleManager
 from gobby.sessions.processor import SessionMessageProcessor
 from gobby.storage.database import LocalDatabase
+from gobby.storage.mcp import LocalMCPManager
 from gobby.storage.messages import LocalMessageManager
 from gobby.storage.migrations import run_migrations
 from gobby.storage.session_tasks import SessionTaskManager
@@ -88,11 +89,11 @@ class GobbyRunner:
                 logger.error(f"Failed to initialize SkillLearner: {e}")
 
         # MCP Proxy Manager - Initialize early for tool access
-        # Pass memory manager to proxy manager so tools can access it (Phase 5)
-        # We need the MCP DB manager for persistent tool storage
-        self.mcp_db_manager = self.database  # Reuse main database for MCP storage
+        # LocalMCPManager handles server/tool storage in SQLite
+        self.mcp_db_manager = LocalMCPManager(self.database)
 
-        self.mcp_proxy = MCPClientManager()
+        # MCPClientManager loads servers from database on init
+        self.mcp_proxy = MCPClientManager(mcp_db_manager=self.mcp_db_manager)
 
         # Hook Event Broadcaster
         # Check if websocket config exists first to avoid NoneType errors

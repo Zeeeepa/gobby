@@ -38,6 +38,7 @@ class MCPClientManager:
         external_id: str | None = None,
         project_path: str | None = None,
         project_id: str | None = None,
+        mcp_db_manager: Any | None = None,
     ):
         """
         Initialize manager.
@@ -49,6 +50,8 @@ class MCPClientManager:
             external_id: Optional external ID (e.g. CLI key)
             project_path: Optional project path
             project_id: Optional project ID
+            mcp_db_manager: LocalMCPManager instance for database-backed server/tool storage.
+                When provided with project_id, loads servers from the database automatically.
         """
         self._connections: dict[str, BaseTransportConnection] = {}
         self._configs: dict[str, MCPServerConfig] = {}
@@ -62,10 +65,63 @@ class MCPClientManager:
         self.external_id = external_id
         self.project_path = project_path
         self.project_id = project_id
+        self.mcp_db_manager = mcp_db_manager
 
-        if server_configs:
+        # Load server configs from database if not provided explicitly
+        if server_configs is None and mcp_db_manager is not None:
+            if project_id:
+                # Load servers for specific project
+                db_servers = mcp_db_manager.list_servers(
+                    project_id=project_id,
+                    enabled_only=False,
+                )
+            else:
+                # Load all servers (daemon startup)
+                db_servers = mcp_db_manager.list_all_servers(enabled_only=False)
+
+            for s in db_servers:
+                config = MCPServerConfig(
+                    name=s.name,
+                    transport=s.transport,
+                    url=s.url,
+                    command=s.command,
+                    args=s.args,
+                    env=s.env,
+                    headers=s.headers,
+                    enabled=s.enabled,
+                    description=s.description,
+                    project_id=s.project_id,
+                    tools=self._load_tools_from_db(mcp_db_manager, s.name, s.project_id),
+                )
+                self._configs[config.name] = config
+            logger.info(f"Loaded {len(self._configs)} MCP servers from database")
+        elif server_configs:
             for config in server_configs:
                 self._configs[config.name] = config
+
+    @staticmethod
+    def _load_tools_from_db(
+        mcp_db_manager: Any, server_name: str, project_id: str
+    ) -> list[dict[str, str]] | None:
+        """
+        Load cached tools from database for a server.
+
+        Returns lightweight tool metadata for MCPServerConfig.tools field.
+        """
+        try:
+            tools = mcp_db_manager.get_cached_tools(server_name, project_id=project_id)
+            if not tools:
+                return None
+            return [
+                {
+                    "name": tool.name,
+                    "brief": (tool.description or "")[:100],  # Truncate to brief
+                }
+                for tool in tools
+            ]
+        except Exception as e:
+            logger.warning(f"Failed to load cached tools for '{server_name}': {e}")
+            return None
 
     @property
     def connections(self) -> dict[str, BaseTransportConnection]:

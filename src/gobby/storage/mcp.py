@@ -255,6 +255,25 @@ class LocalMCPManager:
 
         return [MCPServer.from_row(row) for row in rows]
 
+    def list_all_servers(self, enabled_only: bool = True) -> list[MCPServer]:
+        """
+        List all MCP servers across all projects.
+
+        Used by the daemon to load all servers on startup.
+
+        Args:
+            enabled_only: Only return enabled servers
+
+        Returns:
+            List of all servers.
+        """
+        if enabled_only:
+            query = "SELECT * FROM mcp_servers WHERE enabled = 1 ORDER BY name"
+        else:
+            query = "SELECT * FROM mcp_servers ORDER BY name"
+        rows = self.db.fetchall(query, ())
+        return [MCPServer.from_row(row) for row in rows]
+
     def update_server(
         self, name: str, project_id: str, **fields: Any
     ) -> MCPServer | None:
