@@ -3,100 +3,158 @@
 import asyncio
 import signal
 import pytest
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
 
 from gobby.runner import GobbyRunner, run_gobby, main
 
 
+@pytest.fixture
+def mock_config():
+    """Create a mock config with WebSocket disabled by default."""
+    config = MagicMock()
+    config.daemon_port = 8765
+    config.websocket = None
+    config.session_lifecycle = MagicMock()
+    config.message_tracking = None
+    config.memory_sync = MagicMock()
+    config.memory_sync.enabled = False
+    return config
+
+
+@pytest.fixture
+def mock_config_with_websocket():
+    """Create a mock config with WebSocket enabled."""
+    config = MagicMock()
+    config.daemon_port = 8765
+    config.websocket = MagicMock()
+    config.websocket.enabled = True
+    config.websocket.port = 8766
+    config.websocket.ping_interval = 30
+    config.websocket.ping_timeout = 10
+    config.session_lifecycle = MagicMock()
+    config.message_tracking = None
+    config.memory_sync = MagicMock()
+    config.memory_sync.enabled = False
+    return config
+
+
+def create_base_patches(mock_config):
+    """Create all standard patches needed for GobbyRunner tests.
+
+    Returns a list of patch objects that should be used with ExitStack.
+    """
+    mock_mcp = AsyncMock()
+    mock_mcp.connect_all = AsyncMock()
+    mock_mcp.disconnect_all = AsyncMock()
+
+    mock_http = MagicMock()
+    mock_http.app = MagicMock()
+    mock_http.port = 8765
+
+    return [
+        patch("gobby.runner.setup_file_logging"),
+        patch("gobby.runner.load_config", return_value=mock_config),
+        patch("gobby.runner.get_machine_id", return_value="test-machine"),
+        patch("gobby.runner.LocalDatabase"),
+        patch("gobby.runner.run_migrations"),
+        patch("gobby.runner.LocalSessionManager"),
+        patch("gobby.runner.LocalSkillManager"),
+        patch("gobby.runner.LocalMessageManager"),
+        patch("gobby.runner.LocalTaskManager"),
+        patch("gobby.runner.SessionTaskManager"),
+        patch("gobby.runner.MCPClientManager", return_value=mock_mcp),
+        patch("gobby.runner.HookEventBroadcaster"),
+        patch("gobby.runner.TaskSyncManager"),
+        patch("gobby.runner.MemorySyncManager"),
+        patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
+        patch("gobby.runner.HookManager"),
+        patch("gobby.runner.TaskExpander"),
+        patch("gobby.runner.TaskValidator"),
+        patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
+        patch("gobby.runner.create_llm_service", return_value=None),
+        patch("gobby.runner.MemoryManager", return_value=None),
+        patch("gobby.runner.SkillLearner", return_value=None),
+        patch("gobby.runner.HTTPServer", return_value=mock_http),
+        patch("gobby.runner.WebSocketServer"),
+    ]
+
+
 class TestGobbyRunnerInit:
     """Tests for GobbyRunner initialization."""
 
-    def test_init_creates_components(self, tmp_path):
+    def test_init_creates_components(self, tmp_path, mock_config_with_websocket):
         """Test that init creates all required components."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
-        mock_config.websocket = MagicMock()
-        mock_config.websocket.enabled = True
-        mock_config.websocket.port = 8766
-        mock_config.websocket.ping_interval = 30
-        mock_config.websocket.ping_timeout = 10
+        mock_mcp = AsyncMock()
+        mock_http = MagicMock()
+        mock_http.app = MagicMock()
+        mock_http.port = 8765
 
-        with (
+        patches = [
             patch("gobby.runner.setup_file_logging"),
-            patch("gobby.runner.setup_mcp_logging"),
-            patch("gobby.runner.load_config", return_value=mock_config),
+            patch("gobby.runner.load_config", return_value=mock_config_with_websocket),
             patch("gobby.runner.get_machine_id", return_value="test-machine"),
-            patch("gobby.runner.LocalDatabase") as mock_db,
+            patch("gobby.runner.LocalDatabase"),
             patch("gobby.runner.run_migrations"),
             patch("gobby.runner.LocalSessionManager"),
-            patch("gobby.runner.LocalMCPManager"),
-            patch("gobby.runner.MCPClientManager"),
-            patch("gobby.runner.LocalMCPManager"),
-            patch("gobby.runner.MCPClientManager"),
-            patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
+            patch("gobby.runner.LocalSkillManager"),
+            patch("gobby.runner.LocalMessageManager"),
             patch("gobby.runner.LocalTaskManager"),
+            patch("gobby.runner.SessionTaskManager"),
+            patch("gobby.runner.MCPClientManager", return_value=mock_mcp),
+            patch("gobby.runner.HookEventBroadcaster"),
             patch("gobby.runner.TaskSyncManager"),
-            patch("gobby.storage.messages.LocalMessageManager"),
+            patch("gobby.runner.MemorySyncManager"),
             patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
-            patch("gobby.runner.HTTPServer") as mock_http,
-            patch("gobby.runner.WebSocketServer") as mock_ws,
-        ):
+            patch("gobby.runner.HookManager"),
+            patch("gobby.runner.TaskExpander"),
+            patch("gobby.runner.TaskValidator"),
+            patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
+            patch("gobby.runner.create_llm_service", return_value=None),
+            patch("gobby.runner.MemoryManager", return_value=None),
+            patch("gobby.runner.SkillLearner", return_value=None),
+            patch("gobby.runner.HTTPServer", return_value=mock_http),
+            patch("gobby.runner.WebSocketServer"),
+        ]
+
+        with ExitStack() as stack:
+            mocks = [stack.enter_context(p) for p in patches]
+            mock_http_cls = mocks[-2]
+            mock_ws_cls = mocks[-1]
+
             runner = GobbyRunner(config_path=tmp_path / "config.yaml", verbose=True)
 
-            assert runner.config == mock_config
+            assert runner.config == mock_config_with_websocket
             assert runner.verbose is True
             assert runner.machine_id == "test-machine"
             assert runner._shutdown_requested is False
-            mock_http.assert_called_once()
-            mock_ws.assert_called_once()
+            mock_http_cls.assert_called_once()
+            mock_ws_cls.assert_called_once()
 
-    def test_init_without_websocket(self, tmp_path):
+    def test_init_without_websocket(self, mock_config):
         """Test init when WebSocket is disabled."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
         mock_config.websocket = MagicMock()
         mock_config.websocket.enabled = False
 
-        with (
-            patch("gobby.runner.setup_file_logging"),
-            patch("gobby.runner.setup_mcp_logging"),
-            patch("gobby.runner.load_config", return_value=mock_config),
-            patch("gobby.runner.get_machine_id", return_value="test-machine"),
-            patch("gobby.runner.LocalDatabase"),
-            patch("gobby.runner.run_migrations"),
-            patch("gobby.runner.LocalSessionManager"),
-            patch("gobby.runner.LocalMCPManager"),
-            patch("gobby.runner.MCPClientManager"),
-            patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
-            patch("gobby.runner.HTTPServer"),
-            patch("gobby.runner.WebSocketServer") as mock_ws,
-        ):
+        patches = create_base_patches(mock_config)
+
+        with ExitStack() as stack:
+            mocks = [stack.enter_context(p) for p in patches]
+            mock_ws_cls = mocks[-1]
+
             runner = GobbyRunner()
 
             assert runner.websocket_server is None
-            mock_ws.assert_not_called()
+            mock_ws_cls.assert_not_called()
 
-    def test_init_websocket_none_config(self):
+    def test_init_websocket_none_config(self, mock_config):
         """Test init when websocket config is None."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
-        mock_config.websocket = None
+        patches = create_base_patches(mock_config)
 
-        with (
-            patch("gobby.runner.setup_file_logging"),
-            patch("gobby.runner.setup_mcp_logging"),
-            patch("gobby.runner.load_config", return_value=mock_config),
-            patch("gobby.runner.get_machine_id", return_value="test-machine"),
-            patch("gobby.runner.LocalDatabase"),
-            patch("gobby.runner.run_migrations"),
-            patch("gobby.runner.LocalSessionManager"),
-            patch("gobby.runner.LocalMCPManager"),
-            patch("gobby.runner.MCPClientManager"),
-            patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
-            patch("gobby.runner.HTTPServer"),
-            patch("gobby.runner.WebSocketServer") as mock_ws,
-        ):
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
             runner = GobbyRunner()
 
             assert runner.websocket_server is None
@@ -105,31 +163,13 @@ class TestGobbyRunnerInit:
 class TestGobbyRunnerSignalHandlers:
     """Tests for signal handler setup."""
 
-    def test_setup_signal_handlers(self):
+    def test_setup_signal_handlers(self, mock_config):
         """Test that signal handlers are registered."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
-        mock_config.websocket = None
+        patches = create_base_patches(mock_config)
 
-        with (
-            patch("gobby.runner.setup_file_logging"),
-            patch("gobby.runner.setup_mcp_logging"),
-            patch("gobby.runner.load_config", return_value=mock_config),
-            patch("gobby.runner.get_machine_id"),
-            patch("gobby.runner.LocalDatabase"),
-            patch("gobby.runner.run_migrations"),
-            patch("gobby.runner.LocalSessionManager"),
-            patch("gobby.runner.LocalMCPManager"),
-            patch("gobby.runner.MCPClientManager"),
-            patch("gobby.runner.LocalMCPManager"),
-            patch("gobby.runner.MCPClientManager"),
-            patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
-            patch("gobby.runner.LocalTaskManager"),
-            patch("gobby.runner.TaskSyncManager"),
-            patch("gobby.storage.messages.LocalMessageManager"),
-            patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
-            patch("gobby.runner.HTTPServer"),
-        ):
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
             runner = GobbyRunner()
 
             # Create mock loop
@@ -150,42 +190,48 @@ class TestGobbyRunnerRun:
     """Tests for the run method."""
 
     @pytest.mark.asyncio
-    async def test_run_connects_mcp_servers(self):
+    async def test_run_connects_mcp_servers(self, mock_config):
         """Test that run connects to MCP servers."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
-        mock_config.websocket = None
-
         mock_mcp_manager = AsyncMock()
         mock_mcp_manager.connect_all = AsyncMock()
         mock_mcp_manager.disconnect_all = AsyncMock()
 
-        with (
+        mock_http = MagicMock()
+        mock_http.app = MagicMock()
+        mock_http.port = 8765
+
+        patches = [
             patch("gobby.runner.setup_file_logging"),
-            patch("gobby.runner.setup_mcp_logging"),
             patch("gobby.runner.load_config", return_value=mock_config),
-            patch("gobby.runner.get_machine_id"),
+            patch("gobby.runner.get_machine_id", return_value="test-machine"),
             patch("gobby.runner.LocalDatabase"),
             patch("gobby.runner.run_migrations"),
             patch("gobby.runner.LocalSessionManager"),
-            patch("gobby.runner.LocalMCPManager"),
-            patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
-            patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
+            patch("gobby.runner.LocalSkillManager"),
+            patch("gobby.runner.LocalMessageManager"),
             patch("gobby.runner.LocalTaskManager"),
+            patch("gobby.runner.SessionTaskManager"),
+            patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
+            patch("gobby.runner.HookEventBroadcaster"),
             patch("gobby.runner.TaskSyncManager"),
-            patch("gobby.storage.messages.LocalMessageManager"),
+            patch("gobby.runner.MemorySyncManager"),
             patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
-            patch("gobby.runner.HTTPServer") as mock_http,
-        ):
+            patch("gobby.runner.HookManager"),
+            patch("gobby.runner.TaskExpander"),
+            patch("gobby.runner.TaskValidator"),
+            patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
+            patch("gobby.runner.create_llm_service", return_value=None),
+            patch("gobby.runner.MemoryManager", return_value=None),
+            patch("gobby.runner.SkillLearner", return_value=None),
+            patch("gobby.runner.HTTPServer", return_value=mock_http),
+            patch("gobby.runner.WebSocketServer"),
+        ]
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
             runner = GobbyRunner()
-
-            # Set shutdown flag immediately to exit loop
             runner._shutdown_requested = True
-
-            mock_http_instance = MagicMock()
-            mock_http_instance.app = MagicMock()
-            mock_http_instance.port = 8765
-            mock_http.return_value = mock_http_instance
 
             with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
                 mock_server = AsyncMock()
@@ -199,40 +245,48 @@ class TestGobbyRunnerRun:
             mock_mcp_manager.disconnect_all.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_run_handles_mcp_timeout(self):
+    async def test_run_handles_mcp_timeout(self, mock_config):
         """Test that run handles MCP connection timeout."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
-        mock_config.websocket = None
-
         mock_mcp_manager = AsyncMock()
         mock_mcp_manager.connect_all = AsyncMock(side_effect=asyncio.TimeoutError())
         mock_mcp_manager.disconnect_all = AsyncMock()
 
-        with (
+        mock_http = MagicMock()
+        mock_http.app = MagicMock()
+        mock_http.port = 8765
+
+        patches = [
             patch("gobby.runner.setup_file_logging"),
-            patch("gobby.runner.setup_mcp_logging"),
             patch("gobby.runner.load_config", return_value=mock_config),
-            patch("gobby.runner.get_machine_id"),
+            patch("gobby.runner.get_machine_id", return_value="test-machine"),
             patch("gobby.runner.LocalDatabase"),
             patch("gobby.runner.run_migrations"),
             patch("gobby.runner.LocalSessionManager"),
-            patch("gobby.runner.LocalMCPManager"),
-            patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
-            patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
+            patch("gobby.runner.LocalSkillManager"),
+            patch("gobby.runner.LocalMessageManager"),
             patch("gobby.runner.LocalTaskManager"),
+            patch("gobby.runner.SessionTaskManager"),
+            patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
+            patch("gobby.runner.HookEventBroadcaster"),
             patch("gobby.runner.TaskSyncManager"),
-            patch("gobby.storage.messages.LocalMessageManager"),
+            patch("gobby.runner.MemorySyncManager"),
             patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
-            patch("gobby.runner.HTTPServer") as mock_http,
-        ):
+            patch("gobby.runner.HookManager"),
+            patch("gobby.runner.TaskExpander"),
+            patch("gobby.runner.TaskValidator"),
+            patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
+            patch("gobby.runner.create_llm_service", return_value=None),
+            patch("gobby.runner.MemoryManager", return_value=None),
+            patch("gobby.runner.SkillLearner", return_value=None),
+            patch("gobby.runner.HTTPServer", return_value=mock_http),
+            patch("gobby.runner.WebSocketServer"),
+        ]
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
             runner = GobbyRunner()
             runner._shutdown_requested = True
-
-            mock_http_instance = MagicMock()
-            mock_http_instance.app = MagicMock()
-            mock_http_instance.port = 8765
-            mock_http.return_value = mock_http_instance
 
             with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
                 mock_server = AsyncMock()
@@ -244,40 +298,48 @@ class TestGobbyRunnerRun:
                     await runner.run()
 
     @pytest.mark.asyncio
-    async def test_run_handles_mcp_connection_error(self):
+    async def test_run_handles_mcp_connection_error(self, mock_config):
         """Test that run handles MCP connection errors."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
-        mock_config.websocket = None
-
         mock_mcp_manager = AsyncMock()
         mock_mcp_manager.connect_all = AsyncMock(side_effect=Exception("Connection failed"))
         mock_mcp_manager.disconnect_all = AsyncMock()
 
-        with (
+        mock_http = MagicMock()
+        mock_http.app = MagicMock()
+        mock_http.port = 8765
+
+        patches = [
             patch("gobby.runner.setup_file_logging"),
-            patch("gobby.runner.setup_mcp_logging"),
             patch("gobby.runner.load_config", return_value=mock_config),
-            patch("gobby.runner.get_machine_id"),
+            patch("gobby.runner.get_machine_id", return_value="test-machine"),
             patch("gobby.runner.LocalDatabase"),
             patch("gobby.runner.run_migrations"),
             patch("gobby.runner.LocalSessionManager"),
-            patch("gobby.runner.LocalMCPManager"),
-            patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
-            patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
+            patch("gobby.runner.LocalSkillManager"),
+            patch("gobby.runner.LocalMessageManager"),
             patch("gobby.runner.LocalTaskManager"),
+            patch("gobby.runner.SessionTaskManager"),
+            patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
+            patch("gobby.runner.HookEventBroadcaster"),
             patch("gobby.runner.TaskSyncManager"),
-            patch("gobby.storage.messages.LocalMessageManager"),
+            patch("gobby.runner.MemorySyncManager"),
             patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
-            patch("gobby.runner.HTTPServer") as mock_http,
-        ):
+            patch("gobby.runner.HookManager"),
+            patch("gobby.runner.TaskExpander"),
+            patch("gobby.runner.TaskValidator"),
+            patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
+            patch("gobby.runner.create_llm_service", return_value=None),
+            patch("gobby.runner.MemoryManager", return_value=None),
+            patch("gobby.runner.SkillLearner", return_value=None),
+            patch("gobby.runner.HTTPServer", return_value=mock_http),
+            patch("gobby.runner.WebSocketServer"),
+        ]
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
             runner = GobbyRunner()
             runner._shutdown_requested = True
-
-            mock_http_instance = MagicMock()
-            mock_http_instance.app = MagicMock()
-            mock_http_instance.port = 8765
-            mock_http.return_value = mock_http_instance
 
             with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
                 mock_server = AsyncMock()
@@ -289,16 +351,8 @@ class TestGobbyRunnerRun:
                     await runner.run()
 
     @pytest.mark.asyncio
-    async def test_run_with_websocket_server(self):
+    async def test_run_with_websocket_server(self, mock_config_with_websocket):
         """Test run with WebSocket server enabled."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
-        mock_config.websocket = MagicMock()
-        mock_config.websocket.enabled = True
-        mock_config.websocket.port = 8766
-        mock_config.websocket.ping_interval = 30
-        mock_config.websocket.ping_timeout = 10
-
         mock_mcp_manager = AsyncMock()
         mock_mcp_manager.connect_all = AsyncMock()
         mock_mcp_manager.disconnect_all = AsyncMock()
@@ -306,31 +360,42 @@ class TestGobbyRunnerRun:
         mock_ws_server = AsyncMock()
         mock_ws_server.start = AsyncMock()
 
-        with (
+        mock_http = MagicMock()
+        mock_http.app = MagicMock()
+        mock_http.port = 8765
+
+        patches = [
             patch("gobby.runner.setup_file_logging"),
-            patch("gobby.runner.setup_mcp_logging"),
-            patch("gobby.runner.load_config", return_value=mock_config),
-            patch("gobby.runner.get_machine_id"),
+            patch("gobby.runner.load_config", return_value=mock_config_with_websocket),
+            patch("gobby.runner.get_machine_id", return_value="test-machine"),
             patch("gobby.runner.LocalDatabase"),
             patch("gobby.runner.run_migrations"),
             patch("gobby.runner.LocalSessionManager"),
-            patch("gobby.runner.LocalMCPManager"),
-            patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
-            patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
+            patch("gobby.runner.LocalSkillManager"),
+            patch("gobby.runner.LocalMessageManager"),
             patch("gobby.runner.LocalTaskManager"),
+            patch("gobby.runner.SessionTaskManager"),
+            patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
+            patch("gobby.runner.HookEventBroadcaster"),
             patch("gobby.runner.TaskSyncManager"),
-            patch("gobby.storage.messages.LocalMessageManager"),
+            patch("gobby.runner.MemorySyncManager"),
             patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
-            patch("gobby.runner.HTTPServer") as mock_http,
+            patch("gobby.runner.HookManager"),
+            patch("gobby.runner.TaskExpander"),
+            patch("gobby.runner.TaskValidator"),
+            patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
+            patch("gobby.runner.create_llm_service", return_value=None),
+            patch("gobby.runner.MemoryManager", return_value=None),
+            patch("gobby.runner.SkillLearner", return_value=None),
+            patch("gobby.runner.HTTPServer", return_value=mock_http),
             patch("gobby.runner.WebSocketServer", return_value=mock_ws_server),
-        ):
+        ]
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
             runner = GobbyRunner()
             runner._shutdown_requested = True
-
-            mock_http_instance = MagicMock()
-            mock_http_instance.app = MagicMock()
-            mock_http_instance.port = 8765
-            mock_http.return_value = mock_http_instance
 
             with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
                 mock_server = AsyncMock()
@@ -344,16 +409,8 @@ class TestGobbyRunnerRun:
             mock_ws_server.start.assert_called()
 
     @pytest.mark.asyncio
-    async def test_run_passes_websocket_to_http(self):
+    async def test_run_passes_websocket_to_http(self, mock_config_with_websocket):
         """Test that run passes WebSocket server reference to HTTP server."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
-        mock_config.websocket = MagicMock()
-        mock_config.websocket.enabled = True
-        mock_config.websocket.port = 8766
-        mock_config.websocket.ping_interval = 30
-        mock_config.websocket.ping_timeout = 10
-
         mock_mcp_manager = AsyncMock()
         mock_mcp_manager.connect_all = AsyncMock()
         mock_mcp_manager.disconnect_all = AsyncMock()
@@ -361,20 +418,40 @@ class TestGobbyRunnerRun:
         mock_ws_server = AsyncMock()
         mock_ws_server.start = AsyncMock()
 
-        with (
+        mock_http = MagicMock()
+        mock_http.app = MagicMock()
+        mock_http.port = 8765
+
+        patches = [
             patch("gobby.runner.setup_file_logging"),
-            patch("gobby.runner.setup_mcp_logging"),
-            patch("gobby.runner.load_config", return_value=mock_config),
-            patch("gobby.runner.get_machine_id"),
+            patch("gobby.runner.load_config", return_value=mock_config_with_websocket),
+            patch("gobby.runner.get_machine_id", return_value="test-machine"),
             patch("gobby.runner.LocalDatabase"),
             patch("gobby.runner.run_migrations"),
             patch("gobby.runner.LocalSessionManager"),
-            patch("gobby.runner.LocalMCPManager"),
+            patch("gobby.runner.LocalSkillManager"),
+            patch("gobby.runner.LocalMessageManager"),
+            patch("gobby.runner.LocalTaskManager"),
+            patch("gobby.runner.SessionTaskManager"),
             patch("gobby.runner.MCPClientManager", return_value=mock_mcp_manager),
+            patch("gobby.runner.HookEventBroadcaster"),
+            patch("gobby.runner.TaskSyncManager"),
+            patch("gobby.runner.MemorySyncManager"),
+            patch("gobby.runner.SessionMessageProcessor", return_value=AsyncMock()),
+            patch("gobby.runner.HookManager"),
+            patch("gobby.runner.TaskExpander"),
+            patch("gobby.runner.TaskValidator"),
             patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
-            patch("gobby.runner.HTTPServer") as mock_http,
+            patch("gobby.runner.create_llm_service", return_value=None),
+            patch("gobby.runner.MemoryManager", return_value=None),
+            patch("gobby.runner.SkillLearner", return_value=None),
+            patch("gobby.runner.HTTPServer", return_value=mock_http),
             patch("gobby.runner.WebSocketServer", return_value=mock_ws_server),
-        ):
+        ]
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
             runner = GobbyRunner()
 
             # Verify reference was passed

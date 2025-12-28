@@ -1,5 +1,6 @@
 """HTTP transport connection."""
 
+import asyncio
 import logging
 from typing import Any
 
@@ -13,104 +14,122 @@ logger = logging.getLogger("gobby.mcp.client")
 
 
 class HTTPTransportConnection(BaseTransportConnection):
-    """HTTP/Streamable HTTP transport connection using MCP SDK."""
+    """HTTP/Streamable HTTP transport connection using MCP SDK.
+
+    Uses a dedicated background task to own the streamablehttp_client lifecycle,
+    ensuring that context entry and exit happen in the same task (required by anyio).
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._owner_task: asyncio.Task[None] | None = None
+        self._disconnect_event: asyncio.Event | None = None
+        self._session_ready: asyncio.Event | None = None
+        self._connection_error: Exception | None = None
+        self._session_context: ClientSession | None = None
 
     async def connect(self) -> Any:
-        """Connect via HTTP transport."""
+        """Connect via HTTP transport using a dedicated owner task."""
         if self._state == ConnectionState.CONNECTED and self._session is not None:
             return self._session
 
         # Clean up old connection if reconnecting
-        if self._session is not None or self._transport_context is not None:
+        if self._owner_task is not None:
             await self.disconnect()
 
         self._state = ConnectionState.CONNECTING
+        self._connection_error = None
 
-        # Track what was entered for cleanup
-        transport_entered = False
-        session_entered = False
-        session_context: ClientSession | None = None
+        # Create synchronization events
+        self._disconnect_event = asyncio.Event()
+        self._session_ready = asyncio.Event()
+
+        # Start owner task that manages the connection lifecycle
+        self._owner_task = asyncio.create_task(
+            self._run_connection(), name=f"http-conn-{self.config.name}"
+        )
+
+        # Wait for connection to be ready or fail
+        try:
+            await asyncio.wait_for(self._session_ready.wait(), timeout=30.0)
+        except TimeoutError as e:
+            self._disconnect_event.set()
+            await self._cleanup_owner_task()
+            self._state = ConnectionState.FAILED
+            raise MCPError(f"Connection timeout for {self.config.name}") from e
+
+        if self._connection_error is not None:
+            error = self._connection_error
+            self._connection_error = None
+            await self._cleanup_owner_task()
+            self._state = ConnectionState.FAILED
+            raise error
+
+        return self._session
+
+    async def _run_connection(self) -> None:
+        """Background task that owns the streamablehttp_client lifecycle."""
+        assert self._disconnect_event is not None
+        assert self._session_ready is not None
 
         try:
             # URL is required for HTTP transport
             assert self.config.url is not None, "URL is required for HTTP transport"
 
-            # Create HTTP client context with custom headers
-            self._transport_context = streamablehttp_client(
+            async with streamablehttp_client(
                 self.config.url,
-                headers=self.config.headers,  # Pass custom headers (e.g., API keys)
-            )
+                headers=self.config.headers,
+            ) as (read_stream, write_stream, _):
+                self._session_context = ClientSession(read_stream, write_stream)
+                async with self._session_context as session:
+                    self._session = session
+                    await self._session.initialize()
 
-            # Enter the transport context to get streams
-            read_stream, write_stream, _ = await self._transport_context.__aenter__()
-            transport_entered = True
+                    self._state = ConnectionState.CONNECTED
+                    self._consecutive_failures = 0
+                    logger.debug(f"Connected to HTTP MCP server: {self.config.name}")
 
-            session_context = ClientSession(read_stream, write_stream)
-            self._session = await session_context.__aenter__()
-            session_entered = True
+                    # Signal that connection is ready
+                    self._session_ready.set()
 
-            await self._session.initialize()
+                    # Wait until disconnect is requested
+                    await self._disconnect_event.wait()
 
-            self._state = ConnectionState.CONNECTED
-            self._consecutive_failures = 0
-            logger.debug(f"Connected to HTTP MCP server: {self.config.name}")
-
-            return self._session
+                    logger.debug(f"Disconnect requested for {self.config.name}")
 
         except Exception as e:
-            # Handle exceptions with empty str() (EndOfStream, ClosedResourceError, CancelledError)
             error_msg = str(e) if str(e) else f"{type(e).__name__}: Connection closed or timed out"
             logger.error(f"Failed to connect to HTTP server '{self.config.name}': {error_msg}")
 
-            # Cleanup in reverse order - session first, then transport
-            if session_entered and session_context is not None:
-                try:
-                    await session_context.__aexit__(None, None, None)
-                except Exception as cleanup_error:
-                    logger.warning(
-                        f"Error during session cleanup for {self.config.name}: {cleanup_error}"
-                    )
-
-            if transport_entered and self._transport_context is not None:
-                try:
-                    await self._transport_context.__aexit__(None, None, None)
-                except Exception as cleanup_error:
-                    logger.warning(
-                        f"Error during transport cleanup for {self.config.name}: {cleanup_error}"
-                    )
-
-            # Reset state before raising
-            self._session = None
-            self._transport_context = None
-            self._state = ConnectionState.FAILED
-
-            # Re-raise wrapped in MCPError (don't double-wrap)
             if isinstance(e, MCPError):
-                raise
-            raise MCPError(f"HTTP connection failed: {error_msg}") from e
+                self._connection_error = e
+            else:
+                self._connection_error = MCPError(f"HTTP connection failed: {error_msg}")
+
+            self._session_ready.set()  # Unblock waiter with error
+
+        finally:
+            self._session = None
+            self._session_context = None
+            self._state = ConnectionState.DISCONNECTED
+
+    async def _cleanup_owner_task(self) -> None:
+        """Clean up the owner task."""
+        if self._owner_task is not None:
+            if not self._owner_task.done():
+                self._owner_task.cancel()
+                try:
+                    await self._owner_task
+                except asyncio.CancelledError:
+                    pass
+            self._owner_task = None
+        self._disconnect_event = None
+        self._session_ready = None
 
     async def disconnect(self) -> None:
-        """Disconnect from HTTP server."""
-        if self._session is not None:
-            try:
-                await self._session.__aexit__(None, None, None)
-            except RuntimeError as e:
-                # Expected when exiting cancel scope from different task
-                if "cancel scope" not in str(e):
-                    logger.warning(f"Error closing session for {self.config.name}: {e}")
-            except Exception as e:
-                logger.warning(f"Error closing session for {self.config.name}: {e}")
-            self._session = None
+        """Disconnect from HTTP server by signaling the owner task."""
+        if self._disconnect_event is not None:
+            self._disconnect_event.set()
 
-        if self._transport_context is not None:
-            try:
-                await self._transport_context.__aexit__(None, None, None)
-            except RuntimeError as e:
-                # Expected when exiting cancel scope from different task
-                if "cancel scope" not in str(e):
-                    logger.warning(f"Error closing transport for {self.config.name}: {e}")
-            except Exception as e:
-                logger.warning(f"Error closing transport for {self.config.name}: {e}")
-            self._transport_context = None
-
+        await self._cleanup_owner_task()
         self._state = ConnectionState.DISCONNECTED

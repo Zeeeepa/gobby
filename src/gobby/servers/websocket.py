@@ -12,7 +12,7 @@ import json
 import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Protocol
 from uuid import uuid4
 
@@ -22,7 +22,6 @@ from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 from websockets.http11 import Response
 
 from gobby.mcp_proxy.manager import MCPClientManager
-
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +176,7 @@ class WebSocketServer:
         self.clients[websocket] = {
             "id": client_id,
             "user_id": user_id,
-            "connected_at": datetime.now(),
+            "connected_at": datetime.now(UTC),
             "remote_address": websocket.remote_address,
         }
 

@@ -38,6 +38,7 @@ def mock_memory_manager():
         ]
     )
     mm.remember = MagicMock()
+    mm.content_exists = MagicMock(return_value=False)  # For dedup checks during import
     return mm
 
 

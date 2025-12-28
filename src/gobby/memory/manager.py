@@ -114,9 +114,26 @@ class MemoryManager:
         """Forget a memory."""
         return self.storage.delete_memory(memory_id)
 
-    def list_memories(self, **kwargs) -> list[Memory]:
+    def list_memories(
+        self,
+        project_id: str | None = None,
+        memory_type: str | None = None,
+        min_importance: float | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Memory]:
         """Passthrough to storage list."""
-        return self.storage.list_memories(**kwargs)
+        return self.storage.list_memories(
+            project_id=project_id,
+            memory_type=memory_type,
+            min_importance=min_importance,
+            limit=limit,
+            offset=offset,
+        )
+
+    def content_exists(self, content: str, project_id: str | None = None) -> bool:
+        """Check if a memory with identical content already exists."""
+        return self.storage.content_exists(content, project_id)
 
     def decay_memories(self) -> int:
         """

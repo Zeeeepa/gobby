@@ -127,6 +127,25 @@ class LocalMemoryManager:
             raise ValueError(f"Memory {memory_id} not found")
         return Memory.from_row(row)
 
+    def memory_exists(self, memory_id: str) -> bool:
+        """Check if a memory with the given ID exists."""
+        row = self.db.fetchone("SELECT 1 FROM memories WHERE id = ?", (memory_id,))
+        return row is not None
+
+    def content_exists(self, content: str, project_id: str | None = None) -> bool:
+        """Check if a memory with identical content already exists."""
+        if project_id:
+            row = self.db.fetchone(
+                "SELECT 1 FROM memories WHERE content = ? AND project_id = ?",
+                (content, project_id),
+            )
+        else:
+            row = self.db.fetchone(
+                "SELECT 1 FROM memories WHERE content = ? AND project_id IS NULL",
+                (content,),
+            )
+        return row is not None
+
     def update_memory(
         self,
         memory_id: str,

@@ -3,7 +3,7 @@ MCP Proxy data models and configuration classes.
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 
 
@@ -67,7 +67,7 @@ class MCPConnectionHealth:
         self.last_error = None
         self.health = HealthState.HEALTHY
         self.response_time_ms = response_time_ms
-        self.last_health_check = datetime.now()
+        self.last_health_check = datetime.now(UTC)
 
     def record_failure(self, error: str) -> None:
         """
@@ -78,7 +78,7 @@ class MCPConnectionHealth:
         """
         self.consecutive_failures += 1
         self.last_error = error
-        self.last_health_check = datetime.now()
+        self.last_health_check = datetime.now(UTC)
 
         # Update health state based on failure count
         if self.consecutive_failures >= 5:

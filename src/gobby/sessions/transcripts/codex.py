@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 from gobby.sessions.transcripts.base import ParsedMessage
 
@@ -55,7 +55,7 @@ class CodexTranscriptParser:
             self.logger.warning(f"Invalid JSON at line {index}")
             return None
 
-        timestamp = datetime.now()
+        timestamp = datetime.now(UTC)
         if "timestamp" in data:
             try:
                 timestamp = datetime.fromisoformat(data["timestamp"].replace("Z", "+00:00"))

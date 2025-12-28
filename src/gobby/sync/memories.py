@@ -3,15 +3,13 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Optional
 
 import yaml
 
 from gobby.config.app import MemorySyncConfig
 from gobby.memory.manager import MemoryManager
 from gobby.storage.database import LocalDatabase
-from gobby.storage.skills import LocalSkillManager
-from gobby.storage.skills import Skill
+from gobby.storage.skills import LocalSkillManager, Skill
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +28,8 @@ class MemorySyncManager:
     def __init__(
         self,
         db: LocalDatabase,
-        memory_manager: Optional[MemoryManager],
-        skill_manager: Optional[LocalSkillManager],
+        memory_manager: MemoryManager | None,
+        skill_manager: LocalSkillManager | None,
         config: MemorySyncConfig,
     ):
         self.db = db
@@ -40,7 +38,7 @@ class MemorySyncManager:
         self.config = config
 
         # Debounce state
-        self._export_task: Optional[asyncio.Task] = None
+        self._export_task: asyncio.Task | None = None
         self._last_change_time: float = 0
         self._shutdown_requested = False
 
@@ -157,20 +155,23 @@ class MemorySyncManager:
             return 0
 
         count = 0
+        skipped = 0
         try:
-            with open(file_path, "r") as f:
+            with open(file_path, encoding="utf-8") as f:
                 for line in f:
                     if not line.strip():
                         continue
                     try:
                         data = json.loads(line)
+                        content = data.get("content", "")
 
-                        # Basic duplicate check not implemented in manager yet,
-                        # so we rely on content/ID if possible, or just insert.
-                        # MemoryManager.remember returns a new memory.
+                        # Skip if memory with identical content already exists
+                        if self.memory_manager.content_exists(content):
+                            skipped += 1
+                            continue
 
                         self.memory_manager.remember(
-                            content=data.get("content", ""),
+                            content=content,
                             memory_type=data.get("type", "fact"),
                             tags=data.get("tags", []),
                             importance=data.get("importance", 0.5),
@@ -185,6 +186,9 @@ class MemorySyncManager:
 
         except Exception as e:
             logger.error(f"Failed to import memories: {e}")
+
+        if skipped > 0:
+            logger.debug(f"Skipped {skipped} duplicate memories during import")
 
         return count
 
@@ -216,7 +220,7 @@ class MemorySyncManager:
             logger.error(f"Failed to export memories: {e}")
             return 0
 
-    def _get_skill_by_name(self, name: str) -> Optional[Skill]:
+    def _get_skill_by_name(self, name: str) -> Skill | None:
         """Helper to find skill by name."""
         if not self.skill_manager:
             return None

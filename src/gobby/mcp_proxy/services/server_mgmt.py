@@ -45,8 +45,11 @@ class ServerManagementService:
                 headers=headers,
                 enabled=enabled,
             )
-            # Validate
-            server_config.validate()
+            # Validate - catch validation errors separately for clear error messages
+            try:
+                server_config.validate()
+            except ValueError as e:
+                return {"success": False, "error": f"Validation error: {e}"}
 
             # Add to manager (runtime)
             self._mcp_manager.add_server_config(server_config)
@@ -73,6 +76,7 @@ class ServerManagementService:
             }
 
         except Exception as e:
+            logger.exception(f"Unexpected error adding server {name}")
             return {"success": False, "error": str(e)}
 
     async def remove_server(self, name: str) -> dict[str, Any]:

@@ -1,13 +1,13 @@
 """Tool proxy service."""
 
 import logging
-from typing import Any
-
-from mcp import ListToolsResult, Tool
-from pydantic import AnyUrl
+from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.mcp_proxy.models import MCPError
+
+if TYPE_CHECKING:
+    from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 
 logger = logging.getLogger("gobby.mcp.server")
 
@@ -15,49 +15,83 @@ logger = logging.getLogger("gobby.mcp.server")
 class ToolProxyService:
     """Service for proxying tool calls and resource reads to underlying MCP servers."""
 
-    def __init__(self, mcp_manager: MCPClientManager, internal_tools: dict[str, Any] | None = None):
+    def __init__(
+        self,
+        mcp_manager: MCPClientManager,
+        internal_manager: "InternalRegistryManager | None" = None,
+    ):
         self._mcp_manager = mcp_manager
-        self._internal_tools = internal_tools or {}
+        self._internal_manager = internal_manager
 
-    async def list_tools(self, server_name: str | None = None) -> ListToolsResult:
-        """List all available tools."""
-        all_tools = []
+    async def list_tools(self, server_name: str | None = None) -> dict[str, Any]:
+        """
+        List tools with progressive disclosure format.
 
-        # 1. Add internal tools if no specific server or server is internal
-        if not server_name or server_name in ("gobby-tasks", "gobby-hooks"):
-            # Internal tool handling (simplified for this extraction)
-            # In a real scenario, we'd iterate self._internal_tools
-            # But internal tools are not fully standardized in this mock yet
-            # So we defer to how server.py handled them (it filtered by name)
-            pass
+        Args:
+            server_name: Optional server to filter by (e.g., "gobby-tasks", "context7")
 
+        Returns:
+            Dict with server name(s) and lightweight tool metadata:
+            - If server specified: {"server": "name", "tools": [{name, brief}, ...]}
+            - If no server: {"servers": [{"name": "...", "tools": [...]}, ...]}
+        """
+        # Check if requesting a specific internal server
+        if server_name and self._internal_manager and self._internal_manager.is_internal(server_name):
+            registry = self._internal_manager.get_registry(server_name)
+            if registry:
+                return {"server": server_name, "tools": registry.list_tools()}
+            return {"server": server_name, "tools": [], "error": f"Internal server '{server_name}' not found"}
+
+        # Check if requesting a specific external server
         if server_name:
-            # Just one server
             if server_name in self._mcp_manager._connections:
                 tools_map = await self._mcp_manager.list_tools(server_name)
-                if server_name in tools_map:
-                    # Access tools safely (it might be a Pydantic model)
-                    tools_list = tools_map[server_name]
-                    # Convert to Tool Pydantic objects if they are dicts
-                    for tool in tools_list:
-                        if isinstance(tool, dict):
-                            # Ensure name is tool.name
-                            tool_obj = Tool.model_validate(tool)
-                            all_tools.append(tool_obj)
-                        else:
-                            all_tools.append(tool)
-        else:
-            # All servers
-            tools_map = await self._mcp_manager.list_tools()
-            for s_name, t_list in tools_map.items():
-                for tool in t_list:
+                tools_list = tools_map.get(server_name, [])
+                # Convert to lightweight format
+                brief_tools = []
+                for tool in tools_list:
                     if isinstance(tool, dict):
-                        tool_obj = Tool.model_validate(tool)
-                        all_tools.append(tool_obj)
+                        brief_tools.append({
+                            "name": tool.get("name", "unknown"),
+                            "brief": (tool.get("description", "")[:100] or "No description"),
+                        })
                     else:
-                        all_tools.append(tool)
+                        brief_tools.append({
+                            "name": tool.name,
+                            "brief": (tool.description[:100] if tool.description else "No description"),
+                        })
+                return {"server": server_name, "tools": brief_tools}
+            return {"server": server_name, "tools": [], "error": f"Server '{server_name}' not found"}
 
-        return ListToolsResult(tools=all_tools)
+        # No server specified - return all servers
+        servers_result = []
+
+        # Add internal servers first
+        if self._internal_manager:
+            for registry in self._internal_manager.get_all_registries():
+                servers_result.append({
+                    "name": registry.name,
+                    "tools": registry.list_tools(),
+                })
+
+        # Add external servers
+        tools_map = await self._mcp_manager.list_tools()
+        for srv_name, tools_list in tools_map.items():
+            brief_tools = []
+            for tool in tools_list:
+                if isinstance(tool, dict):
+                    brief_tools.append({
+                        "name": tool.get("name", "unknown"),
+                        "brief": (tool.get("description", "")[:100] or "No description"),
+                    })
+                else:
+                    brief_tools.append({
+                        "name": tool.name,
+                        "brief": (tool.description[:100] if tool.description else "No description"),
+                    })
+            servers_result.append({"name": srv_name, "tools": brief_tools})
+
+        return {"servers": servers_result}
 
     async def call_tool(
         self,
@@ -67,14 +101,13 @@ class ToolProxyService:
     ) -> Any:
         """Execute a tool."""
         # Check internal tools first
-        if server_name.startswith("gobby-") and server_name in self._internal_tools:
-            tool_func = self._internal_tools[server_name].get(tool_name)
-            if tool_func:
-                return await tool_func(arguments or {})
-            else:
-                raise MCPError(f"Tool {tool_name} not found in internal server {server_name}")
+        if self._internal_manager and self._internal_manager.is_internal(server_name):
+            registry = self._internal_manager.get_registry(server_name)
+            if registry:
+                return await registry.call(tool_name, arguments or {})
+            raise MCPError(f"Internal server '{server_name}' not found")
 
-        # Use MCP manager
+        # Use MCP manager for external servers
         return await self._mcp_manager.call_tool(server_name, tool_name, arguments)
 
     async def read_resource(self, server_name: str, uri: str) -> Any:
@@ -82,5 +115,16 @@ class ToolProxyService:
         return await self._mcp_manager.read_resource(server_name, uri)
 
     async def get_tool_schema(self, server_name: str, tool_name: str) -> dict[str, Any]:
-        """Get schema for a tool."""
+        """Get full schema for a specific tool."""
+        # Check internal tools first
+        if self._internal_manager and self._internal_manager.is_internal(server_name):
+            registry = self._internal_manager.get_registry(server_name)
+            if registry:
+                schema = registry.get_schema(tool_name)
+                if schema:
+                    return {"success": True, "server": server_name, "tool": schema}
+                return {"success": False, "error": f"Tool '{tool_name}' not found on '{server_name}'"}
+            return {"success": False, "error": f"Internal server '{server_name}' not found"}
+
+        # Use MCP manager for external servers
         return await self._mcp_manager.get_tool_input_schema(server_name, tool_name)

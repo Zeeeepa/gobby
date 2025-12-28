@@ -17,8 +17,6 @@ def mock_hook_manager():
         patch("gobby.hooks.hook_manager.LocalSessionManager") as MockSessionManager,
         patch("gobby.hooks.hook_manager.SessionTaskManager") as MockSessionTaskManager,
         patch("gobby.hooks.hook_manager.DaemonClient"),
-        patch("gobby.hooks.hook_manager.TranscriptProcessor"),
-        patch("gobby.hooks.hook_manager.run_migrations"),
     ):
         manager = HookManager(log_file="/tmp/test_hook_manager.log")
         manager._session_manager = MockSessionManager.return_value

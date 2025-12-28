@@ -5,7 +5,6 @@ Gobby Daemon Tools MCP Server.
 import logging
 from typing import Any
 
-from mcp import ListToolsResult
 from mcp.server.fastmcp import FastMCP
 
 from gobby.config.app import DaemonConfig
@@ -44,11 +43,7 @@ class GobbyDaemonTools:
         self.system_service = SystemService(mcp_manager, daemon_port, websocket_port, start_time)
         self.tool_proxy = ToolProxyService(
             mcp_manager,
-            # Passing internal tools map or logic if needed,
-            # for now assuming internal_manager handles this or mcp manager has access
-            internal_tools=internal_manager.get_tools()
-            if hasattr(internal_manager, "get_tools")
-            else None,
+            internal_manager=internal_manager,
         )
         self.server_mgmt = ServerManagementService(mcp_manager, config_manager)
         self.code_execution = CodeExecutionService(codex_client)
@@ -93,7 +88,7 @@ class GobbyDaemonTools:
         """Call a tool."""
         return await self.tool_proxy.call_tool(server_name, tool_name, arguments)
 
-    async def list_tools(self, server: str | None = None) -> ListToolsResult:
+    async def list_tools(self, server: str | None = None) -> dict[str, Any]:
         """List tools."""
         return await self.tool_proxy.list_tools(server)
 

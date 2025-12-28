@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 
 from gobby.sessions.transcripts.base import ParsedMessage
 
@@ -84,11 +84,11 @@ class GeminiTranscriptParser:
             return None
 
         # Extract timestamp
-        timestamp_str = data.get("timestamp") or datetime.now().isoformat()
+        timestamp_str = data.get("timestamp") or datetime.now(UTC).isoformat()
         try:
             timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
         except ValueError:
-            timestamp = datetime.now()
+            timestamp = datetime.now(UTC)
 
         # Determine role and content
         # Check top-level or nested 'message'

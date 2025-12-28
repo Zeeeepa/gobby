@@ -42,7 +42,7 @@ import threading
 import uuid
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -890,7 +890,7 @@ class CodexAdapter(BaseAdapter):
             event_type=HookEventType.BEFORE_TOOL,
             session_id=thread_id,
             source=self.source,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(UTC),
             machine_id=self._get_machine_id(),
             data={
                 "tool_name": tool_name,
@@ -947,7 +947,7 @@ class CodexAdapter(BaseAdapter):
                 event_type=HookEventType.SESSION_END,
                 session_id=params.get("threadId", ""),
                 source=self.source,
-                timestamp=datetime.now(),
+                timestamp=datetime.now(UTC),
                 machine_id=self._get_machine_id(),
                 data=params,
             )
@@ -958,7 +958,7 @@ class CodexAdapter(BaseAdapter):
                 event_type=HookEventType.BEFORE_AGENT,
                 session_id=params.get("threadId", turn.get("id", "")),
                 source=self.source,
-                timestamp=datetime.now(),
+                timestamp=datetime.now(UTC),
                 machine_id=self._get_machine_id(),
                 data={
                     "turn_id": turn.get("id", ""),
@@ -972,7 +972,7 @@ class CodexAdapter(BaseAdapter):
                 event_type=HookEventType.AFTER_AGENT,
                 session_id=params.get("threadId", turn.get("id", "")),
                 source=self.source,
-                timestamp=datetime.now(),
+                timestamp=datetime.now(UTC),
                 machine_id=self._get_machine_id(),
                 data={
                     "turn_id": turn.get("id", ""),
@@ -991,7 +991,7 @@ class CodexAdapter(BaseAdapter):
                     event_type=HookEventType.AFTER_TOOL,
                     session_id=params.get("threadId", ""),
                     source=self.source,
-                    timestamp=datetime.now(),
+                    timestamp=datetime.now(UTC),
                     machine_id=self._get_machine_id(),
                     data={
                         "item_id": item.get("id", ""),
@@ -1039,7 +1039,7 @@ class CodexAdapter(BaseAdapter):
                 return datetime.fromtimestamp(unix_ts)
             except (ValueError, OSError):
                 pass
-        return datetime.now()
+        return datetime.now(UTC)
 
     async def sync_existing_sessions(self) -> int:
         """Sync existing Codex threads to platform sessions.
@@ -1238,7 +1238,7 @@ class CodexNotifyAdapter(BaseAdapter):
             event_type=HookEventType.AFTER_AGENT,
             session_id=thread_id,
             source=self.source,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(UTC),
             machine_id=self._get_machine_id(),
             data={
                 "cwd": cwd,
