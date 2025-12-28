@@ -64,7 +64,6 @@ def transcript_file(tmp_path):
 
 
 @pytest.mark.asyncio
-@pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.slow
 async def test_processor_lifecycle(processor, transcript_file, mock_db):
@@ -97,7 +96,6 @@ async def test_processor_lifecycle(processor, transcript_file, mock_db):
     assert not processor._running
 
 
-@pytest.mark.asyncio
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.slow
@@ -141,7 +139,6 @@ async def test_incremental_processing(processor, transcript_file, mock_db):
     assert count == 2
 
 
-@pytest.mark.asyncio
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.slow
@@ -193,7 +190,6 @@ async def test_recovery_after_restart(processor, transcript_file, mock_db):
     assert rows[0]["message_index"] == 1
 
 
-@pytest.mark.asyncio
 @pytest.mark.asyncio
 @pytest.mark.integration
 @pytest.mark.slow
