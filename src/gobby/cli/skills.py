@@ -259,10 +259,24 @@ def apply(ctx: click.Context, skill_id: str) -> None:
 
 
 @skills.command()
-@click.option("--output", "-o", type=click.Path(), help="Output directory (default: .gobby/skills)")
+@click.option("--output", "-o", type=click.Path(), help="Output directory (default: .gobby)")
+@click.option("--format", "-f", "fmt", type=click.Choice(["claude", "legacy"]), default="claude",
+              help="Export format: 'claude' (plugin format) or 'legacy' (flat files)")
 @click.pass_context
-def export(ctx: click.Context, output: str | None) -> None:
-    """Export skills to markdown files."""
+def export(ctx: click.Context, output: str | None, fmt: str) -> None:
+    """Export skills to Claude Code plugin format.
+
+    Creates a .gobby plugin directory structure that Claude Code auto-discovers:
+
+    \b
+    .gobby/
+    ├── .claude-plugin/
+    │   └── plugin.json
+    └── skills/
+        └── <skill-name>/
+            └── SKILL.md
+    """
+    import json
     from pathlib import Path
 
     import yaml
@@ -275,33 +289,111 @@ def export(ctx: click.Context, output: str | None) -> None:
         return
 
     # Determine output directory
-    output_dir = Path(output) if output else Path(".gobby/skills")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    gobby_dir = Path(output) if output else Path(".gobby")
+    skills_dir = gobby_dir / "skills"
+    skills_dir.mkdir(parents=True, exist_ok=True)
+
+    if fmt == "claude":
+        # Create plugin manifest
+        plugin_dir = gobby_dir / ".claude-plugin"
+        plugin_dir.mkdir(parents=True, exist_ok=True)
+        manifest_file = plugin_dir / "plugin.json"
+        if not manifest_file.exists():
+            manifest = {
+                "name": "gobby-skills",
+                "version": "1.0.0",
+                "description": "Skills learned and managed by Gobby",
+            }
+            with open(manifest_file, "w") as f:
+                json.dump(manifest, f, indent=2)
+            click.echo(f"Created plugin manifest: {manifest_file}")
 
     count = 0
     for skill in skills_list:
-        # Create safe filename
+        # Create safe name
         safe_name = "".join(c for c in skill.name if c.isalnum() or c in "-_").lower()
         if not safe_name:
-            safe_name = skill.id  # Fallback to ID if name has no safe characters
-        filename = output_dir / f"{safe_name}.md"
+            safe_name = skill.id
 
-        # Build frontmatter
-        frontmatter = {
-            "id": skill.id,
-            "name": skill.name,
-            "description": skill.description or "",
-            "trigger_pattern": skill.trigger_pattern or "",
-            "tags": skill.tags or [],
-        }
+        if fmt == "claude":
+            # Claude Code format: skills/<name>/SKILL.md
+            skill_dir = skills_dir / safe_name
+            skill_dir.mkdir(parents=True, exist_ok=True)
 
-        content = "---\n"
-        content += yaml.dump(frontmatter)
-        content += "---\n\n"
-        content += skill.instructions
+            # Build trigger description
+            description = _build_trigger_description(skill)
 
-        with open(filename, "w") as f:
-            f.write(content)
+            frontmatter = {
+                "name": skill.name,
+                "description": description,
+            }
+
+            content = "---\n"
+            content += yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True)
+            content += "---\n\n"
+            content += skill.instructions
+
+            skill_file = skill_dir / "SKILL.md"
+            with open(skill_file, "w") as f:
+                f.write(content)
+
+            # Write Gobby metadata
+            meta_file = skill_dir / ".gobby-meta.json"
+            meta = {
+                "id": skill.id,
+                "trigger_pattern": skill.trigger_pattern or "",
+                "tags": skill.tags or [],
+                "usage_count": skill.usage_count,
+            }
+            with open(meta_file, "w") as f:
+                json.dump(meta, f, indent=2)
+        else:
+            # Legacy format: skills/<name>.md
+            filename = skills_dir / f"{safe_name}.md"
+            frontmatter = {
+                "id": skill.id,
+                "name": skill.name,
+                "description": skill.description or "",
+                "trigger_pattern": skill.trigger_pattern or "",
+                "tags": skill.tags or [],
+            }
+
+            content = "---\n"
+            content += yaml.dump(frontmatter)
+            content += "---\n\n"
+            content += skill.instructions
+
+            with open(filename, "w") as f:
+                f.write(content)
+
         count += 1
 
-    click.echo(f"Exported {count} skills to {output_dir}/")
+    if fmt == "claude":
+        click.echo(f"Exported {count} skills to {gobby_dir}/ (Claude Code plugin format)")
+        click.echo("Skills will be auto-discovered by Claude Code.")
+    else:
+        click.echo(f"Exported {count} skills to {skills_dir}/ (legacy format)")
+
+
+def _build_trigger_description(skill: Skill) -> str:
+    """Build Claude Code compatible trigger description."""
+    base_desc = skill.description or f"Provides guidance for {skill.name}"
+
+    trigger_phrases = []
+    if skill.trigger_pattern:
+        parts = skill.trigger_pattern.split("|")
+        for part in parts:
+            phrase = part.strip()
+            phrase = phrase.replace(".*", " ")
+            phrase = phrase.replace("\\s+", " ")
+            phrase = phrase.replace("\\b", "")
+            phrase = phrase.replace("^", "").replace("$", "")
+            phrase = phrase.strip()
+            if phrase and len(phrase) > 1:
+                trigger_phrases.append(f'"{phrase}"')
+
+    if trigger_phrases:
+        triggers = ", ".join(trigger_phrases[:5])
+        return f'This skill should be used when the user asks to {triggers}. {base_desc}'
+    else:
+        return f'This skill should be used when working with {skill.name}. {base_desc}'

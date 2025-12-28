@@ -233,99 +233,229 @@ class MemorySyncManager:
         return None
 
     def _import_skills_sync(self, skills_dir: Path) -> int:
-        """Import skills from Markdown files (sync)."""
+        """Import skills from Markdown files (sync).
+
+        Supports both formats:
+        - Claude Code format: skills/<name>/SKILL.md (directory per skill)
+        - Legacy format: skills/<name>.md (flat files)
+        """
         if not self.skill_manager:
             return 0
 
         count = 0
         try:
+            # First, try Claude Code format (directory per skill with SKILL.md)
+            for skill_subdir in skills_dir.iterdir():
+                if not skill_subdir.is_dir():
+                    continue
+                if skill_subdir.name.startswith("."):
+                    continue
+
+                skill_file = skill_subdir / "SKILL.md"
+                if skill_file.exists():
+                    # Load Gobby metadata if available
+                    meta = {}
+                    meta_file = skill_subdir / ".gobby-meta.json"
+                    if meta_file.exists():
+                        try:
+                            with open(meta_file) as f:
+                                meta = json.load(f)
+                        except Exception:
+                            pass
+
+                    if self._import_skill_file(skill_file, meta):
+                        count += 1
+
+            # Then, try legacy flat file format (*.md files directly in skills/)
             for md_file in skills_dir.glob("*.md"):
                 if md_file.name.startswith("."):
                     continue
 
-                try:
-                    content = md_file.read_text()
-                except Exception as e:
-                    logger.warning(f"Failed to read skill file {md_file}: {e}")
-                    continue
-
-                # Parse frontmatter
-                if content.startswith("---"):
-                    try:
-                        parts = content.split("---", 2)
-                        if len(parts) >= 3:
-                            frontmatter = yaml.safe_load(parts[1])
-                            body = parts[2].strip()
-
-                            name = frontmatter.get("name")
-                            if not name:
-                                continue
-
-                            # Process tags to ensure it's a list
-                            tags = frontmatter.get("tags")
-                            if isinstance(tags, str):
-                                # Handle comma-separated string if user wrote it that way
-                                tags = [t.strip() for t in tags.split(",")]
-                            elif not isinstance(tags, list):
-                                tags = []
-
-                            existing = self._get_skill_by_name(name)
-
-                            if existing:
-                                self.skill_manager.update_skill(
-                                    skill_id=existing.id,
-                                    instructions=body,
-                                    description=frontmatter.get("description", ""),
-                                    tags=tags,
-                                    trigger_pattern=frontmatter.get("trigger_pattern"),
-                                )
-                            else:
-                                self.skill_manager.create_skill(
-                                    name=name,
-                                    instructions=body,
-                                    description=frontmatter.get("description", ""),
-                                    tags=tags,
-                                    trigger_pattern=frontmatter.get("trigger_pattern"),
-                                )
-                            count += 1
-                    except Exception as e:
-                        logger.warning(f"Failed to parse skill file {md_file}: {e}")
+                if self._import_skill_file(md_file, {}):
+                    count += 1
 
         except Exception as e:
             logger.error(f"Failed to import skills: {e}")
 
         return count
 
+    def _import_skill_file(self, skill_file: Path, meta: dict) -> bool:
+        """Import a single skill file. Returns True if imported."""
+        if not self.skill_manager:
+            return False
+
+        try:
+            content = skill_file.read_text()
+        except Exception as e:
+            logger.warning(f"Failed to read skill file {skill_file}: {e}")
+            return False
+
+        # Parse frontmatter
+        if not content.startswith("---"):
+            return False
+
+        try:
+            parts = content.split("---", 2)
+            if len(parts) < 3:
+                return False
+
+            frontmatter = yaml.safe_load(parts[1])
+            body = parts[2].strip()
+
+            name = frontmatter.get("name")
+            if not name:
+                return False
+
+            # Get tags from meta or frontmatter
+            tags = meta.get("tags") or frontmatter.get("tags")
+            if isinstance(tags, str):
+                tags = [t.strip() for t in tags.split(",")]
+            elif not isinstance(tags, list):
+                tags = []
+
+            # Get trigger_pattern from meta or frontmatter
+            trigger_pattern = meta.get("trigger_pattern") or frontmatter.get("trigger_pattern")
+
+            # Extract description (strip trigger phrase prefix if present)
+            description = frontmatter.get("description", "")
+            if description.startswith("This skill should be used when"):
+                # Try to extract the base description after the trigger phrases
+                if ". " in description:
+                    description = description.split(". ", 1)[-1]
+
+            existing = self._get_skill_by_name(name)
+
+            if existing:
+                self.skill_manager.update_skill(
+                    skill_id=existing.id,
+                    instructions=body,
+                    description=description,
+                    tags=tags,
+                    trigger_pattern=trigger_pattern,
+                )
+            else:
+                self.skill_manager.create_skill(
+                    name=name,
+                    instructions=body,
+                    description=description,
+                    tags=tags,
+                    trigger_pattern=trigger_pattern,
+                )
+            return True
+
+        except Exception as e:
+            logger.warning(f"Failed to parse skill file {skill_file}: {e}")
+            return False
+
     def _export_skills_sync(self, skills_dir: Path) -> int:
-        """Export skills to Markdown files (sync)."""
+        """Export skills to Claude Code plugin format (sync).
+
+        Creates skills in the format expected by Claude Code:
+        - .gobby/.claude-plugin/plugin.json (plugin manifest)
+        - .gobby/skills/<skill-name>/SKILL.md (one directory per skill)
+
+        The SKILL.md format uses Claude Code's frontmatter convention:
+        - name: Skill name
+        - description: Third-person trigger description
+        """
         if not self.skill_manager:
             return 0
 
         try:
+            # Get the .gobby directory (parent of skills_dir)
+            gobby_dir = skills_dir.parent
+
+            # Ensure plugin manifest exists
+            self._ensure_plugin_manifest(gobby_dir)
+
             skills_dir.mkdir(parents=True, exist_ok=True)
             skills = self.skill_manager.list_skills()
 
             for skill in skills:
+                # Create directory per skill (Claude Code format)
                 safe_name = "".join(c for c in skill.name if c.isalnum() or c in "-_").lower()
-                filename = skills_dir / f"{safe_name}.md"
+                if not safe_name:
+                    safe_name = skill.id
+                skill_dir = skills_dir / safe_name
+                skill_dir.mkdir(parents=True, exist_ok=True)
 
+                # Build Claude Code compatible description with trigger phrases
+                description = self._build_trigger_description(skill)
+
+                # Claude Code frontmatter format (name + description only)
                 frontmatter = {
-                    "id": skill.id,
                     "name": skill.name,
-                    "description": skill.description or "",
-                    "trigger_pattern": skill.trigger_pattern or "",
-                    "tags": skill.tags or [],
+                    "description": description,
                 }
 
                 content = "---\n"
-                content += yaml.dump(frontmatter)
+                content += yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True)
                 content += "---\n\n"
                 content += skill.instructions
 
-                with open(filename, "w") as f:
+                # Write to SKILL.md (Claude Code convention)
+                skill_file = skill_dir / "SKILL.md"
+                with open(skill_file, "w") as f:
                     f.write(content)
+
+                # Also write metadata for Gobby's internal use
+                meta_file = skill_dir / ".gobby-meta.json"
+                meta = {
+                    "id": skill.id,
+                    "trigger_pattern": skill.trigger_pattern or "",
+                    "tags": skill.tags or [],
+                    "usage_count": skill.usage_count,
+                }
+                with open(meta_file, "w") as f:
+                    json.dump(meta, f, indent=2)
 
             return len(skills)
         except Exception as e:
             logger.error(f"Failed to export skills: {e}")
             return 0
+
+    def _ensure_plugin_manifest(self, gobby_dir: Path) -> None:
+        """Ensure .claude-plugin/plugin.json exists."""
+        plugin_dir = gobby_dir / ".claude-plugin"
+        plugin_dir.mkdir(parents=True, exist_ok=True)
+
+        manifest_file = plugin_dir / "plugin.json"
+        if not manifest_file.exists():
+            manifest = {
+                "name": "gobby-skills",
+                "version": "1.0.0",
+                "description": "Skills learned and managed by Gobby",
+            }
+            with open(manifest_file, "w") as f:
+                json.dump(manifest, f, indent=2)
+            logger.info(f"Created Claude Code plugin manifest: {manifest_file}")
+
+    def _build_trigger_description(self, skill: Skill) -> str:
+        """Build Claude Code compatible trigger description.
+
+        Converts trigger_pattern regex to natural language trigger phrases.
+        Format: 'This skill should be used when the user asks to "phrase1", "phrase2"...'
+        """
+        base_desc = skill.description or f"Provides guidance for {skill.name}"
+
+        # Extract trigger phrases from pattern
+        trigger_phrases = []
+        if skill.trigger_pattern:
+            # Split by | and clean up regex patterns
+            parts = skill.trigger_pattern.split("|")
+            for part in parts:
+                # Remove common regex chars and convert to readable phrase
+                phrase = part.strip()
+                phrase = phrase.replace(".*", " ")
+                phrase = phrase.replace("\\s+", " ")
+                phrase = phrase.replace("\\b", "")
+                phrase = phrase.replace("^", "").replace("$", "")
+                phrase = phrase.strip()
+                if phrase and len(phrase) > 1:
+                    trigger_phrases.append(f'"{phrase}"')
+
+        if trigger_phrases:
+            triggers = ", ".join(trigger_phrases[:5])  # Limit to 5 phrases
+            return f'This skill should be used when the user asks to {triggers}. {base_desc}'
+        else:
+            return f'This skill should be used when working with {skill.name}. {base_desc}'

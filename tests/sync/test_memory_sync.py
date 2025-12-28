@@ -107,18 +107,31 @@ async def test_export_to_files(sync_manager, tmp_path):
     data = json.loads(lines[0])
     assert data["content"] == "test memory"
 
-    # Check skills
-    # Skills are stored in sync_dir / "skills" / "test_skill.md"
-    skill_file = tmp_path / "skills" / "test_skill.md"
-
+    # Check skills (Claude Code plugin format: skills/<name>/SKILL.md)
+    skill_file = tmp_path / "skills" / "test_skill" / "SKILL.md"
     assert skill_file.exists()
     content = skill_file.read_text()
-    assert "trigger_pattern: test" in content
+    assert "name: test_skill" in content
+    assert "This skill should be used when" in content  # Trigger description
     assert "do test" in content
+
+    # Check plugin manifest
+    manifest_file = tmp_path / ".claude-plugin" / "plugin.json"
+    assert manifest_file.exists()
+    manifest = json.loads(manifest_file.read_text())
+    assert manifest["name"] == "gobby-skills"
+
+    # Check Gobby metadata
+    meta_file = tmp_path / "skills" / "test_skill" / ".gobby-meta.json"
+    assert meta_file.exists()
+    meta = json.loads(meta_file.read_text())
+    assert meta["id"] == "s1"
+    assert meta["trigger_pattern"] == "test"
 
 
 @pytest.mark.asyncio
-async def test_import_from_files(sync_manager, tmp_path):
+async def test_import_from_files_legacy(sync_manager, tmp_path):
+    """Test importing from legacy flat file format."""
     sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
 
     # Create dummy files
@@ -148,11 +161,51 @@ imported instructions
     assert call_args["memory_type"] == "fact"
     assert call_args["importance"] == 0.8
 
-    # Verify learn_skill called -> No, create_skill called.
+    # Verify create_skill called
     sync_manager.skill_manager.create_skill.assert_called()
     s_args = sync_manager.skill_manager.create_skill.call_args[1]
     assert s_args["name"] == "imported_skill"
     assert s_args["instructions"] == "imported instructions"
+
+
+@pytest.mark.asyncio
+async def test_import_from_files_claude_format(sync_manager, tmp_path):
+    """Test importing from Claude Code plugin format."""
+    sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
+
+    # Create Claude Code format skill
+    skill_dir = tmp_path / "skills" / "my-skill"
+    skill_dir.mkdir(parents=True, exist_ok=True)
+
+    # SKILL.md with Claude Code format
+    skill_file = skill_dir / "SKILL.md"
+    skill_file.write_text("""---
+name: my-skill
+description: This skill should be used when the user asks to "do something". A helpful skill.
+---
+Step-by-step instructions here
+""")
+
+    # Gobby metadata
+    meta_file = skill_dir / ".gobby-meta.json"
+    meta_file.write_text(json.dumps({
+        "id": "sk-abc123",
+        "trigger_pattern": "do something|help",
+        "tags": ["helper", "test"],
+        "usage_count": 5
+    }))
+
+    await sync_manager.import_from_files()
+
+    # Verify create_skill called with metadata from .gobby-meta.json
+    sync_manager.skill_manager.create_skill.assert_called()
+    s_args = sync_manager.skill_manager.create_skill.call_args[1]
+    assert s_args["name"] == "my-skill"
+    assert s_args["instructions"] == "Step-by-step instructions here"
+    assert s_args["trigger_pattern"] == "do something|help"
+    assert s_args["tags"] == ["helper", "test"]
+    # Description should be extracted (without trigger prefix)
+    assert "A helpful skill" in s_args["description"]
 
 
 @pytest.mark.asyncio
