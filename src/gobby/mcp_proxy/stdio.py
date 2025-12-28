@@ -502,3 +502,13 @@ async def ensure_daemon_running() -> None:
         await asyncio.sleep(1)
 
     sys.exit(1)
+
+
+async def main() -> None:
+    """Main entry point for stdio MCP server."""
+    # Ensure daemon is running first
+    await ensure_daemon_running()
+
+    # Create and run the MCP server
+    mcp = create_stdio_mcp_server()
+    await mcp.run_stdio_async()
