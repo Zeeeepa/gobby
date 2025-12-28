@@ -143,7 +143,7 @@ def create_skills_registry(
 
     @registry.tool(
         name="delete_skill",
-        description="Delete a skill.",
+        description="Delete a skill and remove from exported directory.",
     )
     def delete_skill(skill_id: str) -> dict[str, Any]:
         """
@@ -152,10 +152,30 @@ def create_skills_registry(
         Args:
             skill_id: The skill ID
         """
+        import shutil
+        from pathlib import Path
+
         try:
+            # Get skill first to know its name for cleanup
+            try:
+                skill = storage.get_skill(skill_id)
+                skill_name = skill.name if skill else None
+            except ValueError:
+                skill_name = None
+
             success = storage.delete_skill(skill_id)
             if success:
-                return {"success": True, "message": f"Skill {skill_id} deleted"}
+                result: dict[str, Any] = {"success": True, "message": f"Skill {skill_id} deleted"}
+
+                # Also remove from exported directory if it exists
+                if skill_name:
+                    safe_name = "".join(c for c in skill_name if c.isalnum() or c in "-_").lower()
+                    skill_dir = Path(".gobby/skills") / safe_name
+                    if skill_dir.exists() and skill_dir.is_dir():
+                        shutil.rmtree(skill_dir)
+                        result["uninstalled"] = str(skill_dir)
+
+                return result
             else:
                 return {"success": False, "error": "Skill not found"}
         except Exception as e:

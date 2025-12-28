@@ -96,10 +96,29 @@ def learn(ctx: click.Context, session_id: str) -> None:
 @click.pass_context
 def delete(ctx: click.Context, skill_id: str) -> None:
     """Delete a skill."""
+    import shutil
+    from pathlib import Path
+
     storage = get_skill_storage(ctx)
+
+    # Get skill first to know its name for cleanup
+    try:
+        skill = storage.get_skill(skill_id)
+        skill_name = skill.name if skill else None
+    except ValueError:
+        skill_name = None
+
     success = storage.delete_skill(skill_id)
     if success:
         click.echo(f"Deleted skill: {skill_id}")
+
+        # Also remove from exported directory if it exists
+        if skill_name:
+            safe_name = "".join(c for c in skill_name if c.isalnum() or c in "-_").lower()
+            skill_dir = Path(".gobby/skills") / safe_name
+            if skill_dir.exists() and skill_dir.is_dir():
+                shutil.rmtree(skill_dir)
+                click.echo(f"Removed exported skill directory: {skill_dir}")
     else:
         click.echo(f"Skill not found: {skill_id}")
 
