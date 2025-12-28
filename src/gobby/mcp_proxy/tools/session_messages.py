@@ -60,6 +60,7 @@ def create_session_messages_registry(
         count = await message_manager.count_messages(session_id)
 
         return {
+            "session_id": session_id,
             "messages": messages,
             "total_count": count,
             "limit": limit,

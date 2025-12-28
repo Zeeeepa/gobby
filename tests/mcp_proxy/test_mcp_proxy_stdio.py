@@ -269,11 +269,15 @@ class TestRestartDaemonProcess:
     async def test_restarts_daemon_successfully(self):
         """Test successful daemon restart."""
         # Mock stop passing (returns success dict)
-        with patch("gobby.mcp_proxy.daemon_control.stop_daemon_process") as mock_stop:
+        with patch(
+            "gobby.mcp_proxy.daemon_control.stop_daemon_process", new_callable=AsyncMock
+        ) as mock_stop:
             mock_stop.return_value = {"success": True}
 
             # Mock start passing
-            with patch("gobby.mcp_proxy.daemon_control.start_daemon_process") as mock_start:
+            with patch(
+                "gobby.mcp_proxy.daemon_control.start_daemon_process", new_callable=AsyncMock
+            ) as mock_start:
                 mock_start.return_value = {
                     "success": True,
                     "pid": 54321,

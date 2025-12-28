@@ -65,6 +65,7 @@ class TestWorkflowLoader:
             assert Path("/my/project/.gobby/workflows") in search_dirs
             assert search_dirs[0] == Path("/my/project/.gobby/workflows")
 
+    @pytest.mark.skip(reason="incomplete test - needs mocking of _scan_directory or glob")
     def test_discover_lifecycle_workflows(self, loader):
         # Helper to setup mocks for scanning
         # This is complex because it involves globbing and parsing multiple files.

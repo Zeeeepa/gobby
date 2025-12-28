@@ -28,7 +28,6 @@ async def test_orphan_dependencies(manager, dep_manager, sample_project):
     dep_manager.add_dependency(t2.id, t1.id)
 
     # Create orphan dependency by disabling FK checks temporarily
-    # Create orphan dependency by disabling FK checks temporarily
     manager.db.execute("PRAGMA foreign_keys = OFF")
     try:
         manager.db.execute(
@@ -61,7 +60,6 @@ async def test_invalid_projects(manager, sample_project):
     manager.create_task(proj_id, "Valid Task")
 
     # Create task with invalid project manually
-    # Create task with invalid project manually
     manager.db.execute("PRAGMA foreign_keys = OFF")
     try:
         manager.db.execute(
@@ -88,7 +86,8 @@ async def test_invalid_projects(manager, sample_project):
     assert invalid[0]["id"] == "task_orphan_proj"
 
 
-def test_cycles_check(manager, dep_manager, sample_project):
+@pytest.mark.integration
+async def test_cycles_check(manager, dep_manager, sample_project):
     """Test cycle detection via validator."""
     proj_id = sample_project["id"]
     t1 = manager.create_task(proj_id, "T1")

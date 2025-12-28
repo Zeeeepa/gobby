@@ -555,24 +555,24 @@ class ActionExecutor:
     async def _handle_memory_sync_import(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """Import memories and skills from filesystem."""
+        """Import memories from filesystem."""
         if not context.memory_sync_manager:
             return {"error": "Memory Sync Manager not available"}
 
-        result = await context.memory_sync_manager.import_from_files()
-        logger.info(f"Memory sync import result: {result}")
-        return {"imported": result}
+        count = await context.memory_sync_manager.import_from_files()
+        logger.info(f"Memory sync import: {count} memories imported")
+        return {"imported": {"memories": count}}
 
     async def _handle_memory_sync_export(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """Export memories and skills to filesystem."""
+        """Export memories to filesystem."""
         if not context.memory_sync_manager:
             return {"error": "Memory Sync Manager not available"}
 
-        result = await context.memory_sync_manager.export_to_files()
-        logger.info(f"Memory sync export result: {result}")
-        return {"exported": result}
+        count = await context.memory_sync_manager.export_to_files()
+        logger.info(f"Memory sync export: {count} memories exported")
+        return {"exported": {"memories": count}}
 
     async def _handle_persist_tasks(
         self, context: ActionContext, **kwargs: Any

@@ -98,10 +98,16 @@ class LocalSkillManager:
         tags_json = json.dumps(tags) if tags else None
 
         with self.db.transaction() as conn:
-            # Use INSERT OR IGNORE to handle concurrent inserts safely
+            # Check for existing skill with same ID (derived from name/project)
+            existing = conn.execute("SELECT id FROM skills WHERE id = ?", (skill_id,)).fetchone()
+            if existing:
+                # If overwriting is valid, call update_skill?
+                # Or just return existing as requested ("if exists return existing (or signal duplicate)")
+                return self.get_skill(skill_id)
+
             conn.execute(
                 """
-                INSERT OR IGNORE INTO skills (
+                INSERT INTO skills (
                     id, project_id, name, description, trigger_pattern,
                     instructions, source_session_id, usage_count, tags,
                     created_at, updated_at

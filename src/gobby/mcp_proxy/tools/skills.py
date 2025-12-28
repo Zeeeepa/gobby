@@ -26,14 +26,14 @@ from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.skills import LocalSkillManager
 
 if TYPE_CHECKING:
-    from gobby.sync.memories import MemorySyncManager
+    from gobby.sync.skills import SkillSyncManager
 
 
 def create_skills_registry(
     storage: LocalSkillManager,
     learner: SkillLearner | None = None,
     session_manager: LocalSessionManager | None = None,
-    sync_manager: "MemorySyncManager | None" = None,
+    sync_manager: "SkillSyncManager | None" = None,
 ) -> InternalToolRegistry:
     """
     Create a skill tool registry with all skill-related tools.
@@ -42,7 +42,7 @@ def create_skills_registry(
         storage: LocalSkillManager for CRUD operations
         learner: SkillLearner instance for learning/matching (optional)
         session_manager: LocalSessionManager instance (needed for creating skills from sessions)
-        sync_manager: MemorySyncManager instance for export functionality (optional)
+        sync_manager: SkillSyncManager instance for export functionality (optional)
 
     Returns:
         InternalToolRegistry with skill tools registered
@@ -173,8 +173,21 @@ def create_skills_registry(
                 if skill_name:
                     safe_name = "".join(c for c in skill_name if c.isalnum() or c in "-_").lower()
                     if safe_name:
-                        skill_dir = Path(".claude/skills") / safe_name
-                        if skill_dir.exists() and skill_dir.is_dir():
+                        # Use absolute path relative to current working directory (project root)
+                        base_skills_dir = (Path.cwd() / ".claude" / "skills").resolve()
+                        skill_dir = (base_skills_dir / safe_name).resolve()
+
+                        # Security check: Ensure skill_dir is inside base_skills_dir
+                        if (
+                            skill_dir.is_relative_to(base_skills_dir)
+                            and skill_dir.exists()
+                            and skill_dir.is_dir()
+                        ):
+                            # Log the absolute path being removed for safety/determinism
+                            import logging
+
+                            logger = logging.getLogger(__name__)
+                            logger.info(f"Removing exported skill directory: {skill_dir}")
                             shutil.rmtree(skill_dir)
                             result["uninstalled"] = str(skill_dir)
 
@@ -296,30 +309,27 @@ def create_skills_registry(
 
     @registry.tool(
         name="export_skills",
-        description="Export skills to markdown files in the .claude/skills directory.",
+        description="Export skills to markdown files in the skills sync directory.",
     )
     async def export_skills() -> dict[str, Any]:
         """
         Export all skills to markdown files.
 
-        Skills are exported to .claude/skills/ as individual markdown files
+        Skills are exported as individual markdown files
         with YAML frontmatter containing metadata.
         """
         if not sync_manager:
             return {
                 "success": False,
-                "error": "Memory sync is not enabled. Configure memory_sync in config.yaml.",
+                "error": "Skill sync is not enabled. Configure memory_sync in config.yaml.",
             }
 
         try:
-            result = await sync_manager.export_to_files()
+            count = await sync_manager.export_to_files()
             return {
                 "success": True,
-                "exported": {
-                    "skills": result.get("skills", 0),
-                    "memories": result.get("memories", 0),
-                },
-                "message": f"Exported {result.get('skills', 0)} skills to .claude/skills/",
+                "exported": count,
+                "message": f"Exported {count} skills",
             }
         except Exception as e:
             return {"success": False, "error": str(e)}

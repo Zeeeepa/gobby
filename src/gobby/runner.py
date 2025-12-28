@@ -26,6 +26,7 @@ from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.skills import LocalSkillManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.memories import MemorySyncManager
+from gobby.sync.skills import SkillSyncConfig, SkillSyncManager
 from gobby.sync.tasks import TaskSyncManager
 from gobby.tasks.expansion import TaskExpander
 from gobby.tasks.validation import TaskValidator
@@ -104,26 +105,41 @@ class GobbyRunner:
         self.task_manager.add_change_listener(self.task_sync_manager.trigger_export)
 
         # Initialize Memory Sync Manager (Phase 7) & Wire up listeners
-        self.memory_sync_manager: MemorySyncManager | None = None  # Added type hint
+        self.memory_sync_manager: MemorySyncManager | None = None
         if hasattr(self.config, "memory_sync") and self.config.memory_sync.enabled:
-            # Only if memory/skills are enabled
             if self.memory_manager:
                 try:
                     self.memory_sync_manager = MemorySyncManager(
                         db=self.database,
                         memory_manager=self.memory_manager,
-                        skill_manager=self.skill_storage,
                         config=self.config.memory_sync,
                     )
-                    # Wire up listeners to trigger export on changes
-                    # Access underlying storage for listener registration
+                    # Wire up listener to trigger export on changes
                     self.memory_manager.storage.add_change_listener(
                         self.memory_sync_manager.trigger_export
                     )
-                    self.skill_storage.add_change_listener(self.memory_sync_manager.trigger_export)
-                    logger.debug("MemorySyncManager initialized and listeners attached")
+                    logger.debug("MemorySyncManager initialized and listener attached")
                 except Exception as e:
                     logger.error(f"Failed to initialize MemorySyncManager: {e}")
+
+        # Initialize Skill Sync Manager & Wire up listeners
+        self.skill_sync_manager: SkillSyncManager | None = None
+        if hasattr(self.config, "memory_sync") and self.config.memory_sync.enabled:
+            try:
+                skill_sync_config = SkillSyncConfig(
+                    enabled=self.config.memory_sync.enabled,
+                    export_debounce=self.config.memory_sync.export_debounce,
+                    stealth=self.config.memory_sync.stealth,
+                )
+                self.skill_sync_manager = SkillSyncManager(
+                    skill_manager=self.skill_storage,
+                    config=skill_sync_config,
+                )
+                # Wire up listener to trigger export on changes
+                self.skill_storage.add_change_listener(self.skill_sync_manager.trigger_export)
+                logger.debug("SkillSyncManager initialized and listener attached")
+            except Exception as e:
+                logger.error(f"Failed to initialize SkillSyncManager: {e}")
 
         # Session Message Processor (Phase 6)
         # Created here and passed to HTTPServer which injects it into HookManager
@@ -180,6 +196,7 @@ class GobbyRunner:
             llm_service=self.llm_service,
             message_processor=self.message_processor,
             memory_sync_manager=self.memory_sync_manager,
+            skill_sync_manager=self.skill_sync_manager,
         )
 
         # Ensure message_processor property is set (redundant but explicit):

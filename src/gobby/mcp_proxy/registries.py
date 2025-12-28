@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.skills import LocalSkillManager
     from gobby.storage.tasks import LocalTaskManager
-    from gobby.sync.memories import MemorySyncManager
+    from gobby.sync.skills import SkillSyncManager
     from gobby.sync.tasks import TaskSyncManager
     from gobby.tasks.expansion import TaskExpander
     from gobby.tasks.validation import TaskValidator
@@ -36,7 +36,7 @@ def setup_internal_registries(
     message_manager: LocalSessionMessageManager | None = None,
     skill_storage: LocalSkillManager | None = None,
     local_session_manager: LocalSessionManager | None = None,
-    memory_sync_manager: MemorySyncManager | None = None,
+    skill_sync_manager: SkillSyncManager | None = None,
 ) -> InternalRegistryManager:
     """
     Setup internal MCP registries (tasks, messages, memory, skills).
@@ -53,7 +53,7 @@ def setup_internal_registries(
         message_manager: Message storage manager
         skill_storage: Skill storage manager
         local_session_manager: Local session manager for session CRUD
-        memory_sync_manager: Memory sync manager for skill export
+        skill_sync_manager: Skill sync manager for skill export
 
     Returns:
         InternalRegistryManager containing all registries
@@ -115,7 +115,7 @@ def setup_internal_registries(
             storage=skill_storage,
             learner=skill_learner,
             session_manager=local_session_manager,
-            sync_manager=memory_sync_manager,
+            sync_manager=skill_sync_manager,
         )
         manager.add_registry(skills_registry)
         logger.debug("Skills registry initialized")

@@ -4,23 +4,19 @@ import logging
 import time
 from pathlib import Path
 
-import yaml
-
 from gobby.config.app import MemorySyncConfig
 from gobby.memory.manager import MemoryManager
 from gobby.storage.database import LocalDatabase
-from gobby.storage.skills import LocalSkillManager, Skill
 
 logger = logging.getLogger(__name__)
 
 
 class MemorySyncManager:
     """
-    Manages synchronization of memories and skills between the database and filesystem.
+    Manages synchronization of memories between the database and filesystem.
 
     Supports:
     - JSONL export/import for memories
-    - Markdown export/import for skills
     - Debounced auto-export on changes
     - Stealth mode (storage in ~/.gobby vs .gobby/)
     """
@@ -29,12 +25,10 @@ class MemorySyncManager:
         self,
         db: LocalDatabase,
         memory_manager: MemoryManager | None,
-        skill_manager: LocalSkillManager | None,
         config: MemorySyncConfig,
     ):
         self.db = db
         self.memory_manager = memory_manager
-        self.skill_manager = skill_manager
         self.config = config
 
         # Debounce state
@@ -109,75 +103,47 @@ class MemorySyncManager:
         # Fall back to user home directory for stability
         return Path("~/.gobby/sync").expanduser().resolve()
 
-    def _get_skills_dir(self) -> Path:
-        """Get the directory for skills syncing."""
-        return self._get_sync_dir() / "skills"
-
-    async def import_from_files(self) -> dict[str, int]:
+    async def import_from_files(self) -> int:
         """
-        Import memories and skills from filesystem.
+        Import memories from filesystem.
 
         Returns:
-            Dict with counts of imported items
+            Count of imported memories
         """
         if not self.config.enabled:
-            return {"memories": 0, "skills": 0}
+            return 0
+
+        if not self.memory_manager:
+            return 0
 
         sync_dir = self._get_sync_dir()
-        result = {"memories": 0, "skills": 0}
+        memories_file = sync_dir / "memories.jsonl"
+        if not memories_file.exists():
+            return 0
 
-        # Import Memories (JSONL)
-        # Run in thread executor to avoid blocking loop with file IO/sync DB ops
-        if self.memory_manager:
-            memories_file = sync_dir / "memories.jsonl"
-            if memories_file.exists():
-                count = await asyncio.to_thread(self._import_memories_sync, memories_file)
-                result["memories"] = count
+        return await asyncio.to_thread(self._import_memories_sync, memories_file)
 
-        # Import Skills from .claude/skills/ (Claude Code native format)
-        if self.skill_manager:
-            skills_dir = self._get_skills_dir()
-            if skills_dir.exists():
-                count = await asyncio.to_thread(self._import_skills_sync, skills_dir)
-                result["skills"] = count
-
-        return result
-
-    async def export_to_files(self) -> dict[str, int]:
+    async def export_to_files(self) -> int:
         """
-        Export memories and skills to filesystem.
+        Export memories to filesystem.
 
         Returns:
-            Dict with counts of exported items
+            Count of exported memories
         """
         if not self.config.enabled:
-            return {"memories": 0, "skills": 0}
+            return 0
+
+        if not self.memory_manager:
+            return 0
 
         sync_dir = self._get_sync_dir()
-        skills_dir = self._get_skills_dir()
+        return await asyncio.to_thread(self._export_to_files_sync, sync_dir)
 
-        # IO operations in thread
-        return await asyncio.to_thread(self._export_to_files_sync, sync_dir, skills_dir)
-
-    def _export_to_files_sync(self, sync_dir: Path, skills_dir: Path) -> dict[str, int]:
+    def _export_to_files_sync(self, sync_dir: Path) -> int:
         """Synchronous implementation of export."""
         sync_dir.mkdir(parents=True, exist_ok=True)
-        result = {"memories": 0, "skills": 0}
-
-        # Export Memories (JSONL) to sync_dir
-        if self.memory_manager:
-            memories_file = sync_dir / "memories.jsonl"
-            count = self._export_memories_sync(memories_file)
-            result["memories"] = count
-
-        # Export Skills to .claude/skills/ (Claude Code native format)
-        # Skills always go to .claude/skills/ for Claude Code discovery
-        if self.skill_manager:
-            # skills_dir passed as argument
-            count = self._export_skills_sync(skills_dir)
-            result["skills"] = count
-
-        return result
+        memories_file = sync_dir / "memories.jsonl"
+        return self._export_memories_sync(memories_file)
 
     def _import_memories_sync(self, file_path: Path) -> int:
         """Import memories from JSONL file (sync)."""
@@ -249,210 +215,3 @@ class MemorySyncManager:
         except Exception as e:
             logger.error(f"Failed to export memories: {e}")
             return 0
-
-    def _get_skill_by_name(self, name: str) -> Skill | None:
-        """Helper to find skill by name."""
-        if not self.skill_manager:
-            return None
-        # list_skills returns exact or partial matches depending on implementation
-        # LocalSkillManager.list_skills uses 'LIKE %name%'
-        candidates = self.skill_manager.list_skills(name_like=name)
-        for skill in candidates:
-            if skill.name == name:
-                return skill
-        return None
-
-    def _import_skills_sync(self, skills_dir: Path) -> int:
-        """Import skills from Markdown files (sync).
-
-        Supports both formats:
-        - Claude Code format: skills/<name>/SKILL.md (directory per skill)
-        - Legacy format: skills/<name>.md (flat files)
-        """
-        if not self.skill_manager:
-            return 0
-
-        count = 0
-        try:
-            # First, try Claude Code format (directory per skill with SKILL.md)
-            for skill_subdir in skills_dir.iterdir():
-                if not skill_subdir.is_dir():
-                    continue
-                if skill_subdir.name.startswith("."):
-                    continue
-
-                skill_file = skill_subdir / "SKILL.md"
-                if skill_file.exists():
-                    # Load Gobby metadata if available
-                    meta = {}
-                    meta_file = skill_subdir / ".gobby-meta.json"
-                    if meta_file.exists():
-                        try:
-                            with open(meta_file) as f:
-                                meta = json.load(f)
-                        except Exception:
-                            pass
-
-                    if self._import_skill_file(skill_file, meta):
-                        count += 1
-
-            # Then, try legacy flat file format (*.md files directly in skills/)
-            for md_file in skills_dir.glob("*.md"):
-                if md_file.name.startswith("."):
-                    continue
-
-                if self._import_skill_file(md_file, {}):
-                    count += 1
-
-        except Exception as e:
-            logger.error(f"Failed to import skills: {e}")
-
-        return count
-
-    def _import_skill_file(self, skill_file: Path, meta: dict) -> bool:
-        """Import a single skill file. Returns True if imported."""
-        if not self.skill_manager:
-            return False
-
-        try:
-            content = skill_file.read_text()
-        except Exception as e:
-            logger.warning(f"Failed to read skill file {skill_file}: {e}")
-            return False
-
-        # Parse frontmatter
-        if not content.startswith("---"):
-            return False
-
-        try:
-            parts = content.split("---", 2)
-            if len(parts) < 3:
-                return False
-
-            frontmatter = yaml.safe_load(parts[1])
-            body = parts[2].strip()
-
-            name = frontmatter.get("name")
-            if not name:
-                return False
-
-            # Get tags from meta or frontmatter
-            tags = meta.get("tags") or frontmatter.get("tags")
-            if isinstance(tags, str):
-                tags = [t.strip() for t in tags.split(",")]
-            elif not isinstance(tags, list):
-                tags = []
-
-            # Get trigger_pattern from meta or frontmatter
-            trigger_pattern = meta.get("trigger_pattern") or frontmatter.get("trigger_pattern")
-
-            # Extract description (strip trigger phrase prefix if present)
-            description = frontmatter.get("description", "")
-            if description.startswith("This skill should be used when"):
-                # Extract base description after the first sentence
-                # Look for the pattern: "trigger phrase. Base description"
-                match = description.find(". ")
-                if match != -1:
-                    # Find the end of trigger phrases (look for pattern ending)
-                    # More robust: find where the base description starts
-                    remaining = description[match + 2 :]
-                    if remaining:
-                        description = remaining
-
-            existing = self._get_skill_by_name(name)
-
-            if existing:
-                self.skill_manager.update_skill(
-                    skill_id=existing.id,
-                    instructions=body,
-                    description=description,
-                    tags=tags,
-                    trigger_pattern=trigger_pattern,
-                )
-            else:
-                self.skill_manager.create_skill(
-                    name=name,
-                    instructions=body,
-                    description=description,
-                    tags=tags,
-                    trigger_pattern=trigger_pattern,
-                )
-            return True
-
-        except Exception as e:
-            logger.warning(f"Failed to parse skill file {skill_file}: {e}")
-            return False
-
-    def _export_skills_sync(self, skills_dir: Path) -> int:
-        """Export skills to flat Markdown files (sync)."""
-        if not self.skill_manager:
-            return 0
-
-        try:
-            skills_dir.mkdir(parents=True, exist_ok=True)
-            skills = self.skill_manager.list_skills()
-
-            for skill in skills:
-                try:
-                    # Sanitize name for filename
-                    safe_name = "".join(c for c in skill.name if c.isalnum() or c in "-_").lower()
-                    if not safe_name:
-                        safe_name = skill.id
-
-                    filename = f"{safe_name}.md"
-                    skill_file = skills_dir / filename
-
-                    # Prepare frontmatter
-                    frontmatter = {
-                        "name": skill.name,
-                        "description": skill.description or "",
-                        "trigger_pattern": skill.trigger_pattern or "",
-                        "tags": skill.tags or [],
-                    }
-
-                    content = "---\n"
-                    content += yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True)
-                    content += "---\n\n"
-                    content += skill.instructions
-
-                    with open(skill_file, "w", encoding="utf-8") as f:
-                        f.write(content)
-
-                except Exception as e:
-                    logger.error(f"Failed to export skill '{skill.name}': {e}")
-                    continue
-
-            return len(skills)
-        except Exception as e:
-            logger.error(f"Failed to export skills: {e}")
-            return 0
-
-    def _build_trigger_description(self, skill: Skill) -> str:
-        """Build Claude Code compatible trigger description.
-
-        Converts trigger_pattern regex to natural language trigger phrases.
-        Format: 'This skill should be used when the user asks to "phrase1", "phrase2"...'
-        """
-        base_desc = skill.description or f"Provides guidance for {skill.name}"
-
-        # Extract trigger phrases from pattern
-        trigger_phrases = []
-        if skill.trigger_pattern:
-            # Split by | and clean up regex patterns
-            parts = skill.trigger_pattern.split("|")
-            for part in parts:
-                # Remove common regex chars and convert to readable phrase
-                phrase = part.strip()
-                phrase = phrase.replace(".*", " ")
-                phrase = phrase.replace("\\s+", " ")
-                phrase = phrase.replace("\\b", "")
-                phrase = phrase.replace("^", "").replace("$", "")
-                phrase = phrase.strip()
-                if phrase and len(phrase) > 1:
-                    trigger_phrases.append(f'"{phrase}"')
-
-        if trigger_phrases:
-            triggers = ", ".join(trigger_phrases[:5])  # Limit to 5 phrases
-            return f"This skill should be used when the user asks to {triggers}. {base_desc}"
-        else:
-            return f"This skill should be used when working with {skill.name}. {base_desc}"

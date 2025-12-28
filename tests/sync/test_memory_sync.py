@@ -7,7 +7,6 @@ import pytest
 
 from gobby.config.app import MemorySyncConfig
 from gobby.storage.memories import Memory
-from gobby.storage.skills import Skill
 from gobby.sync.memories import MemorySyncManager
 
 
@@ -43,38 +42,13 @@ def mock_memory_manager():
 
 
 @pytest.fixture
-def mock_skill_manager():
-    sm = MagicMock()
-    sm.list_skills = MagicMock(
-        return_value=[
-            Skill(
-                id="s1",
-                name="test_skill",
-                instructions="do test",
-                created_at="2023-01-01T00:00:00Z",
-                updated_at="2023-01-01T00:00:00Z",
-                project_id=None,
-                description="test skill",
-                trigger_pattern="test",
-                source_session_id=None,
-                usage_count=0,
-                success_rate=None,
-                tags=["tag1"],
-            )
-        ]
-    )
-    sm.learn_skill = MagicMock()
-    return sm
-
-
-@pytest.fixture
 def sync_config():
     return MemorySyncConfig(enabled=True, stealth=True, export_debounce=0.1)
 
 
 @pytest.fixture
-def sync_manager(mock_db, mock_memory_manager, mock_skill_manager, sync_config):
-    return MemorySyncManager(mock_db, mock_memory_manager, mock_skill_manager, sync_config)
+def sync_manager(mock_db, mock_memory_manager, sync_config):
+    return MemorySyncManager(mock_db, mock_memory_manager, sync_config)
 
 
 @pytest.mark.asyncio
@@ -87,18 +61,20 @@ async def test_get_sync_dir_stealth(sync_manager):
 @pytest.mark.asyncio
 async def test_get_sync_dir_project(sync_manager):
     sync_manager.config.stealth = False
-    with patch("pathlib.Path.cwd", return_value=Path("/tmp/project")):
+    mock_context = {"path": "/tmp/project"}
+    with patch("gobby.utils.project_context.get_project_context", return_value=mock_context):
         path = sync_manager._get_sync_dir()
-        assert path == Path("/tmp/project") / ".gobby" / "sync"
+        # Compare resolved paths (handles macOS /tmp -> /private/tmp symlink)
+        expected = (Path("/tmp/project") / ".gobby" / "sync").resolve()
+        assert path == expected
 
 
 @pytest.mark.asyncio
 async def test_export_to_files(sync_manager, tmp_path):
-    # Override _get_sync_dir and _get_skills_dir to use tmp_path
+    # Override _get_sync_dir to use tmp_path
     sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
-    sync_manager._get_skills_dir = MagicMock(return_value=tmp_path / "skills")
 
-    await sync_manager.export_to_files()
+    count = await sync_manager.export_to_files()
 
     # Check memories.jsonl
     mem_file = tmp_path / "memories.jsonl"
@@ -107,42 +83,21 @@ async def test_export_to_files(sync_manager, tmp_path):
     assert len(lines) == 1
     data = json.loads(lines[0])
     assert data["content"] == "test memory"
-
-    # Check skills (Flat file format: skills/<name>.md)
-    skill_file = tmp_path / "skills" / "test_skill.md"
-    assert skill_file.exists()
-    content = skill_file.read_text()
-    assert "name: test_skill" in content
-    assert "description: test skill" in content
-    assert "trigger_pattern: test" in content
-    assert "do test" in content
+    assert count == 1
 
 
 @pytest.mark.asyncio
-async def test_import_from_files_legacy(sync_manager, tmp_path):
-    """Test importing from legacy flat file format."""
+async def test_import_from_files(sync_manager, tmp_path):
+    """Test importing memories from JSONL file."""
     sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
-    sync_manager._get_skills_dir = MagicMock(return_value=tmp_path / "skills")
 
-    # Create dummy files
+    # Create dummy memory file
     mem_file = tmp_path / "memories.jsonl"
     mem_file.write_text(
         json.dumps({"content": "imported memory", "type": "fact", "importance": 0.8}) + "\n"
     )
 
-    skills_dir = tmp_path / "skills"
-    skills_dir.mkdir(exist_ok=True)
-    skill_file = skills_dir / "imported_skill.md"
-    skill_file.write_text("""---
-name: imported_skill
-description: imported
-trigger_pattern: import
-tags: [t2]
----
-imported instructions
-""")
-
-    await sync_manager.import_from_files()
+    count = await sync_manager.import_from_files()
 
     # Verify remember called
     sync_manager.memory_manager.remember.assert_called()
@@ -150,62 +105,12 @@ imported instructions
     assert call_args["content"] == "imported memory"
     assert call_args["memory_type"] == "fact"
     assert call_args["importance"] == 0.8
-
-    # Verify create_skill called
-    sync_manager.skill_manager.create_skill.assert_called()
-    s_args = sync_manager.skill_manager.create_skill.call_args[1]
-    assert s_args["name"] == "imported_skill"
-    assert s_args["instructions"] == "imported instructions"
-
-
-@pytest.mark.asyncio
-async def test_import_from_files_claude_format(sync_manager, tmp_path):
-    """Test importing from Claude Code plugin format."""
-    sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
-    sync_manager._get_skills_dir = MagicMock(return_value=tmp_path / "skills")
-
-    # Create Claude Code format skill
-    skill_dir = tmp_path / "skills" / "my-skill"
-    skill_dir.mkdir(parents=True, exist_ok=True)
-
-    # SKILL.md with Claude Code format
-    skill_file = skill_dir / "SKILL.md"
-    skill_file.write_text("""---
-name: my-skill
-description: This skill should be used when the user asks to "do something". A helpful skill.
----
-Step-by-step instructions here
-""")
-
-    # Gobby metadata
-    meta_file = skill_dir / ".gobby-meta.json"
-    meta_file.write_text(
-        json.dumps(
-            {
-                "id": "sk-abc123",
-                "trigger_pattern": "do something|help",
-                "tags": ["helper", "test"],
-                "usage_count": 5,
-            }
-        )
-    )
-
-    await sync_manager.import_from_files()
-
-    # Verify create_skill called with metadata from .gobby-meta.json
-    sync_manager.skill_manager.create_skill.assert_called()
-    s_args = sync_manager.skill_manager.create_skill.call_args[1]
-    assert s_args["name"] == "my-skill"
-    assert s_args["instructions"] == "Step-by-step instructions here"
-    assert s_args["trigger_pattern"] == "do something|help"
-    assert s_args["tags"] == ["helper", "test"]
-    # Description should be extracted (without trigger prefix)
-    assert "A helpful skill" in s_args["description"]
+    assert count == 1
 
 
 @pytest.mark.asyncio
 async def test_trigger_export_debounce(sync_manager):
-    sync_manager.export_to_files = AsyncMock()
+    sync_manager.export_to_files = AsyncMock(return_value=1)
 
     sync_manager.trigger_export()
     sync_manager.trigger_export()

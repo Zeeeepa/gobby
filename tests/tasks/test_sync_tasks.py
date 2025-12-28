@@ -12,7 +12,9 @@ from gobby.sync.tasks import TaskSyncManager
 def sync_manager(temp_db, tmp_path):
     export_path = tmp_path / ".gobby" / "tasks.jsonl"
     task_manager = LocalTaskManager(temp_db)
-    return TaskSyncManager(task_manager, str(export_path))
+    manager = TaskSyncManager(task_manager, str(export_path))
+    yield manager
+    manager.stop()
 
 
 @pytest.fixture
@@ -56,6 +58,7 @@ class TestTaskSyncManager:
         assert task2_data["title"] == "Task 2"
         assert task2_data["deps_on"] == [t1.id]
 
+    @pytest.mark.integration
     def test_trigger_export_debounced(self, sync_manager):
         # Mock export_to_jsonl
         # We need to patch the method on the instance or class
@@ -72,11 +75,14 @@ class TestTaskSyncManager:
 
             assert mock_export.call_count == 0
 
-            time.sleep(0.2)
+            # Wait for call (polling)
+            start = time.time()
+            while mock_export.call_count == 0:
+                if time.time() - start > 1.0:
+                    break
+                time.sleep(0.05)
 
             assert mock_export.call_count == 1
-
-        sync_manager.stop()
 
     @pytest.mark.integration
     def test_mutation_triggers_export(self, task_manager, tmp_path, sample_project):
@@ -84,27 +90,30 @@ class TestTaskSyncManager:
         export_path = tmp_path / "tasks.jsonl"
         sync_manager = TaskSyncManager(task_manager, str(export_path))
 
-        # Mock trigger_export to verify call
-        sync_manager.trigger_export = MagicMock()
+        try:
+            # Mock trigger_export to verify call
+            sync_manager.trigger_export = MagicMock()
 
-        # Wire up listener
-        task_manager.add_change_listener(sync_manager.trigger_export)
+            # Wire up listener
+            task_manager.add_change_listener(sync_manager.trigger_export)
 
-        # Create task -> should trigger
-        task = task_manager.create_task(sample_project["id"], "Task 1")
-        assert sync_manager.trigger_export.call_count == 1
+            # Create task -> should trigger
+            task = task_manager.create_task(sample_project["id"], "Task 1")
+            assert sync_manager.trigger_export.call_count == 1
 
-        # Update task -> should trigger
-        task_manager.update_task(task.id, title="Updated Task 1")
-        assert sync_manager.trigger_export.call_count == 2
+            # Update task -> should trigger
+            task_manager.update_task(task.id, title="Updated Task 1")
+            assert sync_manager.trigger_export.call_count == 2
 
-        # Close task -> should trigger
-        task_manager.close_task(task.id)
-        assert sync_manager.trigger_export.call_count == 3
+            # Close task -> should trigger
+            task_manager.close_task(task.id)
+            assert sync_manager.trigger_export.call_count == 3
 
-        # Delete task -> should trigger
-        task_manager.delete_task(task.id)
-        assert sync_manager.trigger_export.call_count == 4
+            # Delete task -> should trigger
+            task_manager.delete_task(task.id)
+            assert sync_manager.trigger_export.call_count == 4
+        finally:
+            sync_manager.stop()
 
     @pytest.mark.integration
     def test_import_from_jsonl(self, sync_manager, task_manager, sample_project):
@@ -183,6 +192,7 @@ class TestTaskSyncManager:
             "updated_at": past,
             "project_id": sample_project["id"],
             "parent_id": None,
+            "deps_on": [],
         }
 
         # Write file
@@ -209,6 +219,7 @@ class TestTaskSyncManager:
             "updated_at": future,
             "project_id": sample_project["id"],
             "parent_id": None,
+            "deps_on": [],
         }
 
         # Append to file
