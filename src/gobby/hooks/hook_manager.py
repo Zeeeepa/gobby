@@ -202,7 +202,6 @@ class HookManager:
             self._skill_learner = None
 
         # Initialize Workflow Engine (Phase 0-2 + 3 Integration)
-        # Initialize Workflow Engine (Phase 0-2 + 3 Integration)
         from gobby.workflows.actions import ActionExecutor
         from gobby.workflows.templates import TemplateEngine
 

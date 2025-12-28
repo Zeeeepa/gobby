@@ -170,12 +170,29 @@ async def restart_daemon_process(
     if not stop_result.get("success") and not stop_result.get("not_running"):
         return stop_result
 
-    # Wait for ports to be free
-    retry_count = 0
-    while retry_count < 10:
-        # Simple check: if start works, ports are free (managed by start_daemon logic partially)
-        # But explicitly, we should wait just a bit to ensure OS releases sockets
+    # Wait for ports to be free with actual port checking
+    import socket
+
+    async def is_port_free(p: int) -> bool:
+        """Check if a port is available by attempting to bind to it."""
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind(("127.0.0.1", p))
+                return True
+        except OSError:
+            return False
+
+    for attempt in range(10):
+        if await asyncio.to_thread(is_port_free, port) and await asyncio.to_thread(
+            is_port_free, websocket_port
+        ):
+            break
         await asyncio.sleep(0.5)
-        retry_count += 1
+    else:
+        return {
+            "success": False,
+            "error": f"Ports {port} and/or {websocket_port} not free after 10 retries",
+        }
 
     return await start_daemon_process(port, websocket_port)

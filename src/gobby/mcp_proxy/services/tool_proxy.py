@@ -166,7 +166,7 @@ class ToolProxyService:
             return {"success": False, "error": f"Internal server '{server_name}' not found"}
 
         if not self._mcp_manager.has_server(server_name):
-            raise MCPError(f"Server '{server_name}' not found")
+            return {"success": False, "error": f"Server '{server_name}' not found"}
 
         # Use MCP manager for external servers
         try:

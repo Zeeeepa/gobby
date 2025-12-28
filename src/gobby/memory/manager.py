@@ -246,6 +246,9 @@ class MemoryManager:
         for memory in memories:
             # Calculate simple linear decay since last update
             last_update = datetime.fromisoformat(memory.updated_at)
+            # Ensure last_update is timezone-aware for subtraction
+            if last_update.tzinfo is None:
+                last_update = last_update.replace(tzinfo=UTC)
             hours_since = (datetime.now(UTC) - last_update).total_seconds() / 3600
 
             # If it's been less than 24h, skip to avoid over-decaying if called frequently

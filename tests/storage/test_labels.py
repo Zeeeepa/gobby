@@ -10,6 +10,8 @@ def manager(temp_db):
     return LocalTaskManager(temp_db)
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_add_label(manager, sample_project):
     """Test adding labels."""
     proj_id = sample_project["id"]
@@ -31,6 +33,8 @@ def test_add_label(manager, sample_project):
     assert "frontend" in updated.labels
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 def test_remove_label(manager, sample_project):
     """Test removing labels."""
     proj_id = sample_project["id"]

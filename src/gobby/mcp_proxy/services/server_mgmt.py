@@ -99,6 +99,9 @@ class ServerManagementService:
         query: str | None = None,
         servers: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Import MCP server(s)."""
-        # (This would contain the logic extracted from server.py import_mcp_server)
-        return {"success": True, "message": "Import logic stubbed for refactor"}
+        """Import MCP server(s).
+
+        Note: This method is intentionally unimplemented pending refactor
+        of the import logic from server.py.
+        """
+        raise NotImplementedError("import_server not implemented - refactor pending")

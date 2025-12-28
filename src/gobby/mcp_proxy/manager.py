@@ -69,6 +69,7 @@ class MCPClientManager:
         self._token_refresh_callback = token_refresh_callback
         self._health_check_interval = health_check_interval
         self._health_check_task: asyncio.Task | None = None
+        self._reconnect_tasks: set[asyncio.Task[None]] = set()
         self._auth_token: str | None = None
         self._running = False
         self.external_id = external_id
@@ -348,6 +349,13 @@ class MCPClientManager:
                 pass
             self._health_check_task = None
 
+        # Cancel any pending reconnect tasks
+        for task in list(self._reconnect_tasks):
+            task.cancel()
+        if self._reconnect_tasks:
+            await asyncio.gather(*self._reconnect_tasks, return_exceptions=True)
+        self._reconnect_tasks.clear()
+
         tasks = []
         for name, connection in self._connections.items():
             if connection.is_connected:
@@ -513,7 +521,9 @@ class MCPClientManager:
                         # Trigger reconnect if critical
                         if self.health[name].health == HealthState.UNHEALTHY:
                             logger.info(f"Attempting reconnection for unhealthy server: {name}")
-                            asyncio.create_task(self._reconnect(name))
+                            task = asyncio.create_task(self._reconnect(name))
+                            self._reconnect_tasks.add(task)
+                            task.add_done_callback(self._reconnect_tasks.discard)
                     else:
                         self.health[name].record_success()
 
@@ -558,52 +568,22 @@ class MCPClientManager:
                 name=config.name, state=ConnectionState.DISCONNECTED
             )
 
-    async def remove_server_config(self, name: str) -> None:
-        """Remove a server configuration."""
-        if name in self._configs:
-            del self._configs[name]
+    def remove_server_config(self, name: str) -> None:
+        """Remove a server configuration.
 
+        Raises RuntimeError if a connection exists for the server,
+        forcing callers to disconnect first.
+        """
         if name in self._connections:
-            # Avoid leaks: properly close the connection
-            # If we typically use remove_server(name) for runtime removal, call it.
-            # However, remove_server might also try to remove config?
-            # Let's do explicit cleanup here to be safe and atomic.
-            try:
-                # We can't easily await here if the method is synchronous...
-                # Wait, the method signature in the file was `def remove_server_config(self, name: str) -> None:` (Synchronous)
-                # But cleanup is likely async.
-                # If I can't await, I can't call async remove_server.
-                # But `disconnect_server` or `remove_server` might be async.
-                # User request: "update the method to ... perform proper cleanup ... or call the existing remove_server".
-                # If the method is sync, I have a problem closing async connections.
-                # I should change the signature to async if possible, OR check if remove_server is sync?
-                # Usually Manager methods like connect are async.
-                # Let's check `remove_server` signature if possible.
-                # But I'll assume valid python: if I make it async, I might break callers.
-                # However, avoiding leaks implies async cleanup.
-                # Let's look at the file content again.
-                pass
-            except Exception:
-                pass
-
-            # Re-reading: "update the method to ... perform proper cleanup"
-            # It implies I can change the implementation.
-            # If I make it async, I need to update callers?
-            # Or maybe `remove_server` is fire-and-forget?
-
-            # Better strategy: Just warn for now? No, user explicitly asked to fix the leak.
-            # "update the method to either (preferred) perform proper cleanup... or (alternative) raise an exception".
-            # Raising exception is synchronous-safe. "raise an exception when a connection exists".
-
-            # "implement one of these behaviors".
-            # I will choose the Exception route if I can't be sure about async/sync.
-            # Raising generic exception forces caller to handle order.
-
+            # Raise instead of async cleanup to keep this method synchronous.
+            # Callers must explicitly disconnect before removing config.
             logger.warning(
                 f"Removing config for '{name}' but connection still exists. "
                 "You should disconnect the server first."
             )
-            # Actually user pattern B: "raise an exception... to force callers to call remove_server first"
             raise RuntimeError(
                 f"Cannot remove config for connected server '{name}'. Disconnect it first."
             )
+
+        if name in self._configs:
+            del self._configs[name]

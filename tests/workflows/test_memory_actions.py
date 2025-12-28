@@ -123,9 +123,9 @@ async def test_skills_learn(
     mem_action_context.session_id = session.id
 
     mock_mem_services["skill_learner"].config.enabled = True
-    mock_mem_services["skill_learner"].learn_from_session.return_value = [
-        MagicMock(name="NewSkill")
-    ]
+    mock_skill = MagicMock()
+    mock_skill.name = "NewSkill"
+    mock_mem_services["skill_learner"].learn_from_session.return_value = [mock_skill]
 
     result = await mem_action_executor.execute("skills_learn", mem_action_context)
 
@@ -136,27 +136,23 @@ async def test_skills_learn(
 
 @pytest.mark.asyncio
 async def test_memory_sync_import(mem_action_executor, mem_action_context, mock_mem_services):
-    mock_mem_services["memory_sync_manager"].import_from_files.return_value = {
-        "memories": 10,
-        "skills": 5,
-    }
+    # Since memories and skills are decoupled, import_from_files returns an int count
+    mock_mem_services["memory_sync_manager"].import_from_files.return_value = 10
 
     result = await mem_action_executor.execute("memory.sync_import", mem_action_context)
 
     assert result is not None
-    assert result["imported"] == {"memories": 10, "skills": 5}
+    assert result["imported"] == {"memories": 10}
     mock_mem_services["memory_sync_manager"].import_from_files.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_memory_sync_export(mem_action_executor, mem_action_context, mock_mem_services):
-    mock_mem_services["memory_sync_manager"].export_to_files.return_value = {
-        "memories": 10,
-        "skills": 5,
-    }
+    # Since memories and skills are decoupled, export_to_files returns an int count
+    mock_mem_services["memory_sync_manager"].export_to_files.return_value = 10
 
     result = await mem_action_executor.execute("memory.sync_export", mem_action_context)
 
     assert result is not None
-    assert result["exported"] == {"memories": 10, "skills": 5}
+    assert result["exported"] == {"memories": 10}
     mock_mem_services["memory_sync_manager"].export_to_files.assert_called_once()
