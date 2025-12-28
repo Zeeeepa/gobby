@@ -106,7 +106,6 @@ class HTTPServer:
             websocket_server: Optional WebSocketServer instance for event broadcasting
             task_manager: LocalTaskManager instance
             task_sync_manager: TaskSyncManager instance
-            task_sync_manager: TaskSyncManager instance
             message_processor: SessionMessageProcessor instance
             message_manager: LocalSessionMessageManager instance for retrieval
             memory_manager: MemoryManager instance

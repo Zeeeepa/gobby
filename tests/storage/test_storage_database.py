@@ -8,6 +8,9 @@ import pytest
 
 from gobby.storage.database import LocalDatabase
 
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
+
 
 class TestLocalDatabase:
     """Tests for LocalDatabase class."""

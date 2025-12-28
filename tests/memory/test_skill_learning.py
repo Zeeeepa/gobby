@@ -44,7 +44,6 @@ def skill_learner(mock_storage, mock_message_manager, mock_llm_service, skill_co
     return SkillLearner(mock_storage, mock_message_manager, mock_llm_service, skill_config)
 
 
-@pytest.mark.asyncio
 async def test_learn_from_session_empty_messages(skill_learner, mock_message_manager):
     session = MagicMock(spec=Session)
     session.id = "session_1"
@@ -57,7 +56,6 @@ async def test_learn_from_session_empty_messages(skill_learner, mock_message_man
     assert not skill_learner.llm_service.get_default_provider.called
 
 
-@pytest.mark.asyncio
 async def test_learn_from_session_success(
     skill_learner, mock_message_manager, mock_storage, mock_llm_provider
 ):
@@ -100,7 +98,6 @@ async def test_learn_from_session_success(
     assert mock_storage.create_skill.call_args.kwargs["project_id"] == "project_1"
 
 
-@pytest.mark.asyncio
 async def test_record_usage(skill_learner, mock_storage):
     await skill_learner.record_usage("sk-123")
     mock_storage.increment_usage.assert_called_with("sk-123")

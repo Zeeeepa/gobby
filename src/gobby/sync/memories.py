@@ -86,12 +86,28 @@ class MemorySyncManager:
             await asyncio.sleep(wait_time)
 
     def _get_sync_dir(self) -> Path:
-        """Get the directory for syncing."""
-        if self.config.stealth:
-            return Path("~/.gobby/sync").expanduser()
+        """Get the directory for syncing.
 
-        # Default to project-local .gobby/sync
-        return Path.cwd() / ".gobby" / "sync"
+        Returns an absolute path to the sync directory.
+        - In stealth mode: ~/.gobby/sync
+        - Otherwise: Uses project context if available, falls back to ~/.gobby/sync
+        """
+        if self.config.stealth:
+            return Path("~/.gobby/sync").expanduser().resolve()
+
+        # Try to get project path from project context
+        try:
+            from gobby.utils.project_context import get_project_context
+
+            project_ctx = get_project_context()
+            if project_ctx and project_ctx.get("path"):
+                project_path = Path(project_ctx["path"]).expanduser().resolve()
+                return project_path / ".gobby" / "sync"
+        except Exception:
+            pass
+
+        # Fall back to user home directory for stability
+        return Path("~/.gobby/sync").expanduser().resolve()
 
     def _get_skills_dir(self) -> Path:
         """Get the directory for skills syncing."""
@@ -108,10 +124,6 @@ class MemorySyncManager:
             return {"memories": 0, "skills": 0}
 
         sync_dir = self._get_sync_dir()
-        if not sync_dir.exists():
-            # If sync dir doesn't exist, we might still have skills in .claude/skills
-            pass
-
         result = {"memories": 0, "skills": 0}
 
         # Import Memories (JSONL)

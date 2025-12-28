@@ -169,9 +169,6 @@ class TestExtraFieldsFormatter:
         )
 
         formatter.format(record)
-
-        formatter.format(record)
-        formatter.format(record)
         assert cast(Any, record).short_name == "http_server"
 
     def test_format_no_prefix(self):

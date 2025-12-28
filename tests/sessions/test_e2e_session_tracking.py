@@ -67,7 +67,7 @@ async def env(tmp_path) -> AsyncGenerator[dict, None]:
         hm.shutdown()
 
 
-@pytest.mark.asyncio
+@pytest.mark.e2e
 async def test_full_lifecycle(env):
     hm = env["hm"]
     ws = env["ws"]

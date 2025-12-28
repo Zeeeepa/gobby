@@ -232,8 +232,12 @@ class LocalMemoryManager:
         project_id: str | None = None,
         limit: int = 20,
     ) -> list[Memory]:
-        sql = "SELECT * FROM memories WHERE content LIKE ?"
-        params: list[Any] = [f"%{query_text}%"]
+        # Escape LIKE wildcards in query_text
+        escaped_query = (
+            query_text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        )
+        sql = "SELECT * FROM memories WHERE content LIKE ? ESCAPE '\\'"
+        params: list[Any] = [f"%{escaped_query}%"]
 
         if project_id:
             sql += " AND (project_id = ? OR project_id IS NULL)"

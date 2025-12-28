@@ -91,19 +91,17 @@ class LocalSkillManager:
     ) -> Skill:
         now = datetime.now(UTC).isoformat()
         # ID based on name + project to ensure uniqueness/stability
-        skill_id = generate_prefixed_id("sk", name + str(project_id))
-
-        # Check existence to avoid unique constraint errors
-        existing_row = self.db.fetchone("SELECT * FROM skills WHERE id = ?", (skill_id,))
-        if existing_row:
-            return self.get_skill(skill_id)
+        # Normalize project_id to empty string if None for consistent ID generation
+        normalized_project_id = project_id if project_id is not None else ""
+        skill_id = generate_prefixed_id("sk", name + normalized_project_id)
 
         tags_json = json.dumps(tags) if tags else None
 
         with self.db.transaction() as conn:
+            # Use INSERT OR IGNORE to handle concurrent inserts safely
             conn.execute(
                 """
-                INSERT INTO skills (
+                INSERT OR IGNORE INTO skills (
                     id, project_id, name, description, trigger_pattern,
                     instructions, source_session_id, usage_count, tags,
                     created_at, updated_at

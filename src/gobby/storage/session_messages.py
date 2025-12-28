@@ -197,12 +197,16 @@ class LocalSessionMessageManager:
             project_id: Optional project ID to filter by
 
         Returns:
-            List of matchin messages
+            List of matching messages
         """
+        # Escape LIKE wildcards in query_text
+        escaped_query = (
+            query_text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        )
         sql = "SELECT m.* FROM session_messages m"
         params: list[Any] = []
-        conditions: list[str] = ["m.content LIKE ?"]
-        params.append(f"%{query_text}%")
+        conditions: list[str] = ["m.content LIKE ? ESCAPE '\\'"]
+        params.append(f"%{escaped_query}%")
 
         if project_id:
             sql += " JOIN sessions s ON m.session_id = s.session_id"

@@ -53,7 +53,7 @@ def test_skills_registry_creation(mock_skill_components):
     assert "learn_skill_from_session" in tool_names
     assert "list_skills" in tool_names
     assert "get_skill" in tool_names
-    assert "get_skill" in tool_names
+    assert "delete_skill" in tool_names
 
 
 @pytest.mark.asyncio

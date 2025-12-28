@@ -1,7 +1,7 @@
 """Code execution service."""
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger("gobby.mcp.server")
 
@@ -22,8 +22,6 @@ class CodeExecutionService:
         try:
             # Delegate to codex client
             result = await self._codex_client.execute(code, language, context, timeout)
-            from typing import cast
-
             return cast(dict[str, Any], result)
         except Exception as e:
             return {"success": False, "error": str(e)}

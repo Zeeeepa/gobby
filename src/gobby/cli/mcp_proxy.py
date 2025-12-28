@@ -14,7 +14,7 @@ Provides CLI access to MCP proxy functionality:
 import json
 import sys
 import urllib.parse
-from typing import Any
+from typing import Any, cast
 
 import click
 
@@ -50,8 +50,6 @@ def call_mcp_api(
     try:
         response = client.call_http_api(endpoint, method=method, json_data=json_data)
         if response.status_code == 200:
-            from typing import cast
-
             return cast(dict[str, Any], response.json())
         else:
             error_msg = response.text or f"HTTP {response.status_code}"
@@ -345,9 +343,10 @@ def remove_server(ctx: click.Context, name: str) -> None:
     if not check_daemon_running(client):
         sys.exit(1)
 
+    encoded_name = urllib.parse.quote(name, safe="")
     result = call_mcp_api(
         client,
-        f"/mcp/servers/{name}",
+        f"/mcp/servers/{encoded_name}",
         method="DELETE",
     )
     if result is None:
