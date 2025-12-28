@@ -18,7 +18,16 @@ def generate_prefixed_id(prefix: str, content: str | None = None, length: int = 
 
     Returns:
         Formatted ID string
+        Raises:
+        ValueError: If prefix is empty or length is invalid
     """
+    if not prefix:
+        raise ValueError("prefix cannot be empty")
+    if length <= 0:
+        raise ValueError("length must be positive")
+    if length > 64:  # SHA-256 produces 64 hex characters
+        raise ValueError("length cannot exceed 64")
+
     if content is not None:
         hash_obj = hashlib.sha256(content.encode("utf-8"))
         hash_hex = hash_obj.hexdigest()[:length]

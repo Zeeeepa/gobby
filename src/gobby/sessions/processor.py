@@ -31,8 +31,6 @@ class SessionMessageProcessor:
     - stores normalized messages in the database
     """
 
-    websocket_server: "WebSocketServer | None" = None
-
     def __init__(
         self,
         db: LocalDatabase,

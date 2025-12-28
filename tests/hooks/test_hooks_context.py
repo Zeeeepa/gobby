@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -53,7 +53,7 @@ def test_hook_event_task_id(mock_hook_manager):
         event_type=HookEventType.BEFORE_AGENT,
         session_id=external_id,
         source=SessionSource.CLAUDE,
-        timestamp=datetime.now(),
+        timestamp=datetime.now(timezone.utc),
         data={"prompt": "Hello"},
     )
 
@@ -97,7 +97,7 @@ def test_session_start_context_injection(mock_hook_manager):
         event_type=HookEventType.SESSION_START,
         session_id=external_id,
         source=SessionSource.CLAUDE,
-        timestamp=datetime.now(),
+        timestamp=datetime.now(timezone.utc),
         data={"cwd": "/tmp"},
         task_id=task_id,
         metadata={"_task_title": task_title},

@@ -8,7 +8,7 @@ from gobby.sync.tasks import TaskSyncManager
 
 
 @pytest.fixture
-def sync_manager(temp_db, sample_project):
+def sync_manager(temp_db):
     tm = LocalTaskManager(temp_db)
     return TaskSyncManager(tm, export_path=".gobby/tasks.jsonl")
 
@@ -49,6 +49,7 @@ async def test_import_from_github_issues(sync_manager, temp_db):
         assert "gh-1" in result["imported"]
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_import_project_id_resolution(sync_manager, temp_db):
     """

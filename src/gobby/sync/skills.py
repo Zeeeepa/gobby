@@ -59,13 +59,30 @@ class SkillSyncManager:
         self._last_change_time: float = 0
         self._shutdown_requested = False
 
-    def trigger_export(self) -> None:
-        """Trigger a debounced export."""
-        if not self.config.enabled:
-            return
 
-        self._last_change_time = time.time()
+def __init__(
+    self,
+    skill_manager: LocalSkillManager,
+    config: SkillSyncConfig | None = None,
+):
+    self.skill_manager = skill_manager
+    self.config = config or SkillSyncConfig()
 
+    # Debounce state
+    self._export_task: asyncio.Task | None = None
+    self._last_change_time: float = 0
+    self._shutdown_requested = False
+    self._task_lock = asyncio.Lock()
+
+
+async def trigger_export(self) -> None:
+    """Trigger a debounced export."""
+    if not self.config.enabled:
+        return
+
+    self._last_change_time = time.time()
+
+    async with self._task_lock:
         if self._export_task is None or self._export_task.done():
             self._export_task = asyncio.create_task(self._process_export_queue())
 

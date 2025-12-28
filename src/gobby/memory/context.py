@@ -1,14 +1,28 @@
+import re
+
 from gobby.storage.memories import Memory
+
+# Pattern to match common bullet markers at start of string
+_BULLET_PATTERN = re.compile(r"^[\s]*[-*•]\s*")
 
 
 def _strip_leading_bullet(content: str) -> str:
-    """Strip leading bullet points (- or *) from content."""
+    """
+    Strip leading bullet points and whitespace from content.
+
+    Handles common bullet markers: -, *, •
+    Also strips any leading/trailing whitespace.
+
+    Returns empty string if content is empty or only whitespace/bullets.
+    """
+    # Strip outer whitespace first
     content = content.strip()
-    if content.startswith("- "):
-        return content[2:]
-    elif content.startswith("* "):
-        return content[2:]
-    return content
+    if not content:
+        return ""
+
+    # Remove leading bullet marker if present
+    result = _BULLET_PATTERN.sub("", content)
+    return result.strip()
 
 
 def build_memory_context(memories: list[Memory]) -> str:
@@ -44,7 +58,8 @@ def build_memory_context(memories: list[Memory]) -> str:
         parts.append("## Preferences\n")
         for mem in pref_memories:
             content = _strip_leading_bullet(mem.content)
-            parts.append(f"- {content}")
+            if content:  # Skip empty content
+                parts.append(f"- {content}")
         parts.append("")
 
     # 3. Patterns
@@ -52,7 +67,8 @@ def build_memory_context(memories: list[Memory]) -> str:
         parts.append("## Patterns\n")
         for mem in pattern_memories:
             content = _strip_leading_bullet(mem.content)
-            parts.append(f"- {content}")
+            if content:  # Skip empty content
+                parts.append(f"- {content}")
         parts.append("")
 
     # 4. Facts/Other
@@ -60,7 +76,8 @@ def build_memory_context(memories: list[Memory]) -> str:
         parts.append("## Facts\n")
         for mem in fact_memories:
             content = _strip_leading_bullet(mem.content)
-            parts.append(f"- {content}")
+            if content:  # Skip empty content
+                parts.append(f"- {content}")
         parts.append("")
 
     parts.append("</project-memory>")

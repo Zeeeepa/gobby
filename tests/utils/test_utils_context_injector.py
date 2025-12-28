@@ -1,5 +1,7 @@
 """Tests for the context injector utilities."""
 
+import pytest
+
 from gobby.utils.context_injector import (
     build_restored_context,
     build_session_context,
@@ -265,6 +267,7 @@ class TestInjectContextIntoResponse:
 class TestIntegration:
     """Integration tests for context injector utilities."""
 
+    @pytest.mark.integration
     def test_full_handoff_workflow(self):
         """Test a full handoff workflow using all functions."""
         # Build session context
@@ -306,6 +309,7 @@ class TestIntegration:
         assert "hookSpecificOutput" in final
         assert "additionalContext" in final["hookSpecificOutput"]
 
+    @pytest.mark.integration
     def test_new_session_workflow(self):
         """Test a new session workflow (no handoff)."""
         response = {}
