@@ -1,0 +1,180 @@
+import click
+
+from gobby.config.app import DaemonConfig
+from gobby.memory.manager import MemoryManager
+from gobby.storage.database import LocalDatabase
+
+
+def get_memory_manager(ctx: click.Context) -> MemoryManager:
+    config: DaemonConfig = ctx.obj["config"]
+    db = LocalDatabase()
+    return MemoryManager(db, config.memory)
+
+
+@click.group()
+def memory() -> None:
+    """Manage Gobby memories."""
+    pass
+
+
+@memory.command()
+@click.argument("content")
+@click.option(
+    "--type", "-t", "memory_type", default="fact", help="Type of memory (fact, preference, etc.)"
+)
+@click.option("--importance", "-i", type=float, default=0.5, help="Importance (0.0 - 1.0)")
+@click.option("--project", "-p", "project_id", help="Project ID")
+@click.pass_context
+def remember(
+    ctx: click.Context, content: str, memory_type: str, importance: float, project_id: str | None
+) -> None:
+    """Store a new memory."""
+    manager = get_memory_manager(ctx)
+    memory = manager.remember(
+        content=content,
+        memory_type=memory_type,
+        importance=importance,
+        project_id=project_id,
+        source_type="cli",
+    )
+    click.echo(f"Stored memory: {memory.id} - {memory.content}")
+
+
+@memory.command()
+@click.argument("query", required=False)
+@click.option("--project", "-p", "project_id", help="Project ID")
+@click.option("--limit", "-n", default=10, help="Max results")
+@click.pass_context
+def recall(ctx: click.Context, query: str | None, project_id: str | None, limit: int) -> None:
+    """Retrieve memories."""
+    manager = get_memory_manager(ctx)
+    memories = manager.recall(
+        query=query,
+        project_id=project_id,
+        limit=limit,
+    )
+    if not memories:
+        click.echo("No memories found.")
+        return
+
+    for mem in memories:
+        click.echo(f"[{mem.id[:8]}] ({mem.memory_type}, {mem.importance}) {mem.content}")
+
+
+@memory.command()
+@click.argument("memory_id")
+@click.pass_context
+def forget(ctx: click.Context, memory_id: str) -> None:
+    """Delete a memory."""
+    manager = get_memory_manager(ctx)
+    success = manager.forget(memory_id)
+    if success:
+        click.echo(f"Forgot memory: {memory_id}")
+    else:
+        click.echo(f"Memory not found: {memory_id}")
+
+
+@memory.command("list")
+@click.option("--type", "-t", "memory_type", help="Filter by memory type")
+@click.option("--min-importance", "-i", type=float, help="Minimum importance threshold")
+@click.option("--limit", "-n", default=50, help="Max results")
+@click.option("--project", "-p", "project_id", help="Project ID")
+@click.pass_context
+def list_memories(
+    ctx: click.Context,
+    memory_type: str | None,
+    min_importance: float | None,
+    project_id: str | None,
+    limit: int,
+) -> None:
+    """List all memories with optional filtering."""
+    manager = get_memory_manager(ctx)
+    memories = manager.list_memories(
+        project_id=project_id,
+        memory_type=memory_type,
+        min_importance=min_importance,
+        limit=limit,
+    )
+    if not memories:
+        click.echo("No memories found.")
+        return
+
+    for mem in memories:
+        tags_str = f" [{', '.join(mem.tags)}]" if mem.tags else ""
+        click.echo(f"[{mem.id}] ({mem.memory_type}, {mem.importance:.2f}){tags_str}")
+        click.echo(f"  {mem.content[:100]}{'...' if len(mem.content) > 100 else ''}")
+
+
+@memory.command("show")
+@click.argument("memory_id")
+@click.pass_context
+def show_memory(ctx: click.Context, memory_id: str) -> None:
+    """Show details of a specific memory."""
+    manager = get_memory_manager(ctx)
+    memory = manager.get_memory(memory_id)
+    if not memory:
+        click.echo(f"Memory not found: {memory_id}")
+        return
+
+    click.echo(f"ID: {memory.id}")
+    click.echo(f"Type: {memory.memory_type}")
+    click.echo(f"Importance: {memory.importance}")
+    click.echo(f"Created: {memory.created_at}")
+    click.echo(f"Updated: {memory.updated_at}")
+    click.echo(f"Source: {memory.source_type}")
+    click.echo(f"Access Count: {memory.access_count}")
+    if memory.tags:
+        click.echo(f"Tags: {', '.join(memory.tags)}")
+    click.echo(f"Content:\n{memory.content}")
+
+
+@memory.command("update")
+@click.argument("memory_id")
+@click.option("--content", "-c", help="New content")
+@click.option("--importance", "-i", type=float, help="New importance (0.0-1.0)")
+@click.option("--tags", "-t", help="New tags (comma-separated)")
+@click.pass_context
+def update_memory(
+    ctx: click.Context,
+    memory_id: str,
+    content: str | None,
+    importance: float | None,
+    tags: str | None,
+) -> None:
+    """Update an existing memory."""
+    manager = get_memory_manager(ctx)
+
+    # Parse tags if provided
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None
+    if tag_list is not None and len(tag_list) == 0:
+        tag_list = None
+
+    try:
+        memory = manager.update_memory(
+            memory_id=memory_id,
+            content=content,
+            importance=importance,
+            tags=tag_list,
+        )
+        click.echo(f"Updated memory: {memory.id}")
+        click.echo(f"  Content: {memory.content[:80]}{'...' if len(memory.content) > 80 else ''}")
+        click.echo(f"  Importance: {memory.importance}")
+    except ValueError as e:
+        click.echo(f"Error: {e}")
+
+
+@memory.command("stats")
+@click.option("--project", "-p", "project_id", help="Project ID")
+@click.pass_context
+def memory_stats(ctx: click.Context, project_id: str | None) -> None:
+    """Show memory system statistics."""
+    manager = get_memory_manager(ctx)
+    stats = manager.get_stats(project_id=project_id)
+
+    click.echo("Memory Statistics:")
+    click.echo(f"  Total Memories: {stats['total_count']}")
+    click.echo(f"  Average Importance: {stats['avg_importance']:.3f}")
+    if stats["by_type"]:
+        click.echo("  By Type:")
+        for mem_type, count in stats["by_type"].items():
+            click.echo(f"    {mem_type}: {count}")

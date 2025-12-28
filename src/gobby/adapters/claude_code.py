@@ -15,7 +15,7 @@ Claude Code Hook Types (12 total):
 - notification: System notifications
 """
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from gobby.adapters.base import BaseAdapter
@@ -108,7 +108,7 @@ class ClaudeCodeAdapter(BaseAdapter):
             event_type=event_type,
             session_id=session_id,
             source=self.source,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(UTC),
             machine_id=input_data.get("machine_id"),
             cwd=input_data.get("cwd"),
             data=input_data,

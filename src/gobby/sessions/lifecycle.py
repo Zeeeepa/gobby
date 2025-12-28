@@ -13,7 +13,7 @@ import os
 from gobby.config.app import SessionLifecycleConfig
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.storage.database import LocalDatabase
-from gobby.storage.messages import LocalMessageManager
+from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ class SessionLifecycleManager:
         self.db = db
         self.config = config
         self.session_manager = LocalSessionManager(db)
-        self.message_manager = LocalMessageManager(db)
+        self.message_manager = LocalSessionMessageManager(db)
 
         self._running = False
         self._expire_task: asyncio.Task | None = None
@@ -110,11 +110,19 @@ class SessionLifecycleManager:
                 break
 
     async def _expire_stale_sessions(self) -> int:
-        """Expire sessions that have been inactive too long."""
-        count = self.session_manager.expire_stale_sessions(
+        """Pause inactive active sessions and expire stale sessions."""
+        # First, pause active sessions that have been idle too long
+        # This catches orphaned sessions that never got AFTER_AGENT hook
+        paused = self.session_manager.pause_inactive_active_sessions(
+            timeout_minutes=self.config.active_session_pause_minutes
+        )
+
+        # Then expire sessions that have been paused/active for too long
+        expired = self.session_manager.expire_stale_sessions(
             timeout_hours=self.config.stale_session_timeout_hours
         )
-        return count
+
+        return paused + expired
 
     async def _process_pending_transcripts(self) -> int:
         """Process transcripts for expired sessions."""
@@ -159,7 +167,7 @@ class SessionLifecycleManager:
 
         # Read entire file
         try:
-            with open(jsonl_path, "r", encoding="utf-8") as f:
+            with open(jsonl_path, encoding="utf-8") as f:
                 lines = f.readlines()
         except Exception as e:
             logger.error(f"Error reading transcript {jsonl_path}: {e}")

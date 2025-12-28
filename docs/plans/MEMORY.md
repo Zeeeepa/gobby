@@ -179,11 +179,11 @@ Skills are reusable instructions extracted from successful work patterns.
 │     • Trigger pattern (when to suggest)                          │
 │     • Step-by-step instructions                                  │
 │                                                                  │
-│  4. Skill saved to database and optionally .gobby/skills/       │
+│  4. Skill saved to database and exported to .claude/skills/     │
 │                                                                  │
 │  5. Future sessions:                                             │
-│     • Match trigger pattern against user prompt                  │
-│     • Inject skill instructions when relevant                    │
+│     • Claude Code automatically discovers skills in .claude/    │
+│     • No runtime matching or injection needed                    │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -192,7 +192,7 @@ Skills are reusable instructions extracted from successful work patterns.
 
 ### Session Start Hook
 
-On `session_start`, inject relevant context:
+On `session_start`, inject relevant memories:
 
 ```python
 def on_session_start(session: Session, project: Project) -> HookResponse:
@@ -203,14 +203,9 @@ def on_session_start(session: Session, project: Project) -> HookResponse:
         min_importance=0.3
     )
 
-    # Find skills matching the initial prompt (if available)
-    skills = skill_manager.match_skills(
-        project_id=project.id,
-        query=session.initial_prompt
-    )
-
-    # Build context injection
-    context = build_memory_context(memories, skills)
+    # Build context injection (memories only)
+    # Skills are provided via Claude Code native format (.claude/skills/<name>/)
+    context = build_memory_context(memories)
 
     return HookResponse(
         action="continue",
@@ -399,12 +394,17 @@ gobby skill stats
 ```text
 .gobby/
 ├── memories.jsonl        # Memory records (optional, stealth mode disables)
-├── skills/               # Skill files (markdown format)
-│   ├── run-tests.md
-│   ├── deploy.md
-│   └── debug-api.md
 ├── memory_meta.json      # Sync metadata
 └── gobby.db              # SQLite cache (not committed)
+
+.claude/
+└── skills/               # Skill files (Claude Code native format)
+    ├── run-tests/
+    │   └── SKILL.md
+    ├── deploy/
+    │   └── SKILL.md
+    └── debug-api/
+        └── SKILL.md
 ```
 
 ### Skill File Format
@@ -412,7 +412,7 @@ gobby skill stats
 Skills can also be stored as markdown files for easy editing:
 
 ```markdown
-<!-- .gobby/skills/run-tests.md -->
+<!-- .claude/skills/run-tests/SKILL.md -->
 ---
 id: sk-a1b2c3
 name: run-tests
@@ -432,7 +432,7 @@ This project uses pytest with specific configuration:
 
 ## Context Injection Format
 
-When memories/skills are injected at session start:
+When memories are injected at session start:
 
 ```markdown
 <project-memory>
@@ -451,108 +451,146 @@ This is a CLI tool for managing Docker containers.
 - API routes follow /api/v1/{resource} pattern
 - All database models inherit from BaseModel
 
-## Relevant Skills
+## Facts
 
-### run-tests
-This project uses pytest with specific configuration:
-1. Run all tests: `uv run pytest`
-2. Run single file: `uv run pytest tests/test_example.py -v`
+- Uses pytest with conftest.py fixtures
+- Database is PostgreSQL with SQLAlchemy ORM
 
 </project-memory>
 ```
+
+**Note:** Skills are no longer injected via `<project-memory>`. Instead, skills are exported to `.claude/skills/<name>/` in Claude Code native format, making them automatically available to Claude Code sessions without runtime injection.
 
 ## Implementation Checklist
 
 ### Phase 1: Storage Layer
 
-- [ ] Create database migration for memories table
-- [ ] Create database migration for skills table
-- [ ] Create database migration for session_memories table
-- [ ] Implement ID generation utility (mm-{hash}, sk-{hash})
-- [ ] Create `src/storage/memories.py` with `LocalMemoryManager` class
-- [ ] Implement `create()`, `get()`, `update()`, `delete()` methods
-- [ ] Implement `list()` method with filters
-- [ ] Implement `search()` method (text-based initially)
-- [ ] Create `src/storage/skills.py` with `LocalSkillManager` class
-- [ ] Implement skill CRUD methods
-- [ ] Add unit tests for storage layer
+- [x] Create database migration for memories table
+- [x] Create database migration for skills table
+- [x] Create database migration for session_memories table
+- [x] Implement ID generation utility (mm-{hash}, sk-{hash})
+- [x] Create `src/storage/memories.py` with `LocalMemoryManager` class
+- [x] Implement `create()`, `get()`, `update()`, `delete()` methods
+- [x] Implement `list()` method with filters
+- [x] Implement `search()` method (text-based initially)
+- [x] Create `src/storage/skills.py` with `LocalSkillManager` class
+- [x] Implement skill CRUD methods
+- [x] Add unit tests for storage layer
 
 ### Phase 2: Memory Operations
 
-- [ ] Create `src/memory/manager.py` with `MemoryManager` class
-- [ ] Implement `remember()` method
-- [ ] Implement `recall()` method with importance ranking
-- [ ] Implement `forget()` method
-- [ ] Implement memory importance decay (background job)
+- [x] Create `src/memory/manager.py` with `MemoryManager` class
+- [x] Implement `remember()` method
+- [x] Implement `recall()` method with importance ranking
+- [x] Implement `forget()` method
+- [x] Implement memory importance decay (background job)
 - [ ] Add access tracking (update access_count, last_accessed_at)
-- [ ] Add unit tests for memory operations
+      - **Stub location:** `src/gobby/memory/manager.py:_update_access_stats()` (line ~105-111)
+      - **Rationale:** Deferred as low priority; schema supports it but perf tuning needed (batch vs sync updates)
+      - **Follow-up:** See Phase 10 TODO below
+- [x] Add unit tests for memory operations
 
 ### Phase 3: Skill Learning
 
-- [ ] Create `src/memory/skills.py` with `SkillLearner` class
-- [ ] Implement `learn_from_session()` method
-- [ ] Implement skill extraction prompt template
-- [ ] Implement `match_skills()` method (trigger pattern matching)
-- [ ] Implement skill usage tracking
-- [ ] Add unit tests for skill learning
+- [x] Create `src/memory/skills.py` with `SkillLearner` class
+- [x] Implement `learn_from_session()` method
+- [x] Implement skill extraction prompt template
+- [x] ~~Implement `match_skills()` method (trigger pattern matching)~~ **REMOVED** - Skills now use Claude Code plugin format
+- [x] Implement skill usage tracking
+- [x] Add unit tests for skill learning
 
-### Phase 4: Hook Integration
+### Phase 4: Hook/Workflow Integration
 
-- [ ] Update `session_start` hook to inject memories
-- [ ] Update `session_end` hook to extract memories
-- [ ] Create memory context builder
-- [ ] Implement selective injection (relevance threshold)
-- [ ] Add memory injection to workflow actions
-- [ ] Add unit tests for hook integration
+Note: Memory injection/extraction should be done via workflow actions, not hardcoded in hook_manager.
 
-### Phase 5: MCP Tools
+- [x] Create memory context builder (`src/memory/context.py`)
+- [x] Implement selective injection (relevance threshold via min_importance)
+- [x] Add `memory_inject` workflow action
+- [x] Add `memory.sync_import` workflow action
+- [x] Add `memory.sync_export` workflow action
+- [x] Add `skills_learn` workflow action
+- [x] Add unit tests for workflow memory actions
+- [x] Create example workflow using memory injection at session_start
+      - See `src/gobby/templates/workflows/memory-lifecycle.yaml` (uses `memory_inject` action)
+      - See `src/gobby/templates/workflows/memory-sync.yaml` (uses `memory.sync_import` action)
+- [x] Create example workflow using memory extraction at session_end
+      - See `src/gobby/templates/workflows/memory-lifecycle.yaml` (uses `skills_learn` action)
+      - See `src/gobby/templates/workflows/memory-sync.yaml` (uses `memory.sync_export` action)
 
-- [ ] Add `remember` tool to MCP server
-- [ ] Add `recall` tool to MCP server
-- [ ] Add `forget` tool to MCP server
-- [ ] Add `list_memories` tool to MCP server
-- [ ] Add `update_memory` tool to MCP server
-- [ ] Add `learn_skill` tool to MCP server
-- [ ] Add `get_skill` tool to MCP server
-- [ ] Add `list_skills` tool to MCP server
-- [ ] Add `apply_skill` tool to MCP server
-- [ ] Add `update_skill` tool to MCP server
-- [ ] Add `delete_skill` tool to MCP server
-- [ ] Add `init_memory` tool to MCP server
-- [ ] Update MCP tool documentation
+### Phase 5-6: MCP Tools & CLI Commands (Unified)
 
-### Phase 6: CLI Commands
+MCP tools and CLI commands should have parity. Each operation is implemented in both interfaces.
 
-- [ ] Add `gobby memory` command group
-- [ ] Implement `gobby memory list` command
-- [ ] Implement `gobby memory show` command
-- [ ] Implement `gobby memory add` command
-- [ ] Implement `gobby memory update` command
-- [ ] Implement `gobby memory delete` command
-- [ ] Implement `gobby memory search` command
-- [ ] Add `gobby skill` command group
-- [ ] Implement `gobby skill list` command
-- [ ] Implement `gobby skill show` command
-- [ ] Implement `gobby skill add` command
-- [ ] Implement `gobby skill learn` command
-- [ ] Implement `gobby skill update` command
-- [ ] Implement `gobby skill delete` command
-- [ ] Implement `gobby skill export` command
-- [ ] Implement `gobby memory init` command
-- [ ] Implement `gobby memory stats` command
-- [ ] Add CLI help text and examples
+**Status Legend:**
+- `MCP+CLI` = Both MCP tool and CLI command implemented
+- `MCP only` = MCP tool implemented, CLI pending
+- `CLI only` = CLI command implemented, MCP pending
+- `TODO` = Neither implemented yet
+
+#### Memory Operations
+
+| Operation | MCP Tool | CLI Command | Status | Notes |
+|-----------|----------|-------------|--------|-------|
+| Create | `remember` | `gobby memory remember` | MCP+CLI | |
+| Retrieve/Search | `recall` | `gobby memory recall` | MCP+CLI | |
+| Delete | `forget` | `gobby memory forget` | MCP+CLI | |
+| List all | `list_memories` | `gobby memory list` | MCP+CLI | |
+| Show one | `get_memory` | `gobby memory show` | MCP+CLI | |
+| Update | `update_memory` | `gobby memory update` | MCP+CLI | Mutable: content, importance, tags |
+| Initialize | `init_memory` | `gobby memory init` | TODO | Blocked by Phase 9 (MemoryExtractor) |
+| Stats | `memory_stats` | `gobby memory stats` | MCP+CLI | |
+
+#### Skill Operations
+
+| Operation | MCP Tool | CLI Command | Status | Notes |
+|-----------|----------|-------------|--------|-------|
+| Learn from session | `learn_skill` | `gobby skill learn` | MCP+CLI | |
+| List | `list_skills` | `gobby skill list` | MCP+CLI | |
+| Show/Get | `get_skill` | `gobby skill get` | MCP+CLI | |
+| Delete | `delete_skill` | `gobby skill delete` | MCP+CLI | |
+| Create directly | `create_skill` | `gobby skill add` | MCP+CLI | |
+| Update | `update_skill` | `gobby skill update` | MCP+CLI | Supports name, instructions, trigger, tags |
+| Apply/Use | `apply_skill` | `gobby skill apply` | MCP+CLI | Returns instructions, increments usage |
+| Export to files | `export_skills` | `gobby skill export` | MCP+CLI | Exports to .claude/skills/ as markdown |
+
+#### Checklist
+
+**Done:**
+- [x] Add `gobby memory` command group
+- [x] Add `gobby skill` command group
+- [x] Add `remember` MCP tool + CLI command
+- [x] Add `recall` MCP tool + CLI command
+- [x] Add `forget` MCP tool + CLI command
+- [x] Add `learn_skill` MCP tool + `skill learn` CLI command
+- [x] Add `list_skills` MCP tool + `skill list` CLI command
+- [x] Add `get_skill` MCP tool + `skill get` CLI command
+- [x] Add `delete_skill` MCP tool + `skill delete` CLI command
+- [x] ~~Add `match_skills` MCP tool (MCP-only, used by workflows)~~ **REMOVED** - Skills now use Claude Code plugin format
+
+- [x] Add `list_memories` MCP tool + `memory list` CLI command
+- [x] Add `get_memory` MCP tool + `memory show` CLI command
+- [x] Add `update_memory` MCP tool + `memory update` CLI command
+- [x] Add `memory_stats` MCP tool + `memory stats` CLI command
+- [x] Add `create_skill` MCP tool + `skill add` CLI command
+- [x] Add `update_skill` MCP tool + `skill update` CLI command
+- [x] Add `apply_skill` MCP tool + `skill apply` CLI command
+- [x] Add `export_skills` MCP tool + `skill export` CLI command
+- [x] Update MCP tool documentation in CLAUDE.md
+
+**TODO (blocked):**
+- [ ] Add `init_memory` MCP tool + `memory init` CLI command (blocked by Phase 9: MemoryExtractor)
 
 ### Phase 7: Git Sync
 
-- [ ] Create `src/sync/memories.py` with `MemorySyncManager` class
-- [ ] Implement JSONL serialization for memories
-- [ ] Implement markdown serialization for skills
-- [ ] Implement `export_to_jsonl()` method
-- [ ] Implement `import_from_jsonl()` method
-- [ ] Implement skill file read/write
-- [ ] Add stealth mode support
-- [ ] Add sync trigger after memory mutations
-- [ ] Add unit tests for sync functionality
+- [x] Create `src/sync/memories.py` with `MemorySyncManager` class
+- [x] Implement JSONL serialization for memories
+- [x] Implement markdown serialization for skills
+- [x] Implement `export_to_files()` method
+- [x] Implement `import_from_files()` method
+- [x] Implement skill file read/write
+- [x] Add stealth mode support
+- [x] Add debounced sync trigger after memory mutations
+- [x] Add unit tests for sync functionality
 
 ### Phase 8: Semantic Search (Enhancement)
 
@@ -579,6 +617,9 @@ This project uses pytest with specific configuration:
 - [ ] Add memory configuration options to `config.yaml`
 - [ ] Performance testing with 1000+ memories
 - [ ] Document cross-CLI memory sharing
+- [ ] Implement access tracking in `MemoryManager._update_access_stats()`
+      - **Gating:** Implement after semantic search (Phase 8) to batch with embedding updates
+      - **Scope:** Update `access_count` and `last_accessed_at` on recall; consider debouncing for perf
 
 ## Configuration
 
@@ -596,9 +637,8 @@ memory:
 
 skills:
   enabled: true
-  auto_suggest: true              # Suggest skills matching prompts
-  max_suggestions: 3              # Max skills to suggest
   learning_model: claude-haiku-4-5
+  # Skills are exported to .claude/skills/<name>/ in Claude Code native format
 
 memory_sync:
   enabled: true
@@ -628,19 +668,17 @@ actions:
 ### Skill-Based Workflows
 
 ```yaml
-# Workflow that uses skills
-name: skill-assisted-development
+# Workflow that learns skills from sessions
+name: skill-learning
 triggers:
-  - event: session_start
-    actions:
-      - type: match_skills
-        inject: true
-
   - event: session_end
     actions:
-      - type: suggest_skill_learning
-        if: session.tool_count > 10
+      - type: skills_learn
+        # Skills are automatically available via Claude Code plugin format
+        # after export to .claude/skills/<name>/
 ```
+
+**Note:** Skills no longer need runtime injection via workflows. Once exported to `.claude/skills/<name>/`, they are automatically available to Claude Code as project skills.
 
 ## Decisions
 
@@ -651,6 +689,7 @@ triggers:
 | 3 | **Injection timing** | Session start hook | Early injection ensures LLM has context from the beginning |
 | 4 | **Decay model** | Time-based with access boost | Unused memories fade, frequently accessed ones stay important |
 | 5 | **Embedding storage** | SQLite BLOB | Simple, no external dependencies |
+| 6 | **Skill delivery** | Claude Code native format | Skills exported to `.claude/skills/<name>/` are automatically available to Claude Code without runtime injection. Removed `match_skills` method/tool and `auto_suggest`/`max_suggestions` config. Memories still use runtime injection via `<project-memory>` tags. |
 
 ## Future Enhancements
 

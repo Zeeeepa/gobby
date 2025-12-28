@@ -24,12 +24,15 @@ class ActionContext:
     transcript_processor: Any | None = None
     config: Any | None = None
     mcp_manager: Any | None = None
+    memory_manager: Any | None = None
+    skill_learner: Any | None = None
+    memory_sync_manager: Any | None = None
 
 
 class ActionHandler(Protocol):
     """Protocol for action handlers."""
 
-    async def __call__(self, context: ActionContext, **kwargs) -> dict[str, Any] | None: ...
+    async def __call__(self, context: ActionContext, **kwargs: Any) -> dict[str, Any] | None: ...
 
 
 class ActionExecutor:
@@ -44,6 +47,9 @@ class ActionExecutor:
         transcript_processor: Any | None = None,
         config: Any | None = None,
         mcp_manager: Any | None = None,
+        memory_manager: Any | None = None,
+        skill_learner: Any | None = None,
+        memory_sync_manager: Any | None = None,
     ):
         self.db = db
         self.session_manager = session_manager
@@ -52,6 +58,9 @@ class ActionExecutor:
         self.transcript_processor = transcript_processor
         self.config = config
         self.mcp_manager = mcp_manager
+        self.memory_manager = memory_manager
+        self.skill_learner = skill_learner
+        self.memory_sync_manager = memory_sync_manager
         self._handlers: dict[str, ActionHandler] = {}
         self._register_defaults()
 
@@ -66,7 +75,6 @@ class ActionExecutor:
         self.register("capture_artifact", self._handle_capture_artifact)
         self.register("generate_handoff", self._handle_generate_handoff)
         self.register("generate_summary", self._handle_generate_summary)
-        self.register("find_parent_session", self._handle_find_parent_session)
         self.register("restore_context", self._handle_restore_context)
         self.register("mark_session_status", self._handle_mark_session_status)
         self.register("switch_mode", self._handle_switch_mode)
@@ -81,9 +89,13 @@ class ActionExecutor:
         self.register("mark_todo_complete", self._handle_mark_todo_complete)
         self.register("persist_tasks", self._handle_persist_tasks)
         self.register("call_mcp_tool", self._handle_call_mcp_tool)
+        self.register("memory_inject", self._handle_memory_inject)
+        self.register("skills_learn", self._handle_skills_learn)
+        self.register("memory.sync_import", self._handle_memory_sync_import)
+        self.register("memory.sync_export", self._handle_memory_sync_export)
 
     async def execute(
-        self, action_type: str, context: ActionContext, **kwargs
+        self, action_type: str, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Execute an action."""
         handler = self._handlers.get(action_type)
@@ -100,7 +112,7 @@ class ActionExecutor:
     # --- Action Implementations ---
 
     async def _handle_inject_context(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Inject context from a source.
@@ -156,7 +168,7 @@ class ActionExecutor:
             # Render content if template is used
             template = kwargs.get("template")
             if template:
-                render_context = {
+                render_context: dict[str, Any] = {
                     "session": context.session_manager.get(context.session_id),
                     "state": context.state,
                     "artifacts": context.state.artifacts,
@@ -185,7 +197,7 @@ class ActionExecutor:
         return None
 
     async def _handle_inject_message(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Inject a message to the user/assistant, rendering it as a template.
@@ -216,7 +228,7 @@ class ActionExecutor:
         return {"inject_message": rendered_content}
 
     async def _handle_capture_artifact(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Capture an artifact (file) and store its path/content in state.
@@ -255,7 +267,7 @@ class ActionExecutor:
         return {"captured": filepath}
 
     async def _handle_read_artifact(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Read an artifact's content into a workflow variable.
@@ -300,7 +312,7 @@ class ActionExecutor:
             return None
 
     async def _handle_load_workflow_state(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Load workflow state from DB."""
         from .state_manager import WorkflowStateManager
@@ -315,7 +327,7 @@ class ActionExecutor:
 
             # For now, let's update attributes manualy or via __dict__?
             # Safe way:
-            for field in loaded_state.__dataclass_fields__:
+            for field in loaded_state.model_fields:
                 val = getattr(loaded_state, field)
                 setattr(context.state, field, val)
 
@@ -324,7 +336,7 @@ class ActionExecutor:
         return {"state_loaded": False}
 
     async def _handle_save_workflow_state(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Save workflow state to DB."""
         from .state_manager import WorkflowStateManager
@@ -333,7 +345,9 @@ class ActionExecutor:
         state_manager.save_state(context.state)
         return {"state_saved": True}
 
-    async def _handle_set_variable(self, context: ActionContext, **kwargs) -> dict[str, Any] | None:
+    async def _handle_set_variable(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
         """Set a workflow variable."""
         name = kwargs.get("name")
         value = kwargs.get("value")
@@ -347,7 +361,7 @@ class ActionExecutor:
         return {"variable_set": name, "value": value}
 
     async def _handle_increment_variable(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Increment a numeric workflow variable."""
         name = kwargs.get("name")
@@ -367,7 +381,9 @@ class ActionExecutor:
         context.state.variables[name] = new_value
         return {"variable_incremented": name, "value": new_value}
 
-    async def _handle_call_llm(self, context: ActionContext, **kwargs) -> dict[str, Any] | None:
+    async def _handle_call_llm(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
         """Call LLM with a prompt template and store result in variable."""
         prompt = kwargs.get("prompt")
         output_as = kwargs.get("output_as")
@@ -415,7 +431,7 @@ class ActionExecutor:
             return {"error": str(e)}
 
     async def _handle_synthesize_title(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Synthesize and set a session title."""
         if not context.llm_service or not context.transcript_processor:
@@ -470,7 +486,9 @@ class ActionExecutor:
             logger.error(f"synthesize_title: Failed: {e}")
             return {"error": str(e)}
 
-    async def _handle_write_todos(self, context: ActionContext, **kwargs) -> dict[str, Any] | None:
+    async def _handle_write_todos(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
         """Write todos to a file (default TODO.md)."""
         todos = kwargs.get("todos", [])
         import os
@@ -499,7 +517,7 @@ class ActionExecutor:
             return {"error": str(e)}
 
     async def _handle_mark_todo_complete(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Mark a todo as complete in TODO.md."""
         todo_text = kwargs.get("todo_text")
@@ -534,8 +552,30 @@ class ActionExecutor:
             logger.error(f"mark_todo_complete: Failed: {e}")
             return {"error": str(e)}
 
+    async def _handle_memory_sync_import(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Import memories from filesystem."""
+        if not context.memory_sync_manager:
+            return {"error": "Memory Sync Manager not available"}
+
+        count = await context.memory_sync_manager.import_from_files()
+        logger.info(f"Memory sync import: {count} memories imported")
+        return {"imported": {"memories": count}}
+
+    async def _handle_memory_sync_export(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Export memories to filesystem."""
+        if not context.memory_sync_manager:
+            return {"error": "Memory Sync Manager not available"}
+
+        count = await context.memory_sync_manager.export_to_files()
+        logger.info(f"Memory sync export: {count} memories exported")
+        return {"exported": {"memories": count}}
+
     async def _handle_persist_tasks(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Persist a list of task dicts to Gobby task system."""
         tasks = kwargs.get("tasks", [])
@@ -577,7 +617,7 @@ class ActionExecutor:
     async def _handle_call_mcp_tool(
         self,
         context: ActionContext,
-        **kwargs,
+        **kwargs: Any,
     ) -> dict[str, Any] | None:
         """Call an MCP tool on a connected server.
 
@@ -618,7 +658,7 @@ class ActionExecutor:
             return {"error": str(e)}
 
     async def _handle_generate_handoff(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Generate a handoff record by summarizing the session and saving to sessions.summary_markdown.
@@ -638,7 +678,7 @@ class ActionExecutor:
         return {"handoff_created": True, "summary_length": summary_result.get("summary_length", 0)}
 
     async def _handle_generate_summary(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Generate a session summary using LLM and store it in the session record.
@@ -731,44 +771,8 @@ class ActionExecutor:
         logger.info(f"Generated summary for session {context.session_id}")
         return {"summary_generated": True, "summary_length": len(summary_content)}
 
-    async def _handle_find_parent_session(
-        self, context: ActionContext, **kwargs
-    ) -> dict[str, Any] | None:
-        """
-        Find and link a parent session for handoff.
-        """
-        logger.info(f"find_parent_session: Looking for parent for session {context.session_id}")
-        current_session = context.session_manager.get(context.session_id)
-        if not current_session:
-            logger.warning(f"find_parent_session: Current session {context.session_id} not found")
-            return {"parent_session_found": False}
-
-        logger.info(
-            f"find_parent_session: machine_id={current_session.machine_id}, project_id={current_session.project_id}"
-        )
-
-        # Logic matches SessionManager.find_parent_session but uses storage directly
-        parent = context.session_manager.find_parent(
-            machine_id=current_session.machine_id,
-            project_id=current_session.project_id,
-            status="handoff_ready",
-        )
-
-        if parent:
-            logger.info(f"find_parent_session: Found parent {parent.id}, linking...")
-            # Link it
-            context.session_manager.update_parent_session_id(context.session_id, parent.id)
-            logger.info(f"find_parent_session: Linked {context.session_id} -> {parent.id}")
-            return {
-                "parent_session_found": True,
-                "parent_session_id": parent.id,
-            }
-
-        logger.warning("find_parent_session: No parent found with status=handoff_ready")
-        return {"parent_session_found": False}
-
     async def _handle_restore_context(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Restore context from linked parent session.
@@ -795,8 +799,103 @@ class ActionExecutor:
 
         return {"inject_context": content}
 
+    async def _handle_memory_inject(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """
+        Inject memory context into the session.
+
+        Skills are no longer injected here - they are provided via the
+        Claude Code native format (.claude/skills/<name>/).
+        """
+        if not context.memory_manager:
+            return None  # Memory system disabled or not initialized
+
+        # Check config enabled
+        if not context.memory_manager.config.enabled:
+            return None
+
+        project_id = kwargs.get("project_id")
+        if not project_id:
+            # Try to resolve from session
+            session = context.session_manager.get(context.session_id)
+            if session:
+                project_id = session.project_id
+
+        if not project_id:
+            logger.warning("memory_inject: No project_id found")
+            return None
+
+        from gobby.memory.context import build_memory_context
+
+        try:
+            # Recall Project Memories
+            min_importance = kwargs.get("min_importance", 0.5)
+            project_memories = context.memory_manager.recall(
+                project_id=project_id, min_importance=min_importance
+            )
+
+            if not project_memories:
+                return {"injected": False, "reason": "No memories found"}
+
+            memory_context = build_memory_context(project_memories)
+
+            if not memory_context:
+                return {"injected": False}
+
+            # Return as 'inject_context' trigger
+            return {"inject_context": memory_context}
+
+        except Exception as e:
+            logger.error(f"memory_inject: Failed: {e}", exc_info=True)
+            return {"error": str(e)}
+
+    async def _handle_skills_learn(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """
+        Trigger skill learning from session.
+        """
+        if not context.skill_learner:
+            return None
+
+        # Safe config check
+        config = getattr(context.skill_learner, "config", None)
+        if not config or not getattr(config, "enabled", False):
+            return None
+
+        # Fire and forget?
+        # The hook workflow is usually awaited.
+        # Skill learning might be slow (LLM call).
+        # We should probably run it in background or allow it to take time if it's session-end.
+        # But for session-end, we want it to finish before daemon shutdown if possible?
+        # Actually session-end hook usually just waits for response decision.
+
+        # Let's await it. The user sees "Gobby is thinking..." effectively.
+
+        session = context.session_manager.get(context.session_id)
+        if not session:
+            return {"error": "Session not found"}
+
+        try:
+            # We can't await if we want fire-and-forget.
+            # But if we want to ensure it runs, we should await.
+            # Given this is "Action", it implies synchronous execution in workflow steps.
+            # If user wants async, we might need a specific "async: true" flag in workflow engine,
+            # but here we just implement the logic.
+
+            # Optimized: check if we should even try (e.g. min turns)
+            # SkillLearner.learn_from_session handles checks.
+
+            new_skills = await context.skill_learner.learn_from_session(session)
+
+            return {"skills_learned": len(new_skills), "skill_names": [s.name for s in new_skills]}
+        except Exception as e:
+            logger.error(f"skills_learn: Failed: {e}", exc_info=True)
+            return {"error": str(e)}
+
     async def _handle_mark_session_status(
-        self, context: ActionContext, **kwargs
+        self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """
         Mark a session status (current or parent).
@@ -817,7 +916,9 @@ class ActionExecutor:
         context.session_manager.update_status(session_id, status)
         return {"status_updated": True, "session_id": session_id, "status": status}
 
-    async def _handle_switch_mode(self, context: ActionContext, **kwargs) -> dict[str, Any] | None:
+    async def _handle_switch_mode(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
         """
         Signal the agent to switch modes (e.g., PLAN, ACT).
         """

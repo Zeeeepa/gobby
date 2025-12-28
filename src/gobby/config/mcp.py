@@ -148,8 +148,10 @@ class MCPConfigManager:
                     continue
 
                 # Create MCPServerConfig with defaults for optional fields
+                # File-based configs use "global" as project_id since they're system-wide
                 server_config = MCPServerConfig(
                     name=server_dict["name"],
+                    project_id=server_dict.get("project_id", "global"),
                     enabled=server_dict.get("enabled", True),
                     transport=server_dict.get("transport", "http"),
                     url=server_dict.get("url"),

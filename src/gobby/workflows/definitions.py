@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # --- Workflow Definition Models (YAML) ---
 
@@ -22,8 +22,7 @@ class WorkflowExitCondition(BaseModel):
     type: str
 
     # Other fields depend on type (e.g. pattern, prompt, variable)
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class WorkflowPhase(BaseModel):

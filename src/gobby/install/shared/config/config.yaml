@@ -17,8 +17,12 @@ logging:
   backup_count: 5
 mcp_client_proxy:
   enabled: true
+  connect_timeout: 30.0
   proxy_timeout: 30
   tool_timeout: 30
+gobby-tasks:
+  enabled: true
+  show_result_on_create: false
 llm_providers:
   claude:
     models: claude-haiku-4-5,claude-sonnet-4-5,claude-opus-4-5
@@ -298,7 +302,31 @@ message_tracking:
   max_message_length: 10000
   broadcast_enabled: true
 session_lifecycle:
+  active_session_pause_minutes: 30
   stale_session_timeout_hours: 24
   expire_check_interval_minutes: 60
   transcript_processing_interval_minutes: 5
   transcript_processing_batch_size: 10
+skills:
+  enabled: true
+  learning_model: claude-haiku-4-5
+  prompt: |
+    You are an expert at extracting reusable developer skills from transcripts.
+    Respond with ONLY valid JSON - no markdown, no explanations, no code blocks.
+
+    Analyze the following session transcript and extract any reusable skills.
+    A "skill" is a repeatable process or pattern that can be used in future sessions.
+
+    Transcript:
+    {transcript}
+
+    Return a JSON array directly:
+    [
+      {{
+        "name": "short-kebab-case-name",
+        "description": "Brief description of what the skill does",
+        "trigger_pattern": "regex|pattern|to|match",
+        "instructions": "Markdown instructions on how to perform the skill",
+        "tags": ["tag1", "tag2"]
+      }}
+    ]

@@ -12,7 +12,7 @@ These tools are registered with the InternalToolRegistry and accessed
 via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 """
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.session_tasks import SessionTaskManager
@@ -27,12 +27,16 @@ from gobby.tasks.validation import TaskValidator
 from gobby.utils.project_context import get_project_context
 from gobby.utils.project_init import initialize_project
 
+if TYPE_CHECKING:
+    from gobby.config.app import DaemonConfig
+
 
 def create_task_registry(
     task_manager: LocalTaskManager,
     sync_manager: TaskSyncManager,
     task_expander: TaskExpander | None = None,
     task_validator: TaskValidator | None = None,
+    config: "DaemonConfig | None" = None,
 ) -> InternalToolRegistry:
     """
     Create a task tool registry with all task-related tools.
@@ -42,10 +46,15 @@ def create_task_registry(
         sync_manager: TaskSyncManager instance
         task_expander: TaskExpander instance (optional)
         task_validator: TaskValidator instance (optional)
+        config: DaemonConfig instance (optional)
 
     Returns:
         InternalToolRegistry with all task tools registered
     """
+    # Get show_result_on_create setting from config
+    show_result_on_create = False
+    if config is not None:
+        show_result_on_create = config.get_gobby_tasks_config().show_result_on_create
     registry = InternalToolRegistry(
         name="gobby-tasks",
         description="Task management - CRUD, dependencies, sync",
@@ -179,8 +188,10 @@ def create_task_registry(
             for blocked_id in blocks:
                 dep_manager.add_dependency(task.id, blocked_id, "blocks")
 
-        result: dict[str, Any] = task.to_dict()
-        return result
+        # Return minimal or full result based on config
+        if show_result_on_create:
+            return task.to_dict()
+        return {"id": task.id}
 
     registry.register(
         name="create_task",
@@ -390,7 +401,7 @@ def create_task_registry(
         success = task_manager.delete_task(task_id, cascade=cascade)
         if not success:
             return {"error": f"Task {task_id} not found"}
-        return {"success": True, "message": f"Task {task_id} deleted"}
+        return {"deleted": True, "task_id": task_id}
 
     registry.register(
         name="delete_task",
@@ -490,7 +501,7 @@ def create_task_registry(
         """Add a dependency between tasks."""
         try:
             dep_manager.add_dependency(task_id, depends_on, dep_type)
-            return {"success": True, "message": f"Task {task_id} {dep_type} by {depends_on}"}
+            return {"added": True, "task_id": task_id, "depends_on": depends_on, "dep_type": dep_type}
         except ValueError as e:
             return {"error": str(e)}
 
@@ -516,7 +527,7 @@ def create_task_registry(
     def remove_dependency(task_id: str, depends_on: str) -> dict[str, Any]:
         """Remove a dependency."""
         dep_manager.remove_dependency(task_id, depends_on)
-        return {"success": True, "message": "Dependency removed"}
+        return {"removed": True, "task_id": task_id, "depends_on": depends_on}
 
     registry.register(
         name="remove_dependency",
@@ -643,7 +654,7 @@ def create_task_registry(
 
         try:
             session_task_manager.link_task(session_id, task_id, action)
-            return {"success": True, "message": f"Task {task_id} linked to session {session_id}"}
+            return {"linked": True, "task_id": task_id, "session_id": session_id, "action": action}
         except ValueError as e:
             return {"error": str(e)}
 

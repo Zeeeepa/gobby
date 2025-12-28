@@ -8,13 +8,15 @@ Tracks file offsets and updates the database with new messages.
 import asyncio
 import logging
 import os
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from gobby.servers.websocket import WebSocketServer
 
-from gobby.servers.websocket import WebSocketServer
 from gobby.sessions.transcripts import get_parser
 from gobby.sessions.transcripts.base import TranscriptParser
 from gobby.storage.database import LocalDatabase
-from gobby.storage.messages import LocalMessageManager
+from gobby.storage.session_messages import LocalSessionMessageManager
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +35,12 @@ class SessionMessageProcessor:
         self,
         db: LocalDatabase,
         poll_interval: float = 2.0,
-        websocket_server: WebSocketServer | None = None,
+        websocket_server: "WebSocketServer | None" = None,
     ):
         self.db = db
-        self.message_manager = LocalMessageManager(db)
+        self.message_manager = LocalSessionMessageManager(db)
         self.poll_interval = poll_interval
-        self.websocket_server = websocket_server
+        self.websocket_server: "WebSocketServer | None" = websocket_server
 
         # Track active sessions: session_id -> transcript_path
         self._active_sessions: dict[str, str] = {}
@@ -149,7 +151,7 @@ class SessionMessageProcessor:
         try:
             # Note: synchronous file I/O for simplicity; could use aiofiles if blocking is an issue
             # but reading incremental logs is usually fast.
-            with open(transcript_path, "r", encoding="utf-8") as f:
+            with open(transcript_path, encoding="utf-8") as f:
                 # Seek to last known position
                 f.seek(last_offset)
 

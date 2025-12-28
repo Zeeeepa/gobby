@@ -35,13 +35,17 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
+from gobby.memory.manager import MemoryManager
+from gobby.memory.skills import SkillLearner
 from gobby.sessions.manager import SessionManager
 from gobby.sessions.summary import SummaryFileGenerator
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.storage.database import LocalDatabase
-from gobby.storage.migrations import run_migrations
+from gobby.storage.memories import LocalMemoryManager
+from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.sessions import LocalSessionManager
+from gobby.storage.skills import LocalSkillManager
 from gobby.utils.daemon_client import DaemonClient
 from gobby.workflows.engine import WorkflowEngine
 from gobby.workflows.hooks import WorkflowHookHandler
@@ -83,6 +87,7 @@ class HookManager:
         broadcaster: Any | None = None,
         mcp_manager: Any | None = None,
         message_processor: Any | None = None,
+        memory_sync_manager: Any | None = None,
     ):
         """
         Initialize HookManager with subsystems.
@@ -98,6 +103,7 @@ class HookManager:
             broadcaster: Optional HookEventBroadcaster instance
             mcp_manager: Optional MCPClientManager instance
             message_processor: SessionMessageProcessor instance
+            memory_sync_manager: Optional MemorySyncManager instance
         """
         self.daemon_host = daemon_host
         self.daemon_port = daemon_port
@@ -108,6 +114,7 @@ class HookManager:
         self.broadcaster = broadcaster
         self.mcp_manager = mcp_manager
         self._message_processor = message_processor
+        self.memory_sync_manager = memory_sync_manager
 
         # Capture event loop for thread-safe broadcasting (if running in async context)
         self._loop: asyncio.AbstractEventLoop | None
@@ -142,6 +149,9 @@ class HookManager:
         else:
             health_check_interval = 10.0
 
+        # Initialize Database
+        self._database = LocalDatabase()
+
         # Create session-agnostic subsystems (shared across all sessions)
         self._daemon_client = DaemonClient(
             host=daemon_host,
@@ -152,12 +162,45 @@ class HookManager:
         self._transcript_processor = TranscriptProcessor(logger_instance=self.logger)
 
         # Create local storage for sessions
-        self._database = LocalDatabase()
-        run_migrations(self._database)
         self._session_storage = LocalSessionManager(self._database)
         self._session_task_manager = SessionTaskManager(self._database)
 
-        # Initialize Workflow Engine (Phase 0-2 + 3 Integration)
+        # Initialize Memory & Skills (Phase 4)
+        self._memory_storage = LocalMemoryManager(self._database)
+        self._skill_storage = LocalSkillManager(self._database)
+        self._message_manager = LocalSessionMessageManager(self._database)
+
+        # Use config or defaults
+        memory_config = (
+            self._config.memory if self._config and hasattr(self._config, "memory") else None
+        )
+        skill_config = (
+            self._config.skills if self._config and hasattr(self._config, "skills") else None
+        )
+
+        if not memory_config:
+            from gobby.config.app import MemoryConfig
+
+            memory_config = MemoryConfig()
+        if not skill_config:
+            from gobby.config.app import SkillConfig
+
+            skill_config = SkillConfig()
+
+        self._memory_manager = MemoryManager(self._database, memory_config)
+
+        # SkillLearner needs LLM service. If not provided, it might fail or we skip.
+        # But llm_service is passed to HookManager.
+        if self._llm_service:
+            self._skill_learner: SkillLearner | None = SkillLearner(
+                storage=self._skill_storage,
+                message_manager=self._message_manager,
+                llm_service=self._llm_service,
+                config=skill_config,
+            )
+        else:
+            self._skill_learner = None
+
         # Initialize Workflow Engine (Phase 0-2 + 3 Integration)
         from gobby.workflows.actions import ActionExecutor
         from gobby.workflows.templates import TemplateEngine
@@ -165,7 +208,11 @@ class HookManager:
         # Workflow loader now handles project-specific paths dynamically via project_path parameter
         # Global workflows are loaded from ~/.gobby/workflows/
         # Project-specific workflows are loaded from {project_path}/.gobby/workflows/
-        self._workflow_loader = WorkflowLoader()
+        # Include built-in templates
+        builtin_workflows = Path(__file__).parent.parent / "templates" / "workflows"
+        self._workflow_loader = WorkflowLoader(
+            workflow_dirs=[Path.home() / ".gobby" / "workflows", builtin_workflows]
+        )
         self._workflow_state_manager = WorkflowStateManager(self._database)
 
         # Initialize Template Engine
@@ -185,6 +232,9 @@ class HookManager:
             transcript_processor=self._transcript_processor,
             config=self._config,
             mcp_manager=self.mcp_manager,
+            memory_manager=self._memory_manager,
+            skill_learner=self._skill_learner,
+            memory_sync_manager=self.memory_sync_manager,
         )
         self._workflow_engine = WorkflowEngine(
             loader=self._workflow_loader,
@@ -267,6 +317,9 @@ class HookManager:
         # Start background health check monitoring
         self._start_health_check_monitoring()
 
+        # Re-register active sessions with message processor (after daemon restart)
+        self._reregister_active_sessions()
+
         self.logger.debug("HookManager initialized")
 
     def _setup_logging(self) -> logging.Logger:
@@ -305,6 +358,42 @@ class HookManager:
         logger.addHandler(file_handler)
 
         return logger
+
+    def _reregister_active_sessions(self) -> None:
+        """
+        Re-register active sessions with the message processor.
+
+        Called during HookManager initialization to restore message processing
+        for sessions that were active before a daemon restart.
+        """
+        if not self._message_processor:
+            return
+
+        try:
+            # Query active sessions from storage
+            active_sessions = self._session_storage.list(status="active", limit=100)
+            registered_count = 0
+
+            for session in active_sessions:
+                jsonl_path = getattr(session, "jsonl_path", None)
+                if jsonl_path:
+                    try:
+                        # Determine source from session (default to claude)
+                        source = getattr(session, "source", "claude") or "claude"
+                        self._message_processor.register_session(
+                            session.id, jsonl_path, source=source
+                        )
+                        registered_count += 1
+                    except Exception as e:
+                        self.logger.warning(f"Failed to re-register session {session.id}: {e}")
+
+            if registered_count > 0:
+                self.logger.info(
+                    f"Re-registered {registered_count} active sessions with message processor"
+                )
+
+        except Exception as e:
+            self.logger.warning(f"Failed to re-register active sessions: {e}")
 
     def _start_health_check_monitoring(self) -> None:
         """Start background daemon health check monitoring."""
@@ -511,7 +600,7 @@ class HookManager:
                     else:
                         self.logger.debug("No event loop available for broadcasting")
 
-            return response
+            return cast(HookResponse, response)
         except Exception as e:
             self.logger.error(f"Event handler {event.event_type} failed: {e}", exc_info=True)
             # Fail-open on handler errors
@@ -555,8 +644,8 @@ class HookManager:
         """Get unique machine identifier."""
         from gobby.utils.machine_id import get_machine_id as _get_machine_id
 
-        result: str = _get_machine_id()
-        return result
+        result = _get_machine_id()
+        return result or "unknown-machine"
 
     def _resolve_project_id(self, project_id: str | None, cwd: str | None) -> str:
         """
@@ -591,7 +680,7 @@ class HookManager:
 
         result = initialize_project(cwd=working_dir)
         self.logger.info(f"Auto-initialized project '{result.project_name}' in {working_dir}")
-        return cast(str, result.project_id)
+        return result.project_id
 
     # ==================== EVENT HANDLERS ====================
     # These handlers work with unified HookEvent and return HookResponse.
@@ -600,12 +689,21 @@ class HookManager:
         """
         Handle SESSION_START event.
         Register session and execute session-handoff workflow.
+
+        Claude Code `source` field values:
+        - "startup": Normal launch (new session)
+        - "resume": From /resume command (continuing same session)
+        - "clear": From /clear command (new session after handoff)
+        - "compact": From auto/manual compact (same session)
         """
         external_id = event.session_id
         input_data = event.data
         transcript_path = input_data.get("transcript_path")
         cli_source = event.source.value
         cwd = input_data.get("cwd")
+
+        # Get session source for workflow trigger conditions
+        session_source = input_data.get("source", "startup")
 
         # Resolve project_id (auto-creates if needed)
         project_id = self._resolve_project_id(input_data.get("project_id"), cwd)
@@ -614,22 +712,45 @@ class HookManager:
         machine_id = event.machine_id or self.get_machine_id()
 
         self.logger.debug(
-            f"🟢 Session start: cli={cli_source}, project={project_id}, source={input_data.get('source')}"
+            f"🟢 Session start: cli={cli_source}, project={project_id}, source={session_source}"
         )
 
-        # Step 1: Register new session (no parent initially)
-        # The workflow will handle finding and linking parent via 'find_parent_session' action
+        # Step 1: Find parent session if this is a handoff (source='clear')
+        parent_session_id = None
+        if session_source == "clear":
+            try:
+                parent = self._session_storage.find_parent(
+                    machine_id=machine_id,
+                    project_id=project_id,
+                    source=cli_source,
+                    status="handoff_ready",
+                )
+                if parent:
+                    parent_session_id = parent.id
+                    self.logger.debug(f"Found parent session: {parent_session_id}")
+            except Exception as e:
+                self.logger.warning(f"Error finding parent session, continuing without parent: {e}")
+
+        # Step 2: Register new session with parent if found
         session_id = self._session_manager.register_session(
             external_id=external_id,
             machine_id=machine_id,
             project_id=project_id,
-            parent_session_id=None,
+            parent_session_id=parent_session_id,
             jsonl_path=transcript_path,
             source=cli_source,
             project_path=cwd,
         )
 
-        # Step 2: Track registered session
+        # Step 2b: Mark parent session as expired after successful handoff
+        if parent_session_id:
+            try:
+                self._session_manager.mark_session_expired(parent_session_id)
+                self.logger.debug(f"Marked parent session {parent_session_id} as expired")
+            except Exception as e:
+                self.logger.warning(f"Failed to mark parent session as expired: {e}")
+
+        # Step 3: Track registered session
         if transcript_path:
             try:
                 with self._registered_sessions_lock:
@@ -637,11 +758,11 @@ class HookManager:
             except Exception as e:
                 self.logger.error(f"Failed to setup session tracking: {e}", exc_info=True)
 
-        # Step 3: Update event metadata with the newly registered session_id
+        # Step 4: Update event metadata with the newly registered session_id
         # This is required so the workflow engine can access the session correctly
         event.metadata["_platform_session_id"] = session_id
 
-        # Step 3.5: Register with Message Processor
+        # Step 5: Register with Message Processor
         if self._message_processor and transcript_path:
             try:
                 self._message_processor.register_session(
@@ -650,34 +771,27 @@ class HookManager:
             except Exception as e:
                 self.logger.warning(f"Failed to register session with message processor: {e}")
 
-        # Step 4: Execute lifecycle workflows (discovers all workflows, evaluates triggers)
-        # This handles: find_parent_session, restore_context, mark_session_status, etc.
+        # Step 6: Execute lifecycle workflows (discovers all workflows, evaluates triggers)
+        # This handles: inject_context, restore_context, mark_session_status, etc.
         wf_response = self._workflow_handler.handle_all_lifecycles(event)
 
-        # Step 5: Build response with context and system message
+        # Step 7: Build response with context and system message
         context_parts = []
         context_parts.append(f"Session registered: {session_id}")
-        system_message = None
 
-        # Reload session to check if workflow linked a parent
-        current_session = self._session_storage.get(session_id)
-        if current_session and current_session.parent_session_id:
-            context_parts.append(f"Parent session: {current_session.parent_session_id}")
-            context_parts.append("Handoff completed successfully.")
+        # Include any workflow context
+        if wf_response.context:
+            context_parts.append(wf_response.context)
 
-            if wf_response.context:
-                context_parts.append(wf_response.context)
+        if parent_session_id:
+            context_parts.append(f"Parent session: {parent_session_id}")
 
-            system_message = (
-                f"⏺ Context restored from previous session.\n"
-                f"  Session ID: {session_id}\n"
-                f"  Parent ID: {current_session.parent_session_id}\n"
-                f"  Project: {project_id}"
-            )
-        else:
-            # Include any workflow context even if no parent linked (e.g. greeting)
-            if wf_response.context:
-                context_parts.append(wf_response.context)
+        # Always include session metadata, then append workflow content if present
+        system_message = f"Session ID: {session_id}\nProject ID: {project_id}"
+        if parent_session_id:
+            system_message += f"\nParent ID: {parent_session_id}"
+        if wf_response.system_message:
+            system_message += f"\n\n{wf_response.system_message}"
 
         # Inject active task context if available
         if event.task_id:

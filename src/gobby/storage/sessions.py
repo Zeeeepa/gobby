@@ -34,7 +34,7 @@ class Session:
     updated_at: str
 
     @classmethod
-    def from_row(cls, row: Any) -> "Session":
+    def from_row(cls, row: Any) -> Session:
         """Create Session from database row."""
         return cls(
             id=row["id"],
@@ -313,13 +313,41 @@ class LocalSessionManager:
             UPDATE sessions
             SET status = 'expired', updated_at = ?
             WHERE status IN ('active', 'paused', 'handoff_ready')
-            AND updated_at < datetime('now', ? || ' hours')
+            AND datetime(updated_at) < datetime('now', 'utc', ? || ' hours')
             """,
             (now, f"-{timeout_hours}"),
         )
         count = cursor.rowcount or 0
         if count > 0:
             logger.info(f"Expired {count} stale sessions (>{timeout_hours}h inactive)")
+        return count
+
+    def pause_inactive_active_sessions(self, timeout_minutes: int = 30) -> int:
+        """
+        Mark active sessions as paused if they've been inactive for too long.
+
+        This catches orphaned sessions that never received an AFTER_AGENT hook
+        (e.g., Claude Code crashed mid-response).
+
+        Args:
+            timeout_minutes: Minutes of inactivity before pausing
+
+        Returns:
+            Number of sessions paused
+        """
+        now = datetime.now(UTC).isoformat()
+        cursor = self.db.execute(
+            """
+            UPDATE sessions
+            SET status = 'paused', updated_at = ?
+            WHERE status = 'active'
+            AND datetime(updated_at) < datetime('now', 'utc', ? || ' minutes')
+            """,
+            (now, f"-{timeout_minutes}"),
+        )
+        count = cursor.rowcount or 0
+        if count > 0:
+            logger.info(f"Paused {count} inactive active sessions (>{timeout_minutes}m)")
         return count
 
     def get_pending_transcript_sessions(self, limit: int = 10) -> builtins.list[Session]:

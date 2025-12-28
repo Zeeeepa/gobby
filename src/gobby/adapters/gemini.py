@@ -22,7 +22,7 @@ Key differences from Claude Code:
 
 import platform
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from gobby.adapters.base import BaseAdapter
@@ -183,9 +183,9 @@ class GeminiAdapter(BaseAdapter):
             try:
                 timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
             except (ValueError, AttributeError):
-                timestamp = datetime.now()
+                timestamp = datetime.now(UTC)
         else:
-            timestamp = datetime.now()
+            timestamp = datetime.now(UTC)
 
         # Get machine_id (Gemini might not send it)
         machine_id = input_data.get("machine_id") or self._get_machine_id()

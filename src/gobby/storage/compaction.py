@@ -56,8 +56,8 @@ class TaskCompactor:
         sql_total = "SELECT COUNT(*) as c FROM tasks WHERE status = 'closed'"
         sql_compacted = "SELECT COUNT(*) as c FROM tasks WHERE compacted_at IS NOT NULL"
 
-        total = self.task_manager.db.fetchone(sql_total)["c"]
-        compacted = self.task_manager.db.fetchone(sql_compacted)["c"]
+        total = (self.task_manager.db.fetchone(sql_total) or {"c": 0})["c"]
+        compacted = (self.task_manager.db.fetchone(sql_compacted) or {"c": 0})["c"]
 
         return {
             "total_closed": total,

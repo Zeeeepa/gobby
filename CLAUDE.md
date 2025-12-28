@@ -156,6 +156,8 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title"
 **Available internal servers:**
 
 - `gobby-tasks` - Task CRUD, dependencies, ready work detection, git sync
+- `gobby-memory` - Memory CRUD, recall, forget, list, stats
+- `gobby-skills` - Skill CRUD, learning, matching, apply, export
 
 ## Task Management with gobby-tasks
 
@@ -174,6 +176,62 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title"
 ```
 
 If tools fail, check daemon status: `uv run gobby status`
+
+## Memory Management with gobby-memory
+
+Use the `gobby-memory` MCP tools for persistent memory across sessions:
+
+**Memory Tools:**
+
+| Tool | Description |
+|------|-------------|
+| `remember` | Store a new memory with content, type, importance, tags |
+| `recall` | Retrieve memories by query/filters with importance ranking |
+| `forget` | Delete a memory by ID |
+| `list_memories` | List all memories with filtering (type, importance, project) |
+| `get_memory` | Get full details of a specific memory |
+| `update_memory` | Update content, importance, or tags of a memory |
+| `memory_stats` | Get statistics (count by type, average importance) |
+
+```python
+# Example memory operations
+call_tool(server_name="gobby-memory", tool_name="remember", arguments={
+    "content": "This project uses pytest with conftest.py fixtures",
+    "memory_type": "fact",
+    "importance": 0.8
+})
+call_tool(server_name="gobby-memory", tool_name="recall", arguments={"query": "testing"})
+```
+
+**Memory Types:** `fact`, `preference`, `pattern`, `context`
+
+## Skill Management with gobby-skills
+
+Use the `gobby-skills` MCP tools for reusable instructions:
+
+**Skill Tools:**
+
+| Tool | Description |
+|------|-------------|
+| `learn_skill_from_session` | Extract skills from a completed session via LLM |
+| `list_skills` | List available skills with optional filtering |
+| `get_skill` | Get full skill details including instructions |
+| `delete_skill` | Delete a skill |
+| `match_skills` | Find skills matching a prompt (trigger pattern) |
+| `create_skill` | Create a skill directly with provided instructions |
+| `update_skill` | Update skill name, instructions, trigger, or tags |
+| `apply_skill` | Return skill instructions and mark as used |
+| `export_skills` | Export skills to .gobby/skills/ as markdown files |
+
+```python
+# Example skill operations
+call_tool(server_name="gobby-skills", tool_name="create_skill", arguments={
+    "name": "run-tests",
+    "instructions": "Run tests with: uv run pytest -v",
+    "trigger_pattern": "test|pytest"
+})
+call_tool(server_name="gobby-skills", tool_name="apply_skill", arguments={"skill_id": "sk-abc123"})
+```
 
 ## Testing
 

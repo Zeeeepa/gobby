@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import click
+
 from gobby.utils.project_init import initialize_project
 
 logger = logging.getLogger(__name__)

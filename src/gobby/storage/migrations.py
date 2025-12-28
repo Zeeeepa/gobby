@@ -374,6 +374,58 @@ MIGRATIONS: list[tuple[int, str, str]] = [
             WHERE status = 'expired' AND transcript_processed = FALSE;
         """,
     ),
+    (
+        17,
+        "Create memory system tables (memories, skills, session_memories)",
+        """
+        CREATE TABLE IF NOT EXISTS memories (
+            id TEXT PRIMARY KEY,
+            project_id TEXT REFERENCES projects(id),
+            memory_type TEXT NOT NULL,
+            content TEXT NOT NULL,
+            source_type TEXT,
+            source_session_id TEXT REFERENCES sessions(id),
+            importance REAL DEFAULT 0.5,
+            access_count INTEGER DEFAULT 0,
+            last_accessed_at TEXT,
+            embedding BLOB,
+            tags TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_memories_project ON memories(project_id);
+        CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(memory_type);
+        CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance DESC);
+
+        CREATE TABLE IF NOT EXISTS skills (
+            id TEXT PRIMARY KEY,
+            project_id TEXT REFERENCES projects(id),
+            name TEXT NOT NULL,
+            description TEXT,
+            trigger_pattern TEXT,
+            instructions TEXT NOT NULL,
+            source_session_id TEXT REFERENCES sessions(id),
+            usage_count INTEGER DEFAULT 0,
+            success_rate REAL,
+            tags TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_skills_project ON skills(project_id);
+        CREATE INDEX IF NOT EXISTS idx_skills_name ON skills(name);
+
+        CREATE TABLE IF NOT EXISTS session_memories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+            action TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(session_id, memory_id, action)
+        );
+        CREATE INDEX IF NOT EXISTS idx_session_memories_session ON session_memories(session_id);
+        CREATE INDEX IF NOT EXISTS idx_session_memories_memory ON session_memories(memory_id);
+        """,
+    ),
 ]
 
 

@@ -12,7 +12,7 @@ import json
 import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, Protocol
 from uuid import uuid4
 
@@ -22,7 +22,6 @@ from websockets.exceptions import ConnectionClosed, ConnectionClosedError
 from websockets.http11 import Response
 
 from gobby.mcp_proxy.manager import MCPClientManager
-
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +176,7 @@ class WebSocketServer:
         self.clients[websocket] = {
             "id": client_id,
             "user_id": user_id,
-            "connected_at": datetime.now(),
+            "connected_at": datetime.now(UTC),
             "remote_address": websocket.remote_address,
         }
 
@@ -284,11 +283,15 @@ class WebSocketServer:
         tool_name = data.get("tool")
         args = data.get("args", {})
 
-        if not all([request_id, mcp_name, tool_name]):
+        if (
+            not isinstance(request_id, str)
+            or not isinstance(mcp_name, str)
+            or not isinstance(tool_name, str)
+        ):
             await self._send_error(
                 websocket,
-                "Missing required fields: request_id, mcp, tool",
-                request_id=request_id,
+                "Missing or invalid required fields: request_id, mcp, tool (must be strings)",
+                request_id=str(request_id) if request_id else None,
             )
             return
 

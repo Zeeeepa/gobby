@@ -44,13 +44,13 @@ class HookEventBroadcaster:
     and message formatting.
     """
 
-    def __init__(self, websocket_server: Any | None, config: DaemonConfig):
+    def __init__(self, websocket_server: Any | None, config: DaemonConfig | None):
         """
         Initialize broadcaster.
 
         Args:
             websocket_server: WebSocketServer instance (can be None)
-            config: Daemon configuration
+            config: Daemon configuration (can be None)
         """
         self.websocket_server = websocket_server
         self.config = config
@@ -111,7 +111,7 @@ class HookEventBroadcaster:
                 # Simplest is to dump HookResponse to dict and filter/map.
 
                 # Default mapping from HookResponse
-                response_dict = {
+                response_dict: dict[str, Any] = {
                     "continue": response.decision != "deny",
                     "decision": response.decision,
                     "stopReason": response.reason,
@@ -168,6 +168,9 @@ class HookEventBroadcaster:
             return
 
         # Checks: Feature enabled
+        if not self.config:
+            return
+
         ws_config = self.config.hook_extensions.websocket
         if not ws_config.enabled:
             return

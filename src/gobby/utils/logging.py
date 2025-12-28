@@ -143,7 +143,7 @@ class ExtraFieldsFormatter(logging.Formatter):
         # e.g., "gobby.http_server" -> "http_server"
         # Use short_name attribute to avoid mutating record.name (which leaks to other handlers)
         if record.name.startswith("gobby."):
-            record.short_name = record.name[13:]  # len("gobby.") = 13
+            record.short_name = record.name[6:]  # len("gobby.") = 6
         else:
             record.short_name = record.name
 

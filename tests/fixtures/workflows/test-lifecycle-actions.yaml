@@ -11,44 +11,39 @@ triggers:
     # 1. Load any persisted workflow state
     - action: load_workflow_state
 
-    # 2. Find parent session marked handoff_ready
-    - action: find_parent_session
-      filter:
-        status: handoff_ready
-
-    # 3. Restore context from parent if found
+    # 2. Restore context from parent if found (parent linked by hook_manager)
     - action: restore_context
       source: parent_session_summary
-      when: "state.variables.get('parent_session_found')"
+      when: "session.parent_session_id is not None"
 
-    # 4. Inject context with template
+    # 3. Inject context with template
     - action: inject_context
       source: previous_session_summary
-      when: "state.variables.get('parent_session_found')"
+      when: "session.parent_session_id is not None"
       template: |
         ## Resumed Session Context
         {{ summary }}
 
-    # 5. Mark parent session as expired
+    # 4. Mark parent session as expired
     - action: mark_session_status
       target: parent
       status: expired
-      when: "state.variables.get('parent_session_found')"
+      when: "session.parent_session_id is not None"
 
   on_prompt_submit:
-    # 6. Synthesize title on first substantive prompt
+    # 5. Synthesize title on first substantive prompt
     - action: synthesize_title
       when: "session.title == null and len(event.data.get('content', '')) > 20"
 
   on_session_end:
-    # 7. Generate summary (without marking handoff)
+    # 6. Generate summary (without marking handoff)
     - action: generate_summary
       when: "event.data.get('reason') == 'test_summary'"
       template: |
         Summarize this test session briefly.
         Transcript: {transcript_summary}
 
-    # 8. Generate handoff (summary + mark handoff_ready)
+    # 7. Generate handoff (summary + mark handoff_ready)
     - action: generate_handoff
       when: "event.data.get('reason') == 'clear'"
       template: |
@@ -56,11 +51,11 @@ triggers:
         Transcript: {transcript_summary}
         Git: {git_status}
 
-    # 9. Mark current session status
+    # 8. Mark current session status
     - action: mark_session_status
       target: current_session
       status: completed
       when: "event.data.get('reason') == 'done'"
 
-    # 10. Save workflow state
+    # 9. Save workflow state
     - action: save_workflow_state

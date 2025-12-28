@@ -4,16 +4,36 @@ Task management commands.
 
 import json
 import logging
+import sys
 from pathlib import Path
 from typing import Any
 
 import click
+
+from gobby.config.app import load_config
 from gobby.storage.database import LocalDatabase
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.sync.tasks import TaskSyncManager
 from gobby.utils.project_context import get_project_context
 
 logger = logging.getLogger(__name__)
+
+
+def check_tasks_enabled() -> None:
+    """Check if gobby-tasks is enabled, exit if not."""
+    try:
+        config = load_config()
+        if not config.gobby_tasks.enabled:
+            click.echo("Error: gobby-tasks is disabled in config.yaml", err=True)
+            sys.exit(1)
+    except (FileNotFoundError, AttributeError, ImportError):
+        # Expected errors if config missing or invalid
+        # Fail open to allow CLI to work even if config is borked
+        pass
+    except Exception as e:
+        # Unexpected errors handling config
+        logger.warning(f"Error checking tasks config: {e}")
+        pass
 
 
 def get_task_manager() -> LocalTaskManager:
@@ -64,7 +84,7 @@ def format_task_row(task: Task) -> str:
 @click.group()
 def tasks() -> None:
     """Manage development tasks."""
-    pass
+    check_tasks_enabled()
 
 
 @tasks.command("list")
@@ -484,7 +504,7 @@ def doctor_cmd() -> None:
         issues_found = True
         click.echo(f"Found {len(invalid_projects)} tasks with invalid projects:", err=True)
         for t in invalid_projects:
-            click.echo(f"  Task {t['id']}: {t['title']} (Project: {t['project_id']})", err=True)
+            click.echo(f"  Task {t['id']}: {t['title']} (Project ID: {t['project_id']})", err=True)
     else:
         click.echo("✓ No invalid projects")
 

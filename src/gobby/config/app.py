@@ -153,6 +153,14 @@ class CodeExecutionConfig(BaseModel):
         default=30,
         description="Default timeout in seconds for code execution",
     )
+    learning_threshold: float = Field(
+        default=0.7,
+        description="Threshold for skill learning (0-1)",
+    )
+    max_context_skills: int = Field(
+        default=5,
+        description="Maximum number of skills to include in context window",
+    )
     max_dataset_preview: int = Field(
         default=3,
         description="Maximum number of dataset items to show in preview",
@@ -172,6 +180,22 @@ class CodeExecutionConfig(BaseModel):
         """Validate timeout is positive."""
         if v <= 0:
             raise ValueError("default_timeout must be positive")
+        return v
+
+    @field_validator("learning_threshold")
+    @classmethod
+    def validate_threshold(cls, v: float) -> float:
+        """Validate threshold is between 0 and 1."""
+        if not 0 <= v <= 1:
+            raise ValueError("learning_threshold must be between 0 and 1")
+        return v
+
+    @field_validator("max_context_skills")
+    @classmethod
+    def validate_max_skills(cls, v: int) -> int:
+        """Validate max_context_skills is positive."""
+        if v <= 0:
+            raise ValueError("max_context_skills must be positive")
         return v
 
     @field_validator("max_dataset_preview")
@@ -277,6 +301,10 @@ class MCPClientProxyConfig(BaseModel):
         default=True,
         description="Enable MCP client proxy for downstream MCP servers",
     )
+    connect_timeout: float = Field(
+        default=30.0,
+        description="Timeout in seconds for establishing connections to MCP servers",
+    )
     proxy_timeout: int = Field(
         default=30,
         description="Timeout in seconds for proxy calls to downstream MCP servers",
@@ -286,6 +314,14 @@ class MCPClientProxyConfig(BaseModel):
         description="Timeout in seconds for tool schema operations",
     )
 
+    @field_validator("connect_timeout")
+    @classmethod
+    def validate_connect_timeout(cls, v: float) -> float:
+        """Validate connect timeout is positive."""
+        if v <= 0:
+            raise ValueError("connect_timeout must be positive")
+        return v
+
     @field_validator("proxy_timeout", "tool_timeout")
     @classmethod
     def validate_timeout(cls, v: int) -> int:
@@ -293,6 +329,21 @@ class MCPClientProxyConfig(BaseModel):
         if v <= 0:
             raise ValueError("Timeout must be positive")
         return v
+
+
+class GobbyTasksConfig(BaseModel):
+    """Configuration for gobby-tasks internal MCP server."""
+
+    model_config = {"populate_by_name": True}
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable gobby-tasks internal MCP server",
+    )
+    show_result_on_create: bool = Field(
+        default=False,
+        description="Show full task result on create_task (False = minimal output with just id)",
+    )
 
 
 class LLMProviderConfig(BaseModel):
@@ -522,10 +573,15 @@ class SessionLifecycleConfig(BaseModel):
     """Configuration for session lifecycle management.
 
     Handles:
+    - Pausing active sessions with no recent activity
     - Expiring stale sessions (active/paused for too long)
     - Background transcript processing for expired sessions
     """
 
+    active_session_pause_minutes: int = Field(
+        default=30,
+        description="Minutes of inactivity before active sessions are marked paused",
+    )
     stale_session_timeout_hours: int = Field(
         default=24,
         description="Hours after which inactive sessions are marked expired",
@@ -544,6 +600,7 @@ class SessionLifecycleConfig(BaseModel):
     )
 
     @field_validator(
+        "active_session_pause_minutes",
         "stale_session_timeout_hours",
         "expire_check_interval_minutes",
         "transcript_processing_interval_minutes",
@@ -557,6 +614,119 @@ class SessionLifecycleConfig(BaseModel):
         return v
 
 
+class MemoryConfig(BaseModel):
+    """Memory system configuration."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable persistent memory system",
+    )
+    auto_extract: bool = Field(
+        default=True,
+        description="Automatically extract memories from sessions",
+    )
+    injection_limit: int = Field(
+        default=10,
+        description="Maximum number of memories to inject per session",
+    )
+    importance_threshold: float = Field(
+        default=0.3,
+        description="Minimum importance score for memory injection",
+    )
+    decay_enabled: bool = Field(
+        default=True,
+        description="Enable memory importance decay over time",
+    )
+    decay_rate: float = Field(
+        default=0.05,
+        description="Importance decay rate per month",
+    )
+    decay_floor: float = Field(
+        default=0.1,
+        description="Minimum importance score after decay",
+    )
+
+    @field_validator("injection_limit")
+    @classmethod
+    def validate_positive(cls, v: int) -> int:
+        """Validate value is non-negative."""
+        if v < 0:
+            raise ValueError("Value must be non-negative")
+        return v
+
+    @field_validator("importance_threshold", "decay_rate", "decay_floor")
+    @classmethod
+    def validate_probability(cls, v: float) -> float:
+        """Validate value is between 0.0 and 1.0."""
+        if not (0.0 <= v <= 1.0):
+            raise ValueError("Value must be between 0.0 and 1.0")
+        return v
+
+
+class MemorySyncConfig(BaseModel):
+    """Memory synchronization configuration (Git sync)."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable memory synchronization to filesystem",
+    )
+    stealth: bool = Field(
+        default=False,
+        description="If True, store in ~/.gobby/ (local only). If False, store in .gobby/ (git committed).",
+    )
+    export_debounce: float = Field(
+        default=5.0,
+        description="Seconds to wait before exporting after a change",
+    )
+
+    @field_validator("export_debounce")
+    @classmethod
+    def validate_positive(cls, v: float) -> float:
+        """Validate value is non-negative."""
+        if v < 0:
+            raise ValueError("Value must be non-negative")
+        return v
+
+
+class SkillConfig(BaseModel):
+    """Skill learning configuration.
+
+    Skills are exported to .claude/skills/<name>/ in Claude Code native format,
+    making them automatically available to Claude Code sessions.
+    """
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable skill learning system",
+    )
+    learning_model: str = Field(
+        default="claude-haiku-4-5",
+        description="LLM model to use for skill extraction",
+    )
+    prompt: str = Field(
+        default="""You are an expert at extracting reusable developer skills from transcripts.
+Respond with ONLY valid JSON - no markdown, no explanations, no code blocks.
+
+Analyze the following session transcript and extract any reusable skills.
+A "skill" is a repeatable process or pattern that can be used in future sessions.
+
+Transcript:
+{transcript}
+
+Return a JSON array directly:
+[
+  {{
+    "name": "short-kebab-case-name",
+    "description": "Brief description of what the skill does",
+    "trigger_pattern": "regex|pattern|to|match",
+    "instructions": "Markdown instructions on how to perform the skill",
+    "tags": ["tag1", "tag2"]
+  }}
+]""",
+        description="Prompt template for skill extraction (use {transcript} placeholder)",
+    )
+
+
 class DaemonConfig(BaseModel):
     """
     Main configuration for Gobby daemon.
@@ -568,6 +738,8 @@ class DaemonConfig(BaseModel):
 
     Note: machine_id is stored separately in ~/.gobby/machine_id
     """
+
+    model_config = {"populate_by_name": True}
 
     # Daemon settings
     daemon_port: int = Field(
@@ -601,6 +773,12 @@ class DaemonConfig(BaseModel):
     mcp_client_proxy: MCPClientProxyConfig = Field(
         default_factory=MCPClientProxyConfig,
         description="MCP client proxy configuration",
+    )
+    gobby_tasks: GobbyTasksConfig = Field(
+        default_factory=GobbyTasksConfig,
+        alias="gobby-tasks",
+        serialization_alias="gobby-tasks",
+        description="gobby-tasks internal MCP server configuration",
     )
 
     # Multi-provider LLM configuration
@@ -640,6 +818,18 @@ class DaemonConfig(BaseModel):
         default_factory=TaskValidationConfig,
         description="Task validation configuration",
     )
+    memory: MemoryConfig = Field(
+        default_factory=MemoryConfig,
+        description="Memory system configuration",
+    )
+    memory_sync: MemorySyncConfig = Field(
+        default_factory=MemorySyncConfig,
+        description="Memory synchronization configuration",
+    )
+    skills: SkillConfig = Field(
+        default_factory=SkillConfig,
+        description="Skill learning configuration",
+    )
     message_tracking: MessageTrackingConfig = Field(
         default_factory=MessageTrackingConfig,
         description="Session message tracking configuration",
@@ -664,6 +854,22 @@ class DaemonConfig(BaseModel):
     def get_mcp_client_proxy_config(self) -> MCPClientProxyConfig:
         """Get MCP client proxy configuration."""
         return self.mcp_client_proxy
+
+    def get_memory_config(self) -> MemoryConfig:
+        """Get memory configuration."""
+        return self.memory
+
+    def get_memory_sync_config(self) -> MemorySyncConfig:
+        """Get memory sync configuration."""
+        return self.memory_sync
+
+    def get_skills_config(self) -> SkillConfig:
+        """Get skills configuration."""
+        return self.skills
+
+    def get_gobby_tasks_config(self) -> GobbyTasksConfig:
+        """Get gobby-tasks configuration."""
+        return self.gobby_tasks
 
     @field_validator("daemon_port")
     @classmethod

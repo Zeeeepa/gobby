@@ -9,7 +9,6 @@ from gobby.config.app import (
     HookExtensionsConfig,
     WebSocketBroadcastConfig,
 )
-from gobby.hooks.hook_types import HookType, SessionStartInput, SessionStartOutput
 from gobby.servers.http import HTTPServer
 
 

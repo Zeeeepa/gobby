@@ -10,6 +10,7 @@ from pathlib import Path
 
 import click
 import psutil
+
 from gobby.config.app import load_config
 
 logger = logging.getLogger(__name__)

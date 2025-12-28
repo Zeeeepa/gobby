@@ -156,4 +156,4 @@ class LocalProjectManager:
             True if deleted, False if not found
         """
         cursor = self.db.execute("DELETE FROM projects WHERE id = ?", (project_id,))
-        return cursor.rowcount > 0  # type: ignore[no-any-return]
+        return cursor.rowcount > 0

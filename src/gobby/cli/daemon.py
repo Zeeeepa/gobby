@@ -12,6 +12,7 @@ from pathlib import Path
 import click
 import httpx
 import psutil
+
 from gobby.utils.status import format_status_message
 
 from .utils import (
