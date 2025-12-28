@@ -856,7 +856,12 @@ class ActionExecutor:
         """
         Trigger skill learning from session.
         """
-        if not context.skill_learner or not context.skill_learner.config.enabled:
+        if not context.skill_learner:
+            return None
+
+        # Safe config check
+        config = getattr(context.skill_learner, "config", None)
+        if not config or not getattr(config, "enabled", False):
             return None
 
         # Fire and forget?
