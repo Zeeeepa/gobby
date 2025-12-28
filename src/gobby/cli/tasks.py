@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import click
+
 from gobby.config.app import load_config
 from gobby.storage.database import LocalDatabase
 from gobby.storage.tasks import LocalTaskManager, Task
@@ -25,8 +26,13 @@ def check_tasks_enabled() -> None:
         if not config.gobby_tasks.enabled:
             click.echo("Error: gobby-tasks is disabled in config.yaml", err=True)
             sys.exit(1)
-    except Exception:
-        # If config can't be loaded, allow tasks to run (fail open)
+    except (FileNotFoundError, AttributeError, ImportError):
+        # Expected errors if config missing or invalid
+        # Fail open to allow CLI to work even if config is borked
+        pass
+    except Exception as e:
+        # Unexpected errors handling config
+        logger.warning(f"Error checking tasks config: {e}")
         pass
 
 

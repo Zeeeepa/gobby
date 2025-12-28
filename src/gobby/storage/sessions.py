@@ -34,7 +34,7 @@ class Session:
     updated_at: str
 
     @classmethod
-    def from_row(cls, row: Any) -> "Session":
+    def from_row(cls, row: Any) -> Session:
         """Create Session from database row."""
         return cls(
             id=row["id"],
@@ -313,7 +313,7 @@ class LocalSessionManager:
             UPDATE sessions
             SET status = 'expired', updated_at = ?
             WHERE status IN ('active', 'paused', 'handoff_ready')
-            AND datetime(updated_at) < datetime('now', ? || ' hours')
+            AND datetime(updated_at) < datetime('now', 'utc', ? || ' hours')
             """,
             (now, f"-{timeout_hours}"),
         )
@@ -341,7 +341,7 @@ class LocalSessionManager:
             UPDATE sessions
             SET status = 'paused', updated_at = ?
             WHERE status = 'active'
-            AND datetime(updated_at) < datetime('now', ? || ' minutes')
+            AND datetime(updated_at) < datetime('now', 'utc', ? || ' minutes')
             """,
             (now, f"-{timeout_minutes}"),
         )

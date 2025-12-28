@@ -201,7 +201,7 @@ class MemorySyncManager:
         try:
             memories = self.memory_manager.list_memories()
 
-            with open(file_path, "w") as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 for memory in memories:
                     data = {
                         "id": memory.id,
@@ -214,7 +214,7 @@ class MemorySyncManager:
                         "source": memory.source_type,
                         "source_id": memory.source_session_id,
                     }
-                    f.write(json.dumps(data) + "\n")
+                    f.write(json.dumps(data, ensure_ascii=False) + "\n")
 
             return len(memories)
         except Exception as e:
@@ -413,8 +413,8 @@ class MemorySyncManager:
                         "tags": skill.tags or [],
                         "usage_count": skill.usage_count,
                     }
-                    with open(meta_file, "w") as f:
-                        json.dump(meta, f, indent=2)
+                    with open(meta_file, "w", encoding="utf-8") as f:
+                        json.dump(meta, f, indent=2, ensure_ascii=False)
                 except Exception as e:
                     logger.error(f"Failed to export skill '{skill.name}' ({skill.id}): {e}")
                     continue

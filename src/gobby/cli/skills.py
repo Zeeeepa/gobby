@@ -166,6 +166,7 @@ def delete(ctx: click.Context, skill_id: str) -> None:
     storage = get_skill_storage(ctx)
 
     # Get skill first to know its name for cleanup
+    skill: Skill | None = None
     try:
         skill = storage.get_skill(skill_id)
         skill_name = skill.name if skill else None
@@ -179,10 +180,31 @@ def delete(ctx: click.Context, skill_id: str) -> None:
         # Also remove from exported directory if it exists
         if skill_name:
             safe_name = "".join(c for c in skill_name if c.isalnum() or c in "-_").lower()
-            skill_dir = Path(".claude/skills") / safe_name
-            if skill_dir.exists() and skill_dir.is_dir():
-                shutil.rmtree(skill_dir)
-                click.echo(f"Removed exported skill directory: {skill_dir}")
+            if not safe_name and skill and skill.id:
+                # Fallback to sanitized ID if name yields empty string
+                safe_name = "".join(c for c in skill.id if c.isalnum() or c in "-_").lower()
+
+            if safe_name:
+                skill_dir = Path(".claude/skills") / safe_name
+                # Ensure it is actually a subdirectory of .claude/skills
+                try:
+                    # Resolve to absolute paths for safety check
+                    root_skills = Path(".claude/skills").resolve()
+                    target_dir = skill_dir.resolve()
+                    if (
+                        target_dir.is_relative_to(root_skills)
+                        and target_dir.exists()
+                        and target_dir.is_dir()
+                    ):
+                        shutil.rmtree(target_dir)
+                        click.echo(f"Removed exported skill directory: {skill_dir}")
+                except (ValueError, FileNotFoundError):
+                    # Path resolution failed or not relative (traversal attempt?), ignore
+                    pass
+            else:
+                click.echo(
+                    "Warning: Could not determine safe name for skill directory cleanup.", err=True
+                )
     else:
         click.echo(f"Skill not found: {skill_id}")
 

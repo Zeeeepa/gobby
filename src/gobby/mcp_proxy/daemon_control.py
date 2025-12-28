@@ -4,7 +4,6 @@ import asyncio
 import logging
 import os
 import signal
-import signal
 import sys
 from typing import Any
 

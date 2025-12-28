@@ -270,6 +270,12 @@ class MCPClientManager:
 
     async def _connect_server(self, config: MCPServerConfig) -> ClientSession | None:
         """Connect to a single server."""
+        # Ensure health record exists before we try to update it
+        if config.name not in self.health:
+            self.health[config.name] = MCPConnectionHealth(
+                name=config.name, state=ConnectionState.DISCONNECTED
+            )
+
         try:
             # Create transport if doesn't exist or if config changed
             # (Simplification: always recreate for now if not connected)

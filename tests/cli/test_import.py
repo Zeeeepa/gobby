@@ -49,11 +49,6 @@ async def test_import_from_github_issues(sync_manager, temp_db):
         assert "gh-1" in result["imported"]
 
 
-# Since the import happens inside the method, verifying it without installing the package is tricky if it's not installed.
-# Assuming claude_agent_sdk is installed or we can skip this test if import fails.
-# Actually, better to test the parsing logic.
-
-
 @pytest.mark.asyncio
 async def test_import_project_id_resolution(sync_manager, temp_db):
     """

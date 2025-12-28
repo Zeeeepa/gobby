@@ -75,7 +75,8 @@ class HTTPTransportConnection(BaseTransportConnection):
 
         try:
             # URL is required for HTTP transport
-            assert self.config.url is not None, "URL is required for HTTP transport"
+            if not self.config.url:
+                raise ValueError("URL is required for HTTP transport")
 
             async with streamablehttp_client(
                 self.config.url,

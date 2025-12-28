@@ -145,7 +145,9 @@ def update_memory(
     manager = get_memory_manager(ctx)
 
     # Parse tags if provided
-    tag_list = [t.strip() for t in tags.split(",")] if tags else None
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None
+    if tag_list is not None and len(tag_list) == 0:
+        tag_list = None
 
     try:
         memory = manager.update_memory(

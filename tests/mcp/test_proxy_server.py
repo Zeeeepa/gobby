@@ -1,9 +1,11 @@
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch, Mock
 import sys
-from gobby.mcp_proxy.server import GobbyDaemonTools
-from gobby.mcp_proxy.manager import MCPClientManager
+from unittest.mock import AsyncMock, MagicMock, Mock
+
+import pytest
+
 from gobby.config.app import DaemonConfig
+from gobby.mcp_proxy.manager import MCPClientManager
+from gobby.mcp_proxy.server import GobbyDaemonTools
 
 
 # Define dummy classes for mocking imports effectively
@@ -181,7 +183,9 @@ async def test_add_mcp_server(daemon_tools, mock_mcp_manager):
     mock_mcp_manager.add_server_config = MagicMock()
     mock_mcp_manager.connect_all = AsyncMock(return_value={"s1": True})
 
-    result = await daemon_tools.add_mcp_server(name="s1", transport="http", url="http://localhost:8000")
+    result = await daemon_tools.add_mcp_server(
+        name="s1", transport="http", url="http://localhost:8000"
+    )
     assert result["success"] is True
     mock_mcp_manager.add_server_config.assert_called_once()
 
@@ -205,9 +209,9 @@ async def test_list_tools(daemon_tools, mock_mcp_manager):
     daemon_tools.internal_manager.get_all_registries.return_value = [internal_registry]
 
     # Mock the external tools - mcp_manager.list_tools returns dict mapping server -> tools
-    mock_mcp_manager.list_tools = AsyncMock(return_value={
-        "downstream": [{"name": "dt1", "description": "downstream tool"}]
-    })
+    mock_mcp_manager.list_tools = AsyncMock(
+        return_value={"downstream": [{"name": "dt1", "description": "downstream tool"}]}
+    )
 
     result = await daemon_tools.list_tools()
     # The actual implementation returns {"servers": [...]} without "success" key
@@ -221,11 +225,13 @@ async def test_get_tool_schema(daemon_tools, mock_mcp_manager):
     # For external tools, mcp_manager.get_tool_input_schema() is called
 
     # Test with external tool - mock the mcp_manager method
-    mock_mcp_manager.get_tool_input_schema = AsyncMock(return_value={
-        "success": True,
-        "server": "downstream",
-        "tool": {"name": "dt1", "description": "desc", "inputSchema": {"type": "object"}}
-    })
+    mock_mcp_manager.get_tool_input_schema = AsyncMock(
+        return_value={
+            "success": True,
+            "server": "downstream",
+            "tool": {"name": "dt1", "description": "desc", "inputSchema": {"type": "object"}},
+        }
+    )
 
     result = await daemon_tools.get_tool_schema("downstream", "dt1")
     assert result["success"] is True
@@ -277,7 +283,9 @@ async def test_process_large_dataset_mocked(daemon_tools):
     assert result["success"] is True
 
 
-@pytest.mark.skip(reason="GobbyDaemonTools does not have codex/codex_list_threads methods - removed in refactor")
+@pytest.mark.skip(
+    reason="GobbyDaemonTools does not have codex/codex_list_threads methods - removed in refactor"
+)
 @pytest.mark.asyncio
 async def test_codex_tools(daemon_tools):
     # GobbyDaemonTools no longer exposes codex and codex_list_threads methods

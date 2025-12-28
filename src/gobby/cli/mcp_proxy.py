@@ -13,6 +13,7 @@ Provides CLI access to MCP proxy functionality:
 
 import json
 import sys
+import urllib.parse
 from typing import Any
 
 import click
@@ -88,8 +89,8 @@ def list_servers(ctx: click.Context, json_format: bool) -> None:
         click.echo("No MCP servers configured.")
         return
 
-    connected = result.get('connected_count', 0)
-    total = result.get('total_count', 0)
+    connected = result.get("connected_count", 0)
+    total = result.get("total_count", 0)
     click.echo(f"MCP Servers ({connected}/{total} connected):")
     for server in servers:
         status_icon = "●" if server.get("connected") else "○"
@@ -109,7 +110,8 @@ def list_tools(ctx: click.Context, server: str | None, json_format: bool) -> Non
 
     endpoint = "/mcp/tools"
     if server:
-        endpoint = f"/mcp/tools?server={server}"
+        encoded_server = urllib.parse.quote(server)
+        endpoint = f"/mcp/tools?server={encoded_server}"
 
     result = call_mcp_api(client, endpoint, method="GET")
     if result is None:

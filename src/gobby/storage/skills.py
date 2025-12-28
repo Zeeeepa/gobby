@@ -92,6 +92,12 @@ class LocalSkillManager:
         now = datetime.now(UTC).isoformat()
         # ID based on name + project to ensure uniqueness/stability
         skill_id = generate_prefixed_id("sk", name + str(project_id))
+
+        # Check existence to avoid unique constraint errors
+        existing_row = self.db.fetchone("SELECT * FROM skills WHERE id = ?", (skill_id,))
+        if existing_row:
+            return self.get_skill(skill_id)
+
         tags_json = json.dumps(tags) if tags else None
 
         with self.db.transaction() as conn:

@@ -93,6 +93,12 @@ class LocalMemoryManager:
         # Ensure consistent ID for same content/project to avoid dupes?
         # Actually random/content-based might be better. Let's use content.
         memory_id = generate_prefixed_id("mm", content + str(project_id))
+
+        # Check if memory already exists to avoid duplicate insert errors
+        existing_row = self.db.fetchone("SELECT * FROM memories WHERE id = ?", (memory_id,))
+        if existing_row:
+            return self.get_memory(memory_id)
+
         tags_json = json.dumps(tags) if tags else None
 
         with self.db.transaction() as conn:

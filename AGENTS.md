@@ -169,5 +169,6 @@ history/
 - Do NOT use external issue trackers
 - Do NOT duplicate tracking systems
 - Do NOT clutter repo root with planning documents
+- ALWAYS use `uv run` for python commands (never `python` or `pytest` directly)
 
 For more details, see [README.md](README.md) and [MCP_TOOLS.md](MCP_TOOLS.md).
