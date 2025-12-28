@@ -45,7 +45,7 @@ class GobbyDaemonTools:
             mcp_manager,
             internal_manager=internal_manager,
         )
-        self.server_mgmt = ServerManagementService(mcp_manager, config_manager)
+        self.server_mgmt = ServerManagementService(mcp_manager, config_manager, config)
         self.code_execution = CodeExecutionService(codex_client)
         self.recommendation = RecommendationService(llm_service, mcp_manager)
 

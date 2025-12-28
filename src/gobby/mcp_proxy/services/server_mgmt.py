@@ -1,10 +1,13 @@
 """Server management service."""
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.mcp_proxy.models import MCPServerConfig
+
+if TYPE_CHECKING:
+    from gobby.config.app import DaemonConfig
 
 logger = logging.getLogger("gobby.mcp.server")
 
@@ -12,14 +15,21 @@ logger = logging.getLogger("gobby.mcp.server")
 class ServerManagementService:
     """Service for managing MCP server configurations."""
 
-    def __init__(self, mcp_manager: MCPClientManager, config_manager: Any):
+    def __init__(
+        self,
+        mcp_manager: MCPClientManager,
+        config_manager: Any,
+        config: "DaemonConfig | None" = None,
+    ):
         """
         Args:
             mcp_manager: MCP client manager
             config_manager: Config manager (for saving changes)
+            config: Daemon configuration (for import operations)
         """
         self._mcp_manager = mcp_manager
         self._config_manager = config_manager
+        self._config = config
 
     async def add_server(
         self,
@@ -99,9 +109,68 @@ class ServerManagementService:
         query: str | None = None,
         servers: list[str] | None = None,
     ) -> dict[str, Any]:
-        """Import MCP server(s).
+        """Import MCP server(s) from various sources.
 
-        Note: This method is intentionally unimplemented pending refactor
-        of the import logic from server.py.
+        Args:
+            from_project: Import from another Gobby project by name or ID
+            github_url: Import from a GitHub repository URL
+            query: Import by natural language search query
+            servers: Optional list of specific server names to import
+
+        Returns:
+            Result dict with imported servers or error
         """
-        raise NotImplementedError("import_server not implemented - refactor pending")
+        # Validate at least one source is provided
+        if not from_project and not github_url and not query:
+            return {
+                "success": False,
+                "error": "Specify at least one: from_project, github_url, or query",
+            }
+
+        # Get current project context
+        from gobby.utils.project_context import get_project_context
+
+        project_ctx = get_project_context()
+        if not project_ctx or not project_ctx.get("id"):
+            return {
+                "success": False,
+                "error": "No current project. Run 'gobby init' first.",
+            }
+        current_project_id = project_ctx["id"]
+
+        # Validate config is available
+        if not self._config:
+            return {
+                "success": False,
+                "error": "Daemon configuration not available for import operations",
+            }
+
+        try:
+            # Create importer lazily with required dependencies
+            from gobby.mcp_proxy.importer import MCPServerImporter
+            from gobby.storage.database import LocalDatabase
+
+            db = LocalDatabase()
+            importer = MCPServerImporter(
+                config=self._config,
+                db=db,
+                current_project_id=current_project_id,
+                mcp_client_manager=self._mcp_manager,
+            )
+
+            # Execute import based on source
+            if from_project:
+                return await importer.import_from_project(
+                    source_project=from_project,
+                    servers=servers,
+                )
+            elif github_url:
+                return await importer.import_from_github(github_url)
+            elif query:
+                return await importer.import_from_query(query)
+            else:
+                return {"success": False, "error": "No import source specified"}
+
+        except Exception as e:
+            logger.exception("Failed to import MCP server")
+            return {"success": False, "error": str(e)}
