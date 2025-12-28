@@ -313,7 +313,7 @@ class LocalSessionManager:
             UPDATE sessions
             SET status = 'expired', updated_at = ?
             WHERE status IN ('active', 'paused', 'handoff_ready')
-            AND updated_at < datetime('now', ? || ' hours')
+            AND datetime(updated_at) < datetime('now', ? || ' hours')
             """,
             (now, f"-{timeout_hours}"),
         )
