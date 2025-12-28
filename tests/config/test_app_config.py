@@ -157,8 +157,22 @@ class TestMCPClientProxyConfig:
         """Test default MCP client proxy config."""
         config = MCPClientProxyConfig()
         assert config.enabled is True
+        assert config.connect_timeout == 30.0
         assert config.proxy_timeout == 30
         assert config.tool_timeout == 30
+
+    def test_connect_timeout_custom(self):
+        """Test connect_timeout can be customized."""
+        config = MCPClientProxyConfig(connect_timeout=60.0)
+        assert config.connect_timeout == 60.0
+
+    def test_connect_timeout_validation(self):
+        """Test connect_timeout must be positive."""
+        with pytest.raises(ValidationError):
+            MCPClientProxyConfig(connect_timeout=0)
+
+        with pytest.raises(ValidationError):
+            MCPClientProxyConfig(connect_timeout=-5.0)
 
     def test_timeout_validation(self):
         """Test timeouts must be positive."""

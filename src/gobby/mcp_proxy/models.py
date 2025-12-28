@@ -119,6 +119,9 @@ class MCPServerConfig:
     # Project context
     project_id: str = ""  # Required - UUID string for the project this server belongs to
 
+    # Connection timeout (seconds) for establishing connections
+    connect_timeout: float = 30.0
+
     def validate(self) -> None:
         """Validate configuration based on transport type."""
         if self.transport in ("http", "websocket", "sse"):
@@ -129,3 +132,7 @@ class MCPServerConfig:
                 raise ValueError("stdio transport requires 'command' parameter")
         else:
             raise ValueError(f"Unsupported transport: {self.transport}")
+
+        # Validate connect_timeout is positive
+        if self.connect_timeout <= 0:
+            raise ValueError("connect_timeout must be a positive number")

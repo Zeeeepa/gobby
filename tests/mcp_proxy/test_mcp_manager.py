@@ -104,6 +104,53 @@ class TestMCPServerConfig:
         config.validate()
         assert config.headers == {"Authorization": "Bearer token123", "X-API-Key": "secret"}
 
+    def test_connect_timeout_default(self):
+        """Test connect_timeout has default value of 30.0."""
+        config = MCPServerConfig(
+            name="test-server",
+            transport="http",
+            url="http://localhost:8080/mcp",
+        )
+
+        assert config.connect_timeout == 30.0
+        config.validate()
+
+    def test_connect_timeout_custom(self):
+        """Test connect_timeout can be customized."""
+        config = MCPServerConfig(
+            name="test-server",
+            transport="http",
+            url="http://localhost:8080/mcp",
+            connect_timeout=60.0,
+        )
+
+        assert config.connect_timeout == 60.0
+        config.validate()
+
+    def test_connect_timeout_zero_raises(self):
+        """Test connect_timeout of zero raises error."""
+        config = MCPServerConfig(
+            name="test-server",
+            transport="http",
+            url="http://localhost:8080/mcp",
+            connect_timeout=0,
+        )
+
+        with pytest.raises(ValueError, match="connect_timeout must be a positive number"):
+            config.validate()
+
+    def test_connect_timeout_negative_raises(self):
+        """Test negative connect_timeout raises error."""
+        config = MCPServerConfig(
+            name="test-server",
+            transport="http",
+            url="http://localhost:8080/mcp",
+            connect_timeout=-5.0,
+        )
+
+        with pytest.raises(ValueError, match="connect_timeout must be a positive number"):
+            config.validate()
+
 
 class TestMCPConnectionHealth:
     """Tests for MCPConnectionHealth tracking."""

@@ -63,8 +63,6 @@ triggers:
         Use only ASCII-safe characters - avoid Unicode em-dashes, smart quotes, or special characters.
 
   on_session_start:
-    - action: find_parent_session
-      when: "event.data.get('source') == 'clear'"
     - action: inject_context
       when: "event.data.get('source') == 'clear'"
       source: previous_session_summary

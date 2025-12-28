@@ -17,6 +17,7 @@ logging:
   backup_count: 5
 mcp_client_proxy:
   enabled: true
+  connect_timeout: 30.0
   proxy_timeout: 30
   tool_timeout: 30
 llm_providers:

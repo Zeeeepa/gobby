@@ -277,6 +277,10 @@ class MCPClientProxyConfig(BaseModel):
         default=True,
         description="Enable MCP client proxy for downstream MCP servers",
     )
+    connect_timeout: float = Field(
+        default=30.0,
+        description="Timeout in seconds for establishing connections to MCP servers",
+    )
     proxy_timeout: int = Field(
         default=30,
         description="Timeout in seconds for proxy calls to downstream MCP servers",
@@ -285,6 +289,14 @@ class MCPClientProxyConfig(BaseModel):
         default=30,
         description="Timeout in seconds for tool schema operations",
     )
+
+    @field_validator("connect_timeout")
+    @classmethod
+    def validate_connect_timeout(cls, v: float) -> float:
+        """Validate connect timeout is positive."""
+        if v <= 0:
+            raise ValueError("connect_timeout must be positive")
+        return v
 
     @field_validator("proxy_timeout", "tool_timeout")
     @classmethod

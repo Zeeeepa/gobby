@@ -195,9 +195,8 @@ class TestHookManagerSessionStart:
     ):
         """Test that resume source doesn't show 'Context restored' system_message.
 
-        The workflow has 'when' conditions that only trigger on source='clear'.
-        The find_parent_session action (which sets the 'Context restored' message)
-        only runs when source='clear', so on resume we get basic session info only.
+        Parent session finding only happens on source='clear' (handoff scenario).
+        On resume we get basic session info only, no parent context.
         """
         # Create a resume event (source="resume" means continuing same session)
         resume_event = HookEvent(
@@ -223,7 +222,7 @@ class TestHookManagerSessionStart:
         assert "Session registered" in response.context
 
         # Should have basic session info but NOT "Context restored" message
-        # The workflow's find_parent_session action only runs on source='clear'
+        # Parent finding only runs on source='clear'
         assert response.system_message is not None
         assert "Session ID:" in response.system_message
         assert "Context restored" not in response.system_message

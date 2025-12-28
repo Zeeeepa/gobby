@@ -677,19 +677,31 @@ class HookManager:
             f"🟢 Session start: cli={cli_source}, project={project_id}, source={session_source}"
         )
 
-        # Step 1: Register new session (no parent initially)
-        # The workflow will handle finding and linking parent via 'find_parent_session' action
+        # Step 1: Find parent session if this is a handoff (source='clear')
+        parent_session_id = None
+        if session_source == "clear":
+            parent = self._session_storage.find_parent(
+                machine_id=machine_id,
+                project_id=project_id,
+                source=cli_source,
+                status="handoff_ready",
+            )
+            if parent:
+                parent_session_id = parent.id
+                self.logger.debug(f"Found parent session: {parent_session_id}")
+
+        # Step 2: Register new session with parent if found
         session_id = self._session_manager.register_session(
             external_id=external_id,
             machine_id=machine_id,
             project_id=project_id,
-            parent_session_id=None,
+            parent_session_id=parent_session_id,
             jsonl_path=transcript_path,
             source=cli_source,
             project_path=cwd,
         )
 
-        # Step 2: Track registered session
+        # Step 3: Track registered session
         if transcript_path:
             try:
                 with self._registered_sessions_lock:
@@ -697,11 +709,11 @@ class HookManager:
             except Exception as e:
                 self.logger.error(f"Failed to setup session tracking: {e}", exc_info=True)
 
-        # Step 3: Update event metadata with the newly registered session_id
+        # Step 4: Update event metadata with the newly registered session_id
         # This is required so the workflow engine can access the session correctly
         event.metadata["_platform_session_id"] = session_id
 
-        # Step 3.5: Register with Message Processor
+        # Step 5: Register with Message Processor
         if self._message_processor and transcript_path:
             try:
                 self._message_processor.register_session(
@@ -710,12 +722,11 @@ class HookManager:
             except Exception as e:
                 self.logger.warning(f"Failed to register session with message processor: {e}")
 
-        # Step 4: Execute lifecycle workflows (discovers all workflows, evaluates triggers)
-        # This handles: find_parent_session, restore_context, mark_session_status, etc.
-        # Workflow triggers have 'when' conditions that check session_source (e.g., source == 'clear')
+        # Step 6: Execute lifecycle workflows (discovers all workflows, evaluates triggers)
+        # This handles: inject_context, restore_context, mark_session_status, etc.
         wf_response = self._workflow_handler.handle_all_lifecycles(event)
 
-        # Step 5: Build response with context and system message
+        # Step 7: Build response with context and system message
         context_parts = []
         context_parts.append(f"Session registered: {session_id}")
 
@@ -723,25 +734,15 @@ class HookManager:
         if wf_response.context:
             context_parts.append(wf_response.context)
 
-        # Reload session to get current state (workflow may have linked parent)
-        current_session = self._session_storage.get(session_id)
-        parent_session_id = current_session.parent_session_id if current_session else None
-
         if parent_session_id:
             context_parts.append(f"Parent session: {parent_session_id}")
 
-        # Use workflow's system_message if provided, otherwise build basic session info
-        # The workflow's find_parent_session action sets the "Context restored" message
+        # Always include session metadata, then append workflow content if present
+        system_message = f"Session ID: {session_id}\nProject ID: {project_id}"
+        if parent_session_id:
+            system_message += f"\nParent ID: {parent_session_id}"
         if wf_response.system_message:
-            system_message = wf_response.system_message
-        else:
-            # Basic session info for startup/resume/compact (no handoff message)
-            system_message = (
-                f"Session ID: {session_id}\n"
-                f"Project ID: {project_id}"
-            )
-            if parent_session_id:
-                system_message += f"\nParent ID: {parent_session_id}"
+            system_message += f"\n\n{wf_response.system_message}"
 
         # Inject active task context if available
         if event.task_id:

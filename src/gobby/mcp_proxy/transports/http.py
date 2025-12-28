@@ -50,13 +50,14 @@ class HTTPTransportConnection(BaseTransportConnection):
         )
 
         # Wait for connection to be ready or fail
+        timeout = self.config.connect_timeout
         try:
-            await asyncio.wait_for(self._session_ready.wait(), timeout=30.0)
+            await asyncio.wait_for(self._session_ready.wait(), timeout=timeout)
         except TimeoutError as e:
             self._disconnect_event.set()
             await self._cleanup_owner_task()
             self._state = ConnectionState.FAILED
-            raise MCPError(f"Connection timeout for {self.config.name}") from e
+            raise MCPError(f"Connection timeout for {self.config.name} after {timeout}s") from e
 
         if self._connection_error is not None:
             error = self._connection_error
