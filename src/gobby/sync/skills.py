@@ -300,7 +300,7 @@ class SkillSyncManager:
                     content = "---\n"
                     content += yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True)
                     content += "---\n\n"
-                    content += skill.instructions
+                    content += skill.instructions or ""
 
                     with open(skill_file, "w", encoding="utf-8") as f:
                         f.write(content)

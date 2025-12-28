@@ -57,15 +57,22 @@ def create_session_messages_registry(
         messages = await message_manager.get_messages(
             session_id=session_id, limit=limit, offset=offset, role=role
         )
-        count = await message_manager.count_messages(session_id)
+        session_total = await message_manager.count_messages(session_id)
 
-        return {
+        result: dict[str, Any] = {
             "session_id": session_id,
             "messages": messages,
-            "total_count": count,
+            "session_total_count": session_total,
+            "returned_count": len(messages),
             "limit": limit,
             "offset": offset,
         }
+
+        # Add role filter info if filtering was applied
+        if role:
+            result["role_filter"] = role
+
+        return result
 
     @registry.tool(
         name="search_messages",

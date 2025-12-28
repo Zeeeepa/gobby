@@ -10,7 +10,7 @@ from gobby.mcp_proxy.models import ConnectionState, MCPError
 from gobby.mcp_proxy.transports.base import BaseTransportConnection
 
 if TYPE_CHECKING:
-    from gobby.config.mcp import MCPServerConfig
+    from gobby.mcp_proxy.models import MCPServerConfig
 
 logger = logging.getLogger("gobby.mcp.client")
 
@@ -22,6 +22,9 @@ class StdioTransportConnection(BaseTransportConnection):
         """Initialize stdio transport connection."""
         super().__init__(config)
         self._session_context: ClientSession | None = None
+        # Explicitly initialize transport context (inherited from base class, but
+        # ensures the attribute exists with proper type annotation for this transport)
+        self._transport_context: Any | None = None
 
     async def connect(self) -> Any:
         """Connect via stdio transport."""
@@ -70,17 +73,20 @@ class StdioTransportConnection(BaseTransportConnection):
             logger.error(f"Failed to connect to stdio server '{self.config.name}': {error_msg}")
 
             # Cleanup in reverse order - session first, then transport
-            if session_entered and self._session_context is not None:
+            # Cleanup in reverse order - session first, then transport
+            session_ctx = self._session_context
+            if session_entered and session_ctx is not None:
                 try:
-                    await self._session_context.__aexit__(None, None, None)
+                    await session_ctx.__aexit__(None, None, None)
                 except Exception as cleanup_error:
                     logger.warning(
                         f"Error during session cleanup for {self.config.name}: {cleanup_error}"
                     )
 
-            if transport_entered and self._transport_context is not None:
+            transport_ctx = self._transport_context
+            if transport_entered and transport_ctx is not None:
                 try:
-                    await self._transport_context.__aexit__(None, None, None)
+                    await transport_ctx.__aexit__(None, None, None)
                 except Exception as cleanup_error:
                     logger.warning(
                         f"Error during transport cleanup for {self.config.name}: {cleanup_error}"
@@ -100,9 +106,11 @@ class StdioTransportConnection(BaseTransportConnection):
     async def disconnect(self) -> None:
         """Disconnect from stdio server."""
         # Exit session context manager (not the session object itself)
-        if self._session_context is not None:
+        # Exit session context manager (not the session object itself)
+        session_ctx = self._session_context
+        if session_ctx is not None:
             try:
-                await self._session_context.__aexit__(None, None, None)
+                await session_ctx.__aexit__(None, None, None)
             except RuntimeError as e:
                 # Expected when exiting cancel scope from different task
                 if "cancel scope" not in str(e):
@@ -112,9 +120,10 @@ class StdioTransportConnection(BaseTransportConnection):
             self._session_context = None
             self._session = None
 
-        if self._transport_context is not None:
+        transport_ctx = self._transport_context
+        if transport_ctx is not None:
             try:
-                await self._transport_context.__aexit__(None, None, None)
+                await transport_ctx.__aexit__(None, None, None)
             except RuntimeError as e:
                 # Expected when exiting cancel scope from different task
                 if "cancel scope" not in str(e):

@@ -8,11 +8,11 @@ Tracks file offsets and updates the database with new messages.
 import asyncio
 import logging
 import os
-
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from gobby.servers.websocket import WebSocketServer
+
 from gobby.sessions.transcripts import get_parser
 from gobby.sessions.transcripts.base import TranscriptParser
 from gobby.storage.database import LocalDatabase
@@ -40,7 +40,7 @@ class SessionMessageProcessor:
         self.db = db
         self.message_manager = LocalSessionMessageManager(db)
         self.poll_interval = poll_interval
-        self.websocket_server = websocket_server
+        self.websocket_server: "WebSocketServer | None" = websocket_server
 
         # Track active sessions: session_id -> transcript_path
         self._active_sessions: dict[str, str] = {}

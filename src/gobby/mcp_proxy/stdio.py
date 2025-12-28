@@ -518,14 +518,31 @@ async def ensure_daemon_running() -> None:
         # Start
         result = await start_daemon_process(port, ws_port)
         if not result.get("success"):
+            logger.error(
+                "Failed to start daemon: %s (port=%d, ws_port=%d)",
+                result.get("error", "unknown error"),
+                port,
+                ws_port,
+            )
             sys.exit(1)
 
     # Wait for health
-    for _ in range(10):
-        if await check_daemon_http_health(port):
+    last_health_response = None
+    for i in range(10):
+        last_health_response = await check_daemon_http_health(port)
+        if last_health_response:
             return
         await asyncio.sleep(1)
 
+    # Health check timed out
+    pid = get_daemon_pid()
+    logger.error(
+        "Daemon failed to become healthy after 10 attempts (pid=%s, port=%d, ws_port=%d, last_health=%s)",
+        pid,
+        port,
+        ws_port,
+        last_health_response,
+    )
     sys.exit(1)
 
 

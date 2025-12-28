@@ -182,7 +182,6 @@ class HTTPServer:
                 internal_manager=self._internal_manager,
                 config=config,
                 llm_service=self.llm_service,
-                codex_client=codex_client,
                 session_manager=session_manager,
                 memory_manager=memory_manager,
                 skill_learner=skill_learner,
@@ -1320,10 +1319,10 @@ class HTTPServer:
                             }
                         except Exception as e:
                             self._metrics.inc_counter("mcp_tool_calls_failed_total")
-                            return {
-                                "success": False,
-                                "error": str(e),
-                            }
+                            raise HTTPException(
+                                status_code=500,
+                                detail={"success": False, "error": str(e)},
+                            ) from e
 
                 if self.mcp_manager is None:
                     raise HTTPException(status_code=503, detail="MCP manager not available")
@@ -1381,10 +1380,20 @@ class HTTPServer:
                     raise HTTPException(status_code=400, detail="Required fields: name, transport")
 
                 # Import here to avoid circular imports
+                # Import here to avoid circular imports
                 from gobby.mcp_proxy.models import MCPServerConfig
+                from gobby.utils.project_context import get_project_context
+
+                project_ctx = get_project_context()
+                if not project_ctx or not project_ctx.get("id"):
+                    raise HTTPException(
+                        status_code=400, detail="No current project found. Run 'gobby init'."
+                    )
+                project_id = project_ctx["id"]
 
                 config = MCPServerConfig(
                     name=name,
+                    project_id=project_id,
                     transport=transport,
                     url=body.get("url"),
                     command=body.get("command"),

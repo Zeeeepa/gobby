@@ -23,7 +23,7 @@ class MockWebSocketServer:
 
 @pytest.fixture
 def mock_db(tmp_path) -> LocalDatabase:
-    # Use file-based DB for tests (in-memory doesn't work with asyncio.to_thread)
+    # Use file-based DB for tests (in-memory doesn't work with asyncio.to_thread))
     db = LocalDatabase(tmp_path / "test.db")
     return db
 
@@ -108,8 +108,20 @@ async def test_full_lifecycle(env):
     with open(transcript_file, "w") as f:
         f.write(msg1 + "\n")
 
-    # 4. Wait for Processor to Poll
-    await asyncio.sleep(0.3)
+    # 4. Wait for Processor to Poll - use polling instead of fixed sleep
+    async def wait_for_message_processing(timeout: float = 2.0, interval: float = 0.05):
+        """Poll until the message is processed or timeout."""
+        elapsed = 0.0
+        while elapsed < timeout:
+            msgs = db.fetchall("SELECT * FROM session_messages WHERE session_id = ?", (session_id,))
+            if len(msgs) >= 1:
+                return True
+            await asyncio.sleep(interval)
+            elapsed += interval
+        return False
+
+    message_processed = await wait_for_message_processing()
+    assert message_processed, "Message was not processed within timeout"
 
     # 5. Verify DB Storage
     msgs = db.fetchall("SELECT * FROM session_messages WHERE session_id = ?", (session_id,))

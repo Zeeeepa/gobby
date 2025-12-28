@@ -1,6 +1,7 @@
 """Tests for the HTTP server endpoints."""
 
 from pathlib import Path
+from typing import Any, Generator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -61,12 +62,24 @@ def client(http_server: HTTPServer) -> TestClient:
 class TestSessionRegisterRequest:
     """Tests for SessionRegisterRequest model."""
 
-    def test_required_fields(self):
+    def test_required_fields(self) -> None:
         """Test that external_id is required."""
-        request = SessionRegisterRequest(external_id="test-key")
+        request = SessionRegisterRequest(
+            external_id="test-key",
+            machine_id=None,
+            jsonl_path=None,
+            title=None,
+            source=None,
+            parent_session_id=None,
+            status=None,
+            project_id=None,
+            project_path=None,
+            git_branch=None,
+            cwd=None,
+        )
         assert request.external_id == "test-key"
 
-    def test_optional_fields(self):
+    def test_optional_fields(self) -> None:
         """Test all optional fields."""
         request = SessionRegisterRequest(
             external_id="test-key",
@@ -90,7 +103,7 @@ class TestSessionRegisterRequest:
 class TestAdminEndpoints:
     """Tests for admin endpoints."""
 
-    def test_status_check(self, client: TestClient):
+    def test_status_check(self, client: TestClient) -> None:
         """Test /admin/status endpoint returns health info."""
         response = client.get("/admin/status")
         assert response.status_code == 200
@@ -101,7 +114,7 @@ class TestAdminEndpoints:
         assert "port" in data["server"]
         assert data["server"]["test_mode"] is True
 
-    def test_config_endpoint(self, client: TestClient):
+    def test_config_endpoint(self, client: TestClient) -> None:
         """Test /admin/config endpoint returns configuration."""
         response = client.get("/admin/config")
         assert response.status_code == 200
@@ -112,7 +125,7 @@ class TestAdminEndpoints:
         assert "server" in data["config"]
         assert "endpoints" in data["config"]
 
-    def test_metrics_endpoint(self, client: TestClient):
+    def test_metrics_endpoint(self, client: TestClient) -> None:
         """Test /admin/metrics endpoint returns Prometheus format."""
         response = client.get("/admin/metrics")
         assert response.status_code == 200
@@ -127,7 +140,7 @@ class TestSessionEndpoints:
         client: TestClient,
         test_project: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test session registration endpoint."""
         with patch("gobby.utils.machine_id.get_machine_id", return_value="test-machine"):
             response = client.post(
@@ -150,7 +163,7 @@ class TestSessionEndpoints:
         client: TestClient,
         test_project: dict,
         temp_dir: Path,
-    ):
+    ) -> None:
         """Test session registration with all optional fields."""
         response = client.post(
             "/sessions/register",
@@ -175,7 +188,7 @@ class TestSessionEndpoints:
         client: TestClient,
         session_storage: LocalSessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test getting a session by ID."""
         # Register a session first
         session = session_storage.register(
@@ -192,7 +205,7 @@ class TestSessionEndpoints:
         assert data["status"] == "success"
         assert data["session"]["external_id"] == "get-test"
 
-    def test_get_session_not_found(self, client: TestClient):
+    def test_get_session_not_found(self, client: TestClient) -> None:
         """Test getting nonexistent session returns 404."""
         response = client.get("/sessions/nonexistent-uuid")
         assert response.status_code == 404
@@ -202,7 +215,7 @@ class TestSessionEndpoints:
         client: TestClient,
         session_storage: LocalSessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test finding current session by composite key."""
         session = session_storage.register(
             external_id="find-current",
@@ -224,7 +237,7 @@ class TestSessionEndpoints:
         data = response.json()
         assert data["session"]["id"] == session.id
 
-    def test_find_current_session_not_found(self, client: TestClient):
+    def test_find_current_session_not_found(self, client: TestClient) -> None:
         """Test finding nonexistent current session."""
         response = client.post(
             "/sessions/find_current",
@@ -239,7 +252,7 @@ class TestSessionEndpoints:
         data = response.json()
         assert data["session"] is None
 
-    def test_find_current_session_missing_fields(self, client: TestClient):
+    def test_find_current_session_missing_fields(self, client: TestClient) -> None:
         """Test find_current with missing required fields."""
         response = client.post(
             "/sessions/find_current",
@@ -253,7 +266,7 @@ class TestSessionEndpoints:
         client: TestClient,
         session_storage: LocalSessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test finding parent session for handoff."""
         session = session_storage.register(
             external_id="parent-session",
@@ -281,7 +294,7 @@ class TestSessionEndpoints:
         client: TestClient,
         session_storage: LocalSessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test updating session status."""
         session = session_storage.register(
             external_id="status-update",
@@ -302,7 +315,7 @@ class TestSessionEndpoints:
         data = response.json()
         assert data["session"]["status"] == "paused"
 
-    def test_update_session_status_not_found(self, client: TestClient):
+    def test_update_session_status_not_found(self, client: TestClient) -> None:
         """Test updating status of nonexistent session."""
         response = client.post(
             "/sessions/update_status",
@@ -319,7 +332,7 @@ class TestSessionEndpoints:
         client: TestClient,
         session_storage: LocalSessionManager,
         test_project: dict,
-    ):
+    ) -> None:
         """Test updating session summary."""
         session = session_storage.register(
             external_id="summary-update",
@@ -344,7 +357,7 @@ class TestSessionEndpoints:
 class TestHooksEndpoint:
     """Tests for hooks execution endpoint."""
 
-    def test_execute_hook_missing_hook_type(self, client: TestClient):
+    def test_execute_hook_missing_hook_type(self, client: TestClient) -> None:
         """Test hook execution with missing hook_type."""
         response = client.post(
             "/hooks/execute",
@@ -354,7 +367,7 @@ class TestHooksEndpoint:
         assert response.status_code == 400
         assert "hook_type" in response.json()["detail"]
 
-    def test_execute_hook_missing_source(self, client: TestClient):
+    def test_execute_hook_missing_source(self, client: TestClient) -> None:
         """Test hook execution with missing source."""
         response = client.post(
             "/hooks/execute",
@@ -364,7 +377,7 @@ class TestHooksEndpoint:
         assert response.status_code == 400
         assert "source" in response.json()["detail"]
 
-    def test_execute_hook_unsupported_source(self, client: TestClient):
+    def test_execute_hook_unsupported_source(self, client: TestClient) -> None:
         """Test hook execution with unsupported source returns error."""
         response = client.post(
             "/hooks/execute",
@@ -381,12 +394,12 @@ class TestHooksEndpoint:
 class TestMCPEndpoints:
     """Tests for MCP proxy endpoints."""
 
-    def test_mcp_tools_without_manager(self, client: TestClient):
+    def test_mcp_tools_without_manager(self, client: TestClient) -> None:
         """Test MCP tools listing when manager not available."""
         response = client.get("/mcp/test-server/tools")
         assert response.status_code == 503
 
-    def test_mcp_proxy_without_manager(self, client: TestClient):
+    def test_mcp_proxy_without_manager(self, client: TestClient) -> None:
         """Test MCP proxy when manager not available."""
         response = client.post(
             "/mcp/test-server/tools/test-tool",
@@ -396,7 +409,7 @@ class TestMCPEndpoints:
 
 
 class FakeConnection:
-    def __init__(self):
+    def __init__(self) -> None:
         self.is_connected = True
         self._session = MagicMock()
         self.config = MagicMock()
@@ -406,10 +419,10 @@ class FakeConnection:
 
 
 class FakeMCPManager:
-    def __init__(self):
-        self.server_configs = []
-        self.connections = {}
-        self.health = {}
+    def __init__(self) -> None:
+        self.server_configs: list[Any] = []
+        self.connections: dict[str, Any] = {}
+        self.health: dict[str, Any] = {}
         self.get_client = MagicMock()
         self.call_tool = AsyncMock()
         self.project_id = "test-project"
@@ -420,7 +433,7 @@ class TestMCPEndpointsWithManager:
     """Tests for MCP endpoints with mock manager."""
 
     @pytest.fixture
-    def mock_mcp_manager(self):
+    def mock_mcp_manager(self) -> FakeMCPManager:
         """Create a mock MCP manager."""
 
         return FakeMCPManager()
@@ -441,7 +454,7 @@ class TestMCPEndpointsWithManager:
         )
 
     @pytest.fixture
-    def mcp_client(self, http_server_with_mcp: HTTPServer):
+    def mcp_client(self, http_server_with_mcp: HTTPServer) -> Generator[TestClient, None, None]:
         """Create test client with MCP manager."""
         with TestClient(http_server_with_mcp.app) as client:
             yield client
@@ -450,8 +463,9 @@ class TestMCPEndpointsWithManager:
         self,
         mcp_client: TestClient,
         http_server_with_mcp: HTTPServer,
-    ):
+    ) -> None:
         """Test MCP tools listing for unknown server."""
+        assert http_server_with_mcp.mcp_manager is not None
         http_server_with_mcp.mcp_manager.get_client.side_effect = ValueError("Server not found")
 
         # No try/except needed if we fixed the root cause, but leaving assertion
@@ -462,8 +476,9 @@ class TestMCPEndpointsWithManager:
         self,
         mcp_client: TestClient,
         http_server_with_mcp: HTTPServer,
-    ):
+    ) -> None:
         """Test MCP proxy for unknown tool."""
+        assert http_server_with_mcp.mcp_manager is not None
         http_server_with_mcp.mcp_manager.call_tool = AsyncMock(
             side_effect=ValueError("Tool not found")
         )
@@ -474,6 +489,60 @@ class TestMCPEndpointsWithManager:
         )
         assert response.status_code == 404
 
+    def test_add_mcp_server_success(
+        self,
+        mcp_client: TestClient,
+        http_server_with_mcp: HTTPServer,
+    ) -> None:
+        """Test adding a new MCP server."""
+        # Mock get_project_context
+        with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
+            mock_ctx.return_value = {"id": "test-project-id", "name": "test"}
+            assert http_server_with_mcp.mcp_manager is not None
+            http_server_with_mcp.mcp_manager.add_server = AsyncMock()
+
+            response = mcp_client.post(
+                "/mcp/servers",
+                json={
+                    "name": "new-server",
+                    "transport": "http",
+                    "url": "http://example.com",
+                    "enabled": True,
+                },
+            )
+
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+
+        # Verify add_server was called with correct config
+        assert http_server_with_mcp.mcp_manager is not None
+        http_server_with_mcp.mcp_manager.add_server.assert_called_once()
+        config = http_server_with_mcp.mcp_manager.add_server.call_args[0][0]
+        assert config.name == "new-server"
+        assert config.project_id == "test-project-id"
+
+    def test_add_mcp_server_no_project(
+        self,
+        mcp_client: TestClient,
+        http_server_with_mcp: HTTPServer,
+    ) -> None:
+        """Test adding MCP server without project context fails."""
+        with patch("gobby.utils.project_context.get_project_context", return_value=None):
+            response = mcp_client.post(
+                "/mcp/servers",
+                json={
+                    "name": "new-server",
+                    "transport": "http",
+                    "url": "http://example.com",
+                },
+            )
+
+        assert response.status_code == 400
+        assert (
+            "No current project configuration found" in response.json()["detail"]
+            or "No current project found" in response.json()["detail"]
+        )
+
 
 class TestExceptionHandling:
     """Tests for exception handling."""
@@ -481,7 +550,7 @@ class TestExceptionHandling:
     def test_global_exception_returns_200(
         self,
         session_storage: LocalSessionManager,
-    ):
+    ) -> None:
         """Test that global exception handler returns 200 to prevent hook failures."""
         # Create server that will raise an exception
         server = HTTPServer(
@@ -495,7 +564,7 @@ class TestExceptionHandling:
         # but here we mocked .get globally.
         # Let's use a simpler approach: define a route in the app that raises an exception
         @server.app.get("/trigger_error")
-        def trigger_error():
+        def trigger_error() -> None:
             raise RuntimeError("Test error")
 
         client = TestClient(server.app, raise_server_exceptions=False)
@@ -521,7 +590,7 @@ class TestExceptionHandling:
 class TestShutdownEndpoint:
     """Tests for shutdown endpoint."""
 
-    def test_shutdown_initiates(self, client: TestClient):
+    def test_shutdown_initiates(self, client: TestClient) -> None:
         """Test that shutdown endpoint initiates shutdown."""
         response = client.post("/admin/shutdown")
         assert response.status_code == 200

@@ -30,11 +30,10 @@ class GobbyDaemonTools:
         internal_manager: Any,
         config: DaemonConfig | None = None,
         llm_service: Any | None = None,
-        codex_client: Any | None = None,
         session_manager: Any | None = None,
         memory_manager: Any | None = None,
         skill_learner: Any | None = None,
-        config_manager: Any | None = None,  # Added for server mgmt
+        config_manager: Any | None = None,
     ):
         self.config = config
         self.internal_manager = internal_manager
@@ -46,7 +45,7 @@ class GobbyDaemonTools:
             internal_manager=internal_manager,
         )
         self.server_mgmt = ServerManagementService(mcp_manager, config_manager, config)
-        self.code_execution = CodeExecutionService(codex_client)
+        self.code_execution = CodeExecutionService(llm_service=llm_service, config=config)
         self.recommendation = RecommendationService(llm_service, mcp_manager)
 
     # --- System Tools ---

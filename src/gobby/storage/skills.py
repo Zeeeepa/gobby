@@ -30,7 +30,15 @@ class Skill:
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Skill":
         tags_json = row["tags"]
-        tags = json.loads(tags_json) if tags_json else []
+        tags: list[str] = []
+        if tags_json:
+            try:
+                tags = json.loads(tags_json)
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.warning(
+                    f"Malformed tags JSON in skill row (id={row['id']}): {tags_json!r} - {e}"
+                )
+                tags = []
 
         return cls(
             id=row["id"],
