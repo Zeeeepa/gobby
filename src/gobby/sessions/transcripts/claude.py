@@ -248,7 +248,7 @@ class ClaudeTranscriptParser:
             msg_data = data.get("message", {})
             content = str(msg_data.get("content", ""))
 
-        elif msg_type == "agent":
+        elif msg_type in ("agent", "assistant"):
             role = "assistant"
             msg_data = data.get("message", {})
             content_blocks = msg_data.get("content", [])
