@@ -69,7 +69,7 @@ class DaemonProxy:
             return await self._request("GET", f"/mcp/{server}/tools")
         # List all - need to get server list first
         status = await self.get_status()
-        if status.get("status") != "success" and "error" in status:
+        if status.get("success") is False or status.get("status") == "error":
             return status
         servers = status.get("mcp_servers", {})
         all_tools: dict[str, list[dict[str, Any]]] = {}
@@ -111,7 +111,7 @@ class DaemonProxy:
     async def list_mcp_servers(self) -> dict[str, Any]:
         """List configured MCP servers."""
         status = await self.get_status()
-        if "error" in status:
+        if status.get("success") is False or status.get("status") == "error":
             return status
         servers = status.get("mcp_servers", {})
         server_list = []
@@ -252,7 +252,13 @@ def create_stdio_mcp_server() -> FastMCP:
         daemon_details = None
         if healthy:
             result = await proxy.get_status()
-            if "error" not in result:
+            # Only accept explicitly successful responses (not error responses)
+            if result.get("success") is False or result.get("status") == "error":
+                logger.warning(
+                    "Failed to get daemon details: %s",
+                    result.get("error", "unknown error"),
+                )
+            else:
                 daemon_details = result
 
         return {

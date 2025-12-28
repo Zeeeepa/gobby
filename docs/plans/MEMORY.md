@@ -484,7 +484,10 @@ This project uses pytest with specific configuration:
 - [x] Implement `recall()` method with importance ranking
 - [x] Implement `forget()` method
 - [x] Implement memory importance decay (background job)
-- [ ] Add access tracking (update access_count, last_accessed_at) - stubbed, not implemented
+- [ ] Add access tracking (update access_count, last_accessed_at)
+      - **Stub location:** `src/gobby/memory/manager.py:_update_access_stats()` (line ~105-111)
+      - **Rationale:** Deferred as low priority; schema supports it but perf tuning needed (batch vs sync updates)
+      - **Follow-up:** See Phase 10 TODO below
 - [x] Add unit tests for memory operations
 
 ### Phase 3: Skill Learning
@@ -507,38 +510,48 @@ Note: Memory injection/extraction should be done via workflow actions, not hardc
 - [x] Add `memory.sync_export` workflow action
 - [x] Add `skills_learn` workflow action
 - [x] Add unit tests for workflow memory actions
-- [ ] Create example workflow using memory injection at session_start
-- [ ] Create example workflow using memory extraction at session_end
+- [x] Create example workflow using memory injection at session_start
+      - See `src/gobby/templates/workflows/memory-lifecycle.yaml` (uses `memory_inject` action)
+      - See `src/gobby/templates/workflows/memory-sync.yaml` (uses `memory.sync_import` action)
+- [x] Create example workflow using memory extraction at session_end
+      - See `src/gobby/templates/workflows/memory-lifecycle.yaml` (uses `skills_learn` action)
+      - See `src/gobby/templates/workflows/memory-sync.yaml` (uses `memory.sync_export` action)
 
 ### Phase 5-6: MCP Tools & CLI Commands (Unified)
 
 MCP tools and CLI commands should have parity. Each operation is implemented in both interfaces.
 
+**Status Legend:**
+- `MCP+CLI` = Both MCP tool and CLI command implemented
+- `MCP only` = MCP tool implemented, CLI pending
+- `CLI only` = CLI command implemented, MCP pending
+- `TODO` = Neither implemented yet
+
 #### Memory Operations
 
-| Operation | MCP Tool | CLI Command | Status |
-|-----------|----------|-------------|--------|
-| Create | `remember` | `gobby memory remember` | Done |
-| Retrieve/Search | `recall` | `gobby memory recall` | Done |
-| Delete | `forget` | `gobby memory forget` | Done |
-| List all | `list_memories` | `gobby memory list` | TODO |
-| Show one | `get_memory` | `gobby memory show` | TODO |
-| Update | `update_memory` | `gobby memory update` | TODO |
-| Initialize | `init_memory` | `gobby memory init` | TODO |
-| Stats | `memory_stats` | `gobby memory stats` | TODO |
+| Operation | MCP Tool | CLI Command | Status | Notes |
+|-----------|----------|-------------|--------|-------|
+| Create | `remember` | `gobby memory remember` | MCP+CLI | |
+| Retrieve/Search | `recall` | `gobby memory recall` | MCP+CLI | |
+| Delete | `forget` | `gobby memory forget` | MCP+CLI | |
+| List all | `list_memories` | `gobby memory list` | TODO | Low priority; recall covers most use cases |
+| Show one | `get_memory` | `gobby memory show` | TODO | Depends on list_memories for discovery |
+| Update | `update_memory` | `gobby memory update` | TODO | Needs design: which fields mutable? |
+| Initialize | `init_memory` | `gobby memory init` | TODO | Blocked by Phase 9 (MemoryExtractor) |
+| Stats | `memory_stats` | `gobby memory stats` | TODO | Low priority |
 
 #### Skill Operations
 
-| Operation | MCP Tool | CLI Command | Status |
-|-----------|----------|-------------|--------|
-| Learn from session | `learn_skill` | `gobby skill learn` | Done |
-| List | `list_skills` | `gobby skill list` | Done |
-| Show/Get | `get_skill` | `gobby skill get` | Done |
-| Delete | `delete_skill` | `gobby skill delete` | Done |
-| Create directly | `create_skill` | `gobby skill add` | TODO |
-| Update | `update_skill` | `gobby skill update` | TODO |
-| Apply/Use | `apply_skill` | `gobby skill apply` | TODO |
-| Export to files | `export_skills` | `gobby skill export` | TODO |
+| Operation | MCP Tool | CLI Command | Status | Notes |
+|-----------|----------|-------------|--------|-------|
+| Learn from session | `learn_skill` | `gobby skill learn` | MCP+CLI | |
+| List | `list_skills` | `gobby skill list` | MCP+CLI | |
+| Show/Get | `get_skill` | `gobby skill get` | MCP+CLI | |
+| Delete | `delete_skill` | `gobby skill delete` | MCP+CLI | |
+| Create directly | `create_skill` | `gobby skill add` | TODO | Low priority; learn_skill preferred |
+| Update | `update_skill` | `gobby skill update` | TODO | Needs design: trigger pattern editing |
+| Apply/Use | `apply_skill` | `gobby skill apply` | TODO | Needs design: how to apply in context? |
+| Export to files | `export_skills` | `gobby skill export` | TODO | Depends on memory sync (Phase 7) |
 
 #### Checklist
 
@@ -603,6 +616,9 @@ MCP tools and CLI commands should have parity. Each operation is implemented in 
 - [ ] Add memory configuration options to `config.yaml`
 - [ ] Performance testing with 1000+ memories
 - [ ] Document cross-CLI memory sharing
+- [ ] Implement access tracking in `MemoryManager._update_access_stats()`
+      - **Gating:** Implement after semantic search (Phase 8) to batch with embedding updates
+      - **Scope:** Update `access_count` and `last_accessed_at` on recall; consider debouncing for perf
 
 ## Configuration
 

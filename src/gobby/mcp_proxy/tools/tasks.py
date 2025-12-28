@@ -401,7 +401,7 @@ def create_task_registry(
         success = task_manager.delete_task(task_id, cascade=cascade)
         if not success:
             return {"error": f"Task {task_id} not found"}
-        return {"success": True, "message": f"Task {task_id} deleted"}
+        return {"deleted": True, "task_id": task_id}
 
     registry.register(
         name="delete_task",
@@ -501,7 +501,7 @@ def create_task_registry(
         """Add a dependency between tasks."""
         try:
             dep_manager.add_dependency(task_id, depends_on, dep_type)
-            return {"success": True, "message": f"Task {task_id} {dep_type} by {depends_on}"}
+            return {"added": True, "task_id": task_id, "depends_on": depends_on, "dep_type": dep_type}
         except ValueError as e:
             return {"error": str(e)}
 
@@ -527,7 +527,7 @@ def create_task_registry(
     def remove_dependency(task_id: str, depends_on: str) -> dict[str, Any]:
         """Remove a dependency."""
         dep_manager.remove_dependency(task_id, depends_on)
-        return {"success": True, "message": "Dependency removed"}
+        return {"removed": True, "task_id": task_id, "depends_on": depends_on}
 
     registry.register(
         name="remove_dependency",
@@ -654,7 +654,7 @@ def create_task_registry(
 
         try:
             session_task_manager.link_task(session_id, task_id, action)
-            return {"success": True, "message": f"Task {task_id} linked to session {session_id}"}
+            return {"linked": True, "task_id": task_id, "session_id": session_id, "action": action}
         except ValueError as e:
             return {"error": str(e)}
 
