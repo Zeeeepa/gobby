@@ -534,11 +534,11 @@ MCP tools and CLI commands should have parity. Each operation is implemented in 
 | Create | `remember` | `gobby memory remember` | MCP+CLI | |
 | Retrieve/Search | `recall` | `gobby memory recall` | MCP+CLI | |
 | Delete | `forget` | `gobby memory forget` | MCP+CLI | |
-| List all | `list_memories` | `gobby memory list` | TODO | Low priority; recall covers most use cases |
-| Show one | `get_memory` | `gobby memory show` | TODO | Depends on list_memories for discovery |
-| Update | `update_memory` | `gobby memory update` | TODO | Needs design: which fields mutable? |
+| List all | `list_memories` | `gobby memory list` | MCP+CLI | |
+| Show one | `get_memory` | `gobby memory show` | MCP+CLI | |
+| Update | `update_memory` | `gobby memory update` | MCP+CLI | Mutable: content, importance, tags |
 | Initialize | `init_memory` | `gobby memory init` | TODO | Blocked by Phase 9 (MemoryExtractor) |
-| Stats | `memory_stats` | `gobby memory stats` | TODO | Low priority |
+| Stats | `memory_stats` | `gobby memory stats` | MCP+CLI | |
 
 #### Skill Operations
 
@@ -548,10 +548,10 @@ MCP tools and CLI commands should have parity. Each operation is implemented in 
 | List | `list_skills` | `gobby skill list` | MCP+CLI | |
 | Show/Get | `get_skill` | `gobby skill get` | MCP+CLI | |
 | Delete | `delete_skill` | `gobby skill delete` | MCP+CLI | |
-| Create directly | `create_skill` | `gobby skill add` | TODO | Low priority; learn_skill preferred |
-| Update | `update_skill` | `gobby skill update` | TODO | Needs design: trigger pattern editing |
-| Apply/Use | `apply_skill` | `gobby skill apply` | TODO | Needs design: how to apply in context? |
-| Export to files | `export_skills` | `gobby skill export` | TODO | Depends on memory sync (Phase 7) |
+| Create directly | `create_skill` | `gobby skill add` | MCP+CLI | |
+| Update | `update_skill` | `gobby skill update` | MCP+CLI | Supports name, instructions, trigger, tags |
+| Apply/Use | `apply_skill` | `gobby skill apply` | MCP+CLI | Returns instructions, increments usage |
+| Export to files | `export_skills` | `gobby skill export` | MCP+CLI | Exports to .gobby/skills/ as markdown |
 
 #### Checklist
 
@@ -567,17 +567,18 @@ MCP tools and CLI commands should have parity. Each operation is implemented in 
 - [x] Add `delete_skill` MCP tool + `skill delete` CLI command
 - [x] Add `match_skills` MCP tool (MCP-only, used by workflows)
 
-**TODO:**
-- [ ] Add `list_memories` MCP tool + `memory list` CLI command
-- [ ] Add `get_memory` MCP tool + `memory show` CLI command
-- [ ] Add `update_memory` MCP tool + `memory update` CLI command
-- [ ] Add `init_memory` MCP tool + `memory init` CLI command
-- [ ] Add `memory_stats` MCP tool + `memory stats` CLI command
-- [ ] Add `create_skill` MCP tool + `skill add` CLI command
-- [ ] Add `update_skill` MCP tool + `skill update` CLI command
-- [ ] Add `apply_skill` MCP tool + `skill apply` CLI command
-- [ ] Add `export_skills` MCP tool + `skill export` CLI command
-- [ ] Update MCP tool documentation in CLAUDE.md
+- [x] Add `list_memories` MCP tool + `memory list` CLI command
+- [x] Add `get_memory` MCP tool + `memory show` CLI command
+- [x] Add `update_memory` MCP tool + `memory update` CLI command
+- [x] Add `memory_stats` MCP tool + `memory stats` CLI command
+- [x] Add `create_skill` MCP tool + `skill add` CLI command
+- [x] Add `update_skill` MCP tool + `skill update` CLI command
+- [x] Add `apply_skill` MCP tool + `skill apply` CLI command
+- [x] Add `export_skills` MCP tool + `skill export` CLI command
+- [x] Update MCP tool documentation in CLAUDE.md
+
+**TODO (blocked):**
+- [ ] Add `init_memory` MCP tool + `memory init` CLI command (blocked by Phase 9: MemoryExtractor)
 
 ### Phase 7: Git Sync
 

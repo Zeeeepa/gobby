@@ -135,6 +135,78 @@ class MemoryManager:
         """Check if a memory with identical content already exists."""
         return self.storage.content_exists(content, project_id)
 
+    def get_memory(self, memory_id: str) -> Memory | None:
+        """Get a specific memory by ID."""
+        try:
+            return self.storage.get_memory(memory_id)
+        except ValueError:
+            return None
+
+    def update_memory(
+        self,
+        memory_id: str,
+        content: str | None = None,
+        importance: float | None = None,
+        tags: list[str] | None = None,
+    ) -> Memory:
+        """
+        Update an existing memory.
+
+        Args:
+            memory_id: The memory to update
+            content: New content (optional)
+            importance: New importance (optional)
+            tags: New tags (optional)
+
+        Returns:
+            Updated Memory object
+
+        Raises:
+            ValueError: If memory not found
+        """
+        return self.storage.update_memory(
+            memory_id=memory_id,
+            content=content,
+            importance=importance,
+            tags=tags,
+        )
+
+    def get_stats(self, project_id: str | None = None) -> dict:
+        """
+        Get statistics about stored memories.
+
+        Args:
+            project_id: Optional project to filter stats by
+
+        Returns:
+            Dictionary with memory statistics
+        """
+        # Get all memories (use large limit)
+        memories = self.storage.list_memories(project_id=project_id, limit=10000)
+
+        if not memories:
+            return {
+                "total_count": 0,
+                "by_type": {},
+                "avg_importance": 0.0,
+                "project_id": project_id,
+            }
+
+        # Count by type
+        by_type: dict[str, int] = {}
+        total_importance = 0.0
+
+        for m in memories:
+            by_type[m.memory_type] = by_type.get(m.memory_type, 0) + 1
+            total_importance += m.importance
+
+        return {
+            "total_count": len(memories),
+            "by_type": by_type,
+            "avg_importance": round(total_importance / len(memories), 3),
+            "project_id": project_id,
+        }
+
     def decay_memories(self) -> int:
         """
         Apply importance decay to all memories.

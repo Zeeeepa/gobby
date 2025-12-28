@@ -168,6 +168,7 @@ class HTTPServer:
                 message_manager=message_manager,
                 skill_storage=None,  # Use skill_learner's storage if available
                 local_session_manager=session_manager,
+                memory_sync_manager=memory_sync_manager,
             )
             logger.debug(f"Internal registries initialized: {len(self._internal_manager)} registries")
 
