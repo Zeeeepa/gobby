@@ -46,6 +46,8 @@ class TaskExpander:
         title: str,
         description: str | None = None,
         context: str | None = None,
+        enable_web_research: bool = False,
+        enable_code_context: bool = True,
     ) -> dict[str, Any]:
         """
         Expand a task into subtasks using prompt builder and schema validation.
@@ -55,6 +57,8 @@ class TaskExpander:
             title: Task title
             description: Task description
             context: Additional context for expansion
+            enable_web_research: Whether to enable web research (default: False)
+            enable_code_context: Whether to enable code context gathering (default: True)
 
         Returns:
             Dictionary matching the expansion schema (complexity_analysis, phases)
@@ -81,7 +85,11 @@ class TaskExpander:
                 description=description,
             )
 
-        expansion_ctx = await self.context_gatherer.gather_context(task_obj)
+        expansion_ctx = await self.context_gatherer.gather_context(
+            task_obj,
+            enable_web_research=enable_web_research,
+            enable_code_context=enable_code_context,
+        )
 
         # Build prompt using builder
         prompt = self.prompt_builder.build_user_prompt(

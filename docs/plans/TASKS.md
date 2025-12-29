@@ -1277,6 +1277,7 @@ For large tasks, use `expand_task(id)` to break them down before starting.
 #### Phase 12.2: Agentic Research (Replaces Python Heuristics)
 
 > **Architecture Decision:** Use a two-phase hybrid approach:
+>
 > 1. **Research phase (agentic)** - LLM agent browses codebase with Glob/Grep/Read
 > 2. **Expansion phase (single-turn)** - Structured JSON generation from research context
 >
@@ -1288,6 +1289,7 @@ For large tasks, use `expand_task(id)` to break them down before starting.
   - Agent prompt: "Analyze task X, find relevant files, patterns, dependencies"
   - Returns: `ResearchContext` with files, patterns, summary
 - [ ] Create `ResearchContext` dataclass:
+
   ```python
   @dataclass
   class ResearchContext:
@@ -1297,6 +1299,7 @@ For large tasks, use `expand_task(id)` to break them down before starting.
       related_code: dict[str, str]        # Key code snippets
       context_summary: str                # Agent's overall analysis
   ```
+
 - [ ] Implement agent tool restrictions (read-only: Glob, Grep, Read)
 - [ ] Add timeout and token limits for research phase
 - [ ] Cache research results in task's `expansion_context` field
@@ -1344,42 +1347,42 @@ For large tasks, use `expand_task(id)` to break them down before starting.
 
 #### Phase 12.6: MCP Tool Updates
 
-- [ ] Update `expand_task` tool with new parameters:
+- [x] Update `expand_task` tool with new parameters:
   - `strategy: str | None` - Override auto-selection (phased/sequential/parallel)
   - `max_subtasks: int | None` - Override recommended count
   - `use_tdd: bool | None` - Override config.use_tdd for this expansion
   - `force: bool = False` - Clear existing subtasks
-- [ ] Add `analyze_complexity` tool - analyze without expanding
-- [ ] Add `expand_all` tool - expand all pending tasks
-- [ ] Add `expand_from_spec` tool - parse PRD/user story/bug report
-- [ ] Add `suggest_next_task` tool - LLM recommends next ready task
-- [ ] Update tool schemas for progressive disclosure
-- [ ] Add detailed tool documentation
+- [x] Add `analyze_complexity` tool - analyze without expanding
+- [x] Add `expand_all` tool - expand all pending tasks
+- [x] Add `expand_from_spec` tool - parse PRD/user story/bug report
+- [x] Add `suggest_next_task` tool - LLM recommends next ready task
+- [x] Update tool schemas for progressive disclosure
+- [x] Add detailed tool documentation
 
 #### Phase 12.7: CLI Updates
 
-- [ ] Update `gobby tasks expand TASK_ID` with new flags:
+- [x] Update `gobby tasks expand TASK_ID` with new flags:
   - `--strategy S` - Override auto-selection (phased/sequential/parallel)
   - `--num N` - Override subtask count
   - `--tdd / --no-tdd` - Override TDD mode
   - `--force` - Clear existing subtasks
-- [ ] Add `gobby tasks complexity TASK_ID` command
-- [ ] Add `gobby tasks complexity --all --pending` command
-- [ ] Add `gobby tasks expand --all` command
-- [ ] Update `gobby tasks show TASK_ID --expansion` to show phases/dependencies
-- [ ] Add progress indicators for long operations
-- [ ] Add unit tests for CLI commands
+- [x] Add `gobby tasks complexity TASK_ID` command
+- [x] Add `gobby tasks complexity --all --pending` command
+- [x] Add `gobby tasks expand --all` command
+- [x] Update `gobby tasks show TASK_ID --expansion` to show phases/dependencies
+- [x] Add progress indicators for long operations
+- [x] Add unit tests for CLI commands
 
 #### Phase 12.8: Testing & Documentation
 
-- [ ] Add integration test: expand → subtasks created with dependencies
-- [ ] Add integration test: expand with research mode
-- [ ] Add integration test: expand_all with complexity filtering
-- [ ] Add integration test: dependency cycle prevention
-- [ ] Test with real project (2048 game example from plan)
-- [ ] Update CLAUDE.md task management section
-- [ ] Update docs/tasks.md with expansion guide
-- [ ] Add example prompts and outputs to documentation
+- [x] Add integration test: expand → subtasks created with dependencies
+- [x] Add integration test: expand with research mode
+- [x] Add integration test: expand_all with complexity filtering
+- [x] Add integration test: dependency cycle prevention
+- [x] Test with real project (2048 game example from plan)
+- [x] Update CLAUDE.md task management section
+- [x] Update docs/tasks.md with expansion guide
+- [x] Add example prompts and outputs to documentation
 
 ### Phase 12.5: Task Validation
 

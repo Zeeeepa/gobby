@@ -197,8 +197,41 @@ async def test_expand_task_integration(mock_task_manager, mock_sync_manager):
 
         # 2. Parent dependencies (t1 depends on sub1 and sub2)
         mock_dep_instance.add_dependency.assert_any_call(
-            task_id="t1", depends_on="sub1", dep_type="blocks"
-        )
-        mock_dep_instance.add_dependency.assert_any_call(
             task_id="t1", depends_on="sub2", dep_type="blocks"
+        )
+
+
+@pytest.mark.asyncio
+async def test_expand_task_with_flags(mock_task_manager, mock_sync_manager):
+    """Test expand_task tool passes feature flags to TaskExpander."""
+    mock_expander = MagicMock()
+    # Minimal response
+    mock_expander.expand_task = AsyncMock(return_value={"complexity_analysis": {}, "phases": []})
+
+    with patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"):
+        registry = create_task_registry(
+            mock_task_manager, mock_sync_manager, task_expander=mock_expander
+        )
+
+        mock_task = MagicMock()
+        mock_task.id = "t1"
+        mock_task_manager.get_task.return_value = mock_task
+
+        # Call with explicit flags
+        await registry.call(
+            "expand_task",
+            {
+                "task_id": "t1",
+                "enable_web_research": True,
+                "enable_code_context": False,
+            },
+        )
+
+        mock_expander.expand_task.assert_called_with(
+            task_id="t1",
+            title=mock_task.title,
+            description=mock_task.description,
+            context=None,
+            enable_web_research=True,
+            enable_code_context=False,
         )

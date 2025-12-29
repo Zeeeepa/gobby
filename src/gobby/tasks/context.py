@@ -48,17 +48,27 @@ class ExpansionContextGatherer:
         task_manager: Any,
         llm_service: Any = None,
         config: Any = None,
+        mcp_manager: Any = None,
     ):  # Type Any to avoid circular import
         self.task_manager = task_manager
         self.llm_service = llm_service
         self.config = config
+        self.mcp_manager = mcp_manager
 
-    async def gather_context(self, task: Task) -> ExpansionContext:
+    async def gather_context(
+        self,
+        task: Task,
+        enable_web_research: bool = False,
+        enable_code_context: bool = True,
+    ) -> ExpansionContext:
         """
         Gather all relevant context for a task.
 
         Args:
+        Args:
             task: The task to gather context for.
+            enable_web_research: Whether to enable web research.
+            enable_code_context: Whether to enable code context gathering.
 
         Returns:
             Populated ExpansionContext object.
@@ -68,20 +78,40 @@ class ExpansionContextGatherer:
         related_tasks = await self._find_related_tasks(task)
 
         # 1. Regex/Heuristic based file finding
-        relevant_files = await self._find_relevant_files(task)
+        relevant_files = []
+        if enable_code_context:
+            relevant_files = await self._find_relevant_files(task)
 
         # 2. Agentic research (if enabled)
         agent_findings = ""
-        if (
-            self.config
-            and getattr(self.config, "codebase_research_enabled", False)
-            and self.llm_service
-        ):
+        # Check explicit flag first, then config
+        research_globally_enabled = getattr(self.config, "codebase_research_enabled", False)
+        # Web research is a sub-feature of research agent, controlled by separate config usually,
+        # but here we are gating the whole research agent.
+        # Let's clarify: The 'TaskResearchAgent' does codebase research.
+        # Web research is a tool available to it.
+        # The `enable_web_research` flag specifically targets web search capabilities if available.
+        # But we also have `codebase_research_enabled` config.
+
+        # Logic:
+        # If enable_code_context is False, we likely skip research too?
+        # Or is research separate?
+        # Assuming research builds on code context.
+        should_run_research = enable_code_context and research_globally_enabled
+
+        if should_run_research and self.llm_service:
             try:
                 from gobby.tasks.research import TaskResearchAgent
 
-                agent = TaskResearchAgent(self.config, self.llm_service)
-                research_result = await agent.run(task)
+                agent = TaskResearchAgent(self.config, self.llm_service, self.mcp_manager)
+                # Pass web research flag to agent run if supported, or config override
+                # Since TaskResearchAgent reads config, we might need to override it temporarily
+                # or assume the agent checks the flag passed to run.
+                # Let's update TaskResearchAgent.run to accept flags too, or config.
+                # For now, we'll rely on the agent using the passed config, but we can't easily
+                # change the config object here without side effects.
+                # Better: TaskResearchAgent takes flags in run()
+                research_result = await agent.run(task, enable_web_search=enable_web_research)
 
                 # Merge found files
                 for f in research_result.get("relevant_files", []):

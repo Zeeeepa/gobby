@@ -40,11 +40,8 @@ class TaskResearchAgent:
         self.mcp_manager = mcp_manager
         self.max_steps = 10
         self.root = find_project_root()
-
-        # Discover available search tools
-        self.search_tool: dict | None = None
-        if self.mcp_manager and self.config.web_research_enabled:
-            self.search_tool = self._find_search_tool()
+        # Search tool discovery happens effectively at runtime now via _build_prompt
+        # but we keep the helper method if we want to pre-check.
 
     def _find_search_tool(self) -> dict | None:
         """Find a suitable web search tool from MCP manager."""
@@ -76,7 +73,11 @@ class TaskResearchAgent:
 
         return None  # We'll resolve dynamically in prompt builder for now
 
-    async def run(self, task: Task) -> dict[str, Any]:
+    async def run(
+        self,
+        task: Task,
+        enable_web_search: bool = False,
+    ) -> dict[str, Any]:
         """
         Run the research loop.
 
@@ -106,7 +107,7 @@ class TaskResearchAgent:
 
         for step in range(self.max_steps):
             # 1. Generate Thought/Action
-            prompt = await self._build_step_prompt(context, step)  # Made async
+            prompt = await self._build_step_prompt(context, step, enable_web_search)  # Made async
             response = await provider.generate_text(
                 prompt=prompt,
                 system_prompt="You are a senior developer researching a codebase. Use tools to find relevant code.",
@@ -133,7 +134,12 @@ class TaskResearchAgent:
 
         return self._summarize_results(context)
 
-    async def _build_step_prompt(self, context: dict, step: int) -> str:
+    async def _build_step_prompt(
+        self,
+        context: dict,
+        step: int,
+        enable_web_search: bool = False,
+    ) -> str:
         task = context["task"]
         history = context["history"]
 
@@ -148,9 +154,15 @@ You have access to the following tools:
 3. read_file(path): Read the content of a file
 4. done(reason): Finish research
 """
-        # Add search tool if available
+        # Add search tool if available and enabled
         search_tool_def = ""
-        if self.mcp_manager and self.config.web_research_enabled:
+        # Check both config global enable AND request-specific enable
+        # Note: config.web_research_enabled is the global "allowed" switch.
+        # enable_web_search is the per-request "requested" switch.
+        # We need BOTH to be true.
+        can_use_search = self.config.web_research_enabled and enable_web_search
+
+        if self.mcp_manager and can_use_search:
             # Dynamically check for search tool
             # We prefer 'search_web' if available, else others
             tools = await self.mcp_manager.list_tools()  # Assuming this API
@@ -287,7 +299,11 @@ History:
                 return "Done"
 
             # Check for MCP search tools
-            if self.mcp_manager and self.config.web_research_enabled:
+            # We strictly check if the tool is one of the search tools we support
+            # The enable_web_search check was done at prompt time, but good to enforce here too
+            # However, execute_tool doesn't receive the flag currently.
+            # We rely on the model only calling it if presented in prompt.
+            if self.mcp_manager:
                 if tool in ("search_web", "google_search", "brave_search"):
                     if not args:
                         return "Error: Missing query"

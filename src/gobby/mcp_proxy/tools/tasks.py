@@ -68,6 +68,8 @@ def create_task_registry(
     async def expand_task(
         task_id: str,
         context: str | None = None,
+        enable_web_research: bool = False,
+        enable_code_context: bool = True,
     ) -> list[Task]:
         """
         Expand a task into subtasks.
@@ -75,6 +77,8 @@ def create_task_registry(
         Args:
             task_id: ID of the task to expand
             context: Additional context for expansion
+            enable_web_research: Whether to enable web research (default: False)
+            enable_code_context: Whether to enable code context gathering (default: True)
 
         Returns:
             List of created subtasks
@@ -91,6 +95,8 @@ def create_task_registry(
             title=task.title,
             description=task.description,
             context=context,
+            enable_web_research=enable_web_research,
+            enable_code_context=enable_code_context,
         )
 
         # 1. Create all subtasks first and map their indices to IDs
@@ -187,7 +193,7 @@ def create_task_registry(
     async def validate_task(
         task_id: str,
         changes_summary: str,
-        context: str | None = None,
+        context_files: list[str] | None = None,
     ) -> dict[str, Any]:
         """
         Validate task completion.
@@ -195,7 +201,7 @@ def create_task_registry(
         Args:
             task_id: ID of the task to validate
             changes_summary: Summary of changes made (files, diffs, etc.)
-            context: Additional context for validation (optional)
+            context_files: List of file paths to read for context (optional)
 
         Returns:
             Validation result
@@ -212,16 +218,108 @@ def create_task_registry(
             title=task.title,
             original_instruction=task.original_instruction,
             changes_summary=changes_summary,
+            validation_criteria=task.validation_criteria,
+            context_files=context_files,
         )
 
-        # Update task status if validated
+        # Update validation status
+        updates: dict[str, Any] = {
+            "validation_status": result.status,
+            "validation_feedback": result.feedback,
+        }
+
+        MAX_RETRIES = 3
+
         if result.status == "valid":
+            # Success: Close task
             task_manager.close_task(task.id, reason="Completed via validation")
+        elif result.status == "invalid":
+            # Failure: Increment fail count
+            current_fail_count = task.validation_fail_count or 0
+            new_fail_count = current_fail_count + 1
+            updates["validation_fail_count"] = new_fail_count
+
+            feedback_str = result.feedback or "Validation failed (no feedback provided)."
+
+            if new_fail_count < MAX_RETRIES:
+                # Create subtask to fix issues
+                fix_task = task_manager.create_task(
+                    project_id=task.project_id,
+                    title=f"Fix validation failures for {task.title}",
+                    description=f"Validation failed with feedback:\n{feedback_str}\n\nPlease fix the issues and re-validate.",
+                    parent_task_id=task.id,
+                    priority=1,  # High priority fix
+                    task_type="bug",
+                )
+                updates["validation_feedback"] = (
+                    feedback_str + f"\n\nCreated fix task: {fix_task.id}"
+                )
+            else:
+                # Exceeded retries: Mark as failed
+                updates["status"] = "failed"
+                updates["validation_feedback"] = (
+                    feedback_str + f"\n\nExceeded max retries ({MAX_RETRIES}). Marked as failed."
+                )
+
+        task_manager.update_task(task.id, **updates)
 
         return {
             "is_valid": result.status == "valid",
             "feedback": result.feedback,
             "status": result.status,
+            "fail_count": updates.get("validation_fail_count", task.validation_fail_count),
+        }
+
+    @registry.tool(
+        name="get_validation_status",
+        description="Get validation details for a task.",
+    )
+    def get_validation_status(task_id: str) -> dict[str, Any]:
+        """
+        Get validation details.
+
+        Args:
+            task_id: Task ID
+
+        Returns:
+            Validation details
+        """
+        task = task_manager.get_task(task_id)
+        if not task:
+            raise ValueError(f"Task not found: {task_id}")
+
+        return {
+            "task_id": task.id,
+            "validation_status": task.validation_status,
+            "validation_feedback": task.validation_feedback,
+            "validation_criteria": task.validation_criteria,
+            "validation_fail_count": task.validation_fail_count,
+            "use_external_validator": task.use_external_validator,
+        }
+
+    @registry.tool(
+        name="reset_validation_count",
+        description="Reset validation failure count for a task.",
+    )
+    def reset_validation_count(task_id: str) -> dict[str, Any]:
+        """
+        Reset validation failure count.
+
+        Args:
+            task_id: Task ID
+
+        Returns:
+            Updated task details
+        """
+        task = task_manager.get_task(task_id)
+        if not task:
+            raise ValueError(f"Task not found: {task_id}")
+
+        updated_task = task_manager.update_task(task_id, validation_fail_count=0)
+        return {
+            "task_id": updated_task.id,
+            "validation_fail_count": updated_task.validation_fail_count,
+            "message": "Validation failure count reset to 0",
         }
 
     # Helper managers
