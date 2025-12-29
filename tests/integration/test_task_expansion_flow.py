@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from gobby.tasks.context import ExpansionContext
