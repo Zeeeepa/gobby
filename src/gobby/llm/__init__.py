@@ -10,7 +10,15 @@ Usage:
 """
 
 from gobby.llm.base import AuthMode, LLMProvider
+from gobby.llm.claude import MCPToolResult, ToolCall
 from gobby.llm.factory import create_llm_service
 from gobby.llm.service import LLMService
 
-__all__ = ["AuthMode", "LLMProvider", "LLMService", "create_llm_service"]
+__all__ = [
+    "AuthMode",
+    "LLMProvider",
+    "LLMService",
+    "MCPToolResult",
+    "ToolCall",
+    "create_llm_service",
+]

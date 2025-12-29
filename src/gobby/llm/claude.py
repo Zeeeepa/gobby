@@ -8,6 +8,7 @@ import logging
 import os
 import shutil
 import time
+from dataclasses import dataclass, field
 from typing import Any
 
 from claude_agent_sdk import (
@@ -23,6 +24,35 @@ from claude_agent_sdk import (
 
 from gobby.config.app import DaemonConfig
 from gobby.llm.base import LLMProvider
+
+
+@dataclass
+class ToolCall:
+    """Represents a tool call made during generation."""
+
+    tool_name: str
+    """Full tool name (e.g., mcp__gobby-tasks__create_task)."""
+
+    server_name: str
+    """Extracted server name from the tool (e.g., gobby-tasks)."""
+
+    arguments: dict[str, Any]
+    """Arguments passed to the tool."""
+
+    result: str | None = None
+    """Result returned by the tool, if available."""
+
+
+@dataclass
+class MCPToolResult:
+    """Result of generate_with_mcp_tools."""
+
+    text: str
+    """Final text output from the generation."""
+
+    tool_calls: list[ToolCall] = field(default_factory=list)
+    """List of tool calls made during generation."""
+
 
 logger = logging.getLogger(__name__)
 
@@ -308,9 +338,7 @@ class ClaudeLLMProvider(LLMProvider):
                         if isinstance(block, ToolResultBlock):
                             # Capture actual tool execution output
                             tool_results.append(str(block.content))
-                            self.logger.debug(
-                                f"ToolResultBlock (UserMessage): {block.content}"
-                            )
+                            self.logger.debug(f"ToolResultBlock (UserMessage): {block.content}")
                 elif isinstance(message, AssistantMessage):
                     for block in message.content:
                         if isinstance(block, TextBlock):
@@ -400,3 +428,122 @@ class ClaudeLLMProvider(LLMProvider):
         except Exception as e:
             self.logger.error(f"Failed to generate text with Claude: {e}")
             return f"Generation failed: {e}"
+
+    async def generate_with_mcp_tools(
+        self,
+        prompt: str,
+        allowed_tools: list[str],
+        system_prompt: str | None = None,
+        model: str | None = None,
+        max_turns: int = 10,
+    ) -> MCPToolResult:
+        """
+        Generate text with access to MCP tools.
+
+        This method enables the agent to call MCP tools during generation,
+        tracking all tool calls made and returning them alongside the final text.
+
+        Args:
+            prompt: User prompt to process.
+            allowed_tools: List of allowed MCP tool patterns.
+                Tools should be in format "mcp__{server}__{tool}" or patterns
+                like "mcp__gobby-tasks__*" for all tools from a server.
+            system_prompt: Optional system prompt.
+            model: Optional model override (default: claude-sonnet-4-5).
+            max_turns: Maximum number of agentic turns (default: 10).
+
+        Returns:
+            MCPToolResult containing final text and list of tool calls made.
+
+        Example:
+            >>> result = await provider.generate_with_mcp_tools(
+            ...     prompt="Create a task called 'Fix bug'",
+            ...     allowed_tools=["mcp__gobby-tasks__create_task"],
+            ...     system_prompt="You are a task manager."
+            ... )
+            >>> print(result.text)
+            >>> for call in result.tool_calls:
+            ...     print(f"Called {call.tool_name} with {call.arguments}")
+        """
+        cli_path = self._verify_cli_path()
+        if not cli_path:
+            return MCPToolResult(
+                text="Generation unavailable (Claude CLI not found)",
+                tool_calls=[],
+            )
+
+        # Configure Claude Agent SDK with MCP tools
+        options = ClaudeAgentOptions(
+            system_prompt=system_prompt or "You are a helpful assistant with access to MCP tools.",
+            max_turns=max_turns,
+            model=model or "claude-sonnet-4-5",
+            allowed_tools=allowed_tools,
+            permission_mode="bypassPermissions",
+            cli_path=cli_path,
+        )
+
+        # Track tool calls and results
+        tool_calls: list[ToolCall] = []
+        pending_tool_calls: dict[str, ToolCall] = {}  # Map tool_use_id -> ToolCall
+
+        def _parse_server_name(full_tool_name: str) -> str:
+            """Extract server name from mcp__{server}__{tool} format."""
+            if full_tool_name.startswith("mcp__"):
+                parts = full_tool_name.split("__")
+                if len(parts) >= 2:
+                    return parts[1]
+            return "unknown"
+
+        # Run async query
+        async def _run_query() -> str:
+            result_text = ""
+            async for message in query(prompt=prompt, options=options):
+                if isinstance(message, ResultMessage):
+                    # Final result from the agent
+                    if message.result:
+                        result_text = message.result
+                    self.logger.debug(f"ResultMessage: result={message.result}")
+
+                elif isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, TextBlock):
+                            result_text += block.text
+                        elif isinstance(block, ToolUseBlock):
+                            # Track tool use
+                            tool_call = ToolCall(
+                                tool_name=block.name,
+                                server_name=_parse_server_name(block.name),
+                                arguments=block.input if isinstance(block.input, dict) else {},
+                            )
+                            tool_calls.append(tool_call)
+                            pending_tool_calls[block.id] = tool_call
+                            self.logger.debug(
+                                f"ToolUseBlock: tool={block.name}, input={block.input}"
+                            )
+
+                elif isinstance(message, UserMessage):
+                    # UserMessage may contain tool results
+                    # UserMessage.content can be str | list[...], check first
+                    if isinstance(message.content, list):
+                        for block in message.content:
+                            if isinstance(block, ToolResultBlock):
+                                # Match result to pending tool call
+                                if block.tool_use_id in pending_tool_calls:
+                                    pending_tool_calls[block.tool_use_id].result = str(
+                                        block.content
+                                    )
+                                self.logger.debug(
+                                    f"ToolResultBlock: id={block.tool_use_id}, content={block.content}"
+                                )
+
+            return result_text
+
+        try:
+            final_text = await _run_query()
+            return MCPToolResult(text=final_text, tool_calls=tool_calls)
+        except Exception as e:
+            self.logger.error(f"Failed to generate with MCP tools: {e}")
+            return MCPToolResult(
+                text=f"Generation failed: {e}",
+                tool_calls=tool_calls,
+            )
