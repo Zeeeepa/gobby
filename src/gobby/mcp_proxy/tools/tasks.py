@@ -12,7 +12,6 @@ These tools are registered with the InternalToolRegistry and accessed
 via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 """
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -20,7 +19,6 @@ from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.task_dependencies import TaskDependencyManager
 from gobby.storage.tasks import (
     LocalTaskManager,
-    Task,
 )
 from gobby.sync.tasks import TaskSyncManager
 from gobby.tasks.expansion import TaskExpander
@@ -70,9 +68,12 @@ def create_task_registry(
         context: str | None = None,
         enable_web_research: bool = False,
         enable_code_context: bool = True,
-    ) -> list[Task]:
+    ) -> dict[str, Any]:
         """
-        Expand a task into subtasks.
+        Expand a task into subtasks using tool-based expansion.
+
+        The expansion agent calls create_task MCP tool directly to create subtasks,
+        wiring dependencies via the 'blocks' parameter.
 
         Args:
             task_id: ID of the task to expand
@@ -81,7 +82,7 @@ def create_task_registry(
             enable_code_context: Whether to enable code context gathering (default: True)
 
         Returns:
-            List of created subtasks
+            Dictionary with subtask_ids, tool_calls count, and agent text
         """
         if not task_expander:
             raise RuntimeError("Task expansion is not enabled")
@@ -99,92 +100,42 @@ def create_task_registry(
             enable_code_context=enable_code_context,
         )
 
-        # 1. Create all subtasks first and map their indices to IDs
-        # We need a flat list of created tasks with their original index from the LLM response
-        # to correctly wire dependencies.
+        # Handle errors
+        if "error" in result:
+            return {"error": result["error"], "subtask_ids": [], "tool_calls": 0}
 
-        # Maps LLM-provided index (implied or explicit) to created Task ID
-        # The structure from LLM is: phases -> subtasks.
-        # We need to flatten this to process dependencies.
+        # Extract subtask IDs (already created by agent via create_task tool calls)
+        subtask_ids = result.get("subtask_ids", [])
 
-        @dataclass
-        class PendingWeb:
-            task_id: str
-            depends_on_indices: list[int]
-            original_index: int  # Global index across all phases
-
-        pending_wiring: list[PendingWeb] = []
-        created_subtasks: list[Task] = []
-        global_index = 0
-
-        # Helper to process a subtask data dict
-        def process_subtask_data(data: dict[str, Any]) -> Task:
-            nonlocal global_index
-            desc = data.get("description", "")
-            if "details" in data:
-                desc += f"\n\nDetails: {data['details']}"
-            if "test_strategy" in data:
-                desc += f"\n\nTest Strategy: {data['test_strategy']}"
-
-            subtask = task_manager.create_task(
-                title=data["title"],
-                description=desc,
-                parent_task_id=task.id,
-                project_id=task.project_id,
-            )
-
-            # Record for wiring
-            indices = data.get("depends_on_indices", [])
-            pending_wiring.append(
-                PendingWeb(
-                    task_id=subtask.id, depends_on_indices=indices, original_index=global_index
-                )
-            )
-            global_index += 1
-
-            return subtask
-
-        if "phases" in result:
-            for phase in result["phases"]:
-                for subtask_data in phase.get("subtasks", []):
-                    subtask = process_subtask_data(subtask_data)
-                    created_subtasks.append(subtask)
-
-        # Backward compatibility for flat list
-        elif isinstance(result, list):
-            for data in result:
-                subtask = process_subtask_data(data)
-                created_subtasks.append(subtask)
-
-        # 2. Wire dependencies
-        # Map original_index -> task_id for O(1) lookup
-        index_to_id = {p.original_index: p.task_id for p in pending_wiring}
-
-        for pending in pending_wiring:
-            # Wire subtask -> subtask dependencies
-            for dep_index in pending.depends_on_indices:
-                if dep_index in index_to_id:
-                    blocker_id = index_to_id[dep_index]
-                    # Prevent self-dependency (LLM hallucination safety)
-                    if blocker_id != pending.task_id:
-                        try:
-                            dep_manager.add_dependency(
-                                task_id=pending.task_id, depends_on=blocker_id, dep_type="blocks"
-                            )
-                        except ValueError:
-                            # Ignore cycle errors or invalid deps, log and continue
-                            pass
-
-            # Wire Parent -> subtask dependency
-            # The parent task depends on (is blocked by) all subtasks
+        # Wire parent → subtask dependencies
+        # The parent task is blocked by all subtasks (can't close until children done)
+        for subtask_id in subtask_ids:
             try:
                 dep_manager.add_dependency(
-                    task_id=task.id, depends_on=pending.task_id, dep_type="blocks"
+                    task_id=task.id, depends_on=subtask_id, dep_type="blocks"
                 )
             except ValueError:
+                # Ignore cycle errors or duplicate deps
                 pass
 
-        return created_subtasks
+        # Fetch created subtasks for the response
+        created_subtasks = []
+        for sid in subtask_ids:
+            subtask = task_manager.get_task(sid)
+            if subtask:
+                created_subtasks.append({
+                    "id": subtask.id,
+                    "title": subtask.title,
+                    "status": subtask.status,
+                })
+
+        return {
+            "task_id": task_id,
+            "subtask_ids": subtask_ids,
+            "subtasks": created_subtasks,
+            "tool_calls": result.get("tool_calls", 0),
+            "text": result.get("text", ""),
+        }
 
     @registry.tool(
         name="validate_task",
@@ -324,53 +275,67 @@ def create_task_registry(
 
     @registry.tool(
         name="analyze_complexity",
-        description="Analyze task complexity and return a score (1-10) with reasoning.",
+        description="Analyze task complexity based on existing subtasks or description.",
     )
     async def analyze_complexity(task_id: str) -> dict[str, Any]:
         """
-        Analyze task complexity using LLM.
+        Analyze task complexity.
+
+        With tool-based expansion, this now analyzes existing subtasks if present,
+        or estimates complexity from description length. For detailed breakdown,
+        use expand_task which creates subtasks directly.
 
         Args:
             task_id: ID of the task to analyze
 
         Returns:
-            Complexity analysis with score, reasoning, and recommended subtasks
+            Complexity analysis with score and reasoning
         """
-        if not task_expander:
-            raise RuntimeError("Task expansion is not enabled")
-
         task = task_manager.get_task(task_id)
         if not task:
             raise ValueError(f"Task not found: {task_id}")
 
-        # Use the expander to get complexity analysis without creating subtasks
-        result = await task_expander.expand_task(
-            task_id=task.id,
-            title=task.title,
-            description=task.description,
-            enable_web_research=False,
-            enable_code_context=True,
-        )
+        # Check for existing subtasks
+        subtasks = task_manager.list_tasks(parent_task_id=task_id, limit=100)
+        subtask_count = len(subtasks)
 
-        if "error" in result:
-            return {"error": result["error"]}
-
-        complexity = result.get("complexity_analysis", {})
+        # Simple heuristic-based complexity
+        if subtask_count > 0:
+            # Complexity based on subtask count
+            score = min(10, 1 + subtask_count // 2)
+            reasoning = f"Task has {subtask_count} subtasks"
+            recommended = subtask_count
+        else:
+            # Estimate from description length
+            desc_len = len(task.description or "")
+            if desc_len < 100:
+                score = 2
+                reasoning = "Short description, likely simple task"
+                recommended = 2
+            elif desc_len < 500:
+                score = 5
+                reasoning = "Medium description, moderate complexity"
+                recommended = 5
+            else:
+                score = 8
+                reasoning = "Long description, likely complex task"
+                recommended = 10
 
         # Update task with complexity score
-        if complexity.get("score"):
-            task_manager.update_task(
-                task_id,
-                complexity_score=complexity["score"],
-                estimated_subtasks=complexity.get("recommended_subtasks"),
-            )
+        task_manager.update_task(
+            task_id,
+            complexity_score=score,
+            estimated_subtasks=recommended,
+        )
 
         return {
             "task_id": task_id,
             "title": task.title,
-            "complexity_score": complexity.get("score", 0),
-            "reasoning": complexity.get("reasoning", ""),
-            "recommended_subtasks": complexity.get("recommended_subtasks", 0),
+            "complexity_score": score,
+            "reasoning": reasoning,
+            "recommended_subtasks": recommended,
+            "existing_subtasks": subtask_count,
+            "note": "For detailed breakdown, use expand_task to create subtasks",
         }
 
     @registry.tool(
@@ -416,16 +381,18 @@ def create_task_registry(
         results = []
         for task in to_expand:
             try:
-                subtasks = await expand_task(
+                result = await expand_task(
                     task_id=task.id,
                     enable_web_research=enable_web_research,
                     enable_code_context=True,
                 )
+                subtask_ids = result.get("subtask_ids", [])
                 results.append({
                     "task_id": task.id,
                     "title": task.title,
-                    "subtasks_created": len(subtasks),
-                    "status": "success",
+                    "subtasks_created": len(subtask_ids),
+                    "status": "success" if not result.get("error") else "error",
+                    "error": result.get("error"),
                 })
             except Exception as e:
                 results.append({
@@ -453,13 +420,16 @@ def create_task_registry(
         """
         Parse a specification document and create tasks from it.
 
+        Creates a parent task from the spec title/summary, then expands it
+        into subtasks using tool-based expansion.
+
         Args:
             spec_content: The specification text (markdown, requirements, etc.)
             parent_task_id: Optional parent task to nest created tasks under
             task_type: Type for created tasks (default: "task")
 
         Returns:
-            List of created tasks
+            Dictionary with parent task and created subtasks
         """
         if not task_expander:
             raise RuntimeError("Task expansion is not enabled")
@@ -472,68 +442,68 @@ def create_task_registry(
             init_result = initialize_project()
             project_id = init_result.project_id
 
-        # Create a synthetic task to expand from the spec
-        # We'll use the expander's LLM to parse the spec
+        # Extract title from spec (first heading or first line)
+        lines = spec_content.strip().split("\n")
+        title = "Specification Tasks"
+        for line in lines:
+            line = line.strip()
+            if line.startswith("#"):
+                title = line.lstrip("#").strip()
+                break
+            elif line:
+                title = line[:80] + ("..." if len(line) > 80 else "")
+                break
+
+        # Create a parent task for the spec
+        spec_task = task_manager.create_task(
+            project_id=project_id,
+            title=title,
+            description=spec_content,
+            parent_task_id=parent_task_id,
+            task_type="epic",  # Specs typically become epics
+        )
+
+        # Expand the spec task into subtasks
         result = await task_expander.expand_task(
-            task_id="spec-expansion",
-            title="Specification Analysis",
+            task_id=spec_task.id,
+            title=spec_task.title,
             description=spec_content,
             context="Parse this specification and create actionable tasks. "
-            "Each task should be specific and implementable. "
-            "Group related tasks into phases.",
+            "Each task should be specific and implementable.",
             enable_web_research=False,
             enable_code_context=False,
         )
 
         if "error" in result:
-            return {"error": result["error"]}
+            return {
+                "error": result["error"],
+                "parent_task": spec_task.to_dict(),
+                "subtask_ids": [],
+            }
 
-        # Create tasks from the expansion result
-        created_tasks = []
-        dep_manager = TaskDependencyManager(task_manager.db)
+        subtask_ids = result.get("subtask_ids", [])
 
-        # Track index to ID mapping for dependency wiring
-        index_to_id: dict[int, str] = {}
-        global_index = 0
+        # Wire parent → subtask dependencies
+        for subtask_id in subtask_ids:
+            try:
+                dep_manager.add_dependency(
+                    task_id=spec_task.id, depends_on=subtask_id, dep_type="blocks"
+                )
+            except ValueError:
+                pass
 
-        if "phases" in result:
-            for phase in result["phases"]:
-                for subtask_data in phase.get("subtasks", []):
-                    desc = subtask_data.get("description", "")
-                    if "details" in subtask_data:
-                        desc += f"\n\nDetails: {subtask_data['details']}"
-                    if "test_strategy" in subtask_data:
-                        desc += f"\n\nTest Strategy: {subtask_data['test_strategy']}"
-
-                    task = task_manager.create_task(
-                        project_id=project_id,
-                        title=subtask_data["title"],
-                        description=desc,
-                        parent_task_id=parent_task_id,
-                        task_type=task_type,
-                        test_strategy=subtask_data.get("test_strategy"),
-                    )
-
-                    index_to_id[global_index] = task.id
-
-                    # Wire dependencies
-                    for dep_idx in subtask_data.get("depends_on_indices", []):
-                        if dep_idx in index_to_id and index_to_id[dep_idx] != task.id:
-                            try:
-                                dep_manager.add_dependency(
-                                    task_id=task.id,
-                                    depends_on=index_to_id[dep_idx],
-                                    dep_type="blocks",
-                                )
-                            except ValueError:
-                                pass
-
-                    created_tasks.append(task)
-                    global_index += 1
+        # Fetch created subtasks
+        subtasks = []
+        for sid in subtask_ids:
+            subtask = task_manager.get_task(sid)
+            if subtask:
+                subtasks.append(subtask.to_dict())
 
         return {
-            "tasks_created": len(created_tasks),
-            "tasks": [t.to_dict() for t in created_tasks],
+            "parent_task": spec_task.to_dict(),
+            "tasks_created": len(subtask_ids),
+            "subtask_ids": subtask_ids,
+            "subtasks": subtasks,
         }
 
     @registry.tool(

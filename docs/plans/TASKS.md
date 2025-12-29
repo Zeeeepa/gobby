@@ -1428,7 +1428,7 @@ For large tasks, use `expand_task(id)` to break them down before starting.
   - Pass parent task ID in prompt context
   - Collect created subtask IDs from tool call results
 
-- [ ] Update `expand_task` MCP tool to return subtask IDs (`gt-e3e688`)
+- [x] Update `expand_task` MCP tool to return subtask IDs (`gt-e3e688`)
   - Remove JSON parsing and manual task creation logic
   - Return list of subtask IDs created during expansion
   - Handle parent→subtask dependency wiring
@@ -1441,7 +1441,7 @@ For large tasks, use `expand_task(id)` to break them down before starting.
   - Verify `test_strategy` populated
   - Compare quality with previous approach
 
-- [ ] Clean up legacy JSON extraction code (`gt-8b7571`)
+- [x] Clean up legacy JSON extraction code (`gt-8b7571`)
   - Remove `_parse_and_validate_response()`
   - Remove JSON schema from prompt
   - Update tests and documentation
