@@ -103,7 +103,9 @@ class TaskExpander:
             provider = self.llm_service.get_provider(self.config.provider)
             response_content = await provider.generate_text(
                 prompt=prompt,
-                system_prompt=self.prompt_builder.get_system_prompt(),
+                system_prompt=self.prompt_builder.get_system_prompt(
+                    tdd_mode=self.config.tdd_mode
+                ),
                 model=self.config.model,
             )
 
