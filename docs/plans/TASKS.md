@@ -411,7 +411,7 @@ def expand_task(
     task_id: str,
     strategy: str | None = None,  # Override auto-selection: phased, sequential, parallel
     max_subtasks: int | None = None,
-    use_tdd: bool | None = None,  # Override config.use_tdd for this expansion
+    tdd_mode: bool | None = None,  # Override config tdd_mode for this expansion
 ) -> dict:
     """
     Use LLM to decompose a task into subtasks with codebase analysis.
@@ -425,7 +425,7 @@ def expand_task(
     - sequential: Straightforward tasks → linear chain (1 → 2 → 3)
     - parallel: Independent workstreams → no dependencies
 
-    TDD mode (from config or use_tdd param):
+    TDD mode (from config or tdd_mode param):
     - Generates test→implement pairs for coding tasks
     - Test subtask blocks implementation subtask
 
@@ -599,7 +599,7 @@ task_expansion:
   infer_validation: true                # Auto-generate validation_criteria for subtasks
 
   # TDD mode (orthogonal to strategy - applies to coding tasks)
-  use_tdd: true                         # Generate test→implement pairs for coding tasks
+  tdd_mode: true                        # Generate test→implement pairs for coding tasks
   tdd_test_first: true                  # Test subtask blocks implementation subtask
 
   # Prompts
@@ -1001,7 +1001,7 @@ The LLM automatically selects the best strategy based on task complexity. User c
 | `parallel` | Independent subtasks, no dependencies | Tasks with independent workstreams |
 
 **TDD Mode** (orthogonal to strategy):
-When `use_tdd: true` in config, coding tasks get test→implement pairs regardless of strategy.
+When `tdd_mode: true` in config, coding tasks get test→implement pairs regardless of strategy.
 Example with sequential + TDD: `write test A` → `implement A` → `write test B` → `implement B`
 
 ### Expansion Architecture
@@ -1350,7 +1350,7 @@ For large tasks, use `expand_task(id)` to break them down before starting.
 - [x] Update `expand_task` tool with new parameters:
   - `strategy: str | None` - Override auto-selection (phased/sequential/parallel)
   - `max_subtasks: int | None` - Override recommended count
-  - `use_tdd: bool | None` - Override config.use_tdd for this expansion
+  - `tdd_mode: bool | None` - Override config tdd_mode for this expansion
   - `force: bool = False` - Clear existing subtasks
 - [x] Add `analyze_complexity` tool - analyze without expanding
 - [x] Add `expand_all` tool - expand all pending tasks
@@ -1383,6 +1383,68 @@ For large tasks, use `expand_task(id)` to break them down before starting.
 - [x] Update CLAUDE.md task management section
 - [x] Update docs/tasks.md with expansion guide
 - [x] Add example prompts and outputs to documentation
+
+#### Phase 12.9: Tool-Based Expansion Architecture
+
+> **Architecture Decision:** Refactor from JSON extraction to tool-based pattern.
+>
+> **Problem:** The Claude Agent SDK is designed for tool use patterns, not structured JSON extraction.
+> Asking the LLM to output JSON that we then parse fights against the framework's design.
+>
+> **Solution:** Let the expansion agent call `create_task` multiple times with `parent_task_id`
+> to create subtasks directly. Dependencies wired via `blocks` parameter using returned task IDs.
+>
+> **Benefits:**
+> - Cleaner data flow: agent reasoning → tool invocation → database creation
+> - No JSON parsing/extraction errors
+> - Each subtask creation validated by tool schema
+> - Dependencies wired naturally as agent tracks returned IDs
+
+**Foundation (can be done in parallel):**
+
+- [ ] Expose `test_strategy` in `create_task` registry tool (`gt-49ce45`)
+  - Add `test_strategy: str | None = None` parameter
+  - Add to input_schema properties
+  - Pass through to `task_manager.create_task()`
+
+- [ ] Update expansion prompt for tool-based pattern (`gt-4c9760`)
+  - Tell agent it has access to `create_task` MCP tool
+  - Explain `parent_task_id` for linking subtasks
+  - Explain `blocks` parameter for dependency wiring
+  - Instruct agent to set `test_strategy` on each subtask
+  - Remove JSON schema instructions
+
+- [ ] Add `generate_with_mcp_tools` method to ClaudeLLMProvider (`gt-c4a756`)
+  - Accept prompt, system_prompt, allowed MCP tool patterns
+  - Configure ClaudeAgentOptions with allowed tools
+  - Stream query and collect tool call results
+  - Return final text and list of tool calls made
+
+**Integration (depends on foundation):**
+
+- [ ] Refactor TaskExpander to use tool-based approach (`gt-04ad5a`)
+  - Remove `_parse_and_validate_response()` JSON parsing
+  - Call `generate_with_mcp_tools()` with `create_task` access
+  - Pass parent task ID in prompt context
+  - Collect created subtask IDs from tool call results
+
+- [ ] Update `expand_task` MCP tool to return subtask IDs (`gt-e3e688`)
+  - Remove JSON parsing and manual task creation logic
+  - Return list of subtask IDs created during expansion
+  - Handle parent→subtask dependency wiring
+
+**Validation & Cleanup:**
+
+- [ ] Test tool-based expansion with 2048-game PRD (`gt-ae1ee3`)
+  - Verify subtasks created with correct parent_task_id
+  - Verify dependencies wired via `blocks`
+  - Verify `test_strategy` populated
+  - Compare quality with previous approach
+
+- [ ] Clean up legacy JSON extraction code (`gt-8b7571`)
+  - Remove `_parse_and_validate_response()`
+  - Remove JSON schema from prompt
+  - Update tests and documentation
 
 ### Phase 12.5: Task Validation
 
@@ -1464,6 +1526,7 @@ For large tasks, use `expand_task(id)` to break them down before starting.
 | 13 | **Parent blocking** | Parent blocked by all children | Parent task can't close until subtasks complete - enforces completion. |
 | 14 | **Research caching** | Store in `expansion_context` | Avoid re-searching if task re-expanded. |
 | 15 | **Force behavior** | Delete existing subtasks | Clean slate, not merge - too complex to merge intelligently. |
+| 16 | **Expansion output method** | Tool-based (agent calls `create_task`) | Claude Agent SDK designed for tool use, not JSON extraction. Agent calls `create_task` with `parent_task_id` and `blocks` for direct database creation. Eliminates parsing errors. |
 
 ---
 

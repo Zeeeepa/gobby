@@ -90,6 +90,8 @@ class HTTPServer:
         llm_service: "LLMService | None" = None,
         memory_sync_manager: Any | None = None,
         skill_sync_manager: Any | None = None,
+        task_expander: Any | None = None,
+        task_validator: Any | None = None,
     ) -> None:
         """
         Initialize HTTP server.
@@ -129,6 +131,8 @@ class HTTPServer:
         self.llm_service = llm_service
         self.memory_sync_manager = memory_sync_manager
         self.skill_sync_manager = skill_sync_manager
+        self.task_expander = task_expander
+        self.task_validator = task_validator
 
         # Initialize WebSocket broadcaster
         # Note: websocket_server might be None if disabled
@@ -163,8 +167,8 @@ class HTTPServer:
                 skill_learner=skill_learner,
                 task_manager=task_manager,
                 sync_manager=task_sync_manager,
-                task_expander=None,  # Could be wired up if needed
-                task_validator=None,  # Could be wired up if needed
+                task_expander=self.task_expander,
+                task_validator=self.task_validator,
                 message_manager=message_manager,
                 skill_storage=skill_learner.storage if skill_learner else None,
                 local_session_manager=session_manager,

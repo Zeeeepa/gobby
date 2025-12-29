@@ -5,6 +5,8 @@ Provides YAML-based configuration with CLI overrides,
 configuration hierarchy (CLI > YAML > Defaults), and validation.
 """
 
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Any, Literal
 
@@ -344,6 +346,14 @@ class GobbyTasksConfig(BaseModel):
         default=False,
         description="Show full task result on create_task (False = minimal output with just id)",
     )
+    expansion: TaskExpansionConfig = Field(
+        default_factory=lambda: TaskExpansionConfig(),
+        description="Task expansion configuration",
+    )
+    validation: TaskValidationConfig = Field(
+        default_factory=lambda: TaskValidationConfig(),
+        description="Task validation configuration",
+    )
 
 
 class LLMProviderConfig(BaseModel):
@@ -513,8 +523,8 @@ class TaskExpansionConfig(BaseModel):
         description="Enable web research for task expansion using MCP tools",
     )
     tdd_mode: bool = Field(
-        default=False,
-        description="Enable TDD mode: create test->implement task pairs with appropriate blocking",
+        default=True,
+        description="Enable TDD mode: create test->implement task pairs with appropriate blocking for coding tasks",
     )
 
 

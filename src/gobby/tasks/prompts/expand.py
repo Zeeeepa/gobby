@@ -85,7 +85,9 @@ TDD_MODE_INSTRUCTIONS = """
 
 ## TDD Mode Enabled
 
-For Test-Driven Development, create subtasks in test->implement pairs:
+**IMPORTANT:** Apply TDD only to coding/implementation tasks. For non-coding tasks (documentation, design, research, planning, configuration), use normal task structure without test pairs.
+
+For coding tasks, create subtasks in test->implement pairs:
 
 1. **Test subtask**: "Write tests for <feature>"
    - Description explains what tests to write

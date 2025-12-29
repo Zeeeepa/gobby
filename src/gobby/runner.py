@@ -145,24 +145,23 @@ class GobbyRunner:
         self.task_validator: TaskValidator | None = None
 
         if self.llm_service:
-            task_expansion_config = getattr(self.config, "task_expansion", None)
-            if task_expansion_config:
+            gobby_tasks_config = self.config.gobby_tasks
+            if gobby_tasks_config.expansion.enabled:
                 try:
                     self.task_expander = TaskExpander(
                         llm_service=self.llm_service,
-                        config=task_expansion_config,
+                        config=gobby_tasks_config.expansion,
                         task_manager=self.task_manager,
                         mcp_manager=self.mcp_proxy,
                     )
                 except Exception as e:
                     logger.error(f"Failed to initialize TaskExpander: {e}")
 
-            task_validation_config = getattr(self.config, "task_validation", None)
-            if task_validation_config:
+            if gobby_tasks_config.validation.enabled:
                 try:
                     self.task_validator = TaskValidator(
                         llm_service=self.llm_service,
-                        config=task_validation_config,
+                        config=gobby_tasks_config.validation,
                     )
                 except Exception as e:
                     logger.error(f"Failed to initialize TaskValidator: {e}")
@@ -189,6 +188,8 @@ class GobbyRunner:
             message_processor=self.message_processor,
             memory_sync_manager=self.memory_sync_manager,
             skill_sync_manager=self.skill_sync_manager,
+            task_expander=self.task_expander,
+            task_validator=self.task_validator,
         )
 
         # Ensure message_processor property is set (redundant but explicit):

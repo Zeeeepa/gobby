@@ -584,7 +584,7 @@ def validate_task_cmd(task_id: str, summary: str | None, summary_file: str | Non
     try:
         config = load_config()
         llm_service = LLMService(config)
-        validator = TaskValidator(config.task_validation, llm_service)
+        validator = TaskValidator(config.gobby_tasks.validation, llm_service)
     except Exception as e:
         click.echo(f"Error initializing validator: {e}", err=True)
         return
@@ -699,7 +699,7 @@ def expand_task_cmd(
     try:
         config = load_config()
         # Ensure task expansion is enabled in config
-        if not config.task_expansion.enabled:
+        if not config.gobby_tasks.expansion.enabled:
             click.echo("Error: Task expansion is disabled in config.", err=True)
             return
 
@@ -714,7 +714,7 @@ def expand_task_cmd(
         # That's a known limitation of running via CLI directly vs via Daemon/MCP.
         # However, the user request is to add flags.
         # We will pass them. If it fails to find search tools, it gracefully degrades.
-        expander = TaskExpander(config.task_expansion, llm_service, manager, mcp_manager=None)
+        expander = TaskExpander(config.gobby_tasks.expansion, llm_service, manager, mcp_manager=None)
 
     except Exception as e:
         click.echo(f"Error initializing services: {e}", err=True)

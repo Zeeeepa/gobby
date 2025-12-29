@@ -23,6 +23,20 @@ mcp_client_proxy:
 gobby-tasks:
   enabled: true
   show_result_on_create: false
+  expansion:
+    enabled: true
+    tdd_mode: true
+    provider: claude
+    model: claude-opus-4-5
+    codebase_research_enabled: true
+    research_max_steps: 10
+    web_research_enabled: true
+    max_subtasks: 10
+    default_strategy: auto  # auto, phased, sequential, or parallel
+  validation:
+    enabled: true
+    provider: claude
+    model: claude-haiku-4-5
 llm_providers:
   claude:
     models: claude-haiku-4-5,claude-sonnet-4-5,claude-opus-4-5
