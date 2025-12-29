@@ -113,7 +113,6 @@ class DaemonProxy:
             if tool.get("name") == tool_name:
                 return {
                     "status": "success",
-                    "server": server_name,
                     "tool": {
                         "name": tool.get("name"),
                         "description": tool.get("description"),

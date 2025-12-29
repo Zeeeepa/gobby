@@ -158,7 +158,7 @@ class ToolProxyService:
             if registry:
                 schema = registry.get_schema(tool_name)
                 if schema:
-                    return {"success": True, "server": server_name, "tool": schema}
+                    return {"status": "success", "tool": schema}
                 return {
                     "success": False,
                     "error": f"Tool '{tool_name}' not found on '{server_name}'",
