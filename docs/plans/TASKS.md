@@ -409,32 +409,25 @@ def import_tasks(file_path: str, format: str = "jsonl") -> dict:
 @mcp.tool()
 def expand_task(
     task_id: str,
-    strategy: str = "phased",  # phased, flat, parallel, tdd
-    max_subtasks: int = 10,
-    analyze_codebase: bool = True,
-    infer_validation: bool = True,
-    research: bool = True,
+    strategy: str | None = None,  # Override auto-selection: phased, sequential, parallel
+    max_subtasks: int | None = None,
+    use_tdd: bool | None = None,  # Override config.use_tdd for this expansion
 ) -> dict:
     """
     Use LLM to decompose a task into subtasks with codebase analysis.
 
-    Strategies (mutually exclusive):
-    - phased: Group subtasks into logical phases with dependencies (default)
-    - flat: Sequential subtasks, no dependencies
-    - parallel: Independent subtasks that can run concurrently
-    - tdd: Test → implementation pairs
+    Two-phase expansion:
+    1. Agentic research: Agent browses codebase with Glob/Grep/Read
+    2. Structured expansion: LLM generates subtasks from research context
 
-    When analyze_codebase=True:
-    - Reads relevant files for context
-    - Infers which files/modules each subtask will touch
-    - Auto-creates dependency relationships based on code structure
+    Strategy auto-selection (override with strategy param):
+    - phased: Complex multi-component features → named phases with deps
+    - sequential: Straightforward tasks → linear chain (1 → 2 → 3)
+    - parallel: Independent workstreams → no dependencies
 
-    When infer_validation=True:
-    - Generates validation_criteria for each subtask
-
-    When research=True (default, matches claude-task-master):
-    - Web search for best practices and patterns
-    - Enriches expansion with external knowledge
+    TDD mode (from config or use_tdd param):
+    - Generates test→implement pairs for coding tasks
+    - Test subtask blocks implementation subtask
 
     Returns created subtask IDs with dependencies.
     """
@@ -588,21 +581,26 @@ task_expansion:
   provider: "claude"                    # claude, codex, gemini, litellm
   model: "claude-sonnet-4-5"            # Higher reasoning model for codebase analysis
 
-  # Context gathering
-  analyze_codebase: true                # Read relevant files during expansion
-  max_context_files: 20                 # Max files to include for context
-  max_file_lines: 200                   # Lines to include per file
+  # Agentic codebase research (Phase 12.2)
+  # Agent browses codebase with Glob/Grep/Read to find relevant context
+  codebase_research: true               # Enable agentic codebase analysis
+  research_timeout_seconds: 60          # Max time for research phase
+  research_max_files: 20                # Max files agent can include
+  research_model: "claude-haiku-4-5"    # Fast model for research (can differ from expansion)
+
+  # Web research for best practices
+  web_research: true                    # Search web for patterns/best practices
+  max_search_results: 5
 
   # Expansion behavior
   max_subtasks: 15                      # Max subtasks per expansion
-  default_strategy: "phased"            # phased, flat, tdd
+  auto_select_strategy: true            # LLM picks best strategy (phased/sequential/parallel)
   create_dependencies: true             # Auto-create blocks relationships
   infer_validation: true                # Auto-generate validation_criteria for subtasks
 
-  # Research mode (web search for best practices before expansion)
-  research_enabled: true                # Enabled by default for quality expansions
-  research_provider: "claude"           # Can differ from main provider
-  max_search_results: 5
+  # TDD mode (orthogonal to strategy - applies to coding tasks)
+  use_tdd: true                         # Generate test→implement pairs for coding tasks
+  tdd_test_first: true                  # Test subtask blocks implementation subtask
 
   # Prompts
   system_prompt: |
@@ -994,12 +992,17 @@ Unlike beads (which is purely a tracking system), gobby provides LLM-powered tas
 
 ### Expansion Strategies
 
-| Strategy | Description | Use Case |
-|----------|-------------|----------|
-| `phased` | Group subtasks into logical phases with dependencies | Complex features (default) |
-| `flat` | Sequential subtasks, no dependencies | Quick well-understood tasks |
-| `parallel` | Independent subtasks that can run concurrently | Tasks with no interdependencies |
-| `tdd` | Test → implementation pairs | Test-driven development |
+The LLM automatically selects the best strategy based on task complexity. User can override with `--strategy` flag.
+
+| Strategy | Description | When LLM Uses It |
+|----------|-------------|------------------|
+| `phased` | Grouped into named phases (Setup, Core, Polish) with inter-phase deps | Complex multi-component features |
+| `sequential` | Linear chain: task 1 → task 2 → task 3 | Straightforward ordered steps |
+| `parallel` | Independent subtasks, no dependencies | Tasks with independent workstreams |
+
+**TDD Mode** (orthogonal to strategy):
+When `use_tdd: true` in config, coding tasks get test→implement pairs regardless of strategy.
+Example with sequential + TDD: `write test A` → `implement A` → `write test B` → `implement B`
 
 ### Expansion Architecture
 
@@ -1271,16 +1274,37 @@ For large tasks, use `expand_task(id)` to break them down before starting.
 - [ ] Update JSONL serialization for new fields
 - [ ] Add unit tests for schema changes
 
-#### Phase 12.2: Context Gathering
+#### Phase 12.2: Agentic Research (Replaces Python Heuristics)
 
-- [ ] Create `src/tasks/context.py` with `ExpansionContextGatherer` class
-- [ ] Implement `gather_related_tasks()` - fuzzy search by title/description
-- [ ] Implement `gather_relevant_files()` - Glob/Grep based on task keywords
-- [ ] Implement `read_file_context()` - partial file contents with line limits
-- [ ] Implement `detect_project_patterns()` - test framework, build tool, etc.
-- [ ] Create `ExpansionContext` dataclass
-- [ ] Add configuration for `max_context_files`, `max_file_lines`
-- [ ] Add unit tests for context gathering
+> **Architecture Decision:** Use a two-phase hybrid approach:
+> 1. **Research phase (agentic)** - LLM agent browses codebase with Glob/Grep/Read
+> 2. **Expansion phase (single-turn)** - Structured JSON generation from research context
+>
+> This eliminates fragile Python keyword matching and lets the LLM determine relevance.
+
+- [ ] Create `src/tasks/research.py` with `TaskResearchAgent` class
+- [ ] Implement `research_task()` - spawns agent to explore codebase
+  - Agent has access to: Glob, Grep, Read tools
+  - Agent prompt: "Analyze task X, find relevant files, patterns, dependencies"
+  - Returns: `ResearchContext` with files, patterns, summary
+- [ ] Create `ResearchContext` dataclass:
+  ```python
+  @dataclass
+  class ResearchContext:
+      relevant_files: list[str]           # Files the agent found relevant
+      file_summaries: dict[str, str]      # Brief summary of each file's role
+      project_patterns: dict[str, str]    # Detected patterns (test framework, etc.)
+      related_code: dict[str, str]        # Key code snippets
+      context_summary: str                # Agent's overall analysis
+  ```
+- [ ] Implement agent tool restrictions (read-only: Glob, Grep, Read)
+- [ ] Add timeout and token limits for research phase
+- [ ] Cache research results in task's `expansion_context` field
+- [ ] Update `ExpansionContextGatherer` to use `TaskResearchAgent`
+- [ ] Keep `_find_related_tasks()` (database query, not agentic)
+- [ ] Add configuration: `research_timeout_seconds`, `research_max_tokens`
+- [ ] Add unit tests with mocked agent responses
+- [ ] Add integration test with real agent execution
 
 #### Phase 12.3: Enhanced Expansion Prompt
 
@@ -1306,22 +1330,25 @@ For large tasks, use `expand_task(id)` to break them down before starting.
 - [ ] Add transaction rollback on cycle detection
 - [ ] Add unit tests for dependency wiring
 
-#### Phase 12.5: Research Mode
+#### Phase 12.5: Web Research Mode (Optional Enhancement)
 
-- [ ] Implement `research_task()` helper using WebSearch
+> **Note:** This is separate from the agentic codebase research in Phase 12.2.
+> Web research searches for external best practices; codebase research analyzes the local project.
+
+- [ ] Implement `web_research_task()` helper using WebSearch tool
 - [ ] Format search results for prompt injection
-- [ ] Cache research results in `expansion_context`
-- [ ] Add `--no-research` CLI flag to disable (enabled by default)
-- [ ] Add unit tests for research mode
+- [ ] Cache web research results in `expansion_context.web_research`
+- [ ] Add `--no-web-research` CLI flag to disable
+- [ ] Add `web_research_enabled` config option (default: true for quality)
+- [ ] Add unit tests for web research mode
 
 #### Phase 12.6: MCP Tool Updates
 
 - [ ] Update `expand_task` tool with new parameters:
-  - `num_subtasks: int | None` - Override recommended count
-  - `research: bool = True` - Enable/disable web research
+  - `strategy: str | None` - Override auto-selection (phased/sequential/parallel)
+  - `max_subtasks: int | None` - Override recommended count
+  - `use_tdd: bool | None` - Override config.use_tdd for this expansion
   - `force: bool = False` - Clear existing subtasks
-  - `prompt: str | None` - Additional context/guidance
-  - `analyze_codebase: bool = True` - Gather file context
 - [ ] Add `analyze_complexity` tool - analyze without expanding
 - [ ] Add `expand_all` tool - expand all pending tasks
 - [ ] Add `expand_from_spec` tool - parse PRD/user story/bug report
@@ -1332,10 +1359,10 @@ For large tasks, use `expand_task(id)` to break them down before starting.
 #### Phase 12.7: CLI Updates
 
 - [ ] Update `gobby tasks expand TASK_ID` with new flags:
+  - `--strategy S` - Override auto-selection (phased/sequential/parallel)
   - `--num N` - Override subtask count
-  - `--no-research` - Disable research mode
+  - `--tdd / --no-tdd` - Override TDD mode
   - `--force` - Clear existing subtasks
-  - `--prompt "context"` - Additional guidance
 - [ ] Add `gobby tasks complexity TASK_ID` command
 - [ ] Add `gobby tasks complexity --all --pending` command
 - [ ] Add `gobby tasks expand --all` command
