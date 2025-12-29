@@ -5,7 +5,7 @@ import pytest
 from gobby.mcp_proxy.tools.memory import create_memory_registry
 from gobby.mcp_proxy.tools.skills import create_skills_registry
 from gobby.memory.manager import MemoryManager
-from gobby.memory.skills import SkillLearner
+from gobby.skills import SkillLearner
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.skills import LocalSkillManager
 

@@ -27,7 +27,7 @@ from gobby.llm import LLMService, create_llm_service
 from gobby.mcp_proxy.registries import setup_internal_registries
 from gobby.mcp_proxy.server import GobbyDaemonTools, create_mcp_server
 from gobby.memory.manager import MemoryManager
-from gobby.memory.skills import SkillLearner
+from gobby.skills import SkillLearner
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.tasks import TaskSyncManager

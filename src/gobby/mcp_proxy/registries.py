@@ -10,7 +10,7 @@ from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
     from gobby.memory.manager import MemoryManager
-    from gobby.memory.skills import SkillLearner
+    from gobby.skills import SkillLearner
     from gobby.sessions.manager import SessionManager
     from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager

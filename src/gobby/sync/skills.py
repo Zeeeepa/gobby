@@ -15,23 +15,10 @@ from pathlib import Path
 
 import yaml
 
+from gobby.config.app import SkillSyncConfig
 from gobby.storage.skills import LocalSkillManager, Skill
 
 logger = logging.getLogger(__name__)
-
-
-class SkillSyncConfig:
-    """Configuration for skill synchronization."""
-
-    def __init__(
-        self,
-        enabled: bool = True,
-        export_debounce: float = 2.0,
-        stealth: bool = False,
-    ):
-        self.enabled = enabled
-        self.export_debounce = export_debounce
-        self.stealth = stealth
 
 
 class SkillSyncManager:

@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.memory.manager import MemoryManager
-from gobby.memory.skills import SkillLearner
+from gobby.skills import SkillLearner
 from gobby.sessions.manager import SessionManager
 from gobby.sessions.summary import SummaryFileGenerator
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser

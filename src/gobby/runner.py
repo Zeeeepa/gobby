@@ -11,11 +11,11 @@ from gobby.config.app import load_config
 from gobby.llm import LLMService, create_llm_service
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.memory.manager import MemoryManager
-from gobby.memory.skills import SkillLearner
 from gobby.servers.http import HTTPServer
 from gobby.servers.websocket import WebSocketConfig, WebSocketServer
 from gobby.sessions.lifecycle import SessionLifecycleManager
 from gobby.sessions.processor import SessionMessageProcessor
+from gobby.skills import SkillLearner
 from gobby.storage.database import LocalDatabase
 from gobby.storage.mcp import LocalMCPManager
 from gobby.storage.migrations import run_migrations
@@ -25,7 +25,7 @@ from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.skills import LocalSkillManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.memories import MemorySyncManager
-from gobby.sync.skills import SkillSyncConfig, SkillSyncManager
+from gobby.sync.skills import SkillSyncManager
 from gobby.sync.tasks import TaskSyncManager
 from gobby.tasks.expansion import TaskExpander
 from gobby.tasks.validation import TaskValidator
@@ -94,7 +94,6 @@ class GobbyRunner:
         # MCPClientManager loads servers from database on init
         self.mcp_proxy = MCPClientManager(mcp_db_manager=self.mcp_db_manager)
 
-
         # Task Sync Manager
         self.task_sync_manager = TaskSyncManager(self.task_manager)
         # Wire up change listener for automatic export
@@ -122,14 +121,9 @@ class GobbyRunner:
         self.skill_sync_manager: SkillSyncManager | None = None
         if hasattr(self.config, "memory_sync") and self.config.memory_sync.enabled:
             try:
-                skill_sync_config = SkillSyncConfig(
-                    enabled=self.config.memory_sync.enabled,
-                    export_debounce=self.config.memory_sync.export_debounce,
-                    stealth=self.config.memory_sync.stealth,
-                )
                 self.skill_sync_manager = SkillSyncManager(
                     skill_manager=self.skill_storage,
-                    config=skill_sync_config,
+                    config=self.config.skill_sync,
                 )
                 # Wire up listener to trigger export on changes
                 self.skill_storage.add_change_listener(self.skill_sync_manager.trigger_export)

@@ -688,6 +688,31 @@ class MemorySyncConfig(BaseModel):
         return v
 
 
+class SkillSyncConfig(BaseModel):
+    """Skill synchronization configuration (Git sync)."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable skill synchronization to filesystem",
+    )
+    stealth: bool = Field(
+        default=False,
+        description="If True, store in ~/.gobby/ (local only). If False, store in .gobby/ (git committed).",
+    )
+    export_debounce: float = Field(
+        default=5.0,
+        description="Seconds to wait before exporting after a change",
+    )
+
+    @field_validator("export_debounce")
+    @classmethod
+    def validate_positive(cls, v: float) -> float:
+        """Validate value is non-negative."""
+        if v < 0:
+            raise ValueError("Value must be non-negative")
+        return v
+
+
 class SkillConfig(BaseModel):
     """Skill learning configuration.
 
@@ -826,6 +851,10 @@ class DaemonConfig(BaseModel):
         default_factory=MemorySyncConfig,
         description="Memory synchronization configuration",
     )
+    skill_sync: SkillSyncConfig = Field(
+        default_factory=SkillSyncConfig,
+        description="Skill synchronization configuration",
+    )
     skills: SkillConfig = Field(
         default_factory=SkillConfig,
         description="Skill learning configuration",
@@ -862,6 +891,10 @@ class DaemonConfig(BaseModel):
     def get_memory_sync_config(self) -> MemorySyncConfig:
         """Get memory sync configuration."""
         return self.memory_sync
+
+    def get_skill_sync_config(self) -> SkillSyncConfig:
+        """Get skill sync configuration."""
+        return self.skill_sync
 
     def get_skills_config(self) -> SkillConfig:
         """Get skills configuration."""

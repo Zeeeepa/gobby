@@ -4,7 +4,7 @@ import pytest
 
 from gobby.config.app import SkillConfig
 from gobby.llm.service import LLMService
-from gobby.memory.skills import SkillLearner
+from gobby.skills import SkillLearner
 from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import Session
 from gobby.storage.skills import LocalSkillManager, Skill

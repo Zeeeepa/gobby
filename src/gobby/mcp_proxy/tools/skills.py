@@ -21,7 +21,7 @@ via the downstream proxy pattern (call_tool).
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.memory.skills import SkillLearner
+from gobby.skills import SkillLearner
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.skills import LocalSkillManager
 

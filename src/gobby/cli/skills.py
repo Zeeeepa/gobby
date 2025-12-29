@@ -7,7 +7,7 @@ import click
 
 from gobby.config.app import DaemonConfig
 from gobby.llm import create_llm_service
-from gobby.memory.skills import SkillLearner
+from gobby.skills import SkillLearner
 from gobby.storage.database import LocalDatabase
 from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager
