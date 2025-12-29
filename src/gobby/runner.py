@@ -219,8 +219,13 @@ class GobbyRunner:
 
     def _setup_signal_handlers(self) -> None:
         loop = asyncio.get_running_loop()
+
+        def handle_shutdown():
+            logger.info("Received shutdown signal, initiating graceful shutdown...")
+            self._shutdown_requested = True
+
         for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(sig, lambda: setattr(self, "_shutdown_requested", True))
+            loop.add_signal_handler(sig, handle_shutdown)
 
     async def run(self) -> None:
         try:
@@ -261,15 +266,23 @@ class GobbyRunner:
             while not self._shutdown_requested:
                 await asyncio.sleep(0.5)
 
-            # Cleanup
+            # Cleanup with timeouts to prevent hanging
             server.should_exit = True
-            await server_task
+            try:
+                await asyncio.wait_for(server_task, timeout=3.0)
+            except TimeoutError:
+                logger.warning("HTTP server shutdown timed out")
 
-            # Stop in reverse startup order
-            await self.lifecycle_manager.stop()
+            try:
+                await asyncio.wait_for(self.lifecycle_manager.stop(), timeout=2.0)
+            except TimeoutError:
+                logger.warning("Lifecycle manager shutdown timed out")
 
             if self.message_processor:
-                await self.message_processor.stop()
+                try:
+                    await asyncio.wait_for(self.message_processor.stop(), timeout=2.0)
+                except TimeoutError:
+                    logger.warning("Message processor shutdown timed out")
 
             if websocket_task:
                 websocket_task.cancel()
@@ -278,7 +291,12 @@ class GobbyRunner:
                 except asyncio.CancelledError:
                     pass
 
-            await self.mcp_proxy.disconnect_all()
+            try:
+                await asyncio.wait_for(self.mcp_proxy.disconnect_all(), timeout=3.0)
+            except TimeoutError:
+                logger.warning("MCP disconnect timed out")
+
+            logger.info("Shutdown complete")
 
         except Exception as e:
             logger.error(f"Fatal error: {e}", exc_info=True)
