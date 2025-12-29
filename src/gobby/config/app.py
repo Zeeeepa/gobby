@@ -492,6 +492,18 @@ class TaskExpansionConfig(BaseModel):
         default=None,
         description="Custom prompt template for task expansion",
     )
+    codebase_research_enabled: bool = Field(
+        default=True,
+        description="Enable agentic codebase research for context gathering",
+    )
+    research_model: str | None = Field(
+        default=None,
+        description="Model to use for research agent (defaults to expansion model if None)",
+    )
+    research_max_steps: int = Field(
+        default=10,
+        description="Maximum number of steps for research agent loop",
+    )
 
 
 class TaskValidationConfig(BaseModel):

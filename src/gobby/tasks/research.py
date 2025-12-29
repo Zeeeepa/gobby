@@ -1,0 +1,310 @@
+"""
+Agentic codebase research for task expansion.
+"""
+
+import logging
+import os
+import re
+from pathlib import Path
+from typing import Any
+
+from gobby.config.app import TaskExpansionConfig
+from gobby.llm import LLMService
+from gobby.storage.tasks import Task
+from gobby.utils.project_context import find_project_root
+
+logger = logging.getLogger(__name__)
+
+
+class TaskResearchAgent:
+    """
+    Agent that autonomously researches the codebase to gather context for a task.
+
+    Implements a simple ReAct loop:
+    1. Think: Analyze current context and decide next action
+    2. Act: Execute a tool (glob, grep, read_file)
+    3. Observe: Add tool output to context
+    4. Repeat until done or timeout
+    """
+
+    def __init__(
+        self,
+        config: TaskExpansionConfig,
+        llm_service: LLMService,
+    ):
+        self.config = config
+        self.llm_service = llm_service
+        self.max_steps = 10
+        self.root = find_project_root()
+
+    async def run(self, task: Task) -> dict[str, Any]:
+        """
+        Run the research loop.
+
+        Args:
+            task: The task to research.
+
+        Returns:
+            Dictionary containing gathered context (files, snippets, findings).
+        """
+        if not self.root:
+            logger.warning("No project root found, skipping research")
+            return {"relevant_files": [], "findings": "No project root found"}
+
+        logger.info(f"Starting research for task {task.id}: {task.title}")
+
+        # Initialize context
+        context = {
+            "task": task,
+            "history": [],
+            "found_files": set(),
+            "snippets": {},
+        }
+
+        # Select provider (use research_model if configured, else default)
+        model = self.config.research_model or self.config.model
+        provider = self.llm_service.get_provider(self.config.provider)
+
+        for step in range(self.max_steps):
+            # 1. Generate Thought/Action
+            prompt = self._build_step_prompt(context, step)
+            response = await provider.generate_text(
+                prompt=prompt,
+                system_prompt="You are a senior developer researching a codebase. Use tools to find relevant code.",
+                model=model,
+            )
+
+            # Parse action
+            action = self._parse_action(response)
+            context["history"].append(
+                {"role": "model", "content": response, "parsed_action": action}
+            )
+
+            if not action or action["tool"] == "done":
+                reason = action.get("reason", "No action") if action else "Failed to parse action"
+                logger.info(f"Research finished: {reason}")
+                break
+
+            # 2. Execute Action
+            tool_output = await self._execute_tool(action)
+
+            # 3. Observe
+            context["history"].append({"role": "tool", "content": tool_output})
+            logger.debug(f"Step {step} tool {action['tool']} output len: {len(tool_output)}")
+
+        return self._summarize_results(context)
+
+    def _build_step_prompt(self, context: dict, step: int) -> str:
+        task = context["task"]
+        history = context["history"]
+
+        prompt = f"""Task: {task.title}
+Description: {task.description}
+
+You are researching this task to identify relevant files and implementation details.
+You have access to the following tools:
+
+1. glob(pattern): Find files matching a pattern (e.g. "src/**/*.py")
+2. grep(pattern, path): Search for text in files (e.g. "def login", "src/")
+3. read_file(path): Read the content of a file
+4. done(reason): Finish research
+
+Current Context:
+Found Files: {list(context["found_files"])}
+Snippets: {list(context["snippets"].keys())}
+
+History:
+"""
+        # Add limited history (last 5 turns to save context)
+        recent_history = history[-5:]
+        for item in recent_history:
+            if item["role"] == "model":
+                prompt += f"Agent: {item['content']}\n"
+            elif item["role"] == "tool":
+                # Truncate tool output
+                content = item["content"]
+                if len(content) > 500:
+                    content = content[:500] + "... (truncated)"
+                prompt += f"Tool: {content}\n"
+
+        prompt += f"\nStep {step + 1}/{self.max_steps}. What is your next move? Respond with THOUGHT followed by ACTION."
+        return prompt
+
+    def _parse_action(self, response: str) -> dict[str, Any] | None:
+        """Parse LLM response for ACTION: tool_name(args)."""
+        # Simple regex parser
+        # Expects: ACTION: toolname(arg1, "arg2")
+        match = re.search(r"ACTION:\s*(\w+)\((.*)\)", response, re.IGNORECASE)
+        if not match:
+            # Check for plain done
+            if "done" in response.lower():
+                return {"tool": "done", "reason": response}
+            return None
+
+        tool = match.group(1).lower()
+        args_str = match.group(2)
+
+        # Naive arg parsing (splits by comma, handles basic quotes)
+        args = []
+        current = ""
+        in_quote = False
+        for char in args_str:
+            if char == '"' or char == "'":
+                in_quote = not in_quote
+            elif char == "," and not in_quote:
+                args.append(current.strip().strip("'\""))
+                current = ""
+            else:
+                current += char
+        if current:
+            args.append(current.strip().strip("'\""))
+
+        return {"tool": tool, "args": args}
+
+    async def _execute_tool(self, action: dict) -> str:
+        tool = action["tool"]
+        args = action.get("args", [])
+
+        try:
+            if tool == "glob":
+                if not args:
+                    return "Error: Missing pattern"
+                return self._glob(args[0])
+            elif tool == "grep":
+                if len(args) < 2:
+                    return "Error: Missing pattern or path"
+                return self._grep(args[0], args[1])
+            elif tool == "read_file":
+                if not args:
+                    return "Error: Missing path"
+                return self._read_file(args[0])
+            elif tool == "done":
+                return "Done"
+            else:
+                return f"Error: Unknown tool {tool}"
+        except Exception as e:
+            return f"Error executing {tool}: {e}"
+
+    def _glob(self, pattern: str) -> str:
+        if not self.root:
+            return "No root"
+        # Security: ensure pattern doesn't traverse up
+        if ".." in pattern:
+            return "Error: .. not allowed"
+
+        matches = []
+        try:
+            # Use rglob if ** in pattern, else glob
+            # Simplified: Use fnmatch on all files walking from root (safer but slower)
+            # Or use pathlib.glob
+            # Let's use pathlib glob
+            for path in self.root.glob(pattern):
+                if path.is_file():
+                    matches.append(str(path.relative_to(self.root)))
+                if len(matches) > 50:  # Limit results
+                    break
+        except Exception as e:
+            return f"Glob error: {e}"
+
+        return "\n".join(matches) or "No matches found"
+
+    def _grep(self, pattern: str, path_str: str) -> str:
+        if not self.root:
+            return "No root"
+        search_path = (self.root / path_str).resolve()
+        if self.root not in search_path.parents and search_path != self.root:
+            return "Error: Path outside root"
+
+        # Simple recursive grep
+        # Limit to text files
+        results = []
+
+        is_dir = search_path.is_dir()
+
+        # If dir, walk. If file, search.
+        files_to_search = []
+        if is_dir:
+            for root, _, files in os.walk(search_path):
+                for f in files:
+                    # Skip hidden and non-text (basic heuristic)
+                    if f.startswith("."):
+                        continue
+                    if f.endswith((".pyc", ".png", ".jpg")):
+                        continue
+                    files_to_search.append(Path(root) / f)
+        else:
+            if search_path.exists():
+                files_to_search.append(search_path)
+
+        count = 0
+        for fpath in files_to_search:
+            if count > 20:
+                break  # Limit files matched
+            try:
+                rel_path = fpath.relative_to(self.root)
+                with open(fpath, encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+                    if pattern in content:
+                        # Extract snippet (one line context)
+                        lines = content.splitlines()
+                        for i, line in enumerate(lines):
+                            if pattern in line:
+                                results.append(f"{rel_path}:{i + 1}: {line.strip()}")
+                                break  # One match per file for brevity in overview
+                        count += 1
+            except Exception:
+                continue
+
+        return "\n".join(results) or "No matches found"
+
+    def _read_file(self, path_str: str) -> str:
+        if not self.root:
+            return "No root"
+        path = (self.root / path_str).resolve()
+        if self.root not in path.parents and path != self.root:
+            return "Error: Path outside root"
+
+        if not path.exists():
+            return "Error: File not found"
+
+        try:
+            with open(path, encoding="utf-8") as f:
+                content = f.read()
+                # Limit size
+                if len(content) > 5000:
+                    return content[:5000] + "\n...(truncated)"
+                return content
+        except Exception as e:
+            return f"Read error: {e}"
+
+    def _summarize_results(self, context: dict) -> dict[str, Any]:
+        """Convert agent history into structured context."""
+        # Extract files that were read or found relevant
+        # This is heuristics based on what tools were called successfully
+        relevant_files = []
+
+        for item in context["history"]:
+            if item["role"] == "model":
+                action = item.get("parsed_action")
+                if action and action["tool"] == "read_file":
+                    fname = action["args"][0]
+                    relevant_files.append(fname)
+            elif item["role"] == "tool":
+                # If we read a file, the output is the snippet
+                # We need to link it back to the filename which is hard without index
+                pass
+
+        # Easier: Just look at the snippets dict if we populated it during execution
+        # (We didn't in _read_file, let's fix that or just use the history)
+
+        # Let's populate found_files from read_file calls
+        found = set()
+        for action in [x["parsed_action"] for x in context["history"] if x.get("parsed_action")]:
+            if action and action["tool"] == "read_file" and action["args"]:
+                found.add(action["args"][0])
+
+        return {
+            "relevant_files": list(found),
+            "findings": "Agent research completed.",  # Could summarize history with LLM if needed
+            "raw_history": context["history"],
+        }

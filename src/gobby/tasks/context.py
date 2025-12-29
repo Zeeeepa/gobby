@@ -24,6 +24,7 @@ class ExpansionContext:
     relevant_files: list[str]
     file_snippets: dict[str, str]
     project_patterns: dict[str, str]
+    agent_findings: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -32,6 +33,7 @@ class ExpansionContext:
             "related_tasks": [t.to_dict() for t in self.related_tasks],
             "relevant_files": self.relevant_files,
             "project_patterns": self.project_patterns,
+            "agent_findings": self.agent_findings,
             # We don't include full snippets in dict summary often, but useful for debug
             "snippet_count": len(self.file_snippets),
         }
@@ -40,8 +42,15 @@ class ExpansionContext:
 class ExpansionContextGatherer:
     """Gathers context for task expansion."""
 
-    def __init__(self, task_manager: Any):  # Type Any to avoid circular import if needed
+    def __init__(
+        self,
+        task_manager: Any,
+        llm_service: Any = None,
+        config: Any = None,
+    ):  # Type Any to avoid circular import
         self.task_manager = task_manager
+        self.llm_service = llm_service
+        self.config = config
 
     async def gather_context(self, task: Task) -> ExpansionContext:
         """
@@ -56,7 +65,35 @@ class ExpansionContextGatherer:
         logger.info(f"Gathering expansion context for task {task.id}")
 
         related_tasks = await self._find_related_tasks(task)
+
+        # 1. Regex/Heuristic based file finding
         relevant_files = await self._find_relevant_files(task)
+
+        # 2. Agentic research (if enabled)
+        agent_findings = ""
+        if (
+            self.config
+            and getattr(self.config, "codebase_research_enabled", False)
+            and self.llm_service
+        ):
+            try:
+                from gobby.tasks.research import TaskResearchAgent
+
+                agent = TaskResearchAgent(self.config, self.llm_service)
+                research_result = await agent.run(task)
+
+                # Merge found files
+                for f in research_result.get("relevant_files", []):
+                    if f not in relevant_files:
+                        relevant_files.append(f)
+
+                agent_findings = research_result.get("findings", "")
+                logger.info(
+                    f"Agentic research added {len(research_result.get('relevant_files', []))} files"
+                )
+            except Exception as e:
+                logger.error(f"Agentic research failed: {e}")
+
         file_snippets = self._read_file_snippets(relevant_files)
         project_patterns = self._detect_project_patterns()
 
@@ -66,6 +103,7 @@ class ExpansionContextGatherer:
             relevant_files=relevant_files,
             file_snippets=file_snippets,
             project_patterns=project_patterns,
+            agent_findings=agent_findings,
         )
 
     async def _find_related_tasks(self, task: Task) -> list[Task]:
@@ -92,17 +130,31 @@ class ExpansionContextGatherer:
         # Naive: splits description and checks if tokens match filenames
         # This is very basic but serves as a starting point.
         if task.description:
-            words = task.description.split()
-            for word in words:
-                # remove potential punctuation
-                clean_word = word.strip(".,;:()`'")
-                if "." in clean_word and len(clean_word) > 2:
-                    # Potential filename
-                    # Ensure it's not external url
-                    if not clean_word.startswith("http"):
-                        path = root / clean_word
+            # Regex to find potential file paths:
+            # - alphanumeric, dots, slashes, dashes, underscores
+            # - must end with a common extension
+            # - length constraint to avoid noise
+            import re
+
+            # Common extensions to look for
+            extensions = "py|js|ts|tsx|jsx|md|json|html|css|yaml|toml|sh"
+            pattern = re.compile(rf"(?:\.?/)?[\w\-/_]+\.(?:{extensions})\b", re.IGNORECASE)
+
+            matches = pattern.findall(task.description)
+            for match in matches:
+                # Clean up match
+                fpath = match.strip()
+                # Resolve path
+                try:
+                    path = (root / fpath).resolve()
+                    # Security check: must be within root
+                    if root in path.parents or path == root:
                         if path.exists() and path.is_file():
-                            relevant.append(str(path.relative_to(root)))
+                            rel_path = str(path.relative_to(root))
+                            if rel_path not in relevant:
+                                relevant.append(rel_path)
+                except Exception:
+                    continue
 
         return relevant
 
@@ -117,9 +169,11 @@ class ExpansionContextGatherer:
             path = root / fname
             if path.exists() and path.is_file():
                 try:
+                import itertools
+                try:
                     # Read first 50 lines as context
-                    with open(path, "r", encoding="utf-8") as f:
-                        lines = [next(f) for _ in range(50)]
+                    with open(path, encoding="utf-8") as f:
+                        lines = list(itertools.islice(f, 50))
                     snippets[fname] = "".join(lines)
                 except Exception as e:
                     logger.warning(f"Failed to read context file {fname}: {e}")

@@ -5,13 +5,13 @@ Handles breaking down high-level tasks into smaller, actionable subtasks
 using LLM providers and gathered context.
 """
 
-import logging
 import json
+import logging
 from typing import Any
 
 from gobby.config.app import TaskExpansionConfig
 from gobby.llm import LLMService
-from gobby.storage.tasks import Task, LocalTaskManager
+from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.tasks.context import ExpansionContextGatherer
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,11 @@ class TaskExpander:
         self.config = config
         self.llm_service = llm_service
         self.task_manager = task_manager
-        self.context_gatherer = ExpansionContextGatherer(task_manager)
+        self.context_gatherer = ExpansionContextGatherer(
+            task_manager=task_manager,
+            llm_service=llm_service,
+            config=config,
+        )
 
     async def expand_task(
         self,
