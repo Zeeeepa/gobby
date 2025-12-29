@@ -14,8 +14,11 @@ class RecommendationService:
         self._llm_service = llm_service
         self._mcp_manager = mcp_manager
 
-    async def recommend_tools(self, task_description: str) -> dict[str, Any]:
+    async def recommend_tools(
+        self, task_description: str, agent_id: str | None = None
+    ) -> dict[str, Any]:
         """Recommend tools based on task."""
+        # agent_id reserved for future use (agent-specific tool filtering)
         try:
             available_servers = self._mcp_manager.get_available_servers()
 

@@ -2,9 +2,11 @@
 Agentic codebase research for task expansion.
 """
 
+import ast
 import logging
 import os
 import re
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -54,7 +56,7 @@ class TaskResearchAgent:
         logger.info(f"Starting research for task {task.id}: {task.title}")
 
         # Initialize context
-        context = {
+        context: dict[str, Any] = {
             "task": task,
             "history": [],
             "found_files": set(),
@@ -131,33 +133,86 @@ History:
         return prompt
 
     def _parse_action(self, response: str) -> dict[str, Any] | None:
-        """Parse LLM response for ACTION: tool_name(args)."""
-        # Simple regex parser
-        # Expects: ACTION: toolname(arg1, "arg2")
-        match = re.search(r"ACTION:\s*(\w+)\((.*)\)", response, re.IGNORECASE)
+        """
+        Parse LLM response for ACTION: tool_name(args).
+
+        Uses multiple parsing strategies in order of robustness:
+        1. ast.literal_eval for Python-style tuple syntax
+        2. shlex for shell-like quoting (handles commas in quotes)
+        3. Simple comma split as last resort
+        """
+        # Check for explicit "ACTION: done" first (tighter than substring match)
+        # Matches: "ACTION: done", "ACTION: done(reason)", "ACTION: done("reason")"
+        done_match = re.search(
+            r"^ACTION:\s*done(?:\s*\(([^)]*)\))?",
+            response,
+            re.IGNORECASE | re.MULTILINE,
+        )
+        if done_match:
+            reason = done_match.group(1)
+            if reason:
+                reason = reason.strip().strip("'\"")
+            return {"tool": "done", "reason": reason or response}
+
+        # Parse ACTION: tool_name(args) pattern
+        # Use DOTALL to handle args spanning multiple lines
+        match = re.search(r"ACTION:\s*(\w+)\((.*)\)", response, re.IGNORECASE | re.DOTALL)
         if not match:
-            # Check for plain done
-            if "done" in response.lower():
-                return {"tool": "done", "reason": response}
             return None
 
         tool = match.group(1).lower()
-        args_str = match.group(2)
+        args_str = match.group(2).strip()
 
-        # Naive arg parsing (splits by comma, handles basic quotes)
-        args = []
-        current = ""
-        in_quote = False
-        for char in args_str:
-            if char == '"' or char == "'":
-                in_quote = not in_quote
-            elif char == "," and not in_quote:
-                args.append(current.strip().strip("'\""))
-                current = ""
-            else:
-                current += char
-        if current:
-            args.append(current.strip().strip("'\""))
+        # Handle done tool explicitly (in case it matched the general pattern)
+        if tool == "done":
+            return {"tool": "done", "reason": args_str.strip("'\"") or response}
+
+        # If no args, return empty args list
+        if not args_str:
+            return {"tool": tool, "args": []}
+
+        # Try multiple parsing strategies in order of robustness
+        args = None
+        parse_errors = []
+
+        # Strategy 1: ast.literal_eval as tuple
+        # Handles: "arg1", "arg2" → ('arg1', 'arg2')
+        # Handles escaped quotes, nested structures, etc.
+        try:
+            # Wrap in parens with trailing comma to make it a tuple
+            parsed = ast.literal_eval(f"({args_str},)")
+            args = [str(a) for a in parsed]
+        except (ValueError, SyntaxError) as e:
+            parse_errors.append(f"ast.literal_eval: {e}")
+
+        # Strategy 2: shlex-based parsing (handles shell-like quoting)
+        # Handles: "arg with spaces", 'single quotes', arg\ with\ escapes
+        if args is None:
+            try:
+                lexer = shlex.shlex(args_str, posix=True)
+                lexer.whitespace = ","
+                lexer.whitespace_split = True
+                args = [token.strip() for token in lexer]
+            except ValueError as e:
+                parse_errors.append(f"shlex: {e}")
+
+        # Strategy 3: Simple comma split as last resort
+        if args is None:
+            try:
+                args = [a.strip().strip("'\"") for a in args_str.split(",")]
+            except Exception as e:
+                parse_errors.append(f"split: {e}")
+                logger.error(
+                    f"All parsing strategies failed for args: {args_str!r}. "
+                    f"Errors: {parse_errors}"
+                )
+                return None
+
+        if parse_errors:
+            logger.debug(
+                f"Argument parsing recovered after failures: {parse_errors}. "
+                f"Final args: {args}"
+            )
 
         return {"tool": tool, "args": args}
 
@@ -242,8 +297,8 @@ History:
                 break  # Limit files matched
             try:
                 rel_path = fpath.relative_to(self.root)
-                with open(fpath, encoding="utf-8", errors="ignore") as f:
-                    content = f.read()
+                with open(fpath, encoding="utf-8", errors="ignore") as fp:
+                    content = fp.read()
                     if pattern in content:
                         # Extract snippet (one line context)
                         lines = content.splitlines()

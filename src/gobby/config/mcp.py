@@ -12,6 +12,8 @@ from typing import Any
 
 from gobby.mcp_proxy.manager import MCPServerConfig
 
+__all__ = ["MCPConfigManager", "MCPServerConfig"]
+
 logger = logging.getLogger(__name__)
 
 

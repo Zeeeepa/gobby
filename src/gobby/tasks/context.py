@@ -5,6 +5,7 @@ This module provides tools to gather relevant context from the codebase and
 project state to inform the task expansion process.
 """
 
+import itertools
 import logging
 from dataclasses import dataclass
 from typing import Any
@@ -160,7 +161,7 @@ class ExpansionContextGatherer:
 
     def _read_file_snippets(self, files: list[str]) -> dict[str, str]:
         """Read content of relevant files."""
-        snippets = {}
+        snippets: dict[str, str] = {}
         root = find_project_root()
         if not root:
             return snippets
@@ -168,8 +169,6 @@ class ExpansionContextGatherer:
         for fname in files:
             path = root / fname
             if path.exists() and path.is_file():
-                try:
-                import itertools
                 try:
                     # Read first 50 lines as context
                     with open(path, encoding="utf-8") as f:
@@ -181,7 +180,7 @@ class ExpansionContextGatherer:
 
     def _detect_project_patterns(self) -> dict[str, str]:
         """Detect project patterns (e.g. test framework, language)."""
-        patterns = {}
+        patterns: dict[str, str] = {}
         root = find_project_root()
         if not root:
             return patterns
