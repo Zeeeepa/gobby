@@ -508,6 +508,10 @@ class TaskExpansionConfig(BaseModel):
         default=None,
         description="Custom system prompt for task expansion (overrides default)",
     )
+    web_research_enabled: bool = Field(
+        default=True,
+        description="Enable web research for task expansion using MCP tools",
+    )
 
 
 class TaskValidationConfig(BaseModel):

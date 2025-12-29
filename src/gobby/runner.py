@@ -152,6 +152,7 @@ class GobbyRunner:
                         llm_service=self.llm_service,
                         config=task_expansion_config,
                         task_manager=self.task_manager,
+                        mcp_manager=self.mcp_proxy,
                     )
                 except Exception as e:
                     logger.error(f"Failed to initialize TaskExpander: {e}")

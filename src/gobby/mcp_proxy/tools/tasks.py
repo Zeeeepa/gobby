@@ -12,6 +12,7 @@ These tools are registered with the InternalToolRegistry and accessed
 via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 """
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -92,37 +93,90 @@ def create_task_registry(
             context=context,
         )
 
-        created_subtasks = []
+        # 1. Create all subtasks first and map their indices to IDs
+        # We need a flat list of created tasks with their original index from the LLM response
+        # to correctly wire dependencies.
 
-        # Flatten phases into simple list for now (ignoring phases/dependencies until Phase 12.4)
+        # Maps LLM-provided index (implied or explicit) to created Task ID
+        # The structure from LLM is: phases -> subtasks.
+        # We need to flatten this to process dependencies.
+
+        @dataclass
+        class PendingWeb:
+            task_id: str
+            depends_on_indices: list[int]
+            original_index: int  # Global index across all phases
+
+        pending_wiring: list[PendingWeb] = []
+        created_subtasks: list[Task] = []
+        global_index = 0
+
+        # Helper to process a subtask data dict
+        def process_subtask_data(data: dict[str, Any]) -> Task:
+            nonlocal global_index
+            desc = data.get("description", "")
+            if "details" in data:
+                desc += f"\n\nDetails: {data['details']}"
+            if "test_strategy" in data:
+                desc += f"\n\nTest Strategy: {data['test_strategy']}"
+
+            subtask = task_manager.create_task(
+                title=data["title"],
+                description=desc,
+                parent_task_id=task.id,
+                project_id=task.project_id,
+            )
+
+            # Record for wiring
+            indices = data.get("depends_on_indices", [])
+            pending_wiring.append(
+                PendingWeb(
+                    task_id=subtask.id, depends_on_indices=indices, original_index=global_index
+                )
+            )
+            global_index += 1
+
+            return subtask
+
         if "phases" in result:
             for phase in result["phases"]:
                 for subtask_data in phase.get("subtasks", []):
-                    # Append complexity/phase info to description if available
-                    desc = subtask_data.get("description", "")
-                    if "details" in subtask_data:
-                        desc += f"\n\nDetails: {subtask_data['details']}"
-                    if "test_strategy" in subtask_data:
-                        desc += f"\n\nTest Strategy: {subtask_data['test_strategy']}"
-
-                    subtask = task_manager.create_task(
-                        title=subtask_data["title"],
-                        description=desc,
-                        parent_task_id=task.id,
-                        project_id=task.project_id,
-                    )
+                    subtask = process_subtask_data(subtask_data)
                     created_subtasks.append(subtask)
 
-        # Backward compatibility for flat list (should define normalize method but this is fallback)
+        # Backward compatibility for flat list
         elif isinstance(result, list):
             for data in result:
-                subtask = task_manager.create_task(
-                    title=data["title"],
-                    description=data.get("description"),
-                    parent_task_id=task.id,
-                    project_id=task.project_id,
-                )
+                subtask = process_subtask_data(data)
                 created_subtasks.append(subtask)
+
+        # 2. Wire dependencies
+        # Map original_index -> task_id for O(1) lookup
+        index_to_id = {p.original_index: p.task_id for p in pending_wiring}
+
+        for pending in pending_wiring:
+            # Wire subtask -> subtask dependencies
+            for dep_index in pending.depends_on_indices:
+                if dep_index in index_to_id:
+                    blocker_id = index_to_id[dep_index]
+                    # Prevent self-dependency (LLM hallucination safety)
+                    if blocker_id != pending.task_id:
+                        try:
+                            dep_manager.add_dependency(
+                                task_id=pending.task_id, depends_on=blocker_id, dep_type="blocks"
+                            )
+                        except ValueError:
+                            # Ignore cycle errors or invalid deps, log and continue
+                            pass
+
+            # Wire Parent -> subtask dependency
+            # The parent task depends on (is blocked by) all subtasks
+            try:
+                dep_manager.add_dependency(
+                    task_id=task.id, depends_on=pending.task_id, dep_type="blocks"
+                )
+            except ValueError:
+                pass
 
         return created_subtasks
 

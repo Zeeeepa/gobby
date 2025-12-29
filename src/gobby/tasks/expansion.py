@@ -26,14 +26,17 @@ class TaskExpander:
         config: TaskExpansionConfig,
         llm_service: LLMService,
         task_manager: LocalTaskManager,
+        mcp_manager: Any | None = None,
     ):
         self.config = config
         self.llm_service = llm_service
         self.task_manager = task_manager
+        self.mcp_manager = mcp_manager
         self.context_gatherer = ExpansionContextGatherer(
             task_manager=task_manager,
             llm_service=llm_service,
             config=config,
+            mcp_manager=mcp_manager,
         )
         self.prompt_builder = ExpansionPromptBuilder(config)
 

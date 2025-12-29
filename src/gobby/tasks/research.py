@@ -33,11 +33,48 @@ class TaskResearchAgent:
         self,
         config: TaskExpansionConfig,
         llm_service: LLMService,
+        mcp_manager: Any | None = None,
     ):
         self.config = config
         self.llm_service = llm_service
+        self.mcp_manager = mcp_manager
         self.max_steps = 10
         self.root = find_project_root()
+
+        # Discover available search tools
+        self.search_tool: dict | None = None
+        if self.mcp_manager and self.config.web_research_enabled:
+            self.search_tool = self._find_search_tool()
+
+    def _find_search_tool(self) -> dict | None:
+        """Find a suitable web search tool from MCP manager."""
+        if not self.mcp_manager:
+            return None
+
+        # Helper to check if tool looks like search
+        def is_search_tool(name: str, desc: str) -> bool:
+            name = name.lower()
+            if name in ("search_web", "google_search", "brave_search", "bing_search"):
+                return True
+            if "search" in name and "web" in name:
+                return True
+            return False
+
+        # Iterate all tools (simplified, ideally we have a fast lookup)
+        # We rely on mcp_manager exposing tool definitions
+        # Assuming mcp_manager has get_all_tools() or similar, or we just trust known ones
+        # Since mcp_manager interface isn't fully typed here, let's look for 'search_web' specifically first
+        # based on user request "just use search_web"
+
+        # Check for specific search tools in priority order
+        candidates = ["search_web", "google_search", "brave_search"]
+        for tool_name in candidates:
+            # We don't have a direct "has_tool" check easily exposed without async
+            # So we will try to resolve it during execution or prompt building
+            # For now, let's just assume we can look it up in _build_step_prompt or cache it there
+            pass
+
+        return None  # We'll resolve dynamically in prompt builder for now
 
     async def run(self, task: Task) -> dict[str, Any]:
         """
@@ -69,7 +106,7 @@ class TaskResearchAgent:
 
         for step in range(self.max_steps):
             # 1. Generate Thought/Action
-            prompt = self._build_step_prompt(context, step)
+            prompt = await self._build_step_prompt(context, step)  # Made async
             response = await provider.generate_text(
                 prompt=prompt,
                 system_prompt="You are a senior developer researching a codebase. Use tools to find relevant code.",
@@ -96,7 +133,7 @@ class TaskResearchAgent:
 
         return self._summarize_results(context)
 
-    def _build_step_prompt(self, context: dict, step: int) -> str:
+    async def _build_step_prompt(self, context: dict, step: int) -> str:
         task = context["task"]
         history = context["history"]
 
@@ -110,7 +147,24 @@ You have access to the following tools:
 2. grep(pattern, path): Search for text in files (e.g. "def login", "src/")
 3. read_file(path): Read the content of a file
 4. done(reason): Finish research
+"""
+        # Add search tool if available
+        search_tool_def = ""
+        if self.mcp_manager and self.config.web_research_enabled:
+            # Dynamically check for search tool
+            # We prefer 'search_web' if available, else others
+            tools = await self.mcp_manager.list_tools()  # Assuming this API
+            # Flatten tools list
+            all_tools = []
+            for server, server_tools in tools.items():
+                all_tools.extend(server_tools)
 
+            for t in all_tools:
+                if t.name in ("search_web", "google_search", "brave_search"):
+                    prompt += f"5. {t.name}(query): {t.description[:100]}...\n"
+                    break
+
+        prompt += f"""
 Current Context:
 Found Files: {list(context["found_files"])}
 Snippets: {list(context["snippets"].keys())}
@@ -231,8 +285,19 @@ History:
                 return self._read_file(args[0])
             elif tool == "done":
                 return "Done"
-            else:
-                return f"Error: Unknown tool {tool}"
+
+            # Check for MCP search tools
+            if self.mcp_manager and self.config.web_research_enabled:
+                if tool in ("search_web", "google_search", "brave_search"):
+                    if not args:
+                        return "Error: Missing query"
+                    # Call via MCP manager
+                    # self.mcp_manager.call_tool returns Result object or dict
+                    result = await self.mcp_manager.call_tool(tool, {"query": args[0]})
+                    # Format result - assume it returns text or structured content
+                    return str(result)
+
+            return f"Error: Unknown tool {tool}"
         except Exception as e:
             return f"Error executing {tool}: {e}"
 

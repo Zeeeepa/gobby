@@ -149,26 +149,56 @@ async def test_sync_tasks(mock_task_manager, mock_sync_manager):
 async def test_expand_task_integration(mock_task_manager, mock_sync_manager):
     """Test expand_task tool execution with expander registered."""
     mock_expander = MagicMock()
-    # Return formatted dict
+    # Return formatted dict with dependencies
     mock_expander.expand_task = AsyncMock(
-        return_value={"complexity_analysis": {}, "phases": [{"subtasks": [{"title": "Subtask 1"}]}]}
+        return_value={
+            "complexity_analysis": {},
+            "phases": [
+                {
+                    "subtasks": [
+                        {"title": "Subtask 1", "depends_on_indices": []},
+                        {"title": "Subtask 2", "depends_on_indices": [0]},
+                    ]
+                }
+            ],
+        }
     )
 
-    registry = create_task_registry(
-        mock_task_manager, mock_sync_manager, task_expander=mock_expander
-    )
+    # Mock dependency manager
+    with patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager") as MockDepManager:
+        mock_dep_instance = MockDepManager.return_value
 
-    msg_task = MagicMock()
-    msg_task.id = "t1"
-    msg_task.project_id = "p1"
-    mock_task_manager.get_task.return_value = msg_task
+        registry = create_task_registry(
+            mock_task_manager, mock_sync_manager, task_expander=mock_expander
+        )
 
-    mock_task_manager.create_task.return_value = MagicMock(id="sub1")
+        msg_task = MagicMock()
+        msg_task.id = "t1"
+        msg_task.project_id = "p1"
+        mock_task_manager.get_task.return_value = msg_task
 
-    result = await registry.call("expand_task", {"task_id": "t1", "context": "extra info"})
+        # Create task will be called twice for subtasks
+        sub1 = MagicMock(id="sub1")
+        sub2 = MagicMock(id="sub2")
+        mock_task_manager.create_task.side_effect = [sub1, sub2]
 
-    mock_expander.expand_task.assert_called_once()
-    # Verify subtask creation
-    mock_task_manager.create_task.assert_called()
-    assert len(result) == 1
-    assert result[0].id == "sub1"
+        result = await registry.call("expand_task", {"task_id": "t1", "context": "extra info"})
+
+        mock_expander.expand_task.assert_called_once()
+        assert len(result) == 2
+
+        # Verify wiring
+        # 1. sub1 -> sub2 dependency (sub2 depends on sub1)
+        # index 0 is sub1, index 1 is sub2. sub2 has depends_on_indices=[0]
+        # So sub2 depends on sub1.
+        mock_dep_instance.add_dependency.assert_any_call(
+            task_id="sub2", depends_on="sub1", dep_type="blocks"
+        )
+
+        # 2. Parent dependencies (t1 depends on sub1 and sub2)
+        mock_dep_instance.add_dependency.assert_any_call(
+            task_id="t1", depends_on="sub1", dep_type="blocks"
+        )
+        mock_dep_instance.add_dependency.assert_any_call(
+            task_id="t1", depends_on="sub2", dep_type="blocks"
+        )
