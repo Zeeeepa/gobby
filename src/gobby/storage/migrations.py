@@ -437,6 +437,15 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         ALTER TABLE tasks ADD COLUMN expansion_context TEXT;
         """,
     ),
+    (
+        19,
+        "Add enhanced validation fields",
+        """
+        ALTER TABLE tasks ADD COLUMN validation_criteria TEXT;
+        ALTER TABLE tasks ADD COLUMN use_external_validator INTEGER DEFAULT 0;
+        ALTER TABLE tasks ADD COLUMN validation_fail_count INTEGER DEFAULT 0;
+        """,
+    ),
 ]
 
 

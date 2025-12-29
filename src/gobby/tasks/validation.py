@@ -30,12 +30,35 @@ class TaskValidator:
         self.config = config
         self.llm_service = llm_service
 
+    async def gather_validation_context(self, file_paths: list[str]) -> str:
+        """
+        Gather context for validation from files.
+
+        Args:
+            file_paths: List of absolute file paths to read.
+
+        Returns:
+            Concatenated file contents.
+        """
+        context: list[str] = []
+        for path in file_paths:
+            try:
+                with open(path, encoding="utf-8") as f:
+                    content = f.read()
+                    context.append(f"--- {path} ---\n{content}\n")
+            except Exception as e:
+                logger.warning(f"Failed to read file {path} for validation: {e}")
+                context.append(f"--- {path} ---\n(Error reading file: {e})\n")
+        return "\n".join(context)
+
     async def validate_task(
         self,
         task_id: str,
         title: str,
         original_instruction: str | None,
         changes_summary: str,
+        validation_criteria: str | None = None,
+        context_files: list[str] | None = None,
     ) -> ValidationResult:
         """
         Validate task completion.
@@ -45,6 +68,8 @@ class TaskValidator:
             title: Task title
             original_instruction: Original user instruction/request
             changes_summary: Summary of changes made (files, diffs, etc.)
+            validation_criteria: Specific criteria to validate against (optional)
+            context_files: List of files to read for context (optional)
 
         Returns:
             ValidationResult with status and feedback
@@ -52,38 +77,63 @@ class TaskValidator:
         if not self.config.enabled:
             return ValidationResult(status="pending", feedback="Validation disabled")
 
-        if not original_instruction:
-            logger.warning(f"Cannot validate task {task_id}: missing original instruction")
-            return ValidationResult(status="pending", feedback="Missing original instruction")
+        if not original_instruction and not validation_criteria:
+            logger.warning(f"Cannot validate task {task_id}: missing instruction and criteria")
+            return ValidationResult(
+                status="pending", feedback="Missing original instruction and criteria"
+            )
 
         logger.info(f"Validating task {task_id}: {title}")
 
-        prompt = self.config.prompt or (
-            "Validate if the following changes satisfy the original instruction.\n"
+        # Gather context if provided
+        file_context = ""
+        if context_files:
+            file_context = await self.gather_validation_context(context_files)
+
+        # Build prompt
+        criteria_text = (
+            f"Validation Criteria:\n{validation_criteria}"
+            if validation_criteria
+            else f"Original Instruction:\n{original_instruction}"
+        )
+
+        base_prompt = (
+            "Validate if the following changes satisfy the requirements.\n"
             "Return ONLY a valid JSON object with 'status' ('valid' or 'invalid') "
             "and 'feedback' (string explanation).\n\n"
-            f"Original Instruction: {original_instruction}\n"
             f"Task: {title}\n"
-            f"Changes:\n{changes_summary}"
+            f"{criteria_text}\n\n"
+            f"Changes Summary:\n{changes_summary}\n\n"
         )
+
+        if file_context:
+            # Truncate file context to 50k chars to avoid exceeding LLM context limits
+            base_prompt += f"File Context:\n{file_context[:50000]}\n"
+
+        prompt = self.config.prompt or base_prompt
 
         try:
             provider = self.llm_service.get_provider(self.config.provider)
             response_content = await provider.generate_text(
                 prompt=prompt,
-                system_prompt="You are a QA engineer. Validate work strictly against requirements.",
+                system_prompt="You are a QA engineer. Validate work strictly against requirements. Be critical.",
                 model=self.config.model,
             )
 
             import json
+            import re
 
             content = response_content.strip()
-            if content.startswith("```"):
-                content = content.split("\n", 1)[1]
-                if content.endswith("```"):
-                    content = content.rsplit("\n", 1)[0]
-                if content.startswith("json"):
-                    content = content[4:].strip()
+
+            # Try to find JSON in code block
+            json_block = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
+            if json_block:
+                content = json_block.group(1)
+            else:
+                # If no code block, try to find { ... }
+                json_obj = re.search(r"(\{.*\})", content, re.DOTALL)
+                if json_obj:
+                    content = json_obj.group(1)
 
             result_data = json.loads(content)
 

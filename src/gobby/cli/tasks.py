@@ -548,9 +548,10 @@ def clean_cmd() -> None:
 def validate_task_cmd(task_id: str, summary: str | None, summary_file: str | None) -> None:
     """Validate a task."""
     import asyncio
-    from gobby.tasks.validation import TaskValidator
-    from gobby.llm import LLMService
+
     from gobby.config.app import load_config
+    from gobby.llm import LLMService
+    from gobby.tasks.validation import TaskValidator
 
     manager = get_task_manager()
     resolved = resolve_task_id(manager, task_id)
@@ -561,7 +562,7 @@ def validate_task_cmd(task_id: str, summary: str | None, summary_file: str | Non
     changes_summary = ""
     if summary_file:
         try:
-            with open(summary_file, "r", encoding="utf-8") as f:
+            with open(summary_file, encoding="utf-8") as f:
                 changes_summary = f.read()
         except Exception as e:
             click.echo(f"Error reading summary file: {e}", err=True)
@@ -654,9 +655,6 @@ def validate_task_cmd(task_id: str, summary: str | None, summary_file: str | Non
     except Exception as e:
         click.echo(f"Validation error: {e}", err=True)
 
-    manager.update_task(resolved.id, validation_fail_count=0)
-    click.echo(f"Reset validation fail count for task {resolved.id}")
-
 
 @tasks.command("expand")
 @click.argument("task_id")
@@ -680,10 +678,11 @@ def expand_task_cmd(
     """Expand a task into subtasks using AI."""
     import asyncio
     from dataclasses import dataclass
-    from gobby.tasks.expansion import TaskExpander
-    from gobby.llm import LLMService
+
     from gobby.config.app import load_config
+    from gobby.llm import LLMService
     from gobby.storage.task_dependencies import TaskDependencyManager
+    from gobby.tasks.expansion import TaskExpander
 
     manager = get_task_manager()
     resolved = resolve_task_id(manager, task_id)

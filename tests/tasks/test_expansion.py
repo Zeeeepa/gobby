@@ -99,7 +99,11 @@ async def test_expand_task_calls_gatherer(
 
         result = await expander.expand_task("t1", "Main Task")
 
-        mock_gatherer_instance.gather_context.assert_called_once_with(sample_task)
+        mock_gatherer_instance.gather_context.assert_called_once_with(
+            sample_task,
+            enable_web_research=False,
+            enable_code_context=True,
+        )
 
         # Verify LLM call arguments contain context
         provider = mock_llm_service.get_provider.return_value

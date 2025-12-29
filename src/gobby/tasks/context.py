@@ -65,11 +65,9 @@ class ExpansionContextGatherer:
         Gather all relevant context for a task.
 
         Args:
-        Args:
             task: The task to gather context for.
             enable_web_research: Whether to enable web research.
             enable_code_context: Whether to enable code context gathering.
-
         Returns:
             Populated ExpansionContext object.
         """

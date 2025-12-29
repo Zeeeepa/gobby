@@ -322,6 +322,301 @@ def create_task_registry(
             "message": "Validation failure count reset to 0",
         }
 
+    @registry.tool(
+        name="analyze_complexity",
+        description="Analyze task complexity and return a score (1-10) with reasoning.",
+    )
+    async def analyze_complexity(task_id: str) -> dict[str, Any]:
+        """
+        Analyze task complexity using LLM.
+
+        Args:
+            task_id: ID of the task to analyze
+
+        Returns:
+            Complexity analysis with score, reasoning, and recommended subtasks
+        """
+        if not task_expander:
+            raise RuntimeError("Task expansion is not enabled")
+
+        task = task_manager.get_task(task_id)
+        if not task:
+            raise ValueError(f"Task not found: {task_id}")
+
+        # Use the expander to get complexity analysis without creating subtasks
+        result = await task_expander.expand_task(
+            task_id=task.id,
+            title=task.title,
+            description=task.description,
+            enable_web_research=False,
+            enable_code_context=True,
+        )
+
+        if "error" in result:
+            return {"error": result["error"]}
+
+        complexity = result.get("complexity_analysis", {})
+
+        # Update task with complexity score
+        if complexity.get("score"):
+            task_manager.update_task(
+                task_id,
+                complexity_score=complexity["score"],
+                estimated_subtasks=complexity.get("recommended_subtasks"),
+            )
+
+        return {
+            "task_id": task_id,
+            "title": task.title,
+            "complexity_score": complexity.get("score", 0),
+            "reasoning": complexity.get("reasoning", ""),
+            "recommended_subtasks": complexity.get("recommended_subtasks", 0),
+        }
+
+    @registry.tool(
+        name="expand_all",
+        description="Expand all unexpanded tasks (tasks without subtasks) up to a limit.",
+    )
+    async def expand_all(
+        max_tasks: int = 5,
+        min_complexity: int = 1,
+        task_type: str | None = None,
+        enable_web_research: bool = False,
+    ) -> dict[str, Any]:
+        """
+        Expand multiple tasks that haven't been expanded yet.
+
+        Args:
+            max_tasks: Maximum number of tasks to expand (default: 5)
+            min_complexity: Only expand tasks with complexity >= this value (default: 1)
+            task_type: Filter by task type (optional)
+            enable_web_research: Enable web research for expansion (default: False)
+
+        Returns:
+            Summary of expanded tasks
+        """
+        if not task_expander:
+            raise RuntimeError("Task expansion is not enabled")
+
+        # Find tasks without children (not expanded)
+        all_tasks = task_manager.list_tasks(status="open", task_type=task_type, limit=100)
+
+        # Filter to tasks without subtasks
+        unexpanded = []
+        for t in all_tasks:
+            children = task_manager.list_tasks(parent_task_id=t.id, limit=1)
+            if not children:
+                # Check complexity if we have it
+                if t.complexity_score is None or t.complexity_score >= min_complexity:
+                    unexpanded.append(t)
+
+        # Limit
+        to_expand = unexpanded[:max_tasks]
+
+        results = []
+        for task in to_expand:
+            try:
+                subtasks = await expand_task(
+                    task_id=task.id,
+                    enable_web_research=enable_web_research,
+                    enable_code_context=True,
+                )
+                results.append({
+                    "task_id": task.id,
+                    "title": task.title,
+                    "subtasks_created": len(subtasks),
+                    "status": "success",
+                })
+            except Exception as e:
+                results.append({
+                    "task_id": task.id,
+                    "title": task.title,
+                    "status": "error",
+                    "error": str(e),
+                })
+
+        return {
+            "expanded_count": len([r for r in results if r["status"] == "success"]),
+            "total_attempted": len(results),
+            "results": results,
+        }
+
+    @registry.tool(
+        name="expand_from_spec",
+        description="Create tasks from a specification document or PRD.",
+    )
+    async def expand_from_spec(
+        spec_content: str,
+        parent_task_id: str | None = None,
+        task_type: str = "task",
+    ) -> dict[str, Any]:
+        """
+        Parse a specification document and create tasks from it.
+
+        Args:
+            spec_content: The specification text (markdown, requirements, etc.)
+            parent_task_id: Optional parent task to nest created tasks under
+            task_type: Type for created tasks (default: "task")
+
+        Returns:
+            List of created tasks
+        """
+        if not task_expander:
+            raise RuntimeError("Task expansion is not enabled")
+
+        # Get project context
+        ctx = get_project_context()
+        if ctx and ctx.get("id"):
+            project_id = ctx["id"]
+        else:
+            init_result = initialize_project()
+            project_id = init_result.project_id
+
+        # Create a synthetic task to expand from the spec
+        # We'll use the expander's LLM to parse the spec
+        result = await task_expander.expand_task(
+            task_id="spec-expansion",
+            title="Specification Analysis",
+            description=spec_content,
+            context="Parse this specification and create actionable tasks. "
+            "Each task should be specific and implementable. "
+            "Group related tasks into phases.",
+            enable_web_research=False,
+            enable_code_context=False,
+        )
+
+        if "error" in result:
+            return {"error": result["error"]}
+
+        # Create tasks from the expansion result
+        created_tasks = []
+        dep_manager = TaskDependencyManager(task_manager.db)
+
+        # Track index to ID mapping for dependency wiring
+        index_to_id: dict[int, str] = {}
+        global_index = 0
+
+        if "phases" in result:
+            for phase in result["phases"]:
+                for subtask_data in phase.get("subtasks", []):
+                    desc = subtask_data.get("description", "")
+                    if "details" in subtask_data:
+                        desc += f"\n\nDetails: {subtask_data['details']}"
+                    if "test_strategy" in subtask_data:
+                        desc += f"\n\nTest Strategy: {subtask_data['test_strategy']}"
+
+                    task = task_manager.create_task(
+                        project_id=project_id,
+                        title=subtask_data["title"],
+                        description=desc,
+                        parent_task_id=parent_task_id,
+                        task_type=task_type,
+                        test_strategy=subtask_data.get("test_strategy"),
+                    )
+
+                    index_to_id[global_index] = task.id
+
+                    # Wire dependencies
+                    for dep_idx in subtask_data.get("depends_on_indices", []):
+                        if dep_idx in index_to_id and index_to_id[dep_idx] != task.id:
+                            try:
+                                dep_manager.add_dependency(
+                                    task_id=task.id,
+                                    depends_on=index_to_id[dep_idx],
+                                    dep_type="blocks",
+                                )
+                            except ValueError:
+                                pass
+
+                    created_tasks.append(task)
+                    global_index += 1
+
+        return {
+            "tasks_created": len(created_tasks),
+            "tasks": [t.to_dict() for t in created_tasks],
+        }
+
+    @registry.tool(
+        name="suggest_next_task",
+        description="Suggest the next task to work on based on dependencies, priority, and readiness.",
+    )
+    def suggest_next_task(
+        task_type: str | None = None,
+        prefer_subtasks: bool = True,
+    ) -> dict[str, Any]:
+        """
+        Suggest the best next task to work on.
+
+        Uses a scoring algorithm considering:
+        - Task is ready (no blockers)
+        - Priority (higher priority = higher score)
+        - Is a leaf task (subtask with no children)
+        - Has clear scope (complexity_score if available)
+
+        Args:
+            task_type: Filter by task type (optional)
+            prefer_subtasks: Prefer leaf tasks over parent tasks (default: True)
+
+        Returns:
+            Suggested task with reasoning
+        """
+        ready_tasks = task_manager.list_ready_tasks(task_type=task_type, limit=50)
+
+        if not ready_tasks:
+            return {
+                "suggestion": None,
+                "reason": "No ready tasks found",
+            }
+
+        # Score each task
+        scored = []
+        for task in ready_tasks:
+            score = 0
+
+            # Priority boost (1=high gets +30, 2=medium gets +20, 3=low gets +10)
+            score += (4 - task.priority) * 10
+
+            # Check if it's a leaf task (no children)
+            children = task_manager.list_tasks(parent_task_id=task.id, status="open", limit=1)
+            is_leaf = len(children) == 0
+
+            if prefer_subtasks and is_leaf:
+                score += 25  # Prefer actionable leaf tasks
+
+            # Bonus for tasks with clear complexity
+            if task.complexity_score and task.complexity_score <= 5:
+                score += 15  # Prefer lower complexity tasks
+
+            # Bonus for tasks with test strategy defined
+            if task.test_strategy:
+                score += 10
+
+            scored.append((task, score, is_leaf))
+
+        # Sort by score descending
+        scored.sort(key=lambda x: x[1], reverse=True)
+        best_task, best_score, is_leaf = scored[0]
+
+        reasons = []
+        if best_task.priority == 1:
+            reasons.append("high priority")
+        if is_leaf:
+            reasons.append("actionable leaf task")
+        if best_task.complexity_score and best_task.complexity_score <= 5:
+            reasons.append("manageable complexity")
+        if best_task.test_strategy:
+            reasons.append("has test strategy")
+
+        return {
+            "suggestion": best_task.to_dict(),
+            "score": best_score,
+            "reason": f"Selected because: {', '.join(reasons) if reasons else 'best available option'}",
+            "alternatives": [
+                {"task_id": t.id, "title": t.title, "score": s}
+                for t, s, _ in scored[1:4]  # Show top 3 alternatives
+            ],
+        }
+
     # Helper managers
     dep_manager = TaskDependencyManager(task_manager.db)
     session_task_manager = SessionTaskManager(task_manager.db)

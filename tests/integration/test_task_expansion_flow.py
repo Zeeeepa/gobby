@@ -1,5 +1,6 @@
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from gobby.tasks.context import ExpansionContext
 from gobby.tasks.expansion import TaskExpander
@@ -72,8 +73,6 @@ async def test_expansion_flow_defaults(
             enable_code_context=True,  # Default explicit
         )
 
-        from unittest.mock import ANY
-
         # Check gatherer call
         mock_gatherer_instance.gather_context.assert_called_with(
             ANY,  # Task object created internally
@@ -98,8 +97,6 @@ async def test_expansion_flow_with_web_research(
             task_id="t1", title="Test Task", enable_web_research=True, enable_code_context=True
         )
 
-        from unittest.mock import ANY
-
         # Check gatherer call
         mock_gatherer_instance.gather_context.assert_called_with(
             ANY,
@@ -123,8 +120,6 @@ async def test_expansion_flow_no_code_context(
         await expander.expand_task(
             task_id="t1", title="Test Task", enable_web_research=False, enable_code_context=False
         )
-
-        from unittest.mock import ANY
 
         # Check gatherer call
         mock_gatherer_instance.gather_context.assert_called_with(

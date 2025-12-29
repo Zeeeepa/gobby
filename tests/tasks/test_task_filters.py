@@ -1,44 +1,17 @@
 import pytest
 
 from gobby.storage.database import LocalDatabase
+from gobby.storage.migrations import run_migrations
 from gobby.storage.tasks import LocalTaskManager
 
 
 @pytest.fixture
 def task_manager():
     db = LocalDatabase(":memory:")
-    # Initialize schema
+    run_migrations(db)
+    # Insert test project to satisfy foreign key constraint
     with db.transaction() as conn:
-        conn.execute("""
-            CREATE TABLE tasks (
-                id TEXT PRIMARY KEY,
-                project_id TEXT,
-                title TEXT,
-                description TEXT,
-                parent_task_id TEXT,
-                discovered_in_session_id TEXT,
-                priority INTEGER,
-                type TEXT,
-                assignee TEXT,
-                labels TEXT, -- JSON list
-                status TEXT,
-                created_at TEXT,
-                updated_at TEXT,
-                closed_reason TEXT,
-                validation_status TEXT,
-                validation_feedback TEXT,
-                original_instruction TEXT
-            )
-        """)
-        conn.execute("""
-            CREATE TABLE task_dependencies (
-                task_id TEXT,
-                depends_on TEXT,
-                dep_type TEXT,
-                created_at TEXT,
-                PRIMARY KEY (task_id, depends_on)
-            )
-        """)
+        conn.execute("INSERT INTO projects (id, name) VALUES (?, ?)", ("p1", "test_project"))
     return LocalTaskManager(db)
 
 
@@ -81,10 +54,11 @@ def test_list_ready_tasks_filter_by_type(task_manager):
     t2 = task_manager.create_task("p1", "Task 2", task_type="feature")
     t3 = task_manager.create_task("p1", "Task 3", task_type="bug")
 
+    from datetime import datetime, UTC
     with task_manager.db.transaction() as conn:
         conn.execute(
-            "INSERT INTO task_dependencies (task_id, depends_on, dep_type) VALUES (?, ?, ?)",
-            (t2.id, t1.id, "blocks"),
+            "INSERT INTO task_dependencies (task_id, depends_on, dep_type, created_at) VALUES (?, ?, ?, ?)",
+            (t2.id, t1.id, "blocks", datetime.now(UTC).isoformat()),
         )
 
     # Ready tasks should be T1 and T3. T2 is blocked.

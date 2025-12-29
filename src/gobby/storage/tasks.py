@@ -19,7 +19,7 @@ class Task:
     id: str
     project_id: str
     title: str
-    status: Literal["open", "in_progress", "closed"]
+    status: Literal["open", "in_progress", "closed", "failed"]
     priority: int
     task_type: str  # bug, feature, task, epic, chore
     created_at: str
@@ -40,6 +40,9 @@ class Task:
     complexity_score: int | None = None
     estimated_subtasks: int | None = None
     expansion_context: str | None = None
+    validation_criteria: str | None = None
+    use_external_validator: bool = False
+    validation_fail_count: int = 0
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Task":
@@ -78,6 +81,15 @@ class Task:
             complexity_score=row["complexity_score"] if "complexity_score" in keys else None,
             estimated_subtasks=row["estimated_subtasks"] if "estimated_subtasks" in keys else None,
             expansion_context=row["expansion_context"] if "expansion_context" in keys else None,
+            validation_criteria=row["validation_criteria"]
+            if "validation_criteria" in keys
+            else None,
+            use_external_validator=bool(row["use_external_validator"])
+            if "use_external_validator" in keys
+            else False,
+            validation_fail_count=row["validation_fail_count"]
+            if "validation_fail_count" in keys
+            else 0,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -106,6 +118,9 @@ class Task:
             "complexity_score": self.complexity_score,
             "estimated_subtasks": self.estimated_subtasks,
             "expansion_context": self.expansion_context,
+            "validation_criteria": self.validation_criteria,
+            "use_external_validator": self.use_external_validator,
+            "validation_fail_count": self.validation_fail_count,
         }
 
 
@@ -164,6 +179,8 @@ class LocalTaskManager:
         complexity_score: int | None = None,
         estimated_subtasks: int | None = None,
         expansion_context: str | None = None,
+        validation_criteria: str | None = None,
+        use_external_validator: bool = False,
     ) -> Task:
         """Create a new task with collision handling."""
         max_retries = 3
@@ -189,8 +206,9 @@ class LocalTaskManager:
                             labels, status, created_at, updated_at,
                             original_instruction, validation_status,
                             details, test_strategy, complexity_score,
-                            estimated_subtasks, expansion_context
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            estimated_subtasks, expansion_context,
+                            validation_criteria, use_external_validator, validation_fail_count
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
                         """,
                         (
                             task_id,
@@ -212,6 +230,8 @@ class LocalTaskManager:
                             complexity_score,
                             estimated_subtasks,
                             expansion_context,
+                            validation_criteria,
+                            use_external_validator,
                         ),
                     )
 
@@ -275,6 +295,9 @@ class LocalTaskManager:
         complexity_score: int | None = None,
         estimated_subtasks: int | None = None,
         expansion_context: str | None = None,
+        validation_criteria: str | None = None,
+        use_external_validator: bool | None = None,
+        validation_fail_count: int | None = None,
     ) -> Task:
         """Update task fields."""
         updates = []
@@ -326,6 +349,15 @@ class LocalTaskManager:
         if expansion_context is not None:
             updates.append("expansion_context = ?")
             params.append(expansion_context)
+        if validation_criteria is not None:
+            updates.append("validation_criteria = ?")
+            params.append(validation_criteria)
+        if use_external_validator is not None:
+            updates.append("use_external_validator = ?")
+            params.append(use_external_validator)
+        if validation_fail_count is not None:
+            updates.append("validation_fail_count = ?")
+            params.append(validation_fail_count)
 
         if not updates:
             return self.get_task(task_id)

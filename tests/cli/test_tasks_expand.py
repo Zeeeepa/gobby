@@ -1,8 +1,10 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
 from click.testing import CliRunner
+
 from gobby.cli.tasks import tasks
-from gobby.storage.tasks import LocalTaskManager, Task
+from gobby.storage.tasks import LocalTaskManager
 
 
 @pytest.fixture
@@ -27,7 +29,7 @@ def test_expand_command_with_flags(mock_task_manager, mock_expander):
         patch("gobby.cli.tasks.get_task_manager", return_value=mock_task_manager),
         patch(
             "gobby.cli.tasks.resolve_task_id",
-            return_value=MagicMock(id="t1", project_id="p1", title="Task 1"),
+            return_value=MagicMock(id="t1", project_id="p1", title="Task 1", description=None),
         ),
         patch("gobby.cli.tasks.load_config") as mock_config,
         patch("gobby.llm.LLMService"),
