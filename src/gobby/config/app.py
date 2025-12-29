@@ -512,6 +512,10 @@ class TaskExpansionConfig(BaseModel):
         default=True,
         description="Enable web research for task expansion using MCP tools",
     )
+    tdd_mode: bool = Field(
+        default=False,
+        description="Enable TDD mode: create test->implement task pairs with appropriate blocking",
+    )
 
 
 class TaskValidationConfig(BaseModel):
