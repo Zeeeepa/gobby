@@ -53,8 +53,7 @@ class SkillLearner:
             transcript_text = "\n".join([f"{msg['role']}: {msg['content']}" for msg in messages])
 
             # Get provider for skill learning
-            provider = self.llm_service.get_default_provider()
-            model = self.config.learning_model
+            provider, model, _ = self.llm_service.get_provider_for_feature(self.config)
 
             prompt = self.config.prompt.format(transcript=transcript_text)
 

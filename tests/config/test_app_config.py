@@ -597,4 +597,5 @@ class TestSkillConfig:
         """Test default skill config."""
         config = SkillConfig()
         assert config.enabled is True
-        assert config.learning_model == "claude-haiku-4-5"
+        assert config.provider == "claude"
+        assert config.model == "claude-haiku-4-5"

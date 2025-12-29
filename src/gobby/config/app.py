@@ -762,9 +762,13 @@ class SkillConfig(BaseModel):
         default=True,
         description="Enable skill learning system",
     )
-    learning_model: str = Field(
+    provider: str = Field(
+        default="claude",
+        description="LLM provider to use for skill extraction",
+    )
+    model: str = Field(
         default="claude-haiku-4-5",
-        description="LLM model to use for skill extraction",
+        description="Model to use for skill extraction",
     )
     prompt: str = Field(
         default="""You are an expert at extracting reusable developer skills from transcripts.

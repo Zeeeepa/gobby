@@ -323,7 +323,8 @@ session_lifecycle:
   transcript_processing_batch_size: 10
 skills:
   enabled: true
-  learning_model: claude-haiku-4-5
+  provider: claude
+  model: claude-haiku-4-5
   prompt: |
     You are an expert at extracting reusable developer skills from transcripts.
     Respond with ONLY valid JSON - no markdown, no explanations, no code blocks.

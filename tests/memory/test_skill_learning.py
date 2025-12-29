@@ -30,7 +30,7 @@ def mock_llm_provider():
 @pytest.fixture
 def mock_llm_service(mock_llm_provider):
     service = MagicMock(spec=LLMService)
-    service.get_default_provider.return_value = mock_llm_provider
+    service.get_provider_for_feature.return_value = (mock_llm_provider, "claude-haiku-4-5", None)
     return service
 
 
@@ -53,7 +53,7 @@ async def test_learn_from_session_empty_messages(skill_learner, mock_message_man
     skills = await skill_learner.learn_from_session(session)
 
     assert len(skills) == 0
-    assert not skill_learner.llm_service.get_default_provider.called
+    assert not skill_learner.llm_service.get_provider_for_feature.called
 
 
 async def test_learn_from_session_success(
