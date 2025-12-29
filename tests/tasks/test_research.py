@@ -133,5 +133,32 @@ def test_parse_action(mock_config, mock_llm_service):
         "args": ["def foo", "src"],
     }
 
-    # Fallback done
-    assert agent._parse_action("I am done now") == {"tool": "done", "reason": "I am done now"}
+    # Explicit ACTION: done (strict matching - no substring fallback)
+    result = agent._parse_action("ACTION: done")
+    assert result["tool"] == "done"
+
+    result = agent._parse_action("ACTION: done('research complete')")
+    assert result == {"tool": "done", "reason": "research complete"}
+
+    result = agent._parse_action("THOUGHT: I've found everything.\nACTION: done(\"finished\")")
+    assert result == {"tool": "done", "reason": "finished"}
+
+    # Substring "done" should NOT match (intentionally strict)
+    assert agent._parse_action("I am done now") is None
+    assert agent._parse_action("undone") is None
+    assert agent._parse_action("I'm not done yet") is None
+
+    # Commas inside quoted args (robust parsing)
+    result = agent._parse_action("ACTION: grep('foo, bar', 'src/')")
+    assert result == {"tool": "grep", "args": ["foo, bar", "src/"]}
+
+    # Escaped quotes (via ast.literal_eval)
+    result = agent._parse_action('ACTION: grep("def \\"main\\"", "src/")')
+    assert result == {"tool": "grep", "args": ['def "main"', "src/"]}
+
+    # No args
+    result = agent._parse_action("ACTION: done()")
+    assert result["tool"] == "done"
+
+    # Empty pattern should return None
+    assert agent._parse_action("Just some random text") is None
