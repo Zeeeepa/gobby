@@ -2,7 +2,7 @@
 Task expansion module.
 
 Handles breaking down high-level tasks into smaller, actionable subtasks
-using LLM providers and gathered context.
+using LLM providers with MCP tool access.
 """
 
 import json
@@ -11,11 +11,15 @@ from typing import Any
 
 from gobby.config.app import TaskExpansionConfig
 from gobby.llm import LLMService
+from gobby.llm.claude import ClaudeLLMProvider
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.tasks.context import ExpansionContextGatherer
 from gobby.tasks.prompts.expand import ExpansionPromptBuilder
 
 logger = logging.getLogger(__name__)
+
+# MCP tool pattern for task creation
+CREATE_TASK_TOOL = "mcp__gobby-tasks__create_task"
 
 
 class TaskExpander:
@@ -50,7 +54,10 @@ class TaskExpander:
         enable_code_context: bool = True,
     ) -> dict[str, Any]:
         """
-        Expand a task into subtasks using prompt builder and schema validation.
+        Expand a task into subtasks using tool-based approach.
+
+        The expansion agent calls the create_task MCP tool directly to create
+        subtasks, wiring dependencies via the 'blocks' parameter.
 
         Args:
             task_id: ID of the task to expand
@@ -61,11 +68,14 @@ class TaskExpander:
             enable_code_context: Whether to enable code context gathering (default: True)
 
         Returns:
-            Dictionary matching the expansion schema (complexity_analysis, phases)
+            Dictionary with:
+            - subtask_ids: List of created subtask IDs
+            - tool_calls: Number of create_task calls made
+            - text: Agent's reasoning/explanation text
         """
         if not self.config.enabled:
             logger.info("Task expansion disabled, skipping")
-            return {}
+            return {"subtask_ids": [], "tool_calls": 0, "text": "Expansion disabled"}
 
         logger.info(f"Expanding task {task_id}: {title}")
 
@@ -99,69 +109,96 @@ class TaskExpander:
         )
 
         try:
-            # Call LLM
+            # Get Claude provider (tool-based expansion requires Claude)
             provider = self.llm_service.get_provider(self.config.provider)
-            response_content = await provider.generate_text(
+            if not isinstance(provider, ClaudeLLMProvider):
+                logger.warning(
+                    f"Provider {self.config.provider} does not support tool-based expansion, "
+                    "falling back to text generation"
+                )
+                return await self._expand_with_text_fallback(
+                    provider, prompt, task_id
+                )
+
+            # Call LLM with MCP tool access
+            result = await provider.generate_with_mcp_tools(
                 prompt=prompt,
+                allowed_tools=[CREATE_TASK_TOOL],
                 system_prompt=self.prompt_builder.get_system_prompt(
                     tdd_mode=self.config.tdd_mode
                 ),
                 model=self.config.model,
+                max_turns=self.config.max_subtasks + 5,  # Allow extra turns for reasoning
             )
 
-            # Parse and validate response
-            return self._parse_and_validate_response(response_content)
+            # Extract created subtask IDs from tool call results
+            subtask_ids = self._extract_subtask_ids(result.tool_calls)
+
+            logger.info(
+                f"Expansion complete for {task_id}: created {len(subtask_ids)} subtasks"
+            )
+
+            return {
+                "subtask_ids": subtask_ids,
+                "tool_calls": len(result.tool_calls),
+                "text": result.text,
+            }
 
         except Exception as e:
             logger.error(f"Failed to expand task {task_id}: {e}", exc_info=True)
-            return {"error": str(e)}
+            return {"error": str(e), "subtask_ids": [], "tool_calls": 0}
 
-    def _parse_and_validate_response(self, content: str) -> dict[str, Any]:
+    def _extract_subtask_ids(self, tool_calls: list) -> list[str]:
         """
-        Parse LLM response and validate against schema.
-        Handles markdown blocks and loose JSON.
+        Extract created subtask IDs from tool call results.
+
+        Args:
+            tool_calls: List of ToolCall objects from generate_with_mcp_tools
+
+        Returns:
+            List of task IDs created during expansion
         """
-        content = content.strip()
+        subtask_ids = []
+        for call in tool_calls:
+            if call.tool_name == CREATE_TASK_TOOL and call.result:
+                try:
+                    # Tool result is JSON string with task details
+                    result_data = json.loads(call.result)
+                    if isinstance(result_data, dict) and "id" in result_data:
+                        subtask_ids.append(result_data["id"])
+                        logger.debug(f"Created subtask: {result_data['id']}")
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.warning(f"Failed to parse tool result: {call.result[:100]}... - {e}")
+        return subtask_ids
 
-        # Handle markdown blocks
-        if "```" in content:
-            # Find the JSON block
-            import re
+    async def _expand_with_text_fallback(
+        self,
+        provider: Any,
+        prompt: str,
+        task_id: str,
+    ) -> dict[str, Any]:
+        """
+        Fallback expansion using text generation (for non-Claude providers).
 
-            match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
-            if match:
-                content = match.group(1)
-            else:
-                # Fallback: try to find start/end of JSON object
-                start = content.find("{")
-                end = content.rfind("}")
-                if start != -1 and end != -1:
-                    content = content[start : end + 1]
+        This method is deprecated and will be removed once all providers
+        support tool-based expansion.
+        """
+        logger.warning(
+            f"Using text fallback for expansion of {task_id}. "
+            "This approach is deprecated - use Claude provider for tool-based expansion."
+        )
+        response_content = await provider.generate_text(
+            prompt=prompt,
+            system_prompt=self.prompt_builder.get_system_prompt(
+                tdd_mode=self.config.tdd_mode
+            ),
+            model=self.config.model,
+        )
+        # Return raw text - caller will need to handle manually
+        return {
+            "subtask_ids": [],
+            "tool_calls": 0,
+            "text": response_content,
+            "fallback": True,
+        }
 
-        try:
-            data = json.loads(content)
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to decode output as JSON: {content[:100]}...")
-            raise ValueError(f"Invalid JSON response from LLM: {e}")
-
-        # Basic schema validation (we rely on prompt for structure mostly)
-        if "complexity_analysis" not in data or "phases" not in data:
-            # Attempt to normalize if LLM returned just a list of subtasks (legacy behavior fallback)
-            if "subtasks" in data:
-                return {
-                    "complexity_analysis": {
-                        "score": 1,
-                        "reasoning": "Legacy format normalized",
-                        "recommended_subtasks": len(data["subtasks"]),
-                    },
-                    "phases": [
-                        {
-                            "name": "Phase 1",
-                            "description": "Auto-generated phase",
-                            "subtasks": data["subtasks"],
-                        }
-                    ],
-                }
-            raise ValueError("Response missing 'complexity_analysis' or 'phases' fields")
-
-        return data

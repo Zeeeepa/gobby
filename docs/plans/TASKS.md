@@ -1402,19 +1402,19 @@ For large tasks, use `expand_task(id)` to break them down before starting.
 
 **Foundation (can be done in parallel):**
 
-- [ ] Expose `test_strategy` in `create_task` registry tool (`gt-49ce45`)
+- [x] Expose `test_strategy` in `create_task` registry tool (`gt-49ce45`)
   - Add `test_strategy: str | None = None` parameter
   - Add to input_schema properties
   - Pass through to `task_manager.create_task()`
 
-- [ ] Update expansion prompt for tool-based pattern (`gt-4c9760`)
+- [x] Update expansion prompt for tool-based pattern (`gt-4c9760`)
   - Tell agent it has access to `create_task` MCP tool
   - Explain `parent_task_id` for linking subtasks
   - Explain `blocks` parameter for dependency wiring
   - Instruct agent to set `test_strategy` on each subtask
   - Remove JSON schema instructions
 
-- [ ] Add `generate_with_mcp_tools` method to ClaudeLLMProvider (`gt-c4a756`)
+- [x] Add `generate_with_mcp_tools` method to ClaudeLLMProvider (`gt-c4a756`)
   - Accept prompt, system_prompt, allowed MCP tool patterns
   - Configure ClaudeAgentOptions with allowed tools
   - Stream query and collect tool call results
@@ -1422,7 +1422,7 @@ For large tasks, use `expand_task(id)` to break them down before starting.
 
 **Integration (depends on foundation):**
 
-- [ ] Refactor TaskExpander to use tool-based approach (`gt-04ad5a`)
+- [x] Refactor TaskExpander to use tool-based approach (`gt-04ad5a`)
   - Remove `_parse_and_validate_response()` JSON parsing
   - Call `generate_with_mcp_tools()` with `create_task` access
   - Pass parent task ID in prompt context

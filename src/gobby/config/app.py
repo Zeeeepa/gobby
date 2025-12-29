@@ -526,6 +526,10 @@ class TaskExpansionConfig(BaseModel):
         default=True,
         description="Enable TDD mode: create test->implement task pairs with appropriate blocking for coding tasks",
     )
+    max_subtasks: int = Field(
+        default=15,
+        description="Maximum number of subtasks to create per expansion",
+    )
 
 
 class TaskValidationConfig(BaseModel):

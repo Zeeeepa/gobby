@@ -82,12 +82,15 @@ def test_build_user_prompt_with_instructions():
     assert "Do it cleanly" in prompt
 
 
-def test_get_output_schema():
+def test_get_system_prompt_with_tdd_mode():
+    """Test that TDD mode instructions are appended when enabled."""
     config = TaskExpansionConfig(enabled=True, provider="test", model="test")
     builder = ExpansionPromptBuilder(config)
 
-    schema = builder.get_output_schema()
+    prompt_without_tdd = builder.get_system_prompt(tdd_mode=False)
+    prompt_with_tdd = builder.get_system_prompt(tdd_mode=True)
 
-    assert schema["type"] == "object"
-    assert "complexity_analysis" in schema["properties"]
-    assert "phases" in schema["properties"]
+    # TDD mode should append additional instructions
+    assert len(prompt_with_tdd) > len(prompt_without_tdd)
+    assert "TDD Mode Enabled" in prompt_with_tdd
+    assert "TDD Mode Enabled" not in prompt_without_tdd
