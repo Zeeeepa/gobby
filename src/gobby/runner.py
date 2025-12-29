@@ -119,7 +119,7 @@ class GobbyRunner:
 
         # Initialize Skill Sync Manager & Wire up listeners
         self.skill_sync_manager: SkillSyncManager | None = None
-        if hasattr(self.config, "memory_sync") and self.config.memory_sync.enabled:
+        if hasattr(self.config, "skill_sync") and self.config.skill_sync.enabled:
             try:
                 self.skill_sync_manager = SkillSyncManager(
                     skill_manager=self.skill_storage,
