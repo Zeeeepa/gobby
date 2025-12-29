@@ -19,9 +19,31 @@ def mock_llm_service():
     service = MagicMock(spec=LLMService)
     # Mock get_provider to return a mock provider
     mock_provider = AsyncMock()
-    mock_provider.generate_text.return_value = (
-        '{"subtasks": [{"title": "Sub 1", "description": "Desc 1"}]}'
-    )
+    # Return valid JSON matching new schema
+    mock_provider.generate_text.return_value = """
+    {
+        "complexity_analysis": {
+            "score": 3,
+            "reasoning": "Simple task",
+            "recommended_subtasks": 1
+        },
+        "phases": [
+            {
+                "name": "Implementation",
+                "description": "Do it",
+                "subtasks": [
+                    {
+                        "title": "Sub 1", 
+                        "description": "Desc 1",
+                        "test_strategy": "Run tests",
+                        "depends_on_indices": [],
+                        "files_touched": []
+                    }
+                ]
+            }
+        ]
+    }
+    """
     service.get_provider.return_value = mock_provider
     return service
 
@@ -75,7 +97,7 @@ async def test_expand_task_calls_gatherer(
         # We need to re-init because we patched the class used in init
         expander = TaskExpander(task_expansion_config, mock_llm_service, mock_task_manager)
 
-        await expander.expand_task("t1", "Main Task")
+        result = await expander.expand_task("t1", "Main Task")
 
         mock_gatherer_instance.gather_context.assert_called_once_with(sample_task)
 
@@ -86,6 +108,12 @@ async def test_expand_task_calls_gatherer(
 
         assert "src/main.py" in prompt
         assert "pytest" in prompt
+
+        # Verify result structure
+        assert "complexity_analysis" in result
+        assert result["complexity_analysis"]["score"] == 3
+        assert len(result["phases"]) == 1
+        assert result["phases"][0]["subtasks"][0]["title"] == "Sub 1"
 
 
 @pytest.mark.asyncio

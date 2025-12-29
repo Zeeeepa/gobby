@@ -504,6 +504,10 @@ class TaskExpansionConfig(BaseModel):
         default=10,
         description="Maximum number of steps for research agent loop",
     )
+    system_prompt: str | None = Field(
+        default=None,
+        description="Custom system prompt for task expansion (overrides default)",
+    )
 
 
 class TaskValidationConfig(BaseModel):

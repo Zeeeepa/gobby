@@ -198,20 +198,16 @@ History:
 
         # Strategy 3: Simple comma split as last resort
         if args is None:
-            try:
-                args = [a.strip().strip("'\"") for a in args_str.split(",")]
-            except Exception as e:
-                parse_errors.append(f"split: {e}")
+            args = [a.strip().strip("'\"") for a in args_str.split(",")]
+            if not args or all(not a for a in args):
                 logger.error(
-                    f"All parsing strategies failed for args: {args_str!r}. "
-                    f"Errors: {parse_errors}"
+                    f"All parsing strategies failed for args: {args_str!r}. Errors: {parse_errors}"
                 )
                 return None
 
         if parse_errors:
             logger.debug(
-                f"Argument parsing recovered after failures: {parse_errors}. "
-                f"Final args: {args}"
+                f"Argument parsing recovered after failures: {parse_errors}. Final args: {args}"
             )
 
         return {"tool": tool, "args": args}

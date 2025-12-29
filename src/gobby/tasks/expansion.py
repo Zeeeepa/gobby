@@ -13,6 +13,7 @@ from gobby.config.app import TaskExpansionConfig
 from gobby.llm import LLMService
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.tasks.context import ExpansionContextGatherer
+from gobby.tasks.prompts.expand import ExpansionPromptBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class TaskExpander:
             llm_service=llm_service,
             config=config,
         )
+        self.prompt_builder = ExpansionPromptBuilder(config)
 
     async def expand_task(
         self,
@@ -41,9 +43,9 @@ class TaskExpander:
         title: str,
         description: str | None = None,
         context: str | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> dict[str, Any]:
         """
-        Expand a task into subtasks.
+        Expand a task into subtasks using prompt builder and schema validation.
 
         Args:
             task_id: ID of the task to expand
@@ -52,11 +54,11 @@ class TaskExpander:
             context: Additional context for expansion
 
         Returns:
-            List of subtask dictionaries with title and description
+            Dictionary matching the expansion schema (complexity_analysis, phases)
         """
         if not self.config.enabled:
             logger.info("Task expansion disabled, skipping")
-            return []
+            return {}
 
         logger.info(f"Expanding task {task_id}: {title}")
 
@@ -64,9 +66,6 @@ class TaskExpander:
         task_obj = self.task_manager.get_task(task_id)
         if not task_obj:
             logger.warning(f"Task {task_id} not found for context gathering, using basic info")
-            # Create a transient task object for context gathering if needed, or skip
-            # For now, if task matches ID but DB lookup fails (race condition?), we proceed with limited context
-            # Actually, creating a dummy task object is better for gatherer signature
             task_obj = Task(
                 id=task_id,
                 project_id="unknown",
@@ -81,12 +80,11 @@ class TaskExpander:
 
         expansion_ctx = await self.context_gatherer.gather_context(task_obj)
 
-        # Build prompt with gathered context
-        prompt = self._build_expansion_prompt(
-            title=title,
-            description=description,
-            user_context=context,
-            gathered_context=expansion_ctx.to_dict(),
+        # Build prompt using builder
+        prompt = self.prompt_builder.build_user_prompt(
+            task=task_obj,
+            context=expansion_ctx,
+            user_instructions=context,
         )
 
         try:
@@ -94,94 +92,63 @@ class TaskExpander:
             provider = self.llm_service.get_provider(self.config.provider)
             response_content = await provider.generate_text(
                 prompt=prompt,
-                system_prompt="You are a technical project manager. Break down tasks effectively.",
+                system_prompt=self.prompt_builder.get_system_prompt(),
                 model=self.config.model,
             )
 
-            # Parse response validation logic...
-            # Reuse the simple parsing from before but ideally we want JSON mode if provider supports it
-            content = response_content.strip()
-            # Handle potential markdown code blocks
-            if content.startswith("```"):
-                content = content.split("\n", 1)[1]
-                if content.endswith("```"):
-                    content = content.rsplit("\n", 1)[0]
-                if content.startswith("json"):
-                    content = content[4:].strip()
-
-            subtasks = json.loads(content)
-
-            # Handle normalized format
-            if isinstance(subtasks, dict) and "subtasks" in subtasks:
-                subtasks = subtasks["subtasks"]
-
-            if not isinstance(subtasks, list):
-                logger.warning(f"LLM returned non-list for task expansion: {type(subtasks)}")
-                return []
-
-            return subtasks
+            # Parse and validate response
+            return self._parse_and_validate_response(response_content)
 
         except Exception as e:
-            logger.error(f"Failed to expand task {task_id}: {e}")
-            return []
+            logger.error(f"Failed to expand task {task_id}: {e}", exc_info=True)
+            return {"error": str(e)}
 
-    def _build_expansion_prompt(
-        self,
-        title: str,
-        description: str | None,
-        user_context: str | None,
-        gathered_context: dict[str, Any],
-    ) -> str:
-        """Build the prompt for task expansion."""
-        prompt = self.config.prompt
+    def _parse_and_validate_response(self, content: str) -> dict[str, Any]:
+        """
+        Parse LLM response and validate against schema.
+        Handles markdown blocks and loose JSON.
+        """
+        content = content.strip()
 
-        # If no default prompt in config, use our enhanced one
-        if not prompt:
-            prompt = f"""You are an expert technical project manager and software architect.
-Your goal is to break down a high-level software task into concrete, actionable subtasks.
+        # Handle markdown blocks
+        if "```" in content:
+            # Find the JSON block
+            import re
 
-Task Title: {title}
-Task Description: {description or "No description provided"}
+            match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
+            if match:
+                content = match.group(1)
+            else:
+                # Fallback: try to find start/end of JSON object
+                start = content.find("{")
+                end = content.rfind("}")
+                if start != -1 and end != -1:
+                    content = content[start : end + 1]
 
-"""
-            if user_context:
-                prompt += f"User Provided Context:\n{user_context}\n\n"
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to decode output as JSON: {content[:100]}...")
+            raise ValueError(f"Invalid JSON response from LLM: {e}")
 
-            # Add gathered context
-            relevant_files = gathered_context.get("relevant_files", [])
-            if relevant_files:
-                prompt += f"Relevant Files:\n{', '.join(relevant_files)}\n\n"
+        # Basic schema validation (we rely on prompt for structure mostly)
+        if "complexity_analysis" not in data or "phases" not in data:
+            # Attempt to normalize if LLM returned just a list of subtasks (legacy behavior fallback)
+            if "subtasks" in data:
+                return {
+                    "complexity_analysis": {
+                        "score": 1,
+                        "reasoning": "Legacy format normalized",
+                        "recommended_subtasks": len(data["subtasks"]),
+                    },
+                    "phases": [
+                        {
+                            "name": "Phase 1",
+                            "description": "Auto-generated phase",
+                            "subtasks": data["subtasks"],
+                        }
+                    ],
+                }
+            raise ValueError("Response missing 'complexity_analysis' or 'phases' fields")
 
-            related_tasks = gathered_context.get("related_tasks", [])
-            if related_tasks:
-                prompt += "Related Tasks:\n"
-                for t in related_tasks:
-                    prompt += f"- {t['title']} (Status: {t['status']})\n"
-                prompt += "\n"
-
-            project_patterns = gathered_context.get("project_patterns", {})
-            if project_patterns:
-                prompt += "Project Patterns:\n"
-                for k, v in project_patterns.items():
-                    prompt += f"- {k}: {v}\n"
-                prompt += "\n"
-
-            prompt += """
-Please analyze the task and break it down into 3-7 subtasks.
-Each subtask should be a distinct unit of work.
-
-Return a JSON object with a 'subtasks' key containing a list of objects, each with:
-- title: Concise title for the subtask
-- description: Detailed technical instructions
-
-Example format:
-{
-  "subtasks": [
-    {
-      "title": "Create database schema",
-      "description": "Create migration file for users table with id, email, password fields."
-    }
-  ]
-}
-"""
-        return prompt
+        return data

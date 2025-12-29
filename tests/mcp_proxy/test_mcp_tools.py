@@ -149,7 +149,10 @@ async def test_sync_tasks(mock_task_manager, mock_sync_manager):
 async def test_expand_task_integration(mock_task_manager, mock_sync_manager):
     """Test expand_task tool execution with expander registered."""
     mock_expander = MagicMock()
-    mock_expander.expand_task = AsyncMock(return_value=[{"title": "Subtask 1"}])
+    # Return formatted dict
+    mock_expander.expand_task = AsyncMock(
+        return_value={"complexity_analysis": {}, "phases": [{"subtasks": [{"title": "Subtask 1"}]}]}
+    )
 
     registry = create_task_registry(
         mock_task_manager, mock_sync_manager, task_expander=mock_expander

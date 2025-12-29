@@ -85,7 +85,7 @@ def create_task_registry(
         if not task:
             raise ValueError(f"Task not found: {task_id}")
 
-        subtask_data = await task_expander.expand_task(
+        result = await task_expander.expand_task(
             task_id=task.id,
             title=task.title,
             description=task.description,
@@ -93,15 +93,36 @@ def create_task_registry(
         )
 
         created_subtasks = []
-        for data in subtask_data:
-            # Create subtask
-            subtask = task_manager.create_task(
-                title=data["title"],
-                description=data.get("description"),
-                parent_task_id=task.id,
-                project_id=task.project_id,
-            )
-            created_subtasks.append(subtask)
+
+        # Flatten phases into simple list for now (ignoring phases/dependencies until Phase 12.4)
+        if "phases" in result:
+            for phase in result["phases"]:
+                for subtask_data in phase.get("subtasks", []):
+                    # Append complexity/phase info to description if available
+                    desc = subtask_data.get("description", "")
+                    if "details" in subtask_data:
+                        desc += f"\n\nDetails: {subtask_data['details']}"
+                    if "test_strategy" in subtask_data:
+                        desc += f"\n\nTest Strategy: {subtask_data['test_strategy']}"
+
+                    subtask = task_manager.create_task(
+                        title=subtask_data["title"],
+                        description=desc,
+                        parent_task_id=task.id,
+                        project_id=task.project_id,
+                    )
+                    created_subtasks.append(subtask)
+
+        # Backward compatibility for flat list (should define normalize method but this is fallback)
+        elif isinstance(result, list):
+            for data in result:
+                subtask = task_manager.create_task(
+                    title=data["title"],
+                    description=data.get("description"),
+                    parent_task_id=task.id,
+                    project_id=task.project_id,
+                )
+                created_subtasks.append(subtask)
 
         return created_subtasks
 
@@ -501,7 +522,12 @@ def create_task_registry(
         """Add a dependency between tasks."""
         try:
             dep_manager.add_dependency(task_id, depends_on, dep_type)
-            return {"added": True, "task_id": task_id, "depends_on": depends_on, "dep_type": dep_type}
+            return {
+                "added": True,
+                "task_id": task_id,
+                "depends_on": depends_on,
+                "dep_type": dep_type,
+            }
         except ValueError as e:
             return {"error": str(e)}
 
