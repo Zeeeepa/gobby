@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytest
 
@@ -143,3 +143,29 @@ async def test_sync_tasks(mock_task_manager, mock_sync_manager):
     mock_sync_manager.export_to_jsonl.assert_called_once()
     assert result["import"] == "completed"
     assert result["export"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_expand_task_integration(mock_task_manager, mock_sync_manager):
+    """Test expand_task tool execution with expander registered."""
+    mock_expander = MagicMock()
+    mock_expander.expand_task = AsyncMock(return_value=[{"title": "Subtask 1"}])
+
+    registry = create_task_registry(
+        mock_task_manager, mock_sync_manager, task_expander=mock_expander
+    )
+
+    msg_task = MagicMock()
+    msg_task.id = "t1"
+    msg_task.project_id = "p1"
+    mock_task_manager.get_task.return_value = msg_task
+
+    mock_task_manager.create_task.return_value = MagicMock(id="sub1")
+
+    result = await registry.call("expand_task", {"task_id": "t1", "context": "extra info"})
+
+    mock_expander.expand_task.assert_called_once()
+    # Verify subtask creation
+    mock_task_manager.create_task.assert_called()
+    assert len(result) == 1
+    assert result[0].id == "sub1"

@@ -151,6 +151,7 @@ class GobbyRunner:
                     self.task_expander = TaskExpander(
                         llm_service=self.llm_service,
                         config=task_expansion_config,
+                        task_manager=self.task_manager,
                     )
                 except Exception as e:
                     logger.error(f"Failed to initialize TaskExpander: {e}")

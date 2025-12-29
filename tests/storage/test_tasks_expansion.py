@@ -1,0 +1,71 @@
+import sqlite3
+import pytest
+from gobby.storage.database import LocalDatabase
+from gobby.storage.tasks import LocalTaskManager, Task
+from gobby.storage.migrations import run_migrations
+
+
+@pytest.fixture
+def db_path(tmp_path):
+    path = tmp_path / "test.db"
+    return path
+
+
+@pytest.fixture
+def db(db_path):
+    database = LocalDatabase(str(db_path))
+    run_migrations(database)
+    with database.transaction() as conn:
+        conn.execute("INSERT INTO projects (id, name) VALUES (?, ?)", ("p1", "test_project"))
+    return database
+
+
+@pytest.fixture
+def manager(db):
+    return LocalTaskManager(db)
+
+
+def test_create_task_with_expansion_fields(manager):
+    task = manager.create_task(
+        project_id="p1",
+        title="Test Expansion",
+        details="Rich details here",
+        test_strategy="Unit tests",
+        complexity_score=5,
+        estimated_subtasks=3,
+        expansion_context='{"foo": "bar"}',
+    )
+
+    assert task.details == "Rich details here"
+    assert task.test_strategy == "Unit tests"
+    assert task.complexity_score == 5
+    assert task.estimated_subtasks == 3
+    assert task.expansion_context == '{"foo": "bar"}'
+
+    # Verify persistence
+    fetched = manager.get_task(task.id)
+    assert fetched.details == "Rich details here"
+    assert fetched.complexity_score == 5
+
+
+def test_update_task_expansion_fields(manager):
+    task = manager.create_task(project_id="p1", title="Update Me")
+    assert task.details is None
+
+    updated = manager.update_task(task.id, details="Updated details", complexity_score=8)
+
+    assert updated.details == "Updated details"
+    assert updated.complexity_score == 8
+
+    fetched = manager.get_task(task.id)
+    assert fetched.details == "Updated details"
+    assert fetched.complexity_score == 8
+
+
+def test_to_dict_includes_expansion_fields(manager):
+    task = manager.create_task(project_id="p1", title="Dict Test", details="Secret details")
+
+    d = task.to_dict()
+    assert d["details"] == "Secret details"
+    assert "complexity_score" in d
+    assert "expansion_context" in d

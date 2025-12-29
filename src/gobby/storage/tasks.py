@@ -35,6 +35,11 @@ class Task:
     validation_status: Literal["pending", "valid", "invalid"] | None = None
     validation_feedback: str | None = None
     original_instruction: str | None = None
+    details: str | None = None
+    test_strategy: str | None = None
+    complexity_score: int | None = None
+    estimated_subtasks: int | None = None
+    expansion_context: str | None = None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Task":
@@ -68,6 +73,11 @@ class Task:
             original_instruction=row["original_instruction"]
             if "original_instruction" in keys
             else None,
+            details=row["details"] if "details" in keys else None,
+            test_strategy=row["test_strategy"] if "test_strategy" in keys else None,
+            complexity_score=row["complexity_score"] if "complexity_score" in keys else None,
+            estimated_subtasks=row["estimated_subtasks"] if "estimated_subtasks" in keys else None,
+            expansion_context=row["expansion_context"] if "expansion_context" in keys else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -91,6 +101,11 @@ class Task:
             "validation_status": self.validation_status,
             "validation_feedback": self.validation_feedback,
             "original_instruction": self.original_instruction,
+            "details": self.details,
+            "test_strategy": self.test_strategy,
+            "complexity_score": self.complexity_score,
+            "estimated_subtasks": self.estimated_subtasks,
+            "expansion_context": self.expansion_context,
         }
 
 
@@ -144,6 +159,11 @@ class LocalTaskManager:
         assignee: str | None = None,
         labels: list[str] | None = None,
         original_instruction: str | None = None,
+        details: str | None = None,
+        test_strategy: str | None = None,
+        complexity_score: int | None = None,
+        estimated_subtasks: int | None = None,
+        expansion_context: str | None = None,
     ) -> Task:
         """Create a new task with collision handling."""
         max_retries = 3
@@ -167,8 +187,10 @@ class LocalTaskManager:
                             id, project_id, title, description, parent_task_id,
                             discovered_in_session_id, priority, type, assignee,
                             labels, status, created_at, updated_at,
-                            original_instruction, validation_status
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)
+                            original_instruction, validation_status,
+                            details, test_strategy, complexity_score,
+                            estimated_subtasks, expansion_context
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             task_id,
@@ -185,6 +207,11 @@ class LocalTaskManager:
                             now,
                             original_instruction,
                             validation_status,
+                            details,
+                            test_strategy,
+                            complexity_score,
+                            estimated_subtasks,
+                            expansion_context,
                         ),
                     )
 
@@ -243,6 +270,11 @@ class LocalTaskManager:
         parent_task_id: str | None = None,
         validation_status: str | None = None,
         validation_feedback: str | None = None,
+        details: str | None = None,
+        test_strategy: str | None = None,
+        complexity_score: int | None = None,
+        estimated_subtasks: int | None = None,
+        expansion_context: str | None = None,
     ) -> Task:
         """Update task fields."""
         updates = []
@@ -279,6 +311,21 @@ class LocalTaskManager:
         if validation_feedback is not None:
             updates.append("validation_feedback = ?")
             params.append(validation_feedback)
+        if details is not None:
+            updates.append("details = ?")
+            params.append(details)
+        if test_strategy is not None:
+            updates.append("test_strategy = ?")
+            params.append(test_strategy)
+        if complexity_score is not None:
+            updates.append("complexity_score = ?")
+            params.append(complexity_score)
+        if estimated_subtasks is not None:
+            updates.append("estimated_subtasks = ?")
+            params.append(estimated_subtasks)
+        if expansion_context is not None:
+            updates.append("expansion_context = ?")
+            params.append(expansion_context)
 
         if not updates:
             return self.get_task(task_id)

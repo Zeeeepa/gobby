@@ -426,6 +426,17 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_session_memories_memory ON session_memories(memory_id);
         """,
     ),
+    (
+        18,
+        "Add expansion fields to tasks table",
+        """
+        ALTER TABLE tasks ADD COLUMN details TEXT;
+        ALTER TABLE tasks ADD COLUMN test_strategy TEXT;
+        ALTER TABLE tasks ADD COLUMN complexity_score INTEGER;
+        ALTER TABLE tasks ADD COLUMN estimated_subtasks INTEGER;
+        ALTER TABLE tasks ADD COLUMN expansion_context TEXT;
+        """,
+    ),
 ]
 
 
