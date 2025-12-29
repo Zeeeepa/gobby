@@ -631,6 +631,7 @@ def create_task_registry(
         parent_task_id: str | None = None,
         blocks: list[str] | None = None,
         labels: list[str] | None = None,
+        test_strategy: str | None = None,
     ) -> dict[str, Any]:
         """Create a new task in the current project."""
         # Get current project context which is required for task creation
@@ -649,6 +650,7 @@ def create_task_registry(
             task_type=task_type,
             parent_task_id=parent_task_id,
             labels=labels,
+            test_strategy=test_strategy,
         )
 
         # Handle 'blocks' argument if provided (syntactic sugar)
@@ -698,6 +700,11 @@ def create_task_registry(
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "List of labels (optional)",
+                    "default": None,
+                },
+                "test_strategy": {
+                    "type": "string",
+                    "description": "Testing strategy for this task (optional)",
                     "default": None,
                 },
             },
