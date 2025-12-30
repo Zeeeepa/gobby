@@ -28,6 +28,7 @@ class Session:
     jsonl_path: str | None
     summary_path: str | None
     summary_markdown: str | None
+    compact_markdown: str | None  # Handoff context for compaction
     git_branch: str | None
     parent_session_id: str | None
     created_at: str
@@ -47,6 +48,7 @@ class Session:
             jsonl_path=row["jsonl_path"],
             summary_path=row["summary_path"],
             summary_markdown=row["summary_markdown"],
+            compact_markdown=row["compact_markdown"],
             git_branch=row["git_branch"],
             parent_session_id=row["parent_session_id"],
             created_at=row["created_at"],
@@ -66,6 +68,7 @@ class Session:
             "jsonl_path": self.jsonl_path,
             "summary_path": self.summary_path,
             "summary_markdown": self.summary_markdown,
+            "compact_markdown": self.compact_markdown,
             "git_branch": self.git_branch,
             "parent_session_id": self.parent_session_id,
             "created_at": self.created_at,
@@ -234,6 +237,22 @@ class LocalSessionManager:
             WHERE id = ?
             """,
             (summary_path, summary_markdown, now, session_id),
+        )
+        return self.get(session_id)
+
+    def update_compact_markdown(
+        self, session_id: str, compact_markdown: str
+    ) -> Session | None:
+        """Update session compact handoff markdown."""
+        now = datetime.now(UTC).isoformat()
+        self.db.execute(
+            """
+            UPDATE sessions
+            SET compact_markdown = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (compact_markdown, now, session_id),
         )
         return self.get(session_id)
 

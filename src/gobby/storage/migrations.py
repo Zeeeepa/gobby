@@ -446,6 +446,13 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         ALTER TABLE tasks ADD COLUMN validation_fail_count INTEGER DEFAULT 0;
         """,
     ),
+    (
+        20,
+        "Add compact_markdown column to sessions for compaction handoff",
+        """
+        ALTER TABLE sessions ADD COLUMN compact_markdown TEXT;
+        """,
+    ),
 ]
 
 

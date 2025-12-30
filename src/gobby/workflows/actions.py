@@ -167,6 +167,13 @@ class ActionExecutor:
 
             content = "## Workflow State\n" + json.dumps(state_dict, indent=2, default=str)
 
+        elif source == "compact_handoff":
+            # Read compact handoff context from current session's compact_markdown
+            current_session = context.session_manager.get(context.session_id)
+            if current_session and current_session.compact_markdown:
+                content = current_session.compact_markdown
+                logger.debug(f"Loaded compact_markdown ({len(content)} chars) for session {context.session_id}")
+
         if content:
             # Render content if template is used
             template = kwargs.get("template")
@@ -905,10 +912,12 @@ class ActionExecutor:
     async def _handle_extract_handoff_context(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """Extract handoff context from transcript."""
-        store_as = kwargs.get("store_as")
-        if not store_as:
-            return {"error": "Missing store_as argument"}
+        """Extract handoff context from transcript and save to session.compact_markdown."""
+        # Check if enabled in config
+        if context.config:
+            compact_config = getattr(context.config, "compact_handoff", None)
+            if compact_config and not compact_config.enabled:
+                return {"skipped": True, "reason": "compact_handoff disabled"}
 
         current_session = context.session_manager.get(context.session_id)
         if not current_session:
@@ -920,7 +929,6 @@ class ActionExecutor:
 
         try:
             import json
-            from dataclasses import asdict
             from pathlib import Path
 
             from gobby.sessions.analyzer import TranscriptAnalyzer
@@ -943,19 +951,123 @@ class ActionExecutor:
             if not handoff_ctx.git_status:
                 handoff_ctx.git_status = self._get_git_status()
 
-            # Convert dataclass to dict
-            ctx_dict = asdict(handoff_ctx)
+            # Get prompt template from config
+            prompt_template = None
+            if context.config:
+                compact_config = getattr(context.config, "compact_handoff", None)
+                if compact_config:
+                    prompt_template = compact_config.prompt
 
-            if not context.state.variables:
-                context.state.variables = {}
+            # Format as markdown using config template
+            markdown = self._format_handoff_as_markdown(handoff_ctx, prompt_template)
 
-            context.state.variables[store_as] = ctx_dict
+            # Save to session.compact_markdown
+            context.session_manager.update_compact_markdown(context.session_id, markdown)
 
-            return {"handoff_context_extracted": True, "stored_as": store_as}
+            logger.info(f"Saved compact handoff context ({len(markdown)} chars) to session {context.session_id}")
+            return {"handoff_context_extracted": True, "markdown_length": len(markdown)}
 
         except Exception as e:
             logger.error(f"extract_handoff_context: Failed: {e}")
             return {"error": str(e)}
+
+    def _format_handoff_as_markdown(self, ctx: Any, prompt_template: str | None = None) -> str:
+        """Format HandoffContext as markdown for injection.
+
+        Args:
+            ctx: HandoffContext with extracted session data
+            prompt_template: Optional template from config with {section} placeholders
+        """
+        # Build each section as pre-rendered markdown
+        sections: dict[str, str] = {}
+
+        # Active task section
+        if ctx.active_gobby_task:
+            task = ctx.active_gobby_task
+            sections["active_task_section"] = (
+                f"### Active Task\n"
+                f"**{task.get('title', 'Untitled')}** ({task.get('id', 'unknown')})\n"
+                f"Status: {task.get('status', 'unknown')}\n"
+            )
+        else:
+            sections["active_task_section"] = ""
+
+        # Todo state section
+        if ctx.todo_state:
+            lines = ["### In-Progress Work"]
+            for todo in ctx.todo_state:
+                status = todo.get("status", "pending")
+                marker = "x" if status == "completed" else ">" if status == "in_progress" else " "
+                lines.append(f"- [{marker}] {todo.get('content', '')}")
+            sections["todo_state_section"] = "\n".join(lines) + "\n"
+        else:
+            sections["todo_state_section"] = ""
+
+        # Git commits section
+        if ctx.git_commits:
+            lines = ["### Commits This Session"]
+            for commit in ctx.git_commits:
+                lines.append(f"- `{commit.get('hash', '')[:7]}` {commit.get('message', '')}")
+            sections["git_commits_section"] = "\n".join(lines) + "\n"
+        else:
+            sections["git_commits_section"] = ""
+
+        # Git status section
+        if ctx.git_status:
+            sections["git_status_section"] = (
+                f"### Uncommitted Changes\n```\n{ctx.git_status}\n```\n"
+            )
+        else:
+            sections["git_status_section"] = ""
+
+        # Files modified section
+        if ctx.files_modified:
+            lines = ["### Files Being Modified"]
+            for f in ctx.files_modified:
+                lines.append(f"- {f}")
+            sections["files_modified_section"] = "\n".join(lines) + "\n"
+        else:
+            sections["files_modified_section"] = ""
+
+        # Initial goal section
+        if ctx.initial_goal:
+            sections["initial_goal_section"] = f"### Original Goal\n{ctx.initial_goal}\n"
+        else:
+            sections["initial_goal_section"] = ""
+
+        # Recent activity section
+        if ctx.recent_activity:
+            lines = ["### Recent Activity"]
+            for activity in ctx.recent_activity[-5:]:  # Last 5
+                lines.append(f"- {activity}")
+            sections["recent_activity_section"] = "\n".join(lines) + "\n"
+        else:
+            sections["recent_activity_section"] = ""
+
+        # Use template if provided, otherwise use default format
+        if prompt_template:
+            try:
+                # Remove empty sections from output by stripping multiple newlines
+                result = prompt_template.format(**sections)
+                # Clean up multiple blank lines
+                import re
+                result = re.sub(r'\n{3,}', '\n\n', result)
+                return result.strip() + "\n"
+            except KeyError as e:
+                logger.warning(f"Invalid placeholder in compact_handoff prompt: {e}")
+                # Fall through to default
+
+        # Default format (backwards compatible)
+        lines = ["## Continuation Context", ""]
+        for section in [
+            "active_task_section", "todo_state_section", "git_commits_section",
+            "git_status_section", "files_modified_section", "initial_goal_section",
+            "recent_activity_section"
+        ]:
+            if sections[section]:
+                lines.append(sections[section])
+
+        return "\n".join(lines)
 
     async def _handle_memory_inject(
         self, context: ActionContext, **kwargs: Any

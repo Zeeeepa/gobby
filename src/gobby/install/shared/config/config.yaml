@@ -8,8 +8,8 @@ websocket:
 logging:
   level: debug
   format: text
-  client: ~/.gobby/logs/gobby-client.log
-  client_error: ~/.gobby/logs/gobby-client-error.log
+  client: ~/.gobby/logs/gobby.log
+  client_error: ~/.gobby/logs/gobby-error.log
   hook_manager: ~/.gobby/logs/hook-manager.log
   mcp_server: ~/.gobby/logs/mcp-server.log
   mcp_client: ~/.gobby/logs/mcp-client.log
@@ -84,12 +84,28 @@ session_lifecycle:
   expire_check_interval_minutes: 60
   transcript_processing_interval_minutes: 5
   transcript_processing_batch_size: 10    
+compact_handoff:
+  enabled: true
+  # Prompt for formatting handoff context. Each section is pre-rendered markdown.
+  # Available placeholders (only included if data exists):
+  # {active_task_section}, {todo_state_section}, {git_commits_section}, {git_status_section},
+  # {files_modified_section}, {initial_goal_section}, {recent_activity_section}
+  prompt: |
+    ## Continuation Context
+
+    {active_task_section}
+    {todo_state_section}
+    {git_commits_section}
+    {git_status_section}
+    {files_modified_section}
+    {initial_goal_section}
+    {recent_activity_section}
 session_summary:
   enabled: false
   provider: claude
   model: claude-haiku-4-5
   summary_file_path: ~/.gobby/session_summaries/
-  prompt: 'Analyze this Claude Code session transcript and create a comprehensive
+  prompt: 'Analyze this session transcript and create a comprehensive
     session summary.
 
     ## Transcript (last 50 turns):

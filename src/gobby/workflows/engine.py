@@ -252,6 +252,11 @@ class WorkflowEngine:
         if context_data is None:
             context_data = {}
 
+        # Track which workflow+trigger combinations have already been processed
+        # to prevent duplicate execution of the same trigger
+        processed_triggers: set[tuple[str, str]] = set()
+        trigger_name = f"on_{event.event_type.name.lower()}"
+
         # Loop until no triggers fire (or max iterations)
         for iteration in range(self.MAX_TRIGGER_ITERATIONS):
             triggers_fired = False
@@ -259,12 +264,19 @@ class WorkflowEngine:
             for discovered in workflows:
                 workflow = discovered.definition
 
+                # Skip if this workflow+trigger has already been processed
+                key = (workflow.name, trigger_name)
+                if key in processed_triggers:
+                    continue
+
                 response = await self._evaluate_workflow_triggers(workflow, event, context_data)
 
                 # Accumulate context
                 if response.context:
                     all_context.append(response.context)
                     triggers_fired = True
+                    # Mark this workflow+trigger as processed
+                    processed_triggers.add(key)
 
                 # Capture system_message (last one wins)
                 if response.system_message:

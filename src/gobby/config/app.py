@@ -65,11 +65,11 @@ class LoggingSettings(BaseModel):
 
     # Log file paths
     client: str = Field(
-        default="~/.gobby/logs/gobby-client.log",
+        default="~/.gobby/logs/gobby.log",
         description="Daemon main log file path",
     )
     client_error: str = Field(
-        default="~/.gobby/logs/gobby-client-error.log",
+        default="~/.gobby/logs/gobby-error.log",
         description="Daemon error log file path",
     )
     hook_manager: str = Field(
@@ -101,6 +101,31 @@ class LoggingSettings(BaseModel):
         if v <= 0:
             raise ValueError("Value must be positive")
         return v
+
+
+class CompactHandoffConfig(BaseModel):
+    """Compact handoff context configuration for /compact command."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable compact handoff context extraction and injection",
+    )
+    prompt: str = Field(
+        default="""## Continuation Context
+
+{active_task_section}
+{todo_state_section}
+{git_commits_section}
+{git_status_section}
+{files_modified_section}
+{initial_goal_section}
+{recent_activity_section}
+""",
+        description="Template for formatting handoff context. Available placeholders: "
+        "{active_task_section}, {todo_state_section}, {git_commits_section}, "
+        "{git_status_section}, {files_modified_section}, {initial_goal_section}, "
+        "{recent_activity_section}",
+    )
 
 
 class SessionSummaryConfig(BaseModel):
@@ -844,6 +869,10 @@ class DaemonConfig(BaseModel):
     session_summary: SessionSummaryConfig = Field(
         default_factory=SessionSummaryConfig,
         description="Session summary generation configuration",
+    )
+    compact_handoff: CompactHandoffConfig = Field(
+        default_factory=CompactHandoffConfig,
+        description="Compact handoff context configuration",
     )
     mcp_client_proxy: MCPClientProxyConfig = Field(
         default_factory=MCPClientProxyConfig,
