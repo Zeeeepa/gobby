@@ -975,16 +975,18 @@ def create_task_registry(
                     changes_summary=changes_summary,
                     validation_criteria=task.validation_criteria,
                 )
-                if result.status == "invalid":
-                    task_manager.update_task(
-                        task_id,
-                        validation_status="invalid",
-                        validation_feedback=result.feedback,
-                    )
+                # Store validation result regardless of pass/fail
+                task_manager.update_task(
+                    task_id,
+                    validation_status=result.status,
+                    validation_feedback=result.feedback,
+                )
+                if result.status != "valid":
+                    # Block closing on invalid or pending (error during validation)
                     return {
                         "error": "validation_failed",
-                        "message": result.feedback,
-                        "validation_status": "invalid",
+                        "message": result.feedback or "Validation did not pass",
+                        "validation_status": result.status,
                     }
 
         # All checks passed - close the task

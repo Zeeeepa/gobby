@@ -98,12 +98,12 @@ class TaskValidator:
         )
 
         base_prompt = (
-            "Validate if the following changes satisfy the requirements.\n"
-            "Return ONLY a valid JSON object with 'status' ('valid' or 'invalid') "
-            "and 'feedback' (string explanation).\n\n"
+            "Validate if the following changes satisfy the requirements.\n\n"
             f"Task: {title}\n"
             f"{criteria_text}\n\n"
             f"Changes Summary:\n{changes_summary}\n\n"
+            "IMPORTANT: Return ONLY a JSON object, nothing else. No explanation, no preamble.\n"
+            'Format: {"status": "valid", "feedback": "..."} or {"status": "invalid", "feedback": "..."}\n'
         )
 
         if file_context:
@@ -116,14 +116,21 @@ class TaskValidator:
             provider = self.llm_service.get_provider(self.config.provider)
             response_content = await provider.generate_text(
                 prompt=prompt,
-                system_prompt="You are a QA engineer. Validate work strictly against requirements. Be critical.",
+                system_prompt="You are a QA validator. Output ONLY valid JSON. No markdown, no explanation, no code blocks. Just the raw JSON object.",
                 model=self.config.model,
             )
 
             import json
             import re
 
+            if not response_content or not response_content.strip():
+                logger.warning(f"Empty LLM response for task {task_id} validation")
+                return ValidationResult(
+                    status="pending", feedback="Validation failed: Empty response from LLM"
+                )
+
             content = response_content.strip()
+            logger.debug(f"Validation LLM response for {task_id}: {content[:200]}...")
 
             # Try to find JSON in code block
             json_block = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
