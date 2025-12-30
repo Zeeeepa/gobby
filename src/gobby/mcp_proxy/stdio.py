@@ -413,6 +413,56 @@ def create_stdio_mcp_server() -> FastMCP:
             query=query,
         )
 
+    # --- Code Execution Tools ---
+
+    @mcp.tool()
+    async def execute_code(
+        code: str,
+        language: str = "python",
+        context: str | None = None,
+        timeout: int = 30,
+    ) -> dict[str, Any]:
+        """
+        Execute code using LLM-powered code execution.
+
+        Useful for running calculations, data transformations, or testing code snippets
+        without needing a local runtime environment.
+
+        Args:
+            code: The code to execute
+            language: Programming language (default: python)
+            context: Optional context about what the code should accomplish
+            timeout: Execution timeout in seconds (default: 30)
+
+        Returns:
+            Dict with execution result or error
+        """
+        return await proxy.execute_code(code, language, context, timeout)
+
+    @mcp.tool()
+    async def process_large_dataset(
+        data: Any,
+        operation: str,
+        parameters: dict[str, Any] | None = None,
+        timeout: int = 60,
+    ) -> dict[str, Any]:
+        """
+        Process large datasets using LLM-powered chunked processing.
+
+        Handles data that would exceed token limits by processing in chunks
+        and aggregating results.
+
+        Args:
+            data: The dataset to process (list, dict, or other structure)
+            operation: Description of the operation to perform (e.g., "summarize", "filter", "transform")
+            parameters: Optional parameters for the operation
+            timeout: Processing timeout in seconds (default: 60)
+
+        Returns:
+            Dict with processed result or error
+        """
+        return await proxy.process_large_dataset(data, operation, parameters, timeout)
+
     return mcp
 
 
