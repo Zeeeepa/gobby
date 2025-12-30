@@ -1,0 +1,415 @@
+"""
+Internal MCP tools for Gobby Workflow System.
+
+Exposes functionality for:
+- list_workflows: Discover available workflow definitions
+- activate_workflow: Start a phase-based workflow
+- end_workflow: Complete/terminate active workflow
+- get_workflow_status: Get current workflow state
+- request_phase_transition: Request transition to a different phase
+- mark_artifact_complete: Register an artifact as complete
+
+These tools are registered with the InternalToolRegistry and accessed
+via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
+"""
+
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.storage.database import LocalDatabase
+from gobby.storage.sessions import LocalSessionManager
+from gobby.workflows.definitions import WorkflowState
+from gobby.workflows.loader import WorkflowLoader
+from gobby.workflows.state_manager import WorkflowStateManager
+
+
+def create_workflows_registry(
+    loader: WorkflowLoader | None = None,
+    state_manager: WorkflowStateManager | None = None,
+    session_manager: LocalSessionManager | None = None,
+    db: LocalDatabase | None = None,
+) -> InternalToolRegistry:
+    """
+    Create a workflow tool registry with all workflow-related tools.
+
+    Args:
+        loader: WorkflowLoader instance
+        state_manager: WorkflowStateManager instance
+        session_manager: LocalSessionManager instance
+        db: LocalDatabase instance
+
+    Returns:
+        InternalToolRegistry with workflow tools registered
+    """
+    # Create defaults if not provided
+    _db = db or LocalDatabase()
+    _loader = loader or WorkflowLoader()
+    _state_manager = state_manager or WorkflowStateManager(_db)
+    _session_manager = session_manager or LocalSessionManager(_db)
+
+    registry = InternalToolRegistry(
+        name="gobby-workflows",
+        description="Workflow management - list, activate, status, transition, end",
+    )
+
+    @registry.tool(
+        name="list_workflows",
+        description="List available workflow definitions from project and global directories.",
+    )
+    def list_workflows(
+        project_path: str | None = None,
+        workflow_type: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        List available workflows.
+
+        Args:
+            project_path: Optional project directory path
+            workflow_type: Filter by type ("phase" or "lifecycle")
+
+        Returns:
+            List of workflows with name, type, description, and source
+        """
+        import yaml
+
+        search_dirs = list(_loader.global_dirs)
+        proj = Path(project_path) if project_path else None
+
+        if proj:
+            project_dir = proj / ".gobby" / "workflows"
+            search_dirs.insert(0, project_dir)
+
+        workflows = []
+        seen_names = set()
+
+        for search_dir in search_dirs:
+            if not search_dir.exists():
+                continue
+
+            is_project = proj and search_dir == (proj / ".gobby" / "workflows")
+
+            for yaml_path in search_dir.glob("*.yaml"):
+                name = yaml_path.stem
+                if name in seen_names:
+                    continue
+
+                try:
+                    with open(yaml_path) as f:
+                        data = yaml.safe_load(f)
+
+                    if not data:
+                        continue
+
+                    wf_type = data.get("type", "phase")
+
+                    if workflow_type and wf_type != workflow_type:
+                        continue
+
+                    workflows.append({
+                        "name": name,
+                        "type": wf_type,
+                        "description": data.get("description", ""),
+                        "source": "project" if is_project else "global",
+                    })
+                    seen_names.add(name)
+
+                except Exception:
+                    pass
+
+        return {"workflows": workflows, "count": len(workflows)}
+
+    @registry.tool(
+        name="activate_workflow",
+        description="Activate a phase-based workflow for the current session.",
+    )
+    def activate_workflow(
+        name: str,
+        session_id: str | None = None,
+        initial_phase: str | None = None,
+        project_path: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Activate a phase-based workflow for the current session.
+
+        Args:
+            name: Workflow name (e.g., "plan-act-reflect", "tdd")
+            session_id: Optional session ID (defaults to most recent active)
+            initial_phase: Optional starting phase (defaults to first phase)
+            project_path: Optional project directory path
+
+        Returns:
+            Success status, workflow info, and current phase.
+
+        Errors if:
+            - Another phase-based workflow is currently active
+            - Workflow not found
+            - Workflow is lifecycle type (those auto-run, not manually activated)
+        """
+        proj = Path(project_path) if project_path else None
+
+        # Load workflow
+        definition = _loader.load_workflow(name, proj)
+        if not definition:
+            return {"success": False, "error": f"Workflow '{name}' not found"}
+
+        if definition.type == "lifecycle":
+            return {
+                "success": False,
+                "error": f"Workflow '{name}' is lifecycle type (auto-runs on events, not manually activated)",
+            }
+
+        # Get session
+        if not session_id:
+            row = _db.fetchone(
+                "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
+            )
+            if row:
+                session_id = row["id"]
+            else:
+                return {"success": False, "error": "No active session found"}
+
+        # Check for existing workflow
+        existing = _state_manager.get_state(session_id)
+        if existing:
+            return {
+                "success": False,
+                "error": f"Session already has workflow '{existing.workflow_name}' active. Use end_workflow first.",
+            }
+
+        # Determine initial phase
+        if initial_phase:
+            if not any(p.name == initial_phase for p in definition.phases):
+                return {
+                    "success": False,
+                    "error": f"Phase '{initial_phase}' not found. Available: {[p.name for p in definition.phases]}",
+                }
+            phase = initial_phase
+        else:
+            phase = definition.phases[0].name if definition.phases else "default"
+
+        # Create state
+        state = WorkflowState(
+            session_id=session_id,
+            workflow_name=name,
+            phase=phase,
+            phase_entered_at=datetime.now(UTC),
+            phase_action_count=0,
+            total_action_count=0,
+            artifacts={},
+            observations=[],
+            reflection_pending=False,
+            context_injected=False,
+            variables={},
+            task_list=None,
+            current_task_index=0,
+            files_modified_this_task=0,
+        )
+
+        _state_manager.save_state(state)
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "workflow": name,
+            "phase": phase,
+            "phases": [p.name for p in definition.phases],
+        }
+
+    @registry.tool(
+        name="end_workflow",
+        description="End the currently active phase-based workflow.",
+    )
+    def end_workflow(
+        session_id: str | None = None,
+        reason: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        End the currently active phase-based workflow.
+
+        Allows starting a different workflow afterward.
+        Does not affect lifecycle workflows (they continue running).
+
+        Args:
+            session_id: Optional session ID (defaults to most recent active)
+            reason: Optional reason for ending
+
+        Returns:
+            Success status
+        """
+        if not session_id:
+            row = _db.fetchone(
+                "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
+            )
+            if row:
+                session_id = row["id"]
+            else:
+                return {"success": False, "error": "No active session found"}
+
+        state = _state_manager.get_state(session_id)
+        if not state:
+            return {"success": False, "error": "No workflow active for session"}
+
+        workflow_name = state.workflow_name
+        _state_manager.delete_state(session_id)
+
+        return {
+            "success": True,
+            "ended_workflow": workflow_name,
+            "reason": reason,
+        }
+
+    @registry.tool(
+        name="get_workflow_status",
+        description="Get current workflow phase and state.",
+    )
+    def get_workflow_status(session_id: str | None = None) -> dict[str, Any]:
+        """
+        Get current workflow phase and state.
+
+        Args:
+            session_id: Optional session ID (defaults to most recent active)
+
+        Returns:
+            Workflow state including phase, action counts, artifacts
+        """
+        if not session_id:
+            row = _db.fetchone(
+                "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
+            )
+            if row:
+                session_id = row["id"]
+            else:
+                return {"has_workflow": False, "error": "No active session found"}
+
+        state = _state_manager.get_state(session_id)
+        if not state:
+            return {"has_workflow": False, "session_id": session_id}
+
+        return {
+            "has_workflow": True,
+            "session_id": session_id,
+            "workflow_name": state.workflow_name,
+            "phase": state.phase,
+            "phase_action_count": state.phase_action_count,
+            "total_action_count": state.total_action_count,
+            "reflection_pending": state.reflection_pending,
+            "artifacts": list(state.artifacts.keys()) if state.artifacts else [],
+            "variables": state.variables,
+            "task_progress": f"{state.current_task_index + 1}/{len(state.task_list)}"
+            if state.task_list
+            else None,
+            "updated_at": state.updated_at.isoformat() if state.updated_at else None,
+        }
+
+    @registry.tool(
+        name="request_phase_transition",
+        description="Request transition to a different phase.",
+    )
+    def request_phase_transition(
+        to_phase: str,
+        reason: str | None = None,
+        session_id: str | None = None,
+        force: bool = False,
+        project_path: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Request transition to a different phase. May require approval.
+
+        Args:
+            to_phase: Target phase name
+            reason: Reason for transition
+            session_id: Optional session ID
+            force: Skip exit condition checks
+            project_path: Optional project directory path
+
+        Returns:
+            Success status and new phase info
+        """
+        proj = Path(project_path) if project_path else None
+
+        if not session_id:
+            row = _db.fetchone(
+                "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
+            )
+            if row:
+                session_id = row["id"]
+            else:
+                return {"success": False, "error": "No active session found"}
+
+        state = _state_manager.get_state(session_id)
+        if not state:
+            return {"success": False, "error": "No workflow active for session"}
+
+        # Load workflow to validate phase
+        definition = _loader.load_workflow(state.workflow_name, proj)
+        if not definition:
+            return {"success": False, "error": f"Workflow '{state.workflow_name}' not found"}
+
+        if not any(p.name == to_phase for p in definition.phases):
+            return {
+                "success": False,
+                "error": f"Phase '{to_phase}' not found. Available: {[p.name for p in definition.phases]}",
+            }
+
+        old_phase = state.phase
+        state.phase = to_phase
+        state.phase_entered_at = datetime.now(UTC)
+        state.phase_action_count = 0
+
+        _state_manager.save_state(state)
+
+        return {
+            "success": True,
+            "from_phase": old_phase,
+            "to_phase": to_phase,
+            "reason": reason,
+            "forced": force,
+        }
+
+    @registry.tool(
+        name="mark_artifact_complete",
+        description="Register an artifact as complete (plan, spec, etc.).",
+    )
+    def mark_artifact_complete(
+        artifact_type: str,
+        file_path: str,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Register an artifact as complete.
+
+        Args:
+            artifact_type: Type of artifact (e.g., "plan", "spec", "test")
+            file_path: Path to the artifact file
+            session_id: Optional session ID
+
+        Returns:
+            Success status
+        """
+        if not session_id:
+            row = _db.fetchone(
+                "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
+            )
+            if row:
+                session_id = row["id"]
+            else:
+                return {"success": False, "error": "No active session found"}
+
+        state = _state_manager.get_state(session_id)
+        if not state:
+            return {"success": False, "error": "No workflow active for session"}
+
+        # Update artifacts
+        state.artifacts[artifact_type] = file_path
+        _state_manager.save_state(state)
+
+        return {
+            "success": True,
+            "artifact_type": artifact_type,
+            "file_path": file_path,
+            "all_artifacts": list(state.artifacts.keys()),
+        }
+
+    return registry

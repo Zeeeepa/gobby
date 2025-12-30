@@ -42,6 +42,7 @@ def mock_db():
             updated_at TEXT NOT NULL DEFAULT (datetime('now')),
             summary_path TEXT,
             summary_markdown TEXT,
+            compact_markdown TEXT,
             UNIQUE(external_id, machine_id, source)
         );
     """)

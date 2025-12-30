@@ -62,7 +62,7 @@ def create_session_messages_registry(
         result: dict[str, Any] = {
             "session_id": session_id,
             "messages": messages,
-            "session_total_count": session_total,
+            "total_count": session_total,
             "returned_count": len(messages),
             "limit": limit,
             "offset": offset,

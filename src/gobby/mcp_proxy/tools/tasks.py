@@ -697,6 +697,7 @@ def create_task_registry(
         labels: list[str] | None = None,
         test_strategy: str | None = None,
         validation_criteria: str | None = None,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """Create a new task in the current project."""
         # Get current project context which is required for task creation
@@ -717,6 +718,7 @@ def create_task_registry(
             labels=labels,
             test_strategy=test_strategy,
             validation_criteria=validation_criteria,
+            discovered_in_session_id=session_id,
         )
 
         # Handle 'blocks' argument if provided (syntactic sugar)
@@ -776,6 +778,11 @@ def create_task_registry(
                 "validation_criteria": {
                     "type": "string",
                     "description": "Acceptance criteria for validating task completion (optional). If provided, the task can be validated using validate_task.",
+                    "default": None,
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Session ID to associate with this task (tracked as discovered_in_session_id)",
                     "default": None,
                 },
             },

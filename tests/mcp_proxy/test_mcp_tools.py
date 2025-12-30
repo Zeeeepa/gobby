@@ -97,6 +97,44 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
             task_type="task",
             parent_task_id=None,
             labels=None,
+            test_strategy=None,
+            validation_criteria=None,
+            discovered_in_session_id=None,
+        )
+    assert result == {"id": "t1"}
+
+
+@pytest.mark.asyncio
+async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager):
+    """Test create_task tool captures session_id as discovered_in_session_id."""
+    registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+    # Mock return value
+    mock_task = MagicMock()
+    mock_task.id = "t1"
+    mock_task.to_dict.return_value = {"id": "t1", "title": "Test Task"}
+    mock_task_manager.create_task.return_value = mock_task
+
+    # Mock get_project_context
+    with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+        mock_ctx.return_value = {"id": "test-project-id"}
+
+        result = await registry.call(
+            "create_task",
+            {"title": "Test Task", "session_id": "session-abc123"},
+        )
+
+        mock_task_manager.create_task.assert_called_with(
+            project_id="test-project-id",
+            title="Test Task",
+            description=None,
+            priority=2,
+            task_type="task",
+            parent_task_id=None,
+            labels=None,
+            test_strategy=None,
+            validation_criteria=None,
+            discovered_in_session_id="session-abc123",
         )
     assert result == {"id": "t1"}
 

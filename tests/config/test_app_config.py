@@ -495,7 +495,7 @@ class TestTaskExpansionConfig:
         config = TaskExpansionConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "claude-opus-4-5"  # Uses opus for complex task expansion
         assert config.prompt is None
 
 

@@ -120,6 +120,15 @@ def setup_internal_registries(
         manager.add_registry(skills_registry)
         logger.debug("Skills registry initialized")
 
+    # Initialize workflows registry (always available)
+    from gobby.mcp_proxy.tools.workflows import create_workflows_registry
+
+    workflows_registry = create_workflows_registry(
+        session_manager=local_session_manager,
+    )
+    manager.add_registry(workflows_registry)
+    logger.debug("Workflows registry initialized")
+
     logger.info(f"Internal registries initialized: {len(manager)} registries")
     return manager
 

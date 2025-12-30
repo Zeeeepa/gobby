@@ -15,6 +15,7 @@ from .memory import memory
 from .sessions import sessions
 from .skills import skills
 from .tasks import tasks
+from .workflows import workflow
 
 
 @click.group()
@@ -45,3 +46,4 @@ cli.add_command(memory)
 cli.add_command(skills)
 cli.add_command(sessions)
 cli.add_command(mcp_proxy)
+cli.add_command(workflow)
