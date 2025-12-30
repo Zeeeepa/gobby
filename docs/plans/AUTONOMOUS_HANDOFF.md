@@ -412,6 +412,180 @@ If transcript starts mid-work (e.g., resumed session), initial_goal extraction m
 | 5 | **LLM for extraction** | No (rule-based) | Tool calls are structured, no LLM needed |
 | 6 | **Gobby-tasks required** | No (graceful fallback) | Use if available, fall back to TodoWrite |
 
+## Phase 6: Autonomous Session Chaining (Ralph-style Loops)
+
+After core handoff is working, enable autonomous multi-session loops where Gobby spawns new sessions to continue work.
+
+### Approach: Session Chaining vs Stop Hook Blocking
+
+Instead of blocking exit within the same session (Ralph's approach), Gobby chains sessions:
+
+```
+Session A ends → SessionEnd hook → evaluate completion → spawn Session B with context
+```
+
+**Advantages over Ralph:**
+- Fresh context window each iteration (no token bloat)
+- Works across Claude/Gemini/Codex (CLI-agnostic)
+- Leverages existing Gobby session tracking
+- Can switch strategies between iterations
+
+### New Action: `start_new_session`
+
+```yaml
+- action: start_new_session
+  cli: "{{ session.source }}"  # optional, defaults to current session's CLI
+  prompt: "{{ variables.loop_prompt }}"
+  system_prompt: "{{ variables.handoff_summary }}"  # optional
+  working_dir: "{{ session.cwd }}"  # optional, defaults to current
+  detached: true           # optional, default true
+```
+
+### Implementation
+
+Add to `src/gobby/workflows/actions.py`:
+
+```python
+async def _handle_start_new_session(
+    self, context: ActionContext, **kwargs: Any
+) -> dict[str, Any] | None:
+    """Spawn a new CLI session with context injection."""
+    import subprocess
+    import shutil
+
+    prompt = kwargs.get("prompt")
+    system_prompt = kwargs.get("system_prompt")
+    working_dir = kwargs.get("working_dir")
+    detached = kwargs.get("detached", True)
+
+    if not prompt:
+        return {"error": "Missing prompt parameter"}
+
+    # Default CLI to current session's source
+    session = context.session_manager.get(context.session_id)
+    cli = kwargs.get("cli")
+    if not cli and session:
+        cli = session.source  # "claude", "gemini", or "codex"
+    cli = cli or "claude"
+
+    # Render templates
+    render_context = {
+        "session": session,
+        "state": context.state,
+        "variables": context.state.variables or {},
+    }
+    rendered_prompt = context.template_engine.render(prompt, render_context)
+
+    # Build CLI command based on source
+    if cli == "claude":
+        executable = shutil.which("claude")
+        if not executable:
+            return {"error": "claude CLI not found"}
+        cmd = [executable, "-p", rendered_prompt]
+        if system_prompt:
+            rendered_system = context.template_engine.render(system_prompt, render_context)
+            cmd.extend(["--append-system-prompt", rendered_system])
+    elif cli == "gemini":
+        executable = shutil.which("gemini")
+        if not executable:
+            return {"error": "gemini CLI not found"}
+        cmd = [executable, "-p", rendered_prompt]
+    elif cli == "codex":
+        executable = shutil.which("codex")
+        if not executable:
+            return {"error": "codex CLI not found"}
+        cmd = [executable, rendered_prompt]
+    else:
+        return {"error": f"Unknown CLI: {cli}"}
+
+    # Resolve working directory
+    cwd = working_dir or getattr(session, "cwd", None) if session else None
+
+    # Spawn detached process
+    try:
+        popen_kwargs = {
+            "cwd": cwd,
+            "stdin": subprocess.DEVNULL,
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+        }
+        if detached:
+            popen_kwargs["start_new_session"] = True
+
+        process = subprocess.Popen(cmd, **popen_kwargs)
+        return {"session_spawned": True, "cli": cli, "pid": process.pid}
+    except Exception as e:
+        return {"error": str(e)}
+```
+
+### Example Workflow: `autonomous-loop.yaml`
+
+```yaml
+name: autonomous-loop
+description: Ralph-style iterative execution until completion
+priority: 100
+
+settings:
+  max_iterations: 20
+  completion_marker: "LOOP_COMPLETE"
+
+triggers:
+  # Initialize loop on session start
+  - event: on_session_start
+    when: "variables.get('loop_enabled') and variables.get('iteration_count', 0) == 0"
+    actions:
+      - action: set_variable
+        name: iteration_count
+        value: 1
+
+  # Detect completion marker
+  - event: on_after_agent
+    when: "variables.get('loop_enabled') and settings.completion_marker in (event.data.get('response', '') if event.data else '')"
+    actions:
+      - action: set_variable
+        name: task_complete
+        value: true
+
+  # On session end, continue if not complete
+  - event: on_session_end
+    when: |
+      variables.get('loop_enabled', False) and
+      variables.get('iteration_count', 0) < settings.max_iterations and
+      not variables.get('task_complete', False)
+    actions:
+      - action: increment_variable
+        name: iteration_count
+      - action: generate_handoff
+        template: |
+          ## Autonomous Loop - Iteration {{ variables.iteration_count }}/{{ settings.max_iterations }}
+
+          ### Original Task
+          {{ variables.loop_prompt }}
+
+          ### Progress So Far
+          {{ transcript_summary }}
+
+          ### Instructions
+          Continue working. When complete, output: {{ settings.completion_marker }}
+      - action: start_new_session
+        prompt: "Continue the task from the previous session."
+        system_prompt: "{{ handoff.notes }}"
+```
+
+### Phase 6 Checklist
+
+- [ ] Add `_handle_start_new_session` to `src/gobby/workflows/actions.py`
+- [ ] Register action in `_register_defaults()`
+- [ ] Create `src/gobby/install/shared/workflows/autonomous-loop.yaml`
+- [ ] Add unit tests (mock subprocess.Popen)
+- [ ] Integration test with real session chaining
+- [ ] Document in CLAUDE.md
+
+### Dependencies
+
+- Requires Phases 1-5 (core handoff) to be working first
+- CLI must be installed and in PATH
+
 ## Future Enhancements
 
 - **LLM-powered decision extraction** - Use LLM to identify key decisions from transcript
@@ -419,3 +593,7 @@ If transcript starts mid-work (e.g., resumed session), initial_goal extraction m
 - **Cross-session learning** - Remember patterns across multiple compactions
 - **Custom extraction prompts** - User-defined prompts for context extraction
 - **Compaction prediction** - Estimate when compaction will occur, prepare ahead
+- **Session tracking for loops** - Store spawned session info for monitoring
+- **Terminal integration** - Option to spawn in new terminal tab (iTerm2, Ghostty)
+- **Timeout handling** - Kill spawned session if it runs too long
+- **Cost tracking** - Track API costs across loop iterations

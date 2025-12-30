@@ -1323,9 +1323,10 @@ class HTTPServer:
                             }
                         except Exception as e:
                             self._metrics.inc_counter("mcp_tool_calls_failed_total")
+                            error_msg = str(e) or f"{type(e).__name__}: (no message)"
                             raise HTTPException(
                                 status_code=500,
-                                detail={"success": False, "error": str(e)},
+                                detail={"success": False, "error": error_msg},
                             ) from e
 
                 if self.mcp_manager is None:
@@ -1345,17 +1346,19 @@ class HTTPServer:
 
                 except Exception as e:
                     self._metrics.inc_counter("mcp_tool_calls_failed_total")
+                    error_msg = str(e) or f"{type(e).__name__}: (no message)"
                     return {
                         "success": False,
-                        "error": str(e),
+                        "error": error_msg,
                     }
 
             except HTTPException:
                 raise
             except Exception as e:
                 self._metrics.inc_counter("mcp_tool_calls_failed_total")
-                logger.error(f"Call MCP tool error: {e}", exc_info=True)
-                raise HTTPException(status_code=500, detail=str(e)) from e
+                error_msg = str(e) or f"{type(e).__name__}: (no message)"
+                logger.error(f"Call MCP tool error: {error_msg}", exc_info=True)
+                raise HTTPException(status_code=500, detail=error_msg) from e
 
         @app.post("/mcp/servers")
         async def add_mcp_server(request: Request) -> dict[str, Any]:
@@ -1731,7 +1734,8 @@ class HTTPServer:
                             }
                         except Exception as e:
                             self._metrics.inc_counter("mcp_tool_calls_failed_total")
-                            raise HTTPException(status_code=500, detail=str(e)) from e
+                            error_msg = str(e) or f"{type(e).__name__}: (no message)"
+                            raise HTTPException(status_code=500, detail=error_msg) from e
                     raise HTTPException(
                         status_code=404, detail=f"Internal server '{server_name}' not found"
                     )
@@ -1771,19 +1775,21 @@ class HTTPServer:
                     raise HTTPException(status_code=404, detail=str(e)) from e
                 except Exception as e:
                     self._metrics.inc_counter("mcp_tool_calls_failed_total")
+                    error_msg = str(e) or f"{type(e).__name__}: (no message)"
                     logger.error(
                         f"MCP tool call error: {server_name}.{tool_name}",
                         exc_info=True,
                         extra={"server": server_name, "tool": tool_name},
                     )
-                    raise HTTPException(status_code=500, detail=str(e)) from e
+                    raise HTTPException(status_code=500, detail=error_msg) from e
 
             except HTTPException:
                 raise
             except Exception as e:
                 self._metrics.inc_counter("mcp_tool_calls_failed_total")
+                error_msg = str(e) or f"{type(e).__name__}: (no message)"
                 logger.error(f"MCP proxy error: {server_name}.{tool_name}", exc_info=True)
-                raise HTTPException(status_code=500, detail=str(e)) from e
+                raise HTTPException(status_code=500, detail=error_msg) from e
 
         @app.post("/admin/shutdown")
         async def shutdown() -> dict[str, Any]:

@@ -1,12 +1,25 @@
 ---
-description: How to manage the Gobby Daemon and discover/use downstream MCP tools
+description: How to discover and use MCP tools through the Gobby daemon proxy
 ---
 
-# Gobby Daemon & MCP Tool Workflow
+# Gobby MCP Tool Discovery Workflow
 
-This workflow guides you through managing the Gobby Daemon and using its proxied MCP tools.
+This workflow guides you through discovering and using MCP tools via the Gobby daemon proxy.
 
-## 1. Tool Discovery (Progressive Disclosure)
+## 1. Daemon Management (Use CLI)
+
+Daemon lifecycle should be managed via CLI commands:
+
+```bash
+uv run gobby start    # Start daemon
+uv run gobby stop     # Stop daemon
+uv run gobby status   # Check status
+uv run gobby restart  # Restart daemon
+```
+
+**Why CLI?** MCP tools require a running daemon. You can't start via MCP if it isn't running.
+
+## 2. Tool Discovery (Progressive Disclosure)
 
 To save tokens, use this 3-step process instead of loading all schemas at once.
 
@@ -43,7 +56,7 @@ Execute the tool on the appropriate server.
 - `gobby-*` servers → handled locally by internal registries
 - All others → proxied to downstream MCP servers
 
-## 2. Internal Task Management
+## 3. Internal Task Management
 
 Use `gobby-tasks` for persistent task tracking.
 
@@ -72,31 +85,11 @@ mcp_call_tool(
 
 Available task tools: `create_task`, `get_task`, `update_task`, `close_task`, `delete_task`, `list_tasks`, `add_dependency`, `remove_dependency`, `list_ready_tasks`, `list_blocked_tasks`, `sync_tasks`.
 
-## 3. Daemon Management
-
-**CRITICAL**: Always use these MCP tools. **NEVER** use CLI commands (like `gobby start`) directly.
-
-| Operation | Tool Name | Description |
-|-----------|-----------|-------------|
-| **Check Status** | `mcp_status` | Check if daemon is running and healthy. |
-| **Start Daemon** | `mcp_start` | Start the daemon if it's stopped. |
-| **Restart** | `mcp_restart` | Restart the daemon (fix connection issues). |
-
-**Example**:
-
-1. Call `mcp_status`.
-2. If `running` is false, call `mcp_start`.
-
-> [!IMPORTANT]
-> **Daemon Tools vs. Proxy Tools**
->
-> - **Daemon Tools** (e.g., `status`, `restart`, `add_mcp_server`): Called directly.
-> - **Proxy Tools** (via `call_tool`): For downstream servers and internal tools.
-
 ## 4. Troubleshooting
 
 - **Tools failing with `FileNotFoundError`?**
   - Check `~/.gobby/logs/gobby.log`.
   - Verify MCP config has absolute paths to executables (e.g., `/opt/homebrew/bin/uv`).
-- **Daemon unhealthy?**
-  - Call `mcp_restart`.
+- **Daemon not running?**
+  - Run `uv run gobby status` to check.
+  - Run `uv run gobby start` to start it.

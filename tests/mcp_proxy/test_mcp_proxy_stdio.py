@@ -453,3 +453,53 @@ class TestEnsureDaemonRunning:
                     ):
                         await ensure_daemon_running()
                         mock_start.assert_called_once()
+
+
+class TestDaemonProxy:
+    """Tests for DaemonProxy."""
+
+    @pytest.mark.asyncio
+    async def test_request_handles_empty_exception_message(self):
+        """Test _request handles exceptions with empty messages."""
+        from gobby.mcp_proxy.stdio import DaemonProxy
+
+        proxy = DaemonProxy(8765)
+        # Mock httpx.AsyncClient to raise a generic Exception with no message
+        with patch("gobby.mcp_proxy.stdio.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.__aexit__.return_value = None
+            mock_client.request.side_effect = Exception("")
+            mock_client_cls.return_value = mock_client
+
+            result = await proxy._request("GET", "/some/path")
+
+            assert result["success"] is False
+            assert result["error"] == "Exception: (no message)"
+
+    @pytest.mark.asyncio
+    async def test_call_tool_uses_extended_timeout_for_expand_task(self):
+        """Test call_tool uses extended timeout for expand_task."""
+        from gobby.mcp_proxy.stdio import DaemonProxy
+
+        proxy = DaemonProxy(8765)
+        # Mock config with tool_timeouts
+        with patch("gobby.mcp_proxy.stdio.load_config") as mock_config:
+            mock_config.return_value = MagicMock(
+                mcp_client_proxy=MagicMock(tool_timeouts={"expand_task": 300.0})
+            )
+
+            with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_request:
+                mock_request.return_value = {"success": True}
+
+                # Call normal tool (should fallback to default 30.0)
+                await proxy.call_tool("server", "normal_tool", {})
+                mock_request.assert_called_with(
+                    "POST", "/mcp/server/tools/normal_tool", json={}, timeout=30.0
+                )
+
+                # Call expand_task (should use configured 300.0)
+                await proxy.call_tool("server", "expand_task", {})
+                mock_request.assert_called_with(
+                    "POST", "/mcp/server/tools/expand_task", json={}, timeout=300.0
+                )

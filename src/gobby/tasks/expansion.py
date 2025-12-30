@@ -2,24 +2,35 @@
 Task expansion module.
 
 Handles breaking down high-level tasks into smaller, actionable subtasks
-using LLM providers with MCP tool access.
+using LLM providers with structured JSON output.
 """
 
 import json
 import logging
+import re
+from dataclasses import dataclass
 from typing import Any
 
 from gobby.config.app import TaskExpansionConfig
 from gobby.llm import LLMService
-from gobby.llm.claude import ClaudeLLMProvider
+from gobby.storage.task_dependencies import TaskDependencyManager
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.tasks.context import ExpansionContextGatherer
 from gobby.tasks.prompts.expand import ExpansionPromptBuilder
 
 logger = logging.getLogger(__name__)
 
-# MCP tool pattern for task creation
-CREATE_TASK_TOOL = "mcp__gobby-tasks__create_task"
+
+@dataclass
+class SubtaskSpec:
+    """Parsed subtask specification from LLM output."""
+
+    title: str
+    description: str | None = None
+    priority: int = 2
+    task_type: str = "task"
+    test_strategy: str | None = None
+    depends_on: list[int] | None = None
 
 
 class TaskExpander:
@@ -54,10 +65,10 @@ class TaskExpander:
         enable_code_context: bool = True,
     ) -> dict[str, Any]:
         """
-        Expand a task into subtasks using tool-based approach.
+        Expand a task into subtasks using structured JSON output.
 
-        The expansion agent calls the create_task MCP tool directly to create
-        subtasks, wiring dependencies via the 'blocks' parameter.
+        The LLM returns a JSON object with subtask specifications, which are
+        then parsed and created as tasks with proper dependency wiring.
 
         Args:
             task_id: ID of the task to expand
@@ -70,12 +81,12 @@ class TaskExpander:
         Returns:
             Dictionary with:
             - subtask_ids: List of created subtask IDs
-            - tool_calls: Number of create_task calls made
-            - text: Agent's reasoning/explanation text
+            - subtask_count: Number of subtasks created
+            - raw_response: The raw LLM response (for debugging)
         """
         if not self.config.enabled:
             logger.info("Task expansion disabled, skipping")
-            return {"subtask_ids": [], "tool_calls": 0, "text": "Expansion disabled"}
+            return {"subtask_ids": [], "subtask_count": 0, "raw_response": "Expansion disabled"}
 
         logger.info(f"Expanding task {task_id}: {title}")
 
@@ -109,30 +120,38 @@ class TaskExpander:
         )
 
         try:
-            # Get Claude provider (tool-based expansion requires Claude)
+            # Get provider and generate text response
             provider = self.llm_service.get_provider(self.config.provider)
-            if not isinstance(provider, ClaudeLLMProvider):
-                logger.warning(
-                    f"Provider {self.config.provider} does not support tool-based expansion, "
-                    "falling back to text generation"
-                )
-                return await self._expand_with_text_fallback(
-                    provider, prompt, task_id
-                )
 
-            # Call LLM with MCP tool access
-            result = await provider.generate_with_mcp_tools(
+            response = await provider.generate_text(
                 prompt=prompt,
-                allowed_tools=[CREATE_TASK_TOOL],
                 system_prompt=self.prompt_builder.get_system_prompt(
                     tdd_mode=self.config.tdd_mode
                 ),
                 model=self.config.model,
-                max_turns=self.config.max_subtasks + 5,  # Allow extra turns for reasoning
             )
 
-            # Extract created subtask IDs from tool call results
-            subtask_ids = self._extract_subtask_ids(result.tool_calls)
+            logger.debug(f"LLM response (first 500 chars): {response[:500]}")
+
+            # Parse JSON from response
+            subtask_specs = self._parse_subtasks(response)
+            logger.debug(f"Parsed {len(subtask_specs)} subtask specs")
+
+            if not subtask_specs:
+                logger.warning(f"No subtasks parsed from response for {task_id}")
+                return {
+                    "subtask_ids": [],
+                    "subtask_count": 0,
+                    "raw_response": response,
+                    "error": "No subtasks found in response",
+                }
+
+            # Create tasks with dependency wiring
+            subtask_ids = await self._create_subtasks(
+                parent_task_id=task_id,
+                project_id=task_obj.project_id,
+                subtask_specs=subtask_specs,
+            )
 
             logger.info(
                 f"Expansion complete for {task_id}: created {len(subtask_ids)} subtasks"
@@ -140,65 +159,160 @@ class TaskExpander:
 
             return {
                 "subtask_ids": subtask_ids,
-                "tool_calls": len(result.tool_calls),
-                "text": result.text,
+                "subtask_count": len(subtask_ids),
+                "raw_response": response,
             }
 
         except Exception as e:
-            logger.error(f"Failed to expand task {task_id}: {e}", exc_info=True)
-            return {"error": str(e), "subtask_ids": [], "tool_calls": 0}
+            error_msg = str(e) or f"{type(e).__name__}: (no message)"
+            logger.error(f"Failed to expand task {task_id}: {error_msg}", exc_info=True)
+            return {"error": error_msg, "subtask_ids": [], "subtask_count": 0}
 
-    def _extract_subtask_ids(self, tool_calls: list) -> list[str]:
+    def _parse_subtasks(self, response: str) -> list[SubtaskSpec]:
         """
-        Extract created subtask IDs from tool call results.
+        Parse subtask specifications from LLM JSON response.
 
         Args:
-            tool_calls: List of ToolCall objects from generate_with_mcp_tools
+            response: Raw LLM response text (should be JSON)
 
         Returns:
-            List of task IDs created during expansion
+            List of SubtaskSpec objects parsed from the response
         """
-        subtask_ids = []
-        for call in tool_calls:
-            if call.tool_name == CREATE_TASK_TOOL and call.result:
-                try:
-                    # Tool result is JSON string with task details
-                    result_data = json.loads(call.result)
-                    if isinstance(result_data, dict) and "id" in result_data:
-                        subtask_ids.append(result_data["id"])
-                        logger.debug(f"Created subtask: {result_data['id']}")
-                except (json.JSONDecodeError, TypeError) as e:
-                    logger.warning(f"Failed to parse tool result: {call.result[:100]}... - {e}")
-        return subtask_ids
+        # Try to extract JSON from the response
+        json_str = self._extract_json(response)
+        if not json_str:
+            logger.warning("No JSON found in response")
+            return []
 
-    async def _expand_with_text_fallback(
+        try:
+            data = json.loads(json_str)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON: {e}")
+            return []
+
+        # Extract subtasks array
+        subtasks_data = data.get("subtasks", [])
+        if not isinstance(subtasks_data, list):
+            logger.warning(f"Expected 'subtasks' to be a list, got {type(subtasks_data)}")
+            return []
+
+        # Parse each subtask
+        subtask_specs = []
+        for i, item in enumerate(subtasks_data):
+            if not isinstance(item, dict):
+                logger.warning(f"Subtask {i} is not a dict, skipping")
+                continue
+
+            if "title" not in item:
+                logger.warning(f"Subtask {i} missing title, skipping")
+                continue
+
+            spec = SubtaskSpec(
+                title=item["title"],
+                description=item.get("description"),
+                priority=item.get("priority", 2),
+                task_type=item.get("task_type", "task"),
+                test_strategy=item.get("test_strategy"),
+                depends_on=item.get("depends_on"),
+            )
+            subtask_specs.append(spec)
+
+        return subtask_specs
+
+    def _extract_json(self, text: str) -> str | None:
+        """
+        Extract JSON from text, handling markdown code blocks.
+
+        Args:
+            text: Raw text that may contain JSON
+
+        Returns:
+            Extracted JSON string, or None if not found
+        """
+        # Try to find JSON in code blocks first
+        code_block_pattern = r"```(?:json)?\s*\n?([\s\S]*?)\n?```"
+        matches = re.findall(code_block_pattern, text)
+        for match in matches:
+            stripped = match.strip()
+            if stripped.startswith("{"):
+                return stripped
+
+        # Try to find raw JSON object
+        # Look for { ... } pattern
+        brace_start = text.find("{")
+        if brace_start == -1:
+            return None
+
+        # Find matching closing brace
+        depth = 0
+        for i, char in enumerate(text[brace_start:], brace_start):
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[brace_start : i + 1]
+
+        return None
+
+    async def _create_subtasks(
         self,
-        provider: Any,
-        prompt: str,
-        task_id: str,
-    ) -> dict[str, Any]:
+        parent_task_id: str,
+        project_id: str,
+        subtask_specs: list[SubtaskSpec],
+    ) -> list[str]:
         """
-        Fallback expansion using text generation (for non-Claude providers).
+        Create tasks from parsed subtask specifications.
 
-        This method is deprecated and will be removed once all providers
-        support tool-based expansion.
+        Handles dependency wiring by mapping depends_on indices to task IDs.
+
+        Args:
+            parent_task_id: ID of the parent task
+            project_id: Project ID for the new tasks
+            subtask_specs: List of parsed subtask specifications
+
+        Returns:
+            List of created task IDs
         """
-        logger.warning(
-            f"Using text fallback for expansion of {task_id}. "
-            "This approach is deprecated - use Claude provider for tool-based expansion."
-        )
-        response_content = await provider.generate_text(
-            prompt=prompt,
-            system_prompt=self.prompt_builder.get_system_prompt(
-                tdd_mode=self.config.tdd_mode
-            ),
-            model=self.config.model,
-        )
-        # Return raw text - caller will need to handle manually
-        return {
-            "subtask_ids": [],
-            "tool_calls": 0,
-            "text": response_content,
-            "fallback": True,
-        }
+        created_ids: list[str] = []
+        dep_manager = TaskDependencyManager(self.task_manager.db)
+
+        for i, spec in enumerate(subtask_specs):
+            # Build description with test strategy if present
+            description = spec.description or ""
+            if spec.test_strategy:
+                if description:
+                    description += f"\n\n**Test Strategy:** {spec.test_strategy}"
+                else:
+                    description = f"**Test Strategy:** {spec.test_strategy}"
+
+            # Create the task
+            task = self.task_manager.create_task(
+                title=spec.title,
+                description=description if description else None,
+                project_id=project_id,
+                priority=spec.priority,
+                task_type=spec.task_type,
+                parent_task_id=parent_task_id,
+            )
+
+            created_ids.append(task.id)
+            logger.debug(f"Created subtask {task.id}: {spec.title}")
+
+            # Add dependencies (depends_on indices -> this task is blocked by those)
+            if spec.depends_on:
+                for dep_idx in spec.depends_on:
+                    if 0 <= dep_idx < len(created_ids) - 1:  # -1 because current task is already added
+                        blocker_id = created_ids[dep_idx]
+                        try:
+                            dep_manager.add_dependency(task.id, blocker_id, "blocks")
+                            logger.debug(f"Added dependency: {task.id} blocked by {blocker_id}")
+                        except Exception as e:
+                            logger.warning(f"Failed to add dependency: {e}")
+                    else:
+                        logger.warning(
+                            f"Subtask {i} references invalid index {dep_idx}, skipping dependency"
+                        )
+
+        return created_ids
 

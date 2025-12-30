@@ -19,6 +19,7 @@ from claude_agent_sdk import (
     ToolResultBlock,
     ToolUseBlock,
     UserMessage,
+    create_sdk_mcp_server,
     query,
 )
 
@@ -436,6 +437,7 @@ class ClaudeLLMProvider(LLMProvider):
         system_prompt: str | None = None,
         model: str | None = None,
         max_turns: int = 10,
+        tool_functions: dict[str, list] | None = None,
     ) -> MCPToolResult:
         """
         Generate text with access to MCP tools.
@@ -451,6 +453,9 @@ class ClaudeLLMProvider(LLMProvider):
             system_prompt: Optional system prompt.
             model: Optional model override (default: claude-sonnet-4-5).
             max_turns: Maximum number of agentic turns (default: 10).
+            tool_functions: Optional dict mapping server names to lists of tool
+                functions for in-process MCP servers. Example:
+                {"gobby-tasks": [create_task_func, update_task_func]}
 
         Returns:
             MCPToolResult containing final text and list of tool calls made.
@@ -459,7 +464,8 @@ class ClaudeLLMProvider(LLMProvider):
             >>> result = await provider.generate_with_mcp_tools(
             ...     prompt="Create a task called 'Fix bug'",
             ...     allowed_tools=["mcp__gobby-tasks__create_task"],
-            ...     system_prompt="You are a task manager."
+            ...     system_prompt="You are a task manager.",
+            ...     tool_functions={"gobby-tasks": [create_task]}
             ... )
             >>> print(result.text)
             >>> for call in result.tool_calls:
@@ -472,6 +478,35 @@ class ClaudeLLMProvider(LLMProvider):
                 tool_calls=[],
             )
 
+        # Build mcp_servers config
+        # Can be a dict of server configs OR a path to .mcp.json file
+        from pathlib import Path
+
+        mcp_servers_config: dict[str, Any] | str | None = None
+
+        # Add in-process tool functions if provided
+        if tool_functions:
+            mcp_servers_config = {}
+            for server_name, tools in tool_functions.items():
+                mcp_servers_config[server_name] = create_sdk_mcp_server(
+                    name=server_name,
+                    tools=tools,
+                )
+
+        # If no tool_functions provided but we have allowed gobby tools,
+        # use the .mcp.json config file (avoids in-process config issues)
+        if not tool_functions and any("gobby" in t for t in allowed_tools):
+            # Look for .mcp.json in the current working directory or gobby project
+            cwd_config = Path.cwd() / ".mcp.json"
+            if cwd_config.exists():
+                mcp_servers_config = str(cwd_config)
+            else:
+                # Try the gobby project root
+                gobby_root = Path(__file__).parent.parent.parent.parent
+                gobby_config = gobby_root / ".mcp.json"
+                if gobby_config.exists():
+                    mcp_servers_config = str(gobby_config)
+
         # Configure Claude Agent SDK with MCP tools
         options = ClaudeAgentOptions(
             system_prompt=system_prompt or "You are a helpful assistant with access to MCP tools.",
@@ -480,6 +515,7 @@ class ClaudeLLMProvider(LLMProvider):
             allowed_tools=allowed_tools,
             permission_mode="bypassPermissions",
             cli_path=cli_path,
+            mcp_servers=mcp_servers_config,
         )
 
         # Track tool calls and results
@@ -541,8 +577,18 @@ class ClaudeLLMProvider(LLMProvider):
         try:
             final_text = await _run_query()
             return MCPToolResult(text=final_text, tool_calls=tool_calls)
+        except ExceptionGroup as eg:
+            # Handle Python 3.11+ ExceptionGroup from TaskGroup
+            errors = []
+            for exc in eg.exceptions:
+                errors.append(f"{type(exc).__name__}: {exc}")
+                self.logger.error(f"TaskGroup sub-exception: {type(exc).__name__}: {exc}")
+            return MCPToolResult(
+                text=f"Generation failed: {'; '.join(errors)}",
+                tool_calls=tool_calls,
+            )
         except Exception as e:
-            self.logger.error(f"Failed to generate with MCP tools: {e}")
+            self.logger.error(f"Failed to generate with MCP tools: {e}", exc_info=True)
             return MCPToolResult(
                 text=f"Generation failed: {e}",
                 tool_calls=tool_calls,

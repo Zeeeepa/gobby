@@ -62,8 +62,8 @@ uv run mypy src/
 
 - `src/servers/http.py` - FastAPI HTTP server with REST endpoints and MCP server
 - `src/servers/websocket.py` - WebSocket server for real-time communication
-- `src/mcp_proxy/server.py` - FastMCP server with daemon control tools (status, call_tool, list_tools, etc.)
-- `src/mcp_proxy/stdio.py` - Stdio MCP server wrapper
+- `src/mcp_proxy/server.py` - FastMCP server with MCP proxy tools (call_tool, list_tools, get_tool_schema, etc.)
+- `src/mcp_proxy/stdio.py` - Stdio MCP server for Claude Code (proxies to HTTP daemon)
 
 **MCP Proxy & Internal Tools:**
 

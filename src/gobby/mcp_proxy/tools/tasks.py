@@ -841,8 +841,8 @@ def create_task_registry(
         func=close_task,
     )
 
-    def delete_task(task_id: str, cascade: bool = False) -> dict[str, Any]:
-        """Delete a task."""
+    def delete_task(task_id: str, cascade: bool = True) -> dict[str, Any]:
+        """Delete a task and its children by default."""
         success = task_manager.delete_task(task_id, cascade=cascade)
         if not success:
             return {"error": f"Task {task_id} not found"}
@@ -857,8 +857,8 @@ def create_task_registry(
                 "task_id": {"type": "string", "description": "Task ID"},
                 "cascade": {
                     "type": "boolean",
-                    "description": "If True, delete all child tasks as well.",
-                    "default": False,
+                    "description": "If True, delete all child tasks as well. Defaults to True.",
+                    "default": True,
                 },
             },
             "required": ["task_id"],

@@ -68,7 +68,8 @@ class DaemonProxy:
         except httpx.ConnectError:
             return {"success": False, "error": "Daemon not running or not reachable"}
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            error_msg = str(e) or f"{type(e).__name__}: (no message)"
+            return {"success": False, "error": error_msg}
 
     async def get_status(self) -> dict[str, Any]:
         """Get daemon status."""
@@ -96,11 +97,25 @@ class DaemonProxy:
     async def call_tool(
         self, server_name: str, tool_name: str, arguments: dict[str, Any] | None = None
     ) -> dict[str, Any]:
-        """Call a tool on an MCP server."""
+        # Tool-specific timeouts
+        config = load_config()
+        # Default to standard timeout
+        timeout = 30.0
+        # Check for tool-specific override in config
+        if (
+            config.mcp_client_proxy.tool_timeouts
+            and tool_name in config.mcp_client_proxy.tool_timeouts
+        ):
+            timeout = config.mcp_client_proxy.tool_timeouts[tool_name]
+        # Fallback for expand_task if not explicit in config (backward compatibility/safety)
+        elif tool_name == "expand_task":
+            timeout = 300.0
+
         return await self._request(
             "POST",
             f"/mcp/{server_name}/tools/{tool_name}",
             json=arguments or {},
+            timeout=timeout,
         )
 
     async def get_tool_schema(self, server_name: str, tool_name: str) -> dict[str, Any]:
@@ -173,6 +188,36 @@ class DaemonProxy:
         """Initialize a project - not available via stdio."""
         return {"status": "error", "error": "init_project not available via stdio proxy"}
 
+    async def execute_code(
+        self,
+        code: str,
+        language: str = "python",
+        context: str | None = None,
+        timeout: int = 30,
+    ) -> dict[str, Any]:
+        """Execute code via the daemon."""
+        return await self._request(
+            "POST",
+            "/code/execute",
+            json={"code": code, "language": language, "context": context, "timeout": timeout},
+            timeout=float(timeout) + 10,  # Add buffer for HTTP overhead
+        )
+
+    async def process_large_dataset(
+        self,
+        data: Any,
+        operation: str,
+        parameters: dict[str, Any] | None = None,
+        timeout: int = 60,
+    ) -> dict[str, Any]:
+        """Process large dataset via the daemon."""
+        return await self._request(
+            "POST",
+            "/code/process-dataset",
+            json={"data": data, "operation": operation, "parameters": parameters, "timeout": timeout},
+            timeout=float(timeout) + 10,
+        )
+
 
 def create_stdio_mcp_server() -> FastMCP:
     """Create stdio MCP server."""
@@ -190,106 +235,6 @@ def create_stdio_mcp_server() -> FastMCP:
     # Initialize MCP server and daemon proxy
     mcp = FastMCP("gobby")
     proxy = DaemonProxy(config.daemon_port)
-
-    # --- Daemon Lifecycle Tools ---
-
-    @mcp.tool()
-    async def start() -> dict[str, Any]:
-        """
-        Start the Gobby daemon.
-
-        Use this when the daemon is not running and you need to start it.
-        The daemon provides access to Claude Code sessions, MCP servers, and Gobby platform features.
-
-        Returns:
-            Result with success status, PID, health check status, and formatted status message
-        """
-        result = await start_daemon_process(config.daemon_port, config.websocket.port)
-        if result.get("success"):
-            # Check health after start
-            healthy = await check_daemon_http_health(config.daemon_port)
-            return {
-                "success": True,
-                "pid": result.get("pid"),
-                "healthy": healthy,
-                "formatted_message": f"Daemon started with PID {result.get('pid')}",
-            }
-        return result
-
-    @mcp.tool()
-    async def stop() -> dict[str, Any]:
-        """
-        Stop the Gobby daemon.
-
-        Use this to gracefully shut down the daemon process.
-        WARNING: After stopping, MCP tools that require the daemon will not work until you call start().
-
-        Returns:
-            Result with success status and message
-        """
-        result = await stop_daemon_process()
-        return result
-
-    @mcp.tool()
-    async def restart() -> dict[str, Any]:
-        """
-        Restart the Gobby daemon.
-
-        Use this to apply configuration changes or recover from errors.
-        The daemon will be stopped and then started with a fresh process.
-
-        Returns:
-            Result with success status, new PID, and health check status
-        """
-        pid = get_daemon_pid()
-        result = await restart_daemon_process(pid, config.daemon_port, config.websocket.port)
-        if result.get("success"):
-            healthy = await check_daemon_http_health(config.daemon_port)
-            return {
-                "success": True,
-                "pid": result.get("pid"),
-                "healthy": healthy,
-            }
-        return result
-
-    @mcp.tool()
-    async def status() -> dict[str, Any]:
-        """
-        Get comprehensive daemon status and health information.
-
-        Use this to check if the daemon is running and healthy before performing operations.
-        Always call this first when troubleshooting issues.
-
-        Returns:
-            Daemon status dictionary with running, pid, healthy, and port information
-        """
-        pid = get_daemon_pid()
-        healthy = await check_daemon_http_health(config.daemon_port)
-
-        # Get detailed status from daemon if running
-        daemon_details = None
-        if healthy:
-            result = await proxy.get_status()
-            # Only accept explicitly successful responses (not error responses)
-            if result.get("success") is False or result.get("status") == "error":
-                logger.warning(
-                    "Failed to get daemon details: %s",
-                    result.get("error", "unknown error"),
-                )
-            else:
-                daemon_details = result
-
-        return {
-            "running": pid is not None,
-            "pid": pid,
-            "healthy": healthy,
-            "http_port": config.daemon_port,
-            "websocket_port": config.websocket.port,
-            "daemon_details": daemon_details,
-            "formatted_message": _format_status_message(
-                pid, healthy, config.daemon_port, config.websocket.port
-            ),
-        }
 
     # --- MCP Server Management Tools ---
 
@@ -471,32 +416,6 @@ def create_stdio_mcp_server() -> FastMCP:
     return mcp
 
 
-def _format_status_message(pid: int | None, healthy: bool, http_port: int, ws_port: int) -> str:
-    """Format a human-readable status message."""
-    lines = [
-        "=" * 70,
-        "GOBBY DAEMON STATUS",
-        "=" * 70,
-        "",
-        f"Status: {'Running' if pid else 'Not Running'}",
-    ]
-    if pid:
-        lines.extend(
-            [
-                f"  PID: {pid}",
-                "  PID file: ~/.gobby/gobby.pid",
-                "  Log files: ~/.gobby/logs",
-                "",
-                "Server Configuration:",
-                f"  HTTP Port: {http_port}",
-                f"  WebSocket Port: {ws_port}",
-            ]
-        )
-    lines.append("")
-    lines.append("=" * 70)
-    return "\n".join(lines)
-
-
 async def ensure_daemon_running() -> None:
     """Ensure the Gobby daemon is running and healthy."""
     config = load_config()
@@ -527,7 +446,7 @@ async def ensure_daemon_running() -> None:
 
     # Wait for health
     last_health_response = None
-    for i in range(10):
+    for _i in range(10):
         last_health_response = await check_daemon_http_health(port)
         if last_health_response:
             return

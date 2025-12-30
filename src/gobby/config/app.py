@@ -315,6 +315,10 @@ class MCPClientProxyConfig(BaseModel):
         default=30,
         description="Timeout in seconds for tool schema operations",
     )
+    tool_timeouts: dict[str, float] = Field(
+        default_factory=dict,
+        description="Map of tool names to specific timeouts in seconds",
+    )
 
     @field_validator("connect_timeout")
     @classmethod
