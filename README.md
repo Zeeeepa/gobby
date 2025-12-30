@@ -120,6 +120,8 @@ url = "http://localhost:8765/mcp"
 | `gobby skills list` | List learned skills |
 | `gobby skills learn` | Learn skills from a session |
 | `gobby skills export` | Export skills to markdown files |
+| `gobby mcp-proxy search-tools` | Semantic search for tools |
+| `gobby mcp-proxy recommend-tools` | Get tool recommendations (with `--mode` option) |
 
 ## MCP Tools
 
@@ -148,9 +150,11 @@ The daemon exposes tools via MCP that can be used by Claude Code and other MCP c
 - `execute_code(code)` - Run Python in Claude's sandbox
 - `process_large_dataset(data, operation)` - Token-optimized data processing
 
-### AI-Powered
+### AI-Powered Tool Discovery
 
-- `recommend_tools(task_description)` - Get intelligent tool recommendations
+- `recommend_tools(task_description, search_mode?)` - Get intelligent tool recommendations
+  - `search_mode`: `llm` (default), `semantic`, or `hybrid`
+- `search_tools(query, top_k?, min_similarity?, server?)` - Semantic similarity search over tools
 
 ### Internal Tools (via Proxy)
 
@@ -454,13 +458,14 @@ See [ROADMAP.md](ROADMAP.md) for the full implementation plan with sprint orderi
 | **WebSocket Broadcasting** | Real-time hook event streaming to connected clients | [HOOK_EXTENSIONS.md](docs/plans/HOOK_EXTENSIONS.md) |
 | **Memory System** | Persistent memory with remember/recall/forget operations, JSONL sync | [MEMORY.md](docs/plans/MEMORY.md) |
 | **Skill Learning** | Extract skills from sessions via LLM, trigger matching, auto-apply | [MEMORY.md](docs/plans/MEMORY.md) |
+| **Semantic Tool Search** | Embeddings-based tool discovery with OpenAI, hybrid recommend_tools | [MCP_PROXY_IMPROVEMENTS.md](docs/plans/MCP_PROXY_IMPROVEMENTS.md) |
 
 ### Planned Features
 
 | Feature | Description | Plan |
 |---------|-------------|------|
 | **Webhooks & Plugins** | HTTP callouts, Python plugin system | [HOOK_EXTENSIONS.md](docs/plans/HOOK_EXTENSIONS.md) |
-| **Smart MCP Proxy** | Tool metrics, semantic search, self-healing | [MCP_PROXY_IMPROVEMENTS.md](docs/plans/MCP_PROXY_IMPROVEMENTS.md) |
+| **Tool Metrics & Self-Healing** | Track tool success rates, suggest alternatives on failure | [MCP_PROXY_IMPROVEMENTS.md](docs/plans/MCP_PROXY_IMPROVEMENTS.md) |
 
 ### Milestones
 
@@ -468,7 +473,7 @@ See [ROADMAP.md](ROADMAP.md) for the full implementation plan with sprint orderi
 2. **Workflow Engine** — ✅ Context sources, Jinja2 templating, 7 built-in workflow templates
 3. **Memory-First Agents** — ✅ Persistent memory, skill learning, MCP tools, CLI, and JSONL sync
 4. **Extensible Gobby** — Webhooks and Python plugin system
-5. **Smart MCP Proxy** — Intelligent tool orchestration
+5. **Smart MCP Proxy** — 🔶 Semantic tool search complete; tool metrics and self-healing pending
 6. **Production Ready** — Full integration and documentation
 
 ## License

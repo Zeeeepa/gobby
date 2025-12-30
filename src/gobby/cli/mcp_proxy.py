@@ -45,10 +45,11 @@ def call_mcp_api(
     endpoint: str,
     method: str = "POST",
     json_data: dict[str, Any] | None = None,
+    timeout: float = 30.0,
 ) -> dict[str, Any] | None:
     """Call MCP API endpoint and handle errors."""
     try:
-        response = client.call_http_api(endpoint, method=method, json_data=json_data)
+        response = client.call_http_api(endpoint, method=method, json_data=json_data, timeout=timeout)
         if response.status_code == 200:
             return cast(dict[str, Any], response.json())
         else:
@@ -362,20 +363,34 @@ def remove_server(ctx: click.Context, name: str) -> None:
 @mcp_proxy.command("recommend-tools")
 @click.argument("task_description")
 @click.option("--agent", "-a", "agent_id", help="Agent ID for filtered recommendations")
+@click.option(
+    "--mode",
+    "-m",
+    "search_mode",
+    type=click.Choice(["llm", "semantic", "hybrid"]),
+    default="llm",
+    help="Search mode: llm (default), semantic, or hybrid",
+)
+@click.option("--top-k", "-k", type=int, default=10, help="Max results (semantic/hybrid)")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 @click.pass_context
 def recommend_tools(
     ctx: click.Context,
     task_description: str,
     agent_id: str | None,
+    search_mode: str,
+    top_k: int,
     json_format: bool,
 ) -> None:
     """Get AI-powered tool recommendations for a task.
 
     Examples:
         gobby mcp-proxy recommend-tools "I need to query a database"
+        gobby mcp-proxy recommend-tools "Search for files" --mode semantic
         gobby mcp-proxy recommend-tools "Search for documentation" --agent my-agent
     """
+    import os
+
     client = get_daemon_client(ctx)
     if not check_daemon_running(client):
         sys.exit(1)
@@ -387,7 +402,11 @@ def recommend_tools(
         json_data={
             "task_description": task_description,
             "agent_id": agent_id,
+            "search_mode": search_mode,
+            "top_k": top_k,
+            "cwd": os.getcwd(),
         },
+        timeout=120.0,  # LLM/embedding generation can be slow
     )
     if result is None:
         sys.exit(1)
@@ -409,6 +428,72 @@ def recommend_tools(
         click.echo(f"  • {server}/{tool}")
         if reason:
             click.echo(f"    {reason}")
+
+
+@mcp_proxy.command("search-tools")
+@click.argument("query")
+@click.option("--top-k", "-k", type=int, default=10, help="Max results to return")
+@click.option("--min-similarity", "-s", type=float, default=0.0, help="Min similarity threshold")
+@click.option("--server", help="Filter by server name")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+@click.pass_context
+def search_tools(
+    ctx: click.Context,
+    query: str,
+    top_k: int,
+    min_similarity: float,
+    server: str | None,
+    json_format: bool,
+) -> None:
+    """Search for tools using semantic similarity.
+
+    Examples:
+        gobby mcp-proxy search-tools "query a database"
+        gobby mcp-proxy search-tools "search files" --top-k 5
+    """
+    import os
+
+    client = get_daemon_client(ctx)
+    if not check_daemon_running(client):
+        sys.exit(1)
+
+    result = call_mcp_api(
+        client,
+        "/mcp/tools/search",
+        method="POST",
+        json_data={
+            "query": query,
+            "top_k": top_k,
+            "min_similarity": min_similarity,
+            "server": server,
+            "cwd": os.getcwd(),
+        },
+        timeout=120.0,  # Embedding generation can be slow
+    )
+    if result is None:
+        sys.exit(1)
+
+    if json_format:
+        click.echo(json.dumps(result, indent=2))
+        return
+
+    results = result.get("results", [])
+    if not results:
+        click.echo("No matching tools found.")
+        return
+
+    click.echo(f"Found {len(results)} tools matching '{query}':")
+    for r in results:
+        server_name = r.get("server_name", "unknown")
+        tool_name = r.get("tool_name", "unknown")
+        similarity = r.get("similarity", 0)
+        desc = r.get("description", "")
+        click.echo(f"  • {server_name}/{tool_name} (similarity: {similarity:.2%})")
+        if desc:
+            # Truncate long descriptions
+            if len(desc) > 80:
+                desc = desc[:77] + "..."
+            click.echo(f"    {desc}")
 
 
 @mcp_proxy.command("import-server")

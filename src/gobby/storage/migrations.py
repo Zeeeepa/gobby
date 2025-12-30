@@ -453,6 +453,29 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         ALTER TABLE sessions ADD COLUMN compact_markdown TEXT;
         """,
     ),
+    (
+        21,
+        "Create tool_embeddings table for semantic search",
+        """
+        CREATE TABLE IF NOT EXISTS tool_embeddings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tool_id TEXT NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
+            server_name TEXT NOT NULL,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            embedding BLOB NOT NULL,
+            embedding_model TEXT NOT NULL,
+            embedding_dim INTEGER NOT NULL,
+            text_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(tool_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_tool_embeddings_tool ON tool_embeddings(tool_id);
+        CREATE INDEX IF NOT EXISTS idx_tool_embeddings_server ON tool_embeddings(server_name);
+        CREATE INDEX IF NOT EXISTS idx_tool_embeddings_project ON tool_embeddings(project_id);
+        CREATE INDEX IF NOT EXISTS idx_tool_embeddings_hash ON tool_embeddings(text_hash);
+        """,
+    ),
 ]
 
 

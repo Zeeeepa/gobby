@@ -248,11 +248,12 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 14: Semantic Tool Search                                              │
+│ Sprint 14: Semantic Tool Search ✅ COMPLETED                                 │
 │ MCP_PROXY_IMPROVEMENTS Phase 3                                               │
 │                                                                              │
 │ Deliverable: Embeddings-based tool search, hybrid recommend_tools           │
 │ Dependencies: Sprint 12                                                      │
+│ Done: SemanticToolSearch, search_tools MCP/CLI, recommend_tools modes       │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -323,7 +324,7 @@ This document defines the implementation order across all Gobby planning documen
 | 11 | Workflow-Task Integration | TASKS Phases 11-13 | Sprints 3, 7 | Pending |
 | 12 | Tool Metrics | MCP_PROXY Phase 1 | None | Pending |
 | 13 | Lazy Init | MCP_PROXY Phase 2 | None | Pending |
-| 14 | Semantic Search | MCP_PROXY Phase 3 | Sprint 12 | Pending |
+| 14 | Semantic Search | MCP_PROXY Phase 3 | Sprint 12 | ✅ Completed |
 | 15 | Self-Healing | MCP_PROXY Phases 4-5 | Sprint 14 | Pending |
 | 16 | Hook Workflow Integration | HOOK_EXTENSIONS Phases 4-5 | Sprints 7, 9 | Pending |
 | 17 | Testing & Recovery | WORKFLOWS Phases 9-11 | Sprint 10 | Pending |
@@ -401,12 +402,14 @@ Sprints 7.1 → 7.2 → 7.3 → 7.4 → 7.5 → 7.6 → 7.7 → 7.8 (Session Tra
 - Python plugin system
 - **Value**: Infinite customization without forking
 
-### Milestone 5: "Smart MCP Proxy" (Sprints 12-15)
+### Milestone 5: "Smart MCP Proxy" (Sprints 12-15) 🔶 PARTIAL
 
-- Tool metrics and recommendations
-- Semantic search
-- Self-healing fallbacks
+- [ ] Tool metrics and recommendations (Sprint 12)
+- [ ] Lazy server initialization (Sprint 13)
+- [x] Semantic search with OpenAI embeddings (Sprint 14) ✅
+- [ ] Self-healing fallbacks (Sprint 15)
 - **Value**: Intelligent tool orchestration across MCP servers
+- **Done**: `search_tools` MCP/CLI, `recommend_tools` with semantic/hybrid/llm modes
 
 ### Milestone 6: "Production Ready" (Sprints 16-18)
 

@@ -10,7 +10,7 @@ from mcp.server.fastmcp import FastMCP
 from gobby.config.app import DaemonConfig
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.mcp_proxy.services.code_execution import CodeExecutionService
-from gobby.mcp_proxy.services.recommendation import RecommendationService
+from gobby.mcp_proxy.services.recommendation import RecommendationService, SearchMode
 from gobby.mcp_proxy.services.server_mgmt import ServerManagementService
 from gobby.mcp_proxy.services.system import SystemService
 from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
@@ -34,9 +34,12 @@ class GobbyDaemonTools:
         memory_manager: Any | None = None,
         skill_learner: Any | None = None,
         config_manager: Any | None = None,
+        semantic_search: Any | None = None,
     ):
         self.config = config
         self.internal_manager = internal_manager
+        self._mcp_manager = mcp_manager  # Store for project_id access
+        self._semantic_search = semantic_search  # Store for direct search access
 
         # Initialize services
         self.system_service = SystemService(mcp_manager, daemon_port, websocket_port, start_time)
@@ -46,7 +49,12 @@ class GobbyDaemonTools:
         )
         self.server_mgmt = ServerManagementService(mcp_manager, config_manager, config)
         self.code_execution = CodeExecutionService(llm_service=llm_service, config=config)
-        self.recommendation = RecommendationService(llm_service, mcp_manager)
+        self.recommendation = RecommendationService(
+            llm_service,
+            mcp_manager,
+            semantic_search=semantic_search,
+            project_id=mcp_manager.project_id,
+        )
 
     # --- System Tools ---
 
@@ -152,10 +160,86 @@ class GobbyDaemonTools:
     # --- Recommendation ---
 
     async def recommend_tools(
-        self, task_description: str, agent_id: str | None = None
+        self,
+        task_description: str,
+        agent_id: str | None = None,
+        search_mode: SearchMode = "llm",
+        top_k: int = 10,
+        min_similarity: float = 0.3,
     ) -> dict[str, Any]:
-        """Recommend tools."""
-        return await self.recommendation.recommend_tools(task_description, agent_id)
+        """Recommend tools for a task.
+
+        Args:
+            task_description: What the user wants to accomplish
+            agent_id: Optional agent profile for filtering (reserved)
+            search_mode: How to search - "llm" (default), "semantic", or "hybrid"
+            top_k: Maximum recommendations to return (semantic/hybrid modes)
+            min_similarity: Minimum similarity threshold (semantic/hybrid modes)
+
+        Returns:
+            Dict with tool recommendations
+        """
+        return await self.recommendation.recommend_tools(
+            task_description,
+            agent_id=agent_id,
+            search_mode=search_mode,
+            top_k=top_k,
+            min_similarity=min_similarity,
+        )
+
+    # --- Semantic Search ---
+
+    async def search_tools(
+        self,
+        query: str,
+        top_k: int = 10,
+        min_similarity: float = 0.0,
+        server: str | None = None,
+    ) -> dict[str, Any]:
+        """Search for tools using semantic similarity.
+
+        Args:
+            query: Natural language query describing the tool you need
+            top_k: Maximum number of results to return (default: 10)
+            min_similarity: Minimum similarity threshold (default: 0.0)
+            server: Optional server name to filter results
+
+        Returns:
+            Dict with search results and metadata
+        """
+        if not self._semantic_search:
+            return {
+                "success": False,
+                "error": "Semantic search not configured",
+                "query": query,
+            }
+
+        project_id = self._mcp_manager.project_id
+        if not project_id:
+            return {
+                "success": False,
+                "error": "No project_id available. Run 'gobby init' first.",
+                "query": query,
+            }
+
+        try:
+            results = await self._semantic_search.search_tools(
+                query=query,
+                project_id=project_id,
+                top_k=top_k,
+                min_similarity=min_similarity,
+                server_filter=server,
+            )
+
+            return {
+                "success": True,
+                "query": query,
+                "results": [r.to_dict() for r in results],
+                "total_results": len(results),
+            }
+        except Exception as e:
+            logger.error(f"Semantic search failed: {e}")
+            return {"success": False, "error": str(e), "query": query}
 
 
 def create_mcp_server(tools_handler: GobbyDaemonTools) -> FastMCP:
@@ -184,5 +268,8 @@ def create_mcp_server(tools_handler: GobbyDaemonTools) -> FastMCP:
 
     # Recommendation
     mcp.add_tool(tools_handler.recommend_tools)
+
+    # Semantic Search
+    mcp.add_tool(tools_handler.search_tools)
 
     return mcp

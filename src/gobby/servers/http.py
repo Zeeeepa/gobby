@@ -25,6 +25,7 @@ from gobby.hooks.broadcaster import HookEventBroadcaster
 from gobby.hooks.hook_manager import HookManager
 from gobby.llm import LLMService, create_llm_service
 from gobby.mcp_proxy.registries import setup_internal_registries
+from gobby.mcp_proxy.semantic_search import SemanticToolSearch
 from gobby.mcp_proxy.server import GobbyDaemonTools, create_mcp_server
 from gobby.mcp_proxy.services.code_execution import CodeExecutionService
 from gobby.memory.manager import MemoryManager
@@ -154,6 +155,8 @@ class HTTPServer:
         # Create MCP server instance
         self._mcp_server = None
         self._internal_manager = None
+        self._tools_handler = None
+        self._mcp_db_manager = mcp_db_manager
         if mcp_manager:
             # Determine WebSocket port
             ws_port = 8766
@@ -178,8 +181,14 @@ class HTTPServer:
             registry_count = len(self._internal_manager)
             logger.debug(f"Internal registries initialized: {registry_count} registries")
 
+            # Create semantic search instance if db available
+            semantic_search = None
+            if mcp_db_manager:
+                semantic_search = SemanticToolSearch(db=mcp_db_manager.db)
+                logger.debug("Semantic tool search initialized")
+
             # Create tools handler
-            tools_handler = GobbyDaemonTools(
+            self._tools_handler = GobbyDaemonTools(
                 mcp_manager=mcp_manager,
                 daemon_port=port,
                 websocket_port=ws_port,
@@ -191,8 +200,9 @@ class HTTPServer:
                 memory_manager=memory_manager,
                 skill_learner=skill_learner,
                 config_manager=mcp_db_manager,
+                semantic_search=semantic_search,
             )
-            self._mcp_server = create_mcp_server(tools_handler)
+            self._mcp_server = create_mcp_server(self._tools_handler)
             logger.debug("MCP server initialized and will be mounted at /mcp")
 
         self.app = self._create_app()
@@ -1549,7 +1559,11 @@ class HTTPServer:
             Request body:
                 {
                     "task_description": "I need to query a database",
-                    "agent_id": "optional-agent-id"
+                    "agent_id": "optional-agent-id",
+                    "search_mode": "llm" | "semantic" | "hybrid",
+                    "top_k": 10,
+                    "min_similarity": 0.3,
+                    "cwd": "/path/to/project"
                 }
 
             Returns:
@@ -1561,76 +1575,49 @@ class HTTPServer:
             try:
                 body = await request.json()
                 task_description = body.get("task_description")
-                # agent_id can be used for filtered recommendations (future enhancement)
-                _ = body.get("agent_id")
+                agent_id = body.get("agent_id")
+                search_mode = body.get("search_mode", "llm")
+                top_k = body.get("top_k", 10)
+                min_similarity = body.get("min_similarity", 0.3)
+                cwd = body.get("cwd")
 
                 if not task_description:
                     raise HTTPException(status_code=400, detail="Required field: task_description")
 
-                # Use LLM service for recommendations if available
-                recommendations = []
-                if self.llm_service and self.mcp_manager:
+                # For semantic/hybrid modes, resolve project_id from cwd
+                if search_mode in ("semantic", "hybrid"):
                     try:
-                        # Collect available tools
-                        available_tools: list[dict[str, str]] = []
+                        project_id = self._resolve_project_id(None, cwd)
+                        # Temporarily set project_id on the recommendation service
+                        if self._tools_handler:
+                            self._tools_handler.recommendation._project_id = project_id
+                    except ValueError as e:
+                        return {
+                            "success": False,
+                            "error": str(e),
+                            "task": task_description,
+                            "response_time_ms": (time.perf_counter() - start_time) * 1000,
+                        }
 
-                        # Internal tools
-                        if self._internal_manager:
-                            for registry in self._internal_manager.get_all_registries():
-                                for tool in registry.list_tools():
-                                    available_tools.append(
-                                        {
-                                            "server": registry.name,
-                                            "name": tool.get("name") or "",
-                                            "description": tool.get("description", "") or "",
-                                        }
-                                    )
+                # Use tools handler if available
+                if self._tools_handler:
+                    result = await self._tools_handler.recommend_tools(
+                        task_description=task_description,
+                        agent_id=agent_id,
+                        search_mode=search_mode,
+                        top_k=top_k,
+                        min_similarity=min_similarity,
+                    )
+                    response_time_ms = (time.perf_counter() - start_time) * 1000
+                    result["response_time_ms"] = response_time_ms
+                    return result
 
-                        # External MCP tools
-                        for config in self.mcp_manager.server_configs:
-                            if config.name in self.mcp_manager.connections:
-                                try:
-                                    connection = self.mcp_manager.connections[config.name]
-                                    if connection.is_connected and connection._session:
-                                        tools_result = await connection._session.list_tools()
-                                        for t in tools_result.tools:
-                                            available_tools.append(
-                                                {
-                                                    "server": config.name,
-                                                    "name": t.name,
-                                                    "description": getattr(t, "description", "")
-                                                    or "",
-                                                }
-                                            )
-                                except Exception:
-                                    pass
-
-                        # Simple keyword matching for now (LLM-based matching can be added)
-                        task_lower = task_description.lower()
-                        for tool in available_tools:
-                            tool_text = f"{tool['name']} {tool['description']}".lower()
-                            # Check for keyword overlap
-                            task_words = set(task_lower.split())
-                            tool_words = set(tool_text.split())
-                            if task_words & tool_words:
-                                desc = tool["description"]
-                                reason = desc[:100] if desc else "Keyword match"
-                                recommendations.append(
-                                    {
-                                        "server": tool["server"],
-                                        "tool": tool["name"],
-                                        "reason": reason,
-                                    }
-                                )
-
-                    except Exception as e:
-                        logger.warning(f"Tool recommendation failed: {e}")
-
-                response_time_ms = (time.perf_counter() - start_time) * 1000
-
+                # Fallback: no tools handler
                 return {
-                    "recommendations": recommendations[:10],  # Limit to 10
-                    "response_time_ms": response_time_ms,
+                    "success": False,
+                    "error": "Tools handler not initialized",
+                    "recommendations": [],
+                    "response_time_ms": (time.perf_counter() - start_time) * 1000,
                 }
 
             except HTTPException:
@@ -1638,6 +1625,169 @@ class HTTPServer:
             except Exception as e:
                 self._metrics.inc_counter("http_requests_errors_total")
                 logger.error(f"Recommend tools error: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e)) from e
+
+        @app.post("/mcp/tools/search")
+        async def search_mcp_tools(request: Request) -> dict[str, Any]:
+            """
+            Search for tools using semantic similarity.
+
+            Request body:
+                {
+                    "query": "create a file",
+                    "top_k": 10,
+                    "min_similarity": 0.0,
+                    "server": "optional-server-filter",
+                    "cwd": "/path/to/project"
+                }
+
+            Returns:
+                List of matching tools with similarity scores
+            """
+            start_time = time.perf_counter()
+            self._metrics.inc_counter("http_requests_total")
+
+            try:
+                body = await request.json()
+                query = body.get("query")
+                top_k = body.get("top_k", 10)
+                min_similarity = body.get("min_similarity", 0.0)
+                server = body.get("server")
+                cwd = body.get("cwd")
+
+                if not query:
+                    raise HTTPException(status_code=400, detail="Required field: query")
+
+                # Resolve project_id from cwd
+                try:
+                    project_id = self._resolve_project_id(None, cwd)
+                except ValueError as e:
+                    return {
+                        "success": False,
+                        "error": str(e),
+                        "query": query,
+                        "response_time_ms": (time.perf_counter() - start_time) * 1000,
+                    }
+
+                # Use semantic search directly if available
+                if self._tools_handler and self._tools_handler._semantic_search:
+                    try:
+                        semantic_search = self._tools_handler._semantic_search
+
+                        # Auto-generate embeddings if none exist
+                        existing = semantic_search.get_embeddings_for_project(project_id)
+                        if not existing and self._mcp_db_manager:
+                            logger.info(f"No embeddings for project {project_id}, generating...")
+                            await semantic_search.embed_all_tools(
+                                project_id=project_id,
+                                mcp_manager=self._mcp_db_manager,
+                                force=False,
+                            )
+
+                        results = await semantic_search.search_tools(
+                            query=query,
+                            project_id=project_id,
+                            top_k=top_k,
+                            min_similarity=min_similarity,
+                            server_filter=server,
+                        )
+                        response_time_ms = (time.perf_counter() - start_time) * 1000
+                        return {
+                            "success": True,
+                            "query": query,
+                            "results": [r.to_dict() for r in results],
+                            "total_results": len(results),
+                            "response_time_ms": response_time_ms,
+                        }
+                    except Exception as e:
+                        logger.error(f"Semantic search failed: {e}")
+                        return {
+                            "success": False,
+                            "error": str(e),
+                            "query": query,
+                            "response_time_ms": (time.perf_counter() - start_time) * 1000,
+                        }
+
+                # Fallback: no semantic search
+                return {
+                    "success": False,
+                    "error": "Semantic search not configured",
+                    "results": [],
+                    "response_time_ms": (time.perf_counter() - start_time) * 1000,
+                }
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                self._metrics.inc_counter("http_requests_errors_total")
+                logger.error(f"Search tools error: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e)) from e
+
+        @app.post("/mcp/tools/embed")
+        async def embed_mcp_tools(request: Request) -> dict[str, Any]:
+            """
+            Generate embeddings for all tools in a project.
+
+            Request body:
+                {
+                    "cwd": "/path/to/project",
+                    "force": false
+                }
+
+            Returns:
+                Embedding generation stats
+            """
+            start_time = time.perf_counter()
+            self._metrics.inc_counter("http_requests_total")
+
+            try:
+                body = await request.json()
+                cwd = body.get("cwd")
+                force = body.get("force", False)
+
+                # Resolve project_id from cwd
+                try:
+                    project_id = self._resolve_project_id(None, cwd)
+                except ValueError as e:
+                    return {
+                        "success": False,
+                        "error": str(e),
+                        "response_time_ms": (time.perf_counter() - start_time) * 1000,
+                    }
+
+                # Use semantic search to embed all tools
+                if self._tools_handler and self._tools_handler._semantic_search:
+                    try:
+                        stats = await self._tools_handler._semantic_search.embed_all_tools(
+                            project_id=project_id,
+                            mcp_manager=self._mcp_db_manager,
+                            force=force,
+                        )
+                        response_time_ms = (time.perf_counter() - start_time) * 1000
+                        return {
+                            "success": True,
+                            "stats": stats,
+                            "response_time_ms": response_time_ms,
+                        }
+                    except Exception as e:
+                        logger.error(f"Embedding generation failed: {e}")
+                        return {
+                            "success": False,
+                            "error": str(e),
+                            "response_time_ms": (time.perf_counter() - start_time) * 1000,
+                        }
+
+                return {
+                    "success": False,
+                    "error": "Semantic search not configured",
+                    "response_time_ms": (time.perf_counter() - start_time) * 1000,
+                }
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                self._metrics.inc_counter("http_requests_errors_total")
+                logger.error(f"Embed tools error: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e)) from e
 
         # --- Code Execution Endpoints ---

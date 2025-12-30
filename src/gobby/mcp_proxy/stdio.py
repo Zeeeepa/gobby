@@ -161,11 +161,50 @@ class DaemonProxy:
         }
 
     async def recommend_tools(
-        self, task_description: str, agent_id: str | None = None
+        self,
+        task_description: str,
+        agent_id: str | None = None,
+        search_mode: str = "llm",
+        top_k: int = 10,
+        min_similarity: float = 0.3,
+        cwd: str | None = None,
     ) -> dict[str, Any]:
         """Get tool recommendations for a task."""
-        # This would need a dedicated endpoint - for now return not implemented
-        return {"status": "error", "error": "recommend_tools not yet available via stdio proxy"}
+        return await self._request(
+            "POST",
+            "/mcp/tools/recommend",
+            json={
+                "task_description": task_description,
+                "agent_id": agent_id,
+                "search_mode": search_mode,
+                "top_k": top_k,
+                "min_similarity": min_similarity,
+                "cwd": cwd,
+            },
+            timeout=60.0,
+        )
+
+    async def search_tools(
+        self,
+        query: str,
+        top_k: int = 10,
+        min_similarity: float = 0.0,
+        server: str | None = None,
+        cwd: str | None = None,
+    ) -> dict[str, Any]:
+        """Search for tools using semantic similarity."""
+        return await self._request(
+            "POST",
+            "/mcp/tools/search",
+            json={
+                "query": query,
+                "top_k": top_k,
+                "min_similarity": min_similarity,
+                "server": server,
+                "cwd": cwd,
+            },
+            timeout=60.0,
+        )
 
     async def add_mcp_server(self, **kwargs: Any) -> dict[str, Any]:
         """Add an MCP server - not available via stdio."""
@@ -304,18 +343,70 @@ def create_stdio_mcp_server() -> FastMCP:
         return await proxy.call_tool(server_name, tool_name, arguments)
 
     @mcp.tool()
-    async def recommend_tools(task_description: str, agent_id: str | None = None) -> dict[str, Any]:
+    async def recommend_tools(
+        task_description: str,
+        agent_id: str | None = None,
+        search_mode: str = "llm",
+        top_k: int = 10,
+        min_similarity: float = 0.3,
+    ) -> dict[str, Any]:
         """
         Get intelligent tool recommendations for a given task.
 
         Args:
             task_description: Description of what you're trying to accomplish
             agent_id: Optional agent profile ID to filter tools by assigned permissions
+            search_mode: How to search - "llm" (default), "semantic", or "hybrid"
+            top_k: Maximum recommendations to return (semantic/hybrid modes)
+            min_similarity: Minimum similarity threshold (semantic/hybrid modes)
 
         Returns:
             Dict with tool recommendations and usage suggestions
         """
-        return await proxy.recommend_tools(task_description, agent_id)
+        import os
+
+        cwd = os.getcwd()
+        return await proxy.recommend_tools(
+            task_description,
+            agent_id,
+            search_mode=search_mode,
+            top_k=top_k,
+            min_similarity=min_similarity,
+            cwd=cwd,
+        )
+
+    @mcp.tool()
+    async def search_tools(
+        query: str,
+        top_k: int = 10,
+        min_similarity: float = 0.0,
+        server: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Search for tools using semantic similarity.
+
+        Uses embedding-based search to find tools matching a natural language query.
+        Requires embeddings to be generated first (happens automatically on first search).
+
+        Args:
+            query: Natural language description of the tool you need
+            top_k: Maximum number of results to return (default: 10)
+            min_similarity: Minimum similarity threshold 0-1 (default: 0.0)
+            server: Optional server name to filter results
+
+        Returns:
+            Dict with matching tools sorted by similarity
+        """
+        import os
+
+        cwd = os.getcwd()
+        return await proxy.search_tools(
+            query,
+            top_k=top_k,
+            min_similarity=min_similarity,
+            server=server,
+            cwd=cwd,
+        )
 
     @mcp.tool()
     async def init_project(

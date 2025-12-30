@@ -372,48 +372,50 @@ async def refresh_server_tools(server_name: str):
 
 ---
 
-### Phase 3: Semantic Tool Search
+### Phase 3: Semantic Tool Search ✅ COMPLETED
 
 #### Embedding Infrastructure
-- [ ] Create `src/mcp_proxy/semantic.py` module
-- [ ] Create migration for `tool_embeddings` table
-- [ ] Implement `generate_embedding(text)` using LLM provider
+- [x] Create `src/mcp_proxy/semantic_search.py` module
+- [x] Create migration for `tool_embeddings` table
+- [x] Implement `embed_text()` using LiteLLM/OpenAI
 
-#### Cloud Embeddings with Graceful Degradation (Decision 1)
-- [ ] Use OpenAI `text-embedding-3-small` as default embedding model
-- [ ] Add `OPENAI_API_KEY` requirement documentation
-- [ ] Implement `EmbeddingUnavailable` exception class
-- [ ] Add try/catch in `recommend_tools()` that falls back to LLM-only mode
-- [ ] Log warning when falling back: "Embedding service unavailable, using LLM-only mode"
-- [ ] Add `embedding_model` config option for future local model support
+#### Cloud Embeddings (Decision 1)
+- [x] Use OpenAI `text-embedding-3-small` as default embedding model (1536 dimensions)
+- [x] Add `OPENAI_API_KEY` to `llm_providers.api_keys` in config.yaml
+- [x] LiteLLM provider sets env var on startup for seamless integration
+- [x] Clear error message when API key not configured
 
 #### Embedding Dimensions (Decision 5)
-- [ ] Use 1536 dimensions for `tool_embeddings.embedding` BLOB
-- [ ] Document dimension size in schema comments
-- [ ] Add validation that stored embeddings match expected dimensions
+- [x] Use 1536 dimensions for `tool_embeddings.embedding` BLOB
+- [x] Store as packed float32 binary for efficiency
+- [x] Validate dimensions match on search
 
 #### Embedding Generation
-- [ ] Implement `SemanticToolSearch` class
-- [ ] Implement `embed_tool(server, tool_name, description)` method
-- [ ] Implement `embed_all_tools(server?)` batch method
-- [ ] Generate embeddings on tool discovery (in `write_server_tools()`)
-- [ ] Store embeddings in SQLite as BLOB
+- [x] Implement `SemanticToolSearch` class
+- [x] Implement `embed_tool()` method with text hashing for change detection
+- [x] Implement `embed_all_tools()` batch method
+- [x] Auto-generate embeddings on first search if none exist
+- [x] Store embeddings in SQLite as BLOB with project_id scoping
 
 #### Search Implementation
-- [ ] Implement `search_tools(query, limit=20)` -> list of (server, tool, score)
-- [ ] Implement cosine similarity calculation
-- [ ] Support filtering by server
-- [ ] Return results sorted by similarity score
+- [x] Implement `search_tools(query, project_id, top_k, min_similarity)`
+- [x] Implement cosine similarity calculation
+- [x] Support filtering by server via `server_filter` parameter
+- [x] Return `SearchResult` objects sorted by similarity score
 
 #### Integration with recommend_tools()
-- [ ] Add `search_mode` parameter: `semantic`, `hybrid`, `llm`
-- [ ] In `hybrid` mode: semantic search first, then LLM ranking on top N
-- [ ] In `semantic` mode: return semantic results directly
-- [ ] Add `search_mode` to config: `recommend_tools.search_mode`
+- [x] Add `search_mode` parameter: `semantic`, `hybrid`, `llm`
+- [x] In `hybrid` mode: semantic search first, then LLM re-ranking
+- [x] In `semantic` mode: return semantic results directly
+- [x] Default mode remains `llm` for backwards compatibility
 
 #### CLI/MCP Exposure
-- [ ] Add `search_tools(query, mode?, limit?)` MCP tool
-- [ ] Add `regenerate_embeddings(server?)` MCP tool (admin)
+- [x] Add `search_tools` MCP tool with query, top_k, min_similarity, server params
+- [x] Add `recommend_tools` MCP tool with search_mode parameter
+- [x] Add `gobby mcp-proxy search-tools` CLI command
+- [x] Add `--mode` flag to `gobby mcp-proxy recommend-tools` CLI command
+- [x] Add `/mcp/tools/search` HTTP endpoint
+- [x] Add `/mcp/tools/embed` HTTP endpoint for manual embedding generation
 
 #### Tests
 - [ ] Unit tests for embedding generation
