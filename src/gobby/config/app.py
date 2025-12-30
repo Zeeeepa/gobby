@@ -584,6 +584,10 @@ class TaskValidationConfig(BaseModel):
         default=None,
         description="Custom prompt template for task validation",
     )
+    criteria_prompt: str | None = Field(
+        default=None,
+        description="Custom prompt template for generating validation criteria from task description",
+    )
 
 
 class WorkflowConfig(BaseModel):

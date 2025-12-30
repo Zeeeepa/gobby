@@ -274,6 +274,57 @@ def create_task_registry(
         }
 
     @registry.tool(
+        name="generate_validation_criteria",
+        description="Generate validation criteria for a task using AI. Updates the task with the generated criteria.",
+    )
+    async def generate_validation_criteria(task_id: str) -> dict[str, Any]:
+        """
+        Generate validation criteria for a task using AI.
+
+        Args:
+            task_id: ID of the task to generate criteria for
+
+        Returns:
+            Generated criteria and updated task info
+        """
+        if not task_validator:
+            raise RuntimeError("Task validation is not enabled")
+
+        task = task_manager.get_task(task_id)
+        if not task:
+            raise ValueError(f"Task not found: {task_id}")
+
+        if task.validation_criteria:
+            return {
+                "task_id": task.id,
+                "validation_criteria": task.validation_criteria,
+                "generated": False,
+                "message": "Task already has validation criteria",
+            }
+
+        criteria = await task_validator.generate_criteria(
+            title=task.title,
+            description=task.description,
+        )
+
+        if not criteria:
+            return {
+                "task_id": task.id,
+                "validation_criteria": None,
+                "generated": False,
+                "error": "Failed to generate criteria",
+            }
+
+        # Update task with generated criteria
+        task_manager.update_task(task_id, validation_criteria=criteria)
+
+        return {
+            "task_id": task.id,
+            "validation_criteria": criteria,
+            "generated": True,
+        }
+
+    @registry.tool(
         name="analyze_complexity",
         description="Analyze task complexity based on existing subtasks or description.",
     )
@@ -602,6 +653,7 @@ def create_task_registry(
         blocks: list[str] | None = None,
         labels: list[str] | None = None,
         test_strategy: str | None = None,
+        validation_criteria: str | None = None,
     ) -> dict[str, Any]:
         """Create a new task in the current project."""
         # Get current project context which is required for task creation
@@ -621,6 +673,7 @@ def create_task_registry(
             parent_task_id=parent_task_id,
             labels=labels,
             test_strategy=test_strategy,
+            validation_criteria=validation_criteria,
         )
 
         # Handle 'blocks' argument if provided (syntactic sugar)
@@ -677,6 +730,11 @@ def create_task_registry(
                     "description": "Testing strategy for this task (optional)",
                     "default": None,
                 },
+                "validation_criteria": {
+                    "type": "string",
+                    "description": "Acceptance criteria for validating task completion (optional). If provided, the task can be validated using validate_task.",
+                    "default": None,
+                },
             },
             "required": ["title"],
         },
@@ -723,6 +781,7 @@ def create_task_registry(
         priority: int | None = None,
         assignee: str | None = None,
         labels: list[str] | None = None,
+        validation_criteria: str | None = None,
     ) -> dict[str, Any]:
         """Update task fields."""
         task = task_manager.update_task(
@@ -733,6 +792,7 @@ def create_task_registry(
             priority=priority,
             assignee=assignee,
             labels=labels,
+            validation_criteria=validation_criteria,
         )
         if not task:
             return {"error": f"Task {task_id} not found"}
@@ -763,6 +823,11 @@ def create_task_registry(
                     "type": "array",
                     "items": {"type": "string"},
                     "description": "New labels list",
+                    "default": None,
+                },
+                "validation_criteria": {
+                    "type": "string",
+                    "description": "Acceptance criteria for validating task completion",
                     "default": None,
                 },
             },

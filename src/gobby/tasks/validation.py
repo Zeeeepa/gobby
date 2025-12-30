@@ -144,3 +144,56 @@ class TaskValidator:
         except Exception as e:
             logger.error(f"Failed to validate task {task_id}: {e}")
             return ValidationResult(status="pending", feedback=f"Validation failed: {str(e)}")
+
+    async def generate_criteria(
+        self,
+        title: str,
+        description: str | None = None,
+    ) -> str | None:
+        """
+        Generate validation criteria from task title and description.
+
+        Args:
+            title: Task title
+            description: Task description (optional)
+
+        Returns:
+            Generated validation criteria string, or None if generation fails
+        """
+        if not self.config.enabled:
+            return None
+
+        # Use custom prompt from config, or default
+        if self.config.criteria_prompt:
+            prompt = self.config.criteria_prompt.format(
+                title=title,
+                description=description or "(no description)",
+            )
+        else:
+            prompt = (
+                "Generate clear, testable acceptance criteria for the following task.\n"
+                "Return a concise bulleted list of specific conditions that must be met.\n"
+                "Focus on observable outcomes, not implementation details.\n\n"
+                f"Task: {title}\n"
+            )
+            if description:
+                prompt += f"Description: {description}\n"
+
+            prompt += (
+                "\nFormat your response as a simple bulleted list, e.g.:\n"
+                "- Condition 1\n"
+                "- Condition 2\n"
+                "- Condition 3\n"
+            )
+
+        try:
+            provider = self.llm_service.get_provider(self.config.provider)
+            response = await provider.generate_text(
+                prompt=prompt,
+                system_prompt="You are a QA engineer. Generate clear, testable acceptance criteria.",
+                model=self.config.model,
+            )
+            return response.strip()
+        except Exception as e:
+            logger.error(f"Failed to generate validation criteria: {e}")
+            return None
