@@ -110,6 +110,7 @@ Gobby tasks automatically sync:
 
 All accessed via `call_tool(server_name="gobby-tasks", ...)`:
 
+**Task CRUD:**
 | Tool | Description |
 |------|-------------|
 | `create_task` | Create a new task |
@@ -118,14 +119,43 @@ All accessed via `call_tool(server_name="gobby-tasks", ...)`:
 | `close_task` | Close a task with reason |
 | `delete_task` | Delete a task |
 | `list_tasks` | List tasks with filters |
+| `add_label` | Add a label to a task |
+| `remove_label` | Remove a label from a task |
+
+**Dependencies:**
+| Tool | Description |
+|------|-------------|
 | `add_dependency` | Add dependency between tasks |
 | `remove_dependency` | Remove a dependency |
 | `get_dependency_tree` | Get blockers/blocking tasks |
 | `check_dependency_cycles` | Detect circular dependencies |
 | `list_ready_tasks` | List unblocked tasks |
 | `list_blocked_tasks` | List blocked tasks |
+
+**Session & Sync:**
+| Tool | Description |
+|------|-------------|
+| `link_task_to_session` | Associate task with session |
+| `get_session_tasks` | Tasks linked to a session |
+| `get_task_sessions` | Sessions that touched a task |
 | `sync_tasks` | Trigger import/export |
 | `get_sync_status` | Get sync status |
+
+**LLM Expansion:**
+| Tool | Description |
+|------|-------------|
+| `expand_task` | Break task into subtasks with AI |
+| `analyze_complexity` | Get complexity score |
+| `expand_all` | Expand all unexpanded tasks |
+| `expand_from_spec` | Create tasks from PRD/spec |
+| `suggest_next_task` | AI suggests next task to work on |
+
+**Validation:**
+| Tool | Description |
+|------|-------------|
+| `validate_task` | Validate task completion |
+| `get_validation_status` | Get validation details |
+| `reset_validation_count` | Reset failure count for retry |
 
 ### Managing AI-Generated Planning Documents
 

@@ -163,16 +163,38 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title"
 
 Use the `gobby-tasks` MCP tools for persistent task tracking (requires daemon running):
 
-1. **Start of session**: Call `list_ready_tasks` to see unblocked work
+1. **Start of session**: Call `list_ready_tasks` or `suggest_next_task` to find work
 2. **New requests**: Create tasks with `create_task(title="...", description="...")`
-3. **Complex work**: Break into subtasks with `parent_task_id` parameter
-4. **Track progress**: Use `update_task` to change status (`open` -> `in_progress` -> `done`)
+3. **Complex work**: Use `expand_task` to break into subtasks with AI, or use `parent_task_id` manually
+4. **Track progress**: Use `update_task` to change status (`open` -> `in_progress` -> `closed`)
 5. **End of session**: Close completed tasks with `close_task(task_id="...")`
+
+**Task Tools:**
+
+| Tool | Description |
+|------|-------------|
+| `create_task` | Create a new task with title, priority, type, labels |
+| `get_task` | Get task details including dependencies |
+| `update_task` | Update task fields (status, priority, assignee, etc.) |
+| `close_task` | Close a task with reason |
+| `delete_task` | Delete a task (cascade optional) |
+| `list_tasks` | List tasks with filters |
+| `add_label` | Add a label to a task |
+| `remove_label` | Remove a label from a task |
+| `add_dependency` | Create dependency between tasks |
+| `remove_dependency` | Remove a dependency |
+| `list_ready_tasks` | List tasks with no unresolved blockers |
+| `list_blocked_tasks` | List blocked tasks with their blockers |
+| `expand_task` | Break task into subtasks using AI |
+| `suggest_next_task` | AI suggests best next task to work on |
+| `validate_task` | Validate task completion with AI |
+| `sync_tasks` | Trigger git sync (import/export) |
 
 ```python
 # Example MCP tool calls via daemon
 call_tool(server_name="gobby-tasks", tool_name="list_ready_tasks", arguments={})
 call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title": "Fix auth bug"})
+call_tool(server_name="gobby-tasks", tool_name="expand_task", arguments={"task_id": "gt-abc123"})
 ```
 
 If tools fail, check daemon status: `uv run gobby status`

@@ -159,12 +159,15 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`:
 **Task Management** (`gobby-tasks`):
 
 - `create_task`, `get_task`, `update_task`, `close_task`, `delete_task`, `list_tasks`
+- `add_label`, `remove_label` - Label management
 - `add_dependency`, `remove_dependency`, `get_dependency_tree`, `check_dependency_cycles`
 - `list_ready_tasks`, `list_blocked_tasks`
 - `link_task_to_session`, `get_session_tasks`, `get_task_sessions`
 - `sync_tasks`, `get_sync_status`
+- `expand_task`, `analyze_complexity`, `expand_all`, `expand_from_spec`, `suggest_next_task` - LLM-powered expansion
+- `validate_task`, `get_validation_status`, `reset_validation_count` - Task validation
 
-See [docs/tasks.md](docs/tasks.md) for the full Task System guide.
+See [docs/guides/tasks.md](docs/guides/tasks.md) for the full Task System guide.
 
 **Memory Management** (`gobby-memory`):
 

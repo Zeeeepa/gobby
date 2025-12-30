@@ -76,11 +76,13 @@ Before you finish or hand off:
 * **`create_task`**: Be descriptive with titles. "Fix bug" is bad. "Fix NullPointerException in login flow" is good.
 * **`list_ready_tasks`**: Use this instead of `list_tasks(status='open')` when deciding what to do next. It filters out tasks that are blocked by other open tasks.
 * **`add_label`**: Use labels for categorization (e.g., `frontend`, `backend`, `urgent`, `cleanup`).
+* **`suggest_next_task`**: Let the AI recommend the best next task based on priority, complexity, and dependencies.
+* **`expand_task`**: For complex tasks, use AI to break them into manageable subtasks with dependencies.
 
 ## Troubleshooting
 
 * **Tool not found?** If `create_task` fails, the Gobby daemon might be down. Ask the user to check `gobby status`.
-* **Duplicate tasks?** Use `search_tasks` (or `list_tasks` with filters) before creating new ones to avoid duplicates.
+* **Duplicate tasks?** Use `list_tasks` with `title_like` filter before creating new ones to avoid duplicates.
 
 ---
 *End of Instructions. Go build something great.*

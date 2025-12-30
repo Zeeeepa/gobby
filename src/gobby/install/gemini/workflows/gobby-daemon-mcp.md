@@ -83,7 +83,13 @@ mcp_call_tool(
 )
 ```
 
-Available task tools: `create_task`, `get_task`, `update_task`, `close_task`, `delete_task`, `list_tasks`, `add_dependency`, `remove_dependency`, `list_ready_tasks`, `list_blocked_tasks`, `sync_tasks`.
+**Available task tools:**
+- CRUD: `create_task`, `get_task`, `update_task`, `close_task`, `delete_task`, `list_tasks`, `add_label`, `remove_label`
+- Dependencies: `add_dependency`, `remove_dependency`, `get_dependency_tree`, `list_ready_tasks`, `list_blocked_tasks`
+- Session: `link_task_to_session`, `get_session_tasks`, `get_task_sessions`
+- Sync: `sync_tasks`, `get_sync_status`
+- Expansion: `expand_task`, `analyze_complexity`, `expand_all`, `expand_from_spec`, `suggest_next_task`
+- Validation: `validate_task`, `get_validation_status`, `reset_validation_count`
 
 ## 4. Troubleshooting
 
