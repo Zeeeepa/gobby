@@ -825,6 +825,7 @@ def create_task_registry(
         assignee: str | None = None,
         labels: list[str] | None = None,
         validation_criteria: str | None = None,
+        parent_task_id: str | None = None,
     ) -> dict[str, Any]:
         """Update task fields."""
         task = task_manager.update_task(
@@ -836,6 +837,7 @@ def create_task_registry(
             assignee=assignee,
             labels=labels,
             validation_criteria=validation_criteria,
+            parent_task_id=parent_task_id,
         )
         if not task:
             return {"error": f"Task {task_id} not found"}
@@ -871,6 +873,11 @@ def create_task_registry(
                 "validation_criteria": {
                     "type": "string",
                     "description": "Acceptance criteria for validating task completion",
+                    "default": None,
+                },
+                "parent_task_id": {
+                    "type": "string",
+                    "description": "Parent task ID (for re-parenting)",
                     "default": None,
                 },
             },

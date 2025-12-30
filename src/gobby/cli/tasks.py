@@ -242,8 +242,14 @@ def show_task(task_id: str) -> None:
 @click.option("--status", help="New status")
 @click.option("--priority", type=int, help="New priority")
 @click.option("--assignee", help="New assignee")
+@click.option("--parent", "parent_task_id", help="Parent task ID (for re-parenting)")
 def update_task(
-    task_id: str, title: str | None, status: str | None, priority: int | None, assignee: str | None
+    task_id: str,
+    title: str | None,
+    status: str | None,
+    priority: int | None,
+    assignee: str | None,
+    parent_task_id: str | None,
 ) -> None:
     """Update a task."""
     manager = get_task_manager()
@@ -251,12 +257,21 @@ def update_task(
     if not resolved:
         return
 
+    # Resolve parent task ID if provided
+    resolved_parent_id = None
+    if parent_task_id:
+        resolved_parent = resolve_task_id(manager, parent_task_id)
+        if not resolved_parent:
+            return
+        resolved_parent_id = resolved_parent.id
+
     task = manager.update_task(
         resolved.id,
         title=title,
         status=status,
         priority=priority,
         assignee=assignee,
+        parent_task_id=resolved_parent_id,
     )
     click.echo(f"Updated task {task.id[:8]}")
 
