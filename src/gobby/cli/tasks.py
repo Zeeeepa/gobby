@@ -91,12 +91,22 @@ def tasks() -> None:
 @click.option("--status", help="Filter by status (open, in_progress, completed, blocked)")
 @click.option("--assignee", help="Filter by assignee")
 @click.option("--ready", is_flag=True, help="Show only ready tasks (open with no blocking deps)")
+@click.option("--blocked", is_flag=True, help="Show only blocked tasks (open with unresolved blockers)")
 @click.option("--limit", default=50, help="Max tasks to show")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def list_tasks(
-    status: str | None, assignee: str | None, ready: bool, limit: int, json_format: bool
+    status: str | None,
+    assignee: str | None,
+    ready: bool,
+    blocked: bool,
+    limit: int,
+    json_format: bool,
 ) -> None:
     """List tasks."""
+    if ready and blocked:
+        click.echo("Error: --ready and --blocked are mutually exclusive.", err=True)
+        return
+
     project_ctx = get_project_context()
     project_id = project_ctx.get("id") if project_ctx else None
 
@@ -109,6 +119,16 @@ def list_tasks(
             assignee=assignee,
             limit=limit,
         )
+        label = "ready tasks"
+        empty_msg = "No ready tasks found."
+    elif blocked:
+        # Show tasks that are blocked by unresolved dependencies
+        tasks_list = manager.list_blocked_tasks(
+            project_id=project_id,
+            limit=limit,
+        )
+        label = "blocked tasks"
+        empty_msg = "No blocked tasks found."
     else:
         tasks_list = manager.list_tasks(
             project_id=project_id,
@@ -116,16 +136,17 @@ def list_tasks(
             assignee=assignee,
             limit=limit,
         )
+        label = "tasks"
+        empty_msg = "No tasks found."
 
     if json_format:
         click.echo(json.dumps([t.to_dict() for t in tasks_list], indent=2, default=str))
         return
 
     if not tasks_list:
-        click.echo("No tasks found." if not ready else "No ready tasks found.")
+        click.echo(empty_msg)
         return
 
-    label = "ready tasks" if ready else "tasks"
     click.echo(f"Found {len(tasks_list)} {label}:")
     for task in tasks_list:
         click.echo(format_task_row(task))
