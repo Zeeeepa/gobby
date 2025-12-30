@@ -281,7 +281,7 @@ async def _execute_extract_handoff_context(
 ### What Claude's Compaction Loses
 
 | Information | Claude Compaction | Gobby Injection |
-|-------------|-------------------|-----------------|
+| :--- | :--- | :--- |
 | General narrative | Preserved (generic) | Not duplicated |
 | Specific task ID | Often lost | Injected |
 | Task status (in_progress) | Lost | Injected |
@@ -405,7 +405,7 @@ If transcript starts mid-work (e.g., resumed session), initial_goal extraction m
 ## Decisions
 
 | # | Question | Decision | Rationale |
-|---|----------|----------|-----------|
+| :--- | :--- | :--- | :--- |
 | 1 | **Trigger condition** | `trigger == 'auto'` or always | Start with auto-only, can expand to both |
 | 2 | **Storage location** | Session-scoped (in-memory or DB) | Only needed until SessionStart fires |
 | 3 | **Injection format** | Structured markdown sections | Clear, parseable, doesn't overlap with narrative |
@@ -421,7 +421,7 @@ After core handoff is working, enable autonomous multi-session loops where Gobby
 
 Instead of blocking exit within the same session (Ralph's approach), Gobby chains sessions:
 
-```
+```text
 Session A ends → SessionEnd hook → evaluate completion → spawn Session B with context
 ```
 

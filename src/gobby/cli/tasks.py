@@ -68,6 +68,7 @@ def format_task_row(task: Task) -> str:
         "open": "○",
         "in_progress": "●",
         "completed": "✓",
+        "closed": "✓",
         "blocked": "⊗",
     }.get(task.status, "?")
 
@@ -77,8 +78,17 @@ def format_task_row(task: Task) -> str:
         3: "🔵",  # Low
     }.get(task.priority, "⚪")
 
+    # Parent column - fixed width for gt-xxxxxx format
+    parent_col = task.parent_task_id if task.parent_task_id else ""
+    parent_col = f"{parent_col:<10}"
+
     # Show full ID for usability - users need complete IDs for commands
-    return f"{task.id} {status_icon} {priority_icon} {task.title}"
+    return f"{status_icon} {priority_icon} {task.id} {parent_col} {task.title}"
+
+
+def format_task_header() -> str:
+    """Return header row for task list."""
+    return f"     {'ID':<10} {'PARENT':<10} TITLE"
 
 
 @click.group()
@@ -148,6 +158,7 @@ def list_tasks(
         return
 
     click.echo(f"Found {len(tasks_list)} {label}:")
+    click.echo(format_task_header())
     for task in tasks_list:
         click.echo(format_task_row(task))
 
@@ -743,12 +754,15 @@ def validate_task_cmd(task_id: str, summary: str | None, summary_file: str | Non
 
 
 @tasks.command("generate-criteria")
-@click.argument("task_id")
-def generate_criteria_cmd(task_id: str) -> None:
+@click.argument("task_id", required=False)
+@click.option("--all", "generate_all", is_flag=True, help="Generate criteria for all tasks missing it")
+def generate_criteria_cmd(task_id: str | None, generate_all: bool) -> None:
     """Generate validation criteria for a task.
 
     For parent tasks (with children), sets criteria to 'All child tasks completed'.
     For leaf tasks, uses AI to generate criteria from title/description.
+
+    Use --all to generate criteria for all tasks that don't have it set.
     """
     import asyncio
 
@@ -757,6 +771,15 @@ def generate_criteria_cmd(task_id: str) -> None:
     from gobby.tasks.validation import TaskValidator
 
     manager = get_task_manager()
+
+    if generate_all:
+        _generate_criteria_for_all(manager)
+        return
+
+    if not task_id:
+        click.echo("Error: TASK_ID is required (or use --all)", err=True)
+        return
+
     resolved = resolve_task_id(manager, task_id)
     if not resolved:
         return
@@ -805,6 +828,76 @@ def generate_criteria_cmd(task_id: str) -> None:
 
     except Exception as e:
         click.echo(f"Error generating criteria: {e}", err=True)
+
+
+def _generate_criteria_for_all(manager: "LocalTaskManager") -> None:
+    """Generate validation criteria for all tasks missing it."""
+    import asyncio
+
+    from gobby.config.app import load_config
+    from gobby.llm import LLMService
+    from gobby.tasks.validation import TaskValidator
+
+    # Get all open tasks without validation criteria
+    all_tasks = manager.list_tasks(status="open", limit=1000)
+    tasks_needing_criteria = [t for t in all_tasks if not t.validation_criteria]
+
+    if not tasks_needing_criteria:
+        click.echo("All tasks already have validation criteria.")
+        return
+
+    click.echo(f"Found {len(tasks_needing_criteria)} tasks without validation criteria.")
+
+    # Initialize validator for leaf tasks
+    try:
+        config = load_config()
+        llm_service = LLMService(config)
+        validator = TaskValidator(config.gobby_tasks.validation, llm_service)
+    except Exception as e:
+        click.echo(f"Error initializing validator: {e}", err=True)
+        return
+
+    parent_count = 0
+    leaf_count = 0
+    error_count = 0
+
+    for task in tasks_needing_criteria:
+        # Check if task has children (is a parent task)
+        children = manager.list_tasks(parent_task_id=task.id, limit=1)
+
+        if children:
+            # Parent task: criteria is child completion
+            criteria = "All child tasks must be completed (status: closed)."
+            manager.update_task(task.id, validation_criteria=criteria)
+            click.echo(f"\n[parent] {task.id}: {task.title}")
+            click.echo(f"  → {criteria}")
+            parent_count += 1
+        else:
+            # Leaf task: use LLM to generate criteria
+            try:
+                criteria = asyncio.run(
+                    validator.generate_criteria(
+                        title=task.title,
+                        description=task.description,
+                    )
+                )
+                if criteria:
+                    manager.update_task(task.id, validation_criteria=criteria)
+                    click.echo(f"\n[leaf] {task.id}: {task.title}")
+                    # Indent each line of criteria
+                    for line in criteria.strip().split("\n"):
+                        click.echo(f"  {line}")
+                    leaf_count += 1
+                else:
+                    click.echo(f"\n[error] {task.id}: {task.title}")
+                    click.echo("  Failed to generate criteria", err=True)
+                    error_count += 1
+            except Exception as e:
+                click.echo(f"\n[error] {task.id}: {task.title}")
+                click.echo(f"  {e}", err=True)
+                error_count += 1
+
+    click.echo(f"\nDone: {parent_count} parent tasks, {leaf_count} leaf tasks, {error_count} errors")
 
 
 @tasks.command("expand")
