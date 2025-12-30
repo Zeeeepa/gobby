@@ -555,8 +555,10 @@ gobby tasks import --from-beads          # Migrate from beads
 
 # LLM Expansion
 gobby tasks expand TASK_ID [--strategy S] [--no-codebase] [--no-validation]
+gobby tasks expand-all [--max N] [--min-complexity N] [--dry-run]
+gobby tasks complexity TASK_ID [--all] [--pending] [--json]
 gobby tasks import-spec FILE [--type prd|user_story|bug_report|rfc]
-gobby tasks suggest                      # Suggest next task based on context
+gobby tasks suggest [--type T] [--json]  # Suggest next task based on context
 
 # Validation
 gobby tasks validate TASK_ID             # Run validation against criteria
@@ -1368,10 +1370,12 @@ For large tasks, use `expand_task(id)` to break them down before starting.
   - `--force` - Clear existing subtasks
 - [x] Add `gobby tasks complexity TASK_ID` command
 - [x] Add `gobby tasks complexity --all --pending` command
-- [x] Add `gobby tasks expand --all` command
+- [x] Add `gobby tasks expand-all` command
+- [x] Add `gobby tasks import-spec FILE [--type prd|user_story|bug_report|rfc]` command
+- [x] Add `gobby tasks suggest` command
 - [x] Update `gobby tasks show TASK_ID --expansion` to show phases/dependencies
 - [x] Add progress indicators for long operations
-- [x] Add unit tests for CLI commands
+- [ ] Add unit tests for CLI commands
 
 #### Phase 12.8: Testing & Documentation
 
