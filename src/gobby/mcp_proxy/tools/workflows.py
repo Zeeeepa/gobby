@@ -55,6 +55,51 @@ def create_workflows_registry(
     )
 
     @registry.tool(
+        name="get_workflow",
+        description="Get details about a specific workflow definition.",
+    )
+    def get_workflow(
+        name: str,
+        project_path: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Get workflow details including phases, triggers, and settings.
+
+        Args:
+            name: Workflow name (without .yaml extension)
+            project_path: Optional project directory path
+
+        Returns:
+            Workflow definition details
+        """
+        proj = Path(project_path) if project_path else None
+        definition = _loader.load_workflow(name, proj)
+
+        if not definition:
+            return {"success": False, "error": f"Workflow '{name}' not found"}
+
+        return {
+            "success": True,
+            "name": definition.name,
+            "type": definition.type,
+            "description": definition.description,
+            "version": definition.version,
+            "phases": [
+                {
+                    "name": p.name,
+                    "description": p.description,
+                    "allowed_tools": p.allowed_tools,
+                    "blocked_tools": p.blocked_tools,
+                }
+                for p in definition.phases
+            ] if definition.phases else [],
+            "triggers": {
+                name: len(actions) for name, actions in definition.triggers.items()
+            } if definition.triggers else {},
+            "settings": definition.settings,
+        }
+
+    @registry.tool(
         name="list_workflows",
         description="List available workflow definitions from project and global directories.",
     )
@@ -410,6 +455,75 @@ def create_workflows_registry(
             "artifact_type": artifact_type,
             "file_path": file_path,
             "all_artifacts": list(state.artifacts.keys()),
+        }
+
+    @registry.tool(
+        name="import_workflow",
+        description="Import a workflow from a file path into the project or global directory.",
+    )
+    def import_workflow(
+        source_path: str,
+        workflow_name: str | None = None,
+        is_global: bool = False,
+        project_path: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Import a workflow from a file.
+
+        Args:
+            source_path: Path to the workflow YAML file
+            workflow_name: Override the workflow name (defaults to name in file)
+            is_global: Install to global ~/.gobby/workflows instead of project
+            project_path: Project directory path (required if not is_global)
+
+        Returns:
+            Success status and destination path
+        """
+        import shutil
+
+        import yaml
+
+        source = Path(source_path)
+        if not source.exists():
+            return {"success": False, "error": f"File not found: {source_path}"}
+
+        if source.suffix != ".yaml":
+            return {"success": False, "error": "Workflow file must have .yaml extension"}
+
+        try:
+            with open(source) as f:
+                data = yaml.safe_load(f)
+
+            if not data or "name" not in data:
+                return {"success": False, "error": "Invalid workflow: missing 'name' field"}
+
+        except yaml.YAMLError as e:
+            return {"success": False, "error": f"Invalid YAML: {e}"}
+
+        name = workflow_name or data.get("name", source.stem)
+        filename = f"{name}.yaml"
+
+        if is_global:
+            dest_dir = Path.home() / ".gobby" / "workflows"
+        else:
+            proj = Path(project_path) if project_path else None
+            if not proj:
+                return {"success": False, "error": "project_path required when not using is_global"}
+            dest_dir = proj / ".gobby" / "workflows"
+
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_path = dest_dir / filename
+
+        shutil.copy(source, dest_path)
+
+        # Clear loader cache so new workflow is discoverable
+        _loader.clear_discovery_cache()
+
+        return {
+            "success": True,
+            "workflow_name": name,
+            "destination": str(dest_path),
+            "is_global": is_global,
         }
 
     return registry

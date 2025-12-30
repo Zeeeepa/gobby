@@ -385,6 +385,42 @@ def set_phase(
     click.echo(f"✓ Transitioned from '{old_phase}' to '{phase_name}'")
 
 
+@workflow.command("artifact")
+@click.argument("artifact_type")
+@click.argument("file_path")
+@click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
+@click.pass_context
+def mark_artifact(
+    ctx: click.Context, artifact_type: str, file_path: str, session_id: str | None
+) -> None:
+    """Mark an artifact as complete (plan, spec, test, etc.)."""
+    state_manager = get_state_manager()
+
+    if not session_id:
+        db = LocalDatabase()
+        row = db.fetchone(
+            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
+        )
+        if row:
+            session_id = row["id"]
+        else:
+            click.echo("No active session found. Specify --session ID.", err=True)
+            raise SystemExit(1)
+
+    state = state_manager.get_state(session_id)
+    if not state:
+        click.echo(f"No workflow active for session: {session_id[:12]}...", err=True)
+        raise SystemExit(1)
+
+    # Update artifacts
+    state.artifacts[artifact_type] = file_path
+    state_manager.save_state(state)
+
+    click.echo(f"✓ Marked '{artifact_type}' artifact complete: {file_path}")
+    if len(state.artifacts) > 1:
+        click.echo(f"  All artifacts: {', '.join(state.artifacts.keys())}")
+
+
 @workflow.command("import")
 @click.argument("source")
 @click.option("--name", "-n", help="Override workflow name")
