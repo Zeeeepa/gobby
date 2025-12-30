@@ -333,6 +333,43 @@ Gobby HTTP Server (:8765)
 - **Internal Tool Registry** - Domain-specific tools (`gobby-tasks`, `gobby-memory`, `gobby-skills`) accessed via the proxy pattern
 - **Session Handoff** - LLM-powered session summaries with git status, file changes, and context injection
 
+### Autonomous Session Handoff
+
+When you use `/compact` in Claude Code, Gobby automatically extracts and persists session context for seamless continuation:
+
+**Flow:**
+1. `/compact` triggers `pre-compact` hook
+2. Gobby extracts structured context from transcript (files modified, git status, initial goal, recent activity)
+3. Context is formatted as markdown and saved to `session.compact_markdown` in the database
+4. On next session start (after compaction), context is automatically injected
+
+**What gets captured:**
+- Initial goal (first user message)
+- Files modified (from Edit/Write tool calls)
+- Git status (uncommitted changes)
+- Git commits made during session
+- Active gobby-task (if using task tracking)
+- Recent tool activity (last 5 tool calls)
+
+**Configuration** (`~/.gobby/config.yaml`):
+
+```yaml
+compact_handoff:
+  enabled: true
+  prompt: |
+    ## Continuation Context
+
+    {active_task_section}
+    {todo_state_section}
+    {git_commits_section}
+    {git_status_section}
+    {files_modified_section}
+    {initial_goal_section}
+    {recent_activity_section}
+```
+
+The prompt template uses placeholders that are replaced with pre-rendered markdown sections. Empty sections are automatically omitted.
+
 ### Internal Tool Pattern
 
 Internal tools use the same progressive disclosure pattern as downstream MCP servers:

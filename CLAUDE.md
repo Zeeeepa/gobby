@@ -123,6 +123,54 @@ uv run mypy src/
 - Project config: `.gobby/project.json`
 - Task sync: `.gobby/tasks.jsonl`, `.gobby/tasks_meta.json`
 
+## Autonomous Session Handoff
+
+When a session is compacted (via `/compact`), Gobby automatically extracts and injects continuation context:
+
+### What Happens on `/compact`
+
+1. The `pre-compact` hook fires, triggering `extract_handoff_context`
+2. Context is extracted from the transcript and git state
+3. Formatted markdown is saved to `session.compact_markdown` in the database
+4. On the next session start, this context is automatically injected
+
+### Continuation Context Sections
+
+When you see a `## Continuation Context` block at session start, it contains:
+
+- **Active Task** - The gobby-task being worked on (if using task tracking)
+- **In-Progress Work** - TodoWrite state from the previous session
+- **Commits This Session** - Git commits made during the previous session
+- **Uncommitted Changes** - Current `git status` output
+- **Files Being Modified** - Files touched by Edit/Write tool calls
+- **Original Goal** - The first user message from the previous session
+- **Recent Activity** - Last 5 tool calls from the previous session
+
+### Working with Continuation Context
+
+When you see continuation context:
+
+1. **Review the Original Goal** - Understand what the user was trying to accomplish
+2. **Check Uncommitted Changes** - See what files have pending changes
+3. **Resume from Recent Activity** - Understand where work left off
+4. **Continue the task** - Pick up where the previous session ended
+
+The context is rule-based extraction (no LLM summarization), so it preserves exact details like file paths and git status.
+
+### Configuration
+
+The handoff template is configurable in `~/.gobby/config.yaml`:
+
+```yaml
+compact_handoff:
+  enabled: true
+  prompt: |
+    ## Continuation Context
+    {active_task_section}
+    {todo_state_section}
+    ...
+```
+
 ## MCP Tool Progressive Disclosure
 
 The daemon implements progressive tool discovery to reduce token usage:
