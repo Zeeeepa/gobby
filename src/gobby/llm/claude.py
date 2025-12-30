@@ -278,7 +278,10 @@ class ClaudeLLMProvider(LLMProvider):
         prompt_template: str | None = None,
     ) -> dict[str, Any]:
         """
-        Execute code using Claude's code execution sandbox.
+        Execute code using Claude's code execution sandbox via CLI.
+
+        Uses the Claude Agent SDK with subscription-based auth through the CLI.
+        The code_execution tool provides sandboxed Python execution.
         """
         cli_path = self._verify_cli_path()
         if not cli_path:
@@ -303,12 +306,14 @@ class ClaudeLLMProvider(LLMProvider):
         prompt = prompt_template.format(code=code, context=context or "", language=language)
 
         # Determine timeout
+        code_exec_config = self.config.code_execution
         actual_timeout = (
-            timeout if timeout is not None else self.config.code_execution.default_timeout
+            timeout if timeout is not None else code_exec_config.default_timeout
         )
 
         # Configure Claude Agent SDK
-        code_exec_config = self.config.code_execution
+        # Note: code_execution is an internal tool that provides sandboxed execution
+        # Do NOT add explicit sandbox config - it breaks this tool
         options = ClaudeAgentOptions(
             system_prompt="You are a code execution assistant. Execute the provided code using the code_execution tool and return the results. Always use the code_execution tool - never just describe what the code would do.",
             max_turns=code_exec_config.max_turns,

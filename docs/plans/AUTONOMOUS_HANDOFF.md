@@ -382,6 +382,7 @@ autonomous_handoff:
 ### No Active Task
 
 If agent never used gobby-tasks, we still have:
+
 - TodoWrite state (Claude's internal tracking)
 - Files modified
 - Initial goal
@@ -425,6 +426,7 @@ Session A ends → SessionEnd hook → evaluate completion → spawn Session B w
 ```
 
 **Advantages over Ralph:**
+
 - Fresh context window each iteration (no token bloat)
 - Works across Claude/Gemini/Codex (CLI-agnostic)
 - Leverages existing Gobby session tracking
@@ -494,7 +496,23 @@ async def _handle_start_new_session(
         executable = shutil.which("codex")
         if not executable:
             return {"error": "codex CLI not found"}
-        cmd = [executable, rendered_prompt]
+
+        # Check for interactive/TUI mode (no prompt)
+        interactive = kwargs.get("interactive", False)
+        
+        # Check for cloud execution
+        # ENV_ID typically comes from config or context variables
+        env_id = context.state.variables.get("cloud_env_id") or kwargs.get("env_id")
+
+        if interactive:
+            # TUI mode - invoke without prompt
+            cmd = [executable]
+        elif env_id:
+            # Cloud execution
+            cmd = [executable, "cloud", "exec", "--env", env_id, rendered_prompt]
+        else:
+            # Standard local execution
+            cmd = [executable, "exec", rendered_prompt]
     else:
         return {"error": f"Unknown CLI: {cli}"}
 
@@ -502,6 +520,9 @@ async def _handle_start_new_session(
     cwd = working_dir or getattr(session, "cwd", None) if session else None
 
     # Spawn detached process
+    import sys
+    import os
+
     try:
         popen_kwargs = {
             "cwd": cwd,
@@ -509,10 +530,28 @@ async def _handle_start_new_session(
             "stdout": subprocess.DEVNULL,
             "stderr": subprocess.DEVNULL,
         }
+        
         if detached:
-            popen_kwargs["start_new_session"] = True
+            if sys.platform == "win32":
+                 # Windows: Use CREATE_NEW_PROCESS_GROUP and DETACHED_PROCESS
+                 # default to 0x00000008 (DETACHED_PROCESS) if constant not available
+                 creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
+                 creationflags |= getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+                 popen_kwargs["creationflags"] = creationflags
+            else:
+                 # POSIX: Use start_new_session (setsid)
+                 popen_kwargs["start_new_session"] = True
 
         process = subprocess.Popen(cmd, **popen_kwargs)
+
+        # Record parent → child relationship
+        context.session_manager.record_spawned_session(
+            parent_id=context.session_id,
+            child_pid=process.pid,
+            cli=cli,
+            prompt=rendered_prompt,
+        )
+
         return {"session_spawned": True, "cli": cli, "pid": process.pid}
     except Exception as e:
         return {"error": str(e)}
@@ -538,9 +577,9 @@ triggers:
         name: iteration_count
         value: 1
 
-  # Detect completion marker
-  - event: on_after_agent
-    when: "variables.get('loop_enabled') and settings.completion_marker in (event.data.get('response', '') if event.data else '')"
+  # Detect completion via explicit signal
+  - event: on_tool_call
+    when: "variables.get('loop_enabled') and event.data.get('tool') == 'mark_loop_complete'"
     actions:
       - action: set_variable
         name: task_complete
@@ -566,7 +605,7 @@ triggers:
           {{ transcript_summary }}
 
           ### Instructions
-          Continue working. When complete, output: {{ settings.completion_marker }}
+          Continue working. When complete, call the tool: `mark_loop_complete`.
       - action: start_new_session
         prompt: "Continue the task from the previous session."
         system_prompt: "{{ handoff.notes }}"
@@ -580,6 +619,7 @@ triggers:
 - [ ] Add unit tests (mock subprocess.Popen)
 - [ ] Integration test with real session chaining
 - [ ] Document in CLAUDE.md
+- [ ] Implement `mark_loop_complete` tool/action
 
 ### Dependencies
 

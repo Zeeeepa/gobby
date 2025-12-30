@@ -120,23 +120,20 @@ class DaemonProxy:
 
     async def get_tool_schema(self, server_name: str, tool_name: str) -> dict[str, Any]:
         """Get schema for a specific tool."""
-        result = await self._request("GET", f"/mcp/{server_name}/tools")
-        if result.get("status") != "success":
-            return result
-        tools = result.get("tools", [])
-        for tool in tools:
-            if tool.get("name") == tool_name:
-                return {
-                    "status": "success",
-                    "tool": {
-                        "name": tool.get("name"),
-                        "description": tool.get("description"),
-                        "inputSchema": tool.get("inputSchema"),
-                    },
-                }
+        result = await self._request(
+            "POST",
+            "/mcp/tools/schema",
+            json={"server_name": server_name, "tool_name": tool_name},
+        )
+        if "error" in result:
+            return {"status": "error", "error": result["error"]}
         return {
-            "status": "error",
-            "error": f"Tool '{tool_name}' not found on server '{server_name}'",
+            "status": "success",
+            "tool": {
+                "name": result.get("name"),
+                "description": result.get("description"),
+                "inputSchema": result.get("inputSchema"),
+            },
         }
 
     async def list_mcp_servers(self) -> dict[str, Any]:

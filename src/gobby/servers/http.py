@@ -26,6 +26,7 @@ from gobby.hooks.hook_manager import HookManager
 from gobby.llm import LLMService, create_llm_service
 from gobby.mcp_proxy.registries import setup_internal_registries
 from gobby.mcp_proxy.server import GobbyDaemonTools, create_mcp_server
+from gobby.mcp_proxy.services.code_execution import CodeExecutionService
 from gobby.memory.manager import MemoryManager
 from gobby.skills import SkillLearner
 from gobby.storage.sessions import LocalSessionManager
@@ -1637,6 +1638,100 @@ class HTTPServer:
             except Exception as e:
                 self._metrics.inc_counter("http_requests_errors_total")
                 logger.error(f"Recommend tools error: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e)) from e
+
+        # --- Code Execution Endpoints ---
+
+        @app.post("/code/execute")
+        async def execute_code(request: Request) -> dict[str, Any]:
+            """
+            Execute code using LLM-powered code execution.
+
+            Request body:
+                {
+                    "code": "print('hello')",
+                    "language": "python",
+                    "context": "optional context",
+                    "timeout": 30
+                }
+
+            Returns:
+                Execution result or error
+            """
+            start_time = time.perf_counter()
+            self._metrics.inc_counter("http_requests_total")
+
+            try:
+                body = await request.json()
+                code = body.get("code")
+                language = body.get("language", "python")
+                context = body.get("context")
+                timeout = body.get("timeout", 30)
+
+                if not code:
+                    raise HTTPException(status_code=400, detail="Required field: code")
+
+                code_service = CodeExecutionService(
+                    llm_service=self.llm_service, config=self.config
+                )
+                result = await code_service.execute_code(code, language, context, timeout)
+
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+                result["response_time_ms"] = response_time_ms
+                return result
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                self._metrics.inc_counter("http_requests_errors_total")
+                logger.error(f"Code execution error: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail=str(e)) from e
+
+        @app.post("/code/process-dataset")
+        async def process_dataset(request: Request) -> dict[str, Any]:
+            """
+            Process large datasets using LLM-powered chunked processing.
+
+            Request body:
+                {
+                    "data": [...],
+                    "operation": "summarize",
+                    "parameters": {},
+                    "timeout": 60
+                }
+
+            Returns:
+                Processed result or error
+            """
+            start_time = time.perf_counter()
+            self._metrics.inc_counter("http_requests_total")
+
+            try:
+                body = await request.json()
+                data = body.get("data")
+                operation = body.get("operation")
+                parameters = body.get("parameters")
+                timeout = body.get("timeout", 60)
+
+                if data is None:
+                    raise HTTPException(status_code=400, detail="Required field: data")
+                if not operation:
+                    raise HTTPException(status_code=400, detail="Required field: operation")
+
+                code_service = CodeExecutionService(
+                    llm_service=self.llm_service, config=self.config
+                )
+                result = await code_service.process_dataset(data, operation, parameters, timeout)
+
+                response_time_ms = (time.perf_counter() - start_time) * 1000
+                result["response_time_ms"] = response_time_ms
+                return result
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                self._metrics.inc_counter("http_requests_errors_total")
+                logger.error(f"Dataset processing error: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e)) from e
 
         @app.get("/mcp/status")
