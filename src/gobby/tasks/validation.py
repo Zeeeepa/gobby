@@ -6,6 +6,7 @@ using LLM providers.
 """
 
 import logging
+import subprocess
 from dataclasses import dataclass
 from typing import Literal
 
@@ -13,6 +14,57 @@ from gobby.config.app import TaskValidationConfig
 from gobby.llm import LLMService
 
 logger = logging.getLogger(__name__)
+
+
+def get_git_diff(max_chars: int = 50000) -> str | None:
+    """Get uncommitted changes from git.
+
+    Combines staged and unstaged changes.
+
+    Args:
+        max_chars: Maximum characters to return (truncates if larger)
+
+    Returns:
+        Combined diff string, or None if not in git repo or no changes
+    """
+    try:
+        # Get unstaged changes
+        unstaged = subprocess.run(
+            ["git", "diff"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        # Get staged changes
+        staged = subprocess.run(
+            ["git", "diff", "--cached"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        if unstaged.returncode != 0 and staged.returncode != 0:
+            return None
+
+        diff_parts = []
+        if staged.stdout.strip():
+            diff_parts.append("=== STAGED CHANGES ===\n" + staged.stdout)
+        if unstaged.stdout.strip():
+            diff_parts.append("=== UNSTAGED CHANGES ===\n" + unstaged.stdout)
+
+        if not diff_parts:
+            return None
+
+        combined = "\n".join(diff_parts)
+        if len(combined) > max_chars:
+            combined = combined[:max_chars] + "\n\n... [diff truncated] ..."
+
+        return combined
+
+    except Exception as e:
+        logger.debug(f"Failed to get git diff: {e}")
+        return None
 
 
 @dataclass
@@ -97,11 +149,23 @@ class TaskValidator:
             else f"Original Instruction:\n{original_instruction}"
         )
 
+        # Detect if changes_summary is a git diff
+        is_git_diff = changes_summary.startswith("Git diff") or "@@" in changes_summary
+
+        if is_git_diff:
+            changes_section = (
+                "Code Changes (git diff):\n"
+                "Analyze these ACTUAL code changes to verify the implementation.\n\n"
+                f"{changes_summary}\n\n"
+            )
+        else:
+            changes_section = f"Changes Summary:\n{changes_summary}\n\n"
+
         base_prompt = (
             "Validate if the following changes satisfy the requirements.\n\n"
             f"Task: {title}\n"
             f"{criteria_text}\n\n"
-            f"Changes Summary:\n{changes_summary}\n\n"
+            f"{changes_section}"
             "IMPORTANT: Return ONLY a JSON object, nothing else. No explanation, no preamble.\n"
             'Format: {"status": "valid", "feedback": "..."} or {"status": "invalid", "feedback": "..."}\n'
         )

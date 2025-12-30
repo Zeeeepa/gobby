@@ -966,28 +966,38 @@ def create_task_registry(
                         "message": feedback,
                         "open_children": [c.id for c in open_children],
                     }
-            elif changes_summary and task_validator:
-                # Leaf task with changes_summary: run LLM validation
-                result = await task_validator.validate_task(
-                    task_id=task.id,
-                    title=task.title,
-                    original_instruction=task.original_instruction,
-                    changes_summary=changes_summary,
-                    validation_criteria=task.validation_criteria,
-                )
-                # Store validation result regardless of pass/fail
-                task_manager.update_task(
-                    task_id,
-                    validation_status=result.status,
-                    validation_feedback=result.feedback,
-                )
-                if result.status != "valid":
-                    # Block closing on invalid or pending (error during validation)
-                    return {
-                        "error": "validation_failed",
-                        "message": result.feedback or "Validation did not pass",
-                        "validation_status": result.status,
-                    }
+            elif task_validator and task.validation_criteria:
+                # Leaf task with validation criteria: run LLM validation
+                # Use provided changes_summary or auto-fetch git diff
+                validation_context = changes_summary
+                if not validation_context:
+                    from gobby.tasks.validation import get_git_diff
+
+                    git_diff = get_git_diff()
+                    if git_diff:
+                        validation_context = f"Git diff of uncommitted changes:\n\n{git_diff}"
+
+                if validation_context:
+                    result = await task_validator.validate_task(
+                        task_id=task.id,
+                        title=task.title,
+                        original_instruction=task.original_instruction,
+                        changes_summary=validation_context,
+                        validation_criteria=task.validation_criteria,
+                    )
+                    # Store validation result regardless of pass/fail
+                    task_manager.update_task(
+                        task_id,
+                        validation_status=result.status,
+                        validation_feedback=result.feedback,
+                    )
+                    if result.status != "valid":
+                        # Block closing on invalid or pending (error during validation)
+                        return {
+                            "error": "validation_failed",
+                            "message": result.feedback or "Validation did not pass",
+                            "validation_status": result.status,
+                        }
 
         # All checks passed - close the task
         closed_task = task_manager.close_task(task_id, reason=reason)
