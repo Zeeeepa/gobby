@@ -677,6 +677,56 @@ def validate_task_cmd(task_id: str, summary: str | None, summary_file: str | Non
         click.echo(f"Validation error: {e}", err=True)
 
 
+@tasks.command("generate-criteria")
+@click.argument("task_id")
+def generate_criteria_cmd(task_id: str) -> None:
+    """Generate validation criteria for a task using AI."""
+    import asyncio
+
+    from gobby.config.app import load_config
+    from gobby.llm import LLMService
+    from gobby.tasks.validation import TaskValidator
+
+    manager = get_task_manager()
+    resolved = resolve_task_id(manager, task_id)
+    if not resolved:
+        return
+
+    if resolved.validation_criteria:
+        click.echo(f"Task already has validation criteria:")
+        click.echo(resolved.validation_criteria)
+        return
+
+    click.echo(f"Generating validation criteria for task {resolved.id}...")
+
+    try:
+        config = load_config()
+        llm_service = LLMService(config)
+        validator = TaskValidator(config.gobby_tasks.validation, llm_service)
+    except Exception as e:
+        click.echo(f"Error initializing validator: {e}", err=True)
+        return
+
+    try:
+        criteria = asyncio.run(
+            validator.generate_criteria(
+                title=resolved.title,
+                description=resolved.description,
+            )
+        )
+
+        if not criteria:
+            click.echo("Failed to generate criteria.", err=True)
+            return
+
+        # Update task with generated criteria
+        manager.update_task(resolved.id, validation_criteria=criteria)
+        click.echo(f"Generated and saved validation criteria:\n{criteria}")
+
+    except Exception as e:
+        click.echo(f"Error generating criteria: {e}", err=True)
+
+
 @tasks.command("expand")
 @click.argument("task_id")
 @click.option("--context", "-c", help="Additional context for expansion")
