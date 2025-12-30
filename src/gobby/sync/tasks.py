@@ -75,21 +75,37 @@ class TaskSyncManager:
                 }
                 export_data.append(task_dict)
 
-            # Write to file
-            self.export_path.parent.mkdir(parents=True, exist_ok=True)
-
-            with open(self.export_path, "w", encoding="utf-8") as f:
-                for item in export_data:
-                    f.write(json.dumps(item) + "\n")
-
-            # Calculate ID-independent content hash
+            # Calculate content hash first to check if anything changed
             jsonl_content = ""
             for item in export_data:
                 jsonl_content += json.dumps(item, sort_keys=True) + "\n"
 
             content_hash = hashlib.sha256(jsonl_content.encode("utf-8")).hexdigest()
 
+            # Check existing hash before writing anything
             meta_path = self.export_path.parent / "tasks_meta.json"
+            existing_hash = None
+            if meta_path.exists():
+                try:
+                    with open(meta_path, encoding="utf-8") as f:
+                        existing_meta = json.load(f)
+                        existing_hash = existing_meta.get("content_hash")
+                except (json.JSONDecodeError, OSError):
+                    pass  # Will write fresh meta
+
+            # Skip writing if content hasn't changed
+            if content_hash == existing_hash:
+                logger.debug(f"Task export skipped - no changes (hash: {content_hash[:8]})")
+                return
+
+            # Write JSONL file
+            self.export_path.parent.mkdir(parents=True, exist_ok=True)
+
+            with open(self.export_path, "w", encoding="utf-8") as f:
+                for item in export_data:
+                    f.write(json.dumps(item) + "\n")
+
+            # Write meta file
             meta_data = {
                 "content_hash": content_hash,
                 "last_exported": datetime.now(UTC).isoformat(),

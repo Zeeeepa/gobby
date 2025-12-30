@@ -231,3 +231,31 @@ class TestTaskSyncManager:
         # Verify DB updated
         t2_fresh = task_manager.get_task(t2.id)
         assert t2_fresh.title == "File Newer"
+
+    @pytest.mark.integration
+    def test_export_skips_when_unchanged(self, sync_manager, task_manager, sample_project):
+        """Test that export doesn't update meta file when content unchanged."""
+        # Create a task and export
+        task_manager.create_task(sample_project["id"], "Task 1")
+        sync_manager.export_to_jsonl()
+
+        meta_path = sync_manager.export_path.parent / "tasks_meta.json"
+        assert meta_path.exists()
+
+        # Read initial meta
+        with open(meta_path) as f:
+            initial_meta = json.load(f)
+        initial_timestamp = initial_meta["last_exported"]
+
+        # Wait a bit to ensure timestamp would differ
+        time.sleep(0.1)
+
+        # Export again without changes
+        sync_manager.export_to_jsonl()
+
+        # Meta file should NOT have been updated (timestamp unchanged)
+        with open(meta_path) as f:
+            final_meta = json.load(f)
+
+        assert final_meta["last_exported"] == initial_timestamp
+        assert final_meta["content_hash"] == initial_meta["content_hash"]
