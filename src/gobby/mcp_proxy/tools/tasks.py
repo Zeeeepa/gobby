@@ -143,35 +143,66 @@ def create_task_registry(
     )
     async def validate_task(
         task_id: str,
-        changes_summary: str,
+        changes_summary: str | None = None,
         context_files: list[str] | None = None,
     ) -> dict[str, Any]:
         """
         Validate task completion.
 
+        For parent tasks (tasks with children), validation checks if all children are closed.
+        For leaf tasks, uses LLM-based validation against criteria.
+
         Args:
             task_id: ID of the task to validate
-            changes_summary: Summary of changes made (files, diffs, etc.)
+            changes_summary: Summary of changes made (required for leaf tasks, ignored for parent tasks)
             context_files: List of file paths to read for context (optional)
 
         Returns:
             Validation result
         """
-        if not task_validator:
-            raise RuntimeError("Task validation is not enabled")
-
         task = task_manager.get_task(task_id)
         if not task:
             raise ValueError(f"Task not found: {task_id}")
 
-        result = await task_validator.validate_task(
-            task_id=task.id,
-            title=task.title,
-            original_instruction=task.original_instruction,
-            changes_summary=changes_summary,
-            validation_criteria=task.validation_criteria,
-            context_files=context_files,
-        )
+        # Check if task has children (is a parent task)
+        children = task_manager.list_tasks(parent_task_id=task_id, limit=1000)
+
+        if children:
+            # Parent task: validate based on child completion
+            open_children = [c for c in children if c.status != "closed"]
+            all_closed = len(open_children) == 0
+
+            from gobby.tasks.validation import ValidationResult
+
+            if all_closed:
+                result = ValidationResult(
+                    status="valid",
+                    feedback=f"All {len(children)} child tasks are completed.",
+                )
+            else:
+                open_titles = [f"- {c.id}: {c.title}" for c in open_children[:5]]
+                remaining = len(open_children) - 5 if len(open_children) > 5 else 0
+                feedback = f"{len(open_children)} of {len(children)} child tasks still open:\n"
+                feedback += "\n".join(open_titles)
+                if remaining > 0:
+                    feedback += f"\n... and {remaining} more"
+                result = ValidationResult(status="invalid", feedback=feedback)
+        else:
+            # Leaf task: use LLM-based validation
+            if not task_validator:
+                raise RuntimeError("Task validation is not enabled")
+
+            if not changes_summary:
+                raise ValueError("changes_summary is required for leaf task validation")
+
+            result = await task_validator.validate_task(
+                task_id=task.id,
+                title=task.title,
+                original_instruction=task.original_instruction,
+                changes_summary=changes_summary,
+                validation_criteria=task.validation_criteria,
+                context_files=context_files,
+            )
 
         # Update validation status
         updates: dict[str, Any] = {
@@ -281,15 +312,15 @@ def create_task_registry(
         """
         Generate validation criteria for a task using AI.
 
+        For parent tasks (tasks with children), sets criteria to "All child tasks completed".
+        For leaf tasks, uses LLM to generate criteria from title/description.
+
         Args:
             task_id: ID of the task to generate criteria for
 
         Returns:
             Generated criteria and updated task info
         """
-        if not task_validator:
-            raise RuntimeError("Task validation is not enabled")
-
         task = task_manager.get_task(task_id)
         if not task:
             raise ValueError(f"Task not found: {task_id}")
@@ -302,18 +333,29 @@ def create_task_registry(
                 "message": "Task already has validation criteria",
             }
 
-        criteria = await task_validator.generate_criteria(
-            title=task.title,
-            description=task.description,
-        )
+        # Check if task has children (is a parent task)
+        children = task_manager.list_tasks(parent_task_id=task_id, limit=1)
 
-        if not criteria:
-            return {
-                "task_id": task.id,
-                "validation_criteria": None,
-                "generated": False,
-                "error": "Failed to generate criteria",
-            }
+        if children:
+            # Parent task: criteria is child completion
+            criteria = "All child tasks must be completed (status: closed)."
+        else:
+            # Leaf task: use LLM to generate criteria
+            if not task_validator:
+                raise RuntimeError("Task validation is not enabled")
+
+            criteria = await task_validator.generate_criteria(
+                title=task.title,
+                description=task.description,
+            )
+
+            if not criteria:
+                return {
+                    "task_id": task.id,
+                    "validation_criteria": None,
+                    "generated": False,
+                    "error": "Failed to generate criteria",
+                }
 
         # Update task with generated criteria
         task_manager.update_task(task_id, validation_criteria=criteria)
@@ -322,6 +364,7 @@ def create_task_registry(
             "task_id": task.id,
             "validation_criteria": criteria,
             "generated": True,
+            "is_parent_task": len(children) > 0,
         }
 
     @registry.tool(

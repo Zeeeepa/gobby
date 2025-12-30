@@ -562,24 +562,65 @@ def clean_cmd() -> None:
 
 @tasks.command("validate")
 @click.argument("task_id")
-@click.option("--summary", default=None, help="Changes summary text")
+@click.option("--summary", default=None, help="Changes summary text (required for leaf tasks)")
 @click.option(
     "--file", "summary_file", type=click.Path(exists=True), help="File containing changes summary"
 )
 def validate_task_cmd(task_id: str, summary: str | None, summary_file: str | None) -> None:
-    """Validate a task."""
+    """Validate a task.
+
+    For parent tasks (with children), validates that all children are closed.
+    For leaf tasks, uses LLM-based validation against criteria.
+    """
     import asyncio
 
     from gobby.config.app import load_config
     from gobby.llm import LLMService
-    from gobby.tasks.validation import TaskValidator
+    from gobby.tasks.validation import TaskValidator, ValidationResult
 
     manager = get_task_manager()
     resolved = resolve_task_id(manager, task_id)
     if not resolved:
         return
 
-    # Get summary
+    # Check if task has children (is a parent task)
+    children = manager.list_tasks(parent_task_id=resolved.id, limit=1000)
+
+    if children:
+        # Parent task: validate based on child completion
+        open_children = [c for c in children if c.status != "closed"]
+        all_closed = len(open_children) == 0
+
+        if all_closed:
+            result = ValidationResult(
+                status="valid",
+                feedback=f"All {len(children)} child tasks are completed.",
+            )
+        else:
+            open_titles = [f"- {c.id}: {c.title}" for c in open_children[:5]]
+            remaining = len(open_children) - 5 if len(open_children) > 5 else 0
+            feedback = f"{len(open_children)} of {len(children)} child tasks still open:\n"
+            feedback += "\n".join(open_titles)
+            if remaining > 0:
+                feedback += f"\n... and {remaining} more"
+            result = ValidationResult(status="invalid", feedback=feedback)
+
+        click.echo(f"Validation Status: {result.status.upper()}")
+        if result.feedback:
+            click.echo(f"Feedback:\n{result.feedback}")
+
+        # Update validation status
+        updates: dict[str, Any] = {
+            "validation_status": result.status,
+            "validation_feedback": result.feedback,
+        }
+        if result.status == "valid":
+            manager.close_task(resolved.id, reason="All child tasks completed")
+            click.echo("Task closed.")
+        manager.update_task(resolved.id, **updates)
+        return
+
+    # Leaf task: need changes summary
     changes_summary = ""
     if summary_file:
         try:
@@ -596,7 +637,7 @@ def validate_task_cmd(task_id: str, summary: str | None, summary_file: str | Non
         changes_summary = sys.stdin.read()
 
     if not changes_summary.strip():
-        click.echo("Error: Changes summary is required.", err=True)
+        click.echo("Error: Changes summary is required for leaf tasks.", err=True)
         return
 
     click.echo(f"Validating task {resolved.id}...")
@@ -680,7 +721,11 @@ def validate_task_cmd(task_id: str, summary: str | None, summary_file: str | Non
 @tasks.command("generate-criteria")
 @click.argument("task_id")
 def generate_criteria_cmd(task_id: str) -> None:
-    """Generate validation criteria for a task using AI."""
+    """Generate validation criteria for a task.
+
+    For parent tasks (with children), sets criteria to 'All child tasks completed'.
+    For leaf tasks, uses AI to generate criteria from title/description.
+    """
     import asyncio
 
     from gobby.config.app import load_config
@@ -693,10 +738,21 @@ def generate_criteria_cmd(task_id: str) -> None:
         return
 
     if resolved.validation_criteria:
-        click.echo(f"Task already has validation criteria:")
+        click.echo("Task already has validation criteria:")
         click.echo(resolved.validation_criteria)
         return
 
+    # Check if task has children (is a parent task)
+    children = manager.list_tasks(parent_task_id=resolved.id, limit=1)
+
+    if children:
+        # Parent task: criteria is child completion
+        criteria = "All child tasks must be completed (status: closed)."
+        manager.update_task(resolved.id, validation_criteria=criteria)
+        click.echo(f"Parent task detected. Set validation criteria:\n{criteria}")
+        return
+
+    # Leaf task: use LLM to generate criteria
     click.echo(f"Generating validation criteria for task {resolved.id}...")
 
     try:
