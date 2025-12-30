@@ -39,6 +39,13 @@ gobby-tasks:
     enabled: true
     provider: claude
     model: claude-haiku-4-5
+    # Custom prompt for generating validation criteria. Available placeholders: {title}, {description}
+    # criteria_prompt: |
+    #   Generate acceptance criteria for:
+    #   Task: {title}
+    #   Description: {description}
+    #
+    #   Return a bulleted list of testable conditions.
 llm_providers:
   claude:
     models: claude-haiku-4-5,claude-sonnet-4-5,claude-opus-4-5
