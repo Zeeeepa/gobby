@@ -534,9 +534,16 @@ class HookManager:
                     # Filter for active 'worked_on' tasks - taking the most recent one
                     active_tasks = [t for t in session_tasks if t.get("action") == "worked_on"]
                     if active_tasks:
-                        # Use the most recent task
-                        event.task_id = active_tasks[0]["task"].id
-                        event.metadata["_task_title"] = active_tasks[0]["task"].title
+                        # Use the most recent task - populate full task context
+                        task = active_tasks[0]["task"]
+                        event.task_id = task.id
+                        event.metadata["_task_context"] = {
+                            "id": task.id,
+                            "title": task.title,
+                            "status": task.status,
+                        }
+                        # Keep legacy field for backwards compatibility
+                        event.metadata["_task_title"] = task.title
                 except Exception as e:
                     self.logger.warning(f"Failed to resolve active task: {e}")
 

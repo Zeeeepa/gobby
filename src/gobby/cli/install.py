@@ -654,7 +654,12 @@ def _uninstall_codex_notify() -> dict[str, Any]:
 
 
 def _install_git_hooks(project_path: Path) -> dict[str, Any]:
-    """Install Gobby git hooks to the current repository."""
+    """Install Gobby git hooks to the current repository.
+
+    Uses inline scripts for task auto-sync on commit/merge/checkout.
+    """
+    import stat
+
     git_dir = project_path / ".git"
     if not git_dir.exists():
         return {"success": False, "error": "Not a git repository (no .git directory found)"}
@@ -662,53 +667,57 @@ def _install_git_hooks(project_path: Path) -> dict[str, Any]:
     hooks_dir = git_dir / "hooks"
     hooks_dir.mkdir(parents=True, exist_ok=True)
 
-    source_hooks_dir = get_install_dir() / "hooks" / "git"
-    if not source_hooks_dir.exists():
-        # Fallback for dev mode
-        source_hooks_dir = get_install_dir().parent / "hooks" / "git"
+    # Inline hook scripts for task sync
+    hook_scripts = {
+        "pre-commit": '''#!/bin/sh
+# Gobby task sync hook - export tasks before commit
+# Installed by: gobby install --hooks
 
-    if not source_hooks_dir.exists():
-        return {"success": False, "error": f"Source hooks not found in {source_hooks_dir}"}
+if command -v gobby >/dev/null 2>&1; then
+    gobby tasks sync --export --quiet 2>/dev/null || true
+fi
+''',
+        "post-merge": '''#!/bin/sh
+# Gobby task sync hook - import tasks after merge/pull
+# Installed by: gobby install --hooks
+
+if command -v gobby >/dev/null 2>&1; then
+    gobby tasks sync --import --quiet 2>/dev/null || true
+fi
+''',
+        "post-checkout": '''#!/bin/sh
+# Gobby task sync hook - import tasks on branch switch
+# Installed by: gobby install --hooks
+
+# $3 is 1 if this was a branch checkout (vs file checkout)
+if [ "$3" = "1" ]; then
+    if command -v gobby >/dev/null 2>&1; then
+        gobby tasks sync --import --quiet 2>/dev/null || true
+    fi
+fi
+''',
+    }
 
     installed = []
+    skipped = []
 
-    # Map source filenames to git hook names
-    hook_map = {"post-merge": "post-merge", "pre-commit": "pre-commit"}
+    for hook_name, script in hook_scripts.items():
+        hook_path = hooks_dir / hook_name
 
-    for source_name, target_name in hook_map.items():
-        source_file = source_hooks_dir / source_name
-        target_file = hooks_dir / target_name
-
-        if not source_file.exists():
-            continue
-
-        # If hook exists, we need to be careful. code logic below:
-        # 1. If it's ours (check content?), replace it?
-        # 2. If it's user's, append our call?
-        # For this MVP, we will simpler: if file exists, warn and skip unless we spot our marker.
-        # Actually, let's just append our logic if not present.
-
-        hook_content = source_file.read_text()
-
-        if target_file.exists():
-            current_content = target_file.read_text()
-            if "Gobby Task Auto-Sync" in current_content:
-                # Already installed, maybe update?
-                # For now, assume it's fine.
-                pass
+        if hook_path.exists():
+            content = hook_path.read_text()
+            if "gobby" in content.lower():
+                skipped.append(f"{hook_name} (already installed)")
+                continue
             else:
-                # Append to existing
-                with open(target_file, "a") as f:
-                    f.write("\n" + hook_content)
-                target_file.chmod(0o755)
-                installed.append(target_name)
-        else:
-            # Create new
-            copy2(source_file, target_file)
-            target_file.chmod(0o755)
-            installed.append(target_name)
+                skipped.append(f"{hook_name} (existing hook)")
+                continue
 
-    return {"success": True, "installed": installed}
+        hook_path.write_text(script)
+        hook_path.chmod(hook_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        installed.append(hook_name)
+
+    return {"success": True, "installed": installed, "skipped": skipped}
 
 
 def _install_antigravity(project_path: Path) -> dict[str, Any]:
@@ -841,9 +850,10 @@ def _install_antigravity(project_path: Path) -> dict[str, Any]:
 )
 @click.option(
     "--hooks",
+    "--git-hooks",
     "install_hooks",
     is_flag=True,
-    help="Install Git hooks for task auto-sync",
+    help="Install Git hooks for task auto-sync (pre-commit, post-merge, post-checkout)",
 )
 @click.option(
     "--all",
@@ -1060,8 +1070,12 @@ def install(
                 click.echo("Installed git hooks:")
                 for hook in result["installed"]:
                     click.echo(f"  - {hook}")
-            else:
-                click.echo("Git hooks already installed")
+            if result.get("skipped"):
+                click.echo("Skipped:")
+                for hook in result["skipped"]:
+                    click.echo(f"  - {hook}")
+            if not result.get("installed") and not result.get("skipped"):
+                click.echo("No hooks to install")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")

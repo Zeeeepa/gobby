@@ -227,6 +227,36 @@ Tasks automatically sync to `.gobby/tasks.jsonl`:
 - **Import**: On daemon start
 - **Manual**: `gobby tasks sync`
 
+### Git Hook Auto-Sync
+
+Install git hooks for automatic task sync on commits and branch changes:
+
+```bash
+# Install via tasks CLI
+gobby tasks hooks install
+
+# Or via main install command
+gobby install --git-hooks
+```
+
+**Hooks installed:**
+| Hook | Trigger | Action |
+|------|---------|--------|
+| `pre-commit` | Before each commit | Export tasks to JSONL |
+| `post-merge` | After pull/merge | Import tasks from JSONL |
+| `post-checkout` | On branch switch | Import tasks from JSONL |
+
+**Manage hooks:**
+```bash
+# Check status
+gobby tasks hooks status
+
+# Remove hooks
+gobby tasks hooks uninstall
+```
+
+This ensures tasks stay in sync with your git branches without manual intervention.
+
 ### Stealth Mode
 
 Keep tasks out of git (store in `~/.gobby/` instead):
@@ -327,6 +357,11 @@ gobby tasks blocked
 
 # Sync
 gobby tasks sync [--import] [--export]
+
+# Git Hooks
+gobby tasks hooks install              # Install git hooks for auto-sync
+gobby tasks hooks uninstall            # Remove git hooks
+gobby tasks hooks status               # Check hook installation status
 
 # Expansion
 gobby tasks expand TASK_ID [--strategy S]

@@ -315,20 +315,33 @@ def delete_task(task_id: str, cascade: bool) -> None:
 
 
 @tasks.command("sync")
-@click.option("--direction", default="both", type=click.Choice(["import", "export", "both"]))
-def sync_tasks(direction: str) -> None:
-    """Sync tasks with .gobby/tasks.jsonl."""
+@click.option("--import", "do_import", is_flag=True, help="Import tasks from JSONL")
+@click.option("--export", "do_export", is_flag=True, help="Export tasks to JSONL")
+@click.option("--quiet", "-q", is_flag=True, help="Suppress output")
+def sync_tasks(do_import: bool, do_export: bool, quiet: bool) -> None:
+    """Sync tasks with .gobby/tasks.jsonl.
+
+    If neither --import nor --export specified, does both.
+    """
     manager = get_sync_manager()
 
-    if direction in ["import", "both"]:
-        click.echo("Importing tasks...")
+    # Default to both if neither specified
+    if not do_import and not do_export:
+        do_import = True
+        do_export = True
+
+    if do_import:
+        if not quiet:
+            click.echo("Importing tasks...")
         manager.import_from_jsonl()
 
-    if direction in ["export", "both"]:
-        click.echo("Exporting tasks...")
+    if do_export:
+        if not quiet:
+            click.echo("Exporting tasks...")
         manager.export_to_jsonl()
 
-    click.echo("Sync completed")
+    if not quiet:
+        click.echo("Sync completed")
 
 
 @tasks.group("compact")
@@ -1495,3 +1508,165 @@ def suggest_cmd(task_type: str | None, no_prefer_subtasks: bool, json_format: bo
         click.echo("\nAlternatives:")
         for task, _score, _ in scored[1:4]:
             click.echo(f"  {task.id[:12]}: {task.title[:50]}")
+
+
+# ============================================================================
+# Git Hooks Group
+# ============================================================================
+
+GIT_HOOK_SCRIPTS = {
+    "pre-commit": '''#!/bin/sh
+# Gobby task sync hook - export tasks before commit
+# Installed by: gobby tasks hooks install
+
+# Only run if gobby is installed and daemon is running
+if command -v gobby >/dev/null 2>&1; then
+    gobby tasks sync --export --quiet 2>/dev/null || true
+fi
+''',
+    "post-merge": '''#!/bin/sh
+# Gobby task sync hook - import tasks after merge/pull
+# Installed by: gobby tasks hooks install
+
+# Only run if gobby is installed and daemon is running
+if command -v gobby >/dev/null 2>&1; then
+    gobby tasks sync --import --quiet 2>/dev/null || true
+fi
+''',
+    "post-checkout": '''#!/bin/sh
+# Gobby task sync hook - import tasks on branch switch
+# Installed by: gobby tasks hooks install
+
+# $3 is 1 if this was a branch checkout (vs file checkout)
+if [ "$3" = "1" ]; then
+    if command -v gobby >/dev/null 2>&1; then
+        gobby tasks sync --import --quiet 2>/dev/null || true
+    fi
+fi
+''',
+}
+
+
+@tasks.group("hooks")
+def hooks_group() -> None:
+    """Git hook management for automatic task sync."""
+    pass
+
+
+@hooks_group.command("install")
+@click.option("--force", is_flag=True, help="Overwrite existing hooks")
+def hooks_install(force: bool) -> None:
+    """Install git hooks for automatic task sync.
+
+    Installs hooks for:
+    - pre-commit: Export tasks before commit
+    - post-merge: Import tasks after pull/merge
+    - post-checkout: Import tasks on branch switch
+    """
+    import os
+    import stat
+
+    # Find .git directory
+    git_dir = Path(".git")
+    if not git_dir.exists():
+        # Try parent directories
+        cwd = Path.cwd()
+        for parent in [cwd] + list(cwd.parents):
+            if (parent / ".git").exists():
+                git_dir = parent / ".git"
+                break
+        else:
+            click.echo("Error: Not in a git repository", err=True)
+            raise SystemExit(1)
+
+    hooks_dir = git_dir / "hooks"
+    hooks_dir.mkdir(exist_ok=True)
+
+    installed = []
+    skipped = []
+
+    for hook_name, script in GIT_HOOK_SCRIPTS.items():
+        hook_path = hooks_dir / hook_name
+
+        if hook_path.exists() and not force:
+            # Check if it's our hook
+            content = hook_path.read_text()
+            if "gobby tasks" in content.lower():
+                skipped.append(f"{hook_name} (already installed)")
+            else:
+                skipped.append(f"{hook_name} (existing hook, use --force to overwrite)")
+            continue
+
+        hook_path.write_text(script)
+        # Make executable
+        hook_path.chmod(hook_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        installed.append(hook_name)
+
+    if installed:
+        click.echo(f"Installed git hooks: {', '.join(installed)}")
+    if skipped:
+        click.echo(f"Skipped: {', '.join(skipped)}")
+    if not installed and not skipped:
+        click.echo("No hooks to install")
+
+
+@hooks_group.command("uninstall")
+def hooks_uninstall() -> None:
+    """Remove gobby git hooks."""
+    # Find .git directory
+    git_dir = Path(".git")
+    if not git_dir.exists():
+        cwd = Path.cwd()
+        for parent in [cwd] + list(cwd.parents):
+            if (parent / ".git").exists():
+                git_dir = parent / ".git"
+                break
+        else:
+            click.echo("Error: Not in a git repository", err=True)
+            raise SystemExit(1)
+
+    hooks_dir = git_dir / "hooks"
+    removed = []
+
+    for hook_name in GIT_HOOK_SCRIPTS.keys():
+        hook_path = hooks_dir / hook_name
+        if hook_path.exists():
+            content = hook_path.read_text()
+            if "gobby tasks" in content.lower():
+                hook_path.unlink()
+                removed.append(hook_name)
+
+    if removed:
+        click.echo(f"Removed git hooks: {', '.join(removed)}")
+    else:
+        click.echo("No gobby hooks found to remove")
+
+
+@hooks_group.command("status")
+def hooks_status() -> None:
+    """Show status of gobby git hooks."""
+    # Find .git directory
+    git_dir = Path(".git")
+    if not git_dir.exists():
+        cwd = Path.cwd()
+        for parent in [cwd] + list(cwd.parents):
+            if (parent / ".git").exists():
+                git_dir = parent / ".git"
+                break
+        else:
+            click.echo("Error: Not in a git repository", err=True)
+            raise SystemExit(1)
+
+    hooks_dir = git_dir / "hooks"
+    click.echo(f"Git hooks directory: {hooks_dir}\n")
+
+    for hook_name in GIT_HOOK_SCRIPTS.keys():
+        hook_path = hooks_dir / hook_name
+        if hook_path.exists():
+            content = hook_path.read_text()
+            if "gobby tasks" in content.lower():
+                click.echo(f"  {hook_name}: installed (gobby)")
+            else:
+                click.echo(f"  {hook_name}: exists (not gobby)")
+        else:
+            click.echo(f"  {hook_name}: not installed")
