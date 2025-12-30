@@ -69,3 +69,63 @@ triggers:
       template: |
         ## Previous Session Context
         {{ summary }}
+
+  # Autonomous Handover Flow
+  on_pre_compact:
+    - action: extract_handoff_context
+      when: "event.data.get('trigger') == 'auto'"
+      store_as: compact_handoff
+      include:
+        - active_task
+        - todo_state
+        - files_modified
+        - git_commits
+        - git_status
+        - initial_goal
+        - recent_activity
+
+    - action: inject_context
+      when: "event.data.get('source') == 'compact'"
+      source: workflow_state
+      template: |
+        ## Continuation Context
+
+        {% set ctx = variables.get('compact_handoff', {}) %}
+        {% if ctx.active_gobby_task %}
+        ### Active Task
+        **{{ ctx.active_gobby_task.title }}** ({{ ctx.active_gobby_task.id }})
+        Status: {{ ctx.active_gobby_task.status }}
+        {% endif %}
+
+        {% if ctx.todo_state %}
+        ### In-Progress Work
+        {% for todo in ctx.todo_state %}
+        - [{{ 'x' if todo.status == 'completed' else '>' if todo.status == 'in_progress' else ' ' }}] {{ todo.content }}
+        {% endfor %}
+        {% endif %}
+
+        {% if ctx.git_commits %}
+        ### Commits This Session
+        {% for commit in ctx.git_commits %}
+        - `{{ commit.hash }}` {{ commit.message }}
+        {% endfor %}
+        {% endif %}
+
+        {% if ctx.git_status %}
+        ### Uncommitted Changes
+        ```
+        {{ ctx.git_status }}
+        ```
+        {% endif %}
+
+        {% if ctx.files_modified %}
+        ### Files Being Modified
+        {% for file in ctx.files_modified %}
+        - {{ file }}
+        {% endfor %}
+        {% endif %}
+
+        {% if ctx.initial_goal %}
+        ### Original Goal
+        {{ ctx.initial_goal }}
+        {% endif %}

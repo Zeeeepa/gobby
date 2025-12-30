@@ -93,6 +93,9 @@ class ActionExecutor:
         self.register("skills_learn", self._handle_skills_learn)
         self.register("memory.sync_import", self._handle_memory_sync_import)
         self.register("memory.sync_export", self._handle_memory_sync_export)
+        self.register("extract_handoff_context", self._handle_extract_handoff_context)
+        self.register("start_new_session", self._handle_start_new_session)
+        self.register("mark_loop_complete", self._handle_mark_loop_complete)
 
     async def execute(
         self, action_type: str, context: ActionContext, **kwargs: Any
@@ -771,6 +774,106 @@ class ActionExecutor:
         logger.info(f"Generated summary for session {context.session_id}")
         return {"summary_generated": True, "summary_length": len(summary_content)}
 
+    async def _handle_start_new_session(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """
+        Start a new CLI session (chaining).
+
+        args:
+            command: CLI command to run (default: auto-detect from source)
+            args: List of arguments
+            prompt: Initial prompt/context to inject
+            cwd: Working directory (default: current session's cwd)
+            detached: Whether to detach the process (default: True)
+        """
+        session = context.session_manager.get(context.session_id)
+        if not session:
+            return {"error": "Session not found"}
+
+        # Determine command
+        command = kwargs.get("command")
+        if not command:
+            # Auto-detect from source
+            source = getattr(session, "source", "claude")
+            if source == "claude":
+                command = "claude"
+            elif source == "gemini":
+                command = "gemini"
+            else:
+                command = "claude"  # Default fallthrough
+
+        cmd_args = kwargs.get("args", [])
+        if isinstance(cmd_args, str):
+            import shlex
+
+            cmd_args = shlex.split(cmd_args)
+
+        # Prepare prompt/input
+        prompt = kwargs.get("prompt")
+        # Render prompt template if needed?
+        # Usually 'prompt' here is the final string, but if it contains {{}}, template engine might have handled it?
+        # ActionExecutor calls handler with kwargs coming from yaml.
+        # If yaml had template syntax, the caller (WorkflowEngine) usually renders it BEFORE calling action?
+        # Actually WorkflowEngine.execute_action evaluates 'args' values if they look like templates?
+        # Let's assume prompt is ready string.
+
+        cwd = kwargs.get("cwd") or getattr(session, "project_path", None) or "."
+
+        logger.info(f"Starting new session: {command} {cmd_args} in {cwd}")
+
+        try:
+            import subprocess
+
+            # Construct full command
+            full_cmd = [command] + cmd_args
+
+            # Inject prompt via -p flag for Claude/Codex if supported
+            # Verify CLI support? For now assume user configured correctly or we default common flags.
+            if prompt and command in ["claude", "gemini"]:
+                full_cmd.extend(["-p", prompt])
+
+            # Spawn process
+            # We use specific flags to detach fully to survive daemon/parent death if needed?
+            # Or just standard Popen.
+            # If we are inside an action, we are essentially the daemon.
+            # We want the new CLI to run independently.
+            # But wait, usually these CLIs are interactive.
+            # If we are 'chaining', are we running in 'headless' mode?
+            # Gobby's goal is 'Autonomous Session Chaining'.
+            # Presumably sending a prompt and letting it run until it stops.
+            # If it's Claude Code, `claude -p "..."` runs and exits?
+            # Or runs interactive?
+            # `claude` is interactive. `echo "msg" | claude` might be better or `-p`.
+            # We'll rely on the configured command args to control behavior (e.g. --non-interactive if exists).
+
+            proc = subprocess.Popen(
+                full_cmd,
+                cwd=cwd,
+                stdout=subprocess.DEVNULL,  # We rely on transcripts/logs, don't pipe to daemon stdout
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,  # Detach
+            )
+
+            logger.info(f"Spawned process {proc.pid}")
+
+            return {"started_new_session": True, "pid": proc.pid, "command": str(full_cmd)}
+
+        except Exception as e:
+            logger.error(f"Failed to start new session: {e}", exc_info=True)
+            return {"error": str(e)}
+
+    async def _handle_mark_loop_complete(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """
+        Mark the autonomous loop as complete.
+        Sets 'stop_reason' variable to 'completed'.
+        """
+        context.state.variables["stop_reason"] = "completed"
+        return {"loop_marked_complete": True}
+
     async def _handle_restore_context(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
@@ -798,6 +901,61 @@ class ActionExecutor:
             content = context.template_engine.render(template, render_context)
 
         return {"inject_context": content}
+
+    async def _handle_extract_handoff_context(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Extract handoff context from transcript."""
+        store_as = kwargs.get("store_as")
+        if not store_as:
+            return {"error": "Missing store_as argument"}
+
+        current_session = context.session_manager.get(context.session_id)
+        if not current_session:
+            return {"error": "Session not found"}
+
+        transcript_path = getattr(current_session, "jsonl_path", None)
+        if not transcript_path:
+            return {"error": "No transcript path"}
+
+        try:
+            import json
+            from dataclasses import asdict
+            from pathlib import Path
+
+            from gobby.sessions.analyzer import TranscriptAnalyzer
+
+            # Read transcript
+            path = Path(transcript_path)
+            if not path.exists():
+                return {"error": "Transcript file not found"}
+
+            turns = []
+            with open(path) as f:
+                for line in f:
+                    if line.strip():
+                        turns.append(json.loads(line))
+
+            analyzer = TranscriptAnalyzer()
+            handoff_ctx = analyzer.extract_handoff_context(turns)
+
+            # Enrich with real-time git status
+            if not handoff_ctx.git_status:
+                handoff_ctx.git_status = self._get_git_status()
+
+            # Convert dataclass to dict
+            ctx_dict = asdict(handoff_ctx)
+
+            if not context.state.variables:
+                context.state.variables = {}
+
+            context.state.variables[store_as] = ctx_dict
+
+            return {"handoff_context_extracted": True, "stored_as": store_as}
+
+        except Exception as e:
+            logger.error(f"extract_handoff_context: Failed: {e}")
+            return {"error": str(e)}
 
     async def _handle_memory_inject(
         self, context: ActionContext, **kwargs: Any

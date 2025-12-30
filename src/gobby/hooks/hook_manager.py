@@ -1086,14 +1086,24 @@ class HookManager:
         Returns:
             HookResponse (always allow)
         """
+        trigger = event.data.get("trigger", "auto")
         session_id = event.metadata.get("_platform_session_id")
 
         if session_id:
-            self.logger.debug(f"🗜️  Pre-compact: session {session_id}")
+            self.logger.debug(f"🗜️  Pre-compact ({trigger}): session {session_id}")
         else:
-            self.logger.debug("🗜️  Pre-compact")
+            self.logger.debug(f"🗜️  Pre-compact ({trigger})")
 
-        return HookResponse(decision="allow")
+        # Execute lifecycle workflows (e.g. session-handoff extraction)
+        try:
+            wf_response = self._workflow_handler.handle_all_lifecycles(event)
+            return wf_response
+        except Exception as e:
+            self.logger.error(
+                f"Failed to execute lifecycle workflows on pre_compact: {e}",
+                exc_info=True,
+            )
+            return HookResponse(decision="allow")
 
     def _handle_event_subagent_start(self, event: HookEvent) -> HookResponse:
         """
