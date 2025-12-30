@@ -65,11 +65,11 @@ class LoggingSettings(BaseModel):
 
     # Log file paths
     client: str = Field(
-        default="~/.gobby/logs/gobby.log",
+        default="~/.gobby/logs/gobby-client.log",
         description="Daemon main log file path",
     )
     client_error: str = Field(
-        default="~/.gobby/logs/gobby-error.log",
+        default="~/.gobby/logs/gobby-client-error.log",
         description="Daemon error log file path",
     )
     hook_manager: str = Field(
@@ -499,7 +499,7 @@ class TaskExpansionConfig(BaseModel):
         description="LLM provider to use for expansion",
     )
     model: str = Field(
-        default="claude-haiku-4-5",
+        default="claude-opus-4-5",
         description="Model to use for expansion",
     )
     prompt: str | None = Field(
@@ -533,6 +533,10 @@ class TaskExpansionConfig(BaseModel):
     max_subtasks: int = Field(
         default=15,
         description="Maximum number of subtasks to create per expansion",
+    )
+    default_strategy: Literal["auto", "phased", "sequential", "parallel"] = Field(
+        default="auto",
+        description="Default expansion strategy: auto (LLM decides), phased, sequential, or parallel",
     )
 
 
@@ -880,14 +884,6 @@ class DaemonConfig(BaseModel):
     workflow: WorkflowConfig = Field(
         default_factory=WorkflowConfig,
         description="Workflow engine configuration",
-    )
-    task_expansion: TaskExpansionConfig = Field(
-        default_factory=TaskExpansionConfig,
-        description="Task expansion configuration",
-    )
-    task_validation: TaskValidationConfig = Field(
-        default_factory=TaskValidationConfig,
-        description="Task validation configuration",
     )
     memory: MemoryConfig = Field(
         default_factory=MemoryConfig,
