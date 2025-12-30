@@ -165,7 +165,7 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`:
 - `link_task_to_session`, `get_session_tasks`, `get_task_sessions`
 - `sync_tasks`, `get_sync_status`
 - `expand_task`, `analyze_complexity`, `expand_all`, `expand_from_spec`, `suggest_next_task` - LLM-powered expansion
-- `validate_task`, `get_validation_status`, `reset_validation_count` - Task validation
+- `validate_task`, `get_validation_status`, `reset_validation_count`, `generate_validation_criteria` - Task validation (auto-fetches git diff)
 
 See [docs/guides/tasks.md](docs/guides/tasks.md) for the full Task System guide.
 

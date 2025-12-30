@@ -1450,56 +1450,71 @@ For large tasks, use `expand_task(id)` to break them down before starting.
   - Remove JSON schema from prompt
   - Update tests and documentation
 
-### Phase 12.5: Task Validation
+### Phase 12.5: Task Validation ✅ COMPLETED
 
 > Uses configured `task_validation` provider. Validates task completion against `validation_criteria`.
 > Tools are registered in `gobby-tasks` internal MCP server.
 
 **Schema Migration:**
 
-- [ ] Add `validation_criteria` column to tasks table
-- [ ] Add `use_external_validator` column to tasks table
-- [ ] Add `validation_fail_count` column to tasks table
-- [ ] Add `failed` as valid status value
+- [x] Add `validation_criteria` column to tasks table
+- [x] Add `use_external_validator` column to tasks table
+- [x] Add `validation_fail_count` column to tasks table
+- [x] Add `validation_status` and `validation_feedback` columns to tasks table
+- [x] Add `failed` as valid status value
 
 **Core Implementation:**
 
-- [ ] Create `TaskValidationConfig` in `src/config/app.py`
-- [ ] Create `src/tasks/validation.py` with `TaskValidator` class
-- [ ] Implement `validate_task()` method - runs validation prompt against current state
-- [ ] Implement `gather_validation_context()` - reads relevant files, test results, etc.
+- [x] Create `TaskValidationConfig` in `src/config/app.py`
+- [x] Create `src/tasks/validation.py` with `TaskValidator` class
+- [x] Implement `validate_task()` method - runs validation prompt against current state
+- [x] Implement `gather_validation_context()` - reads relevant files, test results, etc.
+- [x] Implement `get_git_diff()` helper - auto-fetches uncommitted changes (staged + unstaged)
+- [x] Implement `generate_criteria()` method - LLM-generates validation criteria from task title/description
+
+**Git Diff Integration:**
+
+- [x] `close_task` auto-fetches git diff when no `changes_summary` provided
+- [x] Validation prompt detects and properly handles git diff format
+- [x] Truncation support for large diffs (50k char limit)
+- [x] Combines staged and unstaged changes with clear section headers
 
 **Failure Handling:**
 
-- [ ] Increment `validation_fail_count` on failure
-- [ ] If `create_fix_subtask: true`, create subtask with failure details
-- [ ] If `validation_fail_count >= max_validation_fails`, set status → `failed`
-- [ ] `failed` tasks surface in `list_tasks(status="failed")` for human review
+- [x] Increment `validation_fail_count` on failure
+- [x] Store `validation_status` and `validation_feedback` on every validation (pass or fail)
+- [x] Block task close on any non-valid status (invalid or pending)
+- [ ] If `create_fix_subtask: true`, create subtask with failure details (deferred)
+- [ ] If `validation_fail_count >= max_validation_fails`, set status → `failed` (deferred)
 
 **External Validator Support:**
 
-- [ ] When `use_external_validator: true` on task, spawn separate validation agent
+- [ ] When `use_external_validator: true` on task, spawn separate validation agent (deferred)
 - [ ] Validation agent uses configured provider/model from `task_validation`
 - [ ] Pass task context, files changed, test results to validation agent
 
 **MCP Tools (gobby-tasks internal server):**
 
-- [ ] Add `validate_task` tool to `src/mcp_proxy/tools/tasks.py`
-- [ ] Add `get_validation_status` tool to `src/mcp_proxy/tools/tasks.py`
-- [ ] Add `reset_validation_count` tool (for manual retry)
+- [x] Add `validate_task` tool to `src/mcp_proxy/tools/tasks.py`
+- [x] Add `get_validation_status` tool to `src/mcp_proxy/tools/tasks.py`
+- [x] Add `reset_validation_count` tool (for manual retry)
+- [x] Add `generate_validation_criteria` tool with `--all` support for bulk generation
 
 **CLI Commands:**
 
-- [ ] Add `gobby tasks validate TASK_ID` command
-- [ ] Add `gobby tasks list --status failed` filter
-- [ ] Add `gobby tasks reset-validation TASK_ID` command
+- [x] Add `gobby tasks validate TASK_ID` command
+- [x] Add `gobby tasks list --status failed` filter
+- [x] Add `gobby tasks reset-validation TASK_ID` command
+- [x] Add `gobby tasks generate-criteria TASK_ID [--all]` command
 
 **Testing:**
 
-- [ ] Add unit tests for TaskValidator
-- [ ] Add integration tests with mock LLM
-- [ ] Test failure → subtask creation flow
-- [ ] Test max_validation_fails → failed status flow
+- [x] Manual testing with real LLM validation
+- [x] Test git diff auto-fetch in close_task
+- [ ] Add unit tests for TaskValidator (deferred)
+- [ ] Add integration tests with mock LLM (deferred)
+- [ ] Test failure → subtask creation flow (deferred)
+- [ ] Test max_validation_fails → failed status flow (deferred)
 
 ### Phase 13: Agent Instructions
 

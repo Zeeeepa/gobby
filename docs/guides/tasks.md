@@ -141,13 +141,55 @@ call_tool(server_name="gobby-tasks", tool_name="expand_from_spec", arguments={
 
 ## Task Validation
 
-Validate task completion with AI assistance:
+Validate task completion with AI assistance. Validation uses actual git diffs to verify real code changes.
+
+### Automatic Validation on Close
+
+When closing a task with `validation_criteria`, the system automatically:
+1. Fetches uncommitted git changes (staged + unstaged)
+2. Passes the actual diff to the validation LLM
+3. Blocks the close if validation fails
 
 ```python
-# Validate a task is complete
+# Close task - validation happens automatically if task has validation_criteria
+call_tool(server_name="gobby-tasks", tool_name="close_task", arguments={
+    "task_id": "gt-abc123",
+    "reason": "completed"
+})
+# If validation fails, returns: {"error": "validation_failed", "message": "...", "validation_status": "invalid"}
+
+# Skip validation if needed
+call_tool(server_name="gobby-tasks", tool_name="close_task", arguments={
+    "task_id": "gt-abc123",
+    "reason": "completed",
+    "skip_validation": True
+})
+```
+
+### Generate Validation Criteria
+
+Tasks need `validation_criteria` for validation to run:
+
+```python
+# Generate criteria for a single task
+call_tool(server_name="gobby-tasks", tool_name="generate_validation_criteria", arguments={
+    "task_id": "gt-abc123"
+})
+
+# Or set criteria manually when creating/updating
+call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
+    "title": "Add logout button",
+    "validation_criteria": "- Logout button visible in header\n- Clicking logs user out\n- Redirects to login page"
+})
+```
+
+### Manual Validation
+
+```python
+# Validate a task explicitly (with optional changes_summary)
 call_tool(server_name="gobby-tasks", tool_name="validate_task", arguments={
     "task_id": "gt-abc123",
-    "changes_summary": "Added login form with validation"
+    "changes_summary": "Added login form with validation"  # Optional - uses git diff if not provided
 })
 
 # Check validation status
@@ -159,6 +201,22 @@ call_tool(server_name="gobby-tasks", tool_name="get_validation_status", argument
 call_tool(server_name="gobby-tasks", tool_name="reset_validation_count", arguments={
     "task_id": "gt-abc123"
 })
+```
+
+### CLI Validation Commands
+
+```bash
+# Generate validation criteria
+gobby tasks generate-criteria gt-abc123
+
+# Generate criteria for all open tasks missing it
+gobby tasks generate-criteria --all
+
+# Validate a task
+gobby tasks validate gt-abc123
+
+# Reset validation failure count
+gobby tasks reset-validation gt-abc123
 ```
 
 ## Git Sync
@@ -237,15 +295,16 @@ gobby tasks config --stealth on
 
 | Tool | Description |
 |------|-------------|
-| `validate_task` | Validate task completion |
+| `validate_task` | Validate task completion (uses git diff automatically) |
 | `get_validation_status` | Get validation details |
 | `reset_validation_count` | Reset failure count for retry |
+| `generate_validation_criteria` | Generate validation criteria using LLM |
 
 ## CLI Command Reference
 
 ```bash
 # Task management
-gobby tasks list [--status S] [--priority N] [--ready] [--json]
+gobby tasks list [--status S] [--priority N] [--ready] [--blocked] [--json]
 gobby tasks show TASK_ID
 gobby tasks create "Title" [-d DESC] [-p PRIORITY] [-t TYPE]
 gobby tasks update TASK_ID [--status S] [--priority P]
@@ -273,6 +332,12 @@ gobby tasks sync [--import] [--export]
 gobby tasks expand TASK_ID [--strategy S]
 gobby tasks complexity TASK_ID
 gobby tasks suggest
+
+# Validation
+gobby tasks generate-criteria TASK_ID   # Generate criteria for one task
+gobby tasks generate-criteria --all     # Generate for all open tasks
+gobby tasks validate TASK_ID            # Run validation
+gobby tasks reset-validation TASK_ID    # Reset failure count
 
 # Stats
 gobby tasks stats
