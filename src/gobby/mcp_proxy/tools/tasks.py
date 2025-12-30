@@ -923,17 +923,79 @@ def create_task_registry(
         func=remove_label,
     )
 
-    def close_task(task_id: str, reason: str = "completed") -> dict[str, Any]:
-        """Close a task with a reason."""
-        task = task_manager.close_task(task_id)
+    async def close_task(
+        task_id: str,
+        reason: str = "completed",
+        changes_summary: str | None = None,
+        skip_validation: bool = False,
+    ) -> dict[str, Any]:
+        """Close a task with validation.
+
+        For parent tasks: automatically checks all children are closed.
+        For leaf tasks: optionally validates with LLM if changes_summary provided.
+
+        Args:
+            task_id: Task ID to close
+            reason: Reason for closing
+            changes_summary: Summary of changes (enables LLM validation for leaf tasks)
+            skip_validation: Skip all validation checks
+
+        Returns:
+            Closed task or error with validation feedback
+        """
+        task = task_manager.get_task(task_id)
         if not task:
             return {"error": f"Task {task_id} not found"}
-        result: dict[str, Any] = task.to_dict()
+
+        if not skip_validation:
+            # Check if task has children (is a parent task)
+            children = task_manager.list_tasks(parent_task_id=task_id, limit=1000)
+
+            if children:
+                # Parent task: must have all children closed
+                open_children = [c for c in children if c.status != "closed"]
+                if open_children:
+                    open_titles = [f"- {c.id}: {c.title}" for c in open_children[:5]]
+                    remaining = len(open_children) - 5 if len(open_children) > 5 else 0
+                    feedback = f"Cannot close: {len(open_children)} child tasks still open:\n"
+                    feedback += "\n".join(open_titles)
+                    if remaining > 0:
+                        feedback += f"\n... and {remaining} more"
+                    return {
+                        "error": "validation_failed",
+                        "message": feedback,
+                        "open_children": [c.id for c in open_children],
+                    }
+            elif changes_summary and task_validator:
+                # Leaf task with changes_summary: run LLM validation
+                result = await task_validator.validate_task(
+                    task_id=task.id,
+                    title=task.title,
+                    original_instruction=task.original_instruction,
+                    changes_summary=changes_summary,
+                    validation_criteria=task.validation_criteria,
+                )
+                if result.status == "invalid":
+                    task_manager.update_task(
+                        task_id,
+                        validation_status="invalid",
+                        validation_feedback=result.feedback,
+                    )
+                    return {
+                        "error": "validation_failed",
+                        "message": result.feedback,
+                        "validation_status": "invalid",
+                    }
+
+        # All checks passed - close the task
+        closed_task = task_manager.close_task(task_id, reason=reason)
+        result: dict[str, Any] = closed_task.to_dict()
+        result["validated"] = not skip_validation
         return result
 
     registry.register(
         name="close_task",
-        description="Close a task with a reason.",
+        description="Close a task. Parent tasks require all children closed. Leaf tasks can optionally validate with changes_summary.",
         input_schema={
             "type": "object",
             "properties": {
@@ -942,6 +1004,16 @@ def create_task_registry(
                     "type": "string",
                     "description": 'Reason for closing (e.g., "completed", "wont_fix", "duplicate")',
                     "default": "completed",
+                },
+                "changes_summary": {
+                    "type": "string",
+                    "description": "Summary of changes made. If provided for leaf tasks, triggers LLM validation before close.",
+                    "default": None,
+                },
+                "skip_validation": {
+                    "type": "boolean",
+                    "description": "Skip validation checks (use for wont_fix, duplicate, etc.)",
+                    "default": False,
                 },
             },
             "required": ["task_id"],

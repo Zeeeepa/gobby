@@ -253,12 +253,36 @@ def update_task(
 @tasks.command("close")
 @click.argument("task_id")
 @click.option("--reason", default="completed", help="Reason for closing")
-def close_task(task_id: str, reason: str) -> None:
-    """Close a task."""
+@click.option("--skip-validation", is_flag=True, help="Skip validation checks")
+@click.option("--force", "-f", is_flag=True, help="Alias for --skip-validation")
+def close_task_cmd(task_id: str, reason: str, skip_validation: bool, force: bool) -> None:
+    """Close a task.
+
+    Parent tasks require all children to be closed first.
+    Use --skip-validation or --force for wont_fix, duplicate, etc.
+    """
     manager = get_task_manager()
     resolved = resolve_task_id(manager, task_id)
     if not resolved:
         return
+
+    skip = skip_validation or force
+
+    if not skip:
+        # Check if task has children (is a parent task)
+        children = manager.list_tasks(parent_task_id=resolved.id, limit=1000)
+
+        if children:
+            # Parent task: must have all children closed
+            open_children = [c for c in children if c.status != "closed"]
+            if open_children:
+                click.echo(f"Cannot close: {len(open_children)} child tasks still open:", err=True)
+                for c in open_children[:5]:
+                    click.echo(f"  - {c.id}: {c.title}", err=True)
+                if len(open_children) > 5:
+                    click.echo(f"  ... and {len(open_children) - 5} more", err=True)
+                click.echo("\nUse --force to close anyway.", err=True)
+                return
 
     task = manager.close_task(resolved.id, reason=reason)
     click.echo(f"Closed task {task.id[:8]} ({reason})")
