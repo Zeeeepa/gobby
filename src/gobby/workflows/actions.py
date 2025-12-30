@@ -951,6 +951,12 @@ class ActionExecutor:
             if not handoff_ctx.git_status:
                 handoff_ctx.git_status = self._get_git_status()
 
+            # Enrich with real git commits (more reliable than parsing transcript)
+            # Get commits made during this session (last 10 commits)
+            real_commits = self._get_recent_git_commits()
+            if real_commits:
+                handoff_ctx.git_commits = real_commits
+
             # Get prompt template from config
             prompt_template = None
             if context.config:
@@ -1253,6 +1259,36 @@ class ActionExecutor:
             return result.stdout.strip() or "No changes"
         except Exception:
             return "Not a git repository or git not available"
+
+    def _get_recent_git_commits(self, max_commits: int = 10) -> list[dict[str, str]]:
+        """Get recent git commits with hash and message.
+
+        Args:
+            max_commits: Maximum number of commits to return
+
+        Returns:
+            List of dicts with 'hash' and 'message' keys
+        """
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["git", "log", f"-{max_commits}", "--format=%H|%s"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode != 0:
+                return []
+
+            commits = []
+            for line in result.stdout.strip().split("\n"):
+                if "|" in line:
+                    hash_part, message = line.split("|", 1)
+                    commits.append({"hash": hash_part, "message": message})
+            return commits
+        except Exception:
+            return []
 
     def _get_file_changes(self) -> str:
         """Get detailed file changes from git."""
