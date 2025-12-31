@@ -377,8 +377,31 @@ class LocalTaskManager:
         self._notify_listeners()
         return self.get_task(task_id)
 
-    def close_task(self, task_id: str, reason: str | None = None) -> Task:
-        """Close a task."""
+    def close_task(self, task_id: str, reason: str | None = None, force: bool = False) -> Task:
+        """Close a task.
+
+        Args:
+            task_id: The task ID to close
+            reason: Optional reason for closing
+            force: If True, close even if there are open children (default: False)
+
+        Raises:
+            ValueError: If task not found or has open children (and force=False)
+        """
+        # Check for open children unless force=True
+        if not force:
+            open_children = self.db.fetchall(
+                "SELECT id, title FROM tasks WHERE parent_task_id = ? AND status != 'closed'",
+                (task_id,),
+            )
+            if open_children:
+                child_list = ", ".join(f"{c['id']} ({c['title']})" for c in open_children[:3])
+                if len(open_children) > 3:
+                    child_list += f" and {len(open_children) - 3} more"
+                raise ValueError(
+                    f"Cannot close task {task_id}: has {len(open_children)} open child task(s): {child_list}"
+                )
+
         now = datetime.now(UTC).isoformat()
         with self.db.transaction() as conn:
             cursor = conn.execute(
