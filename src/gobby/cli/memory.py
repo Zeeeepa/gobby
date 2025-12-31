@@ -239,3 +239,100 @@ def embedding_stats(ctx: click.Context, project_id: str | None) -> None:
     click.echo(f"  Pending: {stats['pending_embeddings']}")
     click.echo(f"  Model: {stats['embedding_model']}")
     click.echo(f"  Dimensions: {stats['embedding_dim']}")
+
+
+@memory.command("extract-agent-md")
+@click.option("--path", "-p", "project_path", default=".", help="Project path to scan")
+@click.option("--file", "-f", "file_path", help="Specific file to extract from")
+@click.option("--project", "project_id", help="Project ID for memories")
+@click.pass_context
+def extract_agent_md(
+    ctx: click.Context,
+    project_path: str,
+    file_path: str | None,
+    project_id: str | None,
+) -> None:
+    """Extract memories from agent markdown files (CLAUDE.md, GEMINI.md, CODEX.md)."""
+    from pathlib import Path
+
+    from gobby.memory.extractor import MemoryExtractor
+
+    manager = get_memory_manager(ctx)
+    config: DaemonConfig = ctx.obj["config"]
+
+    # Get LLM service if available
+    llm_service = None
+    try:
+        from gobby.llm.service import LLMService
+
+        llm_service = LLMService(config.llm_providers)
+    except Exception as e:
+        click.echo(f"Warning: LLM service not available: {e}", err=True)
+        click.echo("Extraction requires an LLM. Configure llm_providers in config.yaml")
+        raise SystemExit(1)
+
+    extractor = MemoryExtractor(manager, llm_service)
+
+    click.echo("Extracting memories from agent markdown files...")
+
+    if file_path:
+        result = asyncio.run(extractor.extract_from_agent_md(file_path=file_path, project_id=project_id))
+    else:
+        result = asyncio.run(extractor.extract_from_agent_md(project_path=project_path, project_id=project_id))
+
+    click.echo(f"Done!")
+    click.echo(f"  Created: {result.created}")
+    click.echo(f"  Skipped (duplicates): {result.skipped}")
+    if result.errors:
+        click.echo(f"  Errors: {len(result.errors)}")
+        for error in result.errors[:5]:
+            click.echo(f"    - {error}")
+
+
+@memory.command("extract-codebase")
+@click.option("--path", "-p", "project_path", default=".", help="Project path to scan")
+@click.option("--max-files", "-n", default=20, help="Maximum files to sample")
+@click.option("--project", "project_id", help="Project ID for memories")
+@click.pass_context
+def extract_codebase(
+    ctx: click.Context,
+    project_path: str,
+    max_files: int,
+    project_id: str | None,
+) -> None:
+    """Extract patterns and conventions from codebase."""
+    from gobby.memory.extractor import MemoryExtractor
+
+    manager = get_memory_manager(ctx)
+    config: DaemonConfig = ctx.obj["config"]
+
+    # Get LLM service if available
+    llm_service = None
+    try:
+        from gobby.llm.service import LLMService
+
+        llm_service = LLMService(config.llm_providers)
+    except Exception as e:
+        click.echo(f"Warning: LLM service not available: {e}", err=True)
+        click.echo("Extraction requires an LLM. Configure llm_providers in config.yaml")
+        raise SystemExit(1)
+
+    extractor = MemoryExtractor(manager, llm_service)
+
+    click.echo(f"Extracting patterns from codebase at {project_path}...")
+
+    result = asyncio.run(
+        extractor.extract_from_codebase(
+            project_path=project_path,
+            project_id=project_id,
+            max_files=max_files,
+        )
+    )
+
+    click.echo(f"Done!")
+    click.echo(f"  Created: {result.created}")
+    click.echo(f"  Skipped (duplicates): {result.skipped}")
+    if result.errors:
+        click.echo(f"  Errors: {len(result.errors)}")
+        for error in result.errors[:5]:
+            click.echo(f"    - {error}")

@@ -757,7 +757,7 @@ Types of memories to extract:
 - "context": Important project context (goals, constraints, decisions)
 
 Session Summary:
-{summary}
+{content}
 
 Return a JSON array directly (empty array [] if nothing worth remembering):
 [
@@ -774,7 +774,63 @@ Guidelines:
 - Set importance 0.3-0.5 for nice-to-know, 0.6-0.8 for important, 0.9-1.0 for critical
 - Keep content concise but complete (one clear statement per memory)
 - Avoid duplicating obvious information or temporary context""",
-        description="Prompt template for memory extraction (use {summary} placeholder)",
+        description="Prompt template for session memory extraction (use {content} placeholder)",
+    )
+
+    agent_md_extraction_prompt: str = Field(
+        default="""You are an expert at extracting structured information from project documentation.
+Respond with ONLY valid JSON - no markdown, no explanations, no code blocks.
+
+Analyze the following agent instructions file and extract instructions, preferences, and project context that should be remembered.
+
+Agent Instructions:
+{content}
+
+Return a JSON array of memories to extract (empty array [] if nothing significant):
+[
+  {{
+    "content": "The specific instruction, preference, or fact to remember",
+    "memory_type": "fact|preference|pattern|context",
+    "importance": 0.7,
+    "tags": ["optional", "tags"]
+  }}
+]
+
+Guidelines:
+- Extract explicit instructions and preferences (importance 0.7-0.9)
+- Extract project architecture facts (importance 0.6-0.8)
+- Extract coding conventions and patterns (importance 0.5-0.7)
+- Skip obvious boilerplate or generic instructions
+- Keep content concise but actionable""",
+        description="Prompt template for agent MD extraction (use {content} placeholder)",
+    )
+
+    codebase_extraction_prompt: str = Field(
+        default="""You are an expert at analyzing codebases and extracting patterns.
+Respond with ONLY valid JSON - no markdown, no explanations, no code blocks.
+
+Analyze the following codebase structure and file samples to extract patterns, conventions, and architectural decisions.
+
+Codebase Analysis:
+{content}
+
+Return a JSON array of patterns to remember (empty array [] if nothing significant):
+[
+  {{
+    "content": "The specific pattern, convention, or architectural decision",
+    "memory_type": "fact|pattern|context",
+    "importance": 0.6,
+    "tags": ["architecture", "convention", "pattern"]
+  }}
+]
+
+Guidelines:
+- Focus on project-specific patterns, not generic language features
+- Extract naming conventions, file organization patterns
+- Note architectural decisions (frameworks, patterns used)
+- Identify testing conventions
+- Set importance based on how critical the pattern is for consistency""",
+        description="Prompt template for codebase extraction (use {content} placeholder)",
     )
 
     @field_validator("injection_limit")
