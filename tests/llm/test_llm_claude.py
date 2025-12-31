@@ -1,7 +1,7 @@
 """Tests for the ClaudeLLMProvider, specifically generate_with_mcp_tools."""
 
-import sys
-from unittest.mock import MagicMock, patch
+from contextlib import contextmanager
+from unittest.mock import patch
 
 import pytest
 
@@ -47,17 +47,6 @@ class MockClaudeAgentOptions:
         self.kwargs = kwargs
 
 
-# Build the mock module
-mock_sdk = MagicMock()
-mock_sdk.AssistantMessage = MockAssistantMessage
-mock_sdk.UserMessage = MockUserMessage
-mock_sdk.ResultMessage = MockResultMessage
-mock_sdk.TextBlock = MockTextBlock
-mock_sdk.ToolUseBlock = MockToolUseBlock
-mock_sdk.ToolResultBlock = MockToolResultBlock
-mock_sdk.ClaudeAgentOptions = MockClaudeAgentOptions
-
-
 @pytest.fixture
 def claude_config() -> DaemonConfig:
     """Create a DaemonConfig with Claude provider configured."""
@@ -68,10 +57,32 @@ def claude_config() -> DaemonConfig:
     )
 
 
-@pytest.fixture(autouse=True)
-def mock_claude_sdk():
-    """Mock the claude_agent_sdk module before importing ClaudeLLMProvider."""
-    with patch.dict(sys.modules, {"claude_agent_sdk": mock_sdk}):
+@contextmanager
+def mock_claude_sdk(mock_query_func):
+    """
+    Context manager to properly mock the Claude Agent SDK.
+
+    Patches all SDK names WHERE THEY ARE USED (in gobby.llm.claude),
+    not where they are defined (in claude_agent_sdk).
+
+    This is the correct approach because Python binds imported names
+    at import time, so we must patch the bound references.
+    """
+    with (
+        # Mock CLI detection
+        patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"),
+        patch("os.path.exists", return_value=True),
+        patch("os.access", return_value=True),
+        # Mock SDK functions and classes where they're imported/used
+        patch("gobby.llm.claude.query", mock_query_func),
+        patch("gobby.llm.claude.AssistantMessage", MockAssistantMessage),
+        patch("gobby.llm.claude.ResultMessage", MockResultMessage),
+        patch("gobby.llm.claude.TextBlock", MockTextBlock),
+        patch("gobby.llm.claude.ToolUseBlock", MockToolUseBlock),
+        patch("gobby.llm.claude.ToolResultBlock", MockToolResultBlock),
+        patch("gobby.llm.claude.UserMessage", MockUserMessage),
+        patch("gobby.llm.claude.ClaudeAgentOptions", MockClaudeAgentOptions),
+    ):
         yield
 
 
@@ -167,22 +178,18 @@ class TestGenerateWithMcpToolsWithCli:
             yield MockAssistantMessage([MockTextBlock("Hello, world!")])
             yield MockResultMessage(result="Hello, world!")
 
-        mock_sdk.query = mock_query
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
 
-        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
-            with patch("os.path.exists", return_value=True):
-                with patch("os.access", return_value=True):
-                    from gobby.llm.claude import ClaudeLLMProvider
+            provider = ClaudeLLMProvider(claude_config)
 
-                    provider = ClaudeLLMProvider(claude_config)
+            result = await provider.generate_with_mcp_tools(
+                prompt="Say hello",
+                allowed_tools=[],
+            )
 
-                    result = await provider.generate_with_mcp_tools(
-                        prompt="Say hello",
-                        allowed_tools=[],
-                    )
-
-                    assert "Hello, world!" in result.text
-                    assert result.tool_calls == []
+            assert "Hello, world!" in result.text
+            assert result.tool_calls == []
 
     @pytest.mark.asyncio
     async def test_tracks_tool_calls(self, claude_config: DaemonConfig):
@@ -207,26 +214,22 @@ class TestGenerateWithMcpToolsWithCli:
             yield MockAssistantMessage([MockTextBlock("I created the task for you.")])
             yield MockResultMessage(result="I created the task for you.")
 
-        mock_sdk.query = mock_query
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
 
-        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
-            with patch("os.path.exists", return_value=True):
-                with patch("os.access", return_value=True):
-                    from gobby.llm.claude import ClaudeLLMProvider
+            provider = ClaudeLLMProvider(claude_config)
 
-                    provider = ClaudeLLMProvider(claude_config)
+            result = await provider.generate_with_mcp_tools(
+                prompt="Create a task called 'New task'",
+                allowed_tools=["mcp__gobby-tasks__create_task"],
+            )
 
-                    result = await provider.generate_with_mcp_tools(
-                        prompt="Create a task called 'New task'",
-                        allowed_tools=["mcp__gobby-tasks__create_task"],
-                    )
-
-                    assert len(result.tool_calls) == 1
-                    call = result.tool_calls[0]
-                    assert call.tool_name == "mcp__gobby-tasks__create_task"
-                    assert call.server_name == "gobby-tasks"
-                    assert call.arguments == {"title": "New task", "description": "A test task"}
-                    assert call.result == '{"task_id": "task-456"}'
+            assert len(result.tool_calls) == 1
+            call = result.tool_calls[0]
+            assert call.tool_name == "mcp__gobby-tasks__create_task"
+            assert call.server_name == "gobby-tasks"
+            assert call.arguments == {"title": "New task", "description": "A test task"}
+            assert call.result == '{"task_id": "task-456"}'
 
     @pytest.mark.asyncio
     async def test_tracks_multiple_tool_calls(self, claude_config: DaemonConfig):
@@ -261,23 +264,19 @@ class TestGenerateWithMcpToolsWithCli:
             )
             yield MockResultMessage(result="Created 2 tasks.")
 
-        mock_sdk.query = mock_query
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
 
-        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
-            with patch("os.path.exists", return_value=True):
-                with patch("os.access", return_value=True):
-                    from gobby.llm.claude import ClaudeLLMProvider
+            provider = ClaudeLLMProvider(claude_config)
 
-                    provider = ClaudeLLMProvider(claude_config)
+            result = await provider.generate_with_mcp_tools(
+                prompt="Create two tasks",
+                allowed_tools=["mcp__gobby-tasks__create_task"],
+            )
 
-                    result = await provider.generate_with_mcp_tools(
-                        prompt="Create two tasks",
-                        allowed_tools=["mcp__gobby-tasks__create_task"],
-                    )
-
-                    assert len(result.tool_calls) == 2
-                    assert result.tool_calls[0].arguments["title"] == "Task 1"
-                    assert result.tool_calls[1].arguments["title"] == "Task 2"
+            assert len(result.tool_calls) == 2
+            assert result.tool_calls[0].arguments["title"] == "Task 1"
+            assert result.tool_calls[1].arguments["title"] == "Task 2"
 
     @pytest.mark.asyncio
     async def test_handles_exception(self, claude_config: DaemonConfig):
@@ -287,22 +286,18 @@ class TestGenerateWithMcpToolsWithCli:
             raise RuntimeError("Connection failed")
             yield  # Make this a generator
 
-        mock_sdk.query = mock_query
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
 
-        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
-            with patch("os.path.exists", return_value=True):
-                with patch("os.access", return_value=True):
-                    from gobby.llm.claude import ClaudeLLMProvider
+            provider = ClaudeLLMProvider(claude_config)
 
-                    provider = ClaudeLLMProvider(claude_config)
+            result = await provider.generate_with_mcp_tools(
+                prompt="Create a task",
+                allowed_tools=["mcp__gobby-tasks__create_task"],
+            )
 
-                    result = await provider.generate_with_mcp_tools(
-                        prompt="Create a task",
-                        allowed_tools=["mcp__gobby-tasks__create_task"],
-                    )
-
-                    assert "failed" in result.text.lower()
-                    assert "Connection failed" in result.text
+            assert "failed" in result.text.lower()
+            assert "Connection failed" in result.text
 
     @pytest.mark.asyncio
     async def test_parses_server_name_correctly(self, claude_config: DaemonConfig):
@@ -321,21 +316,17 @@ class TestGenerateWithMcpToolsWithCli:
             yield MockUserMessage([MockToolResultBlock(tool_use_id="call_1", content="done")])
             yield MockResultMessage(result="Done")
 
-        mock_sdk.query = mock_query
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
 
-        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
-            with patch("os.path.exists", return_value=True):
-                with patch("os.access", return_value=True):
-                    from gobby.llm.claude import ClaudeLLMProvider
+            provider = ClaudeLLMProvider(claude_config)
 
-                    provider = ClaudeLLMProvider(claude_config)
+            result = await provider.generate_with_mcp_tools(
+                prompt="Do something",
+                allowed_tools=["mcp__my-custom-server__do_something"],
+            )
 
-                    result = await provider.generate_with_mcp_tools(
-                        prompt="Do something",
-                        allowed_tools=["mcp__my-custom-server__do_something"],
-                    )
-
-                    assert result.tool_calls[0].server_name == "my-custom-server"
+            assert result.tool_calls[0].server_name == "my-custom-server"
 
     @pytest.mark.asyncio
     async def test_handles_non_mcp_tool_names(self, claude_config: DaemonConfig):
@@ -354,21 +345,17 @@ class TestGenerateWithMcpToolsWithCli:
             yield MockUserMessage([MockToolResultBlock(tool_use_id="call_1", content="1")])
             yield MockResultMessage(result="Executed code")
 
-        mock_sdk.query = mock_query
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
 
-        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
-            with patch("os.path.exists", return_value=True):
-                with patch("os.access", return_value=True):
-                    from gobby.llm.claude import ClaudeLLMProvider
+            provider = ClaudeLLMProvider(claude_config)
 
-                    provider = ClaudeLLMProvider(claude_config)
+            result = await provider.generate_with_mcp_tools(
+                prompt="Run code",
+                allowed_tools=["code_execution"],
+            )
 
-                    result = await provider.generate_with_mcp_tools(
-                        prompt="Run code",
-                        allowed_tools=["code_execution"],
-                    )
-
-                    assert result.tool_calls[0].server_name == "unknown"
+            assert result.tool_calls[0].server_name == "unknown"
 
     @pytest.mark.asyncio
     async def test_uses_custom_system_prompt(self, claude_config: DaemonConfig):
@@ -379,24 +366,20 @@ class TestGenerateWithMcpToolsWithCli:
             captured_options.append(options)
             yield MockResultMessage(result="Done")
 
-        mock_sdk.query = mock_query
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
 
-        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
-            with patch("os.path.exists", return_value=True):
-                with patch("os.access", return_value=True):
-                    from gobby.llm.claude import ClaudeLLMProvider
+            provider = ClaudeLLMProvider(claude_config)
 
-                    provider = ClaudeLLMProvider(claude_config)
+            await provider.generate_with_mcp_tools(
+                prompt="Create task",
+                allowed_tools=["mcp__gobby-tasks__create_task"],
+                system_prompt="You are a task manager.",
+            )
 
-                    await provider.generate_with_mcp_tools(
-                        prompt="Create task",
-                        allowed_tools=["mcp__gobby-tasks__create_task"],
-                        system_prompt="You are a task manager.",
-                    )
-
-                    assert len(captured_options) == 1
-                    opts = captured_options[0]
-                    assert opts.kwargs["system_prompt"] == "You are a task manager."
+            assert len(captured_options) == 1
+            opts = captured_options[0]
+            assert opts.kwargs["system_prompt"] == "You are a task manager."
 
     @pytest.mark.asyncio
     async def test_uses_custom_model(self, claude_config: DaemonConfig):
@@ -407,22 +390,18 @@ class TestGenerateWithMcpToolsWithCli:
             captured_options.append(options)
             yield MockResultMessage(result="Done")
 
-        mock_sdk.query = mock_query
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
 
-        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
-            with patch("os.path.exists", return_value=True):
-                with patch("os.access", return_value=True):
-                    from gobby.llm.claude import ClaudeLLMProvider
+            provider = ClaudeLLMProvider(claude_config)
 
-                    provider = ClaudeLLMProvider(claude_config)
+            await provider.generate_with_mcp_tools(
+                prompt="Create task",
+                allowed_tools=[],
+                model="claude-haiku-4-5",
+            )
 
-                    await provider.generate_with_mcp_tools(
-                        prompt="Create task",
-                        allowed_tools=[],
-                        model="claude-haiku-4-5",
-                    )
-
-                    assert captured_options[0].kwargs["model"] == "claude-haiku-4-5"
+            assert captured_options[0].kwargs["model"] == "claude-haiku-4-5"
 
     @pytest.mark.asyncio
     async def test_uses_custom_max_turns(self, claude_config: DaemonConfig):
@@ -433,19 +412,15 @@ class TestGenerateWithMcpToolsWithCli:
             captured_options.append(options)
             yield MockResultMessage(result="Done")
 
-        mock_sdk.query = mock_query
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
 
-        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
-            with patch("os.path.exists", return_value=True):
-                with patch("os.access", return_value=True):
-                    from gobby.llm.claude import ClaudeLLMProvider
+            provider = ClaudeLLMProvider(claude_config)
 
-                    provider = ClaudeLLMProvider(claude_config)
+            await provider.generate_with_mcp_tools(
+                prompt="Create task",
+                allowed_tools=[],
+                max_turns=5,
+            )
 
-                    await provider.generate_with_mcp_tools(
-                        prompt="Create task",
-                        allowed_tools=[],
-                        max_turns=5,
-                    )
-
-                    assert captured_options[0].kwargs["max_turns"] == 5
+            assert captured_options[0].kwargs["max_turns"] == 5
