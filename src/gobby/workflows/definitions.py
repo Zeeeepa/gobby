@@ -97,5 +97,12 @@ class WorkflowState(BaseModel):
     current_task_index: int = 0
     files_modified_this_task: int = 0
 
+    # Approval state for user_approval exit conditions
+    approval_pending: bool = False
+    approval_condition_id: str | None = None  # Which condition is awaiting approval
+    approval_prompt: str | None = None  # The prompt shown to user
+    approval_requested_at: datetime | None = None
+    approval_timeout_seconds: int | None = None  # None = no timeout
+
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

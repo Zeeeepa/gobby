@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 
 from .definitions import WorkflowDefinition, WorkflowState
-from .evaluator import ConditionEvaluator
+from .evaluator import ApprovalCheckResult, ConditionEvaluator, check_approval_response
 from .loader import WorkflowLoader
 from .state_manager import WorkflowStateManager
 
@@ -98,8 +98,20 @@ class WorkflowEngine:
             logger.error(f"Phase '{state.phase}' not found in workflow '{workflow.name}'")
             return HookResponse(decision="allow")
 
+        # Handle approval flow on user prompt submit
+        if event.event_type == HookEventType.BEFORE_AGENT:
+            approval_response = self._handle_approval_response(event, state, current_phase)
+            if approval_response:
+                return approval_response
+
         # Check blocked tools
         if event.event_type == HookEventType.BEFORE_TOOL:
+            # Block tool calls while waiting for approval
+            if state.approval_pending:
+                return HookResponse(
+                    decision="block",
+                    reason=f"Waiting for user approval. Please respond with 'yes' or 'no'.",
+                )
             tool_name = eval_context["tool_name"]
 
             # Check blocked list
@@ -213,6 +225,116 @@ class WorkflowEngine:
             if result and "inject_context" in result:
                 # Log context injection for now
                 logger.info(f"Context injected: {result['inject_context'][:50]}...")
+
+    def _handle_approval_response(
+        self,
+        event: HookEvent,
+        state: WorkflowState,
+        current_phase: Any,
+    ) -> HookResponse | None:
+        """
+        Handle user response to approval request.
+
+        Called on BEFORE_AGENT events to check if user is responding to
+        a pending approval request.
+
+        Returns:
+            HookResponse if approval was handled, None otherwise.
+        """
+        # Get user prompt from event
+        prompt = event.data.get("prompt", "") if event.data else ""
+
+        # Check if we're waiting for approval
+        if state.approval_pending:
+            response = check_approval_response(prompt)
+
+            if response == "approved":
+                # Mark approval granted
+                condition_id = state.approval_condition_id
+                approved_var = f"_approval_{condition_id}_granted"
+                state.variables[approved_var] = True
+                state.approval_pending = False
+                state.approval_condition_id = None
+                state.approval_prompt = None
+                state.approval_requested_at = None
+                self.state_manager.save_state(state)
+
+                logger.info(f"User approved condition '{condition_id}' in phase '{state.phase}'")
+                return HookResponse(
+                    decision="allow",
+                    context=f"✓ Approval granted for: {state.approval_prompt or 'action'}",
+                )
+
+            elif response == "rejected":
+                # Mark approval rejected
+                condition_id = state.approval_condition_id
+                rejected_var = f"_approval_{condition_id}_rejected"
+                state.variables[rejected_var] = True
+                state.approval_pending = False
+                state.approval_condition_id = None
+                state.approval_prompt = None
+                state.approval_requested_at = None
+                self.state_manager.save_state(state)
+
+                logger.info(f"User rejected condition '{condition_id}' in phase '{state.phase}'")
+                return HookResponse(
+                    decision="block",
+                    reason="User rejected the approval request.",
+                )
+
+            else:
+                # User didn't respond with approval keyword - remind them
+                return HookResponse(
+                    decision="allow",
+                    context=(
+                        f"⏳ **Waiting for approval:** {state.approval_prompt}\n\n"
+                        f"Please respond with 'yes' or 'no' to continue."
+                    ),
+                )
+
+        # Check if we need to request approval
+        approval_check = self.evaluator.check_pending_approval(
+            current_phase.exit_conditions, state
+        )
+
+        if approval_check and approval_check.needs_approval:
+            # Set approval pending state
+            state.approval_pending = True
+            state.approval_condition_id = approval_check.condition_id
+            state.approval_prompt = approval_check.prompt
+            state.approval_requested_at = datetime.now(UTC)
+            state.approval_timeout_seconds = approval_check.timeout_seconds
+            self.state_manager.save_state(state)
+
+            logger.info(
+                f"Requesting approval for condition '{approval_check.condition_id}' "
+                f"in phase '{state.phase}'"
+            )
+            return HookResponse(
+                decision="allow",
+                context=(
+                    f"🔔 **Approval Required**\n\n"
+                    f"{approval_check.prompt}\n\n"
+                    f"Please respond with 'yes' to approve or 'no' to reject."
+                ),
+            )
+
+        if approval_check and approval_check.is_timed_out:
+            # Timeout - treat as rejection
+            condition_id = approval_check.condition_id
+            rejected_var = f"_approval_{condition_id}_rejected"
+            state.variables[rejected_var] = True
+            state.approval_pending = False
+            state.approval_condition_id = None
+            self.state_manager.save_state(state)
+
+            logger.info(f"Approval timed out for condition '{condition_id}'")
+            return HookResponse(
+                decision="block",
+                reason=f"Approval request timed out after {approval_check.timeout_seconds} seconds.",
+            )
+
+        return None
 
     # Maximum iterations to prevent infinite loops
     MAX_TRIGGER_ITERATIONS = 10

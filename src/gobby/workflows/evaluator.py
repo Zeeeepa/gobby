@@ -1,9 +1,57 @@
 import logging
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
 from .definitions import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+# Approval keywords (case-insensitive)
+APPROVAL_KEYWORDS = {"yes", "approve", "approved", "proceed", "continue", "ok", "okay", "y"}
+REJECTION_KEYWORDS = {"no", "reject", "rejected", "stop", "cancel", "abort", "n"}
+
+
+@dataclass
+class ApprovalCheckResult:
+    """Result of checking a user_approval condition."""
+
+    needs_approval: bool = False  # True if we need to request approval
+    is_approved: bool = False  # True if user approved
+    is_rejected: bool = False  # True if user rejected
+    is_timed_out: bool = False  # True if approval timed out
+    condition_id: str | None = None  # ID of the condition
+    prompt: str | None = None  # Prompt to show user
+    timeout_seconds: int | None = None  # Timeout value
+
+
+def check_approval_response(user_input: str) -> str | None:
+    """
+    Check if user input contains an approval or rejection keyword.
+
+    Returns:
+        "approved" if approval keyword found
+        "rejected" if rejection keyword found
+        None if no keyword found
+    """
+    # Normalize input - check if entire input is a keyword or starts with one
+    normalized = user_input.strip().lower()
+
+    # Check exact match first
+    if normalized in APPROVAL_KEYWORDS:
+        return "approved"
+    if normalized in REJECTION_KEYWORDS:
+        return "rejected"
+
+    # Check if starts with keyword (e.g., "yes, let's proceed")
+    # Strip common punctuation from first word
+    first_word = normalized.split()[0].rstrip(",.!?:;") if normalized else ""
+    if first_word in APPROVAL_KEYWORDS:
+        return "approved"
+    if first_word in REJECTION_KEYWORDS:
+        return "rejected"
+
+    return None
 
 
 class ConditionEvaluator:
@@ -82,10 +130,13 @@ class ConditionEvaluator:
                     return False
 
             elif cond_type == "user_approval":
-                # User approval is special - handled by the engine via hook response
-                # But for pure logic checking, if we strictly check 'is approved', we check state
-                # Here we might need to check a variable that indicates approval occurred
-                pass  # TODO: Implement approval logic connection
+                # User approval condition - check if approval has been granted
+                condition_id = condition.get("id", f"approval_{hash(str(condition)) % 10000}")
+                approved_var = f"_approval_{condition_id}_granted"
+
+                # Check if this specific approval has been granted
+                if not state.variables.get(approved_var, False):
+                    return False
 
             elif cond_type == "expression":
                 expr = condition.get("expression")
@@ -95,3 +146,55 @@ class ConditionEvaluator:
             # Add other types as needed
 
         return True
+
+    def check_pending_approval(
+        self, conditions: list[dict[str, Any]], state: WorkflowState
+    ) -> ApprovalCheckResult | None:
+        """
+        Check if any user_approval condition needs attention.
+
+        Returns:
+            ApprovalCheckResult if there's an approval condition that needs handling,
+            None if no approval conditions or all are already granted.
+        """
+        for condition in conditions:
+            if condition.get("type") != "user_approval":
+                continue
+
+            condition_id = condition.get("id", f"approval_{hash(str(condition)) % 10000}")
+            approved_var = f"_approval_{condition_id}_granted"
+            rejected_var = f"_approval_{condition_id}_rejected"
+
+            # Check if already approved
+            if state.variables.get(approved_var, False):
+                continue
+
+            # Check if rejected
+            if state.variables.get(rejected_var, False):
+                return ApprovalCheckResult(
+                    is_rejected=True,
+                    condition_id=condition_id,
+                )
+
+            # Check timeout if approval is pending
+            timeout = condition.get("timeout")
+            if state.approval_pending and state.approval_condition_id == condition_id:
+                if timeout and state.approval_requested_at:
+                    elapsed = (datetime.now(UTC) - state.approval_requested_at).total_seconds()
+                    if elapsed > timeout:
+                        return ApprovalCheckResult(
+                            is_timed_out=True,
+                            condition_id=condition_id,
+                            timeout_seconds=timeout,
+                        )
+
+            # Need to request approval
+            prompt = condition.get("prompt", "Do you approve this action? (yes/no)")
+            return ApprovalCheckResult(
+                needs_approval=True,
+                condition_id=condition_id,
+                prompt=prompt,
+                timeout_seconds=timeout,
+            )
+
+        return None
