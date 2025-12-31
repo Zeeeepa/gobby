@@ -142,6 +142,51 @@ def generate_task_id(project_id: str, salt: str = "") -> str:
     return f"gt-{hash_hex}"
 
 
+def order_tasks_hierarchically(tasks: list[Task]) -> list[Task]:
+    """
+    Reorder tasks so parents appear before their children.
+
+    The ordering is: parent -> children (recursively), then next parent -> children, etc.
+    Root tasks (no parent) are sorted by priority ASC, then created_at ASC.
+    Children are sorted by priority ASC, then created_at ASC within their parent.
+
+    Returns a new list with tasks ordered hierarchically.
+    """
+    if not tasks:
+        return []
+
+    # Build lookup structures
+    task_by_id: dict[str, Task] = {t.id: t for t in tasks}
+    children_by_parent: dict[str | None, list[Task]] = {}
+
+    for task in tasks:
+        parent_id = task.parent_task_id
+        # Only group under parent if parent is in the result set
+        if parent_id and parent_id not in task_by_id:
+            parent_id = None
+        if parent_id not in children_by_parent:
+            children_by_parent[parent_id] = []
+        children_by_parent[parent_id].append(task)
+
+    # Sort children within each parent group by priority ASC, created_at ASC
+    for children in children_by_parent.values():
+        children.sort(key=lambda t: (t.priority, t.created_at))
+
+    # Build result with DFS traversal
+    result: list[Task] = []
+
+    def add_with_children(task: Task) -> None:
+        result.append(task)
+        for child in children_by_parent.get(task.id, []):
+            add_with_children(child)
+
+    # Start with root tasks (no parent or parent not in result set)
+    for root_task in children_by_parent.get(None, []):
+        add_with_children(root_task)
+
+    return result
+
+
 # ...
 
 
@@ -474,7 +519,11 @@ class LocalTaskManager:
         limit: int = 50,
         offset: int = 0,
     ) -> list[Task]:
-        """List tasks with filtering."""
+        """List tasks with filtering.
+
+        Results are ordered hierarchically: parents appear before their children,
+        with siblings sorted by priority ASC, then created_at ASC.
+        """
         query = "SELECT * FROM tasks WHERE 1=1"
         params: list[Any] = []
 
@@ -505,11 +554,13 @@ class LocalTaskManager:
             query += " AND title LIKE ?"
             params.append(f"%{title_like}%")
 
-        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        # Fetch with base ordering, then apply hierarchical sort in Python
+        query += " ORDER BY priority ASC, created_at ASC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
 
         rows = self.db.fetchall(query, tuple(params))
-        return [Task.from_row(row) for row in rows]
+        tasks = [Task.from_row(row) for row in rows]
+        return order_tasks_hierarchically(tasks)
 
     def list_ready_tasks(
         self,
@@ -520,7 +571,11 @@ class LocalTaskManager:
         limit: int = 50,
         offset: int = 0,
     ) -> list[Task]:
-        """List tasks that are open and not blocked by any open blocking dependency."""
+        """List tasks that are open and not blocked by any open blocking dependency.
+
+        Results are ordered hierarchically: parents appear before their children,
+        with siblings sorted by priority ASC, then created_at ASC.
+        """
         query = """
         SELECT t.* FROM tasks t
         WHERE t.status = 'open'
@@ -551,7 +606,8 @@ class LocalTaskManager:
         params.extend([limit, offset])
 
         rows = self.db.fetchall(query, tuple(params))
-        return [Task.from_row(row) for row in rows]
+        tasks = [Task.from_row(row) for row in rows]
+        return order_tasks_hierarchically(tasks)
 
     def list_blocked_tasks(
         self,
@@ -559,7 +615,11 @@ class LocalTaskManager:
         limit: int = 50,
         offset: int = 0,
     ) -> list[Task]:
-        """List tasks that are blocked by at least one open blocking dependency."""
+        """List tasks that are blocked by at least one open blocking dependency.
+
+        Results are ordered hierarchically: parents appear before their children,
+        with siblings sorted by priority ASC, then created_at ASC.
+        """
         query = """
         SELECT t.* FROM tasks t
         WHERE t.status = 'open'
@@ -581,4 +641,5 @@ class LocalTaskManager:
         params.extend([limit, offset])
 
         rows = self.db.fetchall(query, tuple(params))
-        return [Task.from_row(row) for row in rows]
+        tasks = [Task.from_row(row) for row in rows]
+        return order_tasks_hierarchically(tasks)

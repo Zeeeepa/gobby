@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import click
+from wcwidth import wcswidth
 
 from gobby.config.app import load_config
 from gobby.storage.database import LocalDatabase
@@ -62,8 +63,76 @@ def get_sync_manager() -> TaskSyncManager:
     return TaskSyncManager(manager, export_path=export_path)
 
 
-def format_task_row(task: Task) -> str:
-    """Format a task for list output."""
+def pad_to_width(text: str, width: int) -> str:
+    """Pad a string to a visual width, accounting for wide characters like emoji."""
+    visual_width = wcswidth(text)
+    if visual_width < 0:
+        visual_width = len(text)  # Fallback if wcswidth fails
+    padding = width - visual_width
+    return text + " " * max(0, padding)
+
+
+def compute_tree_prefixes(tasks: list[Task]) -> dict[str, str]:
+    """Compute tree-style prefixes for each task in the hierarchy.
+
+    Returns a dict mapping task_id -> prefix string (e.g., "├── ", "│   └── ").
+    """
+    task_by_id = {t.id: t for t in tasks}
+
+    # Group children by parent
+    children_by_parent: dict[str | None, list[Task]] = {}
+    for task in tasks:
+        parent_id = task.parent_task_id
+        if parent_id and parent_id not in task_by_id:
+            parent_id = None
+        if parent_id not in children_by_parent:
+            children_by_parent[parent_id] = []
+        children_by_parent[parent_id].append(task)
+
+    prefixes: dict[str, str] = {}
+
+    def compute_prefix(task: Task, ancestor_continues: list[bool]) -> None:
+        """Recursively compute prefix for task and its children."""
+        if not task.parent_task_id or task.parent_task_id not in task_by_id:
+            # Root task - no prefix
+            prefixes[task.id] = ""
+        else:
+            # Build prefix from ancestor continuation markers
+            prefix_parts = []
+            for continues in ancestor_continues[:-1]:
+                prefix_parts.append("│   " if continues else "    ")
+            # Add the branch for this task
+            if ancestor_continues:
+                is_last = not ancestor_continues[-1]
+                prefix_parts.append("└── " if is_last else "├── ")
+            prefixes[task.id] = "".join(prefix_parts)
+
+        # Process children
+        children = children_by_parent.get(task.id, [])
+        for i, child in enumerate(children):
+            is_last_child = i == len(children) - 1
+            compute_prefix(child, ancestor_continues + [not is_last_child])
+
+    # Start with root tasks
+    for root_task in children_by_parent.get(None, []):
+        compute_prefix(root_task, [])
+
+    return prefixes
+
+
+# Column widths for task table
+COL_STATUS = 1  # Status icon
+COL_PRIORITY = 2  # Priority emoji (2 visual chars)
+COL_ID = 9  # gt-xxxxxx
+
+
+def format_task_row(task: Task, tree_prefix: str = "") -> str:
+    """Format a task for list output.
+
+    Args:
+        task: The task to format
+        tree_prefix: Tree-style prefix (e.g., "├── ", "│   └── ")
+    """
     status_icon = {
         "open": "○",
         "in_progress": "●",
@@ -78,17 +147,21 @@ def format_task_row(task: Task) -> str:
         3: "🔵",  # Low
     }.get(task.priority, "⚪")
 
-    # Parent column - fixed width for gt-xxxxxx format
-    parent_col = task.parent_task_id if task.parent_task_id else ""
-    parent_col = f"{parent_col:<10}"
+    # Build row with proper visual width padding
+    status_col = pad_to_width(status_icon, COL_STATUS)
+    priority_col = pad_to_width(priority_icon, COL_PRIORITY)
+    id_col = pad_to_width(task.id, COL_ID)
 
-    # Show full ID for usability - users need complete IDs for commands
-    return f"{status_icon} {priority_icon} {task.id} {parent_col} {task.title}"
+    return f"{status_col} {priority_col} {id_col} {tree_prefix}{task.title}"
 
 
 def format_task_header() -> str:
     """Return header row for task list."""
-    return f"     {'ID':<10} {'PARENT':<10} TITLE"
+    status_col = pad_to_width("", COL_STATUS)
+    priority_col = pad_to_width("", COL_PRIORITY)
+    id_col = pad_to_width("ID", COL_ID)
+
+    return f"{status_col} {priority_col} {id_col} TITLE"
 
 
 @click.group()
@@ -159,8 +232,9 @@ def list_tasks(
 
     click.echo(f"Found {len(tasks_list)} {label}:")
     click.echo(format_task_header())
+    prefixes = compute_tree_prefixes(tasks_list)
     for task in tasks_list:
-        click.echo(format_task_row(task))
+        click.echo(format_task_row(task, tree_prefix=prefixes.get(task.id, "")))
 
 
 @tasks.command("create")
