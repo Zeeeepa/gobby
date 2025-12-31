@@ -11,6 +11,12 @@ triggers:
     # Uses config defaults: importance_threshold=0.3, injection_limit=10
     - action: memory_inject
 
+  on_before_agent:
+    # Inject memories relevant to the user's prompt via semantic search
+    - action: memory_recall_relevant
+      limit: 5
+      min_importance: 0.3
+
   on_session_end:
     - action: memory_extract
     - action: skills_learn

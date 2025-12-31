@@ -553,3 +553,144 @@ async def test_memory_save_uses_defaults(
     assert call_kwargs["memory_type"] == "fact"
     assert call_kwargs["importance"] == 0.5
     assert call_kwargs["tags"] == []
+
+
+# --- memory_recall_relevant Action Tests ---
+
+
+@pytest.mark.asyncio
+async def test_memory_recall_relevant_with_prompt(
+    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
+):
+    """Test memory_recall_relevant searches based on prompt_text."""
+    session = session_manager.register(
+        external_id="recall-rel-ext",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+    )
+    mem_action_context.session_id = session.id
+    mem_action_context.state.session_id = session.id
+    mem_action_context.event_data = {"prompt_text": "How do I write tests for this project?"}
+
+    mock_mem_services["memory_manager"].config.enabled = True
+
+    m1 = MagicMock(memory_type="fact", content="Tests are in tests/ directory")
+    m2 = MagicMock(memory_type="fact", content="Use pytest for testing")
+    mock_mem_services["memory_manager"].recall.return_value = [m1, m2]
+
+    result = await mem_action_executor.execute("memory_recall_relevant", mem_action_context)
+
+    assert result is not None
+    assert result["injected"] is True
+    assert result["count"] == 2
+    assert "inject_context" in result
+
+    # Verify semantic search was used
+    mock_mem_services["memory_manager"].recall.assert_called_once()
+    call_kwargs = mock_mem_services["memory_manager"].recall.call_args[1]
+    assert call_kwargs["query"] == "How do I write tests for this project?"
+    assert call_kwargs["use_semantic"] is True
+
+
+@pytest.mark.asyncio
+async def test_memory_recall_relevant_no_prompt(
+    mem_action_executor, mem_action_context, mock_mem_services
+):
+    """Test memory_recall_relevant returns None when no prompt_text."""
+    mock_mem_services["memory_manager"].config.enabled = True
+    mem_action_context.event_data = None  # No event data
+
+    result = await mem_action_executor.execute("memory_recall_relevant", mem_action_context)
+
+    assert result is None
+    mock_mem_services["memory_manager"].recall.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_memory_recall_relevant_skips_commands(
+    mem_action_executor, mem_action_context, mock_mem_services
+):
+    """Test memory_recall_relevant skips slash commands."""
+    mock_mem_services["memory_manager"].config.enabled = True
+    mem_action_context.event_data = {"prompt_text": "/clear"}
+
+    result = await mem_action_executor.execute("memory_recall_relevant", mem_action_context)
+
+    assert result is None
+    mock_mem_services["memory_manager"].recall.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_memory_recall_relevant_skips_short_prompts(
+    mem_action_executor, mem_action_context, mock_mem_services
+):
+    """Test memory_recall_relevant skips very short prompts."""
+    mock_mem_services["memory_manager"].config.enabled = True
+    mem_action_context.event_data = {"prompt_text": "hi there"}
+
+    result = await mem_action_executor.execute("memory_recall_relevant", mem_action_context)
+
+    assert result is None
+    mock_mem_services["memory_manager"].recall.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_memory_recall_relevant_no_memories_found(
+    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
+):
+    """Test memory_recall_relevant returns empty when no relevant memories."""
+    session = session_manager.register(
+        external_id="recall-empty-ext",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+    )
+    mem_action_context.session_id = session.id
+    mem_action_context.state.session_id = session.id
+    mem_action_context.event_data = {"prompt_text": "What is the meaning of life?"}
+
+    mock_mem_services["memory_manager"].config.enabled = True
+    mock_mem_services["memory_manager"].recall.return_value = []
+
+    result = await mem_action_executor.execute("memory_recall_relevant", mem_action_context)
+
+    assert result is not None
+    assert result["injected"] is False
+    assert result["count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_memory_recall_relevant_respects_kwargs(
+    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
+):
+    """Test memory_recall_relevant uses limit and min_importance kwargs."""
+    session = session_manager.register(
+        external_id="recall-kwargs-ext",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+    )
+    mem_action_context.session_id = session.id
+    mem_action_context.state.session_id = session.id
+    mem_action_context.event_data = {"prompt_text": "Tell me about the database schema"}
+
+    mock_mem_services["memory_manager"].config.enabled = True
+
+    m1 = MagicMock(memory_type="fact", content="Database uses SQLite")
+    mock_mem_services["memory_manager"].recall.return_value = [m1]
+
+    result = await mem_action_executor.execute(
+        "memory_recall_relevant",
+        mem_action_context,
+        limit=3,
+        min_importance=0.7,
+    )
+
+    assert result is not None
+    assert result["injected"] is True
+
+    # Verify kwargs were passed
+    call_kwargs = mock_mem_services["memory_manager"].recall.call_args[1]
+    assert call_kwargs["limit"] == 3
+    assert call_kwargs["min_importance"] == 0.7

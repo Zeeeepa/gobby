@@ -391,6 +391,7 @@ class WorkflowEngine:
             memory_manager=self.action_executor.memory_manager,
             skill_learner=self.action_executor.skill_learner,
             memory_sync_manager=self.action_executor.memory_sync_manager,
+            event_data=event.data,  # Pass hook event data (prompt_text, etc.)
         )
 
         injected_context: list[str] = []
@@ -528,6 +529,7 @@ class WorkflowEngine:
             memory_manager=self.action_executor.memory_manager,
             skill_learner=self.action_executor.skill_learner,
             memory_sync_manager=self.action_executor.memory_sync_manager,
+            event_data=event.data,  # Pass hook event data (prompt_text, etc.)
         )
 
         injected_context: list[str] = []

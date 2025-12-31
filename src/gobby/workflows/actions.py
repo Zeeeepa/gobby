@@ -27,6 +27,7 @@ class ActionContext:
     memory_manager: Any | None = None
     skill_learner: Any | None = None
     memory_sync_manager: Any | None = None
+    event_data: dict[str, Any] | None = None  # Hook event data (e.g., prompt_text)
 
 
 class ActionHandler(Protocol):
@@ -93,6 +94,7 @@ class ActionExecutor:
         self.register("memory_inject", self._handle_memory_inject)
         self.register("memory_extract", self._handle_memory_extract)
         self.register("memory_save", self._handle_save_memory)
+        self.register("memory_recall_relevant", self._handle_memory_recall_relevant)
         self.register("memory_sync_import", self._handle_memory_sync_import)
         self.register("memory_sync_export", self._handle_memory_sync_export)
         # Skills
@@ -1395,6 +1397,85 @@ class ActionExecutor:
 
         except Exception as e:
             logger.error(f"save_memory: Failed: {e}", exc_info=True)
+            return {"error": str(e)}
+
+    async def _handle_memory_recall_relevant(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """
+        Recall memories relevant to the current user prompt.
+
+        Uses semantic search to find memories that match the user's prompt
+        and injects them as context. Should be triggered on on_before_agent.
+
+        Args (via kwargs):
+            limit: Max memories to retrieve (default: 5)
+            min_importance: Minimum importance threshold (default: 0.3)
+            min_similarity: Minimum semantic similarity (default: 0.5)
+            project_id: Override project ID (optional)
+        """
+        if not context.memory_manager:
+            return None
+
+        if not context.memory_manager.config.enabled:
+            return None
+
+        # Get prompt_text from event data
+        prompt_text = None
+        if context.event_data:
+            prompt_text = context.event_data.get("prompt_text")
+
+        if not prompt_text:
+            logger.debug("memory_recall_relevant: No prompt_text in event data")
+            return None
+
+        # Skip for very short prompts or commands
+        if len(prompt_text.strip()) < 10 or prompt_text.strip().startswith("/"):
+            logger.debug(f"memory_recall_relevant: Skipping short/command prompt")
+            return None
+
+        # Get project_id
+        project_id = kwargs.get("project_id")
+        if not project_id:
+            session = context.session_manager.get(context.session_id)
+            if session:
+                project_id = session.project_id
+
+        # Get config with kwargs overrides
+        limit = kwargs.get("limit", 5)
+        min_importance = kwargs.get("min_importance", 0.3)
+
+        try:
+            # Use semantic search to find relevant memories
+            memories = context.memory_manager.recall(
+                query=prompt_text,
+                project_id=project_id,
+                limit=limit,
+                min_importance=min_importance,
+                use_semantic=True,
+            )
+
+            if not memories:
+                logger.debug("memory_recall_relevant: No relevant memories found")
+                return {"injected": False, "count": 0}
+
+            # Format memories for injection
+            from gobby.memory.context import build_memory_context
+
+            memory_context = build_memory_context(memories)
+
+            logger.info(
+                f"memory_recall_relevant: Injecting {len(memories)} relevant memories"
+            )
+
+            return {
+                "inject_context": memory_context,
+                "injected": True,
+                "count": len(memories),
+            }
+
+        except Exception as e:
+            logger.error(f"memory_recall_relevant: Failed: {e}", exc_info=True)
             return {"error": str(e)}
 
     async def _handle_mark_session_status(
