@@ -506,16 +506,16 @@ Note: Memory injection/extraction should be done via workflow actions, not hardc
 - [x] Create memory context builder (`src/memory/context.py`)
 - [x] Implement selective injection (relevance threshold via min_importance)
 - [x] Add `memory_inject` workflow action
-- [x] Add `memory.sync_import` workflow action
-- [x] Add `memory.sync_export` workflow action
+- [x] Add `memory_sync_import` workflow action
+- [x] Add `memory_sync_export` workflow action
 - [x] Add `skills_learn` workflow action
 - [x] Add unit tests for workflow memory actions
 - [x] Create example workflow using memory injection at session_start
       - See `src/gobby/templates/workflows/memory-lifecycle.yaml` (uses `memory_inject` action)
-      - See `src/gobby/templates/workflows/memory-sync.yaml` (uses `memory.sync_import` action)
+      - See `src/gobby/templates/workflows/memory-sync.yaml` (uses `memory_sync_import` action)
 - [x] Create example workflow using memory extraction at session_end
       - See `src/gobby/templates/workflows/memory-lifecycle.yaml` (uses `skills_learn` action)
-      - See `src/gobby/templates/workflows/memory-sync.yaml` (uses `memory.sync_export` action)
+      - See `src/gobby/templates/workflows/memory-sync.yaml` (uses `memory_sync_export` action)
 
 ### Phase 5-6: MCP Tools & CLI Commands (Unified)
 

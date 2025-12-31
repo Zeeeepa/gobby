@@ -4,7 +4,7 @@ version: 1.0.0
 
 triggers:
   on_session_start:
-    - action: memory.sync_import
-      
+    - action: memory_sync_import
+
   on_session_end:
-    - action: memory.sync_export
+    - action: memory_sync_export
