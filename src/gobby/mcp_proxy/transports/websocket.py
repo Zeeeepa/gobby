@@ -1,6 +1,7 @@
 """WebSocket transport connection."""
 
 import logging
+from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
 
 from mcp import ClientSession
@@ -18,9 +19,14 @@ logger = logging.getLogger("gobby.mcp.client")
 class WebSocketTransportConnection(BaseTransportConnection):
     """WebSocket transport connection using MCP SDK."""
 
-    def __init__(self, config: "MCPServerConfig") -> None:
+    def __init__(
+        self,
+        config: "MCPServerConfig",
+        auth_token: str | None = None,
+        token_refresh_callback: Callable[[], Coroutine[Any, Any, str]] | None = None,
+    ) -> None:
         """Initialize WebSocket transport connection."""
-        super().__init__(config)
+        super().__init__(config, auth_token, token_refresh_callback)
         self._session_context: ClientSession | None = None
 
     async def connect(self) -> Any:

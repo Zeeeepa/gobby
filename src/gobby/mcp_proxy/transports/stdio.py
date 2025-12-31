@@ -1,6 +1,7 @@
 """Stdio transport connection."""
 
 import logging
+from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
 
 from mcp import ClientSession
@@ -18,9 +19,14 @@ logger = logging.getLogger("gobby.mcp.client")
 class StdioTransportConnection(BaseTransportConnection):
     """Stdio transport connection using MCP SDK."""
 
-    def __init__(self, config: "MCPServerConfig") -> None:
+    def __init__(
+        self,
+        config: "MCPServerConfig",
+        auth_token: str | None = None,
+        token_refresh_callback: Callable[[], Coroutine[Any, Any, str]] | None = None,
+    ) -> None:
         """Initialize stdio transport connection."""
-        super().__init__(config)
+        super().__init__(config, auth_token, token_refresh_callback)
         self._session_context: ClientSession | None = None
         # Explicitly initialize transport context (inherited from base class, but
         # ensures the attribute exists with proper type annotation for this transport)

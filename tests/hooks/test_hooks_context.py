@@ -43,6 +43,7 @@ def test_hook_event_task_id(mock_hook_manager):
     mock_task = MagicMock(spec=Task)
     mock_task.id = task_id
     mock_task.title = task_title
+    mock_task.status = "in_progress"
 
     mock_hook_manager._session_task_manager.get_session_tasks.return_value = [
         {"task": mock_task, "action": "worked_on"}
@@ -87,6 +88,7 @@ def test_session_start_context_injection(mock_hook_manager):
     mock_task = MagicMock(spec=Task)
     mock_task.id = task_id
     mock_task.title = task_title
+    mock_task.status = "in_progress"
 
     mock_hook_manager._session_task_manager.get_session_tasks.return_value = [
         {"task": mock_task, "action": "worked_on"}
