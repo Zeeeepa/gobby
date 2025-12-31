@@ -1070,3 +1070,37 @@ ui:
 - View-only dashboard
 - Push notifications for events
 - Quick task status updates
+
+## Appendix A: Agent Interrupt Mechanism (Planned)
+
+To enable "human-on-the-loop" control (pausing, stopping, intervening), the daemon must track and manage the lifecycle of agent subprocesses.
+
+### Technical Design
+
+1. **PID Persistence**:
+   - The `sessions` table will be updated to store the Process ID (`pid`) of the spawned agent process (e.g., `claude`, `gemini`).
+   - This allows the daemon to re-attach or signal the process even after a daemon restart.
+
+2. **Signal Management**:
+   - We will implement a new action `interrupt_session(session_id, signal="SIGINT")`.
+   - `SIGINT` (Ctrl+C equivalent): Requests the agent to pause or gracefully stop after the current step.
+   - `SIGTERM`: Forcefully terminates the session.
+
+3. **Process Lifecycle**:
+   - `start_new_session`: Spawns process -> Captures PID -> Updates DB `sessions.pid`.
+   - `interrupt_session`: Retrieves PID from DB -> Sends `os.kill(pid, signal)`.
+
+### Database Schema Update (Planned)
+
+```sql
+ALTER TABLE sessions ADD COLUMN pid INTEGER;
+```
+
+### Action Interface (Planned)
+
+```python
+def _handle_interrupt_session(session_id: str, signal: str = "SIGINT"):
+    session = session_manager.get(session_id)
+    if session.pid:
+        os.kill(session.pid, getattr(signal, signal))
+```

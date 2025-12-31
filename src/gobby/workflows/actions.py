@@ -89,11 +89,14 @@ class ActionExecutor:
         self.register("mark_todo_complete", self._handle_mark_todo_complete)
         self.register("persist_tasks", self._handle_persist_tasks)
         self.register("call_mcp_tool", self._handle_call_mcp_tool)
+        # Memory actions - underscore pattern (memory_*)
         self.register("memory_inject", self._handle_memory_inject)
         self.register("memory_extract", self._handle_memory_extract)
+        self.register("memory_save", self._handle_save_memory)
+        self.register("memory_sync_import", self._handle_memory_sync_import)
+        self.register("memory_sync_export", self._handle_memory_sync_export)
+        # Skills
         self.register("skills_learn", self._handle_skills_learn)
-        self.register("memory.sync_import", self._handle_memory_sync_import)
-        self.register("memory.sync_export", self._handle_memory_sync_export)
         self.register("extract_handoff_context", self._handle_extract_handoff_context)
         self.register("start_new_session", self._handle_start_new_session)
         self.register("mark_loop_complete", self._handle_mark_loop_complete)
@@ -1310,6 +1313,88 @@ class ActionExecutor:
             return {"skills_learned": len(new_skills), "skill_names": [s.name for s in new_skills]}
         except Exception as e:
             logger.error(f"skills_learn: Failed: {e}", exc_info=True)
+            return {"error": str(e)}
+
+    async def _handle_save_memory(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """
+        Save a memory directly from workflow context.
+
+        This action allows workflows to explicitly create memories without
+        going through LLM extraction. Useful for saving specific facts,
+        preferences, or patterns discovered during workflow execution.
+
+        Args (via kwargs):
+            content: The memory content to save (required)
+            memory_type: One of 'fact', 'preference', 'pattern', 'context' (default: 'fact')
+            importance: Float 0.0-1.0 (default: 0.5)
+            tags: List of string tags (optional)
+            project_id: Override project ID (optional, defaults to session's project)
+        """
+        if not context.memory_manager:
+            return {"error": "Memory Manager not available"}
+
+        if not context.memory_manager.config.enabled:
+            return None
+
+        # Get content - required parameter
+        content = kwargs.get("content")
+        if not content:
+            return {"error": "Missing required 'content' parameter"}
+
+        # Get project_id
+        project_id = kwargs.get("project_id")
+        if not project_id:
+            session = context.session_manager.get(context.session_id)
+            if session:
+                project_id = session.project_id
+
+        if not project_id:
+            return {"error": "No project_id found"}
+
+        # Validate memory_type
+        memory_type = kwargs.get("memory_type", "fact")
+        if memory_type not in ("fact", "preference", "pattern", "context"):
+            memory_type = "fact"
+
+        # Validate importance
+        importance = kwargs.get("importance", 0.5)
+        if not isinstance(importance, (int, float)):
+            importance = 0.5
+        importance = max(0.0, min(1.0, float(importance)))
+
+        # Validate tags
+        tags = kwargs.get("tags", [])
+        if not isinstance(tags, list):
+            tags = []
+
+        try:
+            # Check for duplicates
+            if context.memory_manager.content_exists(content, project_id):
+                logger.debug(f"save_memory: Skipping duplicate: {content[:50]}...")
+                return {"saved": False, "reason": "duplicate"}
+
+            memory = context.memory_manager.remember(
+                content=content,
+                memory_type=memory_type,
+                importance=importance,
+                project_id=project_id,
+                source_type="workflow",
+                source_session_id=context.session_id,
+                tags=tags,
+            )
+
+            logger.info(f"save_memory: Created {memory_type} memory: {content[:50]}...")
+            return {
+                "saved": True,
+                "memory_id": memory.id,
+                "memory_type": memory_type,
+                "importance": importance,
+            }
+
+        except Exception as e:
+            logger.error(f"save_memory: Failed: {e}", exc_info=True)
             return {"error": str(e)}
 
     async def _handle_mark_session_status(

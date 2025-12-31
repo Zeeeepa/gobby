@@ -141,7 +141,7 @@ async def test_memory_sync_import(mem_action_executor, mem_action_context, mock_
     # Since memories and skills are decoupled, import_from_files returns an int count
     mock_mem_services["memory_sync_manager"].import_from_files.return_value = 10
 
-    result = await mem_action_executor.execute("memory.sync_import", mem_action_context)
+    result = await mem_action_executor.execute("memory_sync_import", mem_action_context)
 
     assert result is not None
     assert result["imported"] == {"memories": 10}
@@ -153,7 +153,7 @@ async def test_memory_sync_export(mem_action_executor, mem_action_context, mock_
     # Since memories and skills are decoupled, export_to_files returns an int count
     mock_mem_services["memory_sync_manager"].export_to_files.return_value = 10
 
-    result = await mem_action_executor.execute("memory.sync_export", mem_action_context)
+    result = await mem_action_executor.execute("memory_sync_export", mem_action_context)
 
     assert result is not None
     assert result["exported"] == {"memories": 10}
@@ -421,3 +421,135 @@ async def test_memory_inject_returns_count(
     assert result is not None
     assert "count" in result
     assert result["count"] == 5
+
+
+# --- memory_save Action Tests ---
+
+
+@pytest.mark.asyncio
+async def test_memory_save_creates_memory(
+    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
+):
+    """Test memory_save creates a memory with specified parameters."""
+    session = session_manager.register(
+        external_id="save-ext",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+    )
+    mem_action_context.session_id = session.id
+    mem_action_context.state.session_id = session.id
+
+    mock_mem_services["memory_manager"].config.enabled = True
+    mock_mem_services["memory_manager"].content_exists.return_value = False
+
+    mock_memory = MagicMock()
+    mock_memory.id = "mem-123"
+    mock_mem_services["memory_manager"].remember.return_value = mock_memory
+
+    result = await mem_action_executor.execute(
+        "memory_save",
+        mem_action_context,
+        content="User prefers dark mode",
+        memory_type="preference",
+        importance=0.8,
+        tags=["ui", "settings"],
+    )
+
+    assert result is not None
+    assert result["saved"] is True
+    assert result["memory_id"] == "mem-123"
+    assert result["memory_type"] == "preference"
+    assert result["importance"] == 0.8
+
+    mock_mem_services["memory_manager"].remember.assert_called_once_with(
+        content="User prefers dark mode",
+        memory_type="preference",
+        importance=0.8,
+        project_id=sample_project["id"],
+        source_type="workflow",
+        source_session_id=session.id,
+        tags=["ui", "settings"],
+    )
+
+
+@pytest.mark.asyncio
+async def test_memory_save_requires_content(
+    mem_action_executor, mem_action_context, mock_mem_services
+):
+    """Test memory_save fails without content parameter."""
+    mock_mem_services["memory_manager"].config.enabled = True
+
+    result = await mem_action_executor.execute("memory_save", mem_action_context)
+
+    assert result is not None
+    assert "error" in result
+    assert "content" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_memory_save_skips_duplicates(
+    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
+):
+    """Test memory_save skips duplicate content."""
+    session = session_manager.register(
+        external_id="dup-save-ext",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+    )
+    mem_action_context.session_id = session.id
+    mem_action_context.state.session_id = session.id
+
+    mock_mem_services["memory_manager"].config.enabled = True
+    mock_mem_services["memory_manager"].content_exists.return_value = True
+
+    result = await mem_action_executor.execute(
+        "memory_save",
+        mem_action_context,
+        content="Already exists",
+    )
+
+    assert result is not None
+    assert result["saved"] is False
+    assert result["reason"] == "duplicate"
+    mock_mem_services["memory_manager"].remember.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_memory_save_uses_defaults(
+    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
+):
+    """Test memory_save uses default values for optional parameters."""
+    session = session_manager.register(
+        external_id="default-ext",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+    )
+    mem_action_context.session_id = session.id
+    mem_action_context.state.session_id = session.id
+
+    mock_mem_services["memory_manager"].config.enabled = True
+    mock_mem_services["memory_manager"].content_exists.return_value = False
+
+    mock_memory = MagicMock()
+    mock_memory.id = "mem-456"
+    mock_mem_services["memory_manager"].remember.return_value = mock_memory
+
+    result = await mem_action_executor.execute(
+        "memory_save",
+        mem_action_context,
+        content="Simple fact",
+    )
+
+    assert result is not None
+    assert result["saved"] is True
+    assert result["memory_type"] == "fact"
+    assert result["importance"] == 0.5
+
+    # Verify defaults were used
+    call_kwargs = mock_mem_services["memory_manager"].remember.call_args[1]
+    assert call_kwargs["memory_type"] == "fact"
+    assert call_kwargs["importance"] == 0.5
+    assert call_kwargs["tags"] == []
