@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # --- Workflow Definition Models (YAML) ---
 
@@ -48,6 +48,12 @@ class WorkflowDefinition(BaseModel):
     version: str = "1.0"
     type: Literal["lifecycle", "phase"] = "phase"
     extends: str | None = None
+
+    @field_validator("version", mode="before")
+    @classmethod
+    def coerce_version_to_string(cls, v: Any) -> str:
+        """Accept numeric versions (1.0, 2) and coerce to string."""
+        return str(v) if v is not None else "1.0"
 
     settings: dict[str, Any] = Field(default_factory=dict)
     variables: dict[str, Any] = Field(default_factory=dict)

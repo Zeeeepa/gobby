@@ -166,7 +166,8 @@ class MemorySyncManager:
                             skipped += 1
                             continue
 
-                        await self.memory_manager.remember(
+                        # Use storage directly for sync import (skip auto-embedding)
+                        self.memory_manager.storage.create_memory(
                             content=content,
                             memory_type=data.get("type", "fact"),
                             tags=data.get("tags", []),

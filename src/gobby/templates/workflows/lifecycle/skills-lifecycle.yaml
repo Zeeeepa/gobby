@@ -1,0 +1,11 @@
+name: skills-lifecycle
+description: Automatic skill extraction from sessions
+version: 1.0
+type: lifecycle
+author: Gobby
+settings:
+  priority: 60 # Run after memory extraction
+
+triggers:
+  on_session_end:
+    - action: skills_learn

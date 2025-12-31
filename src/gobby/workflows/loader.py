@@ -82,9 +82,16 @@ class WorkflowLoader:
     def _find_workflow_file(self, name: str, search_dirs: list[Path]) -> Path | None:
         filename = f"{name}.yaml"
         for d in search_dirs:
+            # Check root directory
             candidate = d / filename
             if candidate.exists():
                 return candidate
+            # Check subdirectories (lifecycle/, etc.)
+            for subdir in d.iterdir() if d.exists() else []:
+                if subdir.is_dir():
+                    candidate = subdir / filename
+                    if candidate.exists():
+                        return candidate
         return None
 
     def _merge_workflows(self, parent: dict[str, Any], child: dict[str, Any]) -> dict[str, Any]:
@@ -155,13 +162,13 @@ class WorkflowLoader:
 
         discovered: dict[str, DiscoveredWorkflow] = {}  # name -> workflow (for shadowing)
 
-        # 1. Scan global directories first (will be shadowed by project)
+        # 1. Scan global lifecycle directory first (will be shadowed by project)
         for global_dir in self.global_dirs:
-            self._scan_directory(global_dir, is_project=False, discovered=discovered)
+            self._scan_directory(global_dir / "lifecycle", is_project=False, discovered=discovered)
 
-        # 2. Scan project directory (shadows global)
+        # 2. Scan project lifecycle directory (shadows global)
         if project_path:
-            project_dir = Path(project_path) / ".gobby" / "workflows"
+            project_dir = Path(project_path) / ".gobby" / "workflows" / "lifecycle"
             self._scan_directory(project_dir, is_project=True, discovered=discovered)
 
         # 3. Filter to lifecycle workflows only
