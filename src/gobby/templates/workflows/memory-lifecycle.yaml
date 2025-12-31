@@ -6,14 +6,10 @@ author: Gobby
 settings:
   priority: 50 # Run before handoff (which might clear context?)
 
-on:
-  session-start:
-    steps:
-      - action: memory_inject
-        args:
-          min_importance: 0.5
-          prompt: "{{ event.data.initial_prompt }}"
+triggers:
+  on_session_start:
+    - action: memory_inject
+      min_importance: 0.5
 
-  session-end:
-    steps:
-      - action: skills_learn
+  on_session_end:
+    - action: skills_learn

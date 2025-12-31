@@ -197,6 +197,10 @@ class WorkflowEngine:
             llm_service=self.action_executor.llm_service,
             transcript_processor=self.action_executor.transcript_processor,
             config=self.action_executor.config,
+            mcp_manager=self.action_executor.mcp_manager,
+            memory_manager=self.action_executor.memory_manager,
+            skill_learner=self.action_executor.skill_learner,
+            memory_sync_manager=self.action_executor.memory_sync_manager,
         )
 
         for action_def in actions:
@@ -383,6 +387,10 @@ class WorkflowEngine:
             llm_service=self.action_executor.llm_service,
             transcript_processor=self.action_executor.transcript_processor,
             config=self.action_executor.config,
+            mcp_manager=self.action_executor.mcp_manager,
+            memory_manager=self.action_executor.memory_manager,
+            skill_learner=self.action_executor.skill_learner,
+            memory_sync_manager=self.action_executor.memory_sync_manager,
         )
 
         injected_context: list[str] = []
@@ -516,6 +524,10 @@ class WorkflowEngine:
             llm_service=self.action_executor.llm_service,
             transcript_processor=self.action_executor.transcript_processor,
             config=self.action_executor.config,
+            mcp_manager=self.action_executor.mcp_manager,
+            memory_manager=self.action_executor.memory_manager,
+            skill_learner=self.action_executor.skill_learner,
+            memory_sync_manager=self.action_executor.memory_sync_manager,
         )
 
         injected_context: list[str] = []
