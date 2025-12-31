@@ -258,3 +258,73 @@ async def test_auto_embed_no_api_key(db):
 
         # Verify embed_memory was NOT called (no API key)
         mock_embed.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_access_tracking_increments_count(memory_manager):
+    """Test that recall increments access_count."""
+    memory = await memory_manager.remember("Track my access", importance=0.5)
+
+    # Initial access_count should be 0
+    assert memory.access_count == 0
+
+    # Recall should update access stats
+    memory_manager.recall(query="Track")
+
+    # Fetch fresh from storage
+    updated = memory_manager.get_memory(memory.id)
+    assert updated.access_count == 1
+    assert updated.last_accessed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_access_tracking_updates_timestamp(memory_manager):
+    """Test that recall updates last_accessed_at."""
+    memory = await memory_manager.remember("Timestamp test", importance=0.5)
+
+    # Initial last_accessed_at should be None
+    assert memory.last_accessed_at is None
+
+    # Recall triggers access update
+    memory_manager.recall(query="Timestamp")
+
+    updated = memory_manager.get_memory(memory.id)
+    assert updated.last_accessed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_access_tracking_debounce(db):
+    """Test that rapid accesses are debounced."""
+    from datetime import UTC, datetime, timedelta
+
+    # Use very short debounce for testing
+    config = MemoryConfig(access_debounce_seconds=3600)  # 1 hour debounce
+    manager = MemoryManager(db, config)
+
+    memory = await manager.remember("Debounce test", importance=0.5)
+
+    # First recall - should update
+    manager.recall(query="Debounce")
+    first_access = manager.get_memory(memory.id)
+    assert first_access.access_count == 1
+
+    # Second recall immediately - should be debounced
+    manager.recall(query="Debounce")
+    second_access = manager.get_memory(memory.id)
+    assert second_access.access_count == 1  # Still 1, debounced
+
+
+@pytest.mark.asyncio
+async def test_access_tracking_independent_memories(memory_manager):
+    """Test that access stats are tracked independently per memory."""
+    memory1 = await memory_manager.remember("First memory", importance=0.5)
+    memory2 = await memory_manager.remember("Second memory", importance=0.5)
+
+    # Recall only first memory
+    memory_manager.recall(query="First")
+
+    updated1 = memory_manager.get_memory(memory1.id)
+    updated2 = memory_manager.get_memory(memory2.id)
+
+    assert updated1.access_count == 1
+    assert updated2.access_count == 0  # Not accessed

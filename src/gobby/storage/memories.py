@@ -226,6 +226,25 @@ class LocalMemoryManager:
         rows = self.db.fetchall(query, tuple(params))
         return [Memory.from_row(row) for row in rows]
 
+    def update_access_stats(self, memory_id: str, accessed_at: str) -> None:
+        """
+        Update access count and last accessed timestamp for a memory.
+
+        Args:
+            memory_id: Memory ID to update
+            accessed_at: ISO format timestamp of access
+        """
+        with self.db.transaction() as conn:
+            conn.execute(
+                """
+                UPDATE memories
+                SET access_count = access_count + 1,
+                    last_accessed_at = ?
+                WHERE id = ?
+                """,
+                (accessed_at, memory_id),
+            )
+
     def search_memories(
         self,
         query_text: str,

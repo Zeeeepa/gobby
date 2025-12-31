@@ -1,6 +1,6 @@
 name: memory-lifecycle
 description: Standard memory lifecycle hooks
-version: 1.0
+version: "1.0"
 type: lifecycle
 author: Gobby
 settings:

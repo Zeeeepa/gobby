@@ -732,6 +732,10 @@ class MemoryConfig(BaseModel):
         default=True,
         description="Automatically generate embeddings when memories are created",
     )
+    access_debounce_seconds: int = Field(
+        default=60,
+        description="Minimum seconds between access stat updates for the same memory",
+    )
     provider: str = Field(
         default="claude",
         description="LLM provider to use for memory extraction",

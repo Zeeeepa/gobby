@@ -219,12 +219,38 @@ class MemoryManager:
             return _fallback_text_search()
 
     def _update_access_stats(self, memories: list[Memory]) -> None:
-        """Update access count and time for memories."""
-        # This could be async or batched in future
-        # For now, simple synchronous update (careful of perf)
-        # Maybe only update if it hasn't been updated recently?
-        # Or just do it. SQLite is fast enough for single-user CLI.
-        pass  # TODO: Implement efficient access tracking
+        """
+        Update access count and time for memories.
+
+        Implements debouncing to avoid excessive database writes when the same
+        memory is accessed multiple times in quick succession.
+        """
+        if not memories:
+            return
+
+        now = datetime.now(UTC)
+        debounce_seconds = getattr(self.config, "access_debounce_seconds", 60)
+
+        for memory in memories:
+            # Check if we should debounce this update
+            if memory.last_accessed_at:
+                try:
+                    last_access = datetime.fromisoformat(memory.last_accessed_at)
+                    if last_access.tzinfo is None:
+                        last_access = last_access.replace(tzinfo=UTC)
+                    seconds_since = (now - last_access).total_seconds()
+                    if seconds_since < debounce_seconds:
+                        # Skip update - accessed too recently
+                        continue
+                except (ValueError, TypeError):
+                    # Invalid timestamp, proceed with update
+                    pass
+
+            # Update access stats
+            try:
+                self.storage.update_access_stats(memory.id, now.isoformat())
+            except Exception as e:
+                logger.warning(f"Failed to update access stats for {memory.id}: {e}")
 
     def forget(self, memory_id: str) -> bool:
         """Forget a memory."""
