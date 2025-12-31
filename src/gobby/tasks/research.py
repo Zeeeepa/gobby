@@ -110,7 +110,7 @@ class TaskResearchAgent:
             prompt = await self._build_step_prompt(context, step, enable_web_search)  # Made async
             response = await provider.generate_text(
                 prompt=prompt,
-                system_prompt="You are a senior developer researching a codebase. Use tools to find relevant code.",
+                system_prompt=self.config.research_system_prompt,
                 model=model,
             )
 

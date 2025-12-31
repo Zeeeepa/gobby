@@ -167,7 +167,8 @@ class ExpansionPromptBuilder:
         base_prompt = self.config.system_prompt or DEFAULT_SYSTEM_PROMPT
 
         if tdd_mode:
-            base_prompt += TDD_MODE_INSTRUCTIONS
+            tdd_instructions = self.config.tdd_prompt or TDD_MODE_INSTRUCTIONS
+            base_prompt += tdd_instructions
 
         return base_prompt
 

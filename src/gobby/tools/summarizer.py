@@ -5,13 +5,37 @@ Intelligently summarizes long MCP tool descriptions to fit within
 the 200-character limit for config file storage.
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.config.app import ToolSummarizerConfig
 
 logger = logging.getLogger(__name__)
 
 # Maximum description length for tool summaries
 MAX_DESCRIPTION_LENGTH = 200
+
+# Module-level config reference (set by init_summarizer_config)
+_config: ToolSummarizerConfig | None = None
+
+
+def init_summarizer_config(config: ToolSummarizerConfig) -> None:
+    """Initialize the summarizer with configuration."""
+    global _config
+    _config = config
+
+
+def _get_config() -> ToolSummarizerConfig:
+    """Get the current config, with fallback to defaults."""
+    if _config is not None:
+        return _config
+    # Import here to avoid circular imports
+    from gobby.config.app import ToolSummarizerConfig
+
+    return ToolSummarizerConfig()
 
 
 async def _summarize_description_with_claude(description: str) -> str:
@@ -24,22 +48,18 @@ async def _summarize_description_with_claude(description: str) -> str:
     Returns:
         Summarized description (max 180 chars)
     """
+    config = _get_config()
+
     try:
         from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
 
-        prompt = f"""Summarize this MCP tool description in 180 characters or less.
-Keep it to three sentences or less. Be concise and preserve the key functionality.
-Do not add quotes, extra formatting, or code examples.
+        prompt = config.prompt.format(description=description)
 
-Description: {description}
-
-Summary:"""
-
-        # Configure for single-turn completion with Haiku
+        # Configure for single-turn completion
         options = ClaudeAgentOptions(
-            system_prompt="You are a technical summarizer. Create concise tool descriptions.",
+            system_prompt=config.system_prompt,
             max_turns=1,
-            model="claude-haiku-4-5",  # Fast, cheap model
+            model=config.model,
             allowed_tools=[],
             permission_mode="default",
         )
@@ -109,24 +129,24 @@ async def generate_server_description(
     Returns:
         Single-sentence description (aiming for <100 chars)
     """
+    config = _get_config()
+
     try:
         from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
 
         # Build tools list for prompt
         tools_list = "\n".join([f"- {t['name']}: {t['description']}" for t in tool_summaries])
 
-        prompt = f"""Write a single concise sentence describing what the '{server_name}' MCP server does based on its tools.
+        prompt = config.server_description_prompt.format(
+            server_name=server_name,
+            tools_list=tools_list,
+        )
 
-Tools:
-{tools_list}
-
-Description (1 sentence, try to keep under 100 characters):"""
-
-        # Configure for single-turn completion with Haiku
+        # Configure for single-turn completion
         options = ClaudeAgentOptions(
-            system_prompt="You write concise technical descriptions.",
+            system_prompt=config.server_description_system_prompt,
             max_turns=1,
-            model="claude-haiku-4-5",
+            model=config.model,
             allowed_tools=[],
             permission_mode="default",
         )

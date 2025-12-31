@@ -32,6 +32,7 @@ gobby-tasks:
     model: claude-opus-4-5
     codebase_research_enabled: true
     research_max_steps: 10
+    research_system_prompt: 'You are a senior developer researching a codebase. Use tools to find relevant code.'
     web_research_enabled: true
     max_subtasks: 10
     default_strategy: auto  # auto, phased, sequential, or parallel
@@ -39,6 +40,8 @@ gobby-tasks:
     enabled: true
     provider: claude
     model: claude-haiku-4-5
+    system_prompt: 'You are a QA validator. Output ONLY valid JSON. No markdown, no explanation, no code blocks. Just the raw JSON object.'
+    criteria_system_prompt: 'You are a QA engineer. Generate clear, testable acceptance criteria.'
     # Custom prompt for generating validation criteria. Available placeholders: {title}, {description}
     # criteria_prompt: |
     #   Generate acceptance criteria for:
@@ -79,6 +82,21 @@ import_mcp_server:
   enabled: true
   provider: claude
   model: claude-haiku-4-5
+  github_fetch_prompt: |
+    Fetch the README from this GitHub repository and extract MCP server configuration:
+
+    {github_url}
+
+    If the URL doesn't point directly to a README, try to find and fetch the README.md file.
+
+    After reading the documentation, extract the MCP server configuration as a JSON object.
+  search_fetch_prompt: |
+    Search for MCP server: {search_query}
+
+    Find the official documentation or GitHub repository for this MCP server.
+    Then fetch and read the README or installation docs.
+
+    After reading the documentation, extract the MCP server configuration as a JSON object.
 message_tracking:
   enabled: true
   poll_interval: 5.0
@@ -305,6 +323,62 @@ recommend_tools:
     3. Suggested workflow (e.g., "First call X, then use result with Y")
 
     4. Only mention built-in tools if no MCP server is suitable.'
+  hybrid_rerank_prompt: |
+    You are an expert at selecting tools for tasks.
+    Task: {task_description}
+
+    Candidate tools (ranked by semantic similarity):
+    {candidate_list}
+
+    Re-rank these tools by relevance to the task and provide reasoning.
+    Return the top {top_k} most relevant as JSON:
+    {{
+      "recommendations": [
+        {{
+          "server": "server_name",
+          "tool": "tool_name",
+          "reason": "Why this tool is the best choice"
+        }}
+      ]
+    }}
+  llm_prompt: |
+    You are an expert at selecting the right tools for a given task.
+    Task: {task_description}
+
+    Available Servers: {available_servers}
+
+    Please recommend which tools from these servers would be most useful for this task.
+    Return a JSON object with this structure:
+    {{
+      "recommendations": [
+        {{
+          "server": "server_name",
+          "tool": "tool_name",
+          "reason": "Why this tool is useful"
+        }}
+      ]
+    }}
+tool_summarizer:
+  enabled: true
+  provider: claude
+  model: claude-haiku-4-5
+  prompt: |
+    Summarize this MCP tool description in 180 characters or less.
+    Keep it to three sentences or less. Be concise and preserve the key functionality.
+    Do not add quotes, extra formatting, or code examples.
+
+    Description: {description}
+
+    Summary:
+  system_prompt: 'You are a technical summarizer. Create concise tool descriptions.'
+  server_description_prompt: |
+    Write a single concise sentence describing what the '{server_name}' MCP server does based on its tools.
+
+    Tools:
+    {tools_list}
+
+    Description (1 sentence, try to keep under 100 characters):
+  server_description_system_prompt: 'You write concise technical descriptions.'
 skills:
   enabled: true
   provider: claude

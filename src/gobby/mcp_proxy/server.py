@@ -54,6 +54,7 @@ class GobbyDaemonTools:
             mcp_manager,
             semantic_search=semantic_search,
             project_id=mcp_manager.project_id,
+            config=config.recommend_tools if config else None,
         )
 
     # --- System Tools ---

@@ -171,13 +171,7 @@ class MCPServerImporter:
             from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
 
             # Build prompt to fetch and extract config
-            prompt = f"""Fetch the README from this GitHub repository and extract MCP server configuration:
-
-{github_url}
-
-If the URL doesn't point directly to a README, try to find and fetch the README.md file.
-
-After reading the documentation, extract the MCP server configuration as a JSON object."""
+            prompt = self.import_config.github_fetch_prompt.format(github_url=github_url)
 
             options = ClaudeAgentOptions(
                 system_prompt=self.import_config.prompt,
@@ -228,12 +222,7 @@ After reading the documentation, extract the MCP server configuration as a JSON 
             from claude_agent_sdk import AssistantMessage, ClaudeAgentOptions, TextBlock, query
 
             # Build prompt to search and extract config
-            prompt = f"""Search for MCP server: {search_query}
-
-Find the official documentation or GitHub repository for this MCP server.
-Then fetch and read the README or installation docs.
-
-After reading the documentation, extract the MCP server configuration as a JSON object."""
+            prompt = self.import_config.search_fetch_prompt.format(search_query=search_query)
 
             options = ClaudeAgentOptions(
                 system_prompt=self.import_config.prompt,

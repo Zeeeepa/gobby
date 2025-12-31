@@ -181,6 +181,13 @@ class HTTPServer:
             registry_count = len(self._internal_manager)
             logger.debug(f"Internal registries initialized: {registry_count} registries")
 
+            # Initialize tool summarizer config
+            if config:
+                from gobby.tools.summarizer import init_summarizer_config
+
+                init_summarizer_config(config.tool_summarizer)
+                logger.debug("Tool summarizer config initialized")
+
             # Create semantic search instance if db available
             semantic_search = None
             if mcp_db_manager:

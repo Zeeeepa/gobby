@@ -180,7 +180,7 @@ class TaskValidator:
             provider = self.llm_service.get_provider(self.config.provider)
             response_content = await provider.generate_text(
                 prompt=prompt,
-                system_prompt="You are a QA validator. Output ONLY valid JSON. No markdown, no explanation, no code blocks. Just the raw JSON object.",
+                system_prompt=self.config.system_prompt,
                 model=self.config.model,
             )
 
@@ -261,7 +261,7 @@ class TaskValidator:
             provider = self.llm_service.get_provider(self.config.provider)
             response = await provider.generate_text(
                 prompt=prompt,
-                system_prompt="You are a QA engineer. Generate clear, testable acceptance criteria.",
+                system_prompt=self.config.criteria_system_prompt,
                 model=self.config.model,
             )
             return response.strip()

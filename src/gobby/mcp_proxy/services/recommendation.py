@@ -1,8 +1,13 @@
 """Recommendation service."""
 
+from __future__ import annotations
+
 import json
 import logging
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from gobby.config.app import RecommendToolsConfig
 
 logger = logging.getLogger("gobby.mcp.server")
 
@@ -19,11 +24,21 @@ class RecommendationService:
         mcp_manager: Any,
         semantic_search: Any | None = None,
         project_id: str | None = None,
+        config: RecommendToolsConfig | None = None,
     ):
         self._llm_service = llm_service
         self._mcp_manager = mcp_manager
         self._semantic_search = semantic_search
         self._project_id = project_id
+        self._config = config
+
+    def _get_config(self) -> RecommendToolsConfig:
+        """Get config with fallback to defaults."""
+        if self._config is not None:
+            return self._config
+        from gobby.config.app import RecommendToolsConfig
+
+        return RecommendToolsConfig()
 
     async def recommend_tools(
         self,
@@ -123,31 +138,19 @@ class RecommendationService:
 
         # Use LLM to re-rank and add reasoning
         try:
+            config = self._get_config()
             candidates = semantic_result["recommendations"]
             candidate_list = "\n".join(
                 f"- {c['server']}/{c['tool']}: {c.get('reason', 'No description')}"
                 for c in candidates
             )
 
-            prompt = f"""
-You are an expert at selecting tools for tasks.
-Task: {task_description}
+            prompt = config.hybrid_rerank_prompt.format(
+                task_description=task_description,
+                candidate_list=candidate_list,
+                top_k=top_k,
+            )
 
-Candidate tools (ranked by semantic similarity):
-{candidate_list}
-
-Re-rank these tools by relevance to the task and provide reasoning.
-Return the top {top_k} most relevant as JSON:
-{{
-  "recommendations": [
-    {{
-      "server": "server_name",
-      "tool": "tool_name",
-      "reason": "Why this tool is the best choice"
-    }}
-  ]
-}}
-"""
             provider = self._llm_service.get_default_provider()
             response = await provider.generate_text(prompt)
 
@@ -177,26 +180,14 @@ Return the top {top_k} most relevant as JSON:
     async def _recommend_llm(self, task_description: str) -> dict[str, Any]:
         """Recommend tools using LLM (original behavior)."""
         try:
+            config = self._get_config()
             available_servers = self._mcp_manager.get_available_servers()
 
-            prompt = f"""
-You are an expert at selecting the right tools for a given task.
-Task: {task_description}
+            prompt = config.llm_prompt.format(
+                task_description=task_description,
+                available_servers=", ".join(available_servers),
+            )
 
-Available Servers: {", ".join(available_servers)}
-
-Please recommend which tools from these servers would be most useful for this task.
-Return a JSON object with this structure:
-{{
-  "recommendations": [
-    {{
-      "server": "server_name",
-      "tool": "tool_name",
-      "reason": "Why this tool is useful"
-    }}
-  ]
-}}
-"""
             provider = self._llm_service.get_default_provider()
             response = await provider.generate_text(prompt)
 

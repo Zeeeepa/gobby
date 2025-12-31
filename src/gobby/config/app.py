@@ -234,6 +234,50 @@ class CodeExecutionConfig(BaseModel):
         return v
 
 
+class ToolSummarizerConfig(BaseModel):
+    """Tool description summarization configuration."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable LLM-based tool description summarization",
+    )
+    provider: str = Field(
+        default="claude",
+        description="LLM provider to use for summarization",
+    )
+    model: str = Field(
+        default="claude-haiku-4-5",
+        description="Model to use for summarization (fast/cheap recommended)",
+    )
+    prompt: str = Field(
+        default="""Summarize this MCP tool description in 180 characters or less.
+Keep it to three sentences or less. Be concise and preserve the key functionality.
+Do not add quotes, extra formatting, or code examples.
+
+Description: {description}
+
+Summary:""",
+        description="Prompt template for tool description summarization (use {description} placeholder)",
+    )
+    system_prompt: str = Field(
+        default="You are a technical summarizer. Create concise tool descriptions.",
+        description="System prompt for tool description summarization",
+    )
+    server_description_prompt: str = Field(
+        default="""Write a single concise sentence describing what the '{server_name}' MCP server does based on its tools.
+
+Tools:
+{tools_list}
+
+Description (1 sentence, try to keep under 100 characters):""",
+        description="Prompt template for server description generation (use {server_name} and {tools_list} placeholders)",
+    )
+    server_description_system_prompt: str = Field(
+        default="You write concise technical descriptions.",
+        description="System prompt for server description generation",
+    )
+
+
 class RecommendToolsConfig(BaseModel):
     """Tool recommendation configuration."""
 
@@ -279,6 +323,45 @@ Be concise and specific. Recommend 1-3 tools maximum with:
 4. Only mention built-in tools if no MCP server is suitable""",
         description="System prompt for recommend_tools() MCP tool.",
     )
+    hybrid_rerank_prompt: str = Field(
+        default="""You are an expert at selecting tools for tasks.
+Task: {task_description}
+
+Candidate tools (ranked by semantic similarity):
+{candidate_list}
+
+Re-rank these tools by relevance to the task and provide reasoning.
+Return the top {top_k} most relevant as JSON:
+{{
+  "recommendations": [
+    {{
+      "server": "server_name",
+      "tool": "tool_name",
+      "reason": "Why this tool is the best choice"
+    }}
+  ]
+}}""",
+        description="Prompt template for hybrid mode re-ranking (use {task_description}, {candidate_list}, {top_k} placeholders)",
+    )
+    llm_prompt: str = Field(
+        default="""You are an expert at selecting the right tools for a given task.
+Task: {task_description}
+
+Available Servers: {available_servers}
+
+Please recommend which tools from these servers would be most useful for this task.
+Return a JSON object with this structure:
+{{
+  "recommendations": [
+    {{
+      "server": "server_name",
+      "tool": "tool_name",
+      "reason": "Why this tool is useful"
+    }}
+  ]
+}}""",
+        description="Prompt template for LLM mode recommendations (use {task_description}, {available_servers} placeholders)",
+    )
 
 
 DEFAULT_IMPORT_MCP_SERVER_PROMPT = """You are an MCP server configuration extractor. Given documentation for an MCP server, extract the configuration needed to connect to it.
@@ -318,6 +401,25 @@ class ImportMCPServerConfig(BaseModel):
     prompt: str = Field(
         default=DEFAULT_IMPORT_MCP_SERVER_PROMPT,
         description="System prompt for MCP server config extraction",
+    )
+    github_fetch_prompt: str = Field(
+        default="""Fetch the README from this GitHub repository and extract MCP server configuration:
+
+{github_url}
+
+If the URL doesn't point directly to a README, try to find and fetch the README.md file.
+
+After reading the documentation, extract the MCP server configuration as a JSON object.""",
+        description="User prompt template for GitHub import (use {github_url} placeholder)",
+    )
+    search_fetch_prompt: str = Field(
+        default="""Search for MCP server: {search_query}
+
+Find the official documentation or GitHub repository for this MCP server.
+Then fetch and read the README or installation docs.
+
+After reading the documentation, extract the MCP server configuration as a JSON object.""",
+        description="User prompt template for search-based import (use {search_query} placeholder)",
     )
 
 
@@ -543,9 +645,17 @@ class TaskExpansionConfig(BaseModel):
         default=10,
         description="Maximum number of steps for research agent loop",
     )
+    research_system_prompt: str = Field(
+        default="You are a senior developer researching a codebase. Use tools to find relevant code.",
+        description="System prompt for the research agent",
+    )
     system_prompt: str | None = Field(
         default=None,
-        description="Custom system prompt for task expansion (overrides default)",
+        description="Custom system prompt for task expansion (overrides default in expand.py)",
+    )
+    tdd_prompt: str | None = Field(
+        default=None,
+        description="TDD mode instructions appended to system prompt when tdd_mode is enabled (overrides default in expand.py)",
     )
     web_research_enabled: bool = Field(
         default=True,
@@ -580,13 +690,21 @@ class TaskValidationConfig(BaseModel):
         default="claude-haiku-4-5",
         description="Model to use for validation",
     )
+    system_prompt: str = Field(
+        default="You are a QA validator. Output ONLY valid JSON. No markdown, no explanation, no code blocks. Just the raw JSON object.",
+        description="System prompt for task validation",
+    )
     prompt: str | None = Field(
         default=None,
-        description="Custom prompt template for task validation",
+        description="Custom prompt template for task validation (use {title}, {criteria_text}, {changes_section} placeholders)",
+    )
+    criteria_system_prompt: str = Field(
+        default="You are a QA engineer. Generate clear, testable acceptance criteria.",
+        description="System prompt for generating validation criteria",
     )
     criteria_prompt: str | None = Field(
         default=None,
-        description="Custom prompt template for generating validation criteria from task description",
+        description="Custom prompt template for generating validation criteria (use {title}, {description} placeholders)",
     )
 
 
@@ -1018,6 +1136,10 @@ class DaemonConfig(BaseModel):
         default_factory=RecommendToolsConfig,
         description="Tool recommendation configuration",
     )
+    tool_summarizer: ToolSummarizerConfig = Field(
+        default_factory=ToolSummarizerConfig,
+        description="Tool description summarization configuration",
+    )
     import_mcp_server: ImportMCPServerConfig = Field(
         default_factory=ImportMCPServerConfig,
         description="MCP server import configuration",
@@ -1062,6 +1184,10 @@ class DaemonConfig(BaseModel):
     def get_recommend_tools_config(self) -> RecommendToolsConfig:
         """Get recommend_tools configuration."""
         return self.recommend_tools
+
+    def get_tool_summarizer_config(self) -> ToolSummarizerConfig:
+        """Get tool_summarizer configuration."""
+        return self.tool_summarizer
 
     def get_import_mcp_server_config(self) -> ImportMCPServerConfig:
         """Get import_mcp_server configuration."""
