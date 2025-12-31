@@ -90,6 +90,7 @@ class ActionExecutor:
         self.register("persist_tasks", self._handle_persist_tasks)
         self.register("call_mcp_tool", self._handle_call_mcp_tool)
         self.register("memory_inject", self._handle_memory_inject)
+        self.register("memory_extract", self._handle_memory_extract)
         self.register("skills_learn", self._handle_skills_learn)
         self.register("memory.sync_import", self._handle_memory_sync_import)
         self.register("memory.sync_export", self._handle_memory_sync_export)
@@ -1124,6 +1125,132 @@ class ActionExecutor:
 
         except Exception as e:
             logger.error(f"memory_inject: Failed: {e}", exc_info=True)
+            return {"error": str(e)}
+
+    async def _handle_memory_extract(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """
+        Extract memories from session summary using LLM.
+
+        Extracts facts, preferences, patterns, and context from the session
+        and creates memories with source_type='session'.
+        """
+        import json
+
+        if not context.memory_manager:
+            return None
+
+        # Check config enabled
+        if not context.memory_manager.config.enabled:
+            return None
+
+        if not context.memory_manager.config.auto_extract:
+            logger.debug("memory_extract: auto_extract disabled")
+            return None
+
+        if not context.llm_service:
+            logger.warning("memory_extract: No LLM service available")
+            return None
+
+        # Get session
+        session = context.session_manager.get(context.session_id)
+        if not session:
+            logger.warning(f"memory_extract: Session {context.session_id} not found")
+            return None
+
+        project_id = session.project_id
+
+        try:
+            # Get session summary - prefer stored summary_markdown
+            summary = session.summary_markdown
+            if not summary:
+                logger.debug("memory_extract: No summary available, skipping extraction")
+                return {"extracted": 0, "reason": "no_summary"}
+
+            # Get LLM provider
+            memory_config = context.memory_manager.config
+            provider, model, _ = context.llm_service.get_provider_for_feature(memory_config)
+
+            # Build prompt
+            prompt = memory_config.extraction_prompt.format(summary=summary)
+
+            # Call LLM
+            response = await provider.generate_text(prompt=prompt, model=model)
+
+            # Parse JSON response
+            cleaned_response = response.strip()
+            if cleaned_response.startswith("```json"):
+                cleaned_response = cleaned_response[7:]
+            if cleaned_response.startswith("```"):
+                cleaned_response = cleaned_response[3:]
+            if cleaned_response.endswith("```"):
+                cleaned_response = cleaned_response[:-3]
+            cleaned_response = cleaned_response.strip()
+
+            try:
+                memories_data = json.loads(cleaned_response)
+            except json.JSONDecodeError:
+                logger.warning(
+                    f"memory_extract: Failed to parse JSON for session {context.session_id}"
+                )
+                return {"extracted": 0, "error": "json_parse_error"}
+
+            if not isinstance(memories_data, list):
+                logger.warning(
+                    f"memory_extract: Expected list, got {type(memories_data).__name__}"
+                )
+                return {"extracted": 0, "error": "invalid_response_format"}
+
+            # Create memories
+            created_count = 0
+            for mem_data in memories_data:
+                if not isinstance(mem_data, dict):
+                    continue
+
+                content = mem_data.get("content")
+                if not content:
+                    continue
+
+                # Check for duplicates
+                if context.memory_manager.content_exists(content, project_id):
+                    logger.debug(f"memory_extract: Skipping duplicate: {content[:50]}...")
+                    continue
+
+                memory_type = mem_data.get("memory_type", "fact")
+                if memory_type not in ("fact", "preference", "pattern", "context"):
+                    memory_type = "fact"
+
+                importance = mem_data.get("importance", 0.5)
+                if not isinstance(importance, (int, float)):
+                    importance = 0.5
+                importance = max(0.0, min(1.0, float(importance)))
+
+                tags = mem_data.get("tags", [])
+                if not isinstance(tags, list):
+                    tags = []
+
+                try:
+                    context.memory_manager.remember(
+                        content=content,
+                        memory_type=memory_type,
+                        importance=importance,
+                        project_id=project_id,
+                        source_type="session",
+                        source_session_id=context.session_id,
+                        tags=tags,
+                    )
+                    created_count += 1
+                    logger.info(
+                        f"memory_extract: Created {memory_type} memory: {content[:50]}..."
+                    )
+                except Exception as e:
+                    logger.error(f"memory_extract: Failed to create memory: {e}")
+
+            return {"extracted": created_count, "session_id": context.session_id}
+
+        except Exception as e:
+            logger.error(f"memory_extract: Failed: {e}", exc_info=True)
             return {"error": str(e)}
 
     async def _handle_skills_learn(

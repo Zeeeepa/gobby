@@ -62,6 +62,7 @@ def mem_action_context(temp_db, session_manager, mem_workflow_state, mock_mem_se
         db=temp_db,
         session_manager=session_manager,
         template_engine=MagicMock(spec=TemplateEngine),
+        llm_service=mock_mem_services["llm_service"],
         mcp_manager=mock_mem_services["mcp_manager"],
         memory_manager=mock_mem_services["memory_manager"],
         skill_learner=mock_mem_services["skill_learner"],
@@ -156,3 +157,128 @@ async def test_memory_sync_export(mem_action_executor, mem_action_context, mock_
     assert result is not None
     assert result["exported"] == {"memories": 10}
     mock_mem_services["memory_sync_manager"].export_to_files.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_memory_extract_from_summary(
+    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
+):
+    """Test memory extraction from session summary."""
+    # Setup session with summary
+    session = session_manager.register(
+        external_id="extract-ext",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+    )
+    # Add summary to session
+    session_manager.update_summary(
+        session.id, summary_markdown="User prefers pytest. Project uses Python 3.11."
+    )
+
+    mem_action_context.session_id = session.id
+    mem_action_context.state.session_id = session.id
+
+    # Setup mocks
+    mock_mem_services["memory_manager"].config.enabled = True
+    mock_mem_services["memory_manager"].config.auto_extract = True
+    mock_mem_services["memory_manager"].config.extraction_prompt = "Extract: {summary}"
+    mock_mem_services["memory_manager"].content_exists.return_value = False
+
+    # Mock LLM response - use MagicMock for sync method, AsyncMock for async generate_text
+    mock_provider = MagicMock()
+    mock_provider.generate_text = AsyncMock(return_value='''[
+        {"content": "User prefers pytest", "memory_type": "preference", "importance": 0.7},
+        {"content": "Project uses Python 3.11", "memory_type": "fact", "importance": 0.6}
+    ]''')
+    # get_provider_for_feature is sync, so use MagicMock
+    mock_llm_service = MagicMock()
+    mock_llm_service.get_provider_for_feature.return_value = (mock_provider, "test-model", {})
+
+    # Update context with sync mock
+    mem_action_context.llm_service = mock_llm_service
+
+    result = await mem_action_executor.execute("memory_extract", mem_action_context)
+
+    assert result is not None
+    assert result["extracted"] == 2
+    assert mock_mem_services["memory_manager"].remember.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_memory_extract_no_summary(
+    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
+):
+    """Test memory extraction skips when no summary available."""
+    session = session_manager.register(
+        external_id="no-summary-ext",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+    )
+    # No summary set
+
+    mem_action_context.session_id = session.id
+    mem_action_context.state.session_id = session.id
+    mem_action_context.llm_service = mock_mem_services["llm_service"]
+
+    mock_mem_services["memory_manager"].config.enabled = True
+    mock_mem_services["memory_manager"].config.auto_extract = True
+
+    result = await mem_action_executor.execute("memory_extract", mem_action_context)
+
+    assert result is not None
+    assert result["extracted"] == 0
+    assert result["reason"] == "no_summary"
+
+
+@pytest.mark.asyncio
+async def test_memory_extract_skips_duplicates(
+    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
+):
+    """Test memory extraction skips duplicate content."""
+    session = session_manager.register(
+        external_id="dup-ext",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+    )
+    session_manager.update_summary(session.id, summary_markdown="Some session content")
+
+    mem_action_context.session_id = session.id
+    mem_action_context.state.session_id = session.id
+    mem_action_context.llm_service = mock_mem_services["llm_service"]
+
+    mock_mem_services["memory_manager"].config.enabled = True
+    mock_mem_services["memory_manager"].config.auto_extract = True
+    mock_mem_services["memory_manager"].config.extraction_prompt = "Extract: {summary}"
+    # First memory exists, second doesn't
+    mock_mem_services["memory_manager"].content_exists.side_effect = [True, False]
+
+    mock_provider = MagicMock()
+    mock_provider.generate_text = AsyncMock(return_value='''[
+        {"content": "Existing memory", "memory_type": "fact", "importance": 0.5},
+        {"content": "New memory", "memory_type": "fact", "importance": 0.5}
+    ]''')
+    mock_llm_service = MagicMock()
+    mock_llm_service.get_provider_for_feature.return_value = (mock_provider, "test-model", {})
+    mem_action_context.llm_service = mock_llm_service
+
+    result = await mem_action_executor.execute("memory_extract", mem_action_context)
+
+    assert result is not None
+    assert result["extracted"] == 1  # Only the non-duplicate
+    mock_mem_services["memory_manager"].remember.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_memory_extract_disabled(
+    mem_action_executor, mem_action_context, mock_mem_services
+):
+    """Test memory extraction is skipped when auto_extract is disabled."""
+    mock_mem_services["memory_manager"].config.enabled = True
+    mock_mem_services["memory_manager"].config.auto_extract = False
+
+    result = await mem_action_executor.execute("memory_extract", mem_action_context)
+
+    assert result is None

@@ -720,6 +720,46 @@ class MemoryConfig(BaseModel):
         default=0.1,
         description="Minimum importance score after decay",
     )
+    provider: str = Field(
+        default="claude",
+        description="LLM provider to use for memory extraction",
+    )
+    model: str = Field(
+        default="claude-haiku-4-5",
+        description="Model to use for memory extraction",
+    )
+    extraction_prompt: str = Field(
+        default="""You are an expert at extracting valuable information from development session transcripts.
+Respond with ONLY valid JSON - no markdown, no explanations, no code blocks.
+
+Analyze the following session summary and extract any facts, preferences, or patterns worth remembering for future sessions.
+
+Types of memories to extract:
+- "fact": Technical facts about the project (architecture, dependencies, conventions)
+- "preference": User preferences for tools, patterns, or approaches
+- "pattern": Recurring patterns or solutions that worked well
+- "context": Important project context (goals, constraints, decisions)
+
+Session Summary:
+{summary}
+
+Return a JSON array directly (empty array [] if nothing worth remembering):
+[
+  {{
+    "content": "The specific fact, preference, or pattern to remember",
+    "memory_type": "fact|preference|pattern|context",
+    "importance": 0.5,
+    "tags": ["optional", "tags"]
+  }}
+]
+
+Guidelines:
+- Only extract information that would be valuable in future sessions
+- Set importance 0.3-0.5 for nice-to-know, 0.6-0.8 for important, 0.9-1.0 for critical
+- Keep content concise but complete (one clear statement per memory)
+- Avoid duplicating obvious information or temporary context""",
+        description="Prompt template for memory extraction (use {summary} placeholder)",
+    )
 
     @field_validator("injection_limit")
     @classmethod

@@ -12,4 +12,5 @@ triggers:
       min_importance: 0.5
 
   on_session_end:
+    - action: memory_extract
     - action: skills_learn
