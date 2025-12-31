@@ -1,0 +1,13 @@
+description = "List all stored memories"
+prompt = """
+List memories using gobby-memory MCP tools.
+
+**Filters:** {{args}}
+
+Use the `list_memories` tool on the `gobby-memory` server with:
+- limit: 20
+
+If filters like --type or --min-importance were specified, include those.
+
+Display memories in a table format with: ID, Type, Importance, Content (truncated).
+"""

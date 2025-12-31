@@ -1,0 +1,11 @@
+description = "Delete a memory by ID"
+prompt = """
+Delete the specified memory using gobby-memory MCP tools.
+
+**Memory ID:** {{args}}
+
+Use the `forget` tool on the `gobby-memory` server with:
+- memory_id: "{{args}}"
+
+Confirm the memory was deleted.
+"""

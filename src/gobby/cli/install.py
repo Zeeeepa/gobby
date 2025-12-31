@@ -55,12 +55,12 @@ def _install_shared_content(cli_path: Path, project_path: Path) -> dict[str, lis
 
 
 def _install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]]:
-    """Install CLI-specific skills/workflows (layered on top of shared).
+    """Install CLI-specific skills/workflows/commands (layered on top of shared).
 
     CLI-specific content can add to or override shared content.
     """
     cli_dir = get_install_dir() / cli_name
-    installed: dict[str, list[str]] = {"skills": [], "workflows": []}
+    installed: dict[str, list[str]] = {"skills": [], "workflows": [], "commands": []}
 
     # CLI-specific skills (can override shared)
     cli_skills = cli_dir / "skills"
@@ -84,6 +84,26 @@ def _install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str
             if workflow_file.is_file():
                 copy2(workflow_file, target_workflows / workflow_file.name)
                 installed["workflows"].append(workflow_file.name)
+
+    # CLI-specific commands (slash commands)
+    # Claude/Gemini: commands/, Codex: prompts/
+    for cmd_dir_name in ["commands", "prompts"]:
+        cli_commands = cli_dir / cmd_dir_name
+        if cli_commands.exists():
+            target_commands = target_path / cmd_dir_name
+            target_commands.mkdir(parents=True, exist_ok=True)
+            for item in cli_commands.iterdir():
+                if item.is_dir():
+                    # Directory of commands (e.g., memory/)
+                    target_subdir = target_commands / item.name
+                    if target_subdir.exists():
+                        shutil.rmtree(target_subdir)
+                    copytree(item, target_subdir)
+                    installed["commands"].append(f"{item.name}/")
+                elif item.is_file():
+                    # Single command file
+                    copy2(item, target_commands / item.name)
+                    installed["commands"].append(item.name)
 
     return installed
 
@@ -144,6 +164,7 @@ def _install_claude(project_path: Path) -> dict[str, Any]:
         "hooks_installed": hooks_installed,
         "skills_installed": [],
         "workflows_installed": [],
+        "commands_installed": [],
         "error": None,
     }
 
@@ -201,6 +222,7 @@ def _install_claude(project_path: Path) -> dict[str, Any]:
 
     result["skills_installed"] = shared["skills"] + cli["skills"]
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
+    result["commands_installed"] = cli.get("commands", [])
 
     # Backup existing settings.json if it exists
     if settings_file.exists():
@@ -250,6 +272,7 @@ def _install_gemini(project_path: Path) -> dict[str, Any]:
         "hooks_installed": hooks_installed,
         "skills_installed": [],
         "workflows_installed": [],
+        "commands_installed": [],
         "error": None,
     }
 
@@ -291,6 +314,7 @@ def _install_gemini(project_path: Path) -> dict[str, Any]:
 
     result["skills_installed"] = shared["skills"] + cli["skills"]
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
+    result["commands_installed"] = cli.get("commands", [])
 
     # Backup existing settings.json if it exists
     if settings_file.exists():
@@ -366,6 +390,7 @@ def _install_codex_notify() -> dict[str, Any]:
         "files_installed": files_installed,
         "skills_installed": [],
         "workflows_installed": [],
+        "commands_installed": [],
         "config_updated": False,
         "error": None,
     }
@@ -397,6 +422,7 @@ def _install_codex_notify() -> dict[str, Any]:
 
     result["skills_installed"] = shared["skills"] + cli["skills"]
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
+    result["commands_installed"] = cli.get("commands", [])
 
     # Update ~/.codex/config.toml
     codex_config_dir = codex_home
@@ -728,6 +754,7 @@ def _install_antigravity(project_path: Path) -> dict[str, Any]:
         "hooks_installed": hooks_installed,
         "skills_installed": [],
         "workflows_installed": [],
+        "commands_installed": [],
         "error": None,
     }
 
@@ -769,6 +796,7 @@ def _install_antigravity(project_path: Path) -> dict[str, Any]:
 
     result["skills_installed"] = shared["skills"] + cli["skills"]
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
+    result["commands_installed"] = cli.get("commands", [])
 
     # Backup existing settings.json if it exists
     if settings_file.exists():
@@ -989,6 +1017,10 @@ def install(
                 click.echo(f"Installed {len(result['workflows_installed'])} workflows")
                 for workflow in result["workflows_installed"]:
                     click.echo(f"  - {workflow}")
+            if result.get("commands_installed"):
+                click.echo(f"Installed {len(result['commands_installed'])} commands")
+                for cmd in result["commands_installed"]:
+                    click.echo(f"  - {cmd}")
             click.echo(f"Configuration: {project_path / '.claude' / 'settings.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
@@ -1015,6 +1047,10 @@ def install(
                 click.echo(f"Installed {len(result['workflows_installed'])} workflows")
                 for workflow in result["workflows_installed"]:
                     click.echo(f"  - {workflow}")
+            if result.get("commands_installed"):
+                click.echo(f"Installed {len(result['commands_installed'])} commands")
+                for cmd in result["commands_installed"]:
+                    click.echo(f"  - {cmd}")
             click.echo(f"Configuration: {project_path / '.gemini' / 'settings.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
@@ -1052,6 +1088,10 @@ def install(
                     click.echo(f"Installed {len(result['workflows_installed'])} workflows")
                     for workflow in result["workflows_installed"]:
                         click.echo(f"  - {workflow}")
+                if result.get("commands_installed"):
+                    click.echo(f"Installed {len(result['commands_installed'])} commands")
+                    for cmd in result["commands_installed"]:
+                        click.echo(f"  - {cmd}")
             else:
                 click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -1102,6 +1142,10 @@ def install(
                 click.echo(f"Installed {len(result['workflows_installed'])} workflows")
                 for workflow in result["workflows_installed"]:
                     click.echo(f"  - {workflow}")
+            if result.get("commands_installed"):
+                click.echo(f"Installed {len(result['commands_installed'])} commands")
+                for cmd in result["commands_installed"]:
+                    click.echo(f"  - {cmd}")
             click.echo(f"Configuration: {project_path / '.antigravity' / 'settings.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)

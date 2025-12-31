@@ -1,0 +1,14 @@
+description = "Learn a skill from the current session"
+prompt = """
+Learn a new skill from this session using gobby-skills MCP tools.
+
+**Skill:** {{args}}
+
+Use the `learn_skill_from_session` tool on the `gobby-skills` server with:
+- name: derived from "{{args}}"
+- description: what the skill does
+
+The skill will be extracted from the current session's work patterns.
+
+After learning, show the skill details and suggest exporting with export_skills.
+"""
