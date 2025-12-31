@@ -573,19 +573,46 @@ class LocalTaskManager:
     ) -> list[Task]:
         """List tasks that are open and not blocked by any open blocking dependency.
 
+        A task is ready if:
+        1. It is open
+        2. It has no open blocking dependencies
+        3. Its parent (if any) is also ready (recursive check up the chain)
+
         Results are ordered hierarchically: parents appear before their children,
         with siblings sorted by priority ASC, then created_at ASC.
         """
+        # Use recursive CTE to find tasks with ready parent chains
         query = """
-        SELECT t.* FROM tasks t
-        WHERE t.status = 'open'
-        AND NOT EXISTS (
-            SELECT 1 FROM task_dependencies d
-            JOIN tasks blocker ON d.depends_on = blocker.id
-            WHERE d.task_id = t.id
-              AND d.dep_type = 'blocks'
-              AND blocker.status != 'closed'
+        WITH RECURSIVE ready_tasks AS (
+            -- Base case: open tasks with no parent and no blocking deps
+            SELECT t.id FROM tasks t
+            WHERE t.status = 'open'
+            AND t.parent_task_id IS NULL
+            AND NOT EXISTS (
+                SELECT 1 FROM task_dependencies d
+                JOIN tasks blocker ON d.depends_on = blocker.id
+                WHERE d.task_id = t.id
+                  AND d.dep_type = 'blocks'
+                  AND blocker.status != 'closed'
+            )
+
+            UNION ALL
+
+            -- Recursive case: open tasks whose parent is ready and no blocking deps
+            SELECT t.id FROM tasks t
+            JOIN ready_tasks rt ON t.parent_task_id = rt.id
+            WHERE t.status = 'open'
+            AND NOT EXISTS (
+                SELECT 1 FROM task_dependencies d
+                JOIN tasks blocker ON d.depends_on = blocker.id
+                WHERE d.task_id = t.id
+                  AND d.dep_type = 'blocks'
+                  AND blocker.status != 'closed'
+            )
         )
+        SELECT t.* FROM tasks t
+        JOIN ready_tasks rt ON t.id = rt.id
+        WHERE 1=1
         """
         params: list[Any] = []
 
