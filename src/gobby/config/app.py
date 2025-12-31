@@ -720,6 +720,18 @@ class MemoryConfig(BaseModel):
         default=0.1,
         description="Minimum importance score after decay",
     )
+    semantic_search_enabled: bool = Field(
+        default=True,
+        description="Use semantic (embedding-based) search for memory recall",
+    )
+    embedding_model: str = Field(
+        default="text-embedding-3-small",
+        description="OpenAI embedding model for semantic search",
+    )
+    auto_embed: bool = Field(
+        default=True,
+        description="Automatically generate embeddings when memories are created",
+    )
     provider: str = Field(
         default="claude",
         description="LLM provider to use for memory extraction",

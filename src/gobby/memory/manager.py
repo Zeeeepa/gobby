@@ -1,9 +1,13 @@
 import logging
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from gobby.config.app import MemoryConfig
 from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import LocalMemoryManager, Memory
+
+if TYPE_CHECKING:
+    from gobby.memory.semantic_search import SemanticMemorySearch
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +18,29 @@ class MemoryManager:
     Handles storage, ranking, decay, and business logic.
     """
 
-    def __init__(self, db: LocalDatabase, config: MemoryConfig):
+    def __init__(
+        self,
+        db: LocalDatabase,
+        config: MemoryConfig,
+        openai_api_key: str | None = None,
+    ):
+        self.db = db
         self.storage = LocalMemoryManager(db)
         self.config = config
+        self._openai_api_key = openai_api_key
+        self._semantic_search: "SemanticMemorySearch | None" = None
+
+    @property
+    def semantic_search(self) -> "SemanticMemorySearch":
+        """Lazy-init semantic search to avoid import cycles."""
+        if self._semantic_search is None:
+            from gobby.memory.semantic_search import SemanticMemorySearch
+
+            self._semantic_search = SemanticMemorySearch(
+                db=self.db,
+                openai_api_key=self._openai_api_key,
+            )
+        return self._semantic_search
 
     def remember(
         self,
@@ -60,25 +84,50 @@ class MemoryManager:
         limit: int = 10,
         min_importance: float | None = None,
         memory_type: str | None = None,
+        use_semantic: bool | None = None,
     ) -> list[Memory]:
         """
         Retrieve memories.
 
         If query is provided, performs search/ranking.
         If no query, returns top important memories.
+
+        Args:
+            query: Optional search query for semantic/text search
+            project_id: Filter by project
+            limit: Maximum memories to return
+            min_importance: Minimum importance threshold
+            memory_type: Filter by memory type
+            use_semantic: Use semantic search (default: True if config.semantic_search_enabled)
         """
         threshold = (
             min_importance if min_importance is not None else self.config.importance_threshold
         )
 
+        # Determine if we should use semantic search
+        should_use_semantic = use_semantic
+        if should_use_semantic is None:
+            should_use_semantic = getattr(self.config, "semantic_search_enabled", False)
+
         if query:
-            # TODO: Add semantic search when embeddings are implemented
-            # For now, use text search
-            memories = self.storage.search_memories(
-                query_text=query,
-                project_id=project_id,
-                limit=limit * 2,  # Fetch more for re-ranking if needed
-            )
+            if should_use_semantic:
+                # Use semantic search
+                memories = self._recall_semantic(
+                    query=query,
+                    project_id=project_id,
+                    limit=limit,
+                    min_importance=threshold,
+                )
+            else:
+                # Fall back to text search
+                memories = self.storage.search_memories(
+                    query_text=query,
+                    project_id=project_id,
+                    limit=limit * 2,
+                )
+                # Filter by threshold
+                memories = [m for m in memories if m.importance >= threshold]
+                memories = memories[:limit]
         else:
             # Just get top memories
             memories = self.storage.list_memories(
@@ -88,19 +137,75 @@ class MemoryManager:
                 limit=limit,
             )
 
-        # Apply decay logic on retrieval?
-        # Or filtering based on effective importance?
-        # For now, basic list is fine.
-
-        # Filter by threshold if search didn't (search just orders by match+importance)
-        if query:
-            memories = [m for m in memories if m.importance >= threshold]
-            memories = memories[:limit]
-
         # Update access stats for retrieved memories
         self._update_access_stats(memories)
 
         return memories
+
+    def _recall_semantic(
+        self,
+        query: str,
+        project_id: str | None = None,
+        limit: int = 10,
+        min_importance: float | None = None,
+    ) -> list[Memory]:
+        """
+        Perform semantic search for memories.
+
+        Uses embeddings for similarity search. Falls back to text search
+        if embeddings unavailable or no results found.
+        """
+        import asyncio
+
+        def _fallback_text_search() -> list[Memory]:
+            """Fall back to text-based search."""
+            memories = self.storage.search_memories(
+                query_text=query,
+                project_id=project_id,
+                limit=limit,
+            )
+            if min_importance:
+                memories = [m for m in memories if m.importance >= min_importance]
+            return memories[:limit]
+
+        # Check if we have any embeddings first
+        stats = self.semantic_search.get_embedding_stats(project_id)
+        if stats.get("embedded_memories", 0) == 0:
+            # No embeddings, use text search
+            logger.debug("No memory embeddings found, using text search")
+            return _fallback_text_search()
+
+        try:
+            # Run async search in sync context
+            try:
+                loop = asyncio.get_running_loop()
+                # We're in an async context - this shouldn't happen in normal sync calls
+                # Fall back to text search to avoid complexity
+                logger.debug("In async context, using text search")
+                return _fallback_text_search()
+            except RuntimeError:
+                # No running loop, we can create one
+                pass
+
+            results = asyncio.run(
+                self.semantic_search.search(
+                    query=query,
+                    project_id=project_id,
+                    top_k=limit,
+                    min_importance=min_importance,
+                )
+            )
+
+            if not results:
+                # No semantic results, try text search
+                logger.debug("No semantic results, trying text search")
+                return _fallback_text_search()
+
+            return [r.memory for r in results]
+
+        except Exception as e:
+            logger.warning(f"Semantic search failed, falling back to text search: {e}")
+            return _fallback_text_search()
 
     def _update_access_stats(self, memories: list[Memory]) -> None:
         """Update access count and time for memories."""
@@ -273,3 +378,113 @@ class MemoryManager:
                 count += 1
 
         return count
+
+    # --- Embedding Methods ---
+
+    async def async_recall(
+        self,
+        query: str,
+        project_id: str | None = None,
+        limit: int = 10,
+        min_importance: float | None = None,
+    ) -> list[Memory]:
+        """
+        Async version of recall for semantic search.
+
+        Args:
+            query: Search query
+            project_id: Optional project filter
+            limit: Maximum results
+            min_importance: Minimum importance threshold
+
+        Returns:
+            List of matching memories
+        """
+        threshold = (
+            min_importance if min_importance is not None else self.config.importance_threshold
+        )
+
+        if getattr(self.config, "semantic_search_enabled", False):
+            try:
+                results = await self.semantic_search.search(
+                    query=query,
+                    project_id=project_id,
+                    top_k=limit,
+                    min_importance=threshold,
+                )
+                memories = [r.memory for r in results]
+            except Exception as e:
+                logger.warning(f"Semantic search failed: {e}")
+                memories = self.storage.search_memories(
+                    query_text=query,
+                    project_id=project_id,
+                    limit=limit,
+                )
+                memories = [m for m in memories if m.importance >= threshold]
+        else:
+            memories = self.storage.search_memories(
+                query_text=query,
+                project_id=project_id,
+                limit=limit,
+            )
+            memories = [m for m in memories if m.importance >= threshold]
+
+        self._update_access_stats(memories)
+        return memories[:limit]
+
+    async def embed_memory(self, memory_id: str, force: bool = False) -> bool:
+        """
+        Generate embedding for a single memory.
+
+        Args:
+            memory_id: Memory ID to embed
+            force: Force re-embedding even if exists
+
+        Returns:
+            True if embedded, False if skipped
+        """
+        memory = self.get_memory(memory_id)
+        if not memory:
+            return False
+
+        return await self.semantic_search.embed_memory(
+            memory_id=memory_id,
+            content=memory.content,
+            force=force,
+        )
+
+    async def rebuild_embeddings(
+        self,
+        project_id: str | None = None,
+        force: bool = False,
+    ) -> dict:
+        """
+        Rebuild embeddings for all memories.
+
+        Args:
+            project_id: Optional project filter
+            force: Force re-embedding all memories
+
+        Returns:
+            Dict with statistics
+        """
+        if force:
+            # Clear existing embeddings first
+            self.semantic_search.clear_embeddings(project_id)
+
+        return await self.semantic_search.embed_all_memories(
+            project_id=project_id,
+            force=force,
+        )
+
+    def get_embedding_stats(self, project_id: str | None = None) -> dict:
+        """
+        Get statistics about memory embeddings.
+
+        Args:
+            project_id: Optional project filter
+
+        Returns:
+            Dict with embedding statistics
+        """
+        return self.semantic_search.get_embedding_stats(project_id)

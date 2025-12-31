@@ -1,3 +1,5 @@
+import asyncio
+
 import click
 
 from gobby.config.app import DaemonConfig
@@ -6,9 +8,16 @@ from gobby.storage.database import LocalDatabase
 
 
 def get_memory_manager(ctx: click.Context) -> MemoryManager:
+    """Get memory manager with OpenAI API key if available."""
     config: DaemonConfig = ctx.obj["config"]
     db = LocalDatabase()
-    return MemoryManager(db, config.memory)
+
+    # Get OpenAI API key from config if available
+    openai_api_key = None
+    if config.llm_providers and config.llm_providers.api_keys:
+        openai_api_key = config.llm_providers.api_keys.get("OPENAI_API_KEY")
+
+    return MemoryManager(db, config.memory, openai_api_key=openai_api_key)
 
 
 @click.group()
@@ -178,3 +187,53 @@ def memory_stats(ctx: click.Context, project_id: str | None) -> None:
         click.echo("  By Type:")
         for mem_type, count in stats["by_type"].items():
             click.echo(f"    {mem_type}: {count}")
+
+
+@memory.command("rebuild-embeddings")
+@click.option("--project", "-p", "project_id", help="Project ID filter")
+@click.option("--force", "-f", is_flag=True, help="Force re-embed all memories")
+@click.pass_context
+def rebuild_embeddings(ctx: click.Context, project_id: str | None, force: bool) -> None:
+    """Rebuild semantic search embeddings for memories.
+
+    Generates vector embeddings for memories that don't have them,
+    or all memories if --force is specified.
+
+    Requires OPENAI_API_KEY in config (llm_providers.api_keys.OPENAI_API_KEY).
+    """
+    manager = get_memory_manager(ctx)
+
+    click.echo("Rebuilding memory embeddings...")
+    if force:
+        click.echo("  (force mode: re-embedding all memories)")
+
+    try:
+        stats = asyncio.run(manager.rebuild_embeddings(project_id=project_id, force=force))
+
+        click.echo(f"Done!")
+        click.echo(f"  Embedded: {stats['embedded']}")
+        click.echo(f"  Skipped: {stats['skipped']}")
+        if stats["failed"] > 0:
+            click.echo(f"  Failed: {stats['failed']}")
+            for error in stats.get("errors", [])[:5]:
+                click.echo(f"    - {error}")
+
+    except RuntimeError as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+
+
+@memory.command("embedding-stats")
+@click.option("--project", "-p", "project_id", help="Project ID filter")
+@click.pass_context
+def embedding_stats(ctx: click.Context, project_id: str | None) -> None:
+    """Show embedding statistics for semantic search."""
+    manager = get_memory_manager(ctx)
+    stats = manager.get_embedding_stats(project_id=project_id)
+
+    click.echo("Embedding Statistics:")
+    click.echo(f"  Total Memories: {stats['total_memories']}")
+    click.echo(f"  Embedded: {stats['embedded_memories']}")
+    click.echo(f"  Pending: {stats['pending_embeddings']}")
+    click.echo(f"  Model: {stats['embedding_model']}")
+    click.echo(f"  Dimensions: {stats['embedding_dim']}")
