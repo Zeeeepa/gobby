@@ -961,7 +961,11 @@ def create_task_registry(
         if not task:
             return {"error": f"Task {task_id} not found"}
 
-        if not skip_validation:
+        # Auto-skip validation for certain close reasons
+        skip_reasons = {"duplicate", "already_implemented", "wont_fix", "obsolete"}
+        should_skip = skip_validation or reason.lower() in skip_reasons
+
+        if not should_skip:
             # Check if task has children (is a parent task)
             children = task_manager.list_tasks(parent_task_id=task_id, limit=1000)
 
@@ -1016,19 +1020,19 @@ def create_task_registry(
         # All checks passed - close the task
         closed_task = task_manager.close_task(task_id, reason=reason)
         result: dict[str, Any] = closed_task.to_dict()
-        result["validated"] = not skip_validation
+        result["validated"] = not should_skip
         return result
 
     registry.register(
         name="close_task",
-        description="Close a task. Parent tasks require all children closed. Leaf tasks can optionally validate with changes_summary.",
+        description="Close a task. Parent tasks require all children closed. Leaf tasks validate with LLM. Validation auto-skipped for: duplicate, already_implemented, wont_fix, obsolete.",
         input_schema={
             "type": "object",
             "properties": {
                 "task_id": {"type": "string", "description": "Task ID"},
                 "reason": {
                     "type": "string",
-                    "description": 'Reason for closing (e.g., "completed", "wont_fix", "duplicate")',
+                    "description": 'Reason for closing. Use "duplicate", "already_implemented", "wont_fix", or "obsolete" to auto-skip validation.',
                     "default": "completed",
                 },
                 "changes_summary": {
@@ -1038,7 +1042,7 @@ def create_task_registry(
                 },
                 "skip_validation": {
                     "type": "boolean",
-                    "description": "Skip validation checks (use for wont_fix, duplicate, etc.)",
+                    "description": "Explicitly skip validation checks.",
                     "default": False,
                 },
             },
