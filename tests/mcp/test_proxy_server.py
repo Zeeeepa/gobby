@@ -80,8 +80,14 @@ def mock_llm_service():
     service = MagicMock()
     provider = MagicMock()
     provider.execute_code = AsyncMock(return_value={"success": True, "result": "42"})
+    provider.supports_code_execution = True
+    provider.generate_text = AsyncMock(
+        return_value='{"recommendations": [{"server": "s1", "tool": "t1", "reason": "r1"}]}'
+    )
     service.get_provider.return_value = provider
     service.get_default_provider.return_value = provider
+    # get_provider_for_feature returns tuple (provider, model, prompt)
+    service.get_provider_for_feature.return_value = (provider, "test-model", "test prompt")
     # Mock generate directly on the service instance since RecommendationService calls it
     service.generate = AsyncMock(
         return_value='{"recommendations": [{"server": "s1", "tool": "t1", "reason": "r1"}]}'
@@ -251,12 +257,8 @@ async def test_get_tool_schema(daemon_tools, mock_mcp_manager):
 
 @pytest.mark.asyncio
 async def test_execute_code(daemon_tools):
-    # CodeExecutionService requires a codex_client with execute method
-    # The daemon_tools was created without a codex_client, so we need to mock it
-    mock_codex_client = MagicMock()
-    mock_codex_client.execute = AsyncMock(return_value={"success": True, "result": "42"})
-    daemon_tools.code_execution._codex_client = mock_codex_client
-
+    # CodeExecutionService uses LLM provider's execute_code method
+    # The mock_llm_service fixture already sets up provider.execute_code
     result = await daemon_tools.execute_code("print('hello')")
     assert result["success"] is True
     assert result["result"] == "42"

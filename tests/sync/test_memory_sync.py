@@ -38,6 +38,9 @@ def mock_memory_manager():
     )
     mm.remember = MagicMock()
     mm.content_exists = MagicMock(return_value=False)  # For dedup checks during import
+    # storage.create_memory is used for sync import (skips auto-embedding)
+    mm.storage = MagicMock()
+    mm.storage.create_memory = MagicMock()
     return mm
 
 
@@ -99,9 +102,9 @@ async def test_import_from_files(sync_manager, tmp_path):
 
     count = await sync_manager.import_from_files()
 
-    # Verify remember called
-    sync_manager.memory_manager.remember.assert_called()
-    call_args = sync_manager.memory_manager.remember.call_args[1]
+    # Verify storage.create_memory called (sync import bypasses auto-embedding)
+    sync_manager.memory_manager.storage.create_memory.assert_called()
+    call_args = sync_manager.memory_manager.storage.create_memory.call_args[1]
     assert call_args["content"] == "imported memory"
     assert call_args["memory_type"] == "fact"
     assert call_args["importance"] == 0.8

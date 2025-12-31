@@ -33,6 +33,7 @@ async def test_validate_task_tool_success(mock_task_manager, mock_task_validator
         updated_at="now",
     )
     mock_task_manager.get_task.return_value = task
+    mock_task_manager.list_tasks.return_value = []  # No children - use leaf task validation
 
     mock_task_validator.validate_task.return_value = ValidationResult(
         status="valid", feedback="Good job"
@@ -75,6 +76,7 @@ async def test_validate_task_tool_failure_retry(mock_task_manager, mock_task_val
         updated_at="now",
     )
     mock_task_manager.get_task.return_value = task
+    mock_task_manager.list_tasks.return_value = []  # No children - use leaf task validation
 
     mock_task_validator.validate_task.return_value = ValidationResult(
         status="invalid", feedback="Bad job"
@@ -140,6 +142,7 @@ async def test_validate_task_tool_failure_max_retries(mock_task_manager, mock_ta
         updated_at="now",
     )
     mock_task_manager.get_task.return_value = task
+    mock_task_manager.list_tasks.return_value = []  # No children - use leaf task validation
 
     mock_task_validator.validate_task.return_value = ValidationResult(
         status="invalid", feedback="Still bad"

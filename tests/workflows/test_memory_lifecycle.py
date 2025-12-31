@@ -19,12 +19,16 @@ from gobby.workflows.templates import TemplateEngine
 
 @pytest.fixture
 def template_workflow_dir(temp_dir: Path) -> Path:
-    """Create workflow directory with memory-lifecycle.yaml."""
+    """Create workflow directory with memory-lifecycle.yaml in lifecycle/ subdir."""
     workflow_dir = temp_dir / "workflows"
     workflow_dir.mkdir()
 
+    # Lifecycle workflows must be in the lifecycle/ subdirectory
+    lifecycle_dir = workflow_dir / "lifecycle"
+    lifecycle_dir.mkdir()
+
     # Copy the actual memory-lifecycle workflow
-    memory_lifecycle = workflow_dir / "memory-lifecycle.yaml"
+    memory_lifecycle = lifecycle_dir / "memory-lifecycle.yaml"
     memory_lifecycle.write_text("""
 name: memory-lifecycle
 description: Standard memory lifecycle hooks
@@ -304,9 +308,9 @@ class TestMemoryLifecyclePriority:
         self, temp_dir: Path, workflow_loader: WorkflowLoader
     ):
         """Verify memory-lifecycle runs before default-priority workflows."""
-        # Add another lifecycle workflow with default priority
-        workflow_dir = temp_dir / "workflows"
-        other_workflow = workflow_dir / "other-lifecycle.yaml"
+        # Add another lifecycle workflow with default priority (in lifecycle/ subdir)
+        lifecycle_dir = temp_dir / "workflows" / "lifecycle"
+        other_workflow = lifecycle_dir / "other-lifecycle.yaml"
         other_workflow.write_text("""
 name: other-lifecycle
 type: lifecycle
