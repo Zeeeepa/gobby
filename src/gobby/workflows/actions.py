@@ -1106,22 +1106,37 @@ class ActionExecutor:
         from gobby.memory.context import build_memory_context
 
         try:
-            # Recall Project Memories
-            min_importance = kwargs.get("min_importance", 0.5)
+            # Get config values with kwargs overrides
+            config = context.memory_manager.config
+            min_importance = kwargs.get("min_importance", config.importance_threshold)
+            injection_limit = kwargs.get("limit", config.injection_limit)
+
+            # Recall Project Memories with threshold and limit
             project_memories = context.memory_manager.recall(
-                project_id=project_id, min_importance=min_importance
+                project_id=project_id,
+                min_importance=min_importance,
+                limit=injection_limit,
             )
 
             if not project_memories:
-                return {"injected": False, "reason": "No memories found"}
+                logger.debug(
+                    f"memory_inject: No memories found for project {project_id} "
+                    f"(threshold={min_importance})"
+                )
+                return {"injected": False, "reason": "No memories found", "count": 0}
 
             memory_context = build_memory_context(project_memories)
 
             if not memory_context:
-                return {"injected": False}
+                return {"injected": False, "count": 0}
 
-            # Return as 'inject_context' trigger
-            return {"inject_context": memory_context}
+            logger.info(
+                f"memory_inject: Injected {len(project_memories)} memories "
+                f"(threshold={min_importance}, limit={injection_limit})"
+            )
+
+            # Return as 'inject_context' trigger with count for observability
+            return {"inject_context": memory_context, "count": len(project_memories)}
 
         except Exception as e:
             logger.error(f"memory_inject: Failed: {e}", exc_info=True)

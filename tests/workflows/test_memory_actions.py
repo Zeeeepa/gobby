@@ -86,6 +86,7 @@ async def test_memory_inject_recall(
 
     # Mock recall
     mock_mem_services["memory_manager"].config.enabled = True
+    mock_mem_services["memory_manager"].config.injection_limit = 10
 
     m1 = MagicMock()
     m1.memory_type = "fact"
@@ -96,9 +97,9 @@ async def test_memory_inject_recall(
 
     mock_mem_services["memory_manager"].recall.return_value = [m1, m2]
 
-    # Execute
+    # Execute - pass explicit limit to match assertion
     result = await mem_action_executor.execute(
-        "memory_inject", mem_action_context, min_importance=0.7
+        "memory_inject", mem_action_context, min_importance=0.7, limit=10
     )
 
     # Verify
@@ -107,7 +108,7 @@ async def test_memory_inject_recall(
     assert "Memory 1" in result["inject_context"]
 
     mock_mem_services["memory_manager"].recall.assert_called_with(
-        project_id=str(sample_project["id"]), min_importance=0.7
+        project_id=str(sample_project["id"]), min_importance=0.7, limit=10
     )
 
 
@@ -282,3 +283,141 @@ async def test_memory_extract_disabled(
     result = await mem_action_executor.execute("memory_extract", mem_action_context)
 
     assert result is None
+
+
+# --- Selective Injection Tests ---
+
+
+@pytest.mark.asyncio
+async def test_memory_inject_uses_config_threshold(
+    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
+):
+    """Test memory_inject uses config importance_threshold as default."""
+    session = session_manager.register(
+        external_id="threshold-ext",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+    )
+    mem_action_context.session_id = session.id
+    mem_action_context.state.session_id = session.id
+
+    # Set config threshold
+    mock_mem_services["memory_manager"].config.enabled = True
+    mock_mem_services["memory_manager"].config.importance_threshold = 0.7
+    mock_mem_services["memory_manager"].config.injection_limit = 5
+
+    m1 = MagicMock()
+    m1.memory_type = "fact"
+    m1.content = "High importance memory"
+    mock_mem_services["memory_manager"].recall.return_value = [m1]
+
+    # Call without min_importance kwarg - should use config default
+    result = await mem_action_executor.execute("memory_inject", mem_action_context)
+
+    assert result is not None
+    assert "inject_context" in result
+    # Verify recall was called with config threshold
+    mock_mem_services["memory_manager"].recall.assert_called_with(
+        project_id=str(sample_project["id"]),
+        min_importance=0.7,
+        limit=5,
+    )
+
+
+@pytest.mark.asyncio
+async def test_memory_inject_enforces_limit(
+    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
+):
+    """Test memory_inject respects injection_limit from config."""
+    session = session_manager.register(
+        external_id="limit-ext",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+    )
+    mem_action_context.session_id = session.id
+    mem_action_context.state.session_id = session.id
+
+    mock_mem_services["memory_manager"].config.enabled = True
+    mock_mem_services["memory_manager"].config.importance_threshold = 0.3
+    mock_mem_services["memory_manager"].config.injection_limit = 3
+
+    # Return 3 memories (limit)
+    memories = [MagicMock(memory_type="fact", content=f"Memory {i}") for i in range(3)]
+    mock_mem_services["memory_manager"].recall.return_value = memories
+
+    result = await mem_action_executor.execute("memory_inject", mem_action_context)
+
+    assert result is not None
+    assert result["count"] == 3
+    # Verify limit was passed to recall
+    call_kwargs = mock_mem_services["memory_manager"].recall.call_args[1]
+    assert call_kwargs["limit"] == 3
+
+
+@pytest.mark.asyncio
+async def test_memory_inject_kwargs_override_config(
+    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
+):
+    """Test that kwargs can override config values."""
+    session = session_manager.register(
+        external_id="override-ext",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+    )
+    mem_action_context.session_id = session.id
+    mem_action_context.state.session_id = session.id
+
+    # Config values
+    mock_mem_services["memory_manager"].config.enabled = True
+    mock_mem_services["memory_manager"].config.importance_threshold = 0.3
+    mock_mem_services["memory_manager"].config.injection_limit = 10
+
+    m1 = MagicMock(memory_type="fact", content="Memory")
+    mock_mem_services["memory_manager"].recall.return_value = [m1]
+
+    # Call with overriding kwargs
+    result = await mem_action_executor.execute(
+        "memory_inject",
+        mem_action_context,
+        min_importance=0.8,
+        limit=2,
+    )
+
+    assert result is not None
+    # Verify kwargs overrode config
+    mock_mem_services["memory_manager"].recall.assert_called_with(
+        project_id=str(sample_project["id"]),
+        min_importance=0.8,
+        limit=2,
+    )
+
+
+@pytest.mark.asyncio
+async def test_memory_inject_returns_count(
+    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
+):
+    """Test memory_inject returns count for observability."""
+    session = session_manager.register(
+        external_id="count-ext",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+    )
+    mem_action_context.session_id = session.id
+    mem_action_context.state.session_id = session.id
+
+    mock_mem_services["memory_manager"].config.enabled = True
+    mock_mem_services["memory_manager"].config.importance_threshold = 0.3
+    mock_mem_services["memory_manager"].config.injection_limit = 10
+
+    memories = [MagicMock(memory_type="fact", content=f"Memory {i}") for i in range(5)]
+    mock_mem_services["memory_manager"].recall.return_value = memories
+
+    result = await mem_action_executor.execute("memory_inject", mem_action_context)
+
+    assert result is not None
+    assert "count" in result
+    assert result["count"] == 5

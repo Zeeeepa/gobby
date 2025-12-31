@@ -240,9 +240,7 @@ class LocalSessionManager:
         )
         return self.get(session_id)
 
-    def update_compact_markdown(
-        self, session_id: str, compact_markdown: str
-    ) -> Session | None:
+    def update_compact_markdown(self, session_id: str, compact_markdown: str) -> Session | None:
         """Update session compact handoff markdown."""
         now = datetime.now(UTC).isoformat()
         self.db.execute(
