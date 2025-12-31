@@ -166,7 +166,7 @@ class MemorySyncManager:
                             skipped += 1
                             continue
 
-                        self.memory_manager.remember(
+                        await self.memory_manager.remember(
                             content=content,
                             memory_type=data.get("type", "fact"),
                             tags=data.get("tags", []),

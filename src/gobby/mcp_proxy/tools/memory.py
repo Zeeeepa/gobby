@@ -35,7 +35,7 @@ def create_memory_registry(memory_manager: MemoryManager) -> InternalToolRegistr
         name="remember",
         description="Store a new memory.",
     )
-    def remember(
+    async def remember(
         content: str,
         memory_type: str = "fact",
         importance: float = 0.5,
@@ -53,7 +53,7 @@ def create_memory_registry(memory_manager: MemoryManager) -> InternalToolRegistr
             tags: Optional list of tags
         """
         try:
-            memory = memory_manager.remember(
+            memory = await memory_manager.remember(
                 content=content,
                 memory_type=memory_type,
                 importance=importance,

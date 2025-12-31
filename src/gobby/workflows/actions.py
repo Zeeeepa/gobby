@@ -1251,7 +1251,7 @@ class ActionExecutor:
                     tags = []
 
                 try:
-                    context.memory_manager.remember(
+                    await context.memory_manager.remember(
                         content=content,
                         memory_type=memory_type,
                         importance=importance,
@@ -1377,7 +1377,7 @@ class ActionExecutor:
                 logger.debug(f"save_memory: Skipping duplicate: {content[:50]}...")
                 return {"saved": False, "reason": "duplicate"}
 
-            memory = context.memory_manager.remember(
+            memory = await context.memory_manager.remember(
                 content=content,
                 memory_type=memory_type,
                 importance=importance,

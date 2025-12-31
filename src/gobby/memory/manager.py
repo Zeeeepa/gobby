@@ -42,7 +42,7 @@ class MemoryManager:
             )
         return self._semantic_search
 
-    def remember(
+    async def remember(
         self,
         content: str,
         memory_type: str = "fact",
@@ -67,7 +67,7 @@ class MemoryManager:
         # Future: Duplicate detection via embeddings or fuzzy match?
         # For now, rely on storage layer (which uses content-hash ID for dedup)
 
-        return self.storage.create_memory(
+        memory = self.storage.create_memory(
             content=content,
             memory_type=memory_type,
             importance=importance,
@@ -76,6 +76,17 @@ class MemoryManager:
             source_session_id=source_session_id,
             tags=tags,
         )
+
+        # Auto-embed if enabled
+        if getattr(self.config, "auto_embed", False) and self._openai_api_key:
+            try:
+                await self.embed_memory(memory.id, force=False)
+                logger.debug(f"Auto-embedded memory {memory.id}")
+            except Exception as e:
+                # Don't fail the remember if embedding fails
+                logger.warning(f"Auto-embed failed for {memory.id}: {e}")
+
+        return memory
 
     def recall(
         self,

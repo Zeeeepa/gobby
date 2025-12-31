@@ -39,12 +39,14 @@ def remember(
 ) -> None:
     """Store a new memory."""
     manager = get_memory_manager(ctx)
-    memory = manager.remember(
-        content=content,
-        memory_type=memory_type,
-        importance=importance,
-        project_id=project_id,
-        source_type="cli",
+    memory = asyncio.run(
+        manager.remember(
+            content=content,
+            memory_type=memory_type,
+            importance=importance,
+            project_id=project_id,
+            source_type="cli",
+        )
     )
     click.echo(f"Stored memory: {memory.id} - {memory.content}")
 
