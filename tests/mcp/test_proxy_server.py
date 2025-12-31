@@ -111,6 +111,7 @@ def daemon_tools(mock_mcp_manager, mock_llm_service):
     mock_code_exec.max_dataset_preview = 3
     mock_code_exec.max_turns = 5
     mock_config.get_code_execution_config.return_value = mock_code_exec
+    mock_config.code_execution = mock_code_exec  # Direct property access
 
     # Mock recommend tools config
     mock_rec_tools = MagicMock()
@@ -118,6 +119,7 @@ def daemon_tools(mock_mcp_manager, mock_llm_service):
     mock_rec_tools.provider = "claude"
     mock_rec_tools.prompt = "rec prompt"
     mock_config.get_recommend_tools_config.return_value = mock_rec_tools
+    mock_config.recommend_tools = mock_rec_tools  # Direct property access
 
     tools = GobbyDaemonTools(
         mcp_manager=mock_mcp_manager,
