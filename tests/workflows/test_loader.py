@@ -71,3 +71,230 @@ class TestWorkflowLoader:
         # This is complex because it involves globbing and parsing multiple files.
         # We can mock _scan_directory or glob.
         pass  # Skip complex discovery test for now, or mock _scan_directory
+
+
+class TestWorkflowInheritance:
+    """Tests for workflow inheritance and cycle detection."""
+
+    def test_valid_inheritance(self):
+        """Test that valid inheritance (A extends B) works correctly."""
+        loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
+
+        parent_yaml = """
+        name: parent_workflow
+        version: "1.0"
+        phases:
+          - name: phase1
+            allowed_tools: all
+        """
+
+        child_yaml = """
+        name: child_workflow
+        version: "1.0"
+        extends: parent_workflow
+        phases:
+          - name: phase2
+            allowed_tools: [read, write]
+        """
+
+        def mock_find(name, search_dirs):
+            if name == "child_workflow":
+                return Path("/tmp/workflows/child_workflow.yaml")
+            elif name == "parent_workflow":
+                return Path("/tmp/workflows/parent_workflow.yaml")
+            return None
+
+        def mock_open_func(path, *args, **kwargs):
+            if "child" in str(path):
+                return mock_open(read_data=child_yaml)()
+            elif "parent" in str(path):
+                return mock_open(read_data=parent_yaml)()
+            raise FileNotFoundError(path)
+
+        with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
+            with patch("builtins.open", side_effect=mock_open_func):
+                wf = loader.load_workflow("child_workflow")
+                assert wf is not None
+                assert wf.name == "child_workflow"
+                # Should have phases from both parent and child
+                phase_names = [p.name for p in wf.phases]
+                assert "phase1" in phase_names
+                assert "phase2" in phase_names
+
+    def test_self_inheritance_cycle(self):
+        """Test that self-inheritance (A extends A) raises ValueError."""
+        loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
+
+        self_ref_yaml = """
+        name: self_ref
+        version: "1.0"
+        extends: self_ref
+        phases:
+          - name: phase1
+            allowed_tools: all
+        """
+
+        with patch.object(
+            loader,
+            "_find_workflow_file",
+            return_value=Path("/tmp/workflows/self_ref.yaml"),
+        ):
+            with patch("builtins.open", mock_open(read_data=self_ref_yaml)):
+                with pytest.raises(ValueError, match="Circular workflow inheritance"):
+                    loader.load_workflow("self_ref")
+
+    def test_two_way_circular_inheritance(self):
+        """Test that A extends B, B extends A raises ValueError."""
+        loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
+
+        workflow_a_yaml = """
+        name: workflow_a
+        version: "1.0"
+        extends: workflow_b
+        phases:
+          - name: phase_a
+            allowed_tools: all
+        """
+
+        workflow_b_yaml = """
+        name: workflow_b
+        version: "1.0"
+        extends: workflow_a
+        phases:
+          - name: phase_b
+            allowed_tools: all
+        """
+
+        def mock_find(name, search_dirs):
+            if name == "workflow_a":
+                return Path("/tmp/workflows/workflow_a.yaml")
+            elif name == "workflow_b":
+                return Path("/tmp/workflows/workflow_b.yaml")
+            return None
+
+        def mock_open_func(path, *args, **kwargs):
+            if "workflow_a" in str(path):
+                return mock_open(read_data=workflow_a_yaml)()
+            elif "workflow_b" in str(path):
+                return mock_open(read_data=workflow_b_yaml)()
+            raise FileNotFoundError(path)
+
+        with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
+            with patch("builtins.open", side_effect=mock_open_func):
+                with pytest.raises(ValueError, match="Circular workflow inheritance"):
+                    loader.load_workflow("workflow_a")
+
+    def test_three_level_circular_inheritance(self):
+        """Test that A extends B, B extends C, C extends A raises ValueError."""
+        loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
+
+        workflow_a_yaml = """
+        name: workflow_a
+        version: "1.0"
+        extends: workflow_b
+        phases:
+          - name: phase_a
+            allowed_tools: all
+        """
+
+        workflow_b_yaml = """
+        name: workflow_b
+        version: "1.0"
+        extends: workflow_c
+        phases:
+          - name: phase_b
+            allowed_tools: all
+        """
+
+        workflow_c_yaml = """
+        name: workflow_c
+        version: "1.0"
+        extends: workflow_a
+        phases:
+          - name: phase_c
+            allowed_tools: all
+        """
+
+        def mock_find(name, search_dirs):
+            paths = {
+                "workflow_a": Path("/tmp/workflows/workflow_a.yaml"),
+                "workflow_b": Path("/tmp/workflows/workflow_b.yaml"),
+                "workflow_c": Path("/tmp/workflows/workflow_c.yaml"),
+            }
+            return paths.get(name)
+
+        def mock_open_func(path, *args, **kwargs):
+            yamls = {
+                "workflow_a": workflow_a_yaml,
+                "workflow_b": workflow_b_yaml,
+                "workflow_c": workflow_c_yaml,
+            }
+            for name, content in yamls.items():
+                if name in str(path):
+                    return mock_open(read_data=content)()
+            raise FileNotFoundError(path)
+
+        with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
+            with patch("builtins.open", side_effect=mock_open_func):
+                with pytest.raises(ValueError, match="Circular workflow inheritance"):
+                    loader.load_workflow("workflow_a")
+
+    def test_valid_chain_inheritance(self):
+        """Test that valid chain (A extends B extends C) works correctly."""
+        loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
+
+        base_yaml = """
+        name: base
+        version: "1.0"
+        phases:
+          - name: base_phase
+            allowed_tools: all
+        """
+
+        middle_yaml = """
+        name: middle
+        version: "1.0"
+        extends: base
+        phases:
+          - name: middle_phase
+            allowed_tools: [read]
+        """
+
+        top_yaml = """
+        name: top
+        version: "1.0"
+        extends: middle
+        phases:
+          - name: top_phase
+            allowed_tools: [write]
+        """
+
+        def mock_find(name, search_dirs):
+            paths = {
+                "base": Path("/tmp/workflows/base.yaml"),
+                "middle": Path("/tmp/workflows/middle.yaml"),
+                "top": Path("/tmp/workflows/top.yaml"),
+            }
+            return paths.get(name)
+
+        def mock_open_func(path, *args, **kwargs):
+            yamls = {
+                "base": base_yaml,
+                "middle": middle_yaml,
+                "top": top_yaml,
+            }
+            for name, content in yamls.items():
+                if name in str(path):
+                    return mock_open(read_data=content)()
+            raise FileNotFoundError(path)
+
+        with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
+            with patch("builtins.open", side_effect=mock_open_func):
+                wf = loader.load_workflow("top")
+                assert wf is not None
+                assert wf.name == "top"
+                # Should have phases from all three levels
+                phase_names = [p.name for p in wf.phases]
+                assert "base_phase" in phase_names
+                assert "middle_phase" in phase_names
+                assert "top_phase" in phase_names

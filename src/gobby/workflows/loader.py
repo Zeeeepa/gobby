@@ -29,16 +29,33 @@ class WorkflowLoader:
         # Cache for discovered workflows per project path
         self._discovery_cache: dict[str, list[DiscoveredWorkflow]] = {}
 
-    def load_workflow(self, name: str, project_path: Path | str | None = None) -> WorkflowDefinition | None:
+    def load_workflow(
+        self,
+        name: str,
+        project_path: Path | str | None = None,
+        _inheritance_chain: list[str] | None = None,
+    ) -> WorkflowDefinition | None:
         """
         Load a workflow by name (without extension).
-        Supports inheritance via 'extends' field.
+        Supports inheritance via 'extends' field with cycle detection.
 
         Args:
             name: Workflow name (without .yaml extension)
             project_path: Optional project directory for project-specific workflows.
                          Searches: 1) {project_path}/.gobby/workflows/  2) ~/.gobby/workflows/
+            _inheritance_chain: Internal parameter for cycle detection. Do not pass directly.
+
+        Raises:
+            ValueError: If circular inheritance is detected.
         """
+        # Initialize or check inheritance chain for cycle detection
+        if _inheritance_chain is None:
+            _inheritance_chain = []
+
+        if name in _inheritance_chain:
+            cycle_path = " -> ".join(_inheritance_chain + [name])
+            logger.error(f"Circular workflow inheritance detected: {cycle_path}")
+            raise ValueError(f"Circular workflow inheritance detected: {cycle_path}")
         # Build cache key including project path for project-specific caching
         cache_key = f"{project_path or 'global'}:{name}"
         if cache_key in self._cache:
@@ -61,10 +78,15 @@ class WorkflowLoader:
             with open(path) as f:
                 data = yaml.safe_load(f)
 
-            # 3. Handle inheritance
+            # 3. Handle inheritance with cycle detection
             if "extends" in data:
                 parent_name = data["extends"]
-                parent = self.load_workflow(parent_name)
+                # Add current workflow to chain before loading parent
+                parent = self.load_workflow(
+                    parent_name,
+                    project_path=project_path,
+                    _inheritance_chain=_inheritance_chain + [name],
+                )
                 if parent:
                     data = self._merge_workflows(parent.dict(), data)
                 else:
@@ -75,6 +97,9 @@ class WorkflowLoader:
             self._cache[cache_key] = definition
             return definition
 
+        except ValueError:
+            # Re-raise ValueError (used for cycle detection)
+            raise
         except Exception as e:
             logger.error(f"Failed to load workflow '{name}' from {path}: {e}", exc_info=True)
             return None
@@ -216,12 +241,19 @@ class WorkflowLoader:
                 if not data:
                     continue
 
-                # Handle inheritance
+                # Handle inheritance with cycle detection
                 if "extends" in data:
                     parent_name = data["extends"]
-                    parent = self.load_workflow(parent_name)
-                    if parent:
-                        data = self._merge_workflows(parent.dict(), data)
+                    try:
+                        parent = self.load_workflow(
+                            parent_name,
+                            _inheritance_chain=[name],
+                        )
+                        if parent:
+                            data = self._merge_workflows(parent.dict(), data)
+                    except ValueError as e:
+                        logger.warning(f"Skipping workflow {name}: {e}")
+                        continue
 
                 definition = WorkflowDefinition(**data)
 
