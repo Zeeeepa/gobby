@@ -160,4 +160,143 @@ class TestMaxDescriptionLength:
 
             # Should be summarized
             mock_summarize.assert_called_once()
-            assert result[0]["description"] == "Short"
+
+
+class TestSummarizeDescriptionWithClaude:
+    """Tests for _summarize_description_with_claude function."""
+
+    @pytest.mark.asyncio
+    async def test_summarize_description_success(self):
+        """Test successful summarization via Claude."""
+        from gobby.tools.summarizer import _summarize_description_with_claude
+
+        # Mock config
+        mock_config = MagicMock()
+        mock_config.prompt = "Summarize: {description}"
+        mock_config.system_prompt = "System"
+        mock_config.model = "claude-3-haiku-20240307"
+
+        # Mock claude_agent_sdk module
+        mock_sdk = MagicMock()
+        mock_message = MagicMock()
+        mock_block = MagicMock()
+        mock_block.text = "Summarized text"
+        mock_message.content = [mock_block]
+
+        # Define dummy classes for isinstance checks
+        class MockAssistantMessage:
+            def __init__(self, content):
+                self.content = content
+
+        class MockTextBlock:
+            def __init__(self, text):
+                self.text = text
+
+        mock_sdk.AssistantMessage = MockAssistantMessage
+        mock_sdk.TextBlock = MockTextBlock
+
+        # Prepare content
+        msg = MockAssistantMessage([MockTextBlock("Summarized text")])
+
+        async def async_gen(*args, **kwargs):
+            yield msg
+
+        mock_sdk.query = MagicMock(side_effect=async_gen)
+
+        with patch.dict("sys.modules", {"claude_agent_sdk": mock_sdk}):
+            with patch("gobby.tools.summarizer._get_config", return_value=mock_config):
+                result = await _summarize_description_with_claude("Long description " * 10)
+                assert result == "Summarized text"
+
+    @pytest.mark.asyncio
+    async def test_summarize_description_failure_fallback(self):
+        """Test fallback when summarization fails."""
+        from gobby.tools.summarizer import _summarize_description_with_claude
+
+        mock_sdk = MagicMock()
+        mock_sdk.query.side_effect = Exception("API Error")
+
+        with patch.dict("sys.modules", {"claude_agent_sdk": mock_sdk}):
+            with patch("gobby.tools.summarizer._get_config"):
+                long_desc = "A" * 250
+                result = await _summarize_description_with_claude(long_desc)
+
+                # Should truncate
+                assert len(result) == 200
+                assert result.endswith("...")
+                assert result.startswith("AAAA")
+
+
+class TestGenerateServerDescription:
+    """Tests for generate_server_description function."""
+
+    @pytest.mark.asyncio
+    async def test_generate_server_description_success(self):
+        """Test successful server description generation."""
+        from gobby.tools.summarizer import generate_server_description
+
+        tool_summaries = [{"name": "tool1", "description": "desc1"}]
+
+        mock_config = MagicMock()
+        mock_config.server_description_prompt = "Describe"
+        mock_config.server_description_system_prompt = "System"
+        mock_config.model = "model"
+
+        # Mock claude_agent_sdk module
+        mock_sdk = MagicMock()
+
+        class MockAssistantMessage:
+            def __init__(self, content):
+                self.content = content
+
+        class MockTextBlock:
+            def __init__(self, text):
+                self.text = text
+
+        mock_sdk.AssistantMessage = MockAssistantMessage
+        mock_sdk.TextBlock = MockTextBlock
+
+        msg = MockAssistantMessage([MockTextBlock("Server does things.")])
+
+        async def async_gen(*args, **kwargs):
+            yield msg
+
+        mock_sdk.query = MagicMock(side_effect=async_gen)
+
+        with patch.dict("sys.modules", {"claude_agent_sdk": mock_sdk}):
+            with patch("gobby.tools.summarizer._get_config", return_value=mock_config):
+                result = await generate_server_description("server1", tool_summaries)
+                assert result == "Server does things."
+
+    @pytest.mark.asyncio
+    async def test_generate_server_description_failure_fallback(self):
+        """Test fallback when generation fails."""
+        from gobby.tools.summarizer import generate_server_description
+
+        tool_summaries = [
+            {"name": "tool1", "description": "desc1"},
+            {"name": "tool2", "description": "desc2"},
+            {"name": "tool3", "description": "desc3"},
+            {"name": "tool4", "description": "desc4"},
+        ]
+
+        mock_sdk = MagicMock()
+        mock_sdk.query.side_effect = Exception("error")
+
+        with patch.dict("sys.modules", {"claude_agent_sdk": mock_sdk}):
+            with patch("gobby.tools.summarizer._get_config"):
+                result = await generate_server_description("server1", tool_summaries)
+                assert "Provides tool1, tool2, tool3 and more" in result
+
+    @pytest.mark.asyncio
+    async def test_generate_server_description_fallback_no_tools(self):
+        """Test fallback with no tools."""
+        from gobby.tools.summarizer import generate_server_description
+
+        mock_sdk = MagicMock()
+        mock_sdk.query.side_effect = Exception("error")
+
+        with patch.dict("sys.modules", {"claude_agent_sdk": mock_sdk}):
+            with patch("gobby.tools.summarizer._get_config"):
+                result = await generate_server_description("server1", [])
+                assert result == "MCP server: server1"

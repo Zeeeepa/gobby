@@ -250,7 +250,12 @@ class DaemonProxy:
         return await self._request(
             "POST",
             "/code/process-dataset",
-            json={"data": data, "operation": operation, "parameters": parameters, "timeout": timeout},
+            json={
+                "data": data,
+                "operation": operation,
+                "parameters": parameters,
+                "timeout": timeout,
+            },
             timeout=float(timeout) + 10,
         )
 
@@ -272,7 +277,13 @@ def create_stdio_mcp_server() -> FastMCP:
     mcp = FastMCP("gobby")
     proxy = DaemonProxy(config.daemon_port)
 
-    # --- MCP Server Management Tools ---
+    register_proxy_tools(mcp, proxy)
+
+    return mcp
+
+
+def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
+    """Register proxy tools on the MCP server."""
 
     @mcp.tool()
     async def list_mcp_servers() -> dict[str, Any]:
@@ -550,8 +561,6 @@ def create_stdio_mcp_server() -> FastMCP:
             Dict with processed result or error
         """
         return await proxy.process_large_dataset(data, operation, parameters, timeout)
-
-    return mcp
 
 
 async def ensure_daemon_running() -> None:

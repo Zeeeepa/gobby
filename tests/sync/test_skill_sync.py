@@ -154,3 +154,85 @@ async def test_trigger_export_debounce(sync_manager):
     await asyncio.sleep(0.2)
 
     assert sync_manager.export_to_files.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_export_to_claude_format(sync_manager, tmp_path):
+    """Test exporting to Claude Code format."""
+    count = await sync_manager.export_to_claude_format(output_dir=tmp_path)
+
+    assert count == 1
+
+    # Check structure
+    gobby_dir = tmp_path
+    plugin_json = gobby_dir / ".claude-plugin" / "plugin.json"
+    assert plugin_json.exists()
+
+    skill_dir = gobby_dir / "skills" / "test_skill"
+    assert skill_dir.is_dir()
+
+    skill_file = skill_dir / "SKILL.md"
+    assert skill_file.exists()
+    content = skill_file.read_text()
+    # Check generated trigger description
+    assert 'asks to "test"' in content
+    # Check frontmatter
+    assert "name: test_skill" in content
+
+    meta_file = skill_dir / ".gobby-meta.json"
+    assert meta_file.exists()
+    meta = json.loads(meta_file.read_text())
+    assert meta["id"] == "s1"
+    assert meta["tags"] == ["tag1"]
+
+
+@pytest.mark.asyncio
+async def test_export_to_codex_format(sync_manager, tmp_path):
+    """Test exporting to Codex format."""
+    count = await sync_manager.export_to_codex_format(output_dir=tmp_path)
+
+    assert count == 1
+    skill_file = tmp_path / "test_skill" / "SKILL.md"
+    assert skill_file.exists()
+    content = skill_file.read_text()
+    assert "name: test_skill" in content
+    assert "do test" in content
+
+
+@pytest.mark.asyncio
+async def test_export_to_gemini_format(sync_manager, tmp_path):
+    """Test exporting to Gemini format (TOML)."""
+    count = await sync_manager.export_to_gemini_format(output_dir=tmp_path)
+
+    assert count == 1
+    cmd_file = tmp_path / "test_skill.toml"
+    assert cmd_file.exists()
+    content = cmd_file.read_text()
+    assert 'description = "test skill"' in content
+    # Triple quoted prompt
+    assert 'prompt = """\ndo test\n"""' in content
+
+
+@pytest.mark.asyncio
+async def test_export_to_all_formats(sync_manager, tmp_path):
+    """Test exporting to all formats."""
+    # Mock individual export methods to avoid IO
+    sync_manager.export_to_claude_format = AsyncMock(return_value=1)
+    sync_manager.export_to_codex_format = AsyncMock(return_value=1)
+    sync_manager.export_to_gemini_format = AsyncMock(return_value=1)
+
+    results = await sync_manager.export_to_all_formats(project_dir=tmp_path)
+
+    assert results == {"claude": 1, "codex": 1, "gemini": 1}
+    sync_manager.export_to_claude_format.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_shutdown(sync_manager):
+    """Test clean shutdown."""
+    sync_manager._export_task = asyncio.create_task(asyncio.sleep(0.1))
+
+    await sync_manager.shutdown()
+
+    assert sync_manager._shutdown_requested is True
+    assert sync_manager._export_task is None
