@@ -7,11 +7,53 @@ configuration hierarchy (CLI > YAML > Defaults), and validation.
 
 from __future__ import annotations
 
+import os
+import re
 from pathlib import Path
 from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
+
+
+# Pattern for environment variable substitution:
+# ${VAR} - simple substitution
+# ${VAR:-default} - with default value if VAR is unset or empty
+ENV_VAR_PATTERN = re.compile(
+    r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}"
+)
+
+
+def expand_env_vars(content: str) -> str:
+    """
+    Expand environment variables in configuration content.
+
+    Supports two syntaxes:
+    - ${VAR} - replaced with the value of VAR, or left unchanged if unset
+    - ${VAR:-default} - replaced with VAR's value, or 'default' if unset/empty
+
+    Args:
+        content: Configuration file content as string
+
+    Returns:
+        Content with environment variables expanded
+    """
+
+    def replace_match(match: re.Match[str]) -> str:
+        var_name = match.group(1)
+        default_value = match.group(2)  # None if no default specified
+
+        env_value = os.environ.get(var_name)
+
+        if env_value is not None and env_value != "":
+            return env_value
+        elif default_value is not None:
+            return default_value
+        else:
+            # Leave unchanged if no value and no default
+            return match.group(0)
+
+    return ENV_VAR_PATTERN.sub(replace_match, content)
 
 
 class WebSocketSettings(BaseModel):
@@ -605,12 +647,84 @@ class WebSocketBroadcastConfig(BaseModel):
     )
 
 
+class WebhookEndpointConfig(BaseModel):
+    """Configuration for a single webhook endpoint."""
+
+    name: str = Field(
+        description="Unique name for this webhook endpoint",
+    )
+    url: str = Field(
+        description="URL to POST webhook payloads to (supports ${ENV_VAR} substitution)",
+    )
+    events: list[str] = Field(
+        default_factory=list,
+        description="List of hook event types to trigger this webhook (empty = all events)",
+    )
+    headers: dict[str, str] = Field(
+        default_factory=dict,
+        description="Custom HTTP headers to include (supports ${ENV_VAR} substitution)",
+    )
+    timeout: float = Field(
+        default=10.0,
+        ge=1.0,
+        le=60.0,
+        description="Request timeout in seconds",
+    )
+    retry_count: int = Field(
+        default=3,
+        ge=0,
+        le=10,
+        description="Number of retries on failure",
+    )
+    retry_delay: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=30.0,
+        description="Initial retry delay in seconds (doubles each retry)",
+    )
+    can_block: bool = Field(
+        default=False,
+        description="If True, webhook can block the action via response decision field",
+    )
+    enabled: bool = Field(
+        default=True,
+        description="Enable or disable this webhook",
+    )
+
+
+class WebhooksConfig(BaseModel):
+    """Configuration for HTTP webhooks triggered on hook events."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable webhook dispatching",
+    )
+    endpoints: list[WebhookEndpointConfig] = Field(
+        default_factory=list,
+        description="List of webhook endpoint configurations",
+    )
+    default_timeout: float = Field(
+        default=10.0,
+        ge=1.0,
+        le=60.0,
+        description="Default timeout for webhook requests",
+    )
+    async_dispatch: bool = Field(
+        default=True,
+        description="Dispatch webhooks asynchronously (non-blocking except for can_block)",
+    )
+
+
 class HookExtensionsConfig(BaseModel):
     """Configuration for hook extensions (broadcasting, webhooks, plugins)."""
 
     websocket: WebSocketBroadcastConfig = Field(
         default_factory=WebSocketBroadcastConfig,
         description="WebSocket broadcasting configuration",
+    )
+    webhooks: WebhooksConfig = Field(
+        default_factory=WebhooksConfig,
+        description="HTTP webhook configuration",
     )
 
 
@@ -1265,6 +1379,9 @@ def load_yaml(config_file: str) -> dict[str, Any]:
     try:
         with open(config_path) as f:
             content = f.read()
+
+        # Expand environment variables before parsing
+        content = expand_env_vars(content)
 
         # Handle JSON files
         if file_ext == ".json":

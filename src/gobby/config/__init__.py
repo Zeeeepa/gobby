@@ -8,7 +8,10 @@ from gobby.config.app import (
     RecommendToolsConfig,
     SessionSummaryConfig,
     TitleSynthesisConfig,
+    WebhookEndpointConfig,
+    WebhooksConfig,
     WebSocketSettings,
+    expand_env_vars,
     load_config,
     save_config,
 )
@@ -23,7 +26,10 @@ __all__ = [
     "RecommendToolsConfig",
     "SessionSummaryConfig",
     "TitleSynthesisConfig",
+    "WebhookEndpointConfig",
+    "WebhooksConfig",
     "WebSocketSettings",
+    "expand_env_vars",
     "load_config",
     "save_config",
 ]

@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
+from gobby.hooks.webhooks import WebhookDispatcher
 from gobby.memory.manager import MemoryManager
 from gobby.skills import SkillLearner
 from gobby.sessions.manager import SessionManager
@@ -88,6 +89,7 @@ class HookManager:
         mcp_manager: Any | None = None,
         message_processor: Any | None = None,
         memory_sync_manager: Any | None = None,
+        skill_sync_manager: Any | None = None,
     ):
         """
         Initialize HookManager with subsystems.
@@ -104,6 +106,7 @@ class HookManager:
             mcp_manager: Optional MCPClientManager instance
             message_processor: SessionMessageProcessor instance
             memory_sync_manager: Optional MemorySyncManager instance
+            skill_sync_manager: Optional SkillSyncManager instance
         """
         self.daemon_host = daemon_host
         self.daemon_port = daemon_port
@@ -115,6 +118,7 @@ class HookManager:
         self.mcp_manager = mcp_manager
         self._message_processor = message_processor
         self.memory_sync_manager = memory_sync_manager
+        self.skill_sync_manager = skill_sync_manager
 
         # Capture event loop for thread-safe broadcasting (if running in async context)
         self._loop: asyncio.AbstractEventLoop | None
@@ -235,6 +239,7 @@ class HookManager:
             memory_manager=self._memory_manager,
             skill_learner=self._skill_learner,
             memory_sync_manager=self.memory_sync_manager,
+            skill_sync_manager=self.skill_sync_manager,
         )
         self._workflow_engine = WorkflowEngine(
             loader=self._workflow_loader,
@@ -256,6 +261,16 @@ class HookManager:
             llm_service=self._llm_service,
             config=self._config,
         )
+
+        # Initialize Webhook Dispatcher (Sprint 8: Webhooks)
+        webhooks_config = None
+        if self._config and hasattr(self._config, "hook_extensions"):
+            webhooks_config = self._config.hook_extensions.webhooks
+        if not webhooks_config:
+            from gobby.config.app import WebhooksConfig
+
+            webhooks_config = WebhooksConfig()
+        self._webhook_dispatcher = WebhookDispatcher(webhooks_config)
 
         # Session manager handles registration, lookup, and status updates
         # Note: source is passed explicitly per call (Phase 2C+), not stored in manager
@@ -576,6 +591,19 @@ class HookManager:
             # Fail-open for workflow errors
         # --------------------------------------------
 
+        # --- Blocking Webhooks Evaluation (Sprint 8) ---
+        # Dispatch to blocking webhooks BEFORE handler execution
+        try:
+            webhook_results = self._dispatch_webhooks_sync(event, blocking_only=True)
+            decision, reason = self._webhook_dispatcher.get_blocking_decision(webhook_results)
+            if decision == "block":
+                self.logger.info(f"Webhook blocked event: {reason}")
+                return HookResponse(decision="block", reason=reason or "Blocked by webhook")
+        except Exception as e:
+            self.logger.error(f"Blocking webhook dispatch failed: {e}", exc_info=True)
+            # Fail-open for webhook errors
+        # -----------------------------------------------
+
         # Execute handler
         try:
             response = handler(event)
@@ -607,6 +635,12 @@ class HookManager:
                     else:
                         self.logger.debug("No event loop available for broadcasting")
 
+            # Dispatch non-blocking webhooks (fire-and-forget)
+            try:
+                self._dispatch_webhooks_async(event)
+            except Exception as e:
+                self.logger.warning(f"Non-blocking webhook dispatch failed: {e}")
+
             return cast(HookResponse, response)
         except Exception as e:
             self.logger.error(f"Event handler {event.event_type} failed: {e}", exc_info=True)
@@ -628,6 +662,101 @@ class HookManager:
         """
         return self._event_handler_map.get(event_type)
 
+    def _dispatch_webhooks_sync(
+        self, event: HookEvent, blocking_only: bool = False
+    ) -> list[Any]:
+        """
+        Dispatch webhooks synchronously (for blocking webhooks).
+
+        Args:
+            event: The hook event to dispatch.
+            blocking_only: If True, only dispatch to blocking (can_block=True) endpoints.
+
+        Returns:
+            List of WebhookResult objects.
+        """
+        from gobby.hooks.webhooks import WebhookResult
+
+        if not self._webhook_dispatcher.config.enabled:
+            return []
+
+        # Filter endpoints if blocking_only
+        matching_endpoints = [
+            ep
+            for ep in self._webhook_dispatcher.config.endpoints
+            if ep.enabled
+            and self._webhook_dispatcher._matches_event(ep, event.event_type.value)
+            and (not blocking_only or ep.can_block)
+        ]
+
+        if not matching_endpoints:
+            return []
+
+        # Build payload once
+        payload = self._webhook_dispatcher._build_payload(event)
+
+        # Run async dispatch in sync context
+        async def dispatch_all() -> list[WebhookResult]:
+            results: list[WebhookResult] = []
+            for endpoint in matching_endpoints:
+                result = await self._webhook_dispatcher._dispatch_single(endpoint, payload)
+                results.append(result)
+            return results
+
+        # Execute in event loop
+        try:
+            loop = asyncio.get_running_loop()
+            # If we're already in an async context, schedule and wait
+            future = asyncio.ensure_future(dispatch_all())
+            return asyncio.get_event_loop().run_until_complete(future)
+        except RuntimeError:
+            # Not in async context, run synchronously
+            return asyncio.run(dispatch_all())
+
+    def _dispatch_webhooks_async(self, event: HookEvent) -> None:
+        """
+        Dispatch non-blocking webhooks asynchronously (fire-and-forget).
+
+        Args:
+            event: The hook event to dispatch.
+        """
+        if not self._webhook_dispatcher.config.enabled:
+            return
+
+        # Filter to non-blocking endpoints only
+        matching_endpoints = [
+            ep
+            for ep in self._webhook_dispatcher.config.endpoints
+            if ep.enabled
+            and self._webhook_dispatcher._matches_event(ep, event.event_type.value)
+            and not ep.can_block
+        ]
+
+        if not matching_endpoints:
+            return
+
+        # Build payload
+        payload = self._webhook_dispatcher._build_payload(event)
+
+        async def dispatch_all() -> None:
+            tasks = [
+                self._webhook_dispatcher._dispatch_single(ep, payload)
+                for ep in matching_endpoints
+            ]
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Fire and forget
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(dispatch_all())
+        except RuntimeError:
+            # No event loop, try using captured loop
+            if self._loop:
+                try:
+                    asyncio.run_coroutine_threadsafe(dispatch_all(), self._loop)
+                except Exception as e:
+                    self.logger.warning(f"Failed to schedule async webhook: {e}")
+
     def shutdown(self) -> None:
         """
         Clean up HookManager resources on daemon shutdown.
@@ -642,6 +771,17 @@ class HookManager:
             if self._health_check_timer is not None:
                 self._health_check_timer.cancel()
                 self._health_check_timer = None
+
+        # Close webhook dispatcher HTTP client
+        try:
+            if self._loop:
+                asyncio.run_coroutine_threadsafe(
+                    self._webhook_dispatcher.close(), self._loop
+                ).result(timeout=5.0)
+            else:
+                asyncio.run(self._webhook_dispatcher.close())
+        except Exception as e:
+            self.logger.warning(f"Failed to close webhook dispatcher: {e}")
 
         self.logger.debug("HookManager shutdown complete")
 
