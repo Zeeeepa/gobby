@@ -67,14 +67,22 @@ class WebhookDispatcher:
         """
         self.config = config
         self._client: httpx.AsyncClient | None = None
+        self._client_lock = asyncio.Lock()
 
     async def _get_client(self) -> httpx.AsyncClient:
-        """Get or create the HTTP client."""
+        """Get or create the HTTP client.
+
+        Uses double-checked locking to ensure only one client is created
+        even when called concurrently from multiple coroutines.
+        """
         if self._client is None:
-            self._client = httpx.AsyncClient(
-                timeout=httpx.Timeout(self.config.default_timeout),
-                follow_redirects=True,
-            )
+            async with self._client_lock:
+                # Double-check after acquiring lock
+                if self._client is None:
+                    self._client = httpx.AsyncClient(
+                        timeout=httpx.Timeout(self.config.default_timeout),
+                        follow_redirects=True,
+                    )
         return self._client
 
     async def close(self) -> None:
