@@ -51,6 +51,7 @@ class ActionExecutor:
         memory_manager: Any | None = None,
         skill_learner: Any | None = None,
         memory_sync_manager: Any | None = None,
+        skill_sync_manager: Any | None = None,
     ):
         self.db = db
         self.session_manager = session_manager
@@ -62,6 +63,7 @@ class ActionExecutor:
         self.memory_manager = memory_manager
         self.skill_learner = skill_learner
         self.memory_sync_manager = memory_sync_manager
+        self.skill_sync_manager = skill_sync_manager
         self._handlers: dict[str, ActionHandler] = {}
         self._register_defaults()
 

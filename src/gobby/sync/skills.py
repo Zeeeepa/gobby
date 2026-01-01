@@ -331,10 +331,13 @@ class SkillSyncManager:
                 def escape_toml_string(s: str) -> str:
                     return s.replace("\\", "\\\\").replace('"', '\\"')
 
+                # Escape triple quotes in prompt to prevent TOML syntax errors
+                safe_prompt = prompt.replace('"""', '\\"\\"\\"')
+
                 # Use multi-line strings for prompt (triple quotes)
                 toml_content = f'description = "{escape_toml_string(description)}"\n\n'
                 toml_content += 'prompt = """\n'
-                toml_content += prompt
+                toml_content += safe_prompt
                 toml_content += '\n"""\n'
 
                 command_file = commands_dir / f"{safe_name}.toml"
