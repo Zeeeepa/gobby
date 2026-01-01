@@ -227,6 +227,154 @@ class SkillSyncManager:
         logger.info(f"Exported {count} skills to Claude Code format in {gobby_dir}")
         return count
 
+    async def export_to_codex_format(self, output_dir: Path | None = None) -> int:
+        """
+        Export skills to Codex CLI format.
+
+        Creates:
+        - ~/.codex/skills/<name>/SKILL.md (per skill)
+
+        Args:
+            output_dir: Output directory (default: ~/.codex/skills)
+
+        Returns:
+            Count of exported skills
+        """
+        return await asyncio.to_thread(self._export_codex_format_sync, output_dir)
+
+    def _export_codex_format_sync(self, output_dir: Path | None = None) -> int:
+        """Export skills in Codex CLI format (sync)."""
+        skills_dir = output_dir or (Path.home() / ".codex" / "skills")
+        skills_dir.mkdir(parents=True, exist_ok=True)
+
+        skills = self.skill_manager.list_skills()
+        count = 0
+
+        for skill in skills:
+            try:
+                # Create safe name
+                safe_name = "".join(c for c in skill.name if c.isalnum() or c in "-_").lower()
+                if not safe_name:
+                    safe_name = skill.id
+
+                # Codex format: skills/<name>/SKILL.md
+                skill_dir = skills_dir / safe_name
+                skill_dir.mkdir(parents=True, exist_ok=True)
+
+                # Build description (Codex has 500 char limit)
+                description = self._build_trigger_description(skill)
+                if len(description) > 500:
+                    description = description[:497] + "..."
+
+                frontmatter = {
+                    "name": skill.name,
+                    "description": description,
+                }
+
+                content = "---\n"
+                content += yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True)
+                content += "---\n\n"
+                content += skill.instructions or ""
+
+                skill_file = skill_dir / "SKILL.md"
+                with open(skill_file, "w", encoding="utf-8") as f:
+                    f.write(content)
+
+                count += 1
+
+            except Exception as e:
+                logger.error(f"Failed to export skill '{skill.name}' to Codex format: {e}")
+                continue
+
+        logger.info(f"Exported {count} skills to Codex format in {skills_dir}")
+        return count
+
+    async def export_to_gemini_format(self, output_dir: Path | None = None) -> int:
+        """
+        Export skills to Gemini CLI custom commands format.
+
+        Creates:
+        - ~/.gemini/commands/skills/<name>.toml (per skill)
+
+        Gemini uses TOML format for custom commands with a prompt field.
+
+        Args:
+            output_dir: Output directory (default: ~/.gemini/commands/skills)
+
+        Returns:
+            Count of exported skills
+        """
+        return await asyncio.to_thread(self._export_gemini_format_sync, output_dir)
+
+    def _export_gemini_format_sync(self, output_dir: Path | None = None) -> int:
+        """Export skills as Gemini CLI custom commands (sync)."""
+        commands_dir = output_dir or (Path.home() / ".gemini" / "commands" / "skills")
+        commands_dir.mkdir(parents=True, exist_ok=True)
+
+        skills = self.skill_manager.list_skills()
+        count = 0
+
+        for skill in skills:
+            try:
+                # Create safe name for TOML filename
+                safe_name = "".join(c for c in skill.name if c.isalnum() or c in "-_").lower()
+                if not safe_name:
+                    safe_name = skill.id
+
+                # Gemini custom command format
+                # Invoked as /skills:<name>
+                description = skill.description or f"Skill: {skill.name}"
+                prompt = skill.instructions or ""
+
+                # Write TOML manually (simple format, no extra dependency needed)
+                # Escape quotes and backslashes in strings
+                def escape_toml_string(s: str) -> str:
+                    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+                # Use multi-line strings for prompt (triple quotes)
+                toml_content = f'description = "{escape_toml_string(description)}"\n\n'
+                toml_content += 'prompt = """\n'
+                toml_content += prompt
+                toml_content += '\n"""\n'
+
+                command_file = commands_dir / f"{safe_name}.toml"
+                with open(command_file, "w", encoding="utf-8") as f:
+                    f.write(toml_content)
+
+                count += 1
+
+            except Exception as e:
+                logger.error(f"Failed to export skill '{skill.name}' to Gemini format: {e}")
+                continue
+
+        logger.info(f"Exported {count} skills to Gemini commands in {commands_dir}")
+        return count
+
+    async def export_to_all_formats(self, project_dir: Path | None = None) -> dict[str, int]:
+        """
+        Export skills to all supported CLI formats.
+
+        Args:
+            project_dir: Project directory for Claude Code export (default: current dir)
+
+        Returns:
+            Dict with counts per format: {"claude": N, "codex": N, "gemini": N}
+        """
+        results = {}
+
+        # Claude Code: .gobby/skills/ in project
+        results["claude"] = await self.export_to_claude_format(project_dir)
+
+        # Codex: ~/.codex/skills/
+        results["codex"] = await self.export_to_codex_format()
+
+        # Gemini: ~/.gemini/commands/skills/
+        results["gemini"] = await self.export_to_gemini_format()
+
+        total = sum(results.values())
+        logger.info(f"Exported skills to all formats: {results} (total: {total})")
+        return results
+
     def _get_skill_by_name(self, name: str) -> Skill | None:
         """Helper to find skill by name."""
         candidates = self.skill_manager.list_skills(name_like=name)

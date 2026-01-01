@@ -309,27 +309,31 @@ def create_skills_registry(
 
     @registry.tool(
         name="export_skills",
-        description="Export skills to markdown files in the skills sync directory.",
+        description="Export skills to all CLI formats (Claude Code, Codex, Gemini).",
     )
     async def export_skills() -> dict[str, Any]:
         """
-        Export all skills to markdown files.
+        Export all skills to supported CLI formats.
 
-        Skills are exported as individual markdown files
-        with YAML frontmatter containing metadata.
+        Exports to:
+        - Claude Code: .gobby/skills/<name>/SKILL.md (project directory)
+        - Codex: ~/.codex/skills/<name>/SKILL.md
+        - Gemini: ~/.gemini/commands/skills/<name>.toml (as custom commands)
         """
         if not sync_manager:
             return {
                 "success": False,
-                "error": "Skill sync is not enabled. Configure memory_sync in config.yaml.",
+                "error": "Skill sync is not enabled. Configure skill_sync in config.yaml.",
             }
 
         try:
-            count = await sync_manager.export_to_files()
+            results = await sync_manager.export_to_all_formats()
+            total = sum(results.values())
             return {
                 "success": True,
-                "exported": count,
-                "message": f"Exported {count} skills",
+                "exported": total,
+                "by_format": results,
+                "message": f"Exported {total} skills to all formats",
             }
         except Exception as e:
             return {"success": False, "error": str(e)}
