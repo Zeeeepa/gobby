@@ -662,9 +662,7 @@ class HookManager:
         """
         return self._event_handler_map.get(event_type)
 
-    def _dispatch_webhooks_sync(
-        self, event: HookEvent, blocking_only: bool = False
-    ) -> list[Any]:
+    def _dispatch_webhooks_sync(self, event: HookEvent, blocking_only: bool = False) -> list[Any]:
         """
         Dispatch webhooks synchronously (for blocking webhooks).
 
@@ -706,9 +704,13 @@ class HookManager:
         # Execute in event loop
         try:
             loop = asyncio.get_running_loop()
-            # If we're already in an async context, schedule and wait
-            future = asyncio.ensure_future(dispatch_all())
-            return asyncio.get_event_loop().run_until_complete(future)
+            # Already in async context - this method shouldn't be called here
+            # Fall back to creating a new thread to run the coroutine synchronously
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, dispatch_all())
+                return future.result()
         except RuntimeError:
             # Not in async context, run synchronously
             return asyncio.run(dispatch_all())
@@ -740,8 +742,7 @@ class HookManager:
 
         async def dispatch_all() -> None:
             tasks = [
-                self._webhook_dispatcher._dispatch_single(ep, payload)
-                for ep in matching_endpoints
+                self._webhook_dispatcher._dispatch_single(ep, payload) for ep in matching_endpoints
             ]
             await asyncio.gather(*tasks, return_exceptions=True)
 
