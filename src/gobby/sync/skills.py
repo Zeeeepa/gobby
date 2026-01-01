@@ -141,6 +141,92 @@ class SkillSyncManager:
         skills_dir = self._get_sync_dir()
         return await asyncio.to_thread(self._export_skills_sync, skills_dir)
 
+    async def export_to_claude_format(self, output_dir: Path | None = None) -> int:
+        """
+        Export skills to Claude Code plugin format.
+
+        Creates:
+        - .gobby/.claude-plugin/plugin.json (manifest)
+        - .gobby/skills/<name>/SKILL.md (per skill)
+
+        Args:
+            output_dir: Output directory (default: .gobby in current directory)
+
+        Returns:
+            Count of exported skills
+        """
+        return await asyncio.to_thread(self._export_claude_format_sync, output_dir)
+
+    def _export_claude_format_sync(self, output_dir: Path | None = None) -> int:
+        """Export skills in Claude Code plugin format (sync)."""
+        gobby_dir = output_dir or Path(".gobby")
+        skills_dir = gobby_dir / "skills"
+        skills_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create plugin manifest
+        plugin_dir = gobby_dir / ".claude-plugin"
+        plugin_dir.mkdir(parents=True, exist_ok=True)
+        manifest_file = plugin_dir / "plugin.json"
+        if not manifest_file.exists():
+            manifest = {
+                "name": "gobby-skills",
+                "version": "1.0.0",
+                "description": "Skills learned and managed by Gobby",
+            }
+            with open(manifest_file, "w") as f:
+                json.dump(manifest, f, indent=2)
+
+        skills = self.skill_manager.list_skills()
+        count = 0
+
+        for skill in skills:
+            try:
+                # Create safe name
+                safe_name = "".join(c for c in skill.name if c.isalnum() or c in "-_").lower()
+                if not safe_name:
+                    safe_name = skill.id
+
+                # Claude Code format: skills/<name>/SKILL.md
+                skill_dir = skills_dir / safe_name
+                skill_dir.mkdir(parents=True, exist_ok=True)
+
+                # Build trigger description
+                description = self._build_trigger_description(skill)
+
+                frontmatter = {
+                    "name": skill.name,
+                    "description": description,
+                }
+
+                content = "---\n"
+                content += yaml.dump(frontmatter, default_flow_style=False, allow_unicode=True)
+                content += "---\n\n"
+                content += skill.instructions or ""
+
+                skill_file = skill_dir / "SKILL.md"
+                with open(skill_file, "w", encoding="utf-8") as f:
+                    f.write(content)
+
+                # Write Gobby metadata
+                meta_file = skill_dir / ".gobby-meta.json"
+                meta = {
+                    "id": skill.id,
+                    "trigger_pattern": skill.trigger_pattern or "",
+                    "tags": skill.tags or [],
+                    "usage_count": skill.usage_count,
+                }
+                with open(meta_file, "w") as f:
+                    json.dump(meta, f, indent=2)
+
+                count += 1
+
+            except Exception as e:
+                logger.error(f"Failed to export skill '{skill.name}' to Claude format: {e}")
+                continue
+
+        logger.info(f"Exported {count} skills to Claude Code format in {gobby_dir}")
+        return count
+
     def _get_skill_by_name(self, name: str) -> Skill | None:
         """Helper to find skill by name."""
         candidates = self.skill_manager.list_skills(name_like=name)

@@ -291,6 +291,7 @@ class HTTPServer:
                 "mcp_manager": self.mcp_manager,
                 "message_processor": self.message_processor,
                 "memory_sync_manager": self.memory_sync_manager,
+                "skill_sync_manager": self.skill_sync_manager,
             }
             if self.config:
                 # Pass full log file path from config
