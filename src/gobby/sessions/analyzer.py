@@ -89,7 +89,7 @@ class TranscriptAnalyzer:
 
         # Track what we've found to avoid duplicates where appropriate
         found_active_task = False
-        modified_files_set = set()
+        modified_files_set: set[str] = set()
 
         for turn in reversed(relevant_turns):
             message = turn.get("message", {})

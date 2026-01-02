@@ -63,10 +63,10 @@ def get_sync_manager() -> TaskSyncManager:
 
 def pad_to_width(text: str, width: int) -> str:
     """Pad a string to a visual width, accounting for wide characters like emoji."""
-    visual_width = wcswidth(text)
+    visual_width: int = wcswidth(text)
     if visual_width < 0:
         visual_width = len(text)  # Fallback if wcswidth fails
-    padding = width - visual_width
+    padding: int = width - visual_width
     return text + " " * max(0, padding)
 
 

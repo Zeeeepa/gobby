@@ -398,10 +398,10 @@ def create_workflows_registry(
                 "error": f"Phase '{to_phase}' not found. Available: {[p.name for p in definition.phases]}",
             }
 
-        old_phase = state.phase
-        state.phase = to_phase
-        state.phase_entered_at = datetime.now(UTC)
-        state.phase_action_count = 0
+        old_phase = state.step
+        state.step = to_phase
+        state.step_entered_at = datetime.now(UTC)
+        state.step_action_count = 0
 
         _state_manager.save_state(state)
 

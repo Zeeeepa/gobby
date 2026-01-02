@@ -119,8 +119,8 @@ def validate_task_cmd(task_id: str, summary: str | None, summary_file: str | Non
         if result.feedback:
             click.echo(f"Feedback:\n{result.feedback}")
 
-        # Apply updates
-        updates: dict[str, Any] = {
+        # Apply validation updates
+        validation_updates: dict[str, Any] = {
             "validation_status": result.status,
             "validation_feedback": result.feedback,
         }
@@ -132,7 +132,7 @@ def validate_task_cmd(task_id: str, summary: str | None, summary_file: str | Non
         elif result.status == "invalid":
             current_fail_count = resolved.validation_fail_count or 0
             new_fail_count = current_fail_count + 1
-            updates["validation_fail_count"] = new_fail_count
+            validation_updates["validation_fail_count"] = new_fail_count
 
             if new_fail_count < MAX_RETRIES:
                 fix_task = manager.create_task(
@@ -143,18 +143,18 @@ def validate_task_cmd(task_id: str, summary: str | None, summary_file: str | Non
                     priority=1,
                     task_type="bug",
                 )
-                updates["validation_feedback"] = (
+                validation_updates["validation_feedback"] = (
                     result.feedback or ""
                 ) + f"\n\nCreated fix task: {fix_task.id}"
                 click.echo(f"Created fix task: {fix_task.id}")
             else:
-                updates["status"] = "failed"
-                updates["validation_feedback"] = (
+                validation_updates["status"] = "failed"
+                validation_updates["validation_feedback"] = (
                     result.feedback or ""
                 ) + f"\n\nExceeded max retries ({MAX_RETRIES}). Marked as failed."
                 click.echo("Exceeded max retries. Task marked as FAILED.")
 
-        manager.update_task(resolved.id, **updates)
+        manager.update_task(resolved.id, **validation_updates)
 
     except Exception as e:
         click.echo(f"Validation error: {e}", err=True)
@@ -218,20 +218,20 @@ def generate_criteria_cmd(task_id: str | None, generate_all: bool) -> None:
         return
 
     try:
-        criteria = asyncio.run(
+        generated_criteria: str | None = asyncio.run(
             validator.generate_criteria(
                 title=resolved.title,
                 description=resolved.description,
             )
         )
 
-        if not criteria:
+        if not generated_criteria:
             click.echo("Failed to generate criteria.", err=True)
             return
 
         # Update task with generated criteria
-        manager.update_task(resolved.id, validation_criteria=criteria)
-        click.echo(f"Generated and saved validation criteria:\n{criteria}")
+        manager.update_task(resolved.id, validation_criteria=generated_criteria)
+        click.echo(f"Generated and saved validation criteria:\n{generated_criteria}")
 
     except Exception as e:
         click.echo(f"Error generating criteria: {e}", err=True)
@@ -274,25 +274,25 @@ def _generate_criteria_for_all(manager: LocalTaskManager) -> None:
 
         if children:
             # Parent task: criteria is child completion
-            criteria = "All child tasks must be completed (status: closed)."
-            manager.update_task(task.id, validation_criteria=criteria)
+            parent_criteria = "All child tasks must be completed (status: closed)."
+            manager.update_task(task.id, validation_criteria=parent_criteria)
             click.echo(f"\n[parent] {task.id}: {task.title}")
-            click.echo(f"  → {criteria}")
+            click.echo(f"  → {parent_criteria}")
             parent_count += 1
         else:
             # Leaf task: use LLM to generate criteria
             try:
-                criteria = asyncio.run(
+                leaf_criteria: str | None = asyncio.run(
                     validator.generate_criteria(
                         title=task.title,
                         description=task.description,
                     )
                 )
-                if criteria:
-                    manager.update_task(task.id, validation_criteria=criteria)
+                if leaf_criteria:
+                    manager.update_task(task.id, validation_criteria=leaf_criteria)
                     click.echo(f"\n[leaf] {task.id}: {task.title}")
                     # Indent each line of criteria
-                    for line in criteria.strip().split("\n"):
+                    for line in leaf_criteria.strip().split("\n"):
                         click.echo(f"  {line}")
                     leaf_count += 1
                 else:

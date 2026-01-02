@@ -404,12 +404,13 @@ def create_session_messages_registry(
             # Option 2: Find parent by project_id and source
             if not parent_session and project_id:
                 machine_id = get_machine_id()
-                parent_session = session_manager.find_parent(
-                    machine_id=machine_id,
-                    project_id=project_id,
-                    source=source,
-                    status="handoff_ready",
-                )
+                if machine_id:
+                    parent_session = session_manager.find_parent(
+                        machine_id=machine_id,
+                        project_id=project_id,
+                        source=source,
+                        status="handoff_ready",
+                    )
 
             # Option 3: Find most recent handoff_ready session
             if not parent_session:
@@ -675,8 +676,19 @@ def create_session_messages_registry(
 
             # Format timestamps for git --since/--until
             # Git expects ISO format or relative dates
-            since_time = session.created_at
-            until_time = session.updated_at or datetime.now(timezone.utc)
+            # Session timestamps may be ISO strings or datetime objects
+            if isinstance(session.created_at, str):
+                since_time = datetime.fromisoformat(session.created_at.replace("Z", "+00:00"))
+            else:
+                since_time = session.created_at
+
+            if session.updated_at:
+                if isinstance(session.updated_at, str):
+                    until_time = datetime.fromisoformat(session.updated_at.replace("Z", "+00:00"))
+                else:
+                    until_time = session.updated_at
+            else:
+                until_time = datetime.now(timezone.utc)
 
             # Format as ISO 8601 for git
             since_str = since_time.strftime("%Y-%m-%dT%H:%M:%S")

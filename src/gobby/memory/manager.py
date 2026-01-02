@@ -7,7 +7,7 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import LocalMemoryManager, Memory
 
 if TYPE_CHECKING:
-    from gobby.memory.semantic_search import SemanticMemorySearch
+    from gobby.memory.semantic_search import EmbedStats, SemanticMemorySearch
 
 logger = logging.getLogger(__name__)
 
@@ -494,7 +494,7 @@ class MemoryManager:
         self,
         project_id: str | None = None,
         force: bool = False,
-    ) -> dict:
+    ) -> "EmbedStats":
         """
         Rebuild embeddings for all memories.
 

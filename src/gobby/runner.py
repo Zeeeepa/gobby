@@ -220,7 +220,7 @@ class GobbyRunner:
     def _setup_signal_handlers(self) -> None:
         loop = asyncio.get_running_loop()
 
-        def handle_shutdown():
+        def handle_shutdown() -> None:
             logger.info("Received shutdown signal, initiating graceful shutdown...")
             self._shutdown_requested = True
 

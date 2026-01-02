@@ -335,6 +335,7 @@ def create_task_registry(
 
         # Check if task has children (is a parent task)
         children = task_manager.list_tasks(parent_task_id=task_id, limit=1)
+        criteria: str | None
 
         if children:
             # Parent task: criteria is child completion
@@ -1051,9 +1052,9 @@ def create_task_registry(
             except Exception:
                 pass  # Best-effort linking, don't fail the close
 
-        result: dict[str, Any] = closed_task.to_dict()
-        result["validated"] = not should_skip
-        return result
+        response: dict[str, Any] = closed_task.to_dict()
+        response["validated"] = not should_skip
+        return response
 
     registry.register(
         name="close_task",

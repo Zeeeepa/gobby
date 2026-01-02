@@ -15,12 +15,22 @@ import math
 import struct
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, TypedDict
 
 from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import Memory
 
 logger = logging.getLogger(__name__)
+
+
+class EmbedStats(TypedDict):
+    """Statistics for embedding operations."""
+
+    embedded: int
+    skipped: int
+    failed: int
+    errors: list[str]
+
 
 # Default embedding model (same as tool search)
 DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small"
@@ -238,7 +248,7 @@ class SemanticMemorySearch:
         self,
         project_id: str | None = None,
         force: bool = False,
-    ) -> dict[str, Any]:
+    ) -> EmbedStats:
         """
         Generate embeddings for all memories.
 
@@ -249,7 +259,7 @@ class SemanticMemorySearch:
         Returns:
             Dict with statistics
         """
-        stats = {
+        stats: EmbedStats = {
             "embedded": 0,
             "skipped": 0,
             "failed": 0,

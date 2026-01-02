@@ -338,7 +338,7 @@ class MemoryExtractor:
         # 3. Sample source files
         parts.append("## Sample Source Files\n")
         source_exts = {".py", ".ts", ".js", ".go", ".rs", ".java", ".tsx", ".jsx"}
-        source_files = []
+        source_files: list[Path] = []
 
         for ext in source_exts:
             source_files.extend(project_path.rglob(f"*{ext}"))

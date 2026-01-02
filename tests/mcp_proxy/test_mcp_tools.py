@@ -164,7 +164,7 @@ async def test_list_ready_tasks(mock_task_manager, mock_sync_manager):
     result = await registry.call("list_ready_tasks", {"limit": 5})
 
     mock_task_manager.list_ready_tasks.assert_called_with(
-        priority=None, task_type=None, assignee=None, limit=5
+        priority=None, task_type=None, assignee=None, parent_task_id=None, limit=5
     )
     assert result["count"] == 1
     assert result["tasks"][0]["id"] == "t1"

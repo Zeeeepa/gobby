@@ -40,18 +40,52 @@ fi
 }
 
 
+def _resolve_gitdir(git_path: Path, base_dir: Path) -> Path:
+    """Resolve the actual .git directory, handling worktrees/submodules.
+
+    When .git is a file (worktree/submodule), it contains a "gitdir: <path>" line.
+    This function reads that file and resolves the path.
+
+    Args:
+        git_path: Path to .git (file or directory)
+        base_dir: The directory containing .git (for relative path resolution)
+
+    Returns:
+        The resolved .git directory path
+    """
+    if git_path.is_dir():
+        return git_path
+
+    # .git is a file - read and parse gitdir reference
+    content = git_path.read_text().strip()
+    if not content.startswith("gitdir:"):
+        raise click.ClickException(f"Invalid .git file format: {git_path}")
+
+    gitdir_value = content[len("gitdir:") :].strip()
+    gitdir_path = Path(gitdir_value)
+
+    # Resolve relative paths against the base directory
+    if not gitdir_path.is_absolute():
+        gitdir_path = (base_dir / gitdir_path).resolve()
+
+    return gitdir_path
+
+
 def _find_git_hooks_dir() -> Path:
-    """Find the .git/hooks directory."""
-    git_dir = Path(".git")
-    if not git_dir.exists():
-        cwd = Path.cwd()
-        for parent in [cwd] + list(cwd.parents):
+    """Find the .git/hooks directory, handling worktrees and submodules."""
+    git_path = Path(".git")
+    base_dir = Path.cwd()
+
+    if not git_path.exists():
+        for parent in [base_dir] + list(base_dir.parents):
             if (parent / ".git").exists():
-                git_dir = parent / ".git"
+                git_path = parent / ".git"
+                base_dir = parent
                 break
         else:
             raise click.ClickException("Not in a git repository")
 
+    git_dir = _resolve_gitdir(git_path, base_dir)
     return git_dir / "hooks"
 
 
@@ -90,8 +124,8 @@ def hooks_install(force: bool) -> None:
             continue
 
         hook_path.write_text(script)
-        # Make executable
-        hook_path.chmod(hook_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+        # Make executable (owner only)
+        hook_path.chmod(hook_path.stat().st_mode | stat.S_IXUSR)
         installed.append(hook_name)
 
     if installed:

@@ -141,10 +141,9 @@ class TestWorkflowEngine:
             session_id="sess1",
             source=SessionSource.CLAUDE,
             timestamp=datetime.now(UTC),
-            data={},
+            data={"tool_name": "forbidden_tool"},
             metadata={"_platform_session_id": "sess1"},
         )
-        event.tool_name = "forbidden_tool"
 
         response = await workflow_engine.handle_event(event)
 
@@ -210,10 +209,9 @@ class TestWorkflowEngine:
             session_id="sess1",
             source=SessionSource.CLAUDE,
             timestamp=datetime.now(UTC),
-            data={},
+            data={"tool_name": "Read"},  # In allowed list
             metadata={"_platform_session_id": "sess1"},
         )
-        event.tool_name = "Read"  # In allowed list
 
         response = await workflow_engine.handle_event(event)
 
@@ -247,10 +245,9 @@ class TestWorkflowEngine:
             session_id="sess1",
             source=SessionSource.CLAUDE,
             timestamp=datetime.now(UTC),
-            data={},
+            data={"tool_name": "Edit"},  # Not in allowed list
             metadata={"_platform_session_id": "sess1"},
         )
-        event.tool_name = "Edit"  # Not in allowed list
 
         response = await workflow_engine.handle_event(event)
 
@@ -288,10 +285,9 @@ class TestWorkflowEngine:
             session_id="sess1",
             source=SessionSource.CLAUDE,
             timestamp=datetime.now(UTC),
-            data={},
+            data={"tool_name": "Read"},  # Normally allowed
             metadata={"_platform_session_id": "sess1"},
         )
-        event.tool_name = "Read"  # Normally allowed
 
         response = await workflow_engine.handle_event(event)
 
@@ -318,10 +314,9 @@ class TestWorkflowEngine:
             session_id="sess1",
             source=SessionSource.CLAUDE,
             timestamp=datetime.now(UTC),
-            data={},
+            data={"tool_name": "any_tool"},
             metadata={"_platform_session_id": "sess1"},
         )
-        event.tool_name = "any_tool"
 
         response = await workflow_engine.handle_event(event)
 
@@ -355,10 +350,9 @@ class TestWorkflowEngine:
             session_id="sess1",
             source=SessionSource.CLAUDE,
             timestamp=datetime.now(UTC),
-            data={},
+            data={"tool_name": "any_tool"},
             metadata={"_platform_session_id": "sess1"},
         )
-        event.tool_name = "any_tool"
 
         response = await workflow_engine.handle_event(event)
 
@@ -392,10 +386,9 @@ class TestWorkflowEngine:
             session_id="sess1",
             source=SessionSource.CLAUDE,
             timestamp=datetime.now(UTC),
-            data={},
+            data={"tool_name": "Bash"},  # In blocked list
             metadata={"_platform_session_id": "sess1"},
         )
-        event.tool_name = "Bash"  # In blocked list
 
         response = await workflow_engine.handle_event(event)
 

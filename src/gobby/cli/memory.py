@@ -265,7 +265,7 @@ def extract_agent_md(
     try:
         from gobby.llm.service import LLMService
 
-        llm_service = LLMService(config.llm_providers)
+        llm_service = LLMService(config)
     except Exception as e:
         click.echo(f"Warning: LLM service not available: {e}", err=True)
         click.echo("Extraction requires an LLM. Configure llm_providers in config.yaml")
@@ -311,7 +311,7 @@ def extract_codebase(
     try:
         from gobby.llm.service import LLMService
 
-        llm_service = LLMService(config.llm_providers)
+        llm_service = LLMService(config)
     except Exception as e:
         click.echo(f"Warning: LLM service not available: {e}", err=True)
         click.echo("Extraction requires an LLM. Configure llm_providers in config.yaml")

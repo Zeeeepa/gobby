@@ -231,9 +231,9 @@ class TaskExpander:
         """
         # Try to find JSON in code blocks first
         code_block_pattern = r"```(?:json)?\s*\n?([\s\S]*?)\n?```"
-        matches = re.findall(code_block_pattern, text)
+        matches: list[str] = re.findall(code_block_pattern, text)
         for match in matches:
-            stripped = match.strip()
+            stripped: str = match.strip()
             if stripped.startswith("{"):
                 return stripped
 
