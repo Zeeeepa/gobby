@@ -354,6 +354,123 @@ class TestSessionEndpoints:
         data = response.json()
         assert data["session"]["summary_path"] == "/path/to/summary.md"
 
+    def test_update_session_summary_not_found(self, client: TestClient) -> None:
+        """Test updating summary of nonexistent session."""
+        response = client.post(
+            "/sessions/update_summary",
+            json={
+                "session_id": "nonexistent-uuid",
+                "summary_path": "/path/to/summary.md",
+            },
+        )
+
+        assert response.status_code == 404
+
+    def test_list_sessions(
+        self,
+        client: TestClient,
+        session_storage: LocalSessionManager,
+        test_project: dict,
+    ) -> None:
+        """Test listing sessions."""
+        # Create a few sessions
+        session_storage.register(
+            external_id="list-test-1",
+            machine_id="machine",
+            source="claude",
+            project_id=test_project["id"],
+        )
+        session_storage.register(
+            external_id="list-test-2",
+            machine_id="machine",
+            source="gemini",
+            project_id=test_project["id"],
+        )
+
+        response = client.get("/sessions")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert "sessions" in data
+        assert "count" in data
+        assert data["count"] >= 2
+        assert "response_time_ms" in data
+
+    def test_list_sessions_with_filters(
+        self,
+        client: TestClient,
+        session_storage: LocalSessionManager,
+        test_project: dict,
+    ) -> None:
+        """Test listing sessions with query filters."""
+        session_storage.register(
+            external_id="filter-test-1",
+            machine_id="machine",
+            source="claude",
+            project_id=test_project["id"],
+        )
+        session_storage.register(
+            external_id="filter-test-2",
+            machine_id="machine",
+            source="gemini",
+            project_id=test_project["id"],
+        )
+
+        # Filter by source
+        response = client.get(f"/sessions?source=claude&project_id={test_project['id']}")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert "sessions" in data
+        # All returned sessions should be claude source
+        for session in data["sessions"]:
+            assert session["source"] == "claude"
+
+    def test_find_parent_missing_source(self, client: TestClient) -> None:
+        """Test find_parent with missing source field."""
+        response = client.post(
+            "/sessions/find_parent",
+            json={"machine_id": "test-machine"},
+        )
+
+        assert response.status_code == 400
+        assert "source" in response.json()["detail"]
+
+    def test_find_parent_missing_project_and_cwd(
+        self,
+        client: TestClient,
+    ) -> None:
+        """Test find_parent without project_id or cwd returns 400."""
+        response = client.post(
+            "/sessions/find_parent",
+            json={
+                "source": "claude",
+                "machine_id": "test-machine",
+            },
+        )
+
+        assert response.status_code == 400
+        assert "project_id or cwd" in response.json()["detail"]
+
+    def test_find_parent_no_session(
+        self,
+        client: TestClient,
+        test_project: dict,
+    ) -> None:
+        """Test find_parent when no parent session exists."""
+        response = client.post(
+            "/sessions/find_parent",
+            json={
+                "source": "claude",
+                "machine_id": "test-machine",
+                "project_id": test_project["id"],
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["session"] is None
+
 
 class TestHooksEndpoint:
     """Tests for hooks execution endpoint."""
