@@ -128,7 +128,7 @@ async def test_search_messages_with_project_context(
 
 
 def test_full_registry_has_session_tools(full_sessions_registry):
-    """Test that full registry has all session CRUD tools."""
+    """Test that full registry has all session and handoff tools."""
     expected_tools = [
         "get_session_messages",
         "search_messages",
@@ -136,6 +136,8 @@ def test_full_registry_has_session_tools(full_sessions_registry):
         "get_current_session",
         "list_sessions",
         "session_stats",
+        "get_handoff_context",
+        "create_handoff",
     ]
 
     tools_list = full_sessions_registry.list_tools()
@@ -291,3 +293,70 @@ async def test_session_stats(mock_session_manager, full_sessions_registry):
     assert result["total"] == 10
     assert result["by_status"]["active"] == 3
     assert result["by_status"]["expired"] == 7
+
+
+# --- Handoff Tool Tests ---
+
+
+@pytest.mark.asyncio
+async def test_get_handoff_context(mock_session_manager, full_sessions_registry):
+    """Test get_handoff_context tool execution."""
+    mock_session = _make_mock_session("sess-abc")
+    mock_session.compact_markdown = "## Continuation Context\n\nTest handoff content"
+    mock_session_manager.get.return_value = mock_session
+
+    result = await full_sessions_registry.call("get_handoff_context", {"session_id": "sess-abc"})
+
+    mock_session_manager.get.assert_called_with("sess-abc")
+    assert result["session_id"] == "sess-abc"
+    assert result["has_context"] is True
+    assert "Test handoff content" in result["compact_markdown"]
+
+
+@pytest.mark.asyncio
+async def test_get_handoff_context_not_found(mock_session_manager, full_sessions_registry):
+    """Test get_handoff_context when session not found."""
+    mock_session_manager.get.return_value = None
+
+    result = await full_sessions_registry.call("get_handoff_context", {"session_id": "nonexistent"})
+
+    assert "error" in result
+    assert result["found"] is False
+
+
+@pytest.mark.asyncio
+async def test_get_handoff_context_no_context(mock_session_manager, full_sessions_registry):
+    """Test get_handoff_context when session has no handoff context."""
+    mock_session = _make_mock_session("sess-abc")
+    mock_session.compact_markdown = None
+    mock_session_manager.get.return_value = mock_session
+
+    result = await full_sessions_registry.call("get_handoff_context", {"session_id": "sess-abc"})
+
+    assert result["has_context"] is False
+    assert result["compact_markdown"] is None
+
+
+@pytest.mark.asyncio
+async def test_create_handoff_no_session(mock_session_manager, full_sessions_registry):
+    """Test create_handoff when no session is found."""
+    mock_session_manager.get.return_value = None
+    mock_session_manager.list.return_value = []
+
+    result = await full_sessions_registry.call("create_handoff", {})
+
+    assert "error" in result
+    assert "No session found" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_create_handoff_no_transcript(mock_session_manager, full_sessions_registry):
+    """Test create_handoff when session has no transcript path."""
+    mock_session = _make_mock_session("sess-abc")
+    mock_session.jsonl_path = None
+    mock_session_manager.get.return_value = mock_session
+
+    result = await full_sessions_registry.call("create_handoff", {"session_id": "sess-abc"})
+
+    assert "error" in result
+    assert "No transcript path" in result["error"]
