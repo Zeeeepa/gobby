@@ -1,113 +1,168 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
-from gobby.tasks.validation import TaskValidator, ValidationResult, TaskValidationConfig
+from unittest.mock import MagicMock, patch, AsyncMock
+from gobby.tasks.validation import TaskValidator, ValidationResult, get_git_diff
+from gobby.config.app import TaskValidationConfig
 from gobby.llm import LLMService, LLMProvider
 
 
-@pytest.fixture
-def mock_llm_service():
-    service = MagicMock(spec=LLMService)
-    provider = AsyncMock(spec=LLMProvider)
-    service.get_provider.return_value = provider
-    return service, provider
+class TestGetGitDiff:
+    @patch("subprocess.run")
+    def test_get_git_diff_success(self, mock_run):
+        # Mock unstaged
+        mock_unstaged = MagicMock()
+        mock_unstaged.returncode = 0
+        mock_unstaged.stdout = "diff unstaged"
+
+        # Mock staged
+        mock_staged = MagicMock()
+        mock_staged.returncode = 0
+        mock_staged.stdout = "diff staged"
+
+        mock_run.side_effect = [mock_unstaged, mock_staged]
+
+        diff = get_git_diff()
+        assert "=== STAGED CHANGES ===" in diff
+        assert "diff staged" in diff
+        assert "=== UNSTAGED CHANGES ===" in diff
+        assert "diff unstaged" in diff
+
+    @patch("subprocess.run")
+    def test_get_git_diff_no_changes(self, mock_run):
+        mock_res = MagicMock()
+        mock_res.returncode = 0
+        mock_res.stdout = ""
+        mock_run.return_value = mock_res
+
+        assert get_git_diff() is None
+
+    @patch("subprocess.run")
+    def test_get_git_diff_error_code(self, mock_run):
+        mock_res = MagicMock()
+        mock_res.returncode = 1
+        mock_run.return_value = mock_res
+
+        assert get_git_diff() is None
+
+    @patch("subprocess.run")
+    def test_get_git_diff_exception(self, mock_run):
+        mock_run.side_effect = Exception("Git error")
+        assert get_git_diff() is None
+
+    @patch("subprocess.run")
+    def test_get_git_diff_truncate(self, mock_run):
+        mock_res = MagicMock()
+        mock_res.returncode = 0
+        mock_res.stdout = "a" * 100
+        mock_run.return_value = mock_res
+
+        diff = get_git_diff(max_chars=10)
+        assert len(diff) < 100
+        assert "... [diff truncated] ..." in diff
 
 
-@pytest.fixture
-def validator(mock_llm_service):
-    service, _ = mock_llm_service
-    config = TaskValidationConfig(enabled=True, provider="claude", model="claude-test")
-    return TaskValidator(config, service)
+class TestTaskValidator:
+    @pytest.fixture
+    def mock_llm(self):
+        llm = MagicMock(spec=LLMService)
+        provider = AsyncMock(spec=LLMProvider)
+        llm.get_provider.return_value = provider
+        return llm
 
+    @pytest.fixture
+    def config(self):
+        return TaskValidationConfig(enabled=True, provider="claude", model="test-model")
 
-@pytest.mark.asyncio
-async def test_validate_task_valid(validator, mock_llm_service):
-    _, provider = mock_llm_service
-    # Mock successful JSON response
-    provider.generate_text.return_value = '{"status": "valid", "feedback": "Looks good"}'
+    @pytest.mark.asyncio
+    async def test_validate_task_disabled(self, mock_llm):
+        config = TaskValidationConfig(enabled=False)
+        validator = TaskValidator(config, mock_llm)
+        result = await validator.validate_task("task-1", "title", "instr", "summary")
+        assert result.status == "pending"
+        assert "disabled" in result.feedback
 
-    result = await validator.validate_task(
-        task_id="t1",
-        title="Test Task",
-        original_instruction="Do something",
-        changes_summary="Did something",
-    )
+    @pytest.mark.asyncio
+    async def test_validate_task_missing_info(self, config, mock_llm):
+        validator = TaskValidator(config, mock_llm)
+        result = await validator.validate_task(
+            "task-1", "title", None, "summary"
+        )  # Missing criteria and instruction
+        assert result.status == "pending"
+        assert "Missing" in result.feedback
 
-    assert result.status == "valid"
-    assert result.feedback == "Looks good"
-    provider.generate_text.assert_called_once()
-    args = provider.generate_text.call_args
-    # Check for newline since code uses f"Original Instruction:\n{original_instruction}"
-    assert "Original Instruction:\nDo something" in args.kwargs["prompt"]
+    @pytest.mark.asyncio
+    async def test_validate_task_success(self, config, mock_llm):
+        validator = TaskValidator(config, mock_llm)
 
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.return_value = (
+            '```json\n{"status": "valid", "feedback": "Good job"}\n```'
+        )
 
-@pytest.mark.asyncio
-async def test_validate_task_invalid(validator, mock_llm_service):
-    _, provider = mock_llm_service
-    provider.generate_text.return_value = '{"status": "invalid", "feedback": "Missing feature X"}'
+        result = await validator.validate_task("task-1", "title", "instr", "summary")
 
-    result = await validator.validate_task(
-        task_id="t1",
-        title="Test Task",
-        original_instruction="Do something",
-        changes_summary="Did incomplete work",
-    )
+        assert result.status == "valid"
+        assert result.feedback == "Good job"
+        mock_provider.generate_text.assert_called_once()
 
-    assert result.status == "invalid"
-    assert result.feedback == "Missing feature X"
+    @pytest.mark.asyncio
+    async def test_validate_task_with_context(self, config, mock_llm, tmp_path):
+        validator = TaskValidator(config, mock_llm)
 
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("file content")
 
-@pytest.mark.asyncio
-async def test_validate_task_with_criteria(validator, mock_llm_service):
-    _, provider = mock_llm_service
-    provider.generate_text.return_value = '{"status": "valid", "feedback": "Met criteria"}'
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.return_value = '{"status": "invalid", "feedback": "Bad"}'
 
-    result = await validator.validate_task(
-        task_id="t1",
-        title="Test Task",
-        original_instruction="Do something",
-        changes_summary="Did it",
-        validation_criteria="- Must be fast\n- Must be safe",
-    )
+        result = await validator.validate_task(
+            "task-1", "title", "instr", "summary", context_files=[str(test_file)]
+        )
 
-    assert result.status == "valid"
-    args = provider.generate_text.call_args
-    assert "Validation Criteria:\n- Must be fast\n- Must be safe" in args.kwargs["prompt"]
+        assert result.status == "invalid"
+        # Verify context was gathered
+        call_args = mock_provider.generate_text.call_args
+        prompt = call_args.kwargs["prompt"]
+        assert "file content" in prompt
 
+    @pytest.mark.asyncio
+    async def test_validate_task_llm_error(self, config, mock_llm):
+        validator = TaskValidator(config, mock_llm)
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.side_effect = Exception("LLM Error")
 
-@pytest.mark.asyncio
-async def test_validate_task_disabled(mock_llm_service):
-    service, provider = mock_llm_service
-    config = TaskValidationConfig(enabled=False)
-    validator = TaskValidator(config, service)
+        result = await validator.validate_task("task-1", "title", "instr", "summary")
+        assert result.status == "pending"
+        assert "failed" in result.feedback
 
-    result = await validator.validate_task("t1", "Title", "Inst", "Summary")
-    assert result.status == "pending"
-    assert result.feedback == "Validation disabled"
-    provider.generate_text.assert_not_called()
+    @pytest.mark.asyncio
+    async def test_validate_task_bad_json(self, config, mock_llm):
+        validator = TaskValidator(config, mock_llm)
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.return_value = "Not JSON"
 
+        result = await validator.validate_task("task-1", "title", "instr", "summary")
+        assert result.status == "pending"  # JSON decode error caught
+        assert "failed" in result.feedback
 
-@pytest.mark.asyncio
-async def test_validate_task_json_parsing_resilience(validator, mock_llm_service):
-    _, provider = mock_llm_service
-    # Mock response with markdown code blocks and extra text
-    provider.generate_text.return_value = 'Here is the result:\n```json\n{\n  "status": "valid",\n  "feedback": "Good job"\n}\n```\nHope that helps.'
+    @pytest.mark.asyncio
+    async def test_generate_criteria_success(self, config, mock_llm):
+        validator = TaskValidator(config, mock_llm)
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.return_value = "- Criterion 1"
 
-    result = await validator.validate_task(
-        task_id="t1",
-        title="Test Task",
-        original_instruction="Do it",
-        changes_summary="Done",
-    )
+        criteria = await validator.generate_criteria("Title", "Desc")
+        assert criteria == "- Criterion 1"
 
-    assert result.status == "valid"
-    assert result.feedback == "Good job"
+    @pytest.mark.asyncio
+    async def test_generate_criteria_disabled(self, mock_llm):
+        config = TaskValidationConfig(enabled=False)
+        validator = TaskValidator(config, mock_llm)
+        assert await validator.generate_criteria("Title") is None
 
+    @pytest.mark.asyncio
+    async def test_generate_criteria_error(self, config, mock_llm):
+        validator = TaskValidator(config, mock_llm)
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.side_effect = Exception("Error")
 
-@pytest.mark.asyncio
-async def test_gather_validation_context(validator):
-    # This involves file IO, so we should mock open or write temp files.
-    # We'll use tmp_path fixture if we were passing it, but here let's just mock open?
-    # Actually integration tests are better for file IO.
-    # Or we can skip this unit test and rely on integration.
-    # Let's write a simple one using built-in mocks if possible, or skip.
-    pass
+        assert await validator.generate_criteria("Title") is None
