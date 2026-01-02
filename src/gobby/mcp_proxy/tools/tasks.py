@@ -1326,6 +1326,7 @@ def create_task_registry(
         priority: int | None = None,
         task_type: str | None = None,
         assignee: str | None = None,
+        parent_task_id: str | None = None,
         limit: int = 10,
     ) -> dict[str, Any]:
         """List tasks that are open and have no unresolved blocking dependencies."""
@@ -1333,6 +1334,7 @@ def create_task_registry(
             priority=priority,
             task_type=task_type,
             assignee=assignee,
+            parent_task_id=parent_task_id,
             limit=limit,
         )
         return {"tasks": [t.to_dict() for t in tasks], "count": len(tasks)}
@@ -1352,6 +1354,11 @@ def create_task_registry(
                 "assignee": {
                     "type": "string",
                     "description": "Filter by assignee",
+                    "default": None,
+                },
+                "parent_task_id": {
+                    "type": "string",
+                    "description": "Filter by parent task (find ready subtasks)",
                     "default": None,
                 },
                 "limit": {"type": "integer", "description": "Max results", "default": 10},

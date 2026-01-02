@@ -709,6 +709,7 @@ class LocalTaskManager:
         priority: int | None = None,
         task_type: str | None = None,
         assignee: str | None = None,
+        parent_task_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[Task]:
@@ -769,6 +770,9 @@ class LocalTaskManager:
         if assignee:
             query += " AND t.assignee = ?"
             params.append(assignee)
+        if parent_task_id:
+            query += " AND t.parent_task_id = ?"
+            params.append(parent_task_id)
 
         query += " ORDER BY t.priority ASC, t.created_at ASC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
