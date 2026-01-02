@@ -1151,6 +1151,19 @@ Before building new workflow capabilities, extract the current session handoff b
 - [ ] Implement Tool Timeout Handling (auto-transition to 'reflect' on persistent timeouts)
 - [ ] Implement "Escape Hatch" commands (`--force`, `reset`, `disable`)
 
+### Phase 12: Explainability / Audit Trail (Parlant-inspired)
+
+- [ ] Create `workflow_audit_log` table (migration)
+- [ ] Create `WorkflowAuditLog` dataclass
+- [ ] Create `WorkflowAuditManager` for CRUD operations
+- [ ] Log tool permission checks in `WorkflowEngine.check_tool_allowed()`
+- [ ] Log rule evaluations in `WorkflowEngine.evaluate_rules()`
+- [ ] Log phase transitions in `WorkflowEngine.enter_phase()`
+- [ ] Log exit condition checks
+- [ ] Implement `gobby workflow audit` CLI command
+- [ ] Implement `get_workflow_audit` MCP tool
+- [ ] Add audit log retention/cleanup (configurable, default 7 days)
+
 ---
 
 ## Decisions
@@ -1165,6 +1178,105 @@ Before building new workflow capabilities, extract the current session handoff b
 | 6 | **Workflow versioning** | Stop → Edit → Restart pattern | Mid-workflow changes ignored (YAML locked when activated). To apply changes: end workflow, edit YAML, activate again. |
 | 7 | **Codex hook blocking** | N/A - only notify hook exists | Codex uses notify script only. Full hook control would require app-server session spawning. YAGNI for MVP. |
 | 8 | **generate_handoff storage** | Write to `sessions.summary_markdown`, not `workflow_handoffs` | `workflow_handoffs` is temporary strangler fig scaffolding. The existing `sessions` table already has summary storage. File backups (`~/.gobby/session_summaries/`) are a separate system. |
+| 9 | **Explainability** | SQLite audit log with CLI/MCP access | Inspired by Parlant's "Full Explainability". Enables debugging workflow decisions. Separate table for query flexibility. 7-day retention by default. |
+
+---
+
+## Explainability / Audit Trail
+
+Inspired by [Parlant's](https://github.com/emcie-co/parlant) "Full Explainability" feature, Gobby provides an audit trail for workflow decisions. This enables developers to trace why specific rules fired and tools were blocked.
+
+### Audit Log Schema
+
+```sql
+CREATE TABLE workflow_audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    phase TEXT NOT NULL,
+    event_type TEXT NOT NULL,        -- 'tool_call', 'rule_eval', 'transition', 'exit_check'
+    tool_name TEXT,                  -- For tool_call events
+    rule_id TEXT,                    -- Which rule was evaluated
+    condition TEXT,                  -- The 'when' clause evaluated
+    result TEXT NOT NULL,            -- 'allow', 'block', 'transition', 'skip'
+    reason TEXT,                     -- Human-readable explanation
+    context JSON,                    -- Additional context (tool args, state snapshot)
+    FOREIGN KEY (session_id) REFERENCES sessions(session_id)
+);
+
+CREATE INDEX idx_audit_session ON workflow_audit_log(session_id);
+CREATE INDEX idx_audit_timestamp ON workflow_audit_log(timestamp);
+```
+
+### Audit Entry Types
+
+| Event Type | When Logged | Key Fields |
+|------------|-------------|------------|
+| `tool_call` | Tool permission check | tool_name, result (allow/block), reason |
+| `rule_eval` | Phase rule evaluation | rule_id, condition, result, reason |
+| `transition` | Phase transition | from_phase (in context), to_phase (in reason) |
+| `exit_check` | Exit condition evaluation | condition, result (met/unmet) |
+| `approval` | User approval gate | result (approved/rejected/pending) |
+
+### CLI Commands
+
+```bash
+# View audit log for current session
+gobby workflow audit
+
+# View audit log for specific session
+gobby workflow audit --session <session_id>
+
+# Filter by event type
+gobby workflow audit --type tool_call
+
+# Filter by result (show only blocks)
+gobby workflow audit --result block
+
+# Export as JSON
+gobby workflow audit --format json > audit.json
+```
+
+### MCP Tool
+
+```python
+@mcp.tool()
+async def get_workflow_audit(
+    session_id: str | None = None,
+    event_type: str | None = None,
+    result: str | None = None,
+    limit: int = 50
+) -> dict:
+    """
+    Get workflow audit log entries.
+
+    Args:
+        session_id: Filter by session (default: current session)
+        event_type: Filter by event type ('tool_call', 'rule_eval', etc.)
+        result: Filter by result ('allow', 'block', 'transition')
+        limit: Maximum entries to return
+
+    Returns:
+        List of audit entries with full context.
+    """
+```
+
+### Example Audit Output
+
+```
+$ gobby workflow audit --result block
+
+[2024-01-15 10:23:45] BLOCK tool_call
+  Phase: plan
+  Tool: Edit
+  Reason: Tool 'Edit' not allowed in plan phase. Allowed: [Read, Glob, Grep, WebSearch]
+
+[2024-01-15 10:24:12] BLOCK rule_eval
+  Phase: act
+  Rule: require-read-before-edit
+  Condition: tool == 'Edit' and file not in session.files_read
+  Reason: Read the file before editing: src/server.py
+```
 
 ---
 
