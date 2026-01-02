@@ -487,6 +487,88 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_tasks_sequence ON tasks(workflow_name, sequence_order);
         """,
     ),
+    (
+        23,
+        "Rename discovered_in_session_id to created_in_session_id and add close tracking columns",
+        """
+        PRAGMA foreign_keys = OFF;
+
+        CREATE TABLE tasks_new (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES projects(id),
+            parent_task_id TEXT REFERENCES tasks(id),
+            created_in_session_id TEXT REFERENCES sessions(id),
+            closed_in_session_id TEXT REFERENCES sessions(id),
+            closed_commit_sha TEXT,
+            closed_at TEXT,
+            title TEXT NOT NULL,
+            description TEXT,
+            status TEXT DEFAULT 'open',
+            priority INTEGER DEFAULT 2,
+            type TEXT DEFAULT 'task',
+            assignee TEXT,
+            labels TEXT,
+            closed_reason TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            platform_id TEXT,
+            compacted_at TEXT,
+            summary TEXT,
+            validation_status TEXT CHECK(validation_status IN ('pending', 'valid', 'invalid')),
+            validation_feedback TEXT,
+            original_instruction TEXT,
+            details TEXT,
+            test_strategy TEXT,
+            complexity_score INTEGER,
+            estimated_subtasks INTEGER,
+            expansion_context TEXT,
+            validation_criteria TEXT,
+            use_external_validator INTEGER DEFAULT 0,
+            validation_fail_count INTEGER DEFAULT 0,
+            workflow_name TEXT,
+            verification TEXT,
+            sequence_order INTEGER
+        );
+
+        INSERT INTO tasks_new (
+            id, project_id, parent_task_id, created_in_session_id,
+            closed_in_session_id, closed_commit_sha, closed_at,
+            title, description, status, priority, type, assignee, labels,
+            closed_reason, created_at, updated_at, platform_id,
+            compacted_at, summary, validation_status, validation_feedback,
+            original_instruction, details, test_strategy, complexity_score,
+            estimated_subtasks, expansion_context, validation_criteria,
+            use_external_validator, validation_fail_count,
+            workflow_name, verification, sequence_order
+        )
+        SELECT
+            id, project_id, parent_task_id, discovered_in_session_id,
+            NULL, NULL, NULL,
+            title, description, status, priority, type, assignee, labels,
+            closed_reason, created_at, updated_at, platform_id,
+            compacted_at, summary, validation_status, validation_feedback,
+            original_instruction, details, test_strategy, complexity_score,
+            estimated_subtasks, expansion_context, validation_criteria,
+            use_external_validator, validation_fail_count,
+            workflow_name, verification, sequence_order
+        FROM tasks;
+
+        DROP TABLE tasks;
+        ALTER TABLE tasks_new RENAME TO tasks;
+
+        CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+        CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+        CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_platform_id
+            ON tasks(platform_id) WHERE platform_id IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS idx_tasks_workflow ON tasks(workflow_name);
+        CREATE INDEX IF NOT EXISTS idx_tasks_sequence ON tasks(workflow_name, sequence_order);
+        CREATE INDEX IF NOT EXISTS idx_tasks_created_session ON tasks(created_in_session_id);
+        CREATE INDEX IF NOT EXISTS idx_tasks_closed_session ON tasks(closed_in_session_id);
+
+        PRAGMA foreign_keys = ON;
+        """,
+    ),
 ]
 
 
