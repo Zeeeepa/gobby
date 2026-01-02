@@ -5,6 +5,7 @@ from typing import Any, Protocol
 from gobby.storage.database import LocalDatabase
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager  # noqa: F401
+from gobby.workflows.artifact_actions import capture_artifact, read_artifact
 from gobby.workflows.context_actions import (
     extract_handoff_context,
     format_handoff_as_markdown,
@@ -14,6 +15,8 @@ from gobby.workflows.context_actions import (
 )
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.git_utils import get_file_changes, get_git_status, get_recent_git_commits
+from gobby.workflows.llm_actions import call_llm
+from gobby.workflows.mcp_actions import call_mcp_tool
 from gobby.workflows.memory_actions import (
     memory_extract,
     memory_inject,
@@ -22,6 +25,18 @@ from gobby.workflows.memory_actions import (
     memory_sync_export,
     memory_sync_import,
 )
+from gobby.workflows.session_actions import (
+    mark_session_status,
+    start_new_session,
+    switch_mode,
+)
+from gobby.workflows.state_actions import (
+    increment_variable,
+    load_workflow_state,
+    mark_loop_complete,
+    save_workflow_state,
+    set_variable,
+)
 from gobby.workflows.summary_actions import (
     format_turns_for_llm,
     generate_handoff,
@@ -29,6 +44,7 @@ from gobby.workflows.summary_actions import (
     synthesize_title,
 )
 from gobby.workflows.templates import TemplateEngine
+from gobby.workflows.todo_actions import mark_todo_complete, write_todos
 
 logger = logging.getLogger(__name__)
 
@@ -175,205 +191,62 @@ class ActionExecutor:
     async def _handle_capture_artifact(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """
-        Capture an artifact (file) and store its path/content in state.
-        """
-        pattern = kwargs.get("pattern")
-        if not pattern:
-            return None
-
-        import glob
-        import os
-
-        # Security check: Ensure pattern is relative and within allowed paths?
-        # For now, assume agent has access to CWD.
-
-        # We need the CWD of the session.
-        # Session object has no CWD anymore (removed in migration 6),
-        # but the agent runs in project root usually.
-        # Let's assume absolute paths or relative to project root.
-
-        # Name to store as (from 'as' arg, but kwargs uses 'as' which is reserved... passed as 'as_' or similar?)
-        # Let's assume the YAML parser maps 'as' to something else or we get it from kwargs.
-        save_as = kwargs.get("as")
-
-        matches = glob.glob(pattern, recursive=True)
-        if not matches:
-            return None
-
-        # Just grab the first match for now if multiple, or list?
-        # If 'as' is provided, we map a single file.
-
-        filepath = os.path.abspath(matches[0])
-
-        if save_as:
-            context.state.artifacts[save_as] = filepath
-
-        return {"captured": filepath}
+        """Capture an artifact (file) and store its path in state."""
+        return capture_artifact(
+            state=context.state,
+            pattern=kwargs.get("pattern"),
+            save_as=kwargs.get("as"),
+        )
 
     async def _handle_read_artifact(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """
-        Read an artifact's content into a workflow variable.
-        """
-        pattern = kwargs.get("pattern")
-        if not pattern:
-            return None
-
-        import glob
-        import os
-
-        variable_name = kwargs.get("as")
-        if not variable_name:
-            logger.warning("read_artifact: 'as' argument missing")
-            return None
-
-        # Check if pattern matches an existing artifact key first
-        filepath = context.state.artifacts.get(pattern)
-
-        if not filepath:
-            # Try as glob pattern
-            matches = glob.glob(pattern, recursive=True)
-            if matches:
-                filepath = os.path.abspath(matches[0])
-
-        if not filepath or not os.path.exists(filepath):
-            logger.warning(f"read_artifact: File not found for pattern '{pattern}'")
-            return None
-
-        try:
-            with open(filepath) as f:
-                content = f.read()
-
-            # Initialize variables dict if None
-            if not context.state.variables:
-                context.state.variables = {}
-
-            context.state.variables[variable_name] = content
-            return {"read_artifact": True, "variable": variable_name, "length": len(content)}
-        except Exception as e:
-            logger.error(f"read_artifact: Failed to read {filepath}: {e}")
-            return None
+        """Read an artifact's content into a workflow variable."""
+        return read_artifact(
+            state=context.state,
+            pattern=kwargs.get("pattern"),
+            variable_name=kwargs.get("as"),
+        )
 
     async def _handle_load_workflow_state(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Load workflow state from DB."""
-        from .state_manager import WorkflowStateManager
-
-        state_manager = WorkflowStateManager(context.db)
-        loaded_state = state_manager.get_state(context.session_id)
-
-        if loaded_state:
-            # We should probably copy attributes to the existing object
-            # so references remain valid if shared.
-            # But dataclasses are mutable.
-
-            # For now, let's update attributes manualy or via __dict__?
-            # Safe way:
-            for field in loaded_state.model_fields:
-                val = getattr(loaded_state, field)
-                setattr(context.state, field, val)
-
-            return {"state_loaded": True}
-
-        return {"state_loaded": False}
+        return load_workflow_state(context.db, context.session_id, context.state)
 
     async def _handle_save_workflow_state(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Save workflow state to DB."""
-        from .state_manager import WorkflowStateManager
-
-        state_manager = WorkflowStateManager(context.db)
-        state_manager.save_state(context.state)
-        return {"state_saved": True}
+        return save_workflow_state(context.db, context.state)
 
     async def _handle_set_variable(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Set a workflow variable."""
-        name = kwargs.get("name")
-        value = kwargs.get("value")
-        if not name:
-            return None
-
-        if not context.state.variables:
-            context.state.variables = {}
-
-        context.state.variables[name] = value
-        return {"variable_set": name, "value": value}
+        return set_variable(context.state, kwargs.get("name"), kwargs.get("value"))
 
     async def _handle_increment_variable(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Increment a numeric workflow variable."""
-        name = kwargs.get("name")
-        amount = kwargs.get("amount", 1)
-        if not name:
-            return None
-
-        if not context.state.variables:
-            context.state.variables = {}
-
-        current = context.state.variables.get(name, 0)
-        if not isinstance(current, (int, float)):
-            logger.warning(f"increment_variable: Variable {name} is not numeric: {current}")
-            current = 0
-
-        new_value = current + amount
-        context.state.variables[name] = new_value
-        return {"variable_incremented": name, "value": new_value}
+        return increment_variable(
+            context.state, kwargs.get("name"), kwargs.get("amount", 1)
+        )
 
     async def _handle_call_llm(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Call LLM with a prompt template and store result in variable."""
-        prompt = kwargs.get("prompt")
-        output_as = kwargs.get("output_as")
-        if not prompt or not output_as:
-            return {"error": "Missing prompt or output_as"}
-        if not context.llm_service:
-            logger.warning("call_llm: Missing LLM service")
-            return {"error": "Missing LLM service"}
-
-        # Render prompt template
-        render_context = {
-            "session": context.session_manager.get(context.session_id),
-            "state": context.state,
-            "variables": context.state.variables or {},
-        }
-        # Add kwargs to context
-        render_context.update(kwargs)
-
-        rendered_prompt = context.template_engine.render(prompt, render_context)
-
-        try:
-            # Use default provider
-            provider = context.llm_service.get_default_provider()
-
-            # Use generate_text or similar (provider interface varies, assuming generic generate)
-            # WORKFLOWS.md doesn't specify provider interface details, but ActionContext.llm_service implies it.
-            # Assuming provider has generate(prompt) or similar.
-            # Reusing generate_summary pattern which took (context, prompt_template).
-            # But here we pre-rendered the prompt.
-            # Let's assume a generate_text method exists.
-
-            # If provider methods are strictly typed, we might need to check.
-            # `generate_summary` was used in `generate_handoff`.
-            # Let's try `generate_text` or `complete`.
-            response = await provider.generate_text(rendered_prompt)
-
-            # Store result
-            if not context.state.variables:
-                context.state.variables = {}
-            context.state.variables[output_as] = response
-
-            return {"llm_called": True, "output_variable": output_as}
-        except Exception as e:
-            logger.error(f"call_llm: Failed: {e}")
-            return {"error": str(e)}
+        return await call_llm(
+            llm_service=context.llm_service,
+            template_engine=context.template_engine,
+            state=context.state,
+            session=context.session_manager.get(context.session_id),
+            prompt=kwargs.get("prompt"),
+            output_as=kwargs.get("output_as"),
+            **{k: v for k, v in kwargs.items() if k not in ("prompt", "output_as")},
+        )
 
     async def _handle_synthesize_title(
         self, context: ActionContext, **kwargs: Any
@@ -392,67 +265,20 @@ class ActionExecutor:
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Write todos to a file (default TODO.md)."""
-        todos = kwargs.get("todos", [])
-        import os
-
-        filename = kwargs.get("filename", "TODO.md")
-
-        # Security: Allow only relative paths?
-        # Assuming filename is just a name.
-
-        try:
-            # Overwrite or append? 'write' implies overwrite often, but for todos maybe append?
-            # WORKFLOWS.md doesn't specify. Assuming overwrite if not specified.
-            mode = kwargs.get("mode", "w")
-            formatted_todos = [f"- [ ] {todo}" for todo in todos]
-
-            if mode == "append" and os.path.exists(filename):
-                with open(filename, "a") as f:
-                    f.write("\n" + "\n".join(formatted_todos) + "\n")
-            else:
-                with open(filename, "w") as f:
-                    f.write("# TODOs\n\n" + "\n".join(formatted_todos) + "\n")
-
-            return {"todos_written": len(todos), "file": filename}
-        except Exception as e:
-            logger.error(f"write_todos: Failed: {e}")
-            return {"error": str(e)}
+        return write_todos(
+            todos=kwargs.get("todos", []),
+            filename=kwargs.get("filename", "TODO.md"),
+            mode=kwargs.get("mode", "w"),
+        )
 
     async def _handle_mark_todo_complete(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Mark a todo as complete in TODO.md."""
-        todo_text = kwargs.get("todo_text")
-        if not todo_text:
-            return {"error": "Missing todo_text"}
-        import os
-
-        filename = kwargs.get("filename", "TODO.md")
-
-        if not os.path.exists(filename):
-            return {"error": "File not found"}
-
-        try:
-            with open(filename) as f:
-                lines = f.readlines()
-
-            updated = False
-            new_lines = []
-            for line in lines:
-                if todo_text in line and "- [ ]" in line:
-                    new_lines.append(line.replace("- [ ]", "- [x]"))
-                    updated = True
-                else:
-                    new_lines.append(line)
-
-            if updated:
-                with open(filename, "w") as f:
-                    f.writelines(new_lines)
-
-            return {"todo_completed": updated, "text": todo_text}
-        except Exception as e:
-            logger.error(f"mark_todo_complete: Failed: {e}")
-            return {"error": str(e)}
+        return mark_todo_complete(
+            todo_text=kwargs.get("todo_text", ""),
+            filename=kwargs.get("filename", "TODO.md"),
+        )
 
     async def _handle_memory_sync_import(
         self, context: ActionContext, **kwargs: Any
@@ -630,43 +456,15 @@ class ActionExecutor:
         context: ActionContext,
         **kwargs: Any,
     ) -> dict[str, Any] | None:
-        """Call an MCP tool on a connected server.
-
-        Args (via kwargs):
-            server_name: Name of the MCP server
-            tool_name: Name of the tool to call
-            arguments: Arguments to pass to the tool
-            as: Optional variable name to store the result in workflow state
-        """
-        server_name = kwargs.get("server_name")
-        tool_name = kwargs.get("tool_name")
-        arguments = kwargs.get("arguments", {})
-        output_as = kwargs.get("as")
-
-        if not server_name or not tool_name:
-            return {"error": "Missing server_name or tool_name"}
-        if not context.mcp_manager:
-            logger.warning("call_mcp_tool: MCP manager not available")
-            return {"error": "MCP manager not available"}
-
-        try:
-            # Check connection
-            if server_name not in context.mcp_manager.connections:
-                return {"error": f"Server {server_name} not connected"}
-
-            # Call tool
-            result = await context.mcp_manager.call_tool(server_name, tool_name, arguments)
-
-            # Store result in workflow variable if 'as' specified
-            if output_as:
-                if not context.state.variables:
-                    context.state.variables = {}
-                context.state.variables[output_as] = result
-
-            return {"result": result, "stored_as": output_as}
-        except Exception as e:
-            logger.error(f"call_mcp_tool: Failed: {e}")
-            return {"error": str(e)}
+        """Call an MCP tool on a connected server."""
+        return await call_mcp_tool(
+            mcp_manager=context.mcp_manager,
+            state=context.state,
+            server_name=kwargs.get("server_name"),
+            tool_name=kwargs.get("tool_name"),
+            arguments=kwargs.get("arguments"),
+            output_as=kwargs.get("as"),
+        )
 
     async def _handle_generate_handoff(
         self, context: ActionContext, **kwargs: Any
@@ -695,102 +493,21 @@ class ActionExecutor:
     async def _handle_start_new_session(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """
-        Start a new CLI session (chaining).
-
-        args:
-            command: CLI command to run (default: auto-detect from source)
-            args: List of arguments
-            prompt: Initial prompt/context to inject
-            cwd: Working directory (default: current session's cwd)
-            detached: Whether to detach the process (default: True)
-        """
-        session = context.session_manager.get(context.session_id)
-        if not session:
-            return {"error": "Session not found"}
-
-        # Determine command
-        command = kwargs.get("command")
-        if not command:
-            # Auto-detect from source
-            source = getattr(session, "source", "claude")
-            if source == "claude":
-                command = "claude"
-            elif source == "gemini":
-                command = "gemini"
-            else:
-                command = "claude"  # Default fallthrough
-
-        cmd_args = kwargs.get("args", [])
-        if isinstance(cmd_args, str):
-            import shlex
-
-            cmd_args = shlex.split(cmd_args)
-
-        # Prepare prompt/input
-        prompt = kwargs.get("prompt")
-        # Render prompt template if needed?
-        # Usually 'prompt' here is the final string, but if it contains {{}}, template engine might have handled it?
-        # ActionExecutor calls handler with kwargs coming from yaml.
-        # If yaml had template syntax, the caller (WorkflowEngine) usually renders it BEFORE calling action?
-        # Actually WorkflowEngine.execute_action evaluates 'args' values if they look like templates?
-        # Let's assume prompt is ready string.
-
-        cwd = kwargs.get("cwd") or getattr(session, "project_path", None) or "."
-
-        logger.info(f"Starting new session: {command} {cmd_args} in {cwd}")
-
-        try:
-            import subprocess
-
-            # Construct full command
-            full_cmd = [command] + cmd_args
-
-            # Inject prompt via -p flag for Claude/Codex if supported
-            # Verify CLI support? For now assume user configured correctly or we default common flags.
-            if prompt and command in ["claude", "gemini"]:
-                full_cmd.extend(["-p", prompt])
-
-            # Spawn process
-            # We use specific flags to detach fully to survive daemon/parent death if needed?
-            # Or just standard Popen.
-            # If we are inside an action, we are essentially the daemon.
-            # We want the new CLI to run independently.
-            # But wait, usually these CLIs are interactive.
-            # If we are 'chaining', are we running in 'headless' mode?
-            # Gobby's goal is 'Autonomous Session Chaining'.
-            # Presumably sending a prompt and letting it run until it stops.
-            # If it's Claude Code, `claude -p "..."` runs and exits?
-            # Or runs interactive?
-            # `claude` is interactive. `echo "msg" | claude` might be better or `-p`.
-            # We'll rely on the configured command args to control behavior (e.g. --non-interactive if exists).
-
-            proc = subprocess.Popen(
-                full_cmd,
-                cwd=cwd,
-                stdout=subprocess.DEVNULL,  # We rely on transcripts/logs, don't pipe to daemon stdout
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-                start_new_session=True,  # Detach
-            )
-
-            logger.info(f"Spawned process {proc.pid}")
-
-            return {"started_new_session": True, "pid": proc.pid, "command": str(full_cmd)}
-
-        except Exception as e:
-            logger.error(f"Failed to start new session: {e}", exc_info=True)
-            return {"error": str(e)}
+        """Start a new CLI session (chaining)."""
+        return start_new_session(
+            session_manager=context.session_manager,
+            session_id=context.session_id,
+            command=kwargs.get("command"),
+            args=kwargs.get("args"),
+            prompt=kwargs.get("prompt"),
+            cwd=kwargs.get("cwd"),
+        )
 
     async def _handle_mark_loop_complete(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """
-        Mark the autonomous loop as complete.
-        Sets 'stop_reason' variable to 'completed'.
-        """
-        context.state.variables["stop_reason"] = "completed"
-        return {"loop_marked_complete": True}
+        """Mark the autonomous loop as complete."""
+        return mark_loop_complete(context.state)
 
     async def _handle_restore_context(
         self, context: ActionContext, **kwargs: Any
@@ -922,44 +639,19 @@ class ActionExecutor:
     async def _handle_mark_session_status(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """
-        Mark a session status (current or parent).
-        """
-        status = kwargs.get("status")
-        if not status:
-            return {"error": "Missing status"}
-        target = kwargs.get("target", "current_session")
-
-        session_id = context.session_id
-        if target == "parent_session":
-            current_session = context.session_manager.get(context.session_id)
-            if current_session and current_session.parent_session_id:
-                session_id = current_session.parent_session_id
-            else:
-                return {"error": "No parent session linked"}
-
-        context.session_manager.update_status(session_id, status)
-        return {"status_updated": True, "session_id": session_id, "status": status}
+        """Mark a session status (current or parent)."""
+        return mark_session_status(
+            session_manager=context.session_manager,
+            session_id=context.session_id,
+            status=kwargs.get("status"),
+            target=kwargs.get("target", "current_session"),
+        )
 
     async def _handle_switch_mode(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """
-        Signal the agent to switch modes (e.g., PLAN, ACT).
-        """
-        mode = kwargs.get("mode")
-        if not mode:
-            return {"error": "Missing mode"}
-        # For now, we inject a strong system instruction
-        message = (
-            f"SYSTEM: SWITCH MODE TO {mode.upper()}\n"
-            f"You are now in {mode.upper()} mode. Adjust your behavior accordingly."
-        )
-
-        # If we had agent-specific adapters in the context, we could call them here.
-        # e.g. context.agent_adapter.set_mode(mode)
-
-        return {"inject_context": message, "mode_switch": mode}
+        """Signal the agent to switch modes (e.g., PLAN, ACT)."""
+        return switch_mode(kwargs.get("mode"))
 
     def _format_turns_for_llm(self, turns: list[dict]) -> str:
         """Format transcript turns for LLM analysis."""

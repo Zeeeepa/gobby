@@ -1,0 +1,96 @@
+"""Artifact capture and read workflow actions.
+
+Extracted from actions.py as part of strangler fig decomposition.
+These functions handle file artifact capture and reading.
+"""
+
+import glob
+import logging
+import os
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+def capture_artifact(
+    state: Any,
+    pattern: str | None = None,
+    save_as: str | None = None,
+) -> dict[str, Any] | None:
+    """Capture an artifact (file) and store its path in state.
+
+    Args:
+        state: WorkflowState object with artifacts dict
+        pattern: Glob pattern to match files
+        save_as: Name to store the artifact under
+
+    Returns:
+        Dict with captured filepath, or None if no match
+    """
+    if not pattern:
+        return None
+
+    matches = glob.glob(pattern, recursive=True)
+    if not matches:
+        return None
+
+    filepath = os.path.abspath(matches[0])
+
+    if save_as:
+        if not state.artifacts:
+            state.artifacts = {}
+        state.artifacts[save_as] = filepath
+
+    return {"captured": filepath}
+
+
+def read_artifact(
+    state: Any,
+    pattern: str | None = None,
+    variable_name: str | None = None,
+) -> dict[str, Any] | None:
+    """Read an artifact's content into a workflow variable.
+
+    Args:
+        state: WorkflowState object with artifacts and variables dicts
+        pattern: Glob pattern or artifact key to read
+        variable_name: Variable name to store content in
+
+    Returns:
+        Dict with read_artifact, variable, and length, or None on error
+    """
+    if not pattern:
+        return None
+
+    if not variable_name:
+        logger.warning("read_artifact: 'as' argument missing")
+        return None
+
+    # Check if pattern matches an existing artifact key first
+    filepath = None
+    if state.artifacts:
+        filepath = state.artifacts.get(pattern)
+
+    if not filepath:
+        # Try as glob pattern
+        matches = glob.glob(pattern, recursive=True)
+        if matches:
+            filepath = os.path.abspath(matches[0])
+
+    if not filepath or not os.path.exists(filepath):
+        logger.warning(f"read_artifact: File not found for pattern '{pattern}'")
+        return None
+
+    try:
+        with open(filepath) as f:
+            content = f.read()
+
+        if not state.variables:
+            state.variables = {}
+
+        state.variables[variable_name] = content
+        return {"read_artifact": True, "variable": variable_name, "length": len(content)}
+
+    except Exception as e:
+        logger.error(f"read_artifact: Failed to read {filepath}: {e}")
+        return None
