@@ -408,10 +408,43 @@ async def test_memory_inject(action_executor, action_context, mock_services):
 async def test_memory_extract(
     action_executor, action_context, mock_services, session_manager, sample_project
 ):
+    """Test memory_extract happy path - extracts and stores a memory."""
+    # Setup memory manager
     mock_services["memory_manager"].config.enabled = True
     mock_services["memory_manager"].config.auto_extract = True
-    mock_services["memory_manager"].content_exists.return_value = False  # Important!
-    mock_services["memory_manager"].remember = AsyncMock(return_value=MagicMock())  # Fix await
+    mock_services["memory_manager"].content_exists.return_value = False
+    mock_services["memory_manager"].remember = AsyncMock(return_value=MagicMock())
+    action_context.memory_manager = mock_services["memory_manager"]
+
+    # Setup LLM service
+    mock_llm = MagicMock()
+    mock_provider = MagicMock()
+    mock_provider.generate_text = AsyncMock(
+        return_value='[{"content": "Test memory content", "memory_type": "fact"}]'
+    )
+    mock_llm.get_provider_for_feature.return_value = (mock_provider, "model", 1000)
+    action_context.llm_service = mock_llm
+
+    # Create session with summary
+    session = session_manager.register(
+        external_id="memory-extract-test",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+    )
+    session_manager.update_summary(session.id, summary_markdown="Test summary")
+    action_context.session_id = session.id
+
+    # Execute action
+    result = await action_executor.execute("memory_extract", action_context)
+
+    # Assertions
+    assert result is not None
+    assert result["extracted"] == 1
+    mock_services["memory_manager"].content_exists.assert_called_with(
+        "Test memory content", sample_project["id"]
+    )
+    mock_services["memory_manager"].remember.assert_awaited_once()
 
 
 @pytest.mark.asyncio

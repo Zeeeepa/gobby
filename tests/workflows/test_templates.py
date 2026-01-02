@@ -30,7 +30,7 @@ class TestTemplateEngine:
         # But we can force an error by doing an operation that fails
         template_str = "{{ x + 1 }}"
 
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             engine.render(template_str, {"x": "string"})
 
     def test_render_file_success(self, tmp_path):
@@ -54,5 +54,5 @@ class TestTemplateEngine:
         (template_dir / "error.html").write_text("{{ x + 1 }}")
 
         engine = TemplateEngine(template_dirs=[str(template_dir)])
-        with pytest.raises(Exception):
+        with pytest.raises(TypeError):
             engine.render_file("error.html", {"x": "string"})
