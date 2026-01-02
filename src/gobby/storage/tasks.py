@@ -68,6 +68,7 @@ class Task:
     validation_criteria: str | None = None
     use_external_validator: bool = False
     validation_fail_count: int = 0
+    validation_override_reason: str | None = None  # Why agent bypassed validation
     # Workflow integration fields
     workflow_name: str | None = None
     verification: str | None = None
@@ -128,6 +129,9 @@ class Task:
             validation_fail_count=row["validation_fail_count"]
             if "validation_fail_count" in keys
             else 0,
+            validation_override_reason=row["validation_override_reason"]
+            if "validation_override_reason" in keys
+            else None,
             workflow_name=row["workflow_name"] if "workflow_name" in keys else None,
             verification=row["verification"] if "verification" in keys else None,
             sequence_order=row["sequence_order"] if "sequence_order" in keys else None,
@@ -165,6 +169,7 @@ class Task:
             "validation_criteria": self.validation_criteria,
             "use_external_validator": self.use_external_validator,
             "validation_fail_count": self.validation_fail_count,
+            "validation_override_reason": self.validation_override_reason,
             "workflow_name": self.workflow_name,
             "verification": self.verification,
             "sequence_order": self.sequence_order,
@@ -503,6 +508,7 @@ class LocalTaskManager:
         force: bool = False,
         closed_in_session_id: str | None = None,
         closed_commit_sha: str | None = None,
+        validation_override_reason: str | None = None,
     ) -> Task:
         """Close a task.
 
@@ -512,6 +518,7 @@ class LocalTaskManager:
             force: If True, close even if there are open children (default: False)
             closed_in_session_id: Session ID where task was closed
             closed_commit_sha: Git commit SHA at time of closing
+            validation_override_reason: Why agent bypassed validation (if applicable)
 
         Raises:
             ValueError: If task not found or has open children (and force=False)
@@ -539,9 +546,10 @@ class LocalTaskManager:
                     closed_at = ?,
                     closed_in_session_id = ?,
                     closed_commit_sha = ?,
+                    validation_override_reason = ?,
                     updated_at = ?
                 WHERE id = ?""",
-                (reason, now, closed_in_session_id, closed_commit_sha, now, task_id),
+                (reason, now, closed_in_session_id, closed_commit_sha, validation_override_reason, now, task_id),
             )
             if cursor.rowcount == 0:
                 raise ValueError(f"Task {task_id} not found")

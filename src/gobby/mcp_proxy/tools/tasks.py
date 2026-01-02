@@ -952,6 +952,7 @@ def create_task_registry(
         changes_summary: str | None = None,
         skip_validation: bool = False,
         session_id: str | None = None,
+        override_justification: str | None = None,
     ) -> dict[str, Any]:
         """Close a task with validation.
 
@@ -964,6 +965,7 @@ def create_task_registry(
             changes_summary: Summary of changes (enables LLM validation for leaf tasks)
             skip_validation: Skip all validation checks
             session_id: Session ID where task is being closed (auto-links to session)
+            override_justification: Why agent bypassed validation (stored for audit)
 
         Returns:
             Closed task or error with validation feedback
@@ -1039,6 +1041,7 @@ def create_task_registry(
             reason=reason,
             closed_in_session_id=session_id,
             closed_commit_sha=commit_sha,
+            validation_override_reason=override_justification if should_skip else None,
         )
 
         # Auto-link session if provided
@@ -1077,6 +1080,11 @@ def create_task_registry(
                 "session_id": {
                     "type": "string",
                     "description": "Session ID where task is being closed. Auto-links task to session with 'closed' action.",
+                    "default": None,
+                },
+                "override_justification": {
+                    "type": "string",
+                    "description": "Why agent bypassed validation. Stored for audit when using skip_validation or auto-skip reasons.",
                     "default": None,
                 },
             },

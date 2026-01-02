@@ -595,6 +595,13 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_audit_result ON workflow_audit_log(result);
         """,
     ),
+    (
+        25,
+        "Add validation_override_reason column to tasks",
+        """
+        ALTER TABLE tasks ADD COLUMN validation_override_reason TEXT;
+        """,
+    ),
 ]
 
 
