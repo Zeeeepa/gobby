@@ -1,6 +1,6 @@
 name: plan-to-tasks
 description: "Decompose a plan into atomic tasks and execute sequentially with persistent tracking"
-type: phased
+type: stepped
 version: "2.0"
 
 variables:
@@ -8,7 +8,7 @@ variables:
   max_tasks: 20
   require_task_approval: false
 
-phases:
+steps:
   - name: decompose
     description: "Break plan into atomic tasks with persistent storage"
 
@@ -153,14 +153,14 @@ triggers:
       as: existing_tasks
 
     # Enter decompose if no tasks yet
-    - action: enter_phase
-      phase: decompose
-      when: "not workflow_state.phase and (not existing_tasks or existing_tasks | length == 0)"
+    - action: enter_step
+      step: decompose
+      when: "not workflow_state.step and (not existing_tasks or existing_tasks | length == 0)"
 
     # Resume execution if tasks exist
-    - action: enter_phase
-      phase: execute
-      when: "not workflow_state.phase and existing_tasks and existing_tasks | length > 0"
+    - action: enter_step
+      step: execute
+      when: "not workflow_state.step and existing_tasks and existing_tasks | length > 0"
 
   on_session_end:
     - action: save_workflow_state

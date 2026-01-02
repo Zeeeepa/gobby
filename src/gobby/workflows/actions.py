@@ -182,7 +182,9 @@ class ActionExecutor:
             current_session = context.session_manager.get(context.session_id)
             if current_session and current_session.compact_markdown:
                 content = current_session.compact_markdown
-                logger.debug(f"Loaded compact_markdown ({len(content)} chars) for session {context.session_id}")
+                logger.debug(
+                    f"Loaded compact_markdown ({len(content)} chars) for session {context.session_id}"
+                )
 
         if content:
             # Render content if template is used
@@ -207,6 +209,8 @@ class ActionExecutor:
                     render_context["observations_text"] = content
                 elif source == "workflow_state":
                     render_context["workflow_state_text"] = content
+                elif source == "compact_handoff":
+                    render_context["handoff"] = {"notes": content}
 
                 # Render
                 content = context.template_engine.render(template, render_context)
@@ -708,8 +712,7 @@ class ActionExecutor:
 
         # Also update task_list in state for workflow engine use
         context.state.task_list = [
-            {"id": t.id, "title": t.title, "status": t.status}
-            for t in tasks
+            {"id": t.id, "title": t.title, "status": t.status} for t in tasks
         ]
 
         return {"tasks": tasks_data, "count": len(tasks)}
@@ -1100,7 +1103,9 @@ class ActionExecutor:
             # Save to session.compact_markdown
             context.session_manager.update_compact_markdown(context.session_id, markdown)
 
-            logger.info(f"Saved compact handoff context ({len(markdown)} chars) to session {context.session_id}")
+            logger.info(
+                f"Saved compact handoff context ({len(markdown)} chars) to session {context.session_id}"
+            )
             return {"handoff_context_extracted": True, "markdown_length": len(markdown)}
 
         except Exception as e:
@@ -1187,7 +1192,8 @@ class ActionExecutor:
                 result = prompt_template.format(**sections)
                 # Clean up multiple blank lines
                 import re
-                result = re.sub(r'\n{3,}', '\n\n', result)
+
+                result = re.sub(r"\n{3,}", "\n\n", result)
                 return result.strip() + "\n"
             except KeyError as e:
                 logger.warning(f"Invalid placeholder in compact_handoff prompt: {e}")
@@ -1196,9 +1202,13 @@ class ActionExecutor:
         # Default format (backwards compatible)
         lines = ["## Continuation Context", ""]
         for section in [
-            "active_task_section", "todo_state_section", "git_commits_section",
-            "git_status_section", "files_modified_section", "initial_goal_section",
-            "recent_activity_section"
+            "active_task_section",
+            "todo_state_section",
+            "git_commits_section",
+            "git_status_section",
+            "files_modified_section",
+            "initial_goal_section",
+            "recent_activity_section",
         ]:
             if sections[section]:
                 lines.append(sections[section])
@@ -1341,9 +1351,7 @@ class ActionExecutor:
                 return {"extracted": 0, "error": "json_parse_error"}
 
             if not isinstance(memories_data, list):
-                logger.warning(
-                    f"memory_extract: Expected list, got {type(memories_data).__name__}"
-                )
+                logger.warning(f"memory_extract: Expected list, got {type(memories_data).__name__}")
                 return {"extracted": 0, "error": "invalid_response_format"}
 
             # Create memories
@@ -1385,9 +1393,7 @@ class ActionExecutor:
                         tags=tags,
                     )
                     created_count += 1
-                    logger.info(
-                        f"memory_extract: Created {memory_type} memory: {content[:50]}..."
-                    )
+                    logger.info(f"memory_extract: Created {memory_type} memory: {content[:50]}...")
                 except Exception as e:
                     logger.error(f"memory_extract: Failed to create memory: {e}")
 
@@ -1588,9 +1594,7 @@ class ActionExecutor:
 
             memory_context = build_memory_context(memories)
 
-            logger.info(
-                f"memory_recall_relevant: Injecting {len(memories)} relevant memories"
-            )
+            logger.info(f"memory_recall_relevant: Injecting {len(memories)} relevant memories")
 
             return {
                 "inject_context": memory_context,

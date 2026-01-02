@@ -42,7 +42,7 @@ def workflow() -> None:
 
 
 @workflow.command("list")
-@click.option("--all", "show_all", is_flag=True, help="Show all workflows including phase-based")
+@click.option("--all", "show_all", is_flag=True, help="Show all workflows including step-based")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 @click.pass_context
 def list_workflows(ctx: click.Context, show_all: bool, json_format: bool) -> None:
@@ -77,7 +77,7 @@ def list_workflows(ctx: click.Context, show_all: bool, json_format: bool) -> Non
                 if not data:
                     continue
 
-                wf_type = data.get("type", "phase")
+                wf_type = data.get("type", "step")
                 description = data.get("description", "")
 
                 # Filter by type unless --all
@@ -139,18 +139,18 @@ def show_workflow(ctx: click.Context, name: str, json_format: bool) -> None:
     if definition.version:
         click.echo(f"Version: {definition.version}")
 
-    if definition.phases:
-        click.echo(f"\nPhases ({len(definition.phases)}):")
-        for phase in definition.phases:
-            click.echo(f"  - {phase.name}")
-            if phase.description:
-                click.echo(f"      {phase.description}")
-            if phase.allowed_tools:
-                tools = phase.allowed_tools[:5]
-                more = f" (+{len(phase.allowed_tools) - 5})" if len(phase.allowed_tools) > 5 else ""
+    if definition.steps:
+        click.echo(f"\nSteps ({len(definition.steps)}):")
+        for step in definition.steps:
+            click.echo(f"  - {step.name}")
+            if step.description:
+                click.echo(f"      {step.description}")
+            if step.allowed_tools:
+                tools = step.allowed_tools[:5]
+                more = f" (+{len(step.allowed_tools) - 5})" if len(step.allowed_tools) > 5 else ""
                 click.echo(f"      Allowed tools: {', '.join(tools)}{more}")
-            if phase.blocked_tools:
-                click.echo(f"      Blocked tools: {', '.join(phase.blocked_tools[:5])}")
+            if step.blocked_tools:
+                click.echo(f"      Blocked tools: {', '.join(step.blocked_tools[:5])}")
 
     if definition.triggers:
         click.echo(f"\nTriggers:")
@@ -192,8 +192,8 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
             "session_id": session_id,
             "has_workflow": True,
             "workflow_name": state.workflow_name,
-            "phase": state.phase,
-            "phase_action_count": state.phase_action_count,
+            "step": state.step,
+            "step_action_count": state.step_action_count,
             "total_action_count": state.total_action_count,
             "reflection_pending": state.reflection_pending,
             "disabled": state.disabled,
@@ -205,8 +205,8 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
 
     click.echo(f"Session: {session_id[:12]}...")
     click.echo(f"Workflow: {state.workflow_name}")
-    click.echo(f"Phase: {state.phase}")
-    click.echo(f"Actions in phase: {state.phase_action_count}")
+    click.echo(f"Step: {state.step}")
+    click.echo(f"Actions in step: {state.step_action_count}")
     click.echo(f"Total actions: {state.total_action_count}")
 
     if state.disabled:
@@ -226,10 +226,10 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
 @workflow.command("set")
 @click.argument("name")
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
-@click.option("--phase", "-p", "initial_phase", help="Initial phase (defaults to first)")
+@click.option("--step", "-p", "initial_step", help="Initial step (defaults to first)")
 @click.pass_context
 def set_workflow(
-    ctx: click.Context, name: str, session_id: str | None, initial_phase: str | None
+    ctx: click.Context, name: str, session_id: str | None, initial_step: str | None
 ) -> None:
     """Activate a workflow for a session."""
     from datetime import UTC, datetime
@@ -248,7 +248,7 @@ def set_workflow(
 
     if definition.type == "lifecycle":
         click.echo(f"Workflow '{name}' is a lifecycle workflow (auto-runs on events).", err=True)
-        click.echo("Use 'gobby workflow set' only for phase-based workflows.", err=True)
+        click.echo("Use 'gobby workflow set' only for step-based workflows.", err=True)
         raise SystemExit(1)
 
     # Get session
@@ -270,23 +270,23 @@ def set_workflow(
         click.echo("Use 'gobby workflow clear' first to remove it.")
         raise SystemExit(1)
 
-    # Determine initial phase
-    if initial_phase:
-        if not any(p.name == initial_phase for p in definition.phases):
-            click.echo(f"Phase '{initial_phase}' not found in workflow.", err=True)
+    # Determine initial step
+    if initial_step:
+        if not any(s.name == initial_step for s in definition.steps):
+            click.echo(f"Step '{initial_step}' not found in workflow.", err=True)
             raise SystemExit(1)
-        phase = initial_phase
+        step = initial_step
     else:
-        phase = definition.phases[0].name if definition.phases else "default"
+        step = definition.steps[0].name if definition.steps else "default"
 
     # Create state
     state = WorkflowState(
         session_id=session_id,
         workflow_name=name,
-        phase=phase,
-        initial_phase=phase,  # Track for reset functionality
-        phase_entered_at=datetime.now(UTC),
-        phase_action_count=0,
+        step=step,
+        initial_step=step,  # Track for reset functionality
+        step_entered_at=datetime.now(UTC),
+        step_action_count=0,
         total_action_count=0,
         artifacts={},
         observations=[],
@@ -300,7 +300,7 @@ def set_workflow(
 
     state_manager.save_state(state)
     click.echo(f"✓ Activated workflow '{name}' for session {session_id[:12]}...")
-    click.echo(f"  Starting phase: {phase}")
+    click.echo(f"  Starting step: {step}")
 
 
 @workflow.command("clear")
@@ -337,15 +337,15 @@ def clear_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
     click.echo(f"✓ Cleared workflow from session {session_id[:12]}...")
 
 
-@workflow.command("phase")
-@click.argument("phase_name")
+@workflow.command("step")
+@click.argument("step_name")
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
 @click.option("--force", "-f", is_flag=True, help="Skip exit condition checks")
 @click.pass_context
-def set_phase(
-    ctx: click.Context, phase_name: str, session_id: str | None, force: bool
+def set_step(
+    ctx: click.Context, step_name: str, session_id: str | None, force: bool
 ) -> None:
-    """Manually transition to a phase (escape hatch)."""
+    """Manually transition to a step (escape hatch)."""
     from datetime import UTC, datetime
 
     loader = get_workflow_loader()
@@ -368,28 +368,28 @@ def set_phase(
         click.echo(f"No workflow active for session: {session_id[:12]}...", err=True)
         raise SystemExit(1)
 
-    # Load workflow to validate phase
+    # Load workflow to validate step
     definition = loader.load_workflow(state.workflow_name, project_path)
     if not definition:
         click.echo(f"Workflow '{state.workflow_name}' not found.", err=True)
         raise SystemExit(1)
 
-    if not any(p.name == phase_name for p in definition.phases):
-        click.echo(f"Phase '{phase_name}' not found in workflow.", err=True)
-        click.echo(f"Available phases: {', '.join(p.name for p in definition.phases)}")
+    if not any(s.name == step_name for s in definition.steps):
+        click.echo(f"Step '{step_name}' not found in workflow.", err=True)
+        click.echo(f"Available steps: {', '.join(s.name for s in definition.steps)}")
         raise SystemExit(1)
 
-    if not force and state.phase != phase_name:
-        click.echo(f"⚠️  Manual phase transition from '{state.phase}' to '{phase_name}'")
+    if not force and state.step != step_name:
+        click.echo(f"⚠️  Manual step transition from '{state.step}' to '{step_name}'")
         click.confirm("This skips normal exit conditions. Continue?", abort=True)
 
-    old_phase = state.phase
-    state.phase = phase_name
-    state.phase_entered_at = datetime.now(UTC)
-    state.phase_action_count = 0
+    old_step = state.step
+    state.step = step_name
+    state.step_entered_at = datetime.now(UTC)
+    state.step_action_count = 0
 
     state_manager.save_state(state)
-    click.echo(f"✓ Transitioned from '{old_phase}' to '{phase_name}'")
+    click.echo(f"✓ Transitioned from '{old_step}' to '{step_name}'")
 
 
 @workflow.command("reset")
@@ -397,7 +397,7 @@ def set_phase(
 @click.option("--force", "-f", is_flag=True, help="Skip confirmation")
 @click.pass_context
 def reset_workflow(ctx: click.Context, session_id: str | None, force: bool) -> None:
-    """Reset workflow to initial phase (escape hatch)."""
+    """Reset workflow to initial step (escape hatch)."""
     from datetime import UTC, datetime
 
     state_manager = get_state_manager()
@@ -418,20 +418,20 @@ def reset_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
         click.echo(f"No workflow active for session: {session_id[:12]}...", err=True)
         raise SystemExit(1)
 
-    # Determine initial phase
-    initial_phase = state.initial_phase or state.phase
-    if state.phase == initial_phase:
-        click.echo(f"Workflow is already at initial phase '{initial_phase}'")
+    # Determine initial step
+    initial_step = state.initial_step or state.step
+    if state.step == initial_step:
+        click.echo(f"Workflow is already at initial step '{initial_step}'")
         return
 
     if not force:
-        click.echo(f"⚠️  Reset workflow from '{state.phase}' to initial phase '{initial_phase}'")
-        click.confirm("This will clear all phase state and variables. Continue?", abort=True)
+        click.echo(f"⚠️  Reset workflow from '{state.step}' to initial step '{initial_step}'")
+        click.confirm("This will clear all step state and variables. Continue?", abort=True)
 
     # Reset state
-    state.phase = initial_phase
-    state.phase_entered_at = datetime.now(UTC)
-    state.phase_action_count = 0
+    state.step = initial_step
+    state.step_entered_at = datetime.now(UTC)
+    state.step_action_count = 0
     state.variables = {}
     state.approval_pending = False
     state.approval_condition_id = None
@@ -440,7 +440,7 @@ def reset_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
     state.disabled_reason = None
 
     state_manager.save_state(state)
-    click.echo(f"✓ Reset workflow to initial phase '{initial_phase}'")
+    click.echo(f"✓ Reset workflow to initial step '{initial_step}'")
 
 
 @workflow.command("disable")
@@ -512,7 +512,7 @@ def enable_workflow(ctx: click.Context, session_id: str | None) -> None:
 
     state_manager.save_state(state)
     click.echo(f"✓ Re-enabled workflow '{state.workflow_name}'")
-    click.echo(f"  Current phase: {state.phase}")
+    click.echo(f"  Current step: {state.step}")
 
 
 @workflow.command("artifact")
@@ -665,7 +665,7 @@ def audit_workflow(
             output.append({
                 "id": entry.id,
                 "timestamp": entry.timestamp.isoformat(),
-                "phase": entry.phase,
+                "step": entry.step,
                 "event_type": entry.event_type,
                 "tool_name": entry.tool_name,
                 "rule_id": entry.rule_id,
@@ -696,7 +696,7 @@ def audit_workflow(
         click.secho(entry.result.upper(), fg=result_color, nl=False)
         click.echo(f" {entry.event_type}")
 
-        click.echo(f"  Phase: {entry.phase}")
+        click.echo(f"  Step: {entry.step}")
 
         if entry.tool_name:
             click.echo(f"  Tool: {entry.tool_name}")

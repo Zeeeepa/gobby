@@ -7,6 +7,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
 class WorkflowRule(BaseModel):
+    name: str | None = None
     when: str
     action: Literal["block", "allow", "require_approval", "warn"]
     message: str | None = None

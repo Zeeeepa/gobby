@@ -2,10 +2,10 @@ name: plan-execute
 description: "Basic planning enforcement: Plan -> Execute"
 version: "1.0"
 
-phases:
+steps:
   - name: plan
     description: "Analyze requirements and create implementation plan"
-    
+
     on_enter:
       - action: inject_message
         content: |
@@ -20,7 +20,7 @@ phases:
       - WebFetch
       - AskUserQuestion
       - TodoWrite
-      
+
     blocked_tools:
       - Edit
       - Write
@@ -33,7 +33,7 @@ phases:
 
   - name: execute
     description: "Implement the plan"
-    
+
     on_enter:
       - action: inject_message
         content: |
@@ -43,6 +43,6 @@ phases:
 
 triggers:
   on_session_start:
-    - action: enter_phase
-      phase: plan
-      when: "not workflow_state.phase"
+    - action: enter_step
+      step: plan
+      when: "not workflow_state.step"

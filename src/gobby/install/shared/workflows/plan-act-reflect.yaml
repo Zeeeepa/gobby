@@ -1,14 +1,14 @@
 name: plan-act-reflect
-description: "Structured development with planning, action, and reflection phases"
+description: "Structured development with planning, action, and reflection steps"
 version: "1.0"
 
 settings:
   reflect_after_actions: 10
-  
-phases:
+
+steps:
   - name: plan
     description: "Analyze requirements and create implementation plan"
-    
+
     on_enter:
       - action: switch_mode
         mode: plan
@@ -25,7 +25,7 @@ phases:
       - WebFetch
       - AskUserQuestion
       - TodoWrite
-      
+
     blocked_tools:
       - Edit
       - Write
@@ -38,34 +38,34 @@ phases:
 
   - name: act
     description: "Implement the plan"
-    
+
     on_enter:
       - action: switch_mode
         mode: act
       - action: inject_message
         content: |
           You are now in IMPLEMENTATION mode. Follow the plan.
-          
+
     allowed_tools: all
-    
+
     transitions:
       - to: reflect
-        when: "phase_action_count >= 10"
+        when: "step_action_count >= 10"
       - to: reflect
         when: "tool_result.is_error"
 
   - name: reflect
     description: "Review progress and decide next steps"
-    
+
     on_enter:
       - action: switch_mode
         mode: reflect
       - action: inject_message
         content: |
           REFLECTION CHECKPOINT
-          
-          Actions taken: {{ state.phase_action_count or 0 }}
-          
+
+          Actions taken: {{ state.step_action_count or 0 }}
+
           Review your progress.
           - If done, mark task complete.
           - If issues, replan.
@@ -82,7 +82,7 @@ phases:
       - Edit
       - Write
       - Bash
-      
+
     transitions:
       - to: act
         when: "user_says('continue') or user_says('proceed')"
@@ -91,6 +91,6 @@ phases:
 
 triggers:
   on_session_start:
-    - action: enter_phase
-      phase: plan
-      when: "not workflow_state.phase"
+    - action: enter_step
+      step: plan
+      when: "not workflow_state.step"

@@ -73,7 +73,12 @@ class WorkflowEngine:
         # Stuck prevention: Check if step duration exceeding limit
         # This is a basic implementation of "Stuck Detection"
         if state.step_entered_at:
-            duration = (datetime.now(UTC) - state.step_entered_at).total_seconds()
+            print(f"DEBUG: step_entered_at type: {type(state.step_entered_at)}")
+            print(f"DEBUG: step_entered_at value: {state.step_entered_at}")
+            diff = datetime.now(UTC) - state.step_entered_at
+            print(f"DEBUG: diff type: {type(diff)}, value: {diff}")
+            duration = diff.total_seconds()
+            print(f"DEBUG: duration type: {type(duration)}, value: {duration}")
             # Hardcoded limit for MVP: 30 minutes
             if duration > 1800:
                 # Force transition to reflect if not already there
@@ -143,7 +148,12 @@ class WorkflowEngine:
                     if rule.action == "block":
                         reason = rule.message or "Blocked by workflow rule."
                         self._log_rule_eval(
-                            session_id, state.step, rule.name or "unnamed", rule.when, "block", reason
+                            session_id,
+                            state.step,
+                            rule.name or "unnamed",
+                            rule.when,
+                            "block",
+                            reason,
                         )
                         return HookResponse(decision="block", reason=reason)
                     # Handle other actions like warn, require_approval
@@ -152,6 +162,7 @@ class WorkflowEngine:
             self._log_tool_call(session_id, state.step, tool_name, "allow")
 
         # Check transitions
+        print("DEBUG: Checking transitions")
         for transition in current_step.transitions:
             if self.evaluator.evaluate(transition.when, eval_context):
                 # Transition!
@@ -161,6 +172,7 @@ class WorkflowEngine:
                 )
 
         # Check exit conditions
+        print("DEBUG: Checking exit conditions")
         if self.evaluator.check_exit_conditions(current_step.exit_conditions, state):
             # TODO: Determine next step or completion logic
             # For now, simplistic 'next step' if linear, or rely on transitions
@@ -308,9 +320,7 @@ class WorkflowEngine:
                 )
 
         # Check if we need to request approval
-        approval_check = self.evaluator.check_pending_approval(
-            current_step.exit_conditions, state
-        )
+        approval_check = self.evaluator.check_pending_approval(current_step.exit_conditions, state)
 
         if approval_check and approval_check.needs_approval:
             # Set approval pending state

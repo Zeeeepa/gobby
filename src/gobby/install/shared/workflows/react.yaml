@@ -2,7 +2,7 @@ name: react
 description: "Reason-Act loop: Continuous reasoning and action"
 version: "1.0"
 
-phases:
+steps:
   - name: loop
     description: "Reason -> Act -> Observe loop"
     
@@ -28,6 +28,6 @@ phases:
 
 triggers:
   on_session_start:
-    - action: enter_phase
-      phase: loop
-      when: "not workflow_state.phase"
+    - action: enter_step
+      step: loop
+      when: "not workflow_state.step"

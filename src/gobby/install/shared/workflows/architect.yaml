@@ -1,9 +1,9 @@
 name: architect
 description: "BMAD-inspired development: requirements -> design -> implement -> review"
-type: phased
+type: stepped
 version: "1.0"
 
-phases:
+steps:
   - name: requirements
     description: "Gather and clarify requirements"
 
@@ -158,9 +158,9 @@ phases:
 triggers:
   on_session_start:
     - action: load_workflow_state
-    - action: enter_phase
-      phase: requirements
-      when: "not workflow_state.phase"
+    - action: enter_step
+      step: requirements
+      when: "not workflow_state.step"
 
   on_session_end:
     - action: save_workflow_state

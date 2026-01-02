@@ -1,8 +1,8 @@
 # Gobby Workflows
 
-Workflows transform Gobby from a passive session tracker into an **enforcement layer** for AI agent behavior. Instead of relying on prompts to guide LLM behavior, workflows use hooks to enforce phases, tool restrictions, and transitions.
+Workflows transform Gobby from a passive session tracker into an **enforcement layer** for AI agent behavior. Instead of relying on prompts to guide LLM behavior, workflows use hooks to enforce steps, tool restrictions, and transitions.
 
-**Key insight**: The LLM doesn't need to remember what phase it's in - the workflow engine tracks state and hooks enforce it. The LLM sees tool blocks and injected context that guide it naturally.
+**Key insight**: The LLM doesn't need to remember what step it's in - the workflow engine tracks state and hooks enforce it. The LLM sees tool blocks and injected context that guide it naturally.
 
 ## Workflow Types
 
@@ -10,11 +10,11 @@ Gobby supports two types of workflows that can coexist:
 
 ### Lifecycle Workflows
 
-Event-driven workflows that respond to session events without enforcing phases or tool restrictions.
+Event-driven workflows that respond to session events without enforcing steps or tool restrictions.
 
 **Characteristics:**
 - `type: lifecycle`
-- No `phases` section
+- No `steps` section
 - Only `triggers` section
 - Actions execute in sequence per event
 - **Multiple lifecycle workflows can be active simultaneously**
@@ -25,15 +25,15 @@ Event-driven workflows that respond to session events without enforcing phases o
 - Logging and analytics
 - Notifications
 
-### Phase-Based Workflows
+### Step-Based Workflows
 
-State machine workflows that enforce phases with tool restrictions, transition conditions, and exit criteria.
+State machine workflows that enforce steps with tool restrictions, transition conditions, and exit criteria.
 
 **Characteristics:**
-- `type: phase` (default)
-- Has `phases` section with allowed/blocked tools
+- `type: stepped` (default)
+- Has `steps` section with allowed/blocked tools
 - Has `transitions` and `exit_conditions`
-- **Only one phase-based workflow active at a time per session**
+- **Only one step-based workflow active at a time per session**
 - Can coexist with lifecycle workflows
 
 **Use cases:**
@@ -44,9 +44,9 @@ State machine workflows that enforce phases with tool restrictions, transition c
 
 ### Coexistence
 
-Lifecycle and phase-based workflows run together:
+Lifecycle and step-based workflows run together:
 - The `session-handoff` lifecycle workflow is always active (by default)
-- You can activate ONE phase-based workflow (like `plan-execute`) on top
+- You can activate ONE step-based workflow (like `plan-execute`) on top
 - Multiple concurrent sessions can each have their own active workflow
 
 ## YAML Schema Reference
@@ -58,13 +58,13 @@ Lifecycle and phase-based workflows run together:
 name: plan-act-reflect
 
 # Optional: Human-readable description
-description: "Structured development with planning and reflection phases"
+description: "Structured development with planning and reflection steps"
 
 # Optional: Semantic version string (default: "1.0")
 version: "1.0"
 
-# Optional: Workflow type - "phase" (default) or "lifecycle"
-type: phase
+# Optional: Workflow type - "stepped" (default) or "lifecycle"
+type: stepped
 
 # Optional: Inherit from another workflow
 extends: base-workflow
@@ -80,12 +80,12 @@ variables:
   plan_file_pattern: "**/*.plan.md"
   allowed_test_commands: ["pytest", "npm test"]
 
-# Required for phase-based: Phase definitions
-phases:
+# Required for step-based: Step definitions
+steps:
   - name: plan
     description: "Analyze requirements and create implementation plan"
 
-    # Actions executed when entering this phase
+    # Actions executed when entering this step
     on_enter:
       - action: inject_message
         content: "You are in PLANNING mode."
@@ -111,16 +111,16 @@ phases:
     # Automatic transition triggers
     transitions:
       - to: reflect
-        when: "phase_action_count >= 5"
+        when: "step_action_count >= 5"
 
-    # Conditions that must be met to exit phase
+    # Conditions that must be met to exit step
     exit_conditions:
       - type: artifact_exists
         pattern: "{{ plan_file_pattern }}"
       - type: user_approval
         prompt: "Plan complete. Ready to implement?"
 
-    # Actions executed when exiting this phase
+    # Actions executed when exiting this step
     on_exit:
       - action: capture_artifact
         pattern: "{{ plan_file_pattern }}"
@@ -130,9 +130,9 @@ phases:
 triggers:
   on_session_start:
     - action: load_workflow_state
-    - action: enter_phase
-      phase: plan
-      when: "not workflow_state.phase"
+    - action: enter_step
+      step: plan
+      when: "not workflow_state.step"
 
   on_session_end:
     - action: save_workflow_state
@@ -140,8 +140,8 @@ triggers:
 
 # Optional: Error handling
 on_error:
-  - action: enter_phase
-    phase: reflect
+  - action: enter_step
+    step: reflect
   - action: inject_message
     content: "An error occurred. Entering reflection."
 ```
@@ -158,10 +158,10 @@ extends: plan-act-reflect
 settings:
   reflect_after_actions: 10  # Override parent value
 
-# Add new phases or override existing ones
-phases:
+# Add new steps or override existing ones
+steps:
   - name: review
-    description: "Additional code review phase"
+    description: "Additional code review step"
     allowed_tools: [Read, Glob, Grep]
 ```
 
@@ -172,14 +172,14 @@ phases:
 - Inheritance chains are supported (grandparent -> parent -> child)
 - Circular inheritance is detected and rejected
 
-### Phase Configuration
+### Step Configuration
 
 ```yaml
-phases:
-  - name: phase-name           # Required: Unique phase identifier
+steps:
+  - name: step-name            # Required: Unique step identifier
     description: string        # Optional: Human description
 
-    on_enter:                  # Actions when entering phase
+    on_enter:                  # Actions when entering step
       - action: action_name
         ...action_kwargs
 
@@ -195,7 +195,7 @@ phases:
         message: "User message"
 
     transitions:               # Auto-transition triggers
-      - to: phase-name
+      - to: step-name
         when: "condition"
         on_transition:
           - action: ...
@@ -208,7 +208,7 @@ phases:
       - type: variable_set
         variable: task_list
 
-    on_exit:                   # Actions when exiting phase
+    on_exit:                   # Actions when exiting step
       - action: action_name
 ```
 
@@ -232,7 +232,7 @@ phases:
 | `read_artifact` | Load artifact into variable |
 | `set_variable` | Set workflow variable |
 | `increment_variable` | Increment numeric variable |
-| `enter_phase` | Transition to a phase |
+| `enter_step` | Transition to a step |
 | `load_workflow_state` | Load state from storage |
 | `save_workflow_state` | Save state to storage |
 | `generate_handoff` | Generate session summary |
@@ -262,41 +262,41 @@ triggers:
       source: previous_session_summary
 ```
 
-### plan-execute (phase)
+### plan-execute (stepped)
 
 Basic planning enforcement. Restricts to read-only tools until user approves.
 
-**Phases:** `plan` -> `execute`
+**Steps:** `plan` -> `execute`
 
-### react (phase)
+### react (stepped)
 
 ReAct loop with observation capture. Each action's result is captured and injected into reasoning context.
 
-**Phases:** `reason` -> `act` -> `observe` (loop)
+**Steps:** `reason` -> `act` -> `observe` (loop)
 
-### plan-act-reflect (phase)
+### plan-act-reflect (stepped)
 
-Full reflection workflow. Automatically enters reflection phase after N actions or on errors.
+Full reflection workflow. Automatically enters reflection step after N actions or on errors.
 
-**Phases:** `plan` -> `act` -> `reflect` (loop)
+**Steps:** `plan` -> `act` -> `reflect` (loop)
 
-### plan-to-tasks (phase)
+### plan-to-tasks (stepped)
 
 Task decomposition workflow. Breaks a plan into atomic tasks and executes sequentially with verification gates.
 
-**Phases:** `decompose` -> `execute` -> `verify` (loop) -> `complete`
+**Steps:** `decompose` -> `execute` -> `verify` (loop) -> `complete`
 
-### architect (phase)
+### architect (stepped)
 
 BMAD-inspired development workflow.
 
-**Phases:** `requirements` -> `design` -> `implementation` -> `review`
+**Steps:** `requirements` -> `design` -> `implementation` -> `review`
 
-### test-driven (phase)
+### test-driven (stepped)
 
 TDD workflow. Blocks implementation until test exists.
 
-**Phases:** `write-test` -> `implement` -> `refactor` (loop)
+**Steps:** `write-test` -> `implement` -> `refactor` (loop)
 
 ## CLI Commands
 
@@ -308,7 +308,7 @@ gobby workflow list [--all] [--json]
 
 | Option | Description |
 |--------|-------------|
-| `--all` | Show all workflows including phase-based |
+| `--all` | Show all workflows including step-based |
 | `--json` | Output as JSON |
 
 ### Show Workflow Details
@@ -320,10 +320,10 @@ gobby workflow show <name> [--json]
 ### Activate Workflow
 
 ```bash
-gobby workflow set <name> [--session ID] [--phase INITIAL_PHASE]
+gobby workflow set <name> [--session ID] [--step INITIAL_STEP]
 ```
 
-**Note:** Only for phase-based workflows. Lifecycle workflows auto-run.
+**Note:** Only for step-based workflows. Lifecycle workflows auto-run.
 
 ### Check Workflow Status
 
@@ -331,7 +331,7 @@ gobby workflow set <name> [--session ID] [--phase INITIAL_PHASE]
 gobby workflow status [--session ID] [--json]
 ```
 
-Shows current phase, action counts, artifacts, and pending tasks.
+Shows current step, action counts, artifacts, and pending tasks.
 
 ### Clear/Deactivate Workflow
 
@@ -339,10 +339,10 @@ Shows current phase, action counts, artifacts, and pending tasks.
 gobby workflow clear [--session ID] [--force]
 ```
 
-### Manual Phase Transition (Escape Hatch)
+### Manual Step Transition (Escape Hatch)
 
 ```bash
-gobby workflow phase <phase-name> [--session ID] [--force]
+gobby workflow step <step-name> [--session ID] [--force]
 ```
 
 Skips normal exit conditions. Use when stuck.
@@ -381,16 +381,16 @@ call_tool("gobby", "activate_workflow", {"name": "plan-act-reflect"})
 | Tool | Description |
 |------|-------------|
 | `list_workflows` | List available workflow definitions |
-| `activate_workflow` | Start a phase-based workflow |
+| `activate_workflow` | Start a step-based workflow |
 | `end_workflow` | Complete/terminate active workflow |
-| `get_workflow_status` | Get current phase and state |
-| `request_phase_transition` | Request transition to different phase |
+| `get_workflow_status` | Get current step and state |
+| `request_step_transition` | Request transition to different step |
 | `create_handoff` | Create handoff for next session |
 | `mark_artifact_complete` | Register artifact as complete |
 
 ### Tool Filtering
 
-When a phase-based workflow is active, tools are filtered:
+When a step-based workflow is active, tools are filtered:
 
 - `allowed_tools: all` + `blocked_tools: [X, Y]` -> All tools except X, Y
 - `allowed_tools: [A, B, C]` -> Only A, B, C available
@@ -404,7 +404,7 @@ Blocked tools are **hidden** (not grayed out) from the tool list.
 
 ```yaml
 name: plan-execute
-phases:
+steps:
   - name: plan
     allowed_tools: [Read, Glob, Grep, WebSearch, AskUserQuestion]
     blocked_tools: [Edit, Write, Bash]
@@ -419,11 +419,11 @@ phases:
 ### Forced Reflection
 
 ```yaml
-phases:
+steps:
   - name: act
     transitions:
       - to: reflect
-        when: "phase_action_count >= 5"  # Force reflection every 5 actions
+        when: "step_action_count >= 5"  # Force reflection every 5 actions
       - to: reflect
         when: "tool_result.is_error"      # Or on any error
 ```
@@ -431,7 +431,7 @@ phases:
 ### Read-Before-Edit Rule
 
 ```yaml
-phases:
+steps:
   - name: implement
     rules:
       - when: "tool == 'Edit' and file not in session.files_read"
@@ -442,7 +442,7 @@ phases:
 ### Task Decomposition
 
 ```yaml
-phases:
+steps:
   - name: decompose
     on_enter:
       - action: call_llm
@@ -463,7 +463,7 @@ phases:
 ### What Resets
 
 - **Workflow state resets when session ends**
-- A new session starts fresh with no active phase-based workflow
+- A new session starts fresh with no active step-based workflow
 - Lifecycle workflows restart automatically
 
 ### Cross-Session Continuity
@@ -481,7 +481,7 @@ For work that must survive session boundaries:
 Codex uses a notify-only hook. It cannot:
 - Block tool calls
 - Inject context
-- Enforce phase transitions
+- Enforce step transitions
 
 Codex sessions can **track** workflow state but cannot **enforce** it. Full enforcement requires Claude Code or Gemini CLI.
 
@@ -497,11 +497,11 @@ gobby workflow list
 gobby workflow show <name>
 ```
 
-### Stuck in a Phase
+### Stuck in a Step
 
 ```bash
-# Force transition to another phase
-gobby workflow phase <target-phase> --force
+# Force transition to another step
+gobby workflow step <target-step> --force
 
 # Or clear the workflow entirely
 gobby workflow clear --force
@@ -509,13 +509,13 @@ gobby workflow clear --force
 
 ### Tool Blocked Unexpectedly
 
-Check current phase restrictions:
+Check current step restrictions:
 
 ```bash
 gobby workflow status --json
 ```
 
-Look at `allowed_tools` and `blocked_tools` for the current phase.
+Look at `allowed_tools` and `blocked_tools` for the current step.
 
 ## File Locations
 
