@@ -95,8 +95,13 @@ def increment_variable(
 
     current = state.variables.get(name, 0)
     if not isinstance(current, (int, float)):
-        logger.warning(f"increment_variable: Variable {name} is not numeric: {current}")
-        current = 0
+        logger.error(
+            f"increment_variable: Variable '{name}' is not numeric, got {type(current).__name__}: {current}"
+        )
+        raise TypeError(
+            f"Cannot increment non-numeric variable '{name}': "
+            f"expected int or float, got {type(current).__name__} with value {current!r}"
+        )
 
     new_value = current + amount
     state.variables[name] = new_value

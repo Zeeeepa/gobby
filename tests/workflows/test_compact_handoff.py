@@ -97,7 +97,7 @@ def workflow_state():
     return WorkflowState(
         session_id="test-session",
         workflow_name="session-handoff",
-        phase="compact",
+        step="compact",
     )
 
 

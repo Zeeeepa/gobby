@@ -662,7 +662,6 @@ def audit_workflow(
         return
 
     if json_format:
-        import json as json_module
         output = []
         for entry in entries:
             output.append({
@@ -677,7 +676,7 @@ def audit_workflow(
                 "reason": entry.reason,
                 "context": entry.context,
             })
-        click.echo(json_module.dumps(output, indent=2))
+        click.echo(json.dumps(output, indent=2))
         return
 
     # Human-readable output

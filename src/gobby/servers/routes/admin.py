@@ -229,11 +229,7 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
 
         except Exception as e:
             logger.error(f"Failed to export metrics: {e}", exc_info=True)
-            return PlainTextResponse(
-                content=f"# Error exporting metrics: {e}\n",
-                status_code=500,
-                media_type="text/plain",
-            )
+            raise
 
     @router.get("/config")
     async def get_config() -> dict[str, Any]:

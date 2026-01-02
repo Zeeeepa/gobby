@@ -40,7 +40,6 @@ def workflow_state():
     return WorkflowState(
         session_id="test-session-id",
         workflow_name="test-workflow",
-        phase="test-phase",
         step="test-step",
     )
 
@@ -587,7 +586,6 @@ async def test_call_mcp_tool(action_executor, action_context, mock_services):
     if "error" in result:
         pytest.fail(f"call_mcp_tool failed: {result['error']}")
 
-    print(f"DEBUG: result keys: {result.keys()}")
     # assert result["tool_called"] is True # handler doesn't return this
     assert result["result"] == {"result": "tool_output"}
     assert action_context.state.variables["tool_res"] == {"result": "tool_output"}
@@ -1043,7 +1041,6 @@ async def test_variable_actions(action_executor, action_context):
         assert action_context.state.variables == {"loaded": "value"}
 
 
-@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_call_llm(action_executor, action_context, mock_services):
     mock_provider = AsyncMock()

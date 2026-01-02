@@ -217,9 +217,6 @@ def stealth_cmd(enable: bool | None) -> None:
     When enabled, tasks are stored in ~/.gobby/stealth_tasks/ instead of .gobby/tasks.jsonl.
     This prevents task updates from creating Git changes.
     """
-    import json
-    from pathlib import Path
-
     ctx = get_project_context()
     if not ctx or "project_path" not in ctx:
         click.echo("Error: Not in a gobby project.", err=True)

@@ -50,7 +50,7 @@ def mem_action_executor(temp_db, session_manager, mock_mem_services):
 @pytest.fixture
 def mem_workflow_state():
     return WorkflowState(
-        session_id="test-session-id", workflow_name="test-workflow", phase="test-phase"
+        session_id="test-session-id", workflow_name="test-workflow", step="test-step"
     )
 
 

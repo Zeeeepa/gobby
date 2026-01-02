@@ -89,9 +89,9 @@ class TestWorkflowEngineExtended:
             metadata={"_platform_session_id": "sess1"},
         )
 
-        # Need phase for get_phase() call in handle_event
+        # Need phase for get_step() call in handle_event
         wf = MagicMock()
-        wf.get_phase.return_value = MagicMock(name="working_phase")
+        wf.get_step.return_value = MagicMock(name="working_step")
         workflow_engine.loader.load_workflow.return_value = wf
 
         response = await workflow_engine.handle_event(event)
@@ -124,7 +124,7 @@ class TestWorkflowEngineExtended:
         )
 
         wf = MagicMock()
-        wf.get_phase.return_value = MagicMock(name="working_phase")
+        wf.get_step.return_value = MagicMock(name="working_step")
         workflow_engine.loader.load_workflow.return_value = wf
 
         response = await workflow_engine.handle_event(event)
@@ -148,8 +148,8 @@ class TestWorkflowEngineExtended:
         mock_state_manager.get_state.return_value = state
 
         wf = MagicMock()
-        phase = MagicMock(name="working_phase")
-        wf.get_phase.return_value = phase
+        step = MagicMock(name="working_step")
+        wf.get_step.return_value = step
         workflow_engine.loader.load_workflow.return_value = wf
 
         # Mock evaluator to return a TIMED OUT result
@@ -230,7 +230,7 @@ class TestWorkflowEngineExtended:
         mock_audit_manager.log_tool_call.side_effect = Exception("Audit Error")
 
         # Should not raise exception
-        workflow_engine._log_tool_call("sess", "phase", "tool", "allow")
+        workflow_engine._log_tool_call("sess", "step", "tool", "allow")
 
     async def test_lifecycle_blocking(self, workflow_engine, mock_loader):
         """Test that actions returning decision='block' propagate through lifecycle workflows."""
@@ -286,9 +286,9 @@ class TestWorkflowEngineExtended:
         mock_state_manager.get_state.return_value = state
 
         wf = MagicMock()
-        phase = MagicMock()
-        phase.exit_conditions = ["cond"]
-        wf.get_phase.return_value = phase
+        step = MagicMock()
+        step.exit_conditions = ["cond"]
+        wf.get_step.return_value = step
         workflow_engine.loader.load_workflow.return_value = wf
 
         # Evaluator returns needs_approval
@@ -514,7 +514,7 @@ class TestWorkflowEngineExtended:
         state = WorkflowState(
             session_id="sess1",
             workflow_name="wf",
-            step="phase1",
+            step="step1",
             step_entered_at=datetime.now(UTC),
         )
         wf = MagicMock()
@@ -522,7 +522,7 @@ class TestWorkflowEngineExtended:
 
         await workflow_engine.transition_to(state, "unknown_step", wf)
         # Should log error and return
-        assert state.step == "phase1"
+        assert state.step == "step1"
 
     async def test_evaluate_lifecycle_workflows(
         self, workflow_engine, mock_loader, mock_action_executor
@@ -586,10 +586,10 @@ class TestWorkflowEngineExtended:
         workflow_engine.state_manager.get_state.return_value = state
 
         wf = MagicMock()
-        phase = MagicMock(name="working")
-        phase.blocked_tools = []
-        phase.allowed_tools = "all"
-        wf.get_phase.return_value = phase
+        step = MagicMock(name="working")
+        step.blocked_tools = []
+        step.allowed_tools = "all"
+        wf.get_step.return_value = step
         workflow_engine.loader.load_workflow.return_value = wf
 
         event = HookEvent(

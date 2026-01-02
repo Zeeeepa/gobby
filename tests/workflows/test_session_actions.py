@@ -21,7 +21,7 @@ def mock_context():
     return ActionContext(
         session_id="sess_123",
         state=WorkflowState(
-            session_id="sess_123", workflow_name="test_workflow", phase="test_phase", variables={}
+            session_id="sess_123", workflow_name="test_workflow", step="test_step", variables={}
         ),
         db=MagicMock(),
         session_manager=session_manager,

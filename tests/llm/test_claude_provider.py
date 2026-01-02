@@ -173,12 +173,7 @@ async def test_execute_code_timeout(claude_config):
 
     with mock_claude_sdk(mock_query):
         provider = ClaudeLLMProvider(claude_config)
-        with (
-            pytest.raises(TimeoutError)
-            if False
-            else patch("asyncio.wait_for", side_effect=asyncio.TimeoutError)
-        ):
-            # timeout should be int ideally, passing 1. Wait_for works with float but signature says int|None
+        with patch("asyncio.wait_for", side_effect=TimeoutError):
             result = await provider.execute_code("sleep", timeout=1, prompt_template="{code}")
             assert result["success"] is False
             assert result["error_type"] == "TimeoutError"

@@ -20,8 +20,8 @@ class TestWorkflowLoader:
         yaml_content = """
         name: test_workflow
         version: "1.0"
-        phases:
-          - name: phase1
+        steps:
+          - name: step1
             allowed_tools: all
         """
         # Mock finding the file
@@ -34,8 +34,8 @@ class TestWorkflowLoader:
                 wf = loader.load_workflow("test_workflow")
                 assert wf is not None
                 assert wf.name == "test_workflow"
-                assert len(wf.phases) == 1
-                assert wf.phases[0].name == "phase1"
+                assert len(wf.steps) == 1
+                assert wf.steps[0].name == "step1"
 
     def test_load_workflow_invalid_yaml(self, loader):
         yaml_content = "invalid: : yaml"
@@ -83,8 +83,8 @@ class TestWorkflowInheritance:
         parent_yaml = """
         name: parent_workflow
         version: "1.0"
-        phases:
-          - name: phase1
+        steps:
+          - name: step1
             allowed_tools: all
         """
 
@@ -92,8 +92,8 @@ class TestWorkflowInheritance:
         name: child_workflow
         version: "1.0"
         extends: parent_workflow
-        phases:
-          - name: phase2
+        steps:
+          - name: step2
             allowed_tools: [read, write]
         """
 
@@ -117,9 +117,9 @@ class TestWorkflowInheritance:
                 assert wf is not None
                 assert wf.name == "child_workflow"
                 # Should have phases from both parent and child
-                phase_names = [p.name for p in wf.phases]
-                assert "phase1" in phase_names
-                assert "phase2" in phase_names
+                step_names = [p.name for p in wf.steps]
+                assert "step1" in step_names
+                assert "step2" in step_names
 
     def test_self_inheritance_cycle(self):
         """Test that self-inheritance (A extends A) raises ValueError."""
@@ -129,8 +129,8 @@ class TestWorkflowInheritance:
         name: self_ref
         version: "1.0"
         extends: self_ref
-        phases:
-          - name: phase1
+        steps:
+          - name: step1
             allowed_tools: all
         """
 
@@ -151,8 +151,8 @@ class TestWorkflowInheritance:
         name: workflow_a
         version: "1.0"
         extends: workflow_b
-        phases:
-          - name: phase_a
+        steps:
+          - name: step_a
             allowed_tools: all
         """
 
@@ -160,8 +160,8 @@ class TestWorkflowInheritance:
         name: workflow_b
         version: "1.0"
         extends: workflow_a
-        phases:
-          - name: phase_b
+        steps:
+          - name: step_b
             allowed_tools: all
         """
 
@@ -192,8 +192,8 @@ class TestWorkflowInheritance:
         name: workflow_a
         version: "1.0"
         extends: workflow_b
-        phases:
-          - name: phase_a
+        steps:
+          - name: step_a
             allowed_tools: all
         """
 
@@ -201,8 +201,8 @@ class TestWorkflowInheritance:
         name: workflow_b
         version: "1.0"
         extends: workflow_c
-        phases:
-          - name: phase_b
+        steps:
+          - name: step_b
             allowed_tools: all
         """
 
@@ -210,8 +210,8 @@ class TestWorkflowInheritance:
         name: workflow_c
         version: "1.0"
         extends: workflow_a
-        phases:
-          - name: phase_c
+        steps:
+          - name: step_c
             allowed_tools: all
         """
 
@@ -246,8 +246,8 @@ class TestWorkflowInheritance:
         base_yaml = """
         name: base
         version: "1.0"
-        phases:
-          - name: base_phase
+        steps:
+          - name: base_step
             allowed_tools: all
         """
 
@@ -255,8 +255,8 @@ class TestWorkflowInheritance:
         name: middle
         version: "1.0"
         extends: base
-        phases:
-          - name: middle_phase
+        steps:
+          - name: middle_step
             allowed_tools: [read]
         """
 
@@ -264,8 +264,8 @@ class TestWorkflowInheritance:
         name: top
         version: "1.0"
         extends: middle
-        phases:
-          - name: top_phase
+        steps:
+          - name: top_step
             allowed_tools: [write]
         """
 
@@ -294,7 +294,7 @@ class TestWorkflowInheritance:
                 assert wf is not None
                 assert wf.name == "top"
                 # Should have phases from all three levels
-                phase_names = [p.name for p in wf.phases]
-                assert "base_phase" in phase_names
-                assert "middle_phase" in phase_names
-                assert "top_phase" in phase_names
+                step_names = [p.name for p in wf.steps]
+                assert "base_step" in step_names
+                assert "middle_step" in step_names
+                assert "top_step" in step_names

@@ -78,9 +78,9 @@ class TestWorkflowEngine:
         state = WorkflowState(
             session_id="sess1",
             workflow_name="default",
-            phase="working",
-            phase_entered_at=datetime.now(UTC) - timedelta(minutes=60),
-            phase_action_count=0,
+            step="working",
+            step_entered_at=datetime.now(UTC) - timedelta(minutes=60),
+            step_action_count=0,
             total_action_count=100,
         )
 
@@ -120,8 +120,8 @@ class TestWorkflowEngine:
         state = WorkflowState(
             session_id="sess1",
             workflow_name="default",
-            phase="phase1",
-            phase_entered_at=datetime.now(UTC),
+            step="step1",
+            step_entered_at=datetime.now(UTC),
         )
         mock_state_manager.get_state.return_value = state
 
@@ -188,8 +188,8 @@ class TestWorkflowEngine:
         state = WorkflowState(
             session_id="sess1",
             workflow_name="default",
-            phase="phase1",
-            phase_entered_at=datetime.now(UTC),
+            step="step1",
+            step_entered_at=datetime.now(UTC),
         )
         mock_state_manager.get_state.return_value = state
 
@@ -224,8 +224,8 @@ class TestWorkflowEngine:
         state = WorkflowState(
             session_id="sess1",
             workflow_name="default",
-            phase="phase1",
-            phase_entered_at=datetime.now(UTC),
+            step="step1",
+            step_entered_at=datetime.now(UTC),
         )
         mock_state_manager.get_state.return_value = state
 
@@ -261,8 +261,8 @@ class TestWorkflowEngine:
         state = WorkflowState(
             session_id="sess1",
             workflow_name="default",
-            phase="phase1",
-            phase_entered_at=datetime.now(UTC),
+            step="step1",
+            step_entered_at=datetime.now(UTC),
             approval_pending=True,
             approval_condition_id="test_approval",
             approval_prompt="Ready to proceed?",
@@ -301,8 +301,8 @@ class TestWorkflowEngine:
         state = WorkflowState(
             session_id="sess1",
             workflow_name="default",
-            phase="phase1",
-            phase_entered_at=datetime.now(UTC),
+            step="step1",
+            step_entered_at=datetime.now(UTC),
             disabled=True,
             disabled_reason="Testing escape hatch",
         )
@@ -329,7 +329,7 @@ class TestWorkflowEngine:
         state = WorkflowState(
             session_id="sess1",
             workflow_name="default",
-            step="phase1",
+            step="step1",
             step_entered_at=datetime.now(UTC),
         )
         mock_state_manager.get_state.return_value = state
@@ -365,7 +365,7 @@ class TestWorkflowEngine:
         state = WorkflowState(
             session_id="sess1",
             workflow_name="default",
-            step="phase1",
+            step="step1",
             step_entered_at=datetime.now(UTC),
         )
         mock_state_manager.get_state.return_value = state

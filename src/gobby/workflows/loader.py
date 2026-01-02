@@ -144,22 +144,26 @@ class WorkflowLoader:
         """
         Merge step lists by step name.
         """
-        # Convert parent list to dict by name
-        parent_map = {s["name"]: s for s in parent_steps}
+        # Convert parent list to dict by name, creating copies to avoid mutating originals
+        parent_map: dict[str, dict] = {}
+        for s in parent_steps:
+            if "name" not in s:
+                logger.warning("Skipping parent step without 'name' key")
+                continue
+            # Create a shallow copy to avoid mutating the original
+            parent_map[s["name"]] = dict(s)
 
         for child_step in child_steps:
+            if "name" not in child_step:
+                logger.warning("Skipping child step without 'name' key")
+                continue
             name = child_step["name"]
             if name in parent_map:
-                # Merge existing step (deep merge the dicts)
-                # For simplicity here using a helper or just updating fields
-                # Ideally we'd recursively merge the step dicts too
-                # For now, let's assume entire step override or simple update
-                # A proper implementation would merge allowed_tools, rules etc.
-                # Let's do a shallow merge of the step dict for now
+                # Merge existing step by updating the copy with child values
                 parent_map[name].update(child_step)
             else:
-                # Add new step
-                parent_map[name] = child_step
+                # Add new step as a copy
+                parent_map[name] = dict(child_step)
 
         return list(parent_map.values())
 

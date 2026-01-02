@@ -139,14 +139,15 @@ async def test_read_artifact_glob(mock_action_context, tmp_path):
 
 @pytest.mark.asyncio
 async def test_increment_variable_non_numeric(mock_action_context):
-    """Test incrementing a non-numeric variable resets to 0."""
+    """Test incrementing a non-numeric variable raises TypeError."""
     context = mock_action_context
     context.state.variables = {"counter": "string_value"}
 
     result = await context.executor.execute("increment_variable", context, name="counter", amount=1)
 
-    assert result["value"] == 1
-    assert context.state.variables["counter"] == 1
+    # The action now raises TypeError which is caught and returned as error
+    assert "error" in result
+    assert "Cannot increment non-numeric" in result["error"]
 
 
 @pytest.mark.asyncio

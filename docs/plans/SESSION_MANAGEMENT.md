@@ -91,7 +91,7 @@ Note: `get_session_tasks` and `get_task_sessions` already exist in `gobby-tasks`
 
 ## Architecture
 
-```
+```text
                      +---------------------------+
                      |      CLI Interface        |
                      |    gobby session *        |

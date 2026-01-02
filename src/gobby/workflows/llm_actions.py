@@ -49,7 +49,13 @@ async def call_llm(
     # Add extra context
     render_context.update(extra_context)
 
-    rendered_prompt = template_engine.render(prompt, render_context)
+    try:
+        rendered_prompt = template_engine.render(prompt, render_context)
+    except Exception as e:
+        logger.error(
+            f"call_llm: Template rendering failed for prompt '{prompt[:50]}...': {e}"
+        )
+        return {"error": f"Template rendering failed: {e}"}
 
     try:
         provider = llm_service.get_default_provider()

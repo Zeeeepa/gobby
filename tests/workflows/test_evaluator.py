@@ -21,13 +21,13 @@ def evaluator():
 @pytest.fixture
 def mock_state():
     state = MagicMock(spec=WorkflowState)
-    state.phase_action_count = 5
+    state.step_action_count = 5
     state.total_action_count = 10
     state.variables = {"foo": "bar", "count": 10}
     state.task_list = []
     # Ensure attributes accessed by evaluator exist on instance (MagicMock handles this via spec, but flattened context accesses them)
     # The evaluator flattens state into context:
-    # "phase_action_count": state.phase_action_count,
+    # "step_action_count": state.step_action_count,
     # "total_action_count": state.total_action_count,
     # "variables": state.variables,
     # "task_list": state.task_list,
@@ -59,7 +59,7 @@ class TestConditionEvaluator:
         assert evaluator.check_exit_conditions(conditions, mock_state) is False
 
     def test_check_exit_conditions_expression_met(self, evaluator, mock_state):
-        conditions = [{"type": "expression", "expression": "phase_action_count == 5"}]
+        conditions = [{"type": "expression", "expression": "step_action_count == 5"}]
         assert evaluator.check_exit_conditions(conditions, mock_state) is True
 
     def test_check_exit_conditions_expression_not_met(self, evaluator, mock_state):
@@ -133,7 +133,7 @@ class TestCheckPendingApproval:
         return WorkflowState(
             session_id="test-session",
             workflow_name="test-workflow",
-            phase="test-phase",
+            step="test-step",
         )
 
     def test_no_approval_conditions(self, evaluator, state):

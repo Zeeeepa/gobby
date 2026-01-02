@@ -36,6 +36,27 @@ def inject_context(
     Returns:
         Dict with inject_context key, or None
     """
+    # Validate required parameters
+    if session_manager is None:
+        logger.warning(
+            f"inject_context: session_manager is None (session_id={session_id})"
+        )
+        return None
+
+    if state is None:
+        logger.warning(f"inject_context: state is None (session_id={session_id})")
+        return None
+
+    if template_engine is None:
+        logger.warning(
+            f"inject_context: template_engine is None (session_id={session_id})"
+        )
+        return None
+
+    if not session_id:
+        logger.warning("inject_context: session_id is empty or None")
+        return None
+
     if not source:
         return None
 

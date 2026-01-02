@@ -145,9 +145,6 @@ def create_session_messages_registry(
             Returns:
                 List of messages and total count
             """
-            if message_manager is None:
-                return {"error": "Message manager not available"}
-
             messages = await message_manager.get_messages(
                 session_id=session_id, limit=limit, offset=offset, role=role
             )
@@ -188,9 +185,6 @@ def create_session_messages_registry(
             Returns:
                 List of matching messages with session context
             """
-            if message_manager is None:
-                return {"error": "Message manager not available"}
-
             results = await message_manager.search_messages(
                 query_text=query, project_id=project_id, limit=limit
             )
@@ -220,9 +214,6 @@ def create_session_messages_registry(
             Returns:
                 Session ID, compact_markdown, and whether context exists
             """
-            if session_manager is None:
-                return {"error": "Session manager not available"}
-
             session = session_manager.get(session_id)
             if not session:
                 return {"error": f"Session {session_id} not found", "found": False}

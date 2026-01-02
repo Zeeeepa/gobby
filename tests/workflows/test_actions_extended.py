@@ -23,7 +23,7 @@ def mock_services():
 @pytest.fixture
 def action_context(mock_services):
     state = WorkflowState(
-        session_id="test-session", workflow_name="test-workflow", phase="test-phase"
+        session_id="test-session", workflow_name="test-workflow", step="test-step"
     )
     return ActionContext(
         session_id="test-session",
@@ -223,11 +223,6 @@ async def test_skills_learn(action_executor, action_context, mock_services):
 
     assert result["skills_learned"] == 1
     assert result["skill_names"] == ["skill1"]
-
-
-@pytest.mark.asyncio
-async def test_state_persistence_mocked(action_executor, action_context, mock_services):
-    pass
 
 
 @pytest.mark.skip(reason="Mocking issues with content_exists")

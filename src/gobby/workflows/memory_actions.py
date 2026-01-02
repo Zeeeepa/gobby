@@ -4,11 +4,17 @@ Extracted from actions.py as part of strangler fig decomposition.
 These functions handle memory injection, extraction, saving, and recall.
 """
 
+import hashlib
 import json
 import logging
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+def _content_fingerprint(content: str) -> str:
+    """Generate a secure fingerprint of content for logging (avoids PII exposure)."""
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
 
 
 async def memory_sync_import(memory_sync_manager: Any) -> dict[str, Any]:
@@ -227,7 +233,10 @@ async def memory_extract(
                     tags=tags,
                 )
                 created_count += 1
-                logger.info(f"memory_extract: Created {memory_type} memory: {content[:50]}...")
+                logger.info(
+                    f"memory_extract: Created {memory_type} memory "
+                    f"(fingerprint={_content_fingerprint(content)}, tags={tags})"
+                )
             except Exception as e:
                 logger.error(f"memory_extract: Failed to create memory: {e}")
 

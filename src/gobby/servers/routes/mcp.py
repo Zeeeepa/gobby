@@ -4,6 +4,7 @@ MCP routes for Gobby HTTP server.
 Provides MCP server management, tool discovery, and tool execution endpoints.
 """
 
+import json
 import logging
 import time
 from typing import TYPE_CHECKING, Any
@@ -926,7 +927,10 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
 
         try:
             # Parse request body as tool arguments
-            args = await request.json()
+            try:
+                args = await request.json()
+            except (json.JSONDecodeError, ValueError) as e:
+                return {"status": "error", "error": f"Invalid JSON in request body: {e}"}
 
             # Check internal registries first (gobby-tasks, gobby-memory, etc.)
             if server._internal_manager and server._internal_manager.is_internal(server_name):

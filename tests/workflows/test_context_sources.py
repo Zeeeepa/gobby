@@ -16,7 +16,7 @@ def mock_context():
 
     # Setup state
     context.state = WorkflowState(
-        session_id="test-session", workflow_name="test-workflow", phase="test-phase"
+        session_id="test-session", workflow_name="test-workflow", step="test-step"
     )
     return context
 

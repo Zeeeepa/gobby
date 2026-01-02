@@ -3,10 +3,10 @@ Internal MCP tools for Gobby Workflow System.
 
 Exposes functionality for:
 - list_workflows: Discover available workflow definitions
-- activate_workflow: Start a phase-based workflow
+- activate_workflow: Start a step-based workflow
 - end_workflow: Complete/terminate active workflow
 - get_workflow_status: Get current workflow state
-- request_phase_transition: Request transition to a different phase
+- request_step_transition: Request transition to a different step
 - mark_artifact_complete: Register an artifact as complete
 
 These tools are registered with the InternalToolRegistry and accessed
@@ -63,7 +63,7 @@ def create_workflows_registry(
         project_path: str | None = None,
     ) -> dict[str, Any]:
         """
-        Get workflow details including phases, triggers, and settings.
+        Get workflow details including steps, triggers, and settings.
 
         Args:
             name: Workflow name (without .yaml extension)
@@ -84,15 +84,15 @@ def create_workflows_registry(
             "type": definition.type,
             "description": definition.description,
             "version": definition.version,
-            "phases": [
+            "steps": [
                 {
-                    "name": p.name,
-                    "description": p.description,
-                    "allowed_tools": p.allowed_tools,
-                    "blocked_tools": p.blocked_tools,
+                    "name": s.name,
+                    "description": s.description,
+                    "allowed_tools": s.allowed_tools,
+                    "blocked_tools": s.blocked_tools,
                 }
-                for p in definition.phases
-            ] if definition.phases else [],
+                for s in definition.steps
+            ] if definition.steps else [],
             "triggers": {
                 name: len(actions) for name, actions in definition.triggers.items()
             } if definition.triggers else {},
@@ -112,7 +112,7 @@ def create_workflows_registry(
 
         Args:
             project_path: Optional project directory path
-            workflow_type: Filter by type ("phase" or "lifecycle")
+            workflow_type: Filter by type ("step" or "lifecycle")
 
         Returns:
             List of workflows with name, type, description, and source
@@ -147,7 +147,7 @@ def create_workflows_registry(
                     if not data:
                         continue
 
-                    wf_type = data.get("type", "phase")
+                    wf_type = data.get("type", "step")
 
                     if workflow_type and wf_type != workflow_type:
                         continue
@@ -167,28 +167,28 @@ def create_workflows_registry(
 
     @registry.tool(
         name="activate_workflow",
-        description="Activate a phase-based workflow for the current session.",
+        description="Activate a step-based workflow for the current session.",
     )
     def activate_workflow(
         name: str,
         session_id: str | None = None,
-        initial_phase: str | None = None,
+        initial_step: str | None = None,
         project_path: str | None = None,
     ) -> dict[str, Any]:
         """
-        Activate a phase-based workflow for the current session.
+        Activate a step-based workflow for the current session.
 
         Args:
             name: Workflow name (e.g., "plan-act-reflect", "tdd")
             session_id: Optional session ID (defaults to most recent active)
-            initial_phase: Optional starting phase (defaults to first phase)
+            initial_step: Optional starting step (defaults to first step)
             project_path: Optional project directory path
 
         Returns:
-            Success status, workflow info, and current phase.
+            Success status, workflow info, and current step.
 
         Errors if:
-            - Another phase-based workflow is currently active
+            - Another step-based workflow is currently active
             - Workflow not found
             - Workflow is lifecycle type (those auto-run, not manually activated)
         """
@@ -223,24 +223,24 @@ def create_workflows_registry(
                 "error": f"Session already has workflow '{existing.workflow_name}' active. Use end_workflow first.",
             }
 
-        # Determine initial phase
-        if initial_phase:
-            if not any(p.name == initial_phase for p in definition.phases):
+        # Determine initial step
+        if initial_step:
+            if not any(s.name == initial_step for s in definition.steps):
                 return {
                     "success": False,
-                    "error": f"Phase '{initial_phase}' not found. Available: {[p.name for p in definition.phases]}",
+                    "error": f"Step '{initial_step}' not found. Available: {[s.name for s in definition.steps]}",
                 }
-            phase = initial_phase
+            step = initial_step
         else:
-            phase = definition.phases[0].name if definition.phases else "default"
+            step = definition.steps[0].name if definition.steps else "default"
 
         # Create state
         state = WorkflowState(
             session_id=session_id,
             workflow_name=name,
-            phase=phase,
-            phase_entered_at=datetime.now(UTC),
-            phase_action_count=0,
+            step=step,
+            step_entered_at=datetime.now(UTC),
+            step_action_count=0,
             total_action_count=0,
             artifacts={},
             observations=[],
@@ -258,20 +258,20 @@ def create_workflows_registry(
             "success": True,
             "session_id": session_id,
             "workflow": name,
-            "phase": phase,
-            "phases": [p.name for p in definition.phases],
+            "step": step,
+            "steps": [s.name for s in definition.steps],
         }
 
     @registry.tool(
         name="end_workflow",
-        description="End the currently active phase-based workflow.",
+        description="End the currently active step-based workflow.",
     )
     def end_workflow(
         session_id: str | None = None,
         reason: str | None = None,
     ) -> dict[str, Any]:
         """
-        End the currently active phase-based workflow.
+        End the currently active step-based workflow.
 
         Allows starting a different workflow afterward.
         Does not affect lifecycle workflows (they continue running).
@@ -307,17 +307,17 @@ def create_workflows_registry(
 
     @registry.tool(
         name="get_workflow_status",
-        description="Get current workflow phase and state.",
+        description="Get current workflow step and state.",
     )
     def get_workflow_status(session_id: str | None = None) -> dict[str, Any]:
         """
-        Get current workflow phase and state.
+        Get current workflow step and state.
 
         Args:
             session_id: Optional session ID (defaults to most recent active)
 
         Returns:
-            Workflow state including phase, action counts, artifacts
+            Workflow state including step, action counts, artifacts
         """
         if not session_id:
             row = _db.fetchone(
@@ -336,8 +336,8 @@ def create_workflows_registry(
             "has_workflow": True,
             "session_id": session_id,
             "workflow_name": state.workflow_name,
-            "phase": state.phase,
-            "phase_action_count": state.phase_action_count,
+            "step": state.step,
+            "step_action_count": state.step_action_count,
             "total_action_count": state.total_action_count,
             "reflection_pending": state.reflection_pending,
             "artifacts": list(state.artifacts.keys()) if state.artifacts else [],
@@ -349,28 +349,28 @@ def create_workflows_registry(
         }
 
     @registry.tool(
-        name="request_phase_transition",
-        description="Request transition to a different phase.",
+        name="request_step_transition",
+        description="Request transition to a different step.",
     )
-    def request_phase_transition(
-        to_phase: str,
+    def request_step_transition(
+        to_step: str,
         reason: str | None = None,
         session_id: str | None = None,
         force: bool = False,
         project_path: str | None = None,
     ) -> dict[str, Any]:
         """
-        Request transition to a different phase. May require approval.
+        Request transition to a different step. May require approval.
 
         Args:
-            to_phase: Target phase name
+            to_step: Target step name
             reason: Reason for transition
             session_id: Optional session ID
             force: Skip exit condition checks
             project_path: Optional project directory path
 
         Returns:
-            Success status and new phase info
+            Success status and new step info
         """
         proj = Path(project_path) if project_path else None
 
@@ -387,19 +387,19 @@ def create_workflows_registry(
         if not state:
             return {"success": False, "error": "No workflow active for session"}
 
-        # Load workflow to validate phase
+        # Load workflow to validate step
         definition = _loader.load_workflow(state.workflow_name, proj)
         if not definition:
             return {"success": False, "error": f"Workflow '{state.workflow_name}' not found"}
 
-        if not any(p.name == to_phase for p in definition.phases):
+        if not any(s.name == to_step for s in definition.steps):
             return {
                 "success": False,
-                "error": f"Phase '{to_phase}' not found. Available: {[p.name for p in definition.phases]}",
+                "error": f"Step '{to_step}' not found. Available: {[s.name for s in definition.steps]}",
             }
 
-        old_phase = state.step
-        state.step = to_phase
+        old_step = state.step
+        state.step = to_step
         state.step_entered_at = datetime.now(UTC)
         state.step_action_count = 0
 
@@ -407,8 +407,8 @@ def create_workflows_registry(
 
         return {
             "success": True,
-            "from_phase": old_phase,
-            "to_phase": to_phase,
+            "from_step": old_step,
+            "to_step": to_step,
             "reason": reason,
             "forced": force,
         }
