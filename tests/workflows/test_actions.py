@@ -821,10 +821,9 @@ async def test_extract_handoff_context(
         mock_ctx.recent_activity = ["User asked X", "System did Y"]
         mock_instance.extract_handoff_context.return_value = mock_ctx
 
-        # Patch executor's git helper to avoid overwriting with real commits
-        with patch.object(
-            action_executor,
-            "_get_recent_git_commits",
+        # Patch git helper in context_actions module to avoid overwriting with real commits
+        with patch(
+            "gobby.workflows.context_actions.get_recent_git_commits",
             return_value=[{"hash": "abc1234", "message": "feat: add stuff"}],
         ):
             res = await action_executor.execute("extract_handoff_context", action_context)

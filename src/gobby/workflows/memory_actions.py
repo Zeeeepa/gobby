@@ -1,0 +1,398 @@
+"""Memory-related workflow actions.
+
+Extracted from actions.py as part of strangler fig decomposition.
+These functions handle memory injection, extraction, saving, and recall.
+"""
+
+import json
+import logging
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+async def memory_sync_import(memory_sync_manager: Any) -> dict[str, Any]:
+    """Import memories from filesystem.
+
+    Args:
+        memory_sync_manager: The memory sync manager instance
+
+    Returns:
+        Dict with imported count or error
+    """
+    if not memory_sync_manager:
+        return {"error": "Memory Sync Manager not available"}
+
+    count = await memory_sync_manager.import_from_files()
+    logger.info(f"Memory sync import: {count} memories imported")
+    return {"imported": {"memories": count}}
+
+
+async def memory_sync_export(memory_sync_manager: Any) -> dict[str, Any]:
+    """Export memories to filesystem.
+
+    Args:
+        memory_sync_manager: The memory sync manager instance
+
+    Returns:
+        Dict with exported count or error
+    """
+    if not memory_sync_manager:
+        return {"error": "Memory Sync Manager not available"}
+
+    count = await memory_sync_manager.export_to_files()
+    logger.info(f"Memory sync export: {count} memories exported")
+    return {"exported": {"memories": count}}
+
+
+async def memory_inject(
+    memory_manager: Any,
+    session_manager: Any,
+    session_id: str,
+    project_id: str | None = None,
+    min_importance: float | None = None,
+    limit: int | None = None,
+) -> dict[str, Any] | None:
+    """Inject memory context into the session.
+
+    Args:
+        memory_manager: The memory manager instance
+        session_manager: The session manager instance
+        session_id: Current session ID
+        project_id: Override project ID (optional)
+        min_importance: Minimum importance threshold (optional)
+        limit: Max memories to inject (optional)
+
+    Returns:
+        Dict with inject_context and count, or None if disabled
+    """
+    if not memory_manager:
+        return None
+
+    if not memory_manager.config.enabled:
+        return None
+
+    # Resolve project_id from session if not provided
+    if not project_id:
+        session = session_manager.get(session_id)
+        if session:
+            project_id = session.project_id
+
+    if not project_id:
+        logger.warning("memory_inject: No project_id found")
+        return None
+
+    from gobby.memory.context import build_memory_context
+
+    try:
+        config = memory_manager.config
+        threshold = min_importance if min_importance is not None else config.importance_threshold
+        injection_limit = limit if limit is not None else config.injection_limit
+
+        project_memories = memory_manager.recall(
+            project_id=project_id,
+            min_importance=threshold,
+            limit=injection_limit,
+        )
+
+        if not project_memories:
+            logger.debug(
+                f"memory_inject: No memories found for project {project_id} "
+                f"(threshold={threshold})"
+            )
+            return {"injected": False, "reason": "No memories found", "count": 0}
+
+        memory_context = build_memory_context(project_memories)
+
+        if not memory_context:
+            return {"injected": False, "count": 0}
+
+        logger.info(
+            f"memory_inject: Injected {len(project_memories)} memories "
+            f"(threshold={threshold}, limit={injection_limit})"
+        )
+
+        return {"inject_context": memory_context, "count": len(project_memories)}
+
+    except Exception as e:
+        logger.error(f"memory_inject: Failed: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
+async def memory_extract(
+    memory_manager: Any,
+    llm_service: Any,
+    session_manager: Any,
+    session_id: str,
+) -> dict[str, Any] | None:
+    """Extract memories from session summary using LLM.
+
+    Args:
+        memory_manager: The memory manager instance
+        llm_service: The LLM service instance
+        session_manager: The session manager instance
+        session_id: Current session ID
+
+    Returns:
+        Dict with extracted count, or None if disabled
+    """
+    if not memory_manager:
+        return None
+
+    if not memory_manager.config.enabled:
+        return None
+
+    if not memory_manager.config.auto_extract:
+        logger.debug("memory_extract: auto_extract disabled")
+        return None
+
+    if not llm_service:
+        logger.warning("memory_extract: No LLM service available")
+        return None
+
+    session = session_manager.get(session_id)
+    if not session:
+        logger.warning(f"memory_extract: Session {session_id} not found")
+        return None
+
+    project_id = session.project_id
+
+    try:
+        summary = session.summary_markdown
+        if not summary:
+            logger.debug("memory_extract: No summary available, skipping extraction")
+            return {"extracted": 0, "reason": "no_summary"}
+
+        memory_config = memory_manager.config
+        provider, model, _ = llm_service.get_provider_for_feature(memory_config)
+
+        prompt = memory_config.extraction_prompt.format(summary=summary)
+        response = await provider.generate_text(prompt=prompt, model=model)
+
+        # Parse JSON response
+        cleaned_response = response.strip()
+        if cleaned_response.startswith("```json"):
+            cleaned_response = cleaned_response[7:]
+        if cleaned_response.startswith("```"):
+            cleaned_response = cleaned_response[3:]
+        if cleaned_response.endswith("```"):
+            cleaned_response = cleaned_response[:-3]
+        cleaned_response = cleaned_response.strip()
+
+        try:
+            memories_data = json.loads(cleaned_response)
+        except json.JSONDecodeError:
+            logger.warning(f"memory_extract: Failed to parse JSON for session {session_id}")
+            return {"extracted": 0, "error": "json_parse_error"}
+
+        if not isinstance(memories_data, list):
+            logger.warning(f"memory_extract: Expected list, got {type(memories_data).__name__}")
+            return {"extracted": 0, "error": "invalid_response_format"}
+
+        # Create memories
+        created_count = 0
+        for mem_data in memories_data:
+            if not isinstance(mem_data, dict):
+                continue
+
+            content = mem_data.get("content")
+            if not content:
+                continue
+
+            if memory_manager.content_exists(content, project_id):
+                logger.debug(f"memory_extract: Skipping duplicate: {content[:50]}...")
+                continue
+
+            memory_type = mem_data.get("memory_type", "fact")
+            if memory_type not in ("fact", "preference", "pattern", "context"):
+                memory_type = "fact"
+
+            importance = mem_data.get("importance", 0.5)
+            if not isinstance(importance, (int, float)):
+                importance = 0.5
+            importance = max(0.0, min(1.0, float(importance)))
+
+            tags = mem_data.get("tags", [])
+            if not isinstance(tags, list):
+                tags = []
+
+            try:
+                await memory_manager.remember(
+                    content=content,
+                    memory_type=memory_type,
+                    importance=importance,
+                    project_id=project_id,
+                    source_type="session",
+                    source_session_id=session_id,
+                    tags=tags,
+                )
+                created_count += 1
+                logger.info(f"memory_extract: Created {memory_type} memory: {content[:50]}...")
+            except Exception as e:
+                logger.error(f"memory_extract: Failed to create memory: {e}")
+
+        return {"extracted": created_count, "session_id": session_id}
+
+    except Exception as e:
+        logger.error(f"memory_extract: Failed: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
+async def memory_save(
+    memory_manager: Any,
+    session_manager: Any,
+    session_id: str,
+    content: str | None = None,
+    memory_type: str = "fact",
+    importance: float = 0.5,
+    tags: list[str] | None = None,
+    project_id: str | None = None,
+) -> dict[str, Any] | None:
+    """Save a memory directly from workflow context.
+
+    Args:
+        memory_manager: The memory manager instance
+        session_manager: The session manager instance
+        session_id: Current session ID
+        content: The memory content to save (required)
+        memory_type: One of 'fact', 'preference', 'pattern', 'context'
+        importance: Float 0.0-1.0
+        tags: List of string tags
+        project_id: Override project ID
+
+    Returns:
+        Dict with saved status and memory_id, or error
+    """
+    if not memory_manager:
+        return {"error": "Memory Manager not available"}
+
+    if not memory_manager.config.enabled:
+        return None
+
+    if not content:
+        return {"error": "Missing required 'content' parameter"}
+
+    # Resolve project_id
+    if not project_id:
+        session = session_manager.get(session_id)
+        if session:
+            project_id = session.project_id
+
+    if not project_id:
+        return {"error": "No project_id found"}
+
+    # Validate memory_type
+    if memory_type not in ("fact", "preference", "pattern", "context"):
+        memory_type = "fact"
+
+    # Validate importance
+    if not isinstance(importance, (int, float)):
+        importance = 0.5
+    importance = max(0.0, min(1.0, float(importance)))
+
+    # Validate tags
+    if tags is None:
+        tags = []
+    if not isinstance(tags, list):
+        tags = []
+
+    try:
+        if memory_manager.content_exists(content, project_id):
+            logger.debug(f"save_memory: Skipping duplicate: {content[:50]}...")
+            return {"saved": False, "reason": "duplicate"}
+
+        memory = await memory_manager.remember(
+            content=content,
+            memory_type=memory_type,
+            importance=importance,
+            project_id=project_id,
+            source_type="workflow",
+            source_session_id=session_id,
+            tags=tags,
+        )
+
+        logger.info(f"save_memory: Created {memory_type} memory: {content[:50]}...")
+        return {
+            "saved": True,
+            "memory_id": memory.id,
+            "memory_type": memory_type,
+            "importance": importance,
+        }
+
+    except Exception as e:
+        logger.error(f"save_memory: Failed: {e}", exc_info=True)
+        return {"error": str(e)}
+
+
+async def memory_recall_relevant(
+    memory_manager: Any,
+    session_manager: Any,
+    session_id: str,
+    prompt_text: str | None = None,
+    project_id: str | None = None,
+    limit: int = 5,
+    min_importance: float = 0.3,
+) -> dict[str, Any] | None:
+    """Recall memories relevant to the current user prompt.
+
+    Args:
+        memory_manager: The memory manager instance
+        session_manager: The session manager instance
+        session_id: Current session ID
+        prompt_text: The user's prompt text
+        project_id: Override project ID
+        limit: Max memories to retrieve
+        min_importance: Minimum importance threshold
+
+    Returns:
+        Dict with inject_context and count, or None if disabled
+    """
+    if not memory_manager:
+        return None
+
+    if not memory_manager.config.enabled:
+        return None
+
+    if not prompt_text:
+        logger.debug("memory_recall_relevant: No prompt_text provided")
+        return None
+
+    # Skip for very short prompts or commands
+    if len(prompt_text.strip()) < 10 or prompt_text.strip().startswith("/"):
+        logger.debug("memory_recall_relevant: Skipping short/command prompt")
+        return None
+
+    # Resolve project_id
+    if not project_id:
+        session = session_manager.get(session_id)
+        if session:
+            project_id = session.project_id
+
+    try:
+        memories = memory_manager.recall(
+            query=prompt_text,
+            project_id=project_id,
+            limit=limit,
+            min_importance=min_importance,
+            use_semantic=True,
+        )
+
+        if not memories:
+            logger.debug("memory_recall_relevant: No relevant memories found")
+            return {"injected": False, "count": 0}
+
+        from gobby.memory.context import build_memory_context
+
+        memory_context = build_memory_context(memories)
+
+        logger.info(f"memory_recall_relevant: Injecting {len(memories)} relevant memories")
+
+        return {
+            "inject_context": memory_context,
+            "injected": True,
+            "count": len(memories),
+        }
+
+    except Exception as e:
+        logger.error(f"memory_recall_relevant: Failed: {e}", exc_info=True)
+        return {"error": str(e)}
