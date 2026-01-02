@@ -167,7 +167,9 @@ def start(ctx: click.Context, verbose: bool) -> None:
         }
 
         # Fetch rich status if daemon is healthy
+        # Brief delay to allow stats to be computed
         if daemon_healthy:
+            time.sleep(1.0)
             rich_status = fetch_rich_status(http_port, timeout=2.0)
             status_kwargs.update(rich_status)
 
