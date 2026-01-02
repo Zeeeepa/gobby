@@ -360,3 +360,130 @@ async def test_create_handoff_no_transcript(mock_session_manager, full_sessions_
 
     assert "error" in result
     assert "No transcript path" in result["error"]
+
+
+# --- Pickup Tool Tests ---
+
+
+@pytest.mark.asyncio
+async def test_pickup_by_session_id(mock_session_manager, full_sessions_registry):
+    """Test pickup tool with explicit session_id."""
+    mock_session = _make_mock_session("sess-parent", status="handoff_ready")
+    mock_session.compact_markdown = "## Continuation Context\n\nTest handoff"
+    mock_session.summary_markdown = None
+    mock_session.title = "Parent Session"
+    mock_session.status = "handoff_ready"
+    mock_session_manager.get.return_value = mock_session
+
+    result = await full_sessions_registry.call("pickup", {"session_id": "sess-parent"})
+
+    mock_session_manager.get.assert_called_with("sess-parent")
+    assert result["found"] is True
+    assert result["session_id"] == "sess-parent"
+    assert result["has_context"] is True
+    assert "Test handoff" in result["context"]
+    assert result["context_type"] == "compact_markdown"
+
+
+@pytest.mark.asyncio
+async def test_pickup_falls_back_to_summary_markdown(mock_session_manager, full_sessions_registry):
+    """Test pickup uses summary_markdown when compact_markdown is None."""
+    mock_session = _make_mock_session("sess-parent", status="handoff_ready")
+    mock_session.compact_markdown = None
+    mock_session.summary_markdown = "## Summary\n\nLLM generated summary"
+    mock_session.title = "Parent Session"
+    mock_session.status = "handoff_ready"
+    mock_session_manager.get.return_value = mock_session
+
+    result = await full_sessions_registry.call("pickup", {"session_id": "sess-parent"})
+
+    assert result["found"] is True
+    assert result["has_context"] is True
+    assert "LLM generated summary" in result["context"]
+    assert result["context_type"] == "summary_markdown"
+
+
+@pytest.mark.asyncio
+async def test_pickup_no_context(mock_session_manager, full_sessions_registry):
+    """Test pickup when session has no handoff context."""
+    mock_session = _make_mock_session("sess-parent", status="handoff_ready")
+    mock_session.compact_markdown = None
+    mock_session.summary_markdown = None
+    mock_session_manager.get.return_value = mock_session
+
+    result = await full_sessions_registry.call("pickup", {"session_id": "sess-parent"})
+
+    assert result["found"] is True
+    assert result["has_context"] is False
+    assert "no handoff context" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_pickup_not_found(mock_session_manager, full_sessions_registry):
+    """Test pickup when no session is found."""
+    mock_session_manager.get.return_value = None
+    mock_session_manager.list.return_value = []
+
+    result = await full_sessions_registry.call("pickup", {"session_id": "nonexistent"})
+
+    assert result["found"] is False
+    assert "No handoff-ready session found" in result["message"]
+
+
+@pytest.mark.asyncio
+async def test_pickup_finds_most_recent_handoff_ready(mock_session_manager, full_sessions_registry):
+    """Test pickup finds most recent handoff_ready session when no session_id given."""
+    mock_session = _make_mock_session("sess-recent", status="handoff_ready")
+    mock_session.compact_markdown = "## Recent Context"
+    mock_session.summary_markdown = None
+    mock_session.title = "Recent Session"
+    mock_session.status = "handoff_ready"
+    mock_session_manager.list.return_value = [mock_session]
+
+    result = await full_sessions_registry.call("pickup", {})
+
+    mock_session_manager.list.assert_called_with(status="handoff_ready", limit=1)
+    assert result["found"] is True
+    assert result["session_id"] == "sess-recent"
+
+
+@pytest.mark.asyncio
+async def test_pickup_links_child_session(mock_session_manager, full_sessions_registry):
+    """Test pickup can link a child session to the parent."""
+    mock_session = _make_mock_session("sess-parent", status="handoff_ready")
+    mock_session.compact_markdown = "## Context"
+    mock_session.summary_markdown = None
+    mock_session.title = "Parent"
+    mock_session.status = "handoff_ready"
+    mock_session_manager.get.return_value = mock_session
+
+    result = await full_sessions_registry.call(
+        "pickup",
+        {"session_id": "sess-parent", "link_child_session_id": "sess-child"},
+    )
+
+    mock_session_manager.update_parent_session_id.assert_called_with(
+        "sess-child", "sess-parent"
+    )
+    assert result["linked_child"] == "sess-child"
+
+
+@pytest.mark.asyncio
+async def test_pickup_prefix_match(mock_session_manager, full_sessions_registry):
+    """Test pickup supports prefix matching for session_id."""
+    mock_session = _make_mock_session("sess-abc123def", status="handoff_ready")
+    mock_session.compact_markdown = "## Context"
+    mock_session.summary_markdown = None
+    mock_session.title = "Session"
+    mock_session.status = "handoff_ready"
+
+    # First get returns None, then list returns the session for prefix match
+    mock_session_manager.get.return_value = None
+    mock_session_manager.list.side_effect = [
+        [mock_session],  # First call for prefix search
+    ]
+
+    result = await full_sessions_registry.call("pickup", {"session_id": "sess-abc"})
+
+    assert result["found"] is True
+    assert result["session_id"] == "sess-abc123def"

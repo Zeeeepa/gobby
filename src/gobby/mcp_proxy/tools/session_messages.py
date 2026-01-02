@@ -353,6 +353,112 @@ def create_session_messages_registry(
                 },
             }
 
+        @registry.tool(
+            name="pickup",
+            description="Restore context from a previous session's handoff. For CLIs/IDEs without hooks.",
+        )
+        def pickup(
+            session_id: str | None = None,
+            project_id: str | None = None,
+            source: str | None = None,
+            link_child_session_id: str | None = None,
+        ) -> dict[str, Any]:
+            """
+            Restore context from a previous session's handoff.
+
+            This tool is designed for CLIs and IDEs that don't have a hooks system.
+            It finds the most recent handoff-ready session and returns its context
+            for injection into a new session.
+
+            Args:
+                session_id: Specific session ID to pickup from (optional)
+                project_id: Project ID to find parent session in (optional)
+                source: Filter by CLI source - claude_code, gemini, codex (optional)
+                link_child_session_id: If provided, links this session as a child
+
+            Returns:
+                Handoff context markdown and session metadata
+            """
+            from gobby.utils.machine_id import get_machine_id
+
+            if session_manager is None:
+                return {"error": "Session manager not available"}
+
+            parent_session = None
+
+            # Option 1: Direct session_id lookup
+            if session_id:
+                parent_session = session_manager.get(session_id)
+                if not parent_session:
+                    # Try prefix match
+                    sessions = session_manager.list(limit=100)
+                    matches = [s for s in sessions if s.id.startswith(session_id)]
+                    if len(matches) == 1:
+                        parent_session = matches[0]
+                    elif len(matches) > 1:
+                        return {
+                            "error": f"Ambiguous session ID prefix '{session_id}'",
+                            "matches": [s.id for s in matches[:5]],
+                        }
+
+            # Option 2: Find parent by project_id and source
+            if not parent_session and project_id:
+                machine_id = get_machine_id()
+                parent_session = session_manager.find_parent(
+                    machine_id=machine_id,
+                    project_id=project_id,
+                    source=source,
+                    status="handoff_ready",
+                )
+
+            # Option 3: Find most recent handoff_ready session
+            if not parent_session:
+                sessions = session_manager.list(status="handoff_ready", limit=1)
+                parent_session = sessions[0] if sessions else None
+
+            if not parent_session:
+                return {
+                    "found": False,
+                    "message": "No handoff-ready session found",
+                    "filters": {
+                        "session_id": session_id,
+                        "project_id": project_id,
+                        "source": source,
+                    },
+                }
+
+            # Get handoff context (prefer compact_markdown, fall back to summary_markdown)
+            context = parent_session.compact_markdown or parent_session.summary_markdown
+
+            if not context:
+                return {
+                    "found": True,
+                    "session_id": parent_session.id,
+                    "has_context": False,
+                    "message": "Session found but has no handoff context",
+                }
+
+            # Optionally link child session
+            if link_child_session_id:
+                session_manager.update_parent_session_id(
+                    link_child_session_id, parent_session.id
+                )
+
+            return {
+                "found": True,
+                "session_id": parent_session.id,
+                "has_context": True,
+                "context": context,
+                "context_type": (
+                    "compact_markdown"
+                    if parent_session.compact_markdown
+                    else "summary_markdown"
+                ),
+                "parent_title": parent_session.title,
+                "parent_status": parent_session.status,
+                "linked_child": link_child_session_id,
+            }
+
     # --- Session CRUD Tools ---
     # Only register if session_manager is available
 

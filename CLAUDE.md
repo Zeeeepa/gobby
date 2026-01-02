@@ -171,6 +171,27 @@ compact_handoff:
     ...
 ```
 
+### Manual Pickup (for CLIs without hooks)
+
+For CLIs and IDEs without a hooks system, use the `pickup` MCP tool to restore context:
+
+```python
+# Pickup from the most recent handoff-ready session
+call_tool(server_name="gobby-sessions", tool_name="pickup", arguments={})
+
+# Pickup from a specific session
+call_tool(server_name="gobby-sessions", tool_name="pickup", arguments={
+    "session_id": "sess-abc123"
+})
+
+# Pickup and link the current session as a child
+call_tool(server_name="gobby-sessions", tool_name="pickup", arguments={
+    "link_child_session_id": "current-session-id"
+})
+```
+
+The tool returns the handoff context (prefers `compact_markdown`, falls back to `summary_markdown`).
+
 ## MCP Tool Progressive Disclosure
 
 The daemon implements progressive tool discovery to reduce token usage:
