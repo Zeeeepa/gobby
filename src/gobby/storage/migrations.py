@@ -476,6 +476,17 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_tool_embeddings_hash ON tool_embeddings(text_hash);
         """,
     ),
+    (
+        22,
+        "Add workflow integration columns to tasks table",
+        """
+        ALTER TABLE tasks ADD COLUMN workflow_name TEXT;
+        ALTER TABLE tasks ADD COLUMN verification TEXT;
+        ALTER TABLE tasks ADD COLUMN sequence_order INTEGER;
+        CREATE INDEX IF NOT EXISTS idx_tasks_workflow ON tasks(workflow_name);
+        CREATE INDEX IF NOT EXISTS idx_tasks_sequence ON tasks(workflow_name, sequence_order);
+        """,
+    ),
 ]
 
 

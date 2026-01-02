@@ -1,7 +1,7 @@
 name: plan-to-tasks
-description: "Decompose a plan into atomic tasks and execute sequentially"
+description: "Decompose a plan into atomic tasks and execute sequentially with persistent tracking"
 type: phased
-version: "1.0"
+version: "2.0"
 
 variables:
   plan_pattern: "**/*.plan.md"
@@ -10,7 +10,7 @@ variables:
 
 phases:
   - name: decompose
-    description: "Break plan into atomic tasks"
+    description: "Break plan into atomic tasks with persistent storage"
 
     on_enter:
       - action: inject_message
@@ -18,7 +18,7 @@ phases:
           DECOMPOSITION PHASE
 
           Looking for a plan file matching: {{ plan_pattern }}
-          Will break it into atomic, sequential tasks.
+          Will break it into atomic, sequential tasks stored in Gobby.
 
       - action: read_artifact
         pattern: "{{ plan_pattern }}"
@@ -35,12 +35,14 @@ phases:
           Plan:
           {{ current_plan }}
 
-          Output as JSON: {"tasks": [{"id": 1, "description": "...", "verification": "..."}]}
+          Output as JSON: {"tasks": [{"id": 1, "title": "...", "verification": "..."}]}
         output_as: task_list
 
+      # Persist tasks to database with ID mapping
       - action: persist_tasks
         source: task_list.tasks
 
+      # Also write to TodoWrite for visibility
       - action: write_todos
         source: task_list.tasks
 
@@ -69,11 +71,15 @@ phases:
         name: current_task_index
         value: 0
 
+      # Load persisted tasks for this workflow
+      - action: get_workflow_tasks
+        as: workflow_tasks
+
       - action: inject_message
         content: |
           EXECUTION PHASE
 
-          Working on task {{ current_task_index + 1 }}.
+          Working on task {{ current_task_index + 1 }} of {{ workflow_tasks | length }}.
           Focus on one task at a time. Say "done" or "next" when ready to verify.
 
     allowed_tools: all
@@ -108,8 +114,14 @@ phases:
       - to: execute
         when: "user_says('pass') or user_says('verified')"
         on_transition:
+          # Mark the task as complete in database
+          - action: update_workflow_task
+            status: closed
+            validation_status: valid
+
           - action: mark_todo_complete
             index: "{{ current_task_index }}"
+
           - action: increment_variable
             name: current_task_index
 
@@ -130,14 +142,25 @@ phases:
         content: |
           ALL TASKS COMPLETE
 
-          Great work! All planned tasks have been verified.
+          Great work! All planned tasks have been verified and stored.
 
 triggers:
   on_session_start:
     - action: load_workflow_state
+
+    # Try to load existing tasks for this workflow
+    - action: get_workflow_tasks
+      as: existing_tasks
+
+    # Enter decompose if no tasks yet
     - action: enter_phase
       phase: decompose
-      when: "not workflow_state.phase"
+      when: "not workflow_state.phase and (not existing_tasks or existing_tasks | length == 0)"
+
+    # Resume execution if tasks exist
+    - action: enter_phase
+      phase: execute
+      when: "not workflow_state.phase and existing_tasks and existing_tasks | length > 0"
 
   on_session_end:
     - action: save_workflow_state

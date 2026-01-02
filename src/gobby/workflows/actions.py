@@ -91,6 +91,8 @@ class ActionExecutor:
         self.register("write_todos", self._handle_write_todos)
         self.register("mark_todo_complete", self._handle_mark_todo_complete)
         self.register("persist_tasks", self._handle_persist_tasks)
+        self.register("get_workflow_tasks", self._handle_get_workflow_tasks)
+        self.register("update_workflow_task", self._handle_update_workflow_task)
         self.register("call_mcp_tool", self._handle_call_mcp_tool)
         # Memory actions - underscore pattern (memory_*)
         self.register("memory_inject", self._handle_memory_inject)
@@ -595,42 +597,162 @@ class ActionExecutor:
     async def _handle_persist_tasks(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """Persist a list of task dicts to Gobby task system."""
-        tasks = kwargs.get("tasks", [])
-        try:
-            from gobby.storage.tasks import LocalTaskManager
+        """Persist a list of task dicts to Gobby task system.
 
-            task_manager = LocalTaskManager(context.db)
+        Enhanced to support workflow integration with ID mapping.
+
+        Args (via kwargs):
+            tasks: List of task dicts (or source variable name)
+            source: Variable name containing task list (alternative to tasks)
+            workflow_name: Associate tasks with this workflow
+            parent_task_id: Optional parent task for all created tasks
+
+        Returns:
+            Dict with tasks_persisted count, ids list, and id_mapping dict
+        """
+        # Get tasks from either 'tasks' kwarg or 'source' variable
+        tasks = kwargs.get("tasks", [])
+        source = kwargs.get("source")
+
+        if source and context.state.variables:
+            source_data = context.state.variables.get(source)
+            if source_data:
+                # Handle nested structure like task_list.tasks
+                if isinstance(source_data, dict) and "tasks" in source_data:
+                    tasks = source_data["tasks"]
+                elif isinstance(source_data, list):
+                    tasks = source_data
+
+        if not tasks:
+            return {"tasks_persisted": 0, "ids": [], "id_mapping": {}}
+
+        try:
+            from gobby.workflows.task_actions import persist_decomposed_tasks
 
             current_session = context.session_manager.get(context.session_id)
             project_id = current_session.project_id if current_session else "default"
 
-            created_count = 0
-            ids = []
+            # Get workflow name from kwargs or state
+            workflow_name = kwargs.get("workflow_name")
+            if not workflow_name and context.state.workflow_name:
+                workflow_name = context.state.workflow_name
 
-            for task_data in tasks:
-                # Basic validation/defaulting
-                title = task_data.get("title")
-                if not title:
-                    continue
+            parent_task_id = kwargs.get("parent_task_id")
 
-                # task_data might have: description, priority, type, labels
-                t = task_manager.create_task(
-                    project_id=project_id,
-                    title=title,
-                    description=task_data.get("description"),
-                    priority=task_data.get("priority", 2),
-                    task_type=task_data.get("type", "task"),
-                    labels=task_data.get("labels"),
-                    discovered_in_session_id=context.session_id,
-                )
-                ids.append(t.id)
-                created_count += 1
+            id_mapping = persist_decomposed_tasks(
+                db=context.db,
+                project_id=project_id,
+                tasks_data=tasks,
+                workflow_name=workflow_name or "unnamed",
+                parent_task_id=parent_task_id,
+                discovered_in_session_id=context.session_id,
+            )
 
-            return {"tasks_persisted": created_count, "ids": ids}
+            # Store ID mapping in workflow state for reference
+            if not context.state.variables:
+                context.state.variables = {}
+            context.state.variables["task_id_mapping"] = id_mapping
+
+            return {
+                "tasks_persisted": len(id_mapping),
+                "ids": list(id_mapping.values()),
+                "id_mapping": id_mapping,
+            }
         except Exception as e:
             logger.error(f"persist_tasks: Failed: {e}")
             return {"error": str(e)}
+
+    async def _handle_get_workflow_tasks(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Get tasks associated with the current workflow.
+
+        Args (via kwargs):
+            workflow_name: Override workflow name (defaults to current)
+            include_closed: Include closed tasks (default: False)
+            as: Variable name to store result in
+
+        Returns:
+            Dict with tasks list and count
+        """
+        from gobby.workflows.task_actions import get_workflow_tasks
+
+        workflow_name = kwargs.get("workflow_name")
+        if not workflow_name and context.state.workflow_name:
+            workflow_name = context.state.workflow_name
+
+        if not workflow_name:
+            return {"error": "No workflow name specified"}
+
+        current_session = context.session_manager.get(context.session_id)
+        project_id = current_session.project_id if current_session else None
+
+        include_closed = kwargs.get("include_closed", False)
+
+        tasks = get_workflow_tasks(
+            db=context.db,
+            workflow_name=workflow_name,
+            project_id=project_id,
+            include_closed=include_closed,
+        )
+
+        # Convert to dicts for YAML/JSON serialization
+        tasks_data = [t.to_dict() for t in tasks]
+
+        # Store in variable if requested
+        output_as = kwargs.get("as")
+        if output_as:
+            if not context.state.variables:
+                context.state.variables = {}
+            context.state.variables[output_as] = tasks_data
+
+        # Also update task_list in state for workflow engine use
+        context.state.task_list = [
+            {"id": t.id, "title": t.title, "status": t.status}
+            for t in tasks
+        ]
+
+        return {"tasks": tasks_data, "count": len(tasks)}
+
+    async def _handle_update_workflow_task(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Update a task from workflow context.
+
+        Args (via kwargs):
+            task_id: ID of task to update (required)
+            status: New status
+            verification: Verification result
+            validation_status: Validation status
+
+        Returns:
+            Dict with updated task data
+        """
+        from gobby.workflows.task_actions import update_task_from_workflow
+
+        task_id = kwargs.get("task_id")
+        if not task_id:
+            # Try to get from current_task_index in state
+            if context.state.task_list and context.state.current_task_index is not None:
+                idx = context.state.current_task_index
+                if 0 <= idx < len(context.state.task_list):
+                    task_id = context.state.task_list[idx].get("id")
+
+        if not task_id:
+            return {"error": "No task_id specified"}
+
+        task = update_task_from_workflow(
+            db=context.db,
+            task_id=task_id,
+            status=kwargs.get("status"),
+            verification=kwargs.get("verification"),
+            validation_status=kwargs.get("validation_status"),
+            validation_feedback=kwargs.get("validation_feedback"),
+        )
+
+        if task:
+            return {"updated": True, "task": task.to_dict()}
+        return {"updated": False, "error": "Task not found"}
 
     async def _handle_call_mcp_tool(
         self,

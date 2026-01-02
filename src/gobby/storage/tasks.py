@@ -46,6 +46,10 @@ class Task:
     validation_criteria: str | None = None
     use_external_validator: bool = False
     validation_fail_count: int = 0
+    # Workflow integration fields
+    workflow_name: str | None = None
+    verification: str | None = None
+    sequence_order: int | None = None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Task":
@@ -93,6 +97,9 @@ class Task:
             validation_fail_count=row["validation_fail_count"]
             if "validation_fail_count" in keys
             else 0,
+            workflow_name=row["workflow_name"] if "workflow_name" in keys else None,
+            verification=row["verification"] if "verification" in keys else None,
+            sequence_order=row["sequence_order"] if "sequence_order" in keys else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -124,6 +131,9 @@ class Task:
             "validation_criteria": self.validation_criteria,
             "use_external_validator": self.use_external_validator,
             "validation_fail_count": self.validation_fail_count,
+            "workflow_name": self.workflow_name,
+            "verification": self.verification,
+            "sequence_order": self.sequence_order,
         }
 
 
@@ -229,6 +239,9 @@ class LocalTaskManager:
         expansion_context: str | None = None,
         validation_criteria: str | None = None,
         use_external_validator: bool = False,
+        workflow_name: str | None = None,
+        verification: str | None = None,
+        sequence_order: int | None = None,
     ) -> Task:
         """Create a new task with collision handling."""
         max_retries = 3
@@ -255,8 +268,9 @@ class LocalTaskManager:
                             original_instruction, validation_status,
                             details, test_strategy, complexity_score,
                             estimated_subtasks, expansion_context,
-                            validation_criteria, use_external_validator, validation_fail_count
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                            validation_criteria, use_external_validator, validation_fail_count,
+                            workflow_name, verification, sequence_order
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
                         """,
                         (
                             task_id,
@@ -280,6 +294,9 @@ class LocalTaskManager:
                             expansion_context,
                             validation_criteria,
                             use_external_validator,
+                            workflow_name,
+                            verification,
+                            sequence_order,
                         ),
                     )
 
@@ -346,6 +363,9 @@ class LocalTaskManager:
         validation_criteria: str | None | Any = UNSET,
         use_external_validator: bool | None | Any = UNSET,
         validation_fail_count: int | None | Any = UNSET,
+        workflow_name: str | None | Any = UNSET,
+        verification: str | None | Any = UNSET,
+        sequence_order: int | None | Any = UNSET,
     ) -> Task:
         """Update task fields."""
         updates = []
@@ -414,6 +434,15 @@ class LocalTaskManager:
         if validation_fail_count is not UNSET:
             updates.append("validation_fail_count = ?")
             params.append(validation_fail_count)
+        if workflow_name is not UNSET:
+            updates.append("workflow_name = ?")
+            params.append(workflow_name)
+        if verification is not UNSET:
+            updates.append("verification = ?")
+            params.append(verification)
+        if sequence_order is not UNSET:
+            updates.append("sequence_order = ?")
+            params.append(sequence_order)
 
         if not updates:
             return self.get_task(task_id)
@@ -681,3 +710,40 @@ class LocalTaskManager:
         rows = self.db.fetchall(query, tuple(params))
         tasks = [Task.from_row(row) for row in rows]
         return order_tasks_hierarchically(tasks)
+
+    def list_workflow_tasks(
+        self,
+        workflow_name: str,
+        project_id: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Task]:
+        """List tasks associated with a workflow, ordered by sequence_order.
+
+        Args:
+            workflow_name: The workflow name to filter by
+            project_id: Optional project ID filter
+            status: Optional status filter ('open', 'in_progress', 'closed')
+            limit: Maximum tasks to return
+            offset: Pagination offset
+
+        Returns:
+            List of tasks ordered by sequence_order (nulls last), then created_at
+        """
+        query = "SELECT * FROM tasks WHERE workflow_name = ?"
+        params: list[Any] = [workflow_name]
+
+        if project_id:
+            query += " AND project_id = ?"
+            params.append(project_id)
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+
+        # Order by sequence_order (nulls last), then created_at
+        query += " ORDER BY COALESCE(sequence_order, 999999) ASC, created_at ASC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+
+        rows = self.db.fetchall(query, tuple(params))
+        return [Task.from_row(row) for row in rows]
