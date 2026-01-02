@@ -414,38 +414,139 @@ async def test_memory_extract(
     mock_services["memory_manager"].content_exists.return_value = False  # Important!
     mock_services["memory_manager"].remember = AsyncMock(return_value=MagicMock())  # Fix await
 
-    # Mock LLM provider for extraction
-    provider = MagicMock()
-    provider.generate_text = AsyncMock(
-        return_value='[{"content": "Fact 1", "memory_type": "fact"}]'
-    )
 
-    # Use MagicMock for service key methods
-    mock_llm_service = MagicMock()
-    mock_llm_service.get_provider_for_feature.return_value = (provider, "model", 1000)
-
-    # Patch context services
-    action_context.llm_service = mock_llm_service
+@pytest.mark.asyncio
+async def test_memory_extract_full_coverage(
+    action_executor, action_context, mock_services, session_manager, sample_project
+):
+    """Test all branches of memory_extract."""
+    # Setup basics
+    mock_services["memory_manager"].config.enabled = True
+    mock_services["memory_manager"].config.auto_extract = True
     action_context.memory_manager = mock_services["memory_manager"]
 
-    # Setup session with summary
+    # 1. Test Auto-extract disabled
+    mock_services["memory_manager"].config.auto_extract = False
+    res = await action_executor.execute("memory_extract", action_context)
+    assert res is None  # Should return None
+    mock_services["memory_manager"].config.auto_extract = True  # Reset
+
+    # 2. Test No LLM Service
+    action_context.llm_service = None
+    res = await action_executor.execute("memory_extract", action_context)
+    assert res is None
+
+    # Restore LLM service and setup provider mock
+    mock_llm = MagicMock()
+    mock_provider = MagicMock()
+    mock_llm.get_provider_for_feature.return_value = (mock_provider, "model", 1000)
+    action_context.llm_service = mock_llm
+
+    # 3. Test Session Not Found
+    action_context.session_id = "non-existent"
+    res = await action_executor.execute("memory_extract", action_context)
+    assert res is None
+
+    # Setup valid session
     session = session_manager.register(
-        external_id="extract-ext",
+        external_id="extract-test",
         machine_id="test-machine",
         source="test-source",
         project_id=sample_project["id"],
     )
-    session_manager.update_summary(session.id, summary_markdown="Session Summary")
     action_context.session_id = session.id
 
-    result = await action_executor.execute("memory_extract", action_context)
+    # 4. Test No Summary
+    res = await action_executor.execute("memory_extract", action_context)
+    assert res["extracted"] == 0
+    assert res["reason"] == "no_summary"
 
-    assert result is not None
-    if "error" in result:
-        pytest.fail(f"memory_extract failed: {result['error']}")
-    assert result["extracted"] == 1
+    # Add summary
+    session_manager.update_summary(session.id, summary_markdown="Summary")
+
+    # 5. Test JSON Parse Error
+    mock_provider.generate_text = AsyncMock(return_value="Not JSON")
+    res = await action_executor.execute("memory_extract", action_context)
+    assert res["error"] == "json_parse_error"
+
+    # 6. Test Invalid Format (Not list)
+    mock_provider.generate_text = AsyncMock(return_value='{"key": "value"}')
+    res = await action_executor.execute("memory_extract", action_context)
+    assert res["error"] == "invalid_response_format"
+
+    # 7. Test Duplicates and Invalid Items
+    mock_provider.generate_text = AsyncMock(
+        return_value="""
+    [
+        {"content": "Valid Memory", "memory_type": "fact"}, 
+        {"no_content": "skip"},
+        {"content": "Duplicate", "memory_type": "fact"}
+    ]
+    """
+    )
+
+    # Mock content_exists for Duplicate
+    def content_exists_side_effect(content, project_id):
+        return content == "Duplicate"
+
+    mock_services["memory_manager"].content_exists.side_effect = content_exists_side_effect
+    mock_services["memory_manager"].remember = AsyncMock()
+
+    res = await action_executor.execute("memory_extract", action_context)
+    assert res["extracted"] == 1  # Only "Valid Memory"
+
+    # Verify remember called only once with correct args
     mock_services["memory_manager"].remember.assert_called_once()
-    provider.generate_text.assert_called_once()
+    call_args = mock_services["memory_manager"].remember.call_args
+    assert call_args.kwargs["content"] == "Valid Memory"
+
+
+@pytest.mark.asyncio
+async def test_memory_inject_full_coverage(
+    action_executor, action_context, mock_services, session_manager, sample_project
+):
+    """Test all branches of memory_inject."""
+    mock_services["memory_manager"].config.enabled = True
+    action_context.memory_manager = mock_services["memory_manager"]
+
+    # 1. Test Project ID resolution failure (no kwargs, no session project)
+    # Create session without project (if possible, or mock session manager to return None)
+    # Actually session_manager.get returns None if not found
+    action_context.session_id = "unknown-session"
+    res = await action_executor.execute("memory_inject", action_context)
+    # Should return None because no project_id found
+    assert res is None
+
+    # 2. Test No Memories Found
+    # Setup valid session
+    session = session_manager.register(
+        external_id="inject-test",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+    )
+    action_context.session_id = session.id
+
+    mock_services["memory_manager"].recall.return_value = []
+    res = await action_executor.execute("memory_inject", action_context)
+    assert res["injected"] is False
+    assert res["reason"] == "No memories found"
+
+    # 3. Test Build Context Empty (e.g. valid memories but build returns empty?)
+    # Mock recall to return something
+    mock_services["memory_manager"].recall.return_value = [MagicMock()]
+
+    # We need to patch build_memory_context since it's imported inside the function
+    with patch("gobby.memory.context.build_memory_context", return_value="") as mock_build:
+        res = await action_executor.execute("memory_inject", action_context)
+        assert res["injected"] is False
+
+    # 4. Test Success
+    mock_services["memory_manager"].recall.return_value = [MagicMock()]
+    with patch("gobby.memory.context.build_memory_context", return_value="Context string"):
+        res = await action_executor.execute("memory_inject", action_context)
+        assert res["inject_context"] == "Context string"
+        assert res["count"] == 1
 
 
 @pytest.mark.asyncio
