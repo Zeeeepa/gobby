@@ -15,7 +15,6 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, Field, field_validator
 
-
 # Pattern for environment variable substitution:
 # ${VAR} - simple substitution
 # ${VAR:-default} - with default value if VAR is unset or empty
@@ -921,6 +920,25 @@ class SessionLifecycleConfig(BaseModel):
         return v
 
 
+class MetricsConfig(BaseModel):
+    """Configuration for metrics and status endpoints."""
+
+    list_limit: int = Field(
+        default=10000,
+        description="Maximum items to fetch when counting sessions/tasks/skills for metrics. "
+        "Set higher for large installs to avoid underreporting. "
+        "Use 0 for unbounded (uses COUNT queries instead of list).",
+    )
+
+    @field_validator("list_limit")
+    @classmethod
+    def validate_list_limit(cls, v: int) -> int:
+        """Validate list_limit is non-negative."""
+        if v < 0:
+            raise ValueError("list_limit must be non-negative")
+        return v
+
+
 class MemoryConfig(BaseModel):
     """Memory system configuration."""
 
@@ -1290,6 +1308,10 @@ class DaemonConfig(BaseModel):
         default_factory=SessionLifecycleConfig,
         description="Session lifecycle management configuration",
     )
+    metrics: MetricsConfig = Field(
+        default_factory=MetricsConfig,
+        description="Metrics and status endpoint configuration",
+    )
 
     def get_code_execution_config(self) -> CodeExecutionConfig:
         """Get code execution configuration."""
@@ -1330,6 +1352,10 @@ class DaemonConfig(BaseModel):
     def get_gobby_tasks_config(self) -> GobbyTasksConfig:
         """Get gobby-tasks configuration."""
         return self.gobby_tasks
+
+    def get_metrics_config(self) -> MetricsConfig:
+        """Get metrics configuration."""
+        return self.metrics
 
     @field_validator("daemon_port")
     @classmethod

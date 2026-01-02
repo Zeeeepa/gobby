@@ -238,3 +238,45 @@ class LocalSkillManager:
 
         rows = self.db.fetchall(query, tuple(params))
         return [Skill.from_row(row) for row in rows]
+
+    def count_skills(self, project_id: str | None = None) -> int:
+        """
+        Count skills with optional project filter.
+
+        Args:
+            project_id: Filter by project (includes global skills)
+
+        Returns:
+            Count of matching skills
+        """
+        query = "SELECT COUNT(*) as count FROM skills WHERE 1=1"
+        params: list[Any] = []
+
+        if project_id:
+            query += " AND (project_id = ? OR project_id IS NULL)"
+            params.append(project_id)
+
+        result = self.db.fetchone(query, tuple(params))
+        return result["count"] if result else 0
+
+    def get_usage_stats(self, project_id: str | None = None) -> dict[str, int]:
+        """
+        Get skill usage statistics.
+
+        Args:
+            project_id: Optional project filter
+
+        Returns:
+            Dictionary with 'count' and 'total_uses' keys
+        """
+        query = "SELECT COUNT(*) as count, COALESCE(SUM(usage_count), 0) as total_uses FROM skills"
+        params: list[Any] = []
+
+        if project_id:
+            query += " WHERE (project_id = ? OR project_id IS NULL)"
+            params.append(project_id)
+
+        result = self.db.fetchone(query, tuple(params))
+        if result:
+            return {"count": result["count"], "total_uses": result["total_uses"]}
+        return {"count": 0, "total_uses": 0}

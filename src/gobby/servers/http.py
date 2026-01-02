@@ -480,7 +480,6 @@ class HTTPServer:
 
             # Get MCP server status - include ALL configured servers
             mcp_health = {}
-            mcp_tools_cached = 0
             if self.mcp_manager is not None:
                 try:
                     # Iterate over all configured servers, not just connected ones
@@ -504,44 +503,37 @@ class HTTPServer:
                 except Exception as e:
                     logger.warning(f"Failed to get MCP health: {e}")
 
-            # Count internal tools
+            # Count internal tools from gobby-* registries (not downstream MCP servers)
+            internal_tools_count = 0
             if self._internal_manager:
                 for registry in self._internal_manager.get_all_registries():
-                    mcp_tools_cached += len(registry.list_tools())
+                    internal_tools_count += len(registry.list_tools())
 
-            # Get session statistics
+            # Get session statistics using efficient count queries
             session_stats = {"active": 0, "paused": 0, "handoff_ready": 0, "total": 0}
             if self.session_manager is not None:
                 try:
-                    all_sessions = self.session_manager.list(limit=1000)
-                    session_stats["total"] = len(all_sessions)
-                    for s in all_sessions:
-                        if s.status == "active":
-                            session_stats["active"] += 1
-                        elif s.status == "paused":
-                            session_stats["paused"] += 1
-                        elif s.status == "handoff_ready":
-                            session_stats["handoff_ready"] += 1
+                    # Use count_by_status for efficient grouped counts
+                    status_counts = self.session_manager.count_by_status()
+                    session_stats["total"] = sum(status_counts.values())
+                    session_stats["active"] = status_counts.get("active", 0)
+                    session_stats["paused"] = status_counts.get("paused", 0)
+                    session_stats["handoff_ready"] = status_counts.get("handoff_ready", 0)
                 except Exception as e:
                     logger.warning(f"Failed to get session stats: {e}")
 
-            # Get task statistics
+            # Get task statistics using efficient count queries
             task_stats = {"open": 0, "in_progress": 0, "closed": 0, "ready": 0, "blocked": 0}
             if self.task_manager is not None:
                 try:
-                    all_tasks = self.task_manager.list_tasks(limit=1000)
-                    for t in all_tasks:
-                        if t.status == "open":
-                            task_stats["open"] += 1
-                        elif t.status == "in_progress":
-                            task_stats["in_progress"] += 1
-                        elif t.status == "closed":
-                            task_stats["closed"] += 1
-                    # Get ready and blocked counts
-                    ready_tasks = self.task_manager.list_ready_tasks(limit=1000)
-                    task_stats["ready"] = len(ready_tasks)
-                    blocked_tasks = self.task_manager.list_blocked_tasks(limit=1000)
-                    task_stats["blocked"] = len(blocked_tasks)
+                    # Use count_by_status for efficient grouped counts
+                    status_counts = self.task_manager.count_by_status()
+                    task_stats["open"] = status_counts.get("open", 0)
+                    task_stats["in_progress"] = status_counts.get("in_progress", 0)
+                    task_stats["closed"] = status_counts.get("closed", 0)
+                    # Get ready and blocked counts using dedicated count methods
+                    task_stats["ready"] = self.task_manager.count_ready_tasks()
+                    task_stats["blocked"] = self.task_manager.count_blocked_tasks()
                 except Exception as e:
                     logger.warning(f"Failed to get task stats: {e}")
 
@@ -555,13 +547,12 @@ class HTTPServer:
                 except Exception as e:
                     logger.warning(f"Failed to get memory stats: {e}")
 
-            # Get skill statistics
+            # Get skill statistics using efficient count query
             skill_stats = {"count": 0, "total_uses": 0}
             if self.skill_learner is not None:
                 try:
-                    skills = self.skill_learner.storage.list_skills(limit=1000)
-                    skill_stats["count"] = len(skills)
-                    skill_stats["total_uses"] = sum(s.usage_count for s in skills)
+                    # Use get_usage_stats for efficient aggregation
+                    skill_stats = self.skill_learner.storage.get_usage_stats()
                 except Exception as e:
                     logger.warning(f"Failed to get skill stats: {e}")
 
@@ -580,7 +571,8 @@ class HTTPServer:
                 "process": process_metrics,
                 "background_tasks": background_tasks,
                 "mcp_servers": mcp_health,
-                "mcp_tools_cached": mcp_tools_cached,
+                # Count of tools from internal gobby-* registries (tasks, memory, skills)
+                "internal_tools_count": internal_tools_count,
                 "sessions": session_stats,
                 "tasks": task_stats,
                 "memory": memory_stats,

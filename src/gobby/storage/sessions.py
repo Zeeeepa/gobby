@@ -309,6 +309,56 @@ class LocalSessionManager:
         )
         return [Session.from_row(row) for row in rows]
 
+    def count(
+        self,
+        project_id: str | None = None,
+        status: str | None = None,
+        source: str | None = None,
+    ) -> int:
+        """
+        Count sessions with optional filters.
+
+        Args:
+            project_id: Filter by project
+            status: Filter by status
+            source: Filter by CLI source
+
+        Returns:
+            Count of matching sessions
+        """
+        conditions = []
+        params: list[Any] = []
+
+        if project_id:
+            conditions.append("project_id = ?")
+            params.append(project_id)
+        if status:
+            conditions.append("status = ?")
+            params.append(status)
+        if source:
+            conditions.append("source = ?")
+            params.append(source)
+
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+        result = self.db.fetchone(
+            f"SELECT COUNT(*) as count FROM sessions WHERE {where_clause}",
+            tuple(params),
+        )
+        return result["count"] if result else 0
+
+    def count_by_status(self) -> dict[str, int]:
+        """
+        Count sessions grouped by status.
+
+        Returns:
+            Dictionary mapping status to count
+        """
+        rows = self.db.fetchall(
+            "SELECT status, COUNT(*) as count FROM sessions GROUP BY status"
+        )
+        return {row["status"]: row["count"] for row in rows}
+
     def delete(self, session_id: str) -> bool:
         """Delete session by ID."""
         cursor = self.db.execute("DELETE FROM sessions WHERE id = ?", (session_id,))

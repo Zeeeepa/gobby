@@ -747,3 +747,113 @@ class LocalTaskManager:
 
         rows = self.db.fetchall(query, tuple(params))
         return [Task.from_row(row) for row in rows]
+
+    def count_tasks(
+        self,
+        project_id: str | None = None,
+        status: str | None = None,
+    ) -> int:
+        """
+        Count tasks with optional filters.
+
+        Args:
+            project_id: Filter by project
+            status: Filter by status
+
+        Returns:
+            Count of matching tasks
+        """
+        query = "SELECT COUNT(*) as count FROM tasks WHERE 1=1"
+        params: list[Any] = []
+
+        if project_id:
+            query += " AND project_id = ?"
+            params.append(project_id)
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+
+        result = self.db.fetchone(query, tuple(params))
+        return result["count"] if result else 0
+
+    def count_by_status(self, project_id: str | None = None) -> dict[str, int]:
+        """
+        Count tasks grouped by status.
+
+        Args:
+            project_id: Optional project filter
+
+        Returns:
+            Dictionary mapping status to count
+        """
+        query = "SELECT status, COUNT(*) as count FROM tasks"
+        params: list[Any] = []
+
+        if project_id:
+            query += " WHERE project_id = ?"
+            params.append(project_id)
+
+        query += " GROUP BY status"
+
+        rows = self.db.fetchall(query, tuple(params))
+        return {row["status"]: row["count"] for row in rows}
+
+    def count_ready_tasks(self, project_id: str | None = None) -> int:
+        """
+        Count tasks that are open and not blocked by any open blocking dependency.
+
+        Args:
+            project_id: Optional project filter
+
+        Returns:
+            Count of ready tasks
+        """
+        query = """
+        SELECT COUNT(*) as count FROM tasks t
+        WHERE t.status = 'open'
+        AND NOT EXISTS (
+            SELECT 1 FROM task_dependencies d
+            JOIN tasks blocker ON d.depends_on = blocker.id
+            WHERE d.task_id = t.id
+              AND d.dep_type = 'blocks'
+              AND blocker.status != 'closed'
+        )
+        """
+        params: list[Any] = []
+
+        if project_id:
+            query += " AND t.project_id = ?"
+            params.append(project_id)
+
+        result = self.db.fetchone(query, tuple(params))
+        return result["count"] if result else 0
+
+    def count_blocked_tasks(self, project_id: str | None = None) -> int:
+        """
+        Count tasks that are blocked by at least one open blocking dependency.
+
+        Args:
+            project_id: Optional project filter
+
+        Returns:
+            Count of blocked tasks
+        """
+        query = """
+        SELECT COUNT(*) as count FROM tasks t
+        WHERE t.status = 'open'
+        AND EXISTS (
+            SELECT 1 FROM task_dependencies d
+            JOIN tasks blocker ON d.depends_on = blocker.id
+            WHERE d.task_id = t.id
+              AND d.dep_type = 'blocks'
+              AND blocker.status != 'closed'
+        )
+        """
+        params: list[Any] = []
+
+        if project_id:
+            query += " AND t.project_id = ?"
+            params.append(project_id)
+
+        result = self.db.fetchone(query, tuple(params))
+        return result["count"] if result else 0
