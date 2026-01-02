@@ -828,16 +828,16 @@ class WorkflowConfig(BaseModel):
         default=True,
         description="Enable workflow engine",
     )
-    timeout: float = Field(
-        default=30.0,
-        description="Default timeout in seconds for workflow execution (e.g. LLM calls)",
+    timeout: float | None = Field(
+        default=None,
+        description="Timeout in seconds for workflow execution. None = no timeout (default)",
     )
 
     @field_validator("timeout")
     @classmethod
-    def validate_timeout(cls, v: float) -> float:
-        """Validate timeout is positive."""
-        if v <= 0:
+    def validate_timeout(cls, v: float | None) -> float | None:
+        """Validate timeout is positive if set."""
+        if v is not None and v <= 0:
             raise ValueError("Timeout must be positive")
         return v
 
