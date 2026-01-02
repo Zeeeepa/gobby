@@ -36,7 +36,10 @@ CREATE TABLE tasks (
     project_id TEXT NOT NULL,         -- FK to projects
     platform_id TEXT,                 -- UUID for future platform sync (nullable, populated on sync)
     parent_task_id TEXT,              -- For hierarchical breakdown (gt-a1b2c3.1)
-    discovered_in_session_id TEXT,    -- Session where task was discovered
+    created_in_session_id TEXT,       -- Session where task was created
+    closed_in_session_id TEXT,        -- Session where task was closed
+    closed_commit_sha TEXT,           -- Git commit SHA at time of closing
+    closed_at TEXT,                   -- Explicit close timestamp
     title TEXT NOT NULL,
     description TEXT,
     status TEXT DEFAULT 'open',       -- open, in_progress, closed, failed
@@ -60,7 +63,8 @@ CREATE TABLE tasks (
     updated_at TEXT NOT NULL,
     FOREIGN KEY (project_id) REFERENCES projects(id),
     FOREIGN KEY (parent_task_id) REFERENCES tasks(id),
-    FOREIGN KEY (discovered_in_session_id) REFERENCES sessions(id)
+    FOREIGN KEY (created_in_session_id) REFERENCES sessions(id),
+    FOREIGN KEY (closed_in_session_id) REFERENCES sessions(id)
 );
 
 CREATE INDEX idx_tasks_project ON tasks(project_id);
@@ -972,7 +976,7 @@ When the `plan-to-tasks.yaml` workflow decomposes a plan:
 
 1. LLM generates ordered task list with verification criteria
 2. Tasks are persisted to `tasks` table with:
-   - `discovered_in_session_id` set to current session
+   - `created_in_session_id` set to current session
    - Sequential `blocks` dependencies (task 2 blocks on task 1)
    - `verification` stored in description or labels
 3. WorkflowState references task IDs (not ephemeral list)

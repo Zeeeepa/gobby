@@ -99,14 +99,14 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
             labels=None,
             test_strategy=None,
             validation_criteria=None,
-            discovered_in_session_id=None,
+            created_in_session_id=None,
         )
     assert result == {"id": "t1"}
 
 
 @pytest.mark.asyncio
 async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager):
-    """Test create_task tool captures session_id as discovered_in_session_id."""
+    """Test create_task tool captures session_id as created_in_session_id."""
     registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
     # Mock return value
@@ -134,7 +134,7 @@ async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager)
             labels=None,
             test_strategy=None,
             validation_criteria=None,
-            discovered_in_session_id="session-abc123",
+            created_in_session_id="session-abc123",
         )
     assert result == {"id": "t1"}
 
