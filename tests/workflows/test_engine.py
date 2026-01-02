@@ -181,3 +181,223 @@ class TestWorkflowEngine:
         args, kwargs = mock_action_executor.execute.call_args
         assert args[0] == "test_action"
         assert kwargs["arg1"] == "val1"
+
+    async def test_handle_event_tool_allowed_in_list(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ):
+        """Tool is allowed when in the allowed_tools list."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            phase="phase1",
+            phase_entered_at=datetime.now(UTC),
+        )
+        mock_state_manager.get_state.return_value = state
+
+        phase1 = MagicMock(spec=WorkflowPhase)
+        phase1.blocked_tools = []
+        phase1.allowed_tools = ["Read", "Glob", "Grep"]  # Specific list
+        phase1.rules = []
+        phase1.transitions = []
+        phase1.exit_conditions = []
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.get_phase.return_value = phase1
+        mock_loader.load_workflow.return_value = workflow
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={},
+            metadata={"_platform_session_id": "sess1"},
+        )
+        event.tool_name = "Read"  # In allowed list
+
+        response = await workflow_engine.handle_event(event)
+
+        assert response.decision == "allow"
+
+    async def test_handle_event_tool_not_in_allowed_list(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ):
+        """Tool is blocked when not in the allowed_tools list."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            phase="phase1",
+            phase_entered_at=datetime.now(UTC),
+        )
+        mock_state_manager.get_state.return_value = state
+
+        phase1 = MagicMock(spec=WorkflowPhase)
+        phase1.blocked_tools = []
+        phase1.allowed_tools = ["Read", "Glob", "Grep"]  # Specific list
+        phase1.rules = []
+        phase1.transitions = []
+        phase1.exit_conditions = []
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.get_phase.return_value = phase1
+        mock_loader.load_workflow.return_value = workflow
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={},
+            metadata={"_platform_session_id": "sess1"},
+        )
+        event.tool_name = "Edit"  # Not in allowed list
+
+        response = await workflow_engine.handle_event(event)
+
+        assert response.decision == "block"
+        assert "not in allowed list" in response.reason
+
+    async def test_handle_event_tool_blocked_while_approval_pending(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ):
+        """Tools are blocked while waiting for user approval."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            phase="phase1",
+            phase_entered_at=datetime.now(UTC),
+            approval_pending=True,
+            approval_condition_id="test_approval",
+            approval_prompt="Ready to proceed?",
+        )
+        mock_state_manager.get_state.return_value = state
+
+        phase1 = MagicMock(spec=WorkflowPhase)
+        phase1.blocked_tools = []
+        phase1.allowed_tools = "all"
+        phase1.rules = []
+        phase1.transitions = []
+        phase1.exit_conditions = []
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.get_phase.return_value = phase1
+        mock_loader.load_workflow.return_value = workflow
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={},
+            metadata={"_platform_session_id": "sess1"},
+        )
+        event.tool_name = "Read"  # Normally allowed
+
+        response = await workflow_engine.handle_event(event)
+
+        assert response.decision == "block"
+        assert "approval" in response.reason.lower()
+
+    async def test_handle_event_disabled_workflow_allows_all(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ):
+        """Disabled workflow allows all tools (escape hatch)."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            phase="phase1",
+            phase_entered_at=datetime.now(UTC),
+            disabled=True,
+            disabled_reason="Testing escape hatch",
+        )
+        mock_state_manager.get_state.return_value = state
+
+        # Don't even need to set up the workflow since disabled returns early
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={},
+            metadata={"_platform_session_id": "sess1"},
+        )
+        event.tool_name = "any_tool"
+
+        response = await workflow_engine.handle_event(event)
+
+        assert response.decision == "allow"
+
+    async def test_handle_event_tool_allowed_all(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ):
+        """Tool is allowed when allowed_tools is 'all'."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            phase="phase1",
+            phase_entered_at=datetime.now(UTC),
+        )
+        mock_state_manager.get_state.return_value = state
+
+        phase1 = MagicMock(spec=WorkflowPhase)
+        phase1.blocked_tools = []
+        phase1.allowed_tools = "all"
+        phase1.rules = []
+        phase1.transitions = []
+        phase1.exit_conditions = []
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.get_phase.return_value = phase1
+        mock_loader.load_workflow.return_value = workflow
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={},
+            metadata={"_platform_session_id": "sess1"},
+        )
+        event.tool_name = "any_tool"
+
+        response = await workflow_engine.handle_event(event)
+
+        assert response.decision == "allow"
+
+    async def test_handle_event_blocked_list_takes_precedence(
+        self, workflow_engine, mock_state_manager, mock_loader
+    ):
+        """Blocked tools list takes precedence over allowed_tools='all'."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="default",
+            phase="phase1",
+            phase_entered_at=datetime.now(UTC),
+        )
+        mock_state_manager.get_state.return_value = state
+
+        phase1 = MagicMock(spec=WorkflowPhase)
+        phase1.blocked_tools = ["Bash", "Edit", "Write"]  # Dangerous tools
+        phase1.allowed_tools = "all"  # All others allowed
+        phase1.rules = []
+        phase1.transitions = []
+        phase1.exit_conditions = []
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.get_phase.return_value = phase1
+        mock_loader.load_workflow.return_value = workflow
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={},
+            metadata={"_platform_session_id": "sess1"},
+        )
+        event.tool_name = "Bash"  # In blocked list
+
+        response = await workflow_engine.handle_event(event)
+
+        assert response.decision == "block"
+        assert "blocked in phase" in response.reason

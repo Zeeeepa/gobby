@@ -1130,8 +1130,8 @@ class HookManager:
         """
         Handle BEFORE_TOOL event (pre-tool-use).
 
-        Logs tool usage and executes lifecycle workflow triggers for on_before_tool / on_tool_call.
-        Workflows can validate tool permissions, evaluate rules, and check transitions.
+        Evaluates lifecycle workflows for tool events.
+        Note: Phase-based workflow evaluation (tool blocking) already happened in main handle() method.
 
         Args:
             event: HookEvent with tool_name and tool_input
@@ -1148,17 +1148,18 @@ class HookManager:
         else:
             self.logger.debug(f"🔧 Pre-tool: {tool_name}")
 
-        # Execute all lifecycle workflow triggers for on_before_tool / on_tool_call
-        # This allows workflows to validate tool permissions, evaluate rules, block tools, etc.
         context_parts = []
+
+        # Execute lifecycle workflow triggers for on_before_tool / on_tool_call
+        # Note: Phase-based workflow evaluation already happened in main handle() method
         try:
             wf_response = self._workflow_handler.handle_all_lifecycles(event)
             if wf_response.context:
                 context_parts.append(wf_response.context)
-            # If workflow blocks or modifies, return immediately
+            # If lifecycle workflow blocks or modifies, return immediately
             if wf_response.decision != "allow":
                 self.logger.info(
-                    f"Workflow {wf_response.decision} tool '{tool_name}': {wf_response.reason}"
+                    f"Lifecycle workflow {wf_response.decision} tool '{tool_name}': {wf_response.reason}"
                 )
                 return wf_response
         except Exception as e:
@@ -1176,9 +1177,8 @@ class HookManager:
         """
         Handle AFTER_TOOL event (post-tool-use).
 
-        Logs tool execution results and executes lifecycle workflow triggers
-        for on_after_tool / on_tool_result. Workflows can capture observations,
-        update action counts, and check error transitions.
+        Evaluates lifecycle workflows for post-tool processing.
+        Note: Phase-based workflow evaluation already happened in main handle() method.
 
         Args:
             event: HookEvent with tool_name, tool_input, and tool_output
@@ -1200,15 +1200,15 @@ class HookManager:
             status = "❌" if is_failure else "✅"
             self.logger.debug(f"{status} Post-tool: {tool_name}")
 
-        # Execute all lifecycle workflow triggers for on_after_tool / on_tool_result
-        # This allows workflows to capture observations, update action counts,
-        # check error transitions, etc.
         context_parts = []
+
+        # Execute lifecycle workflow triggers for on_after_tool / on_tool_result
+        # Note: Phase-based workflow evaluation already happened in main handle() method
         try:
             wf_response = self._workflow_handler.handle_all_lifecycles(event)
             if wf_response.context:
                 context_parts.append(wf_response.context)
-            # If workflow modifies response, return it
+            # If lifecycle workflow modifies response, return it
             if wf_response.decision != "allow":
                 return wf_response
         except Exception as e:

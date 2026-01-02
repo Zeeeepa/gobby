@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
+from gobby.storage.workflow_audit import WorkflowAuditManager
 
 from .definitions import WorkflowDefinition, WorkflowState
 from .evaluator import ApprovalCheckResult, ConditionEvaluator, check_approval_response
@@ -26,11 +27,13 @@ class WorkflowEngine:
         state_manager: WorkflowStateManager,
         action_executor: "ActionExecutor",
         evaluator: ConditionEvaluator | None = None,
+        audit_manager: WorkflowAuditManager | None = None,
     ):
         self.loader = loader
         self.state_manager = state_manager
         self.action_executor = action_executor
         self.evaluator = evaluator or ConditionEvaluator()
+        self.audit_manager = audit_manager
 
     # Maps canonical trigger names to their legacy aliases for backward compatibility.
     TRIGGER_ALIASES: dict[str, list[str]] = {
@@ -57,6 +60,14 @@ class WorkflowEngine:
         if not state:
             # TODO: Logic to load workflow?
             # For now, return allow
+            return HookResponse(decision="allow")
+
+        # Check if workflow is temporarily disabled (escape hatch)
+        if state.disabled:
+            logger.debug(
+                f"Workflow '{state.workflow_name}' is disabled for session {session_id}. "
+                f"Reason: {state.disabled_reason or 'No reason specified'}"
+            )
             return HookResponse(decision="allow")
 
         # Stuck prevention: Check if phase duration exceeding limit
@@ -108,35 +119,37 @@ class WorkflowEngine:
         if event.event_type == HookEventType.BEFORE_TOOL:
             # Block tool calls while waiting for approval
             if state.approval_pending:
-                return HookResponse(
-                    decision="block",
-                    reason=f"Waiting for user approval. Please respond with 'yes' or 'no'.",
-                )
+                reason = "Waiting for user approval. Please respond with 'yes' or 'no'."
+                self._log_tool_call(session_id, state.phase, "unknown", "block", reason)
+                return HookResponse(decision="block", reason=reason)
             tool_name = eval_context["tool_name"]
 
             # Check blocked list
             if tool_name in current_phase.blocked_tools:
-                return HookResponse(
-                    decision="block",
-                    reason=f"Tool '{tool_name}' is blocked in phase '{state.phase}'.",
-                )
+                reason = f"Tool '{tool_name}' is blocked in phase '{state.phase}'."
+                self._log_tool_call(session_id, state.phase, tool_name, "block", reason)
+                return HookResponse(decision="block", reason=reason)
 
             # Check allowed list (if not "all")
             if current_phase.allowed_tools != "all":
                 if tool_name not in current_phase.allowed_tools:
-                    return HookResponse(
-                        decision="block",
-                        reason=f"Tool '{tool_name}' is not in allowed list for phase '{state.phase}'.",
-                    )
+                    reason = f"Tool '{tool_name}' is not in allowed list for phase '{state.phase}'."
+                    self._log_tool_call(session_id, state.phase, tool_name, "block", reason)
+                    return HookResponse(decision="block", reason=reason)
 
             # Check rules
             for rule in current_phase.rules:
                 if self.evaluator.evaluate(rule.when, eval_context):
                     if rule.action == "block":
-                        return HookResponse(
-                            decision="block", reason=rule.message or "Blocked by workflow rule."
+                        reason = rule.message or "Blocked by workflow rule."
+                        self._log_rule_eval(
+                            session_id, state.phase, rule.name or "unnamed", rule.when, "block", reason
                         )
+                        return HookResponse(decision="block", reason=reason)
                     # Handle other actions like warn, require_approval
+
+            # Log successful tool allow
+            self._log_tool_call(session_id, state.phase, tool_name, "allow")
 
         # Check transitions
         for transition in current_phase.transitions:
@@ -178,6 +191,9 @@ class WorkflowEngine:
         logger.info(
             f"Transitioning session {state.session_id} from '{state.phase}' to '{new_phase_name}'"
         )
+
+        # Log the transition
+        self._log_transition(state.session_id, state.phase, new_phase_name)
 
         # Execute on_exit of old phase
         if old_phase:
@@ -717,3 +733,97 @@ class WorkflowEngine:
             context="\n\n".join(injected_context) if injected_context else None,
             system_message=system_message,
         )
+
+    # --- Audit Logging Helpers ---
+
+    def _log_tool_call(
+        self,
+        session_id: str,
+        phase: str,
+        tool_name: str,
+        result: str,
+        reason: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> None:
+        """Log a tool call permission check to the audit log."""
+        if self.audit_manager:
+            try:
+                self.audit_manager.log_tool_call(
+                    session_id=session_id,
+                    phase=phase,
+                    tool_name=tool_name,
+                    result=result,
+                    reason=reason,
+                    context=context,
+                )
+            except Exception as e:
+                logger.debug(f"Failed to log tool call audit: {e}")
+
+    def _log_rule_eval(
+        self,
+        session_id: str,
+        phase: str,
+        rule_id: str,
+        condition: str,
+        result: str,
+        reason: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> None:
+        """Log a rule evaluation to the audit log."""
+        if self.audit_manager:
+            try:
+                self.audit_manager.log_rule_eval(
+                    session_id=session_id,
+                    phase=phase,
+                    rule_id=rule_id,
+                    condition=condition,
+                    result=result,
+                    reason=reason,
+                    context=context,
+                )
+            except Exception as e:
+                logger.debug(f"Failed to log rule eval audit: {e}")
+
+    def _log_transition(
+        self,
+        session_id: str,
+        from_phase: str,
+        to_phase: str,
+        reason: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> None:
+        """Log a phase transition to the audit log."""
+        if self.audit_manager:
+            try:
+                self.audit_manager.log_transition(
+                    session_id=session_id,
+                    from_phase=from_phase,
+                    to_phase=to_phase,
+                    reason=reason,
+                    context=context,
+                )
+            except Exception as e:
+                logger.debug(f"Failed to log transition audit: {e}")
+
+    def _log_approval(
+        self,
+        session_id: str,
+        phase: str,
+        result: str,
+        condition_id: str | None = None,
+        prompt: str | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> None:
+        """Log an approval gate event to the audit log."""
+        if self.audit_manager:
+            try:
+                self.audit_manager.log_approval(
+                    session_id=session_id,
+                    phase=phase,
+                    result=result,
+                    condition_id=condition_id,
+                    prompt=prompt,
+                    context=context,
+                )
+            except Exception as e:
+                logger.debug(f"Failed to log approval audit: {e}")

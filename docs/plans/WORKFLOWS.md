@@ -1149,20 +1149,20 @@ Before building new workflow capabilities, extract the current session handoff b
 
 - [ ] Implement Daemon Crash Recovery (restore state from SQLite on restart)
 - [ ] Implement Tool Timeout Handling (auto-transition to 'reflect' on persistent timeouts)
-- [ ] Implement "Escape Hatch" commands (`--force`, `reset`, `disable`)
+- [x] Implement "Escape Hatch" commands (`--force`, `reset`, `disable`, `enable`) (cli/workflows.py)
 
 ### Phase 12: Explainability / Audit Trail (Parlant-inspired)
 
-- [ ] Create `workflow_audit_log` table (migration)
-- [ ] Create `WorkflowAuditLog` dataclass
-- [ ] Create `WorkflowAuditManager` for CRUD operations
-- [ ] Log tool permission checks in `WorkflowEngine.check_tool_allowed()`
-- [ ] Log rule evaluations in `WorkflowEngine.evaluate_rules()`
-- [ ] Log phase transitions in `WorkflowEngine.enter_phase()`
+- [x] Create `workflow_audit_log` table (migration 24)
+- [x] Create `WorkflowAuditEntry` dataclass (storage/workflow_audit.py)
+- [x] Create `WorkflowAuditManager` for CRUD operations (storage/workflow_audit.py)
+- [x] Log tool permission checks in WorkflowEngine (engine.py:739-760)
+- [x] Log rule evaluations in WorkflowEngine (engine.py:762-785)
+- [x] Log phase transitions in WorkflowEngine (engine.py:196, 787-806)
 - [ ] Log exit condition checks
-- [ ] Implement `gobby workflow audit` CLI command
+- [x] Implement `gobby workflow audit` CLI command (cli/workflows.py:618-710)
 - [ ] Implement `get_workflow_audit` MCP tool
-- [ ] Add audit log retention/cleanup (configurable, default 7 days)
+- [x] Add audit log retention/cleanup method (WorkflowAuditManager.cleanup_old_entries)
 
 ---
 

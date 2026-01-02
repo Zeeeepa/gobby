@@ -156,14 +156,15 @@ class ClaudeCodeAdapter(BaseAdapter):
             Dict in Claude Code's expected format.
         """
         # Map decision to continue flag
-        should_continue = response.decision != "deny"
+        # Both "deny" and "block" should stop execution
+        should_continue = response.decision not in ("deny", "block")
 
         result: dict[str, Any] = {
             "continue": should_continue,
         }
 
-        # Add stop reason if denied
-        if response.decision == "deny" and response.reason:
+        # Add stop reason if denied or blocked
+        if response.decision in ("deny", "block") and response.reason:
             result["stopReason"] = response.reason
 
         # Add context injection if present (inside hookSpecificOutput per Claude Code schema)
@@ -182,7 +183,7 @@ class ClaudeCodeAdapter(BaseAdapter):
         # Add tool decision for pre-tool-use hooks
         # Claude Code schema: decision uses "approve"/"block"
         # permissionDecision uses "allow"/"deny"/"ask"
-        if response.decision == "deny":
+        if response.decision in ("deny", "block"):
             result["decision"] = "block"
         else:
             result["decision"] = "approve"

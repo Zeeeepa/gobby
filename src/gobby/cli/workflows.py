@@ -196,6 +196,8 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
             "phase_action_count": state.phase_action_count,
             "total_action_count": state.total_action_count,
             "reflection_pending": state.reflection_pending,
+            "disabled": state.disabled,
+            "disabled_reason": state.disabled_reason,
             "artifacts": list(state.artifacts.keys()) if state.artifacts else [],
             "updated_at": state.updated_at.isoformat() if state.updated_at else None,
         }, indent=2))
@@ -206,6 +208,10 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
     click.echo(f"Phase: {state.phase}")
     click.echo(f"Actions in phase: {state.phase_action_count}")
     click.echo(f"Total actions: {state.total_action_count}")
+
+    if state.disabled:
+        click.echo(f"⚠️  DISABLED{f': {state.disabled_reason}' if state.disabled_reason else ''}")
+        click.echo("   Use 'gobby workflow enable' to re-enable enforcement.")
 
     if state.reflection_pending:
         click.echo("⚠️  Reflection pending")
@@ -278,6 +284,7 @@ def set_workflow(
         session_id=session_id,
         workflow_name=name,
         phase=phase,
+        initial_phase=phase,  # Track for reset functionality
         phase_entered_at=datetime.now(UTC),
         phase_action_count=0,
         total_action_count=0,
@@ -385,6 +392,129 @@ def set_phase(
     click.echo(f"✓ Transitioned from '{old_phase}' to '{phase_name}'")
 
 
+@workflow.command("reset")
+@click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
+@click.option("--force", "-f", is_flag=True, help="Skip confirmation")
+@click.pass_context
+def reset_workflow(ctx: click.Context, session_id: str | None, force: bool) -> None:
+    """Reset workflow to initial phase (escape hatch)."""
+    from datetime import UTC, datetime
+
+    state_manager = get_state_manager()
+
+    if not session_id:
+        db = LocalDatabase()
+        row = db.fetchone(
+            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
+        )
+        if row:
+            session_id = row["id"]
+        else:
+            click.echo("No active session found. Specify --session ID.", err=True)
+            raise SystemExit(1)
+
+    state = state_manager.get_state(session_id)
+    if not state:
+        click.echo(f"No workflow active for session: {session_id[:12]}...", err=True)
+        raise SystemExit(1)
+
+    # Determine initial phase
+    initial_phase = state.initial_phase or state.phase
+    if state.phase == initial_phase:
+        click.echo(f"Workflow is already at initial phase '{initial_phase}'")
+        return
+
+    if not force:
+        click.echo(f"⚠️  Reset workflow from '{state.phase}' to initial phase '{initial_phase}'")
+        click.confirm("This will clear all phase state and variables. Continue?", abort=True)
+
+    # Reset state
+    state.phase = initial_phase
+    state.phase_entered_at = datetime.now(UTC)
+    state.phase_action_count = 0
+    state.variables = {}
+    state.approval_pending = False
+    state.approval_condition_id = None
+    state.approval_prompt = None
+    state.disabled = False
+    state.disabled_reason = None
+
+    state_manager.save_state(state)
+    click.echo(f"✓ Reset workflow to initial phase '{initial_phase}'")
+
+
+@workflow.command("disable")
+@click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
+@click.option("--reason", "-r", help="Reason for disabling")
+@click.pass_context
+def disable_workflow(ctx: click.Context, session_id: str | None, reason: str | None) -> None:
+    """Temporarily disable workflow enforcement (escape hatch)."""
+    state_manager = get_state_manager()
+
+    if not session_id:
+        db = LocalDatabase()
+        row = db.fetchone(
+            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
+        )
+        if row:
+            session_id = row["id"]
+        else:
+            click.echo("No active session found. Specify --session ID.", err=True)
+            raise SystemExit(1)
+
+    state = state_manager.get_state(session_id)
+    if not state:
+        click.echo(f"No workflow active for session: {session_id[:12]}...", err=True)
+        raise SystemExit(1)
+
+    if state.disabled:
+        click.echo(f"Workflow '{state.workflow_name}' is already disabled.")
+        return
+
+    state.disabled = True
+    state.disabled_reason = reason
+
+    state_manager.save_state(state)
+    click.echo(f"✓ Disabled workflow '{state.workflow_name}'")
+    click.echo("  Tool restrictions and phase enforcement are now suspended.")
+    click.echo("  Use 'gobby workflow enable' to re-enable.")
+
+
+@workflow.command("enable")
+@click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
+@click.pass_context
+def enable_workflow(ctx: click.Context, session_id: str | None) -> None:
+    """Re-enable a disabled workflow."""
+    state_manager = get_state_manager()
+
+    if not session_id:
+        db = LocalDatabase()
+        row = db.fetchone(
+            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
+        )
+        if row:
+            session_id = row["id"]
+        else:
+            click.echo("No active session found. Specify --session ID.", err=True)
+            raise SystemExit(1)
+
+    state = state_manager.get_state(session_id)
+    if not state:
+        click.echo(f"No workflow active for session: {session_id[:12]}...", err=True)
+        raise SystemExit(1)
+
+    if not state.disabled:
+        click.echo(f"Workflow '{state.workflow_name}' is not disabled.")
+        return
+
+    state.disabled = False
+    state.disabled_reason = None
+
+    state_manager.save_state(state)
+    click.echo(f"✓ Re-enabled workflow '{state.workflow_name}'")
+    click.echo(f"  Current phase: {state.phase}")
+
+
 @workflow.command("artifact")
 @click.argument("artifact_type")
 @click.argument("file_path")
@@ -483,3 +613,98 @@ def import_workflow(ctx: click.Context, source: str, name: str | None, is_global
 
     shutil.copy(source_path, dest_path)
     click.echo(f"✓ Imported workflow '{workflow_name}' to {dest_path}")
+
+
+@workflow.command("audit")
+@click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
+@click.option("--type", "-t", "event_type", help="Filter by event type (tool_call, rule_eval, transition, approval)")
+@click.option("--result", "-r", help="Filter by result (allow, block, transition)")
+@click.option("--limit", "-n", default=50, help="Maximum entries to show (default: 50)")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+@click.pass_context
+def audit_workflow(
+    ctx: click.Context,
+    session_id: str | None,
+    event_type: str | None,
+    result: str | None,
+    limit: int,
+    json_format: bool,
+) -> None:
+    """View workflow audit log (explainability/debugging)."""
+    from gobby.storage.workflow_audit import WorkflowAuditManager
+
+    audit_manager = WorkflowAuditManager()
+
+    if not session_id:
+        # Try to find the most recent active session
+        db = LocalDatabase()
+        row = db.fetchone(
+            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
+        )
+        if row:
+            session_id = row["id"]
+        else:
+            click.echo("No active session found. Specify --session ID.", err=True)
+            raise SystemExit(1)
+
+    entries = audit_manager.get_entries(
+        session_id=session_id,
+        event_type=event_type,
+        result=result,
+        limit=limit,
+    )
+
+    if not entries:
+        click.echo(f"No audit entries found for session {session_id[:12]}...")
+        return
+
+    if json_format:
+        import json as json_module
+        output = []
+        for entry in entries:
+            output.append({
+                "id": entry.id,
+                "timestamp": entry.timestamp.isoformat(),
+                "phase": entry.phase,
+                "event_type": entry.event_type,
+                "tool_name": entry.tool_name,
+                "rule_id": entry.rule_id,
+                "condition": entry.condition,
+                "result": entry.result,
+                "reason": entry.reason,
+                "context": entry.context,
+            })
+        click.echo(json_module.dumps(output, indent=2))
+        return
+
+    # Human-readable output
+    click.echo(f"Audit log for session {session_id[:12]}... ({len(entries)} entries)\n")
+
+    for entry in entries:
+        # Format: [timestamp] RESULT event_type
+        timestamp_str = entry.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        result_color = {
+            "allow": "green",
+            "block": "red",
+            "transition": "yellow",
+            "approved": "green",
+            "rejected": "red",
+            "pending": "yellow",
+        }.get(entry.result, "white")
+
+        click.echo(f"[{timestamp_str}] ", nl=False)
+        click.secho(entry.result.upper(), fg=result_color, nl=False)
+        click.echo(f" {entry.event_type}")
+
+        click.echo(f"  Phase: {entry.phase}")
+
+        if entry.tool_name:
+            click.echo(f"  Tool: {entry.tool_name}")
+        if entry.rule_id:
+            click.echo(f"  Rule: {entry.rule_id}")
+        if entry.condition:
+            click.echo(f"  Condition: {entry.condition}")
+        if entry.reason:
+            click.echo(f"  Reason: {entry.reason}")
+
+        click.echo()  # Blank line between entries

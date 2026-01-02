@@ -569,6 +569,32 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         PRAGMA foreign_keys = ON;
         """,
     ),
+    # Migration 24: Create workflow_audit_log table for explainability/audit trail
+    (
+        24,
+        "Create workflow_audit_log table for workflow explainability",
+        """
+        CREATE TABLE IF NOT EXISTS workflow_audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+            phase TEXT NOT NULL,
+            event_type TEXT NOT NULL,       -- 'tool_call', 'rule_eval', 'transition', 'exit_check', 'approval'
+            tool_name TEXT,                 -- For tool_call events
+            rule_id TEXT,                   -- Which rule was evaluated
+            condition TEXT,                 -- The 'when' clause evaluated
+            result TEXT NOT NULL,           -- 'allow', 'block', 'transition', 'skip', 'approved', 'rejected', 'pending'
+            reason TEXT,                    -- Human-readable explanation
+            context TEXT,                   -- JSON: Additional context (tool args, state snapshot)
+            FOREIGN KEY (session_id) REFERENCES sessions(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_audit_session ON workflow_audit_log(session_id);
+        CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON workflow_audit_log(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_audit_event_type ON workflow_audit_log(event_type);
+        CREATE INDEX IF NOT EXISTS idx_audit_result ON workflow_audit_log(result);
+        """,
+    ),
 ]
 
 

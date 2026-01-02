@@ -104,5 +104,12 @@ class WorkflowState(BaseModel):
     approval_requested_at: datetime | None = None
     approval_timeout_seconds: int | None = None  # None = no timeout
 
+    # Escape hatch: temporarily disable enforcement
+    disabled: bool = False
+    disabled_reason: str | None = None
+
+    # Track initial phase for reset functionality
+    initial_phase: str | None = None
+
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
