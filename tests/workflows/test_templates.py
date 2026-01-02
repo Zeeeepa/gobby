@@ -42,8 +42,8 @@ class TestTemplateEngine:
         result = engine.render_file("test.html", {"name": "File"})
         assert result == "Hello File!"
 
-    def test_render_file_not_found(self):
-        engine = TemplateEngine(template_dirs=["/tmp"])
+    def test_render_file_not_found(self, tmp_path):
+        engine = TemplateEngine(template_dirs=[str(tmp_path)])
         with pytest.raises(TemplateNotFound):
             engine.render_file("nonexistent.html", {})
 

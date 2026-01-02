@@ -4,13 +4,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
+from gobby.storage.workflow_audit import WorkflowAuditManager
 from gobby.workflows.actions import ActionExecutor
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowState
 from gobby.workflows.engine import WorkflowEngine
 from gobby.workflows.evaluator import ConditionEvaluator
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
-from gobby.storage.workflow_audit import WorkflowAuditManager
 
 
 @pytest.fixture
@@ -70,8 +70,8 @@ class TestWorkflowEngineExtended:
         state = WorkflowState(
             session_id="sess1",
             workflow_name="test_wf",
-            phase="working",
-            phase_entered_at=datetime.now(UTC),
+            step="working",
+            step_entered_at=datetime.now(UTC),
             approval_pending=True,
             approval_condition_id="cond1",
             approval_prompt="Continue?",
@@ -105,8 +105,8 @@ class TestWorkflowEngineExtended:
         state = WorkflowState(
             session_id="sess1",
             workflow_name="test_wf",
-            phase="working",
-            phase_entered_at=datetime.now(UTC),
+            step="working",
+            step_entered_at=datetime.now(UTC),
             approval_pending=True,
             approval_condition_id="cond1",
             approval_prompt="Continue?",
@@ -140,8 +140,8 @@ class TestWorkflowEngineExtended:
         state = WorkflowState(
             session_id="sess1",
             workflow_name="test_wf",
-            phase="working",
-            phase_entered_at=datetime.now(UTC),
+            step="working",
+            step_entered_at=datetime.now(UTC),
             approval_pending=False,
             variables={},
         )
@@ -233,41 +233,36 @@ class TestWorkflowEngineExtended:
         workflow_engine._log_tool_call("sess", "phase", "tool", "allow")
 
     async def test_lifecycle_blocking(self, workflow_engine, mock_loader):
-        # Test blocking in lifecycle workflow
+        """Test that actions returning decision='block' propagate through lifecycle workflows."""
         wf = MagicMock(spec=WorkflowDefinition)
         wf.name = "blocker"
-        wf.triggers = {"on_before_tool": [{"action": "block_action"}]}
+        wf.triggers = {"on_session_start": [{"action": "block_action"}]}
 
         container = MagicMock()
         container.definition = wf
+        container.name = "blocker"
 
         mock_loader.discover_lifecycle_workflows.return_value = [container]
 
-        # Action returns block
+        # Action returns block decision
         workflow_engine.action_executor.execute.return_value = {
-            "decision": "block",  # Wait, action usually returns dict, handling blocks is logic
-            # Actually, actions execute code. Blocking decision comes from hook response usually?
-            # NO, evaluate_all_lifecycle_workflows logic:
-            # "If blocked, stop immediately... if response.decision == 'block'"
-            # Wait, evaluate_all_lifecycle_workflows calls _evaluate_workflow_triggers
-            # which executes actions.
-            # How does an action return "block"?
-            # Ah, currently actions return dict update variables.
-            # Does `_evaluate_workflow_triggers` return decision?
-            # It returns HookResponse(decision="allow") always? (Line 579)
-            # UNLESS...
-            # Wait, looking at `_evaluate_workflow_triggers`:
-            # It iterates triggers, executes actions, updates state.
-            # It returns HookResponse(decision="allow", ...)
-            # So lifecycle workflows CANNOT block currently?
-            # Let's check line 433 of engine.py:
-            # if response.decision == "block": ...
-            # But response comes from _evaluate_workflow_triggers.
-            # And _evaluate_workflow_triggers returns "allow".
-            # So Blocking logic in loop (lines 433-437) might be DEAD CODE for now unless I missed something?
-            # I should verify source code again.
+            "decision": "block",
+            "reason": "Test block reason",
         }
-        pass
+
+        event = HookEvent(
+            event_type=HookEventType.SESSION_START,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={},
+            metadata={},
+        )
+
+        response = await workflow_engine.evaluate_all_lifecycle_workflows(event)
+
+        assert response.decision == "block"
+        assert response.reason == "Test block reason"
 
     async def test_audit_logging_methods(self, workflow_engine, mock_audit_manager):
         # Cover exception blocks in log helper methods
@@ -284,8 +279,8 @@ class TestWorkflowEngineExtended:
         state = WorkflowState(
             session_id="sess1",
             workflow_name="wf",
-            phase="working",
-            phase_entered_at=datetime.now(UTC),
+            step="working",
+            step_entered_at=datetime.now(UTC),
             approval_pending=False,
         )
         mock_state_manager.get_state.return_value = state
@@ -371,15 +366,36 @@ class TestWorkflowEngineExtended:
     async def test_lifecycle_decision_propagation(
         self, workflow_engine, mock_loader, mock_action_executor
     ):
-        # Action returns something that implies "modify" or "allow"?
-        # Actually evaluate_all_lifecycle_workflows decision logic depends on HookResponse from _evaluate
-        # _evaluate returns "allow" usually unless blocked?
-        # Wait, strictly speaking _evaluate_workflow_triggers ALWAYS returns "allow" in current implementation (lines 578-582).
-        # It ONLY returns context and system_message.
-        # So "decision" is always allow unless I change code?
-        # Engine.py line 433 check for "block" is never hit?
-        # If so, I can't test it easily without mocking `_evaluate_workflow_triggers`.
-        pass
+        """Test that non-blocking actions result in 'allow' decision."""
+        wf = MagicMock(spec=WorkflowDefinition)
+        wf.name = "allow_wf"
+        wf.triggers = {"on_session_start": [{"action": "normal_action"}]}
+
+        container = MagicMock()
+        container.definition = wf
+        container.name = "allow_wf"
+
+        mock_loader.discover_lifecycle_workflows.return_value = [container]
+
+        # Action returns data but no block decision
+        workflow_engine.action_executor.execute.return_value = {
+            "some_key": "some_value",
+            "inject_context": "Injected context",
+        }
+
+        event = HookEvent(
+            event_type=HookEventType.SESSION_START,
+            session_id="sess1",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC),
+            data={},
+            metadata={},
+        )
+
+        response = await workflow_engine.evaluate_all_lifecycle_workflows(event)
+
+        assert response.decision == "allow"
+        assert "Injected context" in response.context
 
     async def test_lifecycle_when_condition_skip(
         self, workflow_engine, mock_loader, mock_evaluator
@@ -480,22 +496,18 @@ class TestWorkflowEngineExtended:
             metadata={},
         )
 
-        await workflow_engine.evaluate_all_lifecycle_workflows(event)
+        response = await workflow_engine.evaluate_all_lifecycle_workflows(event)
 
-        # Check call args to verify state vars updated?
-        # We can check state passed to execute.
-        # call_args = mock_action_executor.execute.call_args_list
-        # Second call should have new vars in state?
-        # The state object is reused? Yes.
-        # state is created once per workflow eavl.
+        # Verify both actions were executed
+        assert mock_action_executor.execute.call_count == 2
 
-        # Actually I can't easily inspect state variables unless I mock WorkflowState creation
-        # OR inspect the `action_ctx.state` passed to execute.
+        # Verify the action calls were made with correct action types
+        call_args_list = mock_action_executor.execute.call_args_list
+        assert call_args_list[0][0][0] == "act1"  # First action type
+        assert call_args_list[1][0][0] == "act2"  # Second action type
 
-        # In first call, variables empty
-        # In second call, variables has key1 (if update worked)
-        # However, `mock_action_executor` is a mock, so ctx objects might be mutable references or snapshots?
-        # Let's hope logic holds.
+        # Verify the response indicates success (allow decision)
+        assert response.decision == "allow"
 
     async def test_transition_failure(self, workflow_engine, mock_state_manager):
         # Test transition to unknown step
@@ -568,8 +580,8 @@ class TestWorkflowEngineExtended:
         state = WorkflowState(
             session_id="sess1",
             workflow_name="wf",
-            phase="working",
-            phase_entered_at=datetime.now(UTC),
+            step="working",
+            step_entered_at=datetime.now(UTC),
         )
         workflow_engine.state_manager.get_state.return_value = state
 
@@ -588,7 +600,7 @@ class TestWorkflowEngineExtended:
             data={},
             metadata={"_platform_session_id": "sess1"},
         )
-        event.tool_name = "test_tool"
+        event.data["tool_name"] = "test_tool"
 
         await workflow_engine.handle_event(event)
 

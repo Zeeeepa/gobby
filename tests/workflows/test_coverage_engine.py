@@ -5,7 +5,6 @@ import pytest
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.workflows.definitions import (
     WorkflowRule,
-    WorkflowState,
     WorkflowTransition,
 )
 from gobby.workflows.engine import WorkflowEngine
@@ -168,7 +167,7 @@ async def test_handle_event_tool_blocking(engine, mock_components):
     loader.load_workflow.return_value = wf
 
     event = create_event(event_type=HookEventType.BEFORE_TOOL)
-    event.tool_name = "read_file"
+    event.data["tool_name"] = "read_file"
 
     # 1. Approval Pending
     state.approval_pending = True

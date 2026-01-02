@@ -20,7 +20,9 @@ from gobby.utils.project_context import get_project_context
 @click.option("--status", help="Filter by status (open, in_progress, completed, blocked)")
 @click.option("--assignee", help="Filter by assignee")
 @click.option("--ready", is_flag=True, help="Show only ready tasks (open with no blocking deps)")
-@click.option("--blocked", is_flag=True, help="Show only blocked tasks (open with unresolved blockers)")
+@click.option(
+    "--blocked", is_flag=True, help="Show only blocked tasks (open with unresolved blockers)"
+)
 @click.option("--limit", default=50, help="Max tasks to show")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def list_tasks(
@@ -127,10 +129,12 @@ def blocked_tasks(limit: int, json_format: bool) -> None:
         result = []
         for task in blocked_list:
             tree = dep_manager.get_dependency_tree(task.id)
-            result.append({
-                "task": task.to_dict(),
-                "blocked_by": tree.get("blockers", []),
-            })
+            result.append(
+                {
+                    "task": task.to_dict(),
+                    "blocked_by": tree.get("blockers", []),
+                }
+            )
         click.echo(json.dumps(result, indent=2, default=str))
         return
 
@@ -147,6 +151,8 @@ def blocked_tasks(limit: int, json_format: bool) -> None:
             click.echo("  Blocked by:")
             for b in blocker_ids:
                 blocker_id = b.get("id") if isinstance(b, dict) else b
+                if not blocker_id or not isinstance(blocker_id, str):
+                    continue
                 try:
                     blocker_task = manager.get_task(blocker_id)
                     status_icon = "✓" if blocker_task.status == "closed" else "○"
@@ -182,7 +188,11 @@ def task_stats(json_format: bool) -> None:
     stats = {
         "total": total,
         "by_status": by_status,
-        "by_priority": {"high": by_priority.get(1, 0), "medium": by_priority.get(2, 0), "low": by_priority.get(3, 0)},
+        "by_priority": {
+            "high": by_priority.get(1, 0),
+            "medium": by_priority.get(2, 0),
+            "low": by_priority.get(3, 0),
+        },
         "by_type": by_type,
         "ready": ready_count,
         "blocked": blocked_count,

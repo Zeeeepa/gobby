@@ -2,6 +2,7 @@ import asyncio
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from gobby.llm.claude import ClaudeLLMProvider
 from gobby.workflows.actions import ActionContext, ActionExecutor
 from gobby.workflows.definitions import WorkflowState

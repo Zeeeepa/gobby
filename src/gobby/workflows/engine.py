@@ -73,12 +73,12 @@ class WorkflowEngine:
         # Stuck prevention: Check if step duration exceeding limit
         # This is a basic implementation of "Stuck Detection"
         if state.step_entered_at:
-            print(f"DEBUG: step_entered_at type: {type(state.step_entered_at)}")
-            print(f"DEBUG: step_entered_at value: {state.step_entered_at}")
+            logger.debug(f"step_entered_at type: {type(state.step_entered_at)}")
+            logger.debug(f"step_entered_at value: {state.step_entered_at}")
             diff = datetime.now(UTC) - state.step_entered_at
-            print(f"DEBUG: diff type: {type(diff)}, value: {diff}")
+            logger.debug(f"diff type: {type(diff)}, value: {diff}")
             duration = diff.total_seconds()
-            print(f"DEBUG: duration type: {type(duration)}, value: {duration}")
+            logger.debug(f"duration type: {type(duration)}, value: {duration}")
             # Hardcoded limit for MVP: 30 minutes
             if duration > 1800:
                 # Force transition to reflect if not already there
@@ -105,8 +105,8 @@ class WorkflowEngine:
             "event": event,
             "workflow_state": state,
             "session": {},  # TODO: Attach session info
-            "tool_name": getattr(event, "tool_name", None),
-            "tool_args": getattr(event, "tool_args", {}),
+            "tool_name": event.data.get("tool_name"),
+            "tool_args": event.data.get("tool_args", {}),
         }
 
         current_step = workflow.get_step(state.step)
@@ -162,7 +162,7 @@ class WorkflowEngine:
             self._log_tool_call(session_id, state.step, tool_name, "allow")
 
         # Check transitions
-        print("DEBUG: Checking transitions")
+        logger.debug("Checking transitions")
         for transition in current_step.transitions:
             if self.evaluator.evaluate(transition.when, eval_context):
                 # Transition!
@@ -172,7 +172,7 @@ class WorkflowEngine:
                 )
 
         # Check exit conditions
-        print("DEBUG: Checking exit conditions")
+        logger.debug("Checking exit conditions")
         if self.evaluator.check_exit_conditions(current_step.exit_conditions, state):
             # TODO: Determine next step or completion logic
             # For now, simplistic 'next step' if linear, or rely on transitions
@@ -578,6 +578,15 @@ class WorkflowEngine:
                     if "system_message" in result:
                         system_message = result["system_message"]
 
+                    # Check for blocking decision from action
+                    if result.get("decision") == "block":
+                        return HookResponse(
+                            decision="block",
+                            reason=result.get("reason", "Blocked by action"),
+                            context="\n\n".join(injected_context) if injected_context else None,
+                            system_message=system_message,
+                        )
+
             except Exception as e:
                 logger.error(
                     f"Failed to execute action '{action_type}' in '{workflow.name}': {e}",
@@ -731,6 +740,15 @@ class WorkflowEngine:
                     # Capture system_message (last one wins)
                     if "system_message" in result:
                         system_message = result["system_message"]
+
+                    # Check for blocking decision from action
+                    if isinstance(result, dict) and result.get("decision") == "block":
+                        return HookResponse(
+                            decision="block",
+                            reason=result.get("reason", "Blocked by action"),
+                            context="\n\n".join(injected_context) if injected_context else None,
+                            system_message=system_message,
+                        )
 
             except Exception as e:
                 logger.error(

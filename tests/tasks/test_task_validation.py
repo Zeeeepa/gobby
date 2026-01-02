@@ -85,7 +85,7 @@ class TestTaskValidator:
         validator = TaskValidator(config, mock_llm)
         result = await validator.validate_task(
             "task-1", "title", None, "summary"
-        )  # Missing criteria and instruction
+        )  # Missing instruction (instr is None)
         assert result.status == "pending"
         assert "Missing" in result.feedback
 
