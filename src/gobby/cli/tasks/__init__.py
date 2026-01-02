@@ -3,8 +3,12 @@ Task management CLI commands.
 
 This package contains the task management commands, split into logical modules:
 - _utils: Shared utilities (formatting, task resolution)
+- ai: AI-powered commands (validate, expand, suggest, complexity)
+- crud: CRUD operations (list, create, show, update, close, delete)
 - deps: Dependency management subgroup
-- commands: Main task commands
+- hooks: Git hooks management subgroup
+- labels: Label management subgroup
+- main: Entry point and misc commands (sync, compact, import, stealth, doctor, clean)
 """
 
 from gobby.cli.tasks._utils import (
@@ -12,7 +16,7 @@ from gobby.cli.tasks._utils import (
     get_sync_manager,
     get_task_manager,
 )
-from gobby.cli.tasks.commands import tasks
+from gobby.cli.tasks.main import tasks
 
 __all__ = [
     "check_tasks_enabled",
