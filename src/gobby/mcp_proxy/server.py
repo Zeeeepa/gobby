@@ -35,6 +35,7 @@ class GobbyDaemonTools:
         skill_learner: Any | None = None,
         config_manager: Any | None = None,
         semantic_search: Any | None = None,
+        tool_filter: Any | None = None,
     ):
         self.config = config
         self.internal_manager = internal_manager
@@ -46,6 +47,7 @@ class GobbyDaemonTools:
         self.tool_proxy = ToolProxyService(
             mcp_manager,
             internal_manager=internal_manager,
+            tool_filter=tool_filter,
         )
         self.server_mgmt = ServerManagementService(mcp_manager, config_manager, config)
         self.code_execution = CodeExecutionService(llm_service=llm_service, config=config)
@@ -96,9 +98,11 @@ class GobbyDaemonTools:
         """Call a tool."""
         return await self.tool_proxy.call_tool(server_name, tool_name, arguments)
 
-    async def list_tools(self, server: str | None = None) -> dict[str, Any]:
-        """List tools."""
-        return await self.tool_proxy.list_tools(server)
+    async def list_tools(
+        self, server: str | None = None, session_id: str | None = None
+    ) -> dict[str, Any]:
+        """List tools, optionally filtered by workflow phase restrictions."""
+        return await self.tool_proxy.list_tools(server, session_id=session_id)
 
     async def get_tool_schema(self, server_name: str, tool_name: str) -> dict[str, Any]:
         """Get tool schema."""

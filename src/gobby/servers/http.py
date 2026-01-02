@@ -28,6 +28,7 @@ from gobby.mcp_proxy.registries import setup_internal_registries
 from gobby.mcp_proxy.semantic_search import SemanticToolSearch
 from gobby.mcp_proxy.server import GobbyDaemonTools, create_mcp_server
 from gobby.mcp_proxy.services.code_execution import CodeExecutionService
+from gobby.mcp_proxy.services.tool_filter import ToolFilterService
 from gobby.memory.manager import MemoryManager
 from gobby.skills import SkillLearner
 from gobby.storage.sessions import LocalSessionManager
@@ -194,6 +195,12 @@ class HTTPServer:
                 semantic_search = SemanticToolSearch(db=mcp_db_manager.db)
                 logger.debug("Semantic tool search initialized")
 
+            # Create tool filter for workflow phase restrictions
+            tool_filter = None
+            if mcp_db_manager:
+                tool_filter = ToolFilterService(db=mcp_db_manager.db)
+                logger.debug("Tool filter service initialized")
+
             # Create tools handler
             self._tools_handler = GobbyDaemonTools(
                 mcp_manager=mcp_manager,
@@ -208,6 +215,7 @@ class HTTPServer:
                 skill_learner=skill_learner,
                 config_manager=mcp_db_manager,
                 semantic_search=semantic_search,
+                tool_filter=tool_filter,
             )
             self._mcp_server = create_mcp_server(self._tools_handler)
             logger.debug("MCP server initialized and will be mounted at /mcp")

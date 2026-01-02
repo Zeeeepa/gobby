@@ -7,6 +7,7 @@ from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.mcp_proxy.models import MCPError
 
 if TYPE_CHECKING:
+    from gobby.mcp_proxy.services.tool_filter import ToolFilterService
     from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 
 logger = logging.getLogger("gobby.mcp.server")
@@ -30,16 +31,26 @@ class ToolProxyService:
         self,
         mcp_manager: MCPClientManager,
         internal_manager: "InternalRegistryManager | None" = None,
+        tool_filter: "ToolFilterService | None" = None,
     ):
         self._mcp_manager = mcp_manager
         self._internal_manager = internal_manager
+        self._tool_filter = tool_filter
 
-    async def list_tools(self, server_name: str | None = None) -> dict[str, Any]:
+    async def list_tools(
+        self,
+        server_name: str | None = None,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
         """
         List tools with progressive disclosure format.
 
+        When session_id is provided and a workflow is active, tools are filtered
+        based on the current phase's allowed_tools and blocked_tools settings.
+
         Args:
             server_name: Optional server to filter by (e.g., "gobby-tasks", "context7")
+            session_id: Optional session ID to apply workflow phase filtering
 
         Returns:
             Dict with server name(s) and lightweight tool metadata:
@@ -54,7 +65,11 @@ class ToolProxyService:
         ):
             registry = self._internal_manager.get_registry(server_name)
             if registry:
-                return {"server": server_name, "tools": registry.list_tools()}
+                tools = registry.list_tools()
+                # Apply phase filtering if session_id provided
+                if session_id and self._tool_filter:
+                    tools = self._tool_filter.filter_tools(tools, session_id)
+                return {"server": server_name, "tools": tools}
             return {
                 "server": server_name,
                 "tools": [],
@@ -83,6 +98,9 @@ class ToolProxyService:
                                 "brief": safe_truncate(tool.description),
                             }
                         )
+                # Apply phase filtering if session_id provided
+                if session_id and self._tool_filter:
+                    brief_tools = self._tool_filter.filter_tools(brief_tools, session_id)
                 return {"server": server_name, "tools": brief_tools}
 
             # NOTE: Keeping return-dict error pattern for list_tools as it returns "data"
@@ -126,6 +144,10 @@ class ToolProxyService:
                         }
                     )
             servers_result.append({"name": srv_name, "tools": brief_tools})
+
+        # Apply phase filtering to all servers if session_id provided
+        if session_id and self._tool_filter:
+            servers_result = self._tool_filter.filter_servers_tools(servers_result, session_id)
 
         return {"servers": servers_result}
 
