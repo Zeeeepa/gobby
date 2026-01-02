@@ -549,6 +549,49 @@ class LocalTaskManager:
         self._notify_listeners()
         return self.get_task(task_id)
 
+    def reopen_task(
+        self,
+        task_id: str,
+        reason: str | None = None,
+    ) -> Task:
+        """Reopen a closed task.
+
+        Args:
+            task_id: The task ID to reopen
+            reason: Optional reason for reopening
+
+        Raises:
+            ValueError: If task not found or not closed
+        """
+        task = self.get_task(task_id)
+        if task.status != "closed":
+            raise ValueError(f"Task {task_id} is not closed (status: {task.status})")
+
+        now = datetime.now(UTC).isoformat()
+
+        # Build description update if reason provided
+        new_description = task.description or ""
+        if reason:
+            reopen_note = f"\n\n[Reopened: {reason}]"
+            new_description = new_description + reopen_note
+
+        with self.db.transaction() as conn:
+            conn.execute(
+                """UPDATE tasks SET
+                    status = 'open',
+                    closed_reason = NULL,
+                    closed_at = NULL,
+                    closed_in_session_id = NULL,
+                    closed_commit_sha = NULL,
+                    description = ?,
+                    updated_at = ?
+                WHERE id = ?""",
+                (new_description if reason else task.description, now, task_id),
+            )
+
+        self._notify_listeners()
+        return self.get_task(task_id)
+
     def add_label(self, task_id: str, label: str) -> Task:
         """Add a label to a task if not present."""
         task = self.get_task(task_id)

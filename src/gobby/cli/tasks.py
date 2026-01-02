@@ -388,6 +388,30 @@ def close_task_cmd(task_id: str, reason: str, skip_validation: bool, force: bool
     click.echo(f"Closed task {task.id[:8]} ({reason})")
 
 
+@tasks.command("reopen")
+@click.argument("task_id")
+@click.option("--reason", "-r", default=None, help="Reason for reopening")
+def reopen_task_cmd(task_id: str, reason: str | None) -> None:
+    """Reopen a closed task.
+
+    Sets status back to 'open' and clears closed_at, closed_reason, etc.
+    """
+    manager = get_task_manager()
+    resolved = resolve_task_id(manager, task_id)
+    if not resolved:
+        return
+
+    if resolved.status != "closed":
+        click.echo(f"Task {resolved.id[:8]} is not closed (status: {resolved.status})", err=True)
+        return
+
+    task = manager.reopen_task(resolved.id, reason=reason)
+    if reason:
+        click.echo(f"Reopened task {task.id[:8]} ({reason})")
+    else:
+        click.echo(f"Reopened task {task.id[:8]}")
+
+
 @tasks.command("delete")
 @click.argument("task_id")
 @click.option("--cascade", is_flag=True, help="Delete child tasks")

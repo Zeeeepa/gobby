@@ -1085,6 +1085,40 @@ def create_task_registry(
         func=close_task,
     )
 
+    def reopen_task(task_id: str, reason: str | None = None) -> dict[str, Any]:
+        """Reopen a closed task.
+
+        Args:
+            task_id: Task ID to reopen
+            reason: Optional reason for reopening
+
+        Returns:
+            Reopened task or error
+        """
+        try:
+            task = task_manager.reopen_task(task_id, reason=reason)
+            return task.to_dict()
+        except ValueError as e:
+            return {"error": str(e)}
+
+    registry.register(
+        name="reopen_task",
+        description="Reopen a closed task. Clears closed_at, closed_reason, and closed_in_session_id. Optionally appends a reopen reason to the description.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "string", "description": "Task ID to reopen"},
+                "reason": {
+                    "type": "string",
+                    "description": "Optional reason for reopening the task",
+                    "default": None,
+                },
+            },
+            "required": ["task_id"],
+        },
+        func=reopen_task,
+    )
+
     def delete_task(task_id: str, cascade: bool = True) -> dict[str, Any]:
         """Delete a task and its children by default."""
         success = task_manager.delete_task(task_id, cascade=cascade)
