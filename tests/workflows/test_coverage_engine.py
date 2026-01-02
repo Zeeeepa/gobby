@@ -1,16 +1,14 @@
-import pytest
-from unittest.mock import MagicMock, AsyncMock, call, patch
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock
 
-from gobby.workflows.engine import WorkflowEngine
-from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
+import pytest
+from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.workflows.definitions import (
-    WorkflowState,
-    WorkflowDefinition,
-    WorkflowStep,
     WorkflowRule,
+    WorkflowState,
     WorkflowTransition,
 )
+from gobby.workflows.engine import WorkflowEngine
 
 
 @pytest.fixture
@@ -408,7 +406,7 @@ async def test_lifecycle_trigger_alias_loop(engine, mock_components):
 
     wf.triggers = {"on_prompt_submit": [{"action": "act1"}]}
 
-    resp = await engine.evaluate_lifecycle_triggers("wf", event)
+    await engine.evaluate_lifecycle_triggers("wf", event)
 
     assert action_executor.execute.called
 

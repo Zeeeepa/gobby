@@ -1,11 +1,10 @@
-import pytest
 import asyncio
-from unittest.mock import MagicMock, AsyncMock, patch
-import os
-import time
+from unittest.mock import MagicMock, patch
+
+import pytest
+from gobby.llm.claude import ClaudeLLMProvider
 from gobby.workflows.actions import ActionContext, ActionExecutor
 from gobby.workflows.definitions import WorkflowState
-from gobby.llm.claude import ClaudeLLMProvider
 
 
 @pytest.fixture
@@ -190,9 +189,9 @@ async def test_claude_cli_retry_logic(mock_config):
 
     # Return /new/path immediately on first retry call
     with (
-        patch("shutil.which", return_value="/new/path") as mock_which,
+        patch("shutil.which", return_value="/new/path"),
         patch("os.path.exists", s_exists),
-        patch("time.sleep") as mock_sleep,
+        patch("time.sleep"),
     ):
         cli_path = provider._verify_cli_path()
         assert cli_path == "/new/path"
