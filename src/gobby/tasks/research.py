@@ -43,36 +43,6 @@ class TaskResearchAgent:
         # Search tool discovery happens effectively at runtime now via _build_prompt
         # but we keep the helper method if we want to pre-check.
 
-    def _find_search_tool(self) -> dict | None:
-        """Find a suitable web search tool from MCP manager."""
-        if not self.mcp_manager:
-            return None
-
-        # Helper to check if tool looks like search
-        def is_search_tool(name: str, desc: str) -> bool:
-            name = name.lower()
-            if name in ("search_web", "google_search", "brave_search", "bing_search"):
-                return True
-            if "search" in name and "web" in name:
-                return True
-            return False
-
-        # Iterate all tools (simplified, ideally we have a fast lookup)
-        # We rely on mcp_manager exposing tool definitions
-        # Assuming mcp_manager has get_all_tools() or similar, or we just trust known ones
-        # Since mcp_manager interface isn't fully typed here, let's look for 'search_web' specifically first
-        # based on user request "just use search_web"
-
-        # Check for specific search tools in priority order
-        candidates = ["search_web", "google_search", "brave_search"]
-        for tool_name in candidates:
-            # We don't have a direct "has_tool" check easily exposed without async
-            # So we will try to resolve it during execution or prompt building
-            # For now, let's just assume we can look it up in _build_step_prompt or cache it there
-            pass
-
-        return None  # We'll resolve dynamically in prompt builder for now
-
     async def run(
         self,
         task: Task,

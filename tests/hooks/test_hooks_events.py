@@ -200,7 +200,10 @@ class TestEventTypeCLISupport:
         """Test Gemini CLI support in mapping."""
         assert EVENT_TYPE_CLI_SUPPORT[HookEventType.SESSION_START]["gemini"] == "SessionStart"
         assert EVENT_TYPE_CLI_SUPPORT[HookEventType.BEFORE_TOOL]["gemini"] == "BeforeTool"
-        assert EVENT_TYPE_CLI_SUPPORT[HookEventType.BEFORE_TOOL_SELECTION]["gemini"] == "BeforeToolSelection"
+        assert (
+            EVENT_TYPE_CLI_SUPPORT[HookEventType.BEFORE_TOOL_SELECTION]["gemini"]
+            == "BeforeToolSelection"
+        )
 
     def test_codex_support(self):
         """Test Codex CLI support in mapping."""

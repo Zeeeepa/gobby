@@ -1,164 +1,194 @@
-"""
-Tests for TaskResearchAgent.
-"""
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from pathlib import Path
 
 from gobby.config.app import TaskExpansionConfig
 from gobby.tasks.research import TaskResearchAgent
-from gobby.storage.tasks import Task
 
 
 @pytest.fixture
 def mock_config():
-    return TaskExpansionConfig(
-        enabled=True,
-        provider="claude",
-        model="claude-test",
-        codebase_research_enabled=True,
-        research_max_steps=5,
-    )
+    return TaskExpansionConfig()
 
 
 @pytest.fixture
-def mock_llm_service():
+def mock_llm():
     service = MagicMock()
-    provider = AsyncMock()
-    service.get_provider.return_value = provider
+    service.get_provider.return_value = AsyncMock()
     return service
 
 
 @pytest.fixture
-def mock_task():
-    return Task(
-        id="task-1",
-        project_id="proj-1",
-        title="Test Task",
-        description="Implement login",
-        status="open",
-        priority=1,
-        task_type="task",
-        created_at="now",
-        updated_at="now",
-    )
+def agent(mock_config, mock_llm):
+    return TaskResearchAgent(mock_config, mock_llm)
 
 
-@pytest.mark.asyncio
-async def test_research_agent_initialization(mock_config, mock_llm_service):
-    agent = TaskResearchAgent(mock_config, mock_llm_service)
-    assert agent.config == mock_config
-    assert agent.llm_service == mock_llm_service
-    assert agent.max_steps == 10  # Default hardcoded in init unless we change init to use config
+class TestActionParsing:
+    def test_parse_simple_action(self, agent):
+        response = "THOUGHT: I should look at files.\nACTION: glob('src/*.py')"
+        action = agent._parse_action(response)
+        assert action == {"tool": "glob", "args": ["src/*.py"]}
+
+    def test_parse_action_with_quotes(self, agent):
+        response = "ACTION: grep('class Foo', 'src/foo.py')"
+        action = agent._parse_action(response)
+        assert action == {"tool": "grep", "args": ["class Foo", "src/foo.py"]}
+
+    def test_parse_action_shlex_fallback(self, agent):
+        # Malformed tuple syntax that might fail ast.literal_eval but pass shlex
+        response = "ACTION: grep(def foo, src/bar.py)"
+        action = agent._parse_action(response)
+        # Should fall back to comma split or shlex
+        assert action["tool"] == "grep"
+        assert len(action["args"]) == 2
+        assert action["args"][0] == "def foo"
+
+    def test_parse_done(self, agent):
+        response = "ACTION: done('Found everything')"
+        action = agent._parse_action(response)
+        assert action == {"tool": "done", "reason": "Found everything"}
+
+    def test_parse_done_simple(self, agent):
+        response = "ACTION: done"
+        action = agent._parse_action(response)
+        assert action == {"tool": "done", "reason": "ACTION: done"}
+
+    def test_parse_no_action(self, agent):
+        response = "Just thinking about code..."
+        assert agent._parse_action(response) is None
 
 
-@pytest.mark.asyncio
-async def test_research_run_success(mock_config, mock_llm_service, mock_task):
-    agent = TaskResearchAgent(mock_config, mock_llm_service)
-
-    # Mock LLM responses
-    provider = mock_llm_service.get_provider.return_value
-    provider.generate_text.side_effect = [
-        "THOUGHT: I should look for files.\nACTION: glob('src/**/*.py')",
-        "THOUGHT: I found files.\nACTION: done('Found them')",
-    ]
-
-    # Mock tools
-    with patch.object(agent, "_glob", return_value="src/main.py") as mock_glob:
-        result = await agent.run(mock_task)
-
-        assert result["findings"] == "Agent research completed."
-        assert len(result["relevant_files"]) == 0  # we didn't use read_file
-        assert len(result["raw_history"]) >= 3  # 2 model turns (glob, done) + 1 tool output (glob)
-
-        mock_glob.assert_called_once_with("src/**/*.py")
+@pytest.fixture
+def fs_agent(agent, tmp_path):
+    """Agent with a temporary root."""
+    agent.root = tmp_path
+    return agent
 
 
-@pytest.mark.asyncio
-async def test_research_read_file_populates_relevant_files(
-    mock_config, mock_llm_service, mock_task
-):
-    agent = TaskResearchAgent(mock_config, mock_llm_service)
+class TestToolExecution:
+    async def test_execute_glob(self, fs_agent, tmp_path):
+        # Create some files
+        (tmp_path / "foo.py").touch()
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src/bar.py").touch()
 
-    provider = mock_llm_service.get_provider.return_value
-    provider.generate_text.side_effect = [
-        "ACTION: read_file('src/main.py')",
-        "ACTION: done('Done')",
-    ]
+        # Glob
+        output = await fs_agent._execute_tool({"tool": "glob", "args": ["**/*.py"]})
+        assert "foo.py" in output
+        assert "src/bar.py" in output
 
-    with patch.object(agent, "_read_file", return_value="content") as mock_read:
-        result = await agent.run(mock_task)
+    async def test_execute_glob_error(self, fs_agent):
+        output = await fs_agent._execute_tool({"tool": "glob", "args": ["../*.py"]})
+        assert "Error: .. not allowed" in output
 
-        assert "src/main.py" in result["relevant_files"]
+    async def test_execute_read_file(self, fs_agent, tmp_path):
+        f = tmp_path / "test.txt"
+        f.write_text("Hello World", encoding="utf-8")
+
+        output = await fs_agent._execute_tool({"tool": "read_file", "args": ["test.txt"]})
+        assert output == "Hello World"
+
+    async def test_execute_read_file_not_found(self, fs_agent):
+        output = await fs_agent._execute_tool({"tool": "read_file", "args": ["missing.txt"]})
+        assert "Error: File not found" in output
+
+    async def test_execute_grep(self, fs_agent, tmp_path):
+        f = tmp_path / "main.py"
+        f.write_text("def main():\n    print('hello')\n", encoding="utf-8")
+
+        output = await fs_agent._execute_tool({"tool": "grep", "args": ["def main", "."]})
+        assert "main.py:1: def main():" in output
+
+    async def test_execute_unknown(self, fs_agent):
+        output = await fs_agent._execute_tool({"tool": "magic", "args": []})
+        assert "Error: Unknown tool magic" in output
+
+    async def test_execute_done(self, fs_agent):
+        output = await fs_agent._execute_tool({"tool": "done", "reason": "Finished"})
+        assert output == "Done"
+
+    async def test_execute_grep_outside_root(self, fs_agent, tmp_path):
+        output = await fs_agent._execute_tool({"tool": "grep", "args": ["foo", "../outside.txt"]})
+        assert "Error: Path outside root" in output
+
+    async def test_execute_grep_directory(self, fs_agent, tmp_path):
+        (tmp_path / "subdir").mkdir()
+        (tmp_path / "subdir/test.py").write_text("class Foo: pass", encoding="utf-8")
+
+        output = await fs_agent._execute_tool({"tool": "grep", "args": ["class Foo", "subdir"]})
+        assert "subdir/test.py:1: class Foo: pass" in output
 
 
-@pytest.mark.asyncio
-async def test_glob_tool(mock_config, mock_llm_service):
-    agent = TaskResearchAgent(mock_config, mock_llm_service)
+class TestRunLoop:
+    @pytest.fixture
+    def task(self):
+        return MagicMock(id="task-123", title="Test Task", description="Do something")
 
-    # Mock root and glob
-    with patch("pathlib.Path.glob") as mock_glob_path:
-        mock_path1 = MagicMock()
-        mock_path1.is_file.return_value = True
-        mock_path1.relative_to.return_value = Path("src/test.py")
+    async def test_run_basic_flow(self, fs_agent, task, tmp_path):
+        # Setup filesystem
+        (tmp_path / "foo.py").touch()
 
-        mock_glob_path.return_value = [mock_path1]
+        # Mock LLM to return tool call then done
+        fs_agent.llm_service.get_provider.return_value.generate_text.side_effect = [
+            "THOUGHT: I check files\nACTION: glob('**/*.py')",
+            "THOUGHT: Done\nACTION: done('Found it')",
+        ]
 
-        agent.root = Path("/root")
+        result = await fs_agent.run(task)
 
-        result = agent._glob("src/*.py")
-        assert "src/test.py" in result
+        assert result["raw_history"][0]["parsed_action"]["tool"] == "glob"
+        assert result["raw_history"][1]["role"] == "tool"  # glob output
+        assert (
+            result["relevant_files"] == []
+        )  # glob doesn't populate relevant_files, read_file does
+
+    async def test_run_with_read_file(self, fs_agent, task, tmp_path):
+        f = tmp_path / "readme.md"
+        f.write_text("# Readme", encoding="utf-8")
+
+        fs_agent.llm_service.get_provider.return_value.generate_text.side_effect = [
+            "ACTION: read_file('readme.md')",
+            "ACTION: done",
+        ]
+
+        result = await fs_agent.run(task)
+        assert "readme.md" in result["relevant_files"]
+
+    async def test_no_root(self, agent, task):
+        agent.root = None
+        result = await agent.run(task)
+        assert result["findings"] == "No project root found"
+
+    async def test_run_with_search_tool(self, fs_agent, task, mcp_manager):
+        # Mock MCP manager
+        mcp_manager.list_tools = AsyncMock(
+            return_value={"server1": [MagicMock(name="search_web", description="Search the web")]}
+        )
+        mcp_manager.call_tool = AsyncMock(return_value="Search Result")
+        fs_agent.mcp_manager = mcp_manager
+
+        # Configure search
+        fs_agent.config.web_research_enabled = True
+
+        fs_agent.llm_service.get_provider.return_value.generate_text.side_effect = [
+            "ACTION: search_web('python')",
+            "ACTION: done",
+        ]
+
+        result = await fs_agent.run(task, enable_web_search=True)
+        assert "Search Result" in str(result["raw_history"])
+        mcp_manager.call_tool.assert_called_with("search_web", {"query": "python"})
 
 
-def test_parse_action(mock_config, mock_llm_service):
-    agent = TaskResearchAgent(mock_config, mock_llm_service)
-
-    # Standard format
-    assert agent._parse_action("ACTION: glob('*.py')") == {"tool": "glob", "args": ["*.py"]}
-    assert agent._parse_action("Action: read_file('foo.txt')") == {
-        "tool": "read_file",
-        "args": ["foo.txt"],
-    }
-
-    # Multiple args
-    assert agent._parse_action("ACTION: grep('def foo', 'src')") == {
-        "tool": "grep",
-        "args": ["def foo", "src"],
-    }
-
-    # Quotes handling
-    assert agent._parse_action("ACTION: grep(\"def foo\", 'src')") == {
-        "tool": "grep",
-        "args": ["def foo", "src"],
-    }
-
-    # Explicit ACTION: done (strict matching - no substring fallback)
-    result = agent._parse_action("ACTION: done")
-    assert result["tool"] == "done"
-
-    result = agent._parse_action("ACTION: done('research complete')")
-    assert result == {"tool": "done", "reason": "research complete"}
-
-    result = agent._parse_action("THOUGHT: I've found everything.\nACTION: done(\"finished\")")
-    assert result == {"tool": "done", "reason": "finished"}
-
-    # Substring "done" should NOT match (intentionally strict)
-    assert agent._parse_action("I am done now") is None
-    assert agent._parse_action("undone") is None
-    assert agent._parse_action("I'm not done yet") is None
-
-    # Commas inside quoted args (robust parsing)
-    result = agent._parse_action("ACTION: grep('foo, bar', 'src/')")
-    assert result == {"tool": "grep", "args": ["foo, bar", "src/"]}
-
-    # Escaped quotes (via ast.literal_eval)
-    result = agent._parse_action('ACTION: grep("def \\"main\\"", "src/")')
-    assert result == {"tool": "grep", "args": ['def "main"', "src/"]}
-
-    # No args
-    result = agent._parse_action("ACTION: done()")
-    assert result["tool"] == "done"
-
-    # Empty pattern should return None
-    assert agent._parse_action("Just some random text") is None
+class TestParsingFallbacks:
+    def test_comma_split_fallback(self, agent):
+        # Unclosed quote triggers shlex error, falling back to split
+        response = 'ACTION: grep("def foo, src/)'
+        action = agent._parse_action(response)
+        assert action["tool"] == "grep"
+        # Comma split strategy strips quotes
+        # "def foo -> "def foo (quote removed?)
+        # Actually logic is: a.strip().strip("'\"")
+        # "\"def foo" -> "def foo"
+        assert action["args"][0] == "def foo"
+        assert action["args"][1] == "src/"

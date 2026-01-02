@@ -109,3 +109,19 @@ dev = [
     "types-PyYAML>=6.0.12.12",
     "pyrefly>=0.1.0",
 ]
+
+[tool.coverage.run]
+source_pkgs = ["gobby"]
+branch = true
+parallel = true
+
+[tool.coverage.paths]
+gobby = ["src/gobby"]
+tests = ["tests"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "no cov",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
