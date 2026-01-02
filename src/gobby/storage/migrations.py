@@ -602,6 +602,85 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         ALTER TABLE tasks ADD COLUMN validation_override_reason TEXT;
         """,
     ),
+    (
+        26,
+        "Rename phase columns to step in workflow tables",
+        """
+        PRAGMA foreign_keys = OFF;
+
+        -- Rename columns in workflow_states table
+        CREATE TABLE workflow_states_new (
+            session_id TEXT PRIMARY KEY,
+            workflow_name TEXT NOT NULL,
+            step TEXT NOT NULL,
+            step_entered_at TEXT,
+            step_action_count INTEGER DEFAULT 0,
+            total_action_count INTEGER DEFAULT 0,
+            artifacts TEXT,
+            observations TEXT,
+            reflection_pending INTEGER DEFAULT 0,
+            context_injected INTEGER DEFAULT 0,
+            variables TEXT,
+            task_list TEXT,
+            current_task_index INTEGER DEFAULT 0,
+            files_modified_this_task INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+        );
+
+        INSERT INTO workflow_states_new (
+            session_id, workflow_name, step, step_entered_at, step_action_count,
+            total_action_count, artifacts, observations, reflection_pending,
+            context_injected, variables, task_list, current_task_index,
+            files_modified_this_task, created_at, updated_at
+        )
+        SELECT
+            session_id, workflow_name, phase, phase_entered_at, phase_action_count,
+            total_action_count, artifacts, observations, reflection_pending,
+            context_injected, variables, task_list, current_task_index,
+            files_modified_this_task, created_at, updated_at
+        FROM workflow_states;
+
+        DROP TABLE workflow_states;
+        ALTER TABLE workflow_states_new RENAME TO workflow_states;
+
+        -- Rename column in workflow_audit_log table
+        CREATE TABLE workflow_audit_log_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+            step TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            tool_name TEXT,
+            rule_id TEXT,
+            condition TEXT,
+            result TEXT NOT NULL,
+            reason TEXT,
+            context TEXT,
+            FOREIGN KEY (session_id) REFERENCES sessions(id)
+        );
+
+        INSERT INTO workflow_audit_log_new (
+            id, session_id, timestamp, step, event_type, tool_name,
+            rule_id, condition, result, reason, context
+        )
+        SELECT
+            id, session_id, timestamp, phase, event_type, tool_name,
+            rule_id, condition, result, reason, context
+        FROM workflow_audit_log;
+
+        DROP TABLE workflow_audit_log;
+        ALTER TABLE workflow_audit_log_new RENAME TO workflow_audit_log;
+
+        CREATE INDEX IF NOT EXISTS idx_audit_session ON workflow_audit_log(session_id);
+        CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON workflow_audit_log(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_audit_event_type ON workflow_audit_log(event_type);
+        CREATE INDEX IF NOT EXISTS idx_audit_result ON workflow_audit_log(result);
+
+        PRAGMA foreign_keys = ON;
+        """,
+    ),
 ]
 
 

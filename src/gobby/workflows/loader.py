@@ -129,34 +129,37 @@ class WorkflowLoader:
         for key, value in child.items():
             if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
                 merged[key] = self._merge_workflows(merged[key], value)
-            elif key == "phases" and "phases" in merged:
-                # Special handling for phases: merge by name
-                merged["phases"] = self._merge_phases(merged["phases"], value)
+            elif key in ("phases", "steps") and ("phases" in merged or "steps" in merged):
+                # Special handling for steps/phases: merge by name
+                # Support both 'steps' (new) and 'phases' (legacy YAML)
+                parent_list = merged.get("phases") or merged.get("steps", [])
+                merged_key = "phases" if "phases" in merged else "steps"
+                merged[merged_key] = self._merge_steps(parent_list, value)
             else:
                 merged[key] = value
 
         return merged
 
-    def _merge_phases(self, parent_phases: list, child_phases: list) -> list:
+    def _merge_steps(self, parent_steps: list, child_steps: list) -> list:
         """
-        Merge phases lists by phase name.
+        Merge step lists by step name.
         """
         # Convert parent list to dict by name
-        parent_map = {p["name"]: p for p in parent_phases}
+        parent_map = {s["name"]: s for s in parent_steps}
 
-        for child_phase in child_phases:
-            name = child_phase["name"]
+        for child_step in child_steps:
+            name = child_step["name"]
             if name in parent_map:
-                # Merge existing phase (deep merge the dicts)
+                # Merge existing step (deep merge the dicts)
                 # For simplicity here using a helper or just updating fields
-                # Ideally we'd recursively merge the phase dicts too
-                # For now, let's assume entire phase override or simple update
+                # Ideally we'd recursively merge the step dicts too
+                # For now, let's assume entire step override or simple update
                 # A proper implementation would merge allowed_tools, rules etc.
-                # Let's do a shallow merge of the phase dict for now
-                parent_map[name].update(child_phase)
+                # Let's do a shallow merge of the step dict for now
+                parent_map[name].update(child_step)
             else:
-                # Add new phase
-                parent_map[name] = child_phase
+                # Add new step
+                parent_map[name] = child_step
 
         return list(parent_map.values())
 

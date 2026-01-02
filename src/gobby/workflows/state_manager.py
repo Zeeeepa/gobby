@@ -26,11 +26,11 @@ class WorkflowStateManager:
             return WorkflowState(
                 session_id=row["session_id"],
                 workflow_name=row["workflow_name"],
-                phase=row["phase"],
-                phase_entered_at=datetime.fromisoformat(row["phase_entered_at"])
-                if row["phase_entered_at"]
+                step=row["step"],
+                step_entered_at=datetime.fromisoformat(row["step_entered_at"])
+                if row["step_entered_at"]
                 else datetime.now(UTC),
-                phase_action_count=row["phase_action_count"],
+                step_action_count=row["step_action_count"],
                 total_action_count=row["total_action_count"],
                 artifacts=json.loads(row["artifacts"]) if row["artifacts"] else {},
                 observations=json.loads(row["observations"]) if row["observations"] else [],
@@ -55,16 +55,16 @@ class WorkflowStateManager:
         self.db.execute(
             """
             INSERT INTO workflow_states (
-                session_id, workflow_name, phase, phase_entered_at,
-                phase_action_count, total_action_count, artifacts,
+                session_id, workflow_name, step, step_entered_at,
+                step_action_count, total_action_count, artifacts,
                 observations, reflection_pending, context_injected, variables,
                 task_list, current_task_index, files_modified_this_task,
                 updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(session_id) DO UPDATE SET
-                phase = excluded.phase,
-                phase_entered_at = excluded.phase_entered_at,
-                phase_action_count = excluded.phase_action_count,
+                step = excluded.step,
+                step_entered_at = excluded.step_entered_at,
+                step_action_count = excluded.step_action_count,
                 total_action_count = excluded.total_action_count,
                 artifacts = excluded.artifacts,
                 observations = excluded.observations,
@@ -79,9 +79,9 @@ class WorkflowStateManager:
             (
                 state.session_id,
                 state.workflow_name,
-                state.phase,
-                state.phase_entered_at.isoformat(),
-                state.phase_action_count,
+                state.step,
+                state.step_entered_at.isoformat(),
+                state.step_action_count,
                 state.total_action_count,
                 json.dumps(state.artifacts),
                 json.dumps(state.observations),

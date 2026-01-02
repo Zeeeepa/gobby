@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 # --- Workflow Definition Models (YAML) ---
 
@@ -25,7 +25,7 @@ class WorkflowExitCondition(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
-class WorkflowPhase(BaseModel):
+class WorkflowStep(BaseModel):
     name: str
     description: str | None = None
 
@@ -40,6 +40,10 @@ class WorkflowPhase(BaseModel):
     exit_conditions: list[dict[str, Any]] = Field(default_factory=list)  # flexible for now
 
     on_exit: list[dict[str, Any]] = Field(default_factory=list)
+
+
+# Backward compatibility alias
+WorkflowPhase = WorkflowStep
 
 
 class WorkflowDefinition(BaseModel):
@@ -58,18 +62,29 @@ class WorkflowDefinition(BaseModel):
     settings: dict[str, Any] = Field(default_factory=dict)
     variables: dict[str, Any] = Field(default_factory=dict)
 
-    phases: list[WorkflowPhase] = Field(default_factory=list)
+    # Accept both 'steps' and 'phases' from YAML for backward compatibility
+    steps: list[WorkflowStep] = Field(
+        default_factory=list, validation_alias=AliasChoices("steps", "phases")
+    )
 
     # Global triggers (on_session_start, etc.)
     triggers: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
 
     on_error: list[dict[str, Any]] = Field(default_factory=list)
 
-    def get_phase(self, phase_name: str) -> WorkflowPhase | None:
-        for p in self.phases:
-            if p.name == phase_name:
-                return p
+    def get_step(self, step_name: str) -> WorkflowStep | None:
+        for s in self.steps:
+            if s.name == step_name:
+                return s
         return None
+
+    # Backward compatibility aliases
+    @property
+    def phases(self) -> list[WorkflowStep]:
+        return self.steps
+
+    def get_phase(self, phase_name: str) -> WorkflowStep | None:
+        return self.get_step(phase_name)
 
 
 # --- Workflow State Models (Runtime) ---
@@ -78,10 +93,16 @@ class WorkflowDefinition(BaseModel):
 class WorkflowState(BaseModel):
     session_id: str
     workflow_name: str
-    phase: str
-    phase_entered_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    # Accept both 'step' and 'phase' for backward compatibility
+    step: str = Field(validation_alias=AliasChoices("step", "phase"))
+    step_entered_at: datetime = Field(
+        default_factory=lambda: datetime.now(UTC),
+        validation_alias=AliasChoices("step_entered_at", "phase_entered_at"),
+    )
 
-    phase_action_count: int = 0
+    step_action_count: int = Field(
+        default=0, validation_alias=AliasChoices("step_action_count", "phase_action_count")
+    )
     total_action_count: int = 0
 
     artifacts: dict[str, str] = Field(default_factory=dict)
@@ -108,8 +129,27 @@ class WorkflowState(BaseModel):
     disabled: bool = False
     disabled_reason: str | None = None
 
-    # Track initial phase for reset functionality
-    initial_phase: str | None = None
+    # Track initial step for reset functionality
+    initial_step: str | None = Field(
+        default=None, validation_alias=AliasChoices("initial_step", "initial_phase")
+    )
 
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+    # Backward compatibility aliases
+    @property
+    def phase(self) -> str:
+        return self.step
+
+    @property
+    def phase_entered_at(self) -> datetime:
+        return self.step_entered_at
+
+    @property
+    def phase_action_count(self) -> int:
+        return self.step_action_count
+
+    @property
+    def initial_phase(self) -> str | None:
+        return self.initial_step

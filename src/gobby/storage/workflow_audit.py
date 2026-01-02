@@ -1,7 +1,7 @@
 """Workflow audit log storage manager.
 
 Provides persistent storage for workflow decisions (tool permissions,
-rule evaluations, phase transitions) for explainability and debugging.
+rule evaluations, step transitions) for explainability and debugging.
 """
 
 import json
@@ -20,7 +20,7 @@ class WorkflowAuditEntry:
     """A single workflow audit log entry."""
 
     session_id: str
-    phase: str
+    step: str
     event_type: str  # 'tool_call', 'rule_eval', 'transition', 'exit_check', 'approval'
     result: str  # 'allow', 'block', 'transition', 'skip', 'approved', 'rejected', 'pending'
     reason: str | None = None
@@ -51,7 +51,7 @@ class WorkflowAuditManager:
     def log(
         self,
         session_id: str,
-        phase: str,
+        step: str,
         event_type: str,
         result: str,
         reason: str | None = None,
@@ -64,7 +64,7 @@ class WorkflowAuditManager:
 
         Args:
             session_id: The session this entry belongs to
-            phase: Current workflow phase
+            step: Current workflow step
             event_type: Type of event ('tool_call', 'rule_eval', etc.)
             result: Result of the evaluation ('allow', 'block', etc.)
             reason: Human-readable explanation
@@ -83,13 +83,13 @@ class WorkflowAuditManager:
             cursor = self.db.execute(
                 """
                 INSERT INTO workflow_audit_log
-                (session_id, timestamp, phase, event_type, tool_name, rule_id, condition, result, reason, context)
+                (session_id, timestamp, step, event_type, tool_name, rule_id, condition, result, reason, context)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     session_id,
                     timestamp,
-                    phase,
+                    step,
                     event_type,
                     tool_name,
                     rule_id,
@@ -107,7 +107,7 @@ class WorkflowAuditManager:
     def log_tool_call(
         self,
         session_id: str,
-        phase: str,
+        step: str,
         tool_name: str,
         result: str,
         reason: str | None = None,
@@ -117,7 +117,7 @@ class WorkflowAuditManager:
 
         Args:
             session_id: Session ID
-            phase: Current phase
+            step: Current step
             tool_name: Name of the tool
             result: 'allow' or 'block'
             reason: Why the tool was allowed/blocked
@@ -128,7 +128,7 @@ class WorkflowAuditManager:
         """
         return self.log(
             session_id=session_id,
-            phase=phase,
+            step=step,
             event_type="tool_call",
             result=result,
             reason=reason,
@@ -139,7 +139,7 @@ class WorkflowAuditManager:
     def log_rule_eval(
         self,
         session_id: str,
-        phase: str,
+        step: str,
         rule_id: str,
         condition: str,
         result: str,
@@ -150,7 +150,7 @@ class WorkflowAuditManager:
 
         Args:
             session_id: Session ID
-            phase: Current phase
+            step: Current step
             rule_id: Identifier for the rule
             condition: The 'when' clause
             result: 'allow', 'block', 'skip'
@@ -162,7 +162,7 @@ class WorkflowAuditManager:
         """
         return self.log(
             session_id=session_id,
-            phase=phase,
+            step=step,
             event_type="rule_eval",
             result=result,
             reason=reason,
@@ -174,17 +174,17 @@ class WorkflowAuditManager:
     def log_transition(
         self,
         session_id: str,
-        from_phase: str,
-        to_phase: str,
+        from_step: str,
+        to_step: str,
         reason: str | None = None,
         context: dict[str, Any] | None = None,
     ) -> int | None:
-        """Log a phase transition.
+        """Log a step transition.
 
         Args:
             session_id: Session ID
-            from_phase: Phase transitioning from
-            to_phase: Phase transitioning to
+            from_step: Step transitioning from
+            to_step: Step transitioning to
             reason: Why the transition occurred
             context: Additional context (trigger condition, etc.)
 
@@ -192,21 +192,21 @@ class WorkflowAuditManager:
             Row ID or None.
         """
         ctx = context or {}
-        ctx["from_phase"] = from_phase
-        ctx["to_phase"] = to_phase
+        ctx["from_step"] = from_step
+        ctx["to_step"] = to_step
         return self.log(
             session_id=session_id,
-            phase=from_phase,
+            step=from_step,
             event_type="transition",
             result="transition",
-            reason=reason or f"Transitioned to '{to_phase}'",
+            reason=reason or f"Transitioned to '{to_step}'",
             context=ctx,
         )
 
     def log_exit_check(
         self,
         session_id: str,
-        phase: str,
+        step: str,
         condition: str,
         result: str,
         reason: str | None = None,
@@ -216,7 +216,7 @@ class WorkflowAuditManager:
 
         Args:
             session_id: Session ID
-            phase: Current phase
+            step: Current step
             condition: The exit condition being checked
             result: 'met' or 'unmet'
             reason: Why the condition was met/unmet
@@ -227,7 +227,7 @@ class WorkflowAuditManager:
         """
         return self.log(
             session_id=session_id,
-            phase=phase,
+            step=step,
             event_type="exit_check",
             result=result,
             reason=reason,
@@ -238,7 +238,7 @@ class WorkflowAuditManager:
     def log_approval(
         self,
         session_id: str,
-        phase: str,
+        step: str,
         result: str,
         condition_id: str | None = None,
         prompt: str | None = None,
@@ -248,7 +248,7 @@ class WorkflowAuditManager:
 
         Args:
             session_id: Session ID
-            phase: Current phase
+            step: Current step
             result: 'approved', 'rejected', 'pending', 'timeout'
             condition_id: The approval condition ID
             prompt: The approval prompt shown
@@ -264,7 +264,7 @@ class WorkflowAuditManager:
             ctx["prompt"] = prompt
         return self.log(
             session_id=session_id,
-            phase=phase,
+            step=step,
             event_type="approval",
             result=result,
             reason=prompt,
@@ -309,7 +309,7 @@ class WorkflowAuditManager:
 
         rows = self.db.fetchall(
             f"""
-            SELECT id, session_id, timestamp, phase, event_type, tool_name,
+            SELECT id, session_id, timestamp, step, event_type, tool_name,
                    rule_id, condition, result, reason, context
             FROM workflow_audit_log
             WHERE {where_clause}
@@ -335,7 +335,7 @@ class WorkflowAuditManager:
                     id=row["id"],
                     session_id=row["session_id"],
                     timestamp=timestamp,
-                    phase=row["phase"],
+                    step=row["step"],
                     event_type=row["event_type"],
                     tool_name=row["tool_name"],
                     rule_id=row["rule_id"],

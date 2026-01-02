@@ -5,7 +5,7 @@ import pytest
 
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.workflows.actions import ActionExecutor
-from gobby.workflows.definitions import WorkflowDefinition, WorkflowPhase, WorkflowState
+from gobby.workflows.definitions import WorkflowDefinition, WorkflowState, WorkflowStep
 from gobby.workflows.engine import WorkflowEngine
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
@@ -86,16 +86,16 @@ class TestWorkflowEngine:
 
         mock_state_manager.get_state.return_value = state
 
-        # Setup workflow with reflect phase
+        # Setup workflow with reflect step
         workflow = MagicMock(spec=WorkflowDefinition)
 
-        # side_effect for get_phase
-        def get_phase_side_effect(name):
+        # side_effect for get_step
+        def get_step_side_effect(name):
             if name in ["working", "reflect"]:
                 return MagicMock()
             return None
 
-        workflow.get_phase.side_effect = get_phase_side_effect
+        workflow.get_step.side_effect = get_step_side_effect
         mock_loader.load_workflow.return_value = workflow
 
         event = HookEvent(
@@ -110,8 +110,8 @@ class TestWorkflowEngine:
         response = await workflow_engine.handle_event(event)
 
         assert response.decision == "modify"
-        assert "Phase duration limit exceeded" in response.context
-        assert state.phase == "reflect"  # Transited
+        assert "Step duration limit exceeded" in response.context
+        assert state.step == "reflect"  # Transited
 
     async def test_handle_event_tool_blocked(
         self, workflow_engine, mock_state_manager, mock_loader
@@ -125,15 +125,15 @@ class TestWorkflowEngine:
         )
         mock_state_manager.get_state.return_value = state
 
-        phase1 = MagicMock(spec=WorkflowPhase)
-        phase1.blocked_tools = ["forbidden_tool"]
-        phase1.allowed_tools = "all"
-        phase1.rules = []
-        phase1.transitions = []
-        phase1.exit_conditions = []
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.blocked_tools = ["forbidden_tool"]
+        step1.allowed_tools = "all"
+        step1.rules = []
+        step1.transitions = []
+        step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
-        workflow.get_phase.return_value = phase1
+        workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
         event = HookEvent(
@@ -149,7 +149,7 @@ class TestWorkflowEngine:
         response = await workflow_engine.handle_event(event)
 
         assert response.decision == "block"
-        assert "blocked in phase" in response.reason
+        assert "blocked in step" in response.reason
 
     async def test_evaluate_lifecycle_triggers_execution(
         self, workflow_engine, mock_loader, mock_action_executor
@@ -194,15 +194,15 @@ class TestWorkflowEngine:
         )
         mock_state_manager.get_state.return_value = state
 
-        phase1 = MagicMock(spec=WorkflowPhase)
-        phase1.blocked_tools = []
-        phase1.allowed_tools = ["Read", "Glob", "Grep"]  # Specific list
-        phase1.rules = []
-        phase1.transitions = []
-        phase1.exit_conditions = []
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.blocked_tools = []
+        step1.allowed_tools = ["Read", "Glob", "Grep"]  # Specific list
+        step1.rules = []
+        step1.transitions = []
+        step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
-        workflow.get_phase.return_value = phase1
+        workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
         event = HookEvent(
@@ -231,15 +231,15 @@ class TestWorkflowEngine:
         )
         mock_state_manager.get_state.return_value = state
 
-        phase1 = MagicMock(spec=WorkflowPhase)
-        phase1.blocked_tools = []
-        phase1.allowed_tools = ["Read", "Glob", "Grep"]  # Specific list
-        phase1.rules = []
-        phase1.transitions = []
-        phase1.exit_conditions = []
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.blocked_tools = []
+        step1.allowed_tools = ["Read", "Glob", "Grep"]  # Specific list
+        step1.rules = []
+        step1.transitions = []
+        step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
-        workflow.get_phase.return_value = phase1
+        workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
         event = HookEvent(
@@ -272,15 +272,15 @@ class TestWorkflowEngine:
         )
         mock_state_manager.get_state.return_value = state
 
-        phase1 = MagicMock(spec=WorkflowPhase)
-        phase1.blocked_tools = []
-        phase1.allowed_tools = "all"
-        phase1.rules = []
-        phase1.transitions = []
-        phase1.exit_conditions = []
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.blocked_tools = []
+        step1.allowed_tools = "all"
+        step1.rules = []
+        step1.transitions = []
+        step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
-        workflow.get_phase.return_value = phase1
+        workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
         event = HookEvent(
@@ -334,20 +334,20 @@ class TestWorkflowEngine:
         state = WorkflowState(
             session_id="sess1",
             workflow_name="default",
-            phase="phase1",
-            phase_entered_at=datetime.now(UTC),
+            step="phase1",
+            step_entered_at=datetime.now(UTC),
         )
         mock_state_manager.get_state.return_value = state
 
-        phase1 = MagicMock(spec=WorkflowPhase)
-        phase1.blocked_tools = []
-        phase1.allowed_tools = "all"
-        phase1.rules = []
-        phase1.transitions = []
-        phase1.exit_conditions = []
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.blocked_tools = []
+        step1.allowed_tools = "all"
+        step1.rules = []
+        step1.transitions = []
+        step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
-        workflow.get_phase.return_value = phase1
+        workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
         event = HookEvent(
@@ -371,20 +371,20 @@ class TestWorkflowEngine:
         state = WorkflowState(
             session_id="sess1",
             workflow_name="default",
-            phase="phase1",
-            phase_entered_at=datetime.now(UTC),
+            step="phase1",
+            step_entered_at=datetime.now(UTC),
         )
         mock_state_manager.get_state.return_value = state
 
-        phase1 = MagicMock(spec=WorkflowPhase)
-        phase1.blocked_tools = ["Bash", "Edit", "Write"]  # Dangerous tools
-        phase1.allowed_tools = "all"  # All others allowed
-        phase1.rules = []
-        phase1.transitions = []
-        phase1.exit_conditions = []
+        step1 = MagicMock(spec=WorkflowStep)
+        step1.blocked_tools = ["Bash", "Edit", "Write"]  # Dangerous tools
+        step1.allowed_tools = "all"  # All others allowed
+        step1.rules = []
+        step1.transitions = []
+        step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
-        workflow.get_phase.return_value = phase1
+        workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
         event = HookEvent(
@@ -400,4 +400,4 @@ class TestWorkflowEngine:
         response = await workflow_engine.handle_event(event)
 
         assert response.decision == "block"
-        assert "blocked in phase" in response.reason
+        assert "blocked in step" in response.reason

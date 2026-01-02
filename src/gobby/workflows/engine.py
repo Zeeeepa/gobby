@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class WorkflowEngine:
     """
-    Core engine for executing phase-based workflows.
+    Core engine for executing step-based workflows.
     """
 
     def __init__(
@@ -70,20 +70,20 @@ class WorkflowEngine:
             )
             return HookResponse(decision="allow")
 
-        # Stuck prevention: Check if phase duration exceeding limit
+        # Stuck prevention: Check if step duration exceeding limit
         # This is a basic implementation of "Stuck Detection"
-        if state.phase_entered_at:
-            duration = (datetime.now(UTC) - state.phase_entered_at).total_seconds()
+        if state.step_entered_at:
+            duration = (datetime.now(UTC) - state.step_entered_at).total_seconds()
             # Hardcoded limit for MVP: 30 minutes
             if duration > 1800:
                 # Force transition to reflect if not already there
-                if state.phase != "reflect":
+                if state.step != "reflect":
                     workflow = self.loader.load_workflow(state.workflow_name)
-                    if workflow and workflow.get_phase("reflect"):
+                    if workflow and workflow.get_step("reflect"):
                         await self.transition_to(state, "reflect", workflow)
                         return HookResponse(
                             decision="modify",
-                            context="[System Alert] Phase duration limit exceeded. Transitioning to 'reflect' phase.",
+                            context="[System Alert] Step duration limit exceeded. Transitioning to 'reflect' step.",
                         )
 
         # 3. Load definition
@@ -104,14 +104,14 @@ class WorkflowEngine:
             "tool_args": getattr(event, "tool_args", {}),
         }
 
-        current_phase = workflow.get_phase(state.phase)
-        if not current_phase:
-            logger.error(f"Phase '{state.phase}' not found in workflow '{workflow.name}'")
+        current_step = workflow.get_step(state.step)
+        if not current_step:
+            logger.error(f"Step '{state.step}' not found in workflow '{workflow.name}'")
             return HookResponse(decision="allow")
 
         # Handle approval flow on user prompt submit
         if event.event_type == HookEventType.BEFORE_AGENT:
-            approval_response = self._handle_approval_response(event, state, current_phase)
+            approval_response = self._handle_approval_response(event, state, current_step)
             if approval_response:
                 return approval_response
 
@@ -120,95 +120,94 @@ class WorkflowEngine:
             # Block tool calls while waiting for approval
             if state.approval_pending:
                 reason = "Waiting for user approval. Please respond with 'yes' or 'no'."
-                self._log_tool_call(session_id, state.phase, "unknown", "block", reason)
+                self._log_tool_call(session_id, state.step, "unknown", "block", reason)
                 return HookResponse(decision="block", reason=reason)
             tool_name = eval_context["tool_name"]
 
             # Check blocked list
-            if tool_name in current_phase.blocked_tools:
-                reason = f"Tool '{tool_name}' is blocked in phase '{state.phase}'."
-                self._log_tool_call(session_id, state.phase, tool_name, "block", reason)
+            if tool_name in current_step.blocked_tools:
+                reason = f"Tool '{tool_name}' is blocked in step '{state.step}'."
+                self._log_tool_call(session_id, state.step, tool_name, "block", reason)
                 return HookResponse(decision="block", reason=reason)
 
             # Check allowed list (if not "all")
-            if current_phase.allowed_tools != "all":
-                if tool_name not in current_phase.allowed_tools:
-                    reason = f"Tool '{tool_name}' is not in allowed list for phase '{state.phase}'."
-                    self._log_tool_call(session_id, state.phase, tool_name, "block", reason)
+            if current_step.allowed_tools != "all":
+                if tool_name not in current_step.allowed_tools:
+                    reason = f"Tool '{tool_name}' is not in allowed list for step '{state.step}'."
+                    self._log_tool_call(session_id, state.step, tool_name, "block", reason)
                     return HookResponse(decision="block", reason=reason)
 
             # Check rules
-            for rule in current_phase.rules:
+            for rule in current_step.rules:
                 if self.evaluator.evaluate(rule.when, eval_context):
                     if rule.action == "block":
                         reason = rule.message or "Blocked by workflow rule."
                         self._log_rule_eval(
-                            session_id, state.phase, rule.name or "unnamed", rule.when, "block", reason
+                            session_id, state.step, rule.name or "unnamed", rule.when, "block", reason
                         )
                         return HookResponse(decision="block", reason=reason)
                     # Handle other actions like warn, require_approval
 
             # Log successful tool allow
-            self._log_tool_call(session_id, state.phase, tool_name, "allow")
+            self._log_tool_call(session_id, state.step, tool_name, "allow")
 
         # Check transitions
-        for transition in current_phase.transitions:
+        for transition in current_step.transitions:
             if self.evaluator.evaluate(transition.when, eval_context):
                 # Transition!
                 await self.transition_to(state, transition.to, workflow)
                 return HookResponse(
-                    decision="modify", context=f"Transitioning to phase: {transition.to}"
+                    decision="modify", context=f"Transitioning to step: {transition.to}"
                 )
 
         # Check exit conditions
-        if self.evaluator.check_exit_conditions(current_phase.exit_conditions, state):
-            # TODO: Determine next phase or completion logic
-            # For now, simplistic 'next phase' if linear, or rely on transitions
-            # WORKFLOWS.md says: next_phase = workflow.get_next_phase(state.phase)
+        if self.evaluator.check_exit_conditions(current_step.exit_conditions, state):
+            # TODO: Determine next step or completion logic
+            # For now, simplistic 'next step' if linear, or rely on transitions
             pass
 
         # Update stats (generic)
         if event.event_type == HookEventType.AFTER_TOOL:
-            state.phase_action_count += 1
+            state.step_action_count += 1
             state.total_action_count += 1
             self.state_manager.save_state(state)  # Persist updates
 
         return HookResponse(decision="allow")
 
     async def transition_to(
-        self, state: WorkflowState, new_phase_name: str, workflow: WorkflowDefinition
+        self, state: WorkflowState, new_step_name: str, workflow: WorkflowDefinition
     ) -> None:
         """
         Execute transition logic.
         """
-        old_phase = workflow.get_phase(state.phase)
-        new_phase = workflow.get_phase(new_phase_name)
+        old_step = workflow.get_step(state.step)
+        new_step = workflow.get_step(new_step_name)
 
-        if not new_phase:
-            logger.error(f"Cannot transition to unknown phase '{new_phase_name}'")
+        if not new_step:
+            logger.error(f"Cannot transition to unknown step '{new_step_name}'")
             return
 
         logger.info(
-            f"Transitioning session {state.session_id} from '{state.phase}' to '{new_phase_name}'"
+            f"Transitioning session {state.session_id} from '{state.step}' to '{new_step_name}'"
         )
 
         # Log the transition
-        self._log_transition(state.session_id, state.phase, new_phase_name)
+        self._log_transition(state.session_id, state.step, new_step_name)
 
-        # Execute on_exit of old phase
-        if old_phase:
-            await self._execute_actions(old_phase.on_exit, state)
+        # Execute on_exit of old step
+        if old_step:
+            await self._execute_actions(old_step.on_exit, state)
 
         # Update state
-        state.phase = new_phase_name
-        state.phase_entered_at = datetime.now(UTC)
-        state.phase_action_count = 0
-        state.context_injected = False  # Reset for new phase context
+        state.step = new_step_name
+        state.step_entered_at = datetime.now(UTC)
+        state.step_action_count = 0
+        state.context_injected = False  # Reset for new step context
 
         self.state_manager.save_state(state)
 
-        # Execute on_enter of new phase
-        await self._execute_actions(new_phase.on_enter, state)
+        # Execute on_enter of new step
+        await self._execute_actions(new_step.on_enter, state)
 
     async def _execute_actions(self, actions: list[dict], state: WorkflowState) -> None:
         """
@@ -246,7 +245,7 @@ class WorkflowEngine:
         self,
         event: HookEvent,
         state: WorkflowState,
-        current_phase: Any,
+        current_step: Any,
     ) -> HookResponse | None:
         """
         Handle user response to approval request.
@@ -275,7 +274,7 @@ class WorkflowEngine:
                 state.approval_requested_at = None
                 self.state_manager.save_state(state)
 
-                logger.info(f"User approved condition '{condition_id}' in phase '{state.phase}'")
+                logger.info(f"User approved condition '{condition_id}' in step '{state.step}'")
                 return HookResponse(
                     decision="allow",
                     context=f"✓ Approval granted for: {state.approval_prompt or 'action'}",
@@ -292,7 +291,7 @@ class WorkflowEngine:
                 state.approval_requested_at = None
                 self.state_manager.save_state(state)
 
-                logger.info(f"User rejected condition '{condition_id}' in phase '{state.phase}'")
+                logger.info(f"User rejected condition '{condition_id}' in step '{state.step}'")
                 return HookResponse(
                     decision="block",
                     reason="User rejected the approval request.",
@@ -310,7 +309,7 @@ class WorkflowEngine:
 
         # Check if we need to request approval
         approval_check = self.evaluator.check_pending_approval(
-            current_phase.exit_conditions, state
+            current_step.exit_conditions, state
         )
 
         if approval_check and approval_check.needs_approval:
@@ -324,7 +323,7 @@ class WorkflowEngine:
 
             logger.info(
                 f"Requesting approval for condition '{approval_check.condition_id}' "
-                f"in phase '{state.phase}'"
+                f"in step '{state.step}'"
             )
             return HookResponse(
                 decision="allow",
@@ -502,9 +501,9 @@ class WorkflowEngine:
         state = WorkflowState(
             session_id=session_id,
             workflow_name=workflow.name,
-            phase="global",
-            phase_entered_at=datetime.now(UTC),
-            phase_action_count=0,
+            step="global",
+            step_entered_at=datetime.now(UTC),
+            step_action_count=0,
             total_action_count=0,
             artifacts=event.data.get("artifacts", {}) if event.data else {},
             observations=[],
@@ -633,16 +632,16 @@ class WorkflowEngine:
         from .actions import ActionContext
         from .definitions import WorkflowState
 
-        # Create a dummy state for context - lifecycle workflows shouldn't depend on phase state
+        # Create a dummy state for context - lifecycle workflows shouldn't depend on step state
         # but actions might need access to 'state.artifacts' or similar if provided
         session_id = event.metadata.get("_platform_session_id") or "global"
 
         state = WorkflowState(
             session_id=session_id,
             workflow_name=workflow_name,
-            phase="global",
-            phase_entered_at=datetime.now(UTC),
-            phase_action_count=0,
+            step="global",
+            step_entered_at=datetime.now(UTC),
+            step_action_count=0,
             total_action_count=0,
             artifacts=event.data.get("artifacts", {}),  # Pass artifacts if available
             observations=[],
@@ -739,7 +738,7 @@ class WorkflowEngine:
     def _log_tool_call(
         self,
         session_id: str,
-        phase: str,
+        step: str,
         tool_name: str,
         result: str,
         reason: str | None = None,
@@ -750,7 +749,7 @@ class WorkflowEngine:
             try:
                 self.audit_manager.log_tool_call(
                     session_id=session_id,
-                    phase=phase,
+                    step=step,
                     tool_name=tool_name,
                     result=result,
                     reason=reason,
@@ -762,7 +761,7 @@ class WorkflowEngine:
     def _log_rule_eval(
         self,
         session_id: str,
-        phase: str,
+        step: str,
         rule_id: str,
         condition: str,
         result: str,
@@ -774,7 +773,7 @@ class WorkflowEngine:
             try:
                 self.audit_manager.log_rule_eval(
                     session_id=session_id,
-                    phase=phase,
+                    step=step,
                     rule_id=rule_id,
                     condition=condition,
                     result=result,
@@ -787,18 +786,18 @@ class WorkflowEngine:
     def _log_transition(
         self,
         session_id: str,
-        from_phase: str,
-        to_phase: str,
+        from_step: str,
+        to_step: str,
         reason: str | None = None,
         context: dict[str, Any] | None = None,
     ) -> None:
-        """Log a phase transition to the audit log."""
+        """Log a step transition to the audit log."""
         if self.audit_manager:
             try:
                 self.audit_manager.log_transition(
                     session_id=session_id,
-                    from_phase=from_phase,
-                    to_phase=to_phase,
+                    from_step=from_step,
+                    to_step=to_step,
                     reason=reason,
                     context=context,
                 )
@@ -808,7 +807,7 @@ class WorkflowEngine:
     def _log_approval(
         self,
         session_id: str,
-        phase: str,
+        step: str,
         result: str,
         condition_id: str | None = None,
         prompt: str | None = None,
@@ -819,7 +818,7 @@ class WorkflowEngine:
             try:
                 self.audit_manager.log_approval(
                     session_id=session_id,
-                    phase=phase,
+                    step=step,
                     result=result,
                     condition_id=condition_id,
                     prompt=prompt,

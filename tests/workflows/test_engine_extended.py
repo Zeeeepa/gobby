@@ -498,19 +498,19 @@ class TestWorkflowEngineExtended:
         # Let's hope logic holds.
 
     async def test_transition_failure(self, workflow_engine, mock_state_manager):
-        # Test transition to unknown phase
+        # Test transition to unknown step
         state = WorkflowState(
             session_id="sess1",
             workflow_name="wf",
-            phase="phase1",
-            phase_entered_at=datetime.now(UTC),
+            step="phase1",
+            step_entered_at=datetime.now(UTC),
         )
         wf = MagicMock()
-        wf.get_phase.return_value = None  # New phase unknown
+        wf.get_step.return_value = None  # New step unknown
 
-        await workflow_engine.transition_to(state, "unknown_phase", wf)
+        await workflow_engine.transition_to(state, "unknown_step", wf)
         # Should log error and return
-        assert state.phase == "phase1"
+        assert state.step == "phase1"
 
     async def test_evaluate_lifecycle_workflows(
         self, workflow_engine, mock_loader, mock_action_executor
