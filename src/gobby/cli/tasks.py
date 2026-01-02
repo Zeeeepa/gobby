@@ -237,6 +237,131 @@ def list_tasks(
         click.echo(format_task_row(task, tree_prefix=prefixes.get(task.id, "")))
 
 
+@tasks.command("ready")
+@click.option("--limit", "-n", default=10, help="Max results")
+@click.option("--priority", "-p", type=int, help="Filter by priority")
+@click.option("--type", "-t", "task_type", help="Filter by type")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+def ready_tasks(limit: int, priority: int | None, task_type: str | None, json_format: bool) -> None:
+    """List tasks with no unresolved blocking dependencies."""
+    manager = get_task_manager()
+    tasks_list = manager.list_ready_tasks(
+        priority=priority,
+        task_type=task_type,
+        limit=limit,
+    )
+
+    if json_format:
+        click.echo(json.dumps([t.to_dict() for t in tasks_list], indent=2, default=str))
+        return
+
+    if not tasks_list:
+        click.echo("No ready tasks found.")
+        return
+
+    click.echo(f"Found {len(tasks_list)} ready tasks:")
+    click.echo(format_task_header())
+    for task in tasks_list:
+        click.echo(format_task_row(task))
+
+
+@tasks.command("blocked")
+@click.option("--limit", "-n", default=20, help="Max results")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+def blocked_tasks(limit: int, json_format: bool) -> None:
+    """List blocked tasks with what blocks them."""
+    from gobby.storage.task_dependencies import TaskDependencyManager
+
+    manager = get_task_manager()
+    dep_manager = TaskDependencyManager(manager.db)
+    blocked_list = manager.list_blocked_tasks(limit=limit)
+
+    if json_format:
+        # Build detailed structure for JSON output
+        result = []
+        for task in blocked_list:
+            tree = dep_manager.get_dependency_tree(task.id)
+            result.append({
+                "task": task.to_dict(),
+                "blocked_by": tree.get("blockers", []),
+            })
+        click.echo(json.dumps(result, indent=2, default=str))
+        return
+
+    if not blocked_list:
+        click.echo("No blocked tasks found.")
+        return
+
+    click.echo(f"Found {len(blocked_list)} blocked tasks:")
+    for task in blocked_list:
+        tree = dep_manager.get_dependency_tree(task.id)
+        blocker_ids = tree.get("blockers", [])
+        click.echo(f"\n○ {task.id[:8]}: {task.title}")
+        if blocker_ids:
+            click.echo("  Blocked by:")
+            for b in blocker_ids:
+                blocker_id = b.get("id") if isinstance(b, dict) else b
+                try:
+                    blocker_task = manager.get_task(blocker_id)
+                    status_icon = "✓" if blocker_task.status == "closed" else "○"
+                    click.echo(f"    {status_icon} {blocker_id[:8]}: {blocker_task.title}")
+                except Exception:
+                    click.echo(f"    ? {blocker_id[:8]}: (not found)")
+
+
+@tasks.command("stats")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+def task_stats(json_format: bool) -> None:
+    """Show task statistics."""
+    manager = get_task_manager()
+
+    # Get counts by status
+    all_tasks = manager.list_tasks(limit=10000)
+    total = len(all_tasks)
+    by_status = {"open": 0, "in_progress": 0, "closed": 0}
+    by_priority = {1: 0, 2: 0, 3: 0}
+    by_type: dict[str, int] = {}
+
+    for task in all_tasks:
+        by_status[task.status] = by_status.get(task.status, 0) + 1
+        if task.priority:
+            by_priority[task.priority] = by_priority.get(task.priority, 0) + 1
+        if task.task_type:
+            by_type[task.task_type] = by_type.get(task.task_type, 0) + 1
+
+    # Get ready and blocked counts
+    ready_count = len(manager.list_ready_tasks(limit=10000))
+    blocked_count = len(manager.list_blocked_tasks(limit=10000))
+
+    stats = {
+        "total": total,
+        "by_status": by_status,
+        "by_priority": {"high": by_priority.get(1, 0), "medium": by_priority.get(2, 0), "low": by_priority.get(3, 0)},
+        "by_type": by_type,
+        "ready": ready_count,
+        "blocked": blocked_count,
+    }
+
+    if json_format:
+        click.echo(json.dumps(stats, indent=2))
+        return
+
+    click.echo("Task Statistics:")
+    click.echo(f"  Total: {total}")
+    click.echo(f"  Open: {by_status.get('open', 0)}")
+    click.echo(f"  In Progress: {by_status.get('in_progress', 0)}")
+    click.echo(f"  Closed: {by_status.get('closed', 0)}")
+    click.echo(f"\n  Ready (no blockers): {ready_count}")
+    click.echo(f"  Blocked: {blocked_count}")
+    click.echo(f"\n  High Priority: {by_priority.get(1, 0)}")
+    click.echo(f"  Medium Priority: {by_priority.get(2, 0)}")
+    click.echo(f"  Low Priority: {by_priority.get(3, 0)}")
+    if by_type:
+        click.echo("\n  By Type:")
+        for t, count in sorted(by_type.items(), key=lambda x: -x[1]):
+            click.echo(f"    {t}: {count}")
+
+
 @tasks.command("create")
 @click.argument("title")
 @click.option("--description", "-d", help="Task description")
