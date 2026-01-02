@@ -182,8 +182,9 @@ def order_tasks_hierarchically(tasks: list[Task]) -> list[Task]:
         children_by_parent[parent_id].append(task)
 
     # Sort children within each parent group by priority ASC, created_at ASC
+    # Ensure priority is always int for comparison (some may be stored as strings)
     for children in children_by_parent.values():
-        children.sort(key=lambda t: (t.priority, t.created_at))
+        children.sort(key=lambda t: (int(t.priority) if t.priority else 999, t.created_at))
 
     # Build result with DFS traversal
     result: list[Task] = []
