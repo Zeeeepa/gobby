@@ -1003,15 +1003,15 @@ Before building new workflow capabilities, extract the current session handoff b
 - [x] Implement stuck detection (duration & attempt limits)
 - [x] Optimize Rule Evaluator (pre-compile conditions, short-circuit, cache state)
 
-#### Approval UX (Decision 4)
+#### Approval UX (Decision 4) ✅
 
-- [ ] Implement `user_approval` exit condition type
-- [ ] Inject approval prompt into context when condition is checked
-- [ ] Block tool calls until user responds with approval keyword
-- [ ] Define approval keywords: "yes", "approve", "proceed", "continue"
-- [ ] Define rejection keywords: "no", "reject", "stop", "cancel"
-- [ ] Add timeout option for approval conditions (default: no timeout)
-- [ ] Add unit tests for approval flow
+- [x] Implement `user_approval` exit condition type (evaluator.py:132-139)
+- [x] Inject approval prompt into context when condition is checked (engine.py:302-317)
+- [x] Block tool calls until user responds with approval keyword (engine.py:109-114)
+- [x] Define approval keywords: "yes", "approve", "proceed", "continue", "ok", "okay", "y" (evaluator.py:11)
+- [x] Define rejection keywords: "no", "reject", "stop", "cancel", "abort", "n" (evaluator.py:12)
+- [x] Add timeout option for approval conditions (evaluator.py:180-189, engine.py:322-334)
+- [x] Add unit tests for approval flow (test_evaluator.py:83-185)
 
 ### Phase 3: Hook Integration ✅
 
