@@ -246,10 +246,12 @@ class HookManager:
             state_manager=self._workflow_state_manager,
             action_executor=self._action_executor,
         )
-        workflow_timeout = 30.0
+        workflow_timeout: float | None = None  # None = no timeout
         workflow_enabled = True
         if self._config:
-            workflow_timeout = self._config.workflow.timeout
+            # Allow config to set timeout to null/None to disable
+            config_timeout = self._config.workflow.timeout
+            workflow_timeout = config_timeout if config_timeout else None
             workflow_enabled = self._config.workflow.enabled
 
         self._workflow_handler = WorkflowHookHandler(

@@ -116,7 +116,7 @@ class TestWorkflowInheritance:
                 wf = loader.load_workflow("child_workflow")
                 assert wf is not None
                 assert wf.name == "child_workflow"
-                # Should have phases from both parent and child
+                # Should have steps from both parent and child
                 step_names = [p.name for p in wf.steps]
                 assert "step1" in step_names
                 assert "step2" in step_names
@@ -293,7 +293,7 @@ class TestWorkflowInheritance:
                 wf = loader.load_workflow("top")
                 assert wf is not None
                 assert wf.name == "top"
-                # Should have phases from all three levels
+                # Should have steps from all three levels
                 step_names = [p.name for p in wf.steps]
                 assert "base_step" in step_names
                 assert "middle_step" in step_names

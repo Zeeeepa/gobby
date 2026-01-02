@@ -62,7 +62,9 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
         try:
             process = psutil.Process(os.getpid())
             memory_info = process.memory_info()
-            cpu_percent = process.cpu_percent(interval=0)
+            # Use a small interval to get meaningful CPU percentage
+            # (interval=0 returns 0.0 on first invocation)
+            cpu_percent = process.cpu_percent(interval=0.1)
 
             process_metrics = {
                 "memory_rss_mb": round(memory_info.rss / (1024 * 1024), 2),

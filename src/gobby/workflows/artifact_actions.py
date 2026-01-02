@@ -30,11 +30,17 @@ def capture_artifact(
     if not pattern:
         return None
 
-    matches = glob.glob(pattern, recursive=True)
-    if not matches:
+    # Use iglob generator to avoid building entire list on deep trees
+    # Select the lexicographically smallest match for determinism
+    first_match: str | None = None
+    for match in glob.iglob(pattern, recursive=True):
+        if first_match is None or match < first_match:
+            first_match = match
+
+    if first_match is None:
         return None
 
-    filepath = os.path.abspath(matches[0])
+    filepath = os.path.abspath(first_match)
 
     if save_as:
         if not state.artifacts:
@@ -72,8 +78,8 @@ def read_artifact(
         filepath = state.artifacts.get(pattern)
 
     if not filepath:
-        # Try as glob pattern
-        matches = glob.glob(pattern, recursive=True)
+        # Try as glob pattern - use sorted() for deterministic selection
+        matches = sorted(glob.glob(pattern, recursive=True))
         if matches:
             filepath = os.path.abspath(matches[0])
 
@@ -82,7 +88,8 @@ def read_artifact(
         return None
 
     try:
-        with open(filepath) as f:
+        # Use explicit encoding and error handling for cross-platform safety
+        with open(filepath, encoding="utf-8", errors="replace") as f:
             content = f.read()
 
         if not state.variables:

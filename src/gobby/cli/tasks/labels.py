@@ -24,7 +24,14 @@ def add_label(task_id: str, label: str) -> None:
         click.secho(f"Error: Could not resolve task '{task_id}'", fg="red", err=True)
         raise SystemExit(1)
 
-    manager.add_label(resolved.id, label)
+    try:
+        manager.add_label(resolved.id, label)
+    except ValueError as e:
+        click.secho(f"Error: {e}", fg="red", err=True)
+        raise SystemExit(1) from None
+    except Exception as e:
+        click.secho(f"Unexpected error adding label: {e}", fg="red", err=True)
+        raise SystemExit(1) from None
     click.echo(f"Added label '{label}' to task {resolved.id}")
 
 
@@ -39,5 +46,12 @@ def remove_label(task_id: str, label: str) -> None:
         click.secho(f"Error: Could not resolve task '{task_id}'", fg="red", err=True)
         raise SystemExit(1)
 
-    manager.remove_label(resolved.id, label)
+    try:
+        manager.remove_label(resolved.id, label)
+    except ValueError as e:
+        click.secho(f"Error: {e}", fg="red", err=True)
+        raise SystemExit(1) from None
+    except Exception as e:
+        click.secho(f"Unexpected error removing label: {e}", fg="red", err=True)
+        raise SystemExit(1) from None
     click.echo(f"Removed label '{label}' from task {resolved.id}")

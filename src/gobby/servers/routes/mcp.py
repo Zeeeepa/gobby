@@ -419,10 +419,7 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             except Exception as e:
                 metrics.inc_counter("mcp_tool_calls_failed_total")
                 error_msg = str(e) or f"{type(e).__name__}: (no message)"
-                return {
-                    "success": False,
-                    "error": error_msg,
-                }
+                raise HTTPException(status_code=500, detail=error_msg) from e
 
         except HTTPException:
             raise
