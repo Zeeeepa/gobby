@@ -133,7 +133,7 @@ def inject_message(
         "session": session_manager.get(session_id),
         "state": state,
         "artifacts": state.artifacts,
-        "phase_action_count": state.phase_action_count,
+        "step_action_count": state.step_action_count,
         "variables": state.variables or {},
     }
     render_context.update(extra_kwargs)

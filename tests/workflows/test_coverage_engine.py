@@ -2,9 +2,11 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
 from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.workflows.definitions import (
     WorkflowRule,
+    WorkflowState,
     WorkflowTransition,
 )
 from gobby.workflows.engine import WorkflowEngine
@@ -70,12 +72,14 @@ async def test_handle_event_no_state(engine, mock_components):
 @pytest.mark.asyncio
 async def test_handle_event_disabled_workflow(engine, mock_components):
     _, state_manager, _, _, _ = mock_components
-    state = MagicMock()
-    state.disabled = True
-    state.workflow_name = "w1"
-    state.disabled_reason = "maintenance"
-    state.session_id = "s1"
-    state.step_entered_at = datetime.now(UTC)
+    state = WorkflowState(
+        session_id="s1",
+        workflow_name="w1",
+        step="working",
+        step_entered_at=datetime.now(UTC),
+        disabled=True,
+        disabled_reason="maintenance",
+    )
     state_manager.get_state.return_value = state
 
     event = create_event()
@@ -86,12 +90,13 @@ async def test_handle_event_disabled_workflow(engine, mock_components):
 async def test_handle_event_stuck_workflow(engine, mock_components):
     loader, state_manager, _, _, _ = mock_components
 
-    state = MagicMock()
-    state.disabled = False
-    state.workflow_name = "test_wf"
-    state.session_id = "s1"
-    state.step = "thinking"
-    state.step_entered_at = datetime.now(UTC) - timedelta(minutes=40)
+    state = WorkflowState(
+        session_id="s1",
+        workflow_name="test_wf",
+        step="thinking",
+        step_entered_at=datetime.now(UTC) - timedelta(minutes=40),
+        disabled=False,
+    )
     state_manager.get_state.return_value = state
 
     wf = MagicMock()
@@ -111,11 +116,13 @@ async def test_handle_event_stuck_workflow(engine, mock_components):
 @pytest.mark.asyncio
 async def test_handle_event_workflow_not_found(engine, mock_components):
     loader, state_manager, _, _, _ = mock_components
-    state = MagicMock()
-    state.disabled = False
-    state.workflow_name = "missing"
-    state.session_id = "s1"
-    state.step_entered_at = datetime.now(UTC)
+    state = WorkflowState(
+        session_id="s1",
+        workflow_name="missing",
+        step="working",
+        step_entered_at=datetime.now(UTC),
+        disabled=False,
+    )
     state_manager.get_state.return_value = state
     loader.load_workflow.return_value = None
 
@@ -126,12 +133,13 @@ async def test_handle_event_workflow_not_found(engine, mock_components):
 @pytest.mark.asyncio
 async def test_handle_event_step_not_found(engine, mock_components):
     loader, state_manager, _, _, _ = mock_components
-    state = MagicMock()
-    state.disabled = False
-    state.workflow_name = "exists"
-    state.step = "unknown"
-    state.session_id = "s1"
-    state.step_entered_at = datetime.now(UTC)
+    state = WorkflowState(
+        session_id="s1",
+        workflow_name="exists",
+        step="unknown",
+        step_entered_at=datetime.now(UTC),
+        disabled=False,
+    )
     state_manager.get_state.return_value = state
 
     wf = MagicMock()
@@ -146,13 +154,14 @@ async def test_handle_event_step_not_found(engine, mock_components):
 @pytest.mark.asyncio
 async def test_handle_event_tool_blocking(engine, mock_components):
     loader, state_manager, _, evaluator, _ = mock_components
-    state = MagicMock()
-    state.disabled = False
-    state.approval_pending = False
-    state.step = "working"
-    state.workflow_name = "wf"
-    state.session_id = "s1"
-    state.step_entered_at = datetime.now(UTC)
+    state = WorkflowState(
+        session_id="s1",
+        workflow_name="wf",
+        step="working",
+        step_entered_at=datetime.now(UTC),
+        disabled=False,
+        approval_pending=False,
+    )
     state_manager.get_state.return_value = state
 
     step = MagicMock()
@@ -200,13 +209,13 @@ async def test_handle_event_tool_blocking(engine, mock_components):
 @pytest.mark.asyncio
 async def test_handle_event_exit_conditions(engine, mock_components):
     loader, state_manager, _, evaluator, _ = mock_components
-    state = MagicMock()
-    state.disabled = False
-    state.step = "final"
-    state.workflow_name = "wf"
-    state.session_id = "s1"
-    state.step_entered_at = datetime.now(UTC)
-
+    state = WorkflowState(
+        session_id="s1",
+        workflow_name="wf",
+        step="final",
+        step_entered_at=datetime.now(UTC),
+        disabled=False,
+    )
     state_manager.get_state.return_value = state
     step = MagicMock()
     step.exit_conditions = ["cond_done"]
@@ -273,12 +282,13 @@ async def test_evaluate_lifecycle_alias(engine, mock_components):
 async def test_transition_execution(engine, mock_components):
     loader, state_manager, action_executor, evaluator, _ = mock_components
 
-    state = MagicMock()
-    state.disabled = False
-    state.step = "step1"
-    state.workflow_name = "wf"
-    state.session_id = "s1"
-    state.step_entered_at = datetime.now(UTC)
+    state = WorkflowState(
+        session_id="s1",
+        workflow_name="wf",
+        step="step1",
+        step_entered_at=datetime.now(UTC),
+        disabled=False,
+    )
     state_manager.get_state.return_value = state
 
     wf = MagicMock()
@@ -316,14 +326,14 @@ async def test_transition_execution(engine, mock_components):
 @pytest.mark.asyncio
 async def test_approval_flow_rejected(engine, mock_components):
     loader, state_manager, _, evaluator, _ = mock_components
-    state = MagicMock()
-    state.disabled = False
-    state.step = "step1"
-    state.workflow_name = "wf"
-    state.session_id = "s1"
-    state.step_entered_at = datetime.now(UTC)
-    state.approval_pending = True
-
+    state = WorkflowState(
+        session_id="s1",
+        workflow_name="wf",
+        step="step1",
+        step_entered_at=datetime.now(UTC),
+        disabled=False,
+        approval_pending=True,
+    )
     state_manager.get_state.return_value = state
 
     step1 = MagicMock()
@@ -344,13 +354,14 @@ async def test_approval_flow_rejected(engine, mock_components):
 @pytest.mark.asyncio
 async def test_approval_flow_approved(engine, mock_components):
     loader, state_manager, _, evaluator, _ = mock_components
-    state = MagicMock()
-    state.disabled = False
-    state.step = "step1"
-    state.workflow_name = "wf"
-    state.session_id = "s1"
-    state.step_entered_at = datetime.now(UTC)
-    state.approval_pending = True
+    state = WorkflowState(
+        session_id="s1",
+        workflow_name="wf",
+        step="step1",
+        step_entered_at=datetime.now(UTC),
+        disabled=False,
+        approval_pending=True,
+    )
     state_manager.get_state.return_value = state
 
     step1 = MagicMock()
@@ -372,8 +383,11 @@ async def test_approval_flow_approved(engine, mock_components):
 async def test_action_execution_exception(engine, mock_components):
     # Verify exception in _execute_actions is propagated
     _, state_manager, action_executor, _, _ = mock_components
-    state = MagicMock()
-    state.session_id = "s1"
+    state = WorkflowState(
+        session_id="s1",
+        workflow_name="wf",
+        step="working",
+    )
 
     actions = [{"action": "boom"}]
     action_executor.execute.side_effect = Exception("Crash")
@@ -474,15 +488,16 @@ async def test_lifecycle_context_none(engine, mock_components):
 @pytest.mark.asyncio
 async def test_approval_request_trigger(engine, mock_components):
     loader, state_manager, _, evaluator, _ = mock_components
-    state = MagicMock()
-    state.disabled = False
-    state.step = "step1"
-    state.workflow_name = "wf"
-    state.session_id = "s1"
-    state.approval_pending = False
-    state.step_action_count = 0
-    state.step_entered_at = datetime.now(UTC)
-    state.files_modified_this_task = 0
+    state = WorkflowState(
+        session_id="s1",
+        workflow_name="wf",
+        step="step1",
+        step_entered_at=datetime.now(UTC),
+        step_action_count=0,
+        files_modified_this_task=0,
+        approval_pending=False,
+        disabled=False,
+    )
     state_manager.get_state.return_value = state
 
     step1 = MagicMock()
@@ -511,15 +526,16 @@ async def test_approval_request_trigger(engine, mock_components):
 @pytest.mark.asyncio
 async def test_approval_timeout(engine, mock_components):
     loader, state_manager, _, evaluator, _ = mock_components
-    state = MagicMock()
-    state.disabled = False
-    state.step = "step1"
-    state.workflow_name = "wf"
-    state.session_id = "s1"
-    state.approval_pending = False
-    state.step_action_count = 0
-    state.step_entered_at = datetime.now(UTC)
-    state.files_modified_this_task = 0
+    state = WorkflowState(
+        session_id="s1",
+        workflow_name="wf",
+        step="step1",
+        step_entered_at=datetime.now(UTC),
+        step_action_count=0,
+        files_modified_this_task=0,
+        approval_pending=False,
+        disabled=False,
+    )
     state_manager.get_state.return_value = state
 
     step1 = MagicMock()

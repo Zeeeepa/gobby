@@ -1210,15 +1210,15 @@ CREATE INDEX idx_audit_timestamp ON workflow_audit_log(timestamp);
 
 ### Audit Entry Types
 
-| Event Type | When Logged | Key Fields |
-|------------|-------------|------------|
-| `tool_call` | Tool permission check | tool_name, result (allow/block), reason |
-| `rule_eval` | Phase rule evaluation | rule_id, condition, result, reason |
-| `transition` | Phase transition | from_phase (in context), to_phase (in reason) |
-| `exit_check` | Exit condition evaluation | condition, result (met/unmet) |
-| `approval` | User approval gate | result (approved/rejected/pending) |
+| Event Type   | When Logged               | Key Fields                                     |
+| :----------- | :------------------------ | :--------------------------------------------- |
+| `tool_call`  | Tool permission check     | tool_name, result (allow/block), reason        |
+| `rule_eval`  | Phase rule evaluation     | rule_id, condition, result, reason             |
+| `transition` | Phase transition          | from_phase (in context), to_phase (in reason)  |
+| `exit_check` | Exit condition evaluation | condition, result (met/unmet)                  |
+| `approval`   | User approval gate        | result (approved/rejected/pending)             |
 
-### CLI Commands
+### Audit CLI Commands
 
 ```bash
 # View audit log for current session

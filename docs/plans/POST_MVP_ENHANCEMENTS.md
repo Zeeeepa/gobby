@@ -5,6 +5,7 @@
 This document outlines high-value features inspired by trending AI projects. These features would enhance Gobby's capabilities for parallel agent coordination, intelligent merge handling, searchable history, and smart context management.
 
 **Inspirations:**
+
 - [Auto-Claude](https://github.com/AndyMik90/Auto-Claude) - Multi-agent orchestration with worktree isolation (Phases 1-6)
 - [Continuous-Claude v2](https://github.com/parcadei/Continuous-Claude-v2) - Ledger-based state, artifact indexing (Phase 7)
 - [SkillForge](https://github.com/tripleyak/SkillForge) - Intelligent skill routing and quality scoring (Phase 8)
@@ -38,7 +39,7 @@ Each phase is independently valuable. Phases 1-3 enhance local development workf
 
 ## Phase 1: Worktree Agent Coordination
 
-### Overview
+### Phase 1: Overview
 
 Enable multiple Claude Code agents to work in parallel, each in an isolated git worktree. Gobby coordinates which agent owns which worktree and tracks progress via `gobby-tasks`.
 
@@ -53,7 +54,7 @@ Enable multiple Claude Code agents to work in parallel, each in an isolated git 
 3. **Centralized coordination** - Daemon tracks all active worktrees across projects
 4. **Graceful cleanup** - Stale worktrees detected and cleaned up automatically
 
-### Data Model
+### Phase 1: Data Model
 
 ```sql
 CREATE TABLE worktrees (
@@ -158,7 +159,7 @@ def cleanup_stale_worktrees(
     """Delete stale worktrees (dry_run=True to preview)."""
 ```
 
-### CLI Commands
+### Phase 1: CLI Commands
 
 ```bash
 # Worktree management
@@ -178,7 +179,7 @@ gobby worktree stale [--hours N]          # List stale worktrees
 gobby worktree cleanup [--hours N] [--dry-run]
 ```
 
-### Configuration
+### Phase 1: Configuration
 
 ```yaml
 worktrees:
@@ -191,7 +192,7 @@ worktrees:
   branch_prefix: "agent/"                   # Prefix for auto-generated branches
 ```
 
-### Implementation Checklist
+### Phase 1: Implementation Checklist
 
 #### Phase 1.1: Storage Layer
 
@@ -243,11 +244,11 @@ worktrees:
 
 ## Phase 2: Intelligent Merge Resolution
 
-### Overview
+### Phase 2: Overview
 
 When merging worktree branches back to main, use AI to resolve conflicts intelligently. Key insight from Auto-Claude: send only conflict regions to AI (~98% prompt reduction).
 
-### Core Design Principles
+### Phase 2: Core Design Principles
 
 1. **Minimal context** - Only send conflict hunks, not entire files
 2. **Parallel resolution** - Resolve multiple files simultaneously
@@ -294,7 +295,7 @@ When merging worktree branches back to main, use AI to resolve conflicts intelli
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Data Model
+### Phase 2: Data Model
 
 ```sql
 CREATE TABLE merge_resolutions (
@@ -433,7 +434,7 @@ def mark_manual(
     """Mark a file for manual human resolution."""
 ```
 
-### CLI Commands
+### Phase 2: CLI Commands
 
 ```bash
 # Merge operations
@@ -450,7 +451,7 @@ gobby merge analyze WORKTREE_ID [--target BRANCH]  # Preview conflicts without s
 gobby merge history [--project PROJECT] [--limit N]
 ```
 
-### Configuration
+### Phase 2: Configuration
 
 ```yaml
 merge:
@@ -479,7 +480,7 @@ merge:
       Output ONLY the resolved code, no explanations.
 ```
 
-### Implementation Checklist
+### Phase 2: Implementation Checklist
 
 #### Phase 2.1: Conflict Extraction
 
@@ -526,7 +527,7 @@ merge:
 
 ## Phase 3: Enhanced QA Validation Loop
 
-### Overview
+### Phase 3: Overview
 
 Extend existing `gobby-tasks` validation with Auto-Claude's self-healing QA loop pattern. After task completion, run iterative validation with automatic fix attempts.
 
@@ -659,7 +660,7 @@ task_validation:
       Fix the issues and ensure all validation criteria pass.
 ```
 
-### Implementation Checklist
+### Phase 3: Implementation Checklist
 
 #### Phase 3.1: Validation History
 
@@ -691,7 +692,7 @@ task_validation:
 
 ## Phase 4: GitHub Integration
 
-### Overview
+### Phase 4: Overview
 
 Bidirectional sync between `gobby-tasks` and GitHub Issues. Import issues as tasks, create PRs from completed tasks, sync status changes.
 
@@ -747,7 +748,7 @@ def sync_from_github() -> dict:
     """Pull latest issue/PR updates into gobby-tasks."""
 ```
 
-### CLI Commands
+### Phase 4: CLI Commands
 
 ```bash
 gobby github connect OWNER/REPO [--token TOKEN]
@@ -758,7 +759,7 @@ gobby github pr status TASK_ID
 gobby github disconnect
 ```
 
-### Configuration
+### Phase 4: Configuration
 
 ```yaml
 github:
@@ -771,7 +772,7 @@ github:
   link_issues: true                         # Link PRs to issues
 ```
 
-### Implementation Checklist
+### Phase 4: Implementation Checklist
 
 #### Phase 4.1: GitHub Client
 
@@ -798,7 +799,7 @@ github:
 
 ## Phase 5: Linear Integration
 
-### Overview
+### Phase 5: Overview
 
 Sync `gobby-tasks` with Linear for teams using Linear for project management.
 
@@ -833,7 +834,7 @@ def sync_from_linear() -> dict:
     """Pull latest Linear updates."""
 ```
 
-### Configuration
+### Phase 5: Configuration
 
 ```yaml
 linear:
@@ -848,7 +849,7 @@ linear:
     failed: "Canceled"
 ```
 
-### Implementation Checklist
+### Phase 5: Implementation Checklist
 
 #### Phase 5.1: Linear Client
 
@@ -873,7 +874,7 @@ linear:
 
 ## Phase 6: Structured Pipeline Workflows
 
-### Overview
+### Phase 6: Overview
 
 Formalize the Spec → Plan → Implement → QA → Merge pipeline as explicit workflow phases. Each phase has distinct agent roles and tool access.
 
@@ -882,7 +883,7 @@ Formalize the Spec → Plan → Implement → QA → Merge pipeline as explicit 
 ### Pipeline Phases
 
 | Phase | Agent Role | Key Actions | Tools Available |
-|-------|------------|-------------|-----------------|
+| :--- | :--- | :--- | :--- |
 | **Spec** | Analyst | Gather requirements, create PRD | Read, Glob, Grep, WebSearch |
 | **Plan** | Architect | Design implementation, expand tasks | expand_task, create_task |
 | **Implement** | Developer | Write code, create worktrees | All tools, worktree access |
@@ -936,7 +937,7 @@ def get_phase_checklist(
     """Get checklist of requirements for current/specified phase."""
 ```
 
-### Implementation Checklist
+### Phase 6: Implementation Checklist
 
 #### Phase 6.1: Pipeline State
 
@@ -967,7 +968,7 @@ def get_phase_checklist(
 
 ## Phase 7: Artifact Index (Searchable Session History)
 
-### Overview
+### Phase 7: Overview
 
 Implement a searchable index of session artifacts inspired by [Continuous-Claude v2](https://github.com/parcadei/Continuous-Claude-v2). Their "clear, don't compact" philosophy uses ledger-based state management with an **Artifact Index** (SQLite + FTS5) for fast retrieval of past session content.
 
@@ -975,14 +976,14 @@ Implement a searchable index of session artifacts inspired by [Continuous-Claude
 
 **Goal:** Enable agents to search across all past session artifacts—code changes, tool outputs, decisions—using full-text search.
 
-### Core Design Principles
+### Phase 7: Core Design Principles
 
 1. **Lossless preservation** - Store all artifacts, not just summaries
 2. **Fast retrieval** - FTS5 index for sub-second search across thousands of sessions
 3. **Structured metadata** - Track artifact type, session, timestamp, file paths
 4. **Contextual injection** - Recall relevant artifacts during session handoff
 
-### Data Model
+### Phase 7: Data Model
 
 ```sql
 -- Core artifact storage
@@ -1034,7 +1035,7 @@ CREATE INDEX idx_artifacts_file ON session_artifacts(file_path);
 ### Artifact Types
 
 | Type | Description | Captured From |
-|------|-------------|---------------|
+| :--- | :--- | :--- |
 | `code_change` | File modifications | Edit/Write tool results |
 | `tool_output` | Tool execution results | All tool results |
 | `decision` | Architectural/design decisions | LLM reasoning (extracted) |
@@ -1120,7 +1121,7 @@ async def _capture_artifact(self, event: HookEvent):
         )
 ```
 
-### Configuration
+### Phase 7: Configuration
 
 ```yaml
 artifact_index:
@@ -1135,7 +1136,7 @@ artifact_index:
   fts_enabled: true                           # Enable full-text search
 ```
 
-### Implementation Checklist
+### Phase 7: Implementation Checklist
 
 #### Phase 7.1: Storage Layer
 
@@ -1175,7 +1176,7 @@ artifact_index:
 
 ## Phase 8: Enhanced Skill Routing
 
-### Overview
+### Phase 8: Overview
 
 Implement intelligent skill routing inspired by [SkillForge](https://github.com/tripleyak/SkillForge). Instead of simple pattern matching, use a multi-factor routing system that decides: USE_EXISTING, IMPROVE_EXISTING, CREATE_NEW, or COMPOSE.
 
@@ -1186,7 +1187,7 @@ Implement intelligent skill routing inspired by [SkillForge](https://github.com/
 ### Routing Decisions
 
 | Decision | Description | When to Use |
-|----------|-------------|-------------|
+| :--- | :--- | :--- |
 | `USE_EXISTING` | Apply existing skill as-is | High-quality skill with exact match |
 | `IMPROVE_EXISTING` | Update skill with new context | Good skill but missing recent patterns |
 | `CREATE_NEW` | Generate new skill | No relevant skills or all low quality |
@@ -1305,7 +1306,7 @@ def record_skill_application(
     """Record whether skill application succeeded and update metrics."""
 ```
 
-### Configuration
+### Phase 8: Configuration
 
 ```yaml
 skill_routing:
@@ -1328,7 +1329,7 @@ skill_routing:
     - refactoring
 ```
 
-### Implementation Checklist
+### Phase 8: Implementation Checklist
 
 #### Phase 8.1: Quality Scoring
 
@@ -1367,7 +1368,7 @@ skill_routing:
 
 ## Phase 9: Semantic Memory Search with sqlite-vec
 
-### Overview
+### Phase 9: Overview
 
 Implement vector-based semantic search for `gobby-memory` using [sqlite-vec](https://github.com/asg017/sqlite-vec), inspired by [KnowNote](https://github.com/MrSibe/KnowNote). This enables "recall by meaning" rather than just keyword matching.
 
@@ -1384,7 +1385,7 @@ Implement vector-based semantic search for `gobby-memory` using [sqlite-vec](htt
 
 ### Architecture
 
-```
+```text
 Memory Recall Query
         │
         ▼
@@ -1406,7 +1407,7 @@ Memory Recall Query
                  Ranked Results
 ```
 
-### Data Model
+### Phase 9: Data Model
 
 ```sql
 -- Load sqlite-vec extension (on connection)
@@ -1493,7 +1494,7 @@ def cluster_memories(
     """
 ```
 
-### Configuration
+### Phase 9: Configuration
 
 ```yaml
 memory:
@@ -1509,7 +1510,7 @@ memory:
     batch_size: 32                             # Batch size for embedding generation
 ```
 
-### Implementation Checklist
+### Phase 9: Implementation Checklist
 
 #### Phase 9.1: sqlite-vec Integration
 
@@ -1556,7 +1557,7 @@ memory:
 ## Decisions
 
 | # | Question | Decision | Rationale |
-|---|----------|----------|-----------|
+| :--- | :--- | :--- | :--- |
 | 1 | **Worktree storage** | SQLite table + filesystem | Track metadata in DB, actual worktrees on disk |
 | 2 | **Agent spawning** | Terminal-based (Ghostty/iTerm) | Claude Code runs in terminal, leverage existing patterns |
 | 3 | **Merge conflict context** | Configurable line window | Balance token efficiency vs context quality |
@@ -1571,7 +1572,7 @@ memory:
 ## Priority Assessment
 
 | Feature | Value | Effort | Priority | Inspiration |
-|---------|-------|--------|----------|-------------|
+| :--- | :--- | :--- | :--- | :--- |
 | Worktree Coordination | High | Medium | P1 | Auto-Claude |
 | Merge Resolution | High | High | P1 | Auto-Claude |
 | QA Loop Enhancement | Medium | Low | P2 | Auto-Claude |

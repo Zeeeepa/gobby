@@ -1,4 +1,4 @@
-"""Tool filtering service based on workflow phase restrictions."""
+"""Tool filtering service based on workflow step restrictions."""
 
 import logging
 from pathlib import Path
@@ -14,10 +14,10 @@ logger = logging.getLogger("gobby.mcp.tool_filter")
 
 class ToolFilterService:
     """
-    Service to filter tools based on workflow phase restrictions.
+    Service to filter tools based on workflow step restrictions.
 
-    When a session has an active phase-based workflow, this service
-    filters the tool list to only include tools allowed in the current phase.
+    When a session has an active step-based workflow, this service
+    filters the tool list to only include tools allowed in the current step.
     """
 
     def __init__(
@@ -53,13 +53,13 @@ class ToolFilterService:
         self._loader = WorkflowLoader()
         return self._loader
 
-    def get_phase_restrictions(
+    def get_step_restrictions(
         self,
         session_id: str,
         project_path: str | Path | None = None,
     ) -> dict[str, Any] | None:
         """
-        Get tool restrictions for the current workflow phase.
+        Get tool restrictions for the current workflow step.
 
         Args:
             session_id: Session ID to check
@@ -89,16 +89,16 @@ class ToolFilterService:
             logger.warning(f"Workflow '{state.workflow_name}' not found")
             return None
 
-        phase = definition.get_phase(state.phase)
-        if not phase:
-            logger.warning(f"Phase '{state.phase}' not found in workflow '{state.workflow_name}'")
+        step = definition.get_step(state.step)
+        if not step:
+            logger.warning(f"Step '{state.step}' not found in workflow '{state.workflow_name}'")
             return None
 
         return {
             "workflow_name": state.workflow_name,
-            "phase": state.phase,
-            "allowed_tools": phase.allowed_tools,
-            "blocked_tools": phase.blocked_tools,
+            "step": state.step,
+            "allowed_tools": step.allowed_tools,
+            "blocked_tools": step.blocked_tools,
         }
 
     def is_tool_allowed(
@@ -108,7 +108,7 @@ class ToolFilterService:
         project_path: str | Path | None = None,
     ) -> tuple[bool, str | None]:
         """
-        Check if a tool is allowed in the current workflow phase.
+        Check if a tool is allowed in the current workflow step.
 
         Args:
             tool_name: Name of the tool to check
@@ -118,13 +118,13 @@ class ToolFilterService:
         Returns:
             Tuple of (is_allowed, reason). If no workflow is active, returns (True, None).
         """
-        restrictions = self.get_phase_restrictions(session_id, project_path)
+        restrictions = self.get_step_restrictions(session_id, project_path)
         if not restrictions:
             return True, None
 
         # Check blocked list first
         if tool_name in restrictions["blocked_tools"]:
-            return False, f"Tool '{tool_name}' is blocked in phase '{restrictions['phase']}'"
+            return False, f"Tool '{tool_name}' is blocked in step '{restrictions['step']}'"
 
         # Check allowed list
         allowed = restrictions["allowed_tools"]
@@ -132,7 +132,7 @@ class ToolFilterService:
             return True, None
 
         if tool_name not in allowed:
-            return False, f"Tool '{tool_name}' is not in allowed list for phase '{restrictions['phase']}'"
+            return False, f"Tool '{tool_name}' is not in allowed list for step '{restrictions['step']}'"
 
         return True, None
 
@@ -143,7 +143,7 @@ class ToolFilterService:
         project_path: str | Path | None = None,
     ) -> list[dict[str, Any]]:
         """
-        Filter a list of tools based on workflow phase restrictions.
+        Filter a list of tools based on workflow step restrictions.
 
         Args:
             tools: List of tool dicts with at least a 'name' key
@@ -157,7 +157,7 @@ class ToolFilterService:
         if not session_id:
             return tools
 
-        restrictions = self.get_phase_restrictions(session_id, project_path)
+        restrictions = self.get_step_restrictions(session_id, project_path)
         if not restrictions:
             return tools
 
@@ -182,7 +182,7 @@ class ToolFilterService:
 
         if len(filtered) < len(tools):
             logger.info(
-                f"Filtered {len(tools) - len(filtered)} tools based on phase '{restrictions['phase']}'"
+                f"Filtered {len(tools) - len(filtered)} tools based on step '{restrictions['step']}'"
             )
 
         return filtered
@@ -194,7 +194,7 @@ class ToolFilterService:
         project_path: str | Path | None = None,
     ) -> list[dict[str, Any]]:
         """
-        Filter tools from multiple servers based on workflow phase restrictions.
+        Filter tools from multiple servers based on workflow step restrictions.
 
         Args:
             servers: List of server dicts with 'name' and 'tools' keys
@@ -207,7 +207,7 @@ class ToolFilterService:
         if not session_id:
             return servers
 
-        restrictions = self.get_phase_restrictions(session_id, project_path)
+        restrictions = self.get_step_restrictions(session_id, project_path)
         if not restrictions:
             return servers
 

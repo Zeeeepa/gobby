@@ -153,12 +153,16 @@ def blocked_tasks(limit: int, json_format: bool) -> None:
                 blocker_id = b.get("id") if isinstance(b, dict) else b
                 if not blocker_id or not isinstance(blocker_id, str):
                     continue
+
+                # Explicit cast to satisfy linter
+                bid: str = blocker_id
+
                 try:
-                    blocker_task = manager.get_task(blocker_id)
+                    blocker_task = manager.get_task(bid)
                     status_icon = "✓" if blocker_task.status == "closed" else "○"
-                    click.echo(f"    {status_icon} {blocker_id[:8]}: {blocker_task.title}")
+                    click.echo(f"    {status_icon} {bid[:8]}: {blocker_task.title}")
                 except Exception:
-                    click.echo(f"    ? {blocker_id[:8]}: (not found)")
+                    click.echo(f"    ? {bid[:8]}: (not found)")
 
 
 @click.command("stats")

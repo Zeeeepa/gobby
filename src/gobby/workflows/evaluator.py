@@ -106,7 +106,7 @@ class ConditionEvaluator:
             "workflow_state": state,
             "state": state,  # alias
             # Flatten state for easier access
-            "phase_action_count": state.phase_action_count,
+            "step_action_count": state.step_action_count,
             "total_action_count": state.total_action_count,
             "variables": state.variables,
             "task_list": state.task_list,

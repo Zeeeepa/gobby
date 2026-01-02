@@ -274,7 +274,7 @@ class ClaudeLLMProvider(LLMProvider):
         code: str,
         language: str = "python",
         context: str | None = None,
-        timeout: int | None = None,
+        timeout: float | int | None = None,
         prompt_template: str | None = None,
     ) -> dict[str, Any]:
         """
@@ -307,9 +307,7 @@ class ClaudeLLMProvider(LLMProvider):
 
         # Determine timeout
         code_exec_config = self.config.code_execution
-        actual_timeout = (
-            timeout if timeout is not None else code_exec_config.default_timeout
-        )
+        actual_timeout = timeout if timeout is not None else code_exec_config.default_timeout
 
         # Configure Claude Agent SDK
         # Note: code_execution is an internal tool that provides sandboxed execution
@@ -520,7 +518,7 @@ class ClaudeLLMProvider(LLMProvider):
             allowed_tools=allowed_tools,
             permission_mode="bypassPermissions",
             cli_path=cli_path,
-            mcp_servers=mcp_servers_config,
+            mcp_servers=mcp_servers_config if mcp_servers_config is not None else {},
         )
 
         # Track tool calls and results
@@ -584,7 +582,7 @@ class ClaudeLLMProvider(LLMProvider):
             return MCPToolResult(text=final_text, tool_calls=tool_calls)
         except ExceptionGroup as eg:
             # Handle Python 3.11+ ExceptionGroup from TaskGroup
-            errors = []
+            errors: list[str] = []
             for exc in eg.exceptions:
                 errors.append(f"{type(exc).__name__}: {exc}")
                 self.logger.error(f"TaskGroup sub-exception: {type(exc).__name__}: {exc}")

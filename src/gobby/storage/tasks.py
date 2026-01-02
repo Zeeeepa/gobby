@@ -96,13 +96,11 @@ class Task:
             parent_task_id=row["parent_task_id"],
             created_in_session_id=row["created_in_session_id"]
             if "created_in_session_id" in keys
-            else row.get("discovered_in_session_id"),
+            else (row["discovered_in_session_id"] if "discovered_in_session_id" in keys else None),
             closed_in_session_id=row["closed_in_session_id"]
             if "closed_in_session_id" in keys
             else None,
-            closed_commit_sha=row["closed_commit_sha"]
-            if "closed_commit_sha" in keys
-            else None,
+            closed_commit_sha=row["closed_commit_sha"] if "closed_commit_sha" in keys else None,
             closed_at=row["closed_at"] if "closed_at" in keys else None,
             assignee=row["assignee"],
             labels=labels,
@@ -549,7 +547,15 @@ class LocalTaskManager:
                     validation_override_reason = ?,
                     updated_at = ?
                 WHERE id = ?""",
-                (reason, now, closed_in_session_id, closed_commit_sha, validation_override_reason, now, task_id),
+                (
+                    reason,
+                    now,
+                    closed_in_session_id,
+                    closed_commit_sha,
+                    validation_override_reason,
+                    now,
+                    task_id,
+                ),
             )
             if cursor.rowcount == 0:
                 raise ValueError(f"Task {task_id} not found")
