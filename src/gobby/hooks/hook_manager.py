@@ -247,11 +247,16 @@ class HookManager:
             action_executor=self._action_executor,
         )
         workflow_timeout = 30.0
+        workflow_enabled = True
         if self._config:
             workflow_timeout = self._config.workflow.timeout
+            workflow_enabled = self._config.workflow.enabled
 
         self._workflow_handler = WorkflowHookHandler(
-            engine=self._workflow_engine, loop=self._loop, timeout=workflow_timeout
+            engine=self._workflow_engine,
+            loop=self._loop,
+            timeout=workflow_timeout,
+            enabled=workflow_enabled,
         )
 
         # Initialize Failover Summary Generator

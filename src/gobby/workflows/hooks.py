@@ -20,10 +20,12 @@ class WorkflowHookHandler:
         engine: WorkflowEngine,
         loop: asyncio.AbstractEventLoop | None = None,
         timeout: float = 30.0,
+        enabled: bool = True,
     ):
         self.engine = engine
         self._loop = loop
         self.timeout = timeout
+        self._enabled = enabled
 
         # If no loop provided, try to get one or create one for this thread
         if not self._loop:
@@ -46,6 +48,9 @@ class WorkflowHookHandler:
         Returns:
             Merged HookResponse from all workflows
         """
+        if not self._enabled:
+            return HookResponse(decision="allow")
+
         try:
             if self._loop and self._loop.is_running():
                 if threading.current_thread() is threading.main_thread():
@@ -74,6 +79,9 @@ class WorkflowHookHandler:
         Handle a hook event by delegating to the workflow engine.
         Handles the sync/async bridge.
         """
+        if not self._enabled:
+            return HookResponse(decision="allow")
+
         try:
             # We need to run the async self.engine.handle_event(event) synchronously
 
@@ -121,6 +129,9 @@ class WorkflowHookHandler:
         """
         Handle a lifecycle workflow event.
         """
+        if not self._enabled:
+            return HookResponse(decision="allow")
+
         logger.debug(
             f"handle_lifecycle called: workflow={workflow_name}, event_type={event.event_type}"
         )

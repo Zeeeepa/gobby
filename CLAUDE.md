@@ -375,6 +375,18 @@ triggers:
 
 When a phase-based workflow is active, `list_tools()` returns only tools allowed in the current phase. Blocked tools are hidden (not grayed out).
 
+### Configuration
+
+Workflows can be disabled globally via `~/.gobby/config.yaml`:
+
+```yaml
+workflow:
+  enabled: false  # Disable all workflow enforcement (default: true)
+  timeout: 30.0   # Timeout for workflow operations in seconds
+```
+
+When `workflow.enabled: false`, all workflow hooks pass through (allow all tools, no blocking).
+
 ### State Behavior
 
 - **Workflow state resets when session ends** - Each session starts fresh
