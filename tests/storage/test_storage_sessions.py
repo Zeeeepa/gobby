@@ -355,3 +355,135 @@ class TestLocalSessionManager:
         """Test deleting nonexistent session returns False."""
         result = session_manager.delete("nonexistent-id")
         assert result is False
+
+    def test_expire_stale_sessions(
+        self,
+        session_manager: LocalSessionManager,
+        sample_project: dict,
+    ):
+        """Test expiring stale sessions."""
+        # Create a stale session (simulated by mocking updated_at in query or just rely on db time)
+        # Since we use SQLite datetime('now') in queries, we can't easily mock time without
+        # deeper mocking. Instead, we'll verify the SQL generation and execution flow
+        # or use a very short timeout.
+
+        session = session_manager.register(
+            external_id="stale-session",
+            machine_id="machine",
+            source="claude",
+            project_id=sample_project["id"],
+        )
+
+        # Manually backdate the session in DB
+        session_manager.db.execute(
+            "UPDATE sessions SET updated_at = datetime('now', '-25 hours') WHERE id = ?",
+            (session.id,),
+        )
+
+        count = session_manager.expire_stale_sessions(timeout_hours=24)
+        assert count == 1
+
+        expired = session_manager.get(session.id)
+        assert expired.status == "expired"
+
+    def test_pause_inactive_active_sessions(
+        self,
+        session_manager: LocalSessionManager,
+        sample_project: dict,
+    ):
+        """Test pausing inactive active sessions."""
+        session = session_manager.register(
+            external_id="active-idle",
+            machine_id="machine",
+            source="claude",
+            project_id=sample_project["id"],
+        )
+
+        # Backdate
+        session_manager.db.execute(
+            "UPDATE sessions SET updated_at = datetime('now', '-31 minutes') WHERE id = ?",
+            (session.id,),
+        )
+
+        count = session_manager.pause_inactive_active_sessions(timeout_minutes=30)
+        assert count == 1
+
+        paused = session_manager.get(session.id)
+        assert paused.status == "paused"
+
+    def test_transcript_processing_lifecycle(
+        self,
+        session_manager: LocalSessionManager,
+        sample_project: dict,
+    ):
+        """Test transcript processing lifecycle methods."""
+        # Create expired session with jsonl_path
+        session = session_manager.register(
+            external_id="transcript-test",
+            machine_id="machine",
+            source="claude",
+            project_id=sample_project["id"],
+            jsonl_path="/tmp/test.jsonl",
+        )
+        session_manager.update_status(session.id, "expired")
+
+        # Should be pending
+        pending = session_manager.get_pending_transcript_sessions()
+        assert len(pending) == 1
+        assert pending[0].id == session.id
+
+        # Mark processed
+        updated = session_manager.mark_transcript_processed(session.id)
+        assert updated is not None
+        # Verify it's no longer pending
+        pending = session_manager.get_pending_transcript_sessions()
+        assert len(pending) == 0
+
+        # Reset processed
+        reset = session_manager.reset_transcript_processed(session.id)
+        assert reset is not None
+
+        # Should be pending again
+        pending = session_manager.get_pending_transcript_sessions()
+        assert len(pending) == 1
+
+    def test_update_compact_markdown(
+        self,
+        session_manager: LocalSessionManager,
+        sample_project: dict,
+    ):
+        """Test updating compact markdown."""
+        session = session_manager.register(
+            external_id="compact-test",
+            machine_id="machine",
+            source="claude",
+            project_id=sample_project["id"],
+        )
+
+        updated = session_manager.update_compact_markdown(session.id, "# Compact")
+        assert updated is not None
+        assert updated.compact_markdown == "# Compact"
+
+    def test_update_parent_session_id(
+        self,
+        session_manager: LocalSessionManager,
+        sample_project: dict,
+    ):
+        """Test updating parent session ID."""
+        session = session_manager.register(
+            external_id="child",
+            machine_id="machine",
+            source="claude",
+            project_id=sample_project["id"],
+        )
+
+        parent = session_manager.register(
+            external_id="parent",
+            machine_id="machine",
+            source="claude",
+            project_id=sample_project["id"],
+        )
+
+        updated = session_manager.update_parent_session_id(session.id, parent.id)
+        assert updated is not None
+        assert updated.parent_session_id == parent.id

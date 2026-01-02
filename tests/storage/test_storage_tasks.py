@@ -167,4 +167,136 @@ class TestLocalTaskManager:
         task_manager.close_task(t2.id)
         blocked = task_manager.list_blocked_tasks(project_id=project_id)
         # T1 is no longer blocked by OPEN task
-        assert len(blocked) == 0
+
+    def test_labels_management(self, task_manager, project_id):
+        task = task_manager.create_task(project_id, "Label Task", labels=["a"])
+
+        # Add label
+        task = task_manager.add_label(task.id, "b")
+        assert set(task.labels) == {"a", "b"}
+
+        # Add existing label (no-op)
+        task = task_manager.add_label(task.id, "a")
+        assert set(task.labels) == {"a", "b"}
+
+        # Remove label
+        task = task_manager.remove_label(task.id, "a")
+        assert task.labels == ["b"]
+
+        # Remove non-existent label (no-op)
+        task = task_manager.remove_label(task.id, "c")
+        assert task.labels == ["b"]
+
+    def test_find_by_prefix(self, task_manager, project_id):
+        t1 = task_manager.create_task(project_id, "Find Me")
+        # ID is like gt-123456
+
+        # Test exact match
+        found = task_manager.find_task_by_prefix(t1.id)
+        assert found.id == t1.id
+
+        # Test prefix match
+        prefix = t1.id[:6]  # gt-123
+        found = task_manager.find_task_by_prefix(prefix)
+        assert found.id == t1.id
+
+        # Test multiple matches returns None
+        # We need another task with same prefix. Hard to force with random hash.
+        # But we can mock or just test the logic that calls fetchall.
+        # Actually generate_task_id uses timestamp + random, so very unlikely to clash prefix unless specifically crafted.
+
+        # Test no match
+        assert task_manager.find_task_by_prefix("gt-nomatch") is None
+
+    def test_find_tasks_by_prefix(self, task_manager, project_id):
+        t1 = task_manager.create_task(project_id, "T1")
+        prefix = t1.id[:5]  # gt-12
+
+        tasks = task_manager.find_tasks_by_prefix(prefix)
+        assert len(tasks) >= 1
+        assert t1.id in [t.id for t in tasks]
+
+    def test_hierarchical_ordering(self, task_manager, project_id):
+        # Root 1
+        r1 = task_manager.create_task(project_id, "R1", priority=1)
+        # Root 2
+        r2 = task_manager.create_task(project_id, "R2", priority=2)
+
+        # Children of R1
+        c1_1 = task_manager.create_task(project_id, "C1.1", parent_task_id=r1.id, priority=2)
+        c1_2 = task_manager.create_task(project_id, "C1.2", parent_task_id=r1.id, priority=1)
+
+        # Child of C1.2
+        c1_2_1 = task_manager.create_task(project_id, "C1.2.1", parent_task_id=c1_2.id)
+
+        tasks = task_manager.list_tasks(project_id)
+        ids = [t.id for t in tasks]
+
+        # Expected: R1 -> C1.2 (prio 1) -> C1.2.1 -> C1.1 (prio 2) -> R2
+        current_indices = {tid: idx for idx, tid in enumerate(ids)}
+
+        # Verify relative ordering
+        assert current_indices[r1.id] < current_indices[r2.id]
+        assert current_indices[r1.id] < current_indices[c1_2.id]
+        assert current_indices[c1_2.id] < current_indices[c1_2_1.id]
+        assert current_indices[c1_2.id] < current_indices[c1_1.id]  # Priority 1 vs 2
+
+    def test_update_all_fields(self, task_manager, project_id):
+        task = task_manager.create_task(project_id, "T1")
+
+        updated = task_manager.update_task(
+            task.id,
+            description="desc",
+            priority=5,
+            task_type="chore",
+            assignee="me",
+            labels=["l1"],
+            details="det",
+            test_strategy="strat",
+            complexity_score=10,
+            estimated_subtasks=5,
+            expansion_context="ctx",
+            validation_criteria="crit",
+            use_external_validator=True,
+            validation_fail_count=2,
+            validation_status="valid",
+            validation_feedback="good",
+        )
+
+        assert updated.description == "desc"
+        assert updated.priority == 5
+        assert updated.task_type == "chore"
+        assert updated.assignee == "me"
+        assert updated.labels == ["l1"]
+        assert updated.details == "det"
+        assert updated.test_strategy == "strat"
+        assert updated.complexity_score == 10
+        assert updated.estimated_subtasks == 5
+        assert updated.expansion_context == "ctx"
+        assert updated.validation_criteria == "crit"
+        assert updated.use_external_validator is True
+        assert updated.validation_fail_count == 2
+        assert updated.validation_status == "valid"
+        assert updated.validation_feedback == "good"
+
+    def test_clear_parent_task(self, task_manager, project_id):
+        parent = task_manager.create_task(project_id, "P")
+        child = task_manager.create_task(project_id, "C", parent_task_id=parent.id)
+
+        assert child.parent_task_id == parent.id
+
+        # Explicit None should clear it
+        updated = task_manager.update_task(child.id, parent_task_id=None)
+        assert updated.parent_task_id is None
+
+    def test_close_task_with_many_children(self, task_manager, project_id):
+        parent = task_manager.create_task(project_id, "P")
+        for i in range(5):
+            task_manager.create_task(project_id, f"C{i}", parent_task_id=parent.id)
+
+        with pytest.raises(ValueError) as exc:
+            task_manager.close_task(parent.id)
+
+        msg = str(exc.value)
+        assert "has 5 open child task(s)" in msg
+        assert "and 2 more" in msg

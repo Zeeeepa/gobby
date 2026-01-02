@@ -14,6 +14,9 @@ from gobby.storage.database import LocalDatabase
 logger = logging.getLogger(__name__)
 
 
+UNSET: Any = object()
+
+
 @dataclass
 class Task:
     id: str
@@ -325,82 +328,90 @@ class LocalTaskManager:
     def update_task(
         self,
         task_id: str,
-        title: str | None = None,
-        description: str | None = None,
-        status: str | None = None,
-        priority: int | None = None,
-        task_type: str | None = None,
-        assignee: str | None = None,
-        labels: list[str] | None = None,
-        parent_task_id: str | None = None,
-        validation_status: str | None = None,
-        validation_feedback: str | None = None,
-        details: str | None = None,
-        test_strategy: str | None = None,
-        complexity_score: int | None = None,
-        estimated_subtasks: int | None = None,
-        expansion_context: str | None = None,
-        validation_criteria: str | None = None,
-        use_external_validator: bool | None = None,
-        validation_fail_count: int | None = None,
+        title: str | None | Any = UNSET,
+        description: str | None | Any = UNSET,
+        status: str | None | Any = UNSET,
+        priority: int | None | Any = UNSET,
+        task_type: str | None | Any = UNSET,
+        assignee: str | None | Any = UNSET,
+        labels: list[str] | None | Any = UNSET,
+        parent_task_id: str | None | Any = UNSET,
+        validation_status: str | None | Any = UNSET,
+        validation_feedback: str | None | Any = UNSET,
+        details: str | None | Any = UNSET,
+        test_strategy: str | None | Any = UNSET,
+        complexity_score: int | None | Any = UNSET,
+        estimated_subtasks: int | None | Any = UNSET,
+        expansion_context: str | None | Any = UNSET,
+        validation_criteria: str | None | Any = UNSET,
+        use_external_validator: bool | None | Any = UNSET,
+        validation_fail_count: int | None | Any = UNSET,
     ) -> Task:
         """Update task fields."""
         updates = []
         params: list[Any] = []
 
-        if title is not None:
+        if title is not UNSET:
             updates.append("title = ?")
             params.append(title)
-        if description is not None:
+        if description is not UNSET:
             updates.append("description = ?")
             params.append(description)
-        if status is not None:
+        if status is not UNSET:
             updates.append("status = ?")
             params.append(status)
-        if priority is not None:
+        if priority is not UNSET:
             updates.append("priority = ?")
             params.append(priority)
-        if task_type is not None:
+        if task_type is not UNSET:
             updates.append("type = ?")  # DB column is 'type'
             params.append(task_type)
-        if assignee is not None:
+        if assignee is not UNSET:
             updates.append("assignee = ?")
             params.append(assignee)
-        if labels is not None:
+        if labels is not UNSET:
             updates.append("labels = ?")
-            params.append(json.dumps(labels))
-        if parent_task_id is not None:
+            # Handle None labels by setting to empty list or NULL?
+            # Existing code: json.dumps(labels) if labels else None.
+            # If labels is explicitly None, maybe we want NULL?
+            # Or empty list []?
+            # Schema usually uses '[]' for empty.
+            if labels is None:
+                params.append("[]")
+            else:
+                params.append(json.dumps(labels))
+        if parent_task_id is not UNSET:
             updates.append("parent_task_id = ?")
-            # Note: explicit None means clear parent
+            # Explicit None means clear parent
             params.append(parent_task_id)
-        if validation_status is not None:
+        if validation_status is not UNSET:
             updates.append("validation_status = ?")
             params.append(validation_status)
-        if validation_feedback is not None:
+        if validation_feedback is not UNSET:
             updates.append("validation_feedback = ?")
             params.append(validation_feedback)
-        if details is not None:
+        if details is not UNSET:
             updates.append("details = ?")
             params.append(details)
-        if test_strategy is not None:
+        if test_strategy is not UNSET:
             updates.append("test_strategy = ?")
             params.append(test_strategy)
-        if complexity_score is not None:
+        if complexity_score is not UNSET:
             updates.append("complexity_score = ?")
             params.append(complexity_score)
-        if estimated_subtasks is not None:
+        if estimated_subtasks is not UNSET:
             updates.append("estimated_subtasks = ?")
             params.append(estimated_subtasks)
-        if expansion_context is not None:
+        if expansion_context is not UNSET:
             updates.append("expansion_context = ?")
             params.append(expansion_context)
-        if validation_criteria is not None:
+        if validation_criteria is not UNSET:
             updates.append("validation_criteria = ?")
             params.append(validation_criteria)
-        if use_external_validator is not None:
+        if use_external_validator is not UNSET:
             updates.append("use_external_validator = ?")
             params.append(use_external_validator)
-        if validation_fail_count is not None:
+        if validation_fail_count is not UNSET:
             updates.append("validation_fail_count = ?")
             params.append(validation_fail_count)
 
