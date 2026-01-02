@@ -173,6 +173,7 @@ class ActionExecutor:
             template_engine=context.template_engine,
             source=kwargs.get("source"),
             template=kwargs.get("template"),
+            require=kwargs.get("require", False),
         )
 
     async def _handle_inject_message(

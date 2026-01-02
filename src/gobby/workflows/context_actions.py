@@ -22,6 +22,7 @@ def inject_context(
     template_engine: Any,
     source: str | None = None,
     template: str | None = None,
+    require: bool = False,
 ) -> dict[str, Any] | None:
     """Inject context from a source.
 
@@ -32,9 +33,10 @@ def inject_context(
         template_engine: Template engine for rendering
         source: Source type (previous_session_summary, handoff, artifacts, etc.)
         template: Optional template for rendering
+        require: If True, block session when no content found (default: False)
 
     Returns:
-        Dict with inject_context key, or None
+        Dict with inject_context key, blocking decision, or None
     """
     # Validate required parameters
     if session_manager is None:
@@ -122,6 +124,12 @@ def inject_context(
 
         state.context_injected = True
         return {"inject_context": content}
+
+    # No content found - block if required
+    if require:
+        reason = f"Required handoff context not found (source={source})"
+        logger.warning(f"inject_context: {reason}")
+        return {"decision": "block", "reason": reason}
 
     return None
 

@@ -123,6 +123,38 @@ async def test_inject_context_compact_handoff(mock_action_context):
 
 
 @pytest.mark.asyncio
+async def test_inject_context_require_blocks_on_missing(mock_action_context):
+    """Test inject_context with require=True blocks when no content found."""
+    context = mock_action_context
+    mock_session = MagicMock()
+    mock_session.compact_markdown = None  # No handoff content
+    context.session_manager.get.return_value = mock_session
+
+    result = await context.executor.execute(
+        "inject_context", context, source="compact_handoff", require=True
+    )
+
+    assert result["decision"] == "block"
+    assert "Required handoff context not found" in result["reason"]
+
+
+@pytest.mark.asyncio
+async def test_inject_context_require_allows_with_content(mock_action_context):
+    """Test inject_context with require=True allows when content found."""
+    context = mock_action_context
+    mock_session = MagicMock()
+    mock_session.compact_markdown = "Test handoff content"
+    context.session_manager.get.return_value = mock_session
+
+    result = await context.executor.execute(
+        "inject_context", context, source="compact_handoff", require=True
+    )
+
+    assert "inject_context" in result
+    assert result["inject_context"] == "Test handoff content"
+
+
+@pytest.mark.asyncio
 async def test_read_artifact_glob(mock_action_context, tmp_path):
     """Test reading artifact with glob pattern."""
     context = mock_action_context

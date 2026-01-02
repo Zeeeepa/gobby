@@ -66,6 +66,7 @@ triggers:
     - action: inject_context
       when: "event.data.get('source') == 'clear'"
       source: previous_session_summary
+      require: true  # Block if handoff context missing
       template: |
         ## Previous Session Context
         {{ summary }}
@@ -74,6 +75,7 @@ triggers:
     - action: inject_context
       when: "event.data.get('source') == 'compact'"
       source: compact_handoff
+      require: true  # Block if handoff context missing
 
   # Autonomous Handover Flow - extract context before compaction
   # Saves formatted markdown to session.compact_markdown
