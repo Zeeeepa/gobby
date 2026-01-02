@@ -1,14 +1,23 @@
 """
 Manager for multiple MCP client connections.
+
+Supports lazy initialization where servers are connected on-demand
+rather than at startup, reducing resource usage and startup time.
 """
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable, Coroutine
 from typing import Any, cast
 
 from mcp import ClientSession
 
+from gobby.mcp_proxy.lazy import (
+    CircuitBreakerOpen,
+    LazyServerConnector,
+    RetryConfig,
+)
 from gobby.mcp_proxy.models import (
     ConnectionState,
     HealthState,
@@ -48,6 +57,10 @@ class MCPClientManager:
         project_path: str | None = None,
         project_id: str | None = None,
         mcp_db_manager: Any | None = None,
+        lazy_connect: bool = True,
+        preconnect_servers: list[str] | None = None,
+        connection_timeout: float = 30.0,
+        max_connection_retries: int = 3,
     ):
         """
         Initialize manager.
@@ -61,6 +74,10 @@ class MCPClientManager:
             project_id: Optional project ID
             mcp_db_manager: LocalMCPManager instance for database-backed server/tool storage.
                 When provided with project_id, loads servers from the database automatically.
+            lazy_connect: If True, defer connections until first use (default: True)
+            preconnect_servers: List of server names to connect eagerly even in lazy mode
+            connection_timeout: Timeout in seconds for connection attempts
+            max_connection_retries: Maximum retry attempts for failed connections
         """
         self._connections: dict[str, BaseTransportConnection] = {}
         self._configs: dict[str, MCPServerConfig] = {}
@@ -76,6 +93,17 @@ class MCPClientManager:
         self.project_path = project_path
         self.project_id = project_id
         self.mcp_db_manager = mcp_db_manager
+
+        # Lazy connection settings
+        self.lazy_connect = lazy_connect
+        self.preconnect_servers = set(preconnect_servers or [])
+        self.connection_timeout = connection_timeout
+        self.max_connection_retries = max_connection_retries
+
+        # Initialize lazy connector with retry config
+        self._lazy_connector = LazyServerConnector(
+            retry_config=RetryConfig(max_retries=max_connection_retries),
+        )
 
         # Load server configs from database if not provided explicitly
         if server_configs is None and mcp_db_manager is not None:
@@ -104,10 +132,14 @@ class MCPClientManager:
                     tools=self._load_tools_from_db(mcp_db_manager, s.name, s.project_id),
                 )
                 self._configs[config.name] = config
+                # Register with lazy connector for deferred connection
+                self._lazy_connector.register_server(config.name)
             logger.info(f"Loaded {len(self._configs)} MCP servers from database")
         elif server_configs:
             for config in server_configs:
                 self._configs[config.name] = config
+                # Register with lazy connector for deferred connection
+                self._lazy_connector.register_server(config.name)
 
     @staticmethod
     def _load_tools_from_db(
@@ -219,6 +251,9 @@ class MCPClientManager:
         """
         Connect to multiple MCP servers.
 
+        In lazy mode (default), only connects servers in preconnect_servers list.
+        In eager mode (lazy_connect=False), connects all enabled servers.
+
         Args:
             configs: List of server configurations. If None, uses registered configs.
 
@@ -234,6 +269,7 @@ class MCPClientManager:
         if configs:
             for config in configs:
                 self._configs[config.name] = config
+                self._lazy_connector.register_server(config.name)
 
         # Initialize health tracking for all configs
         for config in self.server_configs:
@@ -246,6 +282,23 @@ class MCPClientManager:
         # Start health check task if not running
         if self._health_check_task is None:
             self._health_check_task = asyncio.create_task(self._monitor_health())
+
+        # In lazy mode, only connect preconnect servers
+        if self.lazy_connect:
+            configs_to_connect = [
+                c for c in configs_to_connect
+                if c.name in self.preconnect_servers
+            ]
+            if configs_to_connect:
+                logger.info(
+                    f"Lazy mode: preconnecting {len(configs_to_connect)} servers "
+                    f"({', '.join(c.name for c in configs_to_connect)})"
+                )
+            else:
+                logger.info(
+                    f"Lazy mode: no preconnect servers configured, "
+                    f"{len(self._configs)} servers available on-demand"
+                )
 
         # Connect concurrently
         connect_tasks = []
@@ -271,8 +324,24 @@ class MCPClientManager:
                 results[config.name] = False
             else:
                 results[config.name] = bool(result)
+                if result:
+                    self._lazy_connector.mark_connected(config.name)
 
         return results
+
+    def get_lazy_connection_states(self) -> dict[str, dict[str, Any]]:
+        """
+        Get lazy connection states for all registered servers.
+
+        Returns:
+            Dict mapping server names to connection state info including:
+            - is_connected: Whether server is connected
+            - configured_at: When server was configured
+            - connected_at: When server was connected (if connected)
+            - last_error: Last error message (if any)
+            - circuit_state: Circuit breaker state (closed/open/half_open)
+        """
+        return self._lazy_connector.get_all_states()
 
     async def health_check_all(self) -> dict[str, Any]:
         """Perform immediate health check on all connections."""
@@ -367,33 +436,118 @@ class MCPClientManager:
 
         self._connections.clear()
 
+    async def ensure_connected(self, server_name: str) -> ClientSession:
+        """
+        Ensure a server is connected, connecting lazily if needed.
+
+        This is the main entry point for lazy connection. It handles:
+        - First-time connection for unconfigured servers
+        - Reconnection for disconnected servers
+        - Circuit breaker protection against repeated failures
+        - Exponential backoff retry on connection failure
+
+        Args:
+            server_name: Name of server to connect
+
+        Returns:
+            Active ClientSession for the server
+
+        Raises:
+            KeyError: If server not configured
+            CircuitBreakerOpen: If circuit breaker is open (too many failures)
+            MCPError: If connection fails after retries
+        """
+        if server_name not in self._configs:
+            raise KeyError(f"Server '{server_name}' not configured")
+
+        config = self._configs[server_name]
+
+        # Check if server is disabled
+        if not config.enabled:
+            raise MCPError(f"Server '{server_name}' is disabled")
+
+        # Check if already connected
+        if server_name in self._connections:
+            connection = self._connections[server_name]
+            if connection.is_connected and connection.session:
+                return connection.session
+
+        # Check circuit breaker
+        if not self._lazy_connector.can_attempt_connection(server_name):
+            state = self._lazy_connector.get_state(server_name)
+            if state and state.circuit_breaker.last_failure_time:
+                elapsed = time.time() - state.circuit_breaker.last_failure_time
+                recovery_in = max(0, state.circuit_breaker.recovery_timeout - elapsed)
+                raise CircuitBreakerOpen(server_name, recovery_in)
+            raise MCPError(f"Circuit breaker open for '{server_name}'")
+
+        # Use lock to prevent concurrent connection attempts
+        async with self._lazy_connector.get_connection_lock(server_name):
+            # Double-check after acquiring lock
+            if server_name in self._connections:
+                connection = self._connections[server_name]
+                if connection.is_connected and connection.session:
+                    return connection.session
+
+            # Attempt connection with retry
+            retry_config = self._lazy_connector.retry_config
+            last_error: Exception | None = None
+
+            for attempt in range(retry_config.max_retries + 1):
+                try:
+                    state = self._lazy_connector.get_state(server_name)
+                    if state:
+                        state.record_connection_attempt()
+
+                    session = await asyncio.wait_for(
+                        self._connect_server(config),
+                        timeout=self.connection_timeout,
+                    )
+
+                    if session:
+                        self._lazy_connector.mark_connected(server_name)
+                        return session
+                    else:
+                        raise MCPError(f"Connection returned no session for '{server_name}'")
+
+                except asyncio.TimeoutError as e:
+                    last_error = MCPError(f"Connection timeout after {self.connection_timeout}s")
+                    self._lazy_connector.mark_failed(server_name, str(last_error))
+                except Exception as e:
+                    last_error = e
+                    self._lazy_connector.mark_failed(server_name, str(e))
+
+                # If not last attempt, wait with exponential backoff
+                if attempt < retry_config.max_retries:
+                    delay = retry_config.get_delay(attempt)
+                    logger.warning(
+                        f"Connection to '{server_name}' failed (attempt {attempt + 1}/"
+                        f"{retry_config.max_retries + 1}), retrying in {delay:.1f}s: {last_error}"
+                    )
+                    await asyncio.sleep(delay)
+
+            # All retries exhausted
+            raise MCPError(
+                f"Failed to connect to '{server_name}' after "
+                f"{retry_config.max_retries + 1} attempts: {last_error}"
+            ) from last_error
+
     async def get_session(self, server_name: str) -> ClientSession:
         """
-        Get active session for server.
+        Get active session for server, connecting lazily if needed.
 
         Args:
             server_name: Name of server
 
+        Returns:
+            Active ClientSession
+
         Raises:
             KeyError: If server not configured
-            MCPError: If not connected
+            MCPError: If not connected and connection fails
         """
-        if server_name not in self._connections:
-            raise KeyError(f"Server '{server_name}' not configured")
-
-        connection = self._connections[server_name]
-        if not connection.is_connected:
-            # Try auto-reconnect
-            try:
-                await connection.connect()
-            except Exception as e:
-                raise MCPError(f"Server '{server_name}' disconnected and reconnect failed") from e
-
-        session = connection.session
-        if not session:
-            raise MCPError(f"Server '{server_name}' has no active session")
-
-        return session
+        # Use ensure_connected for lazy connection
+        return await self.ensure_connected(server_name)
 
     async def call_tool(
         self,
