@@ -559,6 +559,115 @@ def remove_label(task_id: str, label: str) -> None:
     click.echo(f"Removed label '{label}' from task {resolved.id}")
 
 
+@tasks.group("dep")
+def dep_cmd() -> None:
+    """Manage task dependencies."""
+    pass
+
+
+@dep_cmd.command("add")
+@click.argument("task_id")
+@click.argument("blocker_id")
+@click.option("--type", "dep_type", default="blocks", help="Dependency type (blocks, related, parent)")
+def dep_add(task_id: str, blocker_id: str, dep_type: str) -> None:
+    """Add a dependency: BLOCKER blocks TASK.
+
+    Example: gobby tasks dep add gt-abc gt-def
+    means gt-def blocks gt-abc (gt-abc depends on gt-def)
+    """
+    from gobby.storage.task_dependencies import TaskDependencyManager
+
+    manager = get_task_manager()
+    resolved = resolve_task_id(manager, task_id)
+    if not resolved:
+        return
+
+    blocker = resolve_task_id(manager, blocker_id)
+    if not blocker:
+        return
+
+    dep_manager = TaskDependencyManager(manager.db)
+    try:
+        dep_manager.add_dependency(resolved.id, blocker.id, dep_type)
+        click.echo(f"Added dependency: {blocker.id[:8]} {dep_type} {resolved.id[:8]}")
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+
+
+@dep_cmd.command("remove")
+@click.argument("task_id")
+@click.argument("blocker_id")
+def dep_remove(task_id: str, blocker_id: str) -> None:
+    """Remove a dependency between tasks."""
+    from gobby.storage.task_dependencies import TaskDependencyManager
+
+    manager = get_task_manager()
+    resolved = resolve_task_id(manager, task_id)
+    if not resolved:
+        return
+
+    blocker = resolve_task_id(manager, blocker_id)
+    if not blocker:
+        return
+
+    dep_manager = TaskDependencyManager(manager.db)
+    dep_manager.remove_dependency(resolved.id, blocker.id)
+    click.echo(f"Removed dependency between {resolved.id[:8]} and {blocker.id[:8]}")
+
+
+@dep_cmd.command("tree")
+@click.argument("task_id")
+def dep_tree(task_id: str) -> None:
+    """Show dependency tree for a task."""
+    from gobby.storage.task_dependencies import TaskDependencyManager
+
+    manager = get_task_manager()
+    resolved = resolve_task_id(manager, task_id)
+    if not resolved:
+        return
+
+    dep_manager = TaskDependencyManager(manager.db)
+    tree = dep_manager.get_dependency_tree(resolved.id)
+
+    click.echo(f"Dependency tree for {resolved.id[:8]} ({resolved.title}):")
+    click.echo("")
+
+    # Show blockers (what this task depends on)
+    if tree.get("blockers"):
+        click.echo("Blocked by:")
+        for b in tree["blockers"]:
+            status_icon = "✓" if b.get("status") == "closed" else "○"
+            click.echo(f"  {status_icon} {b['id'][:8]}: {b.get('title', 'Unknown')}")
+    else:
+        click.echo("Blocked by: (none)")
+
+    # Show blocking (what depends on this task)
+    if tree.get("blocking"):
+        click.echo("\nBlocking:")
+        for b in tree["blocking"]:
+            status_icon = "✓" if b.get("status") == "closed" else "○"
+            click.echo(f"  {status_icon} {b['id'][:8]}: {b.get('title', 'Unknown')}")
+    else:
+        click.echo("\nBlocking: (none)")
+
+
+@dep_cmd.command("cycles")
+def dep_cycles() -> None:
+    """Check for dependency cycles."""
+    from gobby.storage.task_dependencies import TaskDependencyManager
+
+    manager = get_task_manager()
+    dep_manager = TaskDependencyManager(manager.db)
+    cycles = dep_manager.check_cycles()
+
+    if cycles:
+        click.echo(f"Found {len(cycles)} dependency cycles:", err=True)
+        for cycle in cycles:
+            click.echo(f"  {' -> '.join(c[:8] for c in cycle)}", err=True)
+    else:
+        click.echo("✓ No dependency cycles found")
+
+
 @tasks.group("import")
 def import_cmd() -> None:
     """Import tasks from external sources."""
