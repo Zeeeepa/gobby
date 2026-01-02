@@ -137,28 +137,8 @@ class DaemonProxy:
         }
 
     async def list_mcp_servers(self) -> dict[str, Any]:
-        """List configured MCP servers."""
-        status = await self.get_status()
-        if status.get("success") is False or status.get("status") == "error":
-            return status
-        servers = status.get("mcp_servers", {})
-        server_list = []
-        for name, info in servers.items():
-            server_list.append(
-                {
-                    "name": name,
-                    "state": info.get("status", "unknown"),
-                    "connected": info.get("connected", False),
-                    "transport": info.get("transport", "unknown"),
-                    "tools": info.get("tools", []),
-                    "tool_count": info.get("tool_count", 0),
-                }
-            )
-        return {
-            "servers": server_list,
-            "total_count": len(server_list),
-            "connected_count": len([s for s in server_list if s["connected"]]),
-        }
+        """List configured MCP servers (includes internal gobby-* servers)."""
+        return await self._request("GET", "/mcp/servers")
 
     async def recommend_tools(
         self,
