@@ -13,6 +13,25 @@ from gobby.storage.database import LocalDatabase
 
 logger = logging.getLogger(__name__)
 
+# Priority name to numeric value mapping
+PRIORITY_MAP = {"low": 3, "medium": 2, "high": 1, "critical": 0}
+
+
+def normalize_priority(priority: int | str | None) -> int:
+    """Convert priority to numeric value for sorting."""
+    if priority is None:
+        return 999
+    if isinstance(priority, str):
+        # Check if it's a named priority
+        if priority.lower() in PRIORITY_MAP:
+            return PRIORITY_MAP[priority.lower()]
+        # Try to parse as int
+        try:
+            return int(priority)
+        except ValueError:
+            return 999
+    return int(priority)
+
 
 UNSET: Any = object()
 
@@ -182,9 +201,8 @@ def order_tasks_hierarchically(tasks: list[Task]) -> list[Task]:
         children_by_parent[parent_id].append(task)
 
     # Sort children within each parent group by priority ASC, created_at ASC
-    # Ensure priority is always int for comparison (some may be stored as strings)
     for children in children_by_parent.values():
-        children.sort(key=lambda t: (int(t.priority) if t.priority else 999, t.created_at))
+        children.sort(key=lambda t: (normalize_priority(t.priority), t.created_at))
 
     # Build result with DFS traversal
     result: list[Task] = []
