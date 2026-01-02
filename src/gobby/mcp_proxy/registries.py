@@ -87,15 +87,17 @@ def setup_internal_registries(
             manager.add_registry(tasks_registry)
             logger.debug("Tasks registry initialized")
 
-    # Initialize messages registry if message_manager is available
-    if message_manager is not None:
+    # Initialize sessions registry (messages + session CRUD)
+    # Register if either message_manager or local_session_manager is available
+    if message_manager is not None or local_session_manager is not None:
         from gobby.mcp_proxy.tools.session_messages import create_session_messages_registry
 
         session_messages_registry = create_session_messages_registry(
             message_manager=message_manager,
+            session_manager=local_session_manager,
         )
         manager.add_registry(session_messages_registry)
-        logger.debug("Session messages registry initialized")
+        logger.debug("Sessions registry initialized")
 
     # Initialize memory registry if memory_manager is available
     if memory_manager is not None:
