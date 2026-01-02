@@ -4,7 +4,93 @@ Status message formatting for Gobby daemon.
 Provides consistent status display across CLI and MCP server.
 """
 
+import logging
 from typing import Any
+
+import httpx
+
+logger = logging.getLogger(__name__)
+
+
+def fetch_rich_status(http_port: int, timeout: float = 2.0) -> dict[str, Any]:
+    """
+    Fetch rich status data from the daemon API.
+
+    Args:
+        http_port: HTTP port of the daemon
+        timeout: Request timeout in seconds
+
+    Returns:
+        Dict of status kwargs to pass to format_status_message
+    """
+    status_kwargs: dict[str, Any] = {}
+
+    try:
+        response = httpx.get(f"http://localhost:{http_port}/admin/status", timeout=timeout)
+        if response.status_code != 200:
+            return status_kwargs
+
+        data = response.json()
+
+        # Process metrics
+        process_data = data.get("process")
+        if process_data:
+            status_kwargs["memory_mb"] = process_data.get("memory_rss_mb")
+            status_kwargs["cpu_percent"] = process_data.get("cpu_percent")
+
+        # MCP servers
+        mcp_servers = data.get("mcp_servers", {})
+        if mcp_servers:
+            total = len(mcp_servers)
+            connected = sum(1 for s in mcp_servers.values() if s.get("connected"))
+            status_kwargs["mcp_total"] = total
+            status_kwargs["mcp_connected"] = connected
+            status_kwargs["mcp_tools_cached"] = data.get("mcp_tools_cached", 0)
+
+            # Find unhealthy servers
+            unhealthy = []
+            for name, info in mcp_servers.items():
+                health = info.get("health")
+                if health and health not in ("healthy", None):
+                    unhealthy.append((name, health))
+                elif info.get("consecutive_failures", 0) > 0:
+                    unhealthy.append((name, f"{info['consecutive_failures']} failures"))
+            if unhealthy:
+                status_kwargs["mcp_unhealthy"] = unhealthy
+
+        # Sessions
+        sessions = data.get("sessions", {})
+        if sessions:
+            status_kwargs["sessions_active"] = sessions.get("active", 0)
+            status_kwargs["sessions_paused"] = sessions.get("paused", 0)
+            status_kwargs["sessions_handoff_ready"] = sessions.get("handoff_ready", 0)
+
+        # Tasks
+        tasks = data.get("tasks", {})
+        if tasks:
+            status_kwargs["tasks_open"] = tasks.get("open", 0)
+            status_kwargs["tasks_in_progress"] = tasks.get("in_progress", 0)
+            status_kwargs["tasks_ready"] = tasks.get("ready", 0)
+            status_kwargs["tasks_blocked"] = tasks.get("blocked", 0)
+
+        # Memory & Skills
+        memory = data.get("memory", {})
+        if memory and memory.get("count", 0) > 0:
+            status_kwargs["memories_count"] = memory.get("count", 0)
+            status_kwargs["memories_avg_importance"] = memory.get("avg_importance", 0.0)
+
+        skills = data.get("skills", {})
+        if skills and skills.get("count", 0) > 0:
+            status_kwargs["skills_count"] = skills.get("count", 0)
+            status_kwargs["skills_total_uses"] = skills.get("total_uses", 0)
+
+    except (httpx.ConnectError, httpx.TimeoutException):
+        # Daemon not responding - return empty
+        pass
+    except Exception as e:
+        logger.debug(f"Failed to fetch daemon status: {e}")
+
+    return status_kwargs
 
 
 def format_status_message(
