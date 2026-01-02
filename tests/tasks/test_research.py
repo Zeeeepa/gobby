@@ -119,6 +119,7 @@ class TestToolExecution:
         assert "subdir/test.py:1: class Foo: pass" in output
 
 
+@pytest.mark.integration
 class TestRunLoop:
     @pytest.fixture
     def task(self):

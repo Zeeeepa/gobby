@@ -550,7 +550,12 @@ class WorkflowEngine:
             if when_condition:
                 eval_ctx = {"event": event, "workflow_state": state, "handoff": context_data}
                 eval_ctx.update(context_data)
-                if not self.evaluator.evaluate(when_condition, eval_ctx):
+                eval_result = self.evaluator.evaluate(when_condition, eval_ctx)
+                logger.debug(
+                    f"When condition '{when_condition}' evaluated to {eval_result}, "
+                    f"event.data.source={event.data.get('source') if event.data else None}"
+                )
+                if not eval_result:
                     continue
 
             # Execute action
@@ -565,6 +570,7 @@ class WorkflowEngine:
                 kwargs.pop("when", None)
 
                 result = await self.action_executor.execute(action_type, action_ctx, **kwargs)
+                logger.debug(f"Action '{action_type}' result: {type(result)}, keys={list(result.keys()) if isinstance(result, dict) else 'N/A'}")
 
                 if result and isinstance(result, dict):
                     # Update shared context for chaining
@@ -573,6 +579,7 @@ class WorkflowEngine:
 
                     if "inject_context" in result:
                         injected_context.append(result["inject_context"])
+                        logger.debug(f"Added to injected_context, now has {len(injected_context)} items, total chars={sum(len(c) for c in injected_context)}")
 
                     # Capture system_message (last one wins)
                     if "system_message" in result:
@@ -593,9 +600,11 @@ class WorkflowEngine:
                     exc_info=True,
                 )
 
+        final_context = "\n\n".join(injected_context) if injected_context else None
+        logger.debug(f"_evaluate_workflow_triggers returning: context_len={len(final_context) if final_context else 0}, system_message={system_message is not None}")
         return HookResponse(
             decision="allow",
-            context="\n\n".join(injected_context) if injected_context else None,
+            context=final_context,
             system_message=system_message,
         )
 

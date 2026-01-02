@@ -62,9 +62,9 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
         try:
             process = psutil.Process(os.getpid())
             memory_info = process.memory_info()
-            # Use a small interval to get meaningful CPU percentage
-            # (interval=0 returns 0.0 on first invocation)
-            cpu_percent = process.cpu_percent(interval=0.1)
+            # Run cpu_percent in a thread executor to avoid blocking the event loop
+            # (interval=0.1 would block for 100ms otherwise)
+            cpu_percent = await asyncio.to_thread(process.cpu_percent, 0.1)
 
             process_metrics = {
                 "memory_rss_mb": round(memory_info.rss / (1024 * 1024), 2),

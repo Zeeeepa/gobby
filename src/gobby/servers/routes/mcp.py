@@ -927,7 +927,9 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             try:
                 args = await request.json()
             except (json.JSONDecodeError, ValueError) as e:
-                return {"status": "error", "error": f"Invalid JSON in request body: {e}"}
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid JSON in request body: {e}"
+                )
 
             # Check internal registries first (gobby-tasks, gobby-memory, etc.)
             if server._internal_manager and server._internal_manager.is_internal(server_name):

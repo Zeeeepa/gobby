@@ -378,6 +378,18 @@ def create_handoff(session_id: str | None, notes: str | None) -> None:
     analyzer = TranscriptAnalyzer()
     handoff_ctx = analyzer.extract_handoff_context(turns)
 
+    # Determine the git working directory - prefer project repo_path, fall back to transcript parent
+    git_cwd = path.parent
+    if session.project_id:
+        from gobby.storage.projects import LocalProjectManager
+
+        project_manager = LocalProjectManager(LocalDatabase())
+        project = project_manager.get(session.project_id)
+        if project and project.repo_path:
+            project_repo = Path(project.repo_path)
+            if project_repo.exists():
+                git_cwd = project_repo
+
     # Enrich with real-time git status
     if not handoff_ctx.git_status:
         try:
@@ -386,7 +398,7 @@ def create_handoff(session_id: str | None, notes: str | None) -> None:
                 capture_output=True,
                 text=True,
                 timeout=5,
-                cwd=path.parent,
+                cwd=git_cwd,
             )
             handoff_ctx.git_status = result.stdout.strip() if result.returncode == 0 else ""
         except Exception:
@@ -399,7 +411,7 @@ def create_handoff(session_id: str | None, notes: str | None) -> None:
             capture_output=True,
             text=True,
             timeout=5,
-            cwd=path.parent,
+            cwd=git_cwd,
         )
         if result.returncode == 0:
             commits = []

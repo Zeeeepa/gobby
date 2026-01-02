@@ -46,7 +46,7 @@ def mark_todo_complete(
     todo_text: str,
     filename: str = "TODO.md",
 ) -> dict[str, Any]:
-    """Mark a todo as complete in TODO.md.
+    """Mark the first occurrence of a todo as complete in TODO.md.
 
     Args:
         todo_text: Text of the todo to mark complete
@@ -68,7 +68,7 @@ def mark_todo_complete(
         updated = False
         new_lines = []
         for line in lines:
-            if todo_text in line and "- [ ]" in line:
+            if not updated and todo_text in line and "- [ ]" in line:
                 new_lines.append(line.replace("- [ ]", "- [x]"))
                 updated = True
             else:

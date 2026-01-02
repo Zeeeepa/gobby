@@ -868,9 +868,9 @@ class HookManager:
             f"🟢 Session start: cli={cli_source}, project={project_id}, source={session_source}"
         )
 
-        # Step 1: Find parent session if this is a handoff (source='clear')
+        # Step 1: Find parent session if this is a handoff (source='clear' or 'compact')
         parent_session_id = None
-        if session_source == "clear":
+        if session_source in ("clear", "compact"):
             try:
                 parent = self._session_storage.find_parent(
                     machine_id=machine_id,
@@ -1244,6 +1244,8 @@ class HookManager:
 
         if session_id:
             self.logger.debug(f"🗜️  Pre-compact ({trigger}): session {session_id}")
+            # Mark session as handoff_ready so it can be found as parent after compact
+            self._session_manager.update_session_status(session_id, "handoff_ready")
         else:
             self.logger.debug(f"🗜️  Pre-compact ({trigger})")
 

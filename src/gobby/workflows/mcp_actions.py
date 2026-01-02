@@ -50,6 +50,10 @@ async def call_mcp_tool(
 
         # Store result in workflow variable if 'as' specified
         if output_as:
+            if state is None:
+                raise ValueError(
+                    "state must be provided when output_as is specified"
+                )
             if not state.variables:
                 state.variables = {}
             state.variables[output_as] = result

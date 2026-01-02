@@ -19,7 +19,7 @@ class WorkflowHookHandler:
         self,
         engine: WorkflowEngine,
         loop: asyncio.AbstractEventLoop | None = None,
-        timeout: float = 0.0,  # 0 = no timeout (wait forever)
+        timeout: float = 30.0,  # Timeout for workflow operations in seconds
         enabled: bool = True,
     ):
         self.engine = engine
