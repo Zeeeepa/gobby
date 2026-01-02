@@ -119,7 +119,10 @@ class TranscriptAnalyzer:
 
         context.files_modified = sorted(modified_files_set)
 
-        # 3. Recent Activity Summary (Last 5 calls)
+        # 3. Extract TodoWrite state
+        context.todo_state = self._extract_todowrite(relevant_turns)
+
+        # 4. Recent Activity Summary (Last 5 calls)
         # We can re-use the parser's logic or just grab the last few tool uses
         recent_tools = []
         count = 0
@@ -203,3 +206,39 @@ class TranscriptAnalyzer:
                         "timestamp": datetime.now().isoformat(),  # Approx time
                     }
                 )
+
+    def _extract_todowrite(self, turns: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """
+        Extract the most recent TodoWrite state from transcript.
+
+        Scans turns in reverse to find the last TodoWrite tool call and
+        extracts the todos list.
+
+        Args:
+            turns: List of transcript turns to scan
+
+        Returns:
+            List of todo dicts with 'content' and 'status' keys, or empty list
+        """
+        for turn in reversed(turns):
+            message = turn.get("message", {})
+            content = message.get("content", [])
+
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_use":
+                        if block.get("name") == "TodoWrite":
+                            tool_input = block.get("input", {})
+                            todos = tool_input.get("todos", [])
+
+                            if todos:
+                                # Return the raw todo list for HandoffContext
+                                return [
+                                    {
+                                        "content": todo.get("content", ""),
+                                        "status": todo.get("status", "pending"),
+                                    }
+                                    for todo in todos
+                                ]
+
+        return []

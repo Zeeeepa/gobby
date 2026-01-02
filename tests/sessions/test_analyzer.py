@@ -120,3 +120,92 @@ def test_extract_handoff_context_max_turns():
     # recent_activity should only scan last 50 turns?
     # Logic says `relevant_turns = turns[-max_turns:]`
     # So it won't see tool uses before that.
+
+
+def test_extract_todowrite():
+    """Test extraction of TodoWrite state from transcript."""
+    turns = [
+        {"type": "user", "message": {"content": "Help me with tasks"}},
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "TodoWrite",
+                        "input": {
+                            "todos": [
+                                {"content": "Fix the bug", "status": "completed"},
+                                {"content": "Write tests", "status": "in_progress"},
+                                {"content": "Update docs", "status": "pending"},
+                            ]
+                        },
+                    },
+                ]
+            },
+        },
+    ]
+
+    analyzer = TranscriptAnalyzer()
+    ctx = analyzer.extract_handoff_context(turns)
+
+    assert len(ctx.todo_state) == 3
+    assert ctx.todo_state[0]["content"] == "Fix the bug"
+    assert ctx.todo_state[0]["status"] == "completed"
+    assert ctx.todo_state[1]["content"] == "Write tests"
+    assert ctx.todo_state[1]["status"] == "in_progress"
+    assert ctx.todo_state[2]["content"] == "Update docs"
+    assert ctx.todo_state[2]["status"] == "pending"
+
+
+def test_extract_todowrite_empty():
+    """Test that empty transcript returns empty todo_state."""
+    analyzer = TranscriptAnalyzer()
+    ctx = analyzer.extract_handoff_context([])
+    assert ctx.todo_state == []
+
+
+def test_extract_todowrite_uses_latest():
+    """Test that we extract the most recent TodoWrite, not earlier ones."""
+    turns = [
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "TodoWrite",
+                        "input": {
+                            "todos": [
+                                {"content": "Old task", "status": "pending"},
+                            ]
+                        },
+                    },
+                ]
+            },
+        },
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "TodoWrite",
+                        "input": {
+                            "todos": [
+                                {"content": "New task", "status": "in_progress"},
+                            ]
+                        },
+                    },
+                ]
+            },
+        },
+    ]
+
+    analyzer = TranscriptAnalyzer()
+    ctx = analyzer.extract_handoff_context(turns)
+
+    # Should get the latest (second) TodoWrite
+    assert len(ctx.todo_state) == 1
+    assert ctx.todo_state[0]["content"] == "New task"
+    assert ctx.todo_state[0]["status"] == "in_progress"
