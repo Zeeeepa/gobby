@@ -1,0 +1,332 @@
+"""
+Admin routes for Gobby HTTP server.
+
+Provides status, metrics, config, and shutdown endpoints.
+"""
+
+import asyncio
+import logging
+import os
+import time
+from typing import TYPE_CHECKING, Any
+
+import psutil
+from fastapi import APIRouter
+from fastapi.responses import PlainTextResponse
+
+from gobby.utils.metrics import Counter, get_metrics_collector
+from gobby.utils.version import get_version
+
+if TYPE_CHECKING:
+    from gobby.servers.http import HTTPServer
+
+logger = logging.getLogger(__name__)
+
+
+def create_admin_router(server: "HTTPServer") -> APIRouter:
+    """
+    Create admin router with endpoints bound to server instance.
+
+    Args:
+        server: HTTPServer instance for accessing state and dependencies
+
+    Returns:
+        Configured APIRouter with admin endpoints
+    """
+    router = APIRouter(prefix="/admin", tags=["admin"])
+
+    @router.get("/status")
+    async def status_check() -> dict[str, Any]:
+        """
+        Comprehensive status check endpoint.
+
+        Returns detailed health status including daemon state, uptime,
+        memory usage, background tasks, and connection statistics.
+        """
+        start_time = time.perf_counter()
+
+        # Get server uptime
+        uptime_seconds = None
+        if server._start_time is not None:
+            uptime_seconds = time.time() - server._start_time
+
+        # Get daemon status if available
+        daemon_status = None
+        if server._daemon is not None:
+            try:
+                daemon_status = server._daemon.status()
+            except Exception as e:
+                logger.warning(f"Failed to get daemon status: {e}")
+
+        # Get process metrics
+        try:
+            process = psutil.Process(os.getpid())
+            memory_info = process.memory_info()
+            cpu_percent = process.cpu_percent(interval=0)
+
+            process_metrics = {
+                "memory_rss_mb": round(memory_info.rss / (1024 * 1024), 2),
+                "memory_vms_mb": round(memory_info.vms / (1024 * 1024), 2),
+                "cpu_percent": cpu_percent,
+                "num_threads": process.num_threads(),
+            }
+        except Exception as e:
+            logger.warning(f"Failed to get process metrics: {e}")
+            process_metrics = None
+
+        # Get background task status
+        metrics = get_metrics_collector()
+        background_tasks = {
+            "active": len(server._background_tasks),
+            "total": metrics._counters.get("background_tasks_total", Counter("", "")).value,
+            "completed": metrics._counters.get(
+                "background_tasks_completed_total", Counter("", "")
+            ).value,
+            "failed": metrics._counters.get(
+                "background_tasks_failed_total", Counter("", "")
+            ).value,
+        }
+
+        # Get MCP server status - include ALL configured servers
+        mcp_health = {}
+        if server.mcp_manager is not None:
+            try:
+                # Iterate over all configured servers, not just connected ones
+                for config in server.mcp_manager.server_configs:
+                    health = server.mcp_manager.health.get(config.name)
+                    is_connected = config.name in server.mcp_manager.connections
+                    mcp_health[config.name] = {
+                        "connected": is_connected,
+                        "status": health.state.value
+                        if health
+                        else ("connected" if is_connected else "not_started"),
+                        "enabled": config.enabled,
+                        "transport": config.transport,
+                        "health": health.health.value if health else None,
+                        "consecutive_failures": health.consecutive_failures if health else 0,
+                        "last_health_check": health.last_health_check.isoformat()
+                        if health and health.last_health_check
+                        else None,
+                        "response_time_ms": health.response_time_ms if health else None,
+                    }
+            except Exception as e:
+                logger.warning(f"Failed to get MCP health: {e}")
+
+        # Count internal tools from gobby-* registries (not downstream MCP servers)
+        internal_tools_count = 0
+        if server._internal_manager:
+            for registry in server._internal_manager.get_all_registries():
+                internal_tools_count += len(registry.list_tools())
+
+        # Get session statistics using efficient count queries
+        session_stats = {"active": 0, "paused": 0, "handoff_ready": 0, "total": 0}
+        if server.session_manager is not None:
+            try:
+                # Use count_by_status for efficient grouped counts
+                status_counts = server.session_manager.count_by_status()
+                session_stats["total"] = sum(status_counts.values())
+                session_stats["active"] = status_counts.get("active", 0)
+                session_stats["paused"] = status_counts.get("paused", 0)
+                session_stats["handoff_ready"] = status_counts.get("handoff_ready", 0)
+            except Exception as e:
+                logger.warning(f"Failed to get session stats: {e}")
+
+        # Get task statistics using efficient count queries
+        task_stats = {"open": 0, "in_progress": 0, "closed": 0, "ready": 0, "blocked": 0}
+        if server.task_manager is not None:
+            try:
+                # Use count_by_status for efficient grouped counts
+                status_counts = server.task_manager.count_by_status()
+                task_stats["open"] = status_counts.get("open", 0)
+                task_stats["in_progress"] = status_counts.get("in_progress", 0)
+                task_stats["closed"] = status_counts.get("closed", 0)
+                # Get ready and blocked counts using dedicated count methods
+                task_stats["ready"] = server.task_manager.count_ready_tasks()
+                task_stats["blocked"] = server.task_manager.count_blocked_tasks()
+            except Exception as e:
+                logger.warning(f"Failed to get task stats: {e}")
+
+        # Get memory statistics
+        memory_stats = {"count": 0, "avg_importance": 0.0}
+        if server.memory_manager is not None:
+            try:
+                stats = server.memory_manager.get_stats()
+                memory_stats["count"] = stats.get("total_count", 0)
+                memory_stats["avg_importance"] = stats.get("avg_importance", 0.0)
+            except Exception as e:
+                logger.warning(f"Failed to get memory stats: {e}")
+
+        # Get skill statistics using efficient count query
+        skill_stats = {"count": 0, "total_uses": 0}
+        if server.skill_learner is not None:
+            try:
+                # Use get_usage_stats for efficient aggregation
+                skill_stats = server.skill_learner.storage.get_usage_stats()
+            except Exception as e:
+                logger.warning(f"Failed to get skill stats: {e}")
+
+        # Calculate response time
+        response_time_ms = (time.perf_counter() - start_time) * 1000
+
+        return {
+            "status": "healthy" if server._running else "degraded",
+            "server": {
+                "port": server.port,
+                "test_mode": server.test_mode,
+                "running": server._running,
+                "uptime_seconds": uptime_seconds,
+            },
+            "daemon": daemon_status,
+            "process": process_metrics,
+            "background_tasks": background_tasks,
+            "mcp_servers": mcp_health,
+            # Count of tools from internal gobby-* registries (tasks, memory, skills)
+            "internal_tools_count": internal_tools_count,
+            "sessions": session_stats,
+            "tasks": task_stats,
+            "memory": memory_stats,
+            "skills": skill_stats,
+            "response_time_ms": response_time_ms,
+        }
+
+    @router.get("/metrics")
+    async def get_metrics() -> PlainTextResponse:
+        """
+        Prometheus-compatible metrics endpoint.
+
+        Returns metrics in Prometheus text exposition format including:
+        - HTTP request counts and durations
+        - Background task metrics
+        - Daemon health metrics
+        """
+        metrics = get_metrics_collector()
+        try:
+            # Update daemon health metrics if available
+            if server._daemon is not None:
+                try:
+                    uptime = server._daemon.uptime
+                    if uptime is not None:
+                        metrics.set_gauge("daemon_uptime_seconds", uptime)
+
+                    # Get process info for daemon
+                    process = psutil.Process(os.getpid())
+                    memory_info = process.memory_info()
+                    metrics.set_gauge("daemon_memory_usage_bytes", float(memory_info.rss))
+
+                    cpu_percent = process.cpu_percent(interval=0)
+                    metrics.set_gauge("daemon_cpu_percent", cpu_percent)
+                except Exception as e:
+                    logger.warning(f"Failed to update daemon metrics: {e}")
+
+            # Update background task gauge
+            metrics.set_gauge("background_tasks_active", float(len(server._background_tasks)))
+
+            # Export in Prometheus format
+            prometheus_output = metrics.export_prometheus()
+            return PlainTextResponse(
+                content=prometheus_output, media_type="text/plain; version=0.0.4"
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to export metrics: {e}", exc_info=True)
+            return PlainTextResponse(
+                content=f"# Error exporting metrics: {e}\n",
+                status_code=500,
+                media_type="text/plain",
+            )
+
+    @router.get("/config")
+    async def get_config() -> dict[str, Any]:
+        """
+        Get daemon configuration and version information.
+
+        Returns:
+            Configuration data including ports, features, and versions
+        """
+        start_time = time.perf_counter()
+        metrics = get_metrics_collector()
+        metrics.inc_counter("http_requests_total")
+
+        try:
+            config_data = {
+                "server": {
+                    "port": server.port,
+                    "test_mode": server.test_mode,
+                    "running": server._running,
+                    "version": get_version(),
+                },
+                "features": {
+                    "session_manager": server.session_manager is not None,
+                    "mcp_manager": server.mcp_manager is not None,
+                },
+                "endpoints": {
+                    "mcp": [
+                        "/mcp/{server_name}/tools/{tool_name}",
+                    ],
+                    "sessions": [
+                        "/sessions/register",
+                        "/sessions/{id}",
+                    ],
+                    "admin": [
+                        "/admin/status",
+                        "/admin/metrics",
+                        "/admin/config",
+                        "/admin/shutdown",
+                    ],
+                },
+            }
+
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+
+            return {
+                "status": "success",
+                "config": config_data,
+                "response_time_ms": response_time_ms,
+            }
+
+        except Exception as e:
+            logger.error(f"Config retrieval error: {e}", exc_info=True)
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.post("/shutdown")
+    async def shutdown() -> dict[str, Any]:
+        """
+        Graceful daemon shutdown endpoint.
+
+        Returns:
+            Shutdown confirmation
+        """
+        start_time = time.perf_counter()
+        metrics = get_metrics_collector()
+
+        metrics.inc_counter("http_requests_total")
+        metrics.inc_counter("shutdown_requests_total")
+
+        try:
+            logger.debug("Shutdown requested via HTTP endpoint")
+
+            # Create background task for shutdown
+            task = asyncio.create_task(server._process_shutdown())
+
+            server._background_tasks.add(task)
+            task.add_done_callback(server._background_tasks.discard)
+
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+
+            return {
+                "status": "shutting_down",
+                "message": "Graceful shutdown initiated",
+                "response_time_ms": response_time_ms,
+            }
+
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error("Error initiating shutdown: %s", e, exc_info=True)
+            return {
+                "status": "error",
+                "message": "Shutdown failed to initiate",
+            }
+
+    return router

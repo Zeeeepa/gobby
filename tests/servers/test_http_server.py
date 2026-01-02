@@ -7,7 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from gobby.servers.http import HTTPServer, SessionRegisterRequest
+from gobby.servers.http import HTTPServer
+from gobby.servers.models import SessionRegisterRequest
 from gobby.storage.database import LocalDatabase
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.sessions import LocalSessionManager
