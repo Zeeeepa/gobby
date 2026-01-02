@@ -1081,7 +1081,7 @@ Before building new workflow capabilities, extract the current session handoff b
 - [x] Implement `workflow_state` context source
 - [x] Add Jinja2 templating for context injection
 
-### Phase 6: Built-in Templates ✅
+### Phase 6: Built-in Templates ✅ COMPLETE
 
 - [x] Create `templates/session-handoff.yaml` (lifecycle, from Phase 0)
 - [x] Create `templates/plan-execute.yaml` (phase-based)
@@ -1093,16 +1093,16 @@ Before building new workflow capabilities, extract the current session handoff b
 - [x] Install templates to `~/.gobby/workflows/templates/` on first run
 - [x] Enable `session-handoff` by default for all projects
 
-### Phase 7: CLI Commands
+### Phase 7: CLI Commands ✅ MOSTLY COMPLETE
 
-- [ ] Implement `gobby workflow list`
-- [ ] Implement `gobby workflow show <name>`
-- [ ] Implement `gobby workflow set <name>`
-- [ ] Implement `gobby workflow clear`
-- [ ] Implement `gobby workflow status`
-- [ ] Implement `gobby workflow phase <name>` (manual override)
+- [x] Implement `gobby workflow list`
+- [x] Implement `gobby workflow show <name>`
+- [x] Implement `gobby workflow set <name>`
+- [x] Implement `gobby workflow clear`
+- [x] Implement `gobby workflow status`
+- [x] Implement `gobby workflow phase <name>` (manual override)
 - [ ] Implement `gobby workflow handoff <notes>`
-- [ ] Implement `gobby workflow import <source>`
+- [x] Implement `gobby workflow import <source>`
 
 #### Stop-Edit-Restart Versioning (Decision 6)
 
@@ -1110,21 +1110,21 @@ Before building new workflow capabilities, extract the current session handoff b
 - [ ] Log workflow version/hash at load time for debugging
 - [ ] Document that workflow YAML is locked at session start; changes require reset
 
-### Phase 8: MCP Tools
+### Phase 8: MCP Tools ✅ MOSTLY COMPLETE
 
-- [ ] Add `list_workflows` MCP tool (discover available workflows)
-- [ ] Add `activate_workflow` MCP tool (start a phase-based workflow)
-- [ ] Add `end_workflow` MCP tool (complete/terminate active workflow)
-- [ ] Add `get_workflow_status` MCP tool
-- [ ] Add `request_phase_transition` MCP tool
+- [x] Add `list_workflows` MCP tool (discover available workflows)
+- [x] Add `activate_workflow` MCP tool (start a phase-based workflow)
+- [x] Add `end_workflow` MCP tool (complete/terminate active workflow)
+- [x] Add `get_workflow_status` MCP tool
+- [x] Add `request_phase_transition` MCP tool
 - [ ] Add `create_handoff` MCP tool
-- [ ] Add `mark_artifact_complete` MCP tool
-- [ ] Implement tool filtering based on workflow phase
-- [ ] Update `list_tools` to respect phase restrictions
+- [x] Add `mark_artifact_complete` MCP tool
+- [x] Implement tool filtering based on workflow phase (via ToolFilterService)
+- [x] Update `list_tools` to respect phase restrictions
 
-### Phase 9: Testing
+### Phase 9: Testing (Partial)
 
-- [ ] Unit tests for `WorkflowLoader` (YAML parsing)
+- [x] Unit tests for `WorkflowLoader` (YAML parsing) - tests/workflows/test_loader.py
 - [ ] Unit tests for `WorkflowStateManager`
 - [ ] Unit tests for condition evaluator
 - [ ] Unit tests for `WorkflowEngine` phase transitions
@@ -1133,16 +1133,16 @@ Before building new workflow capabilities, extract the current session handoff b
 - [ ] Integration tests for context injection
 - [ ] End-to-end test with plan-act-reflect workflow
 
-### Phase 10: Documentation
+### Phase 10: Documentation ✅ MOSTLY COMPLETE
 
-- [ ] Document workflow YAML schema (including `extends:` inheritance syntax - Decision 1)
-- [ ] Document built-in templates
-- [ ] Document CLI commands
-- [ ] Document MCP tools
-- [ ] Add examples for common patterns
-- [ ] Update CLAUDE.md with workflow information
-- [ ] Add section explaining lifecycle vs phase-based coexistence (Decision 2)
-- [ ] Document that workflow state resets on session end; tasks persist (Decision 3)
+- [x] Document workflow YAML schema (including `extends:` inheritance syntax - Decision 1)
+- [x] Document built-in templates
+- [x] Document CLI commands
+- [x] Document MCP tools
+- [x] Add examples for common patterns
+- [x] Update CLAUDE.md with workflow information
+- [x] Add section explaining lifecycle vs phase-based coexistence (Decision 2)
+- [x] Document that workflow state resets on session end; tasks persist (Decision 3)
 - [ ] Document Codex limitations (notify hook only, app-server for full control is YAGNI) (Decision 7)
 
 ### Phase 11: Error Recovery Strategies

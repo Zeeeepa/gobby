@@ -303,39 +303,36 @@ async def _execute_extract_handoff_context(
 
 ### Phase 1: TranscriptAnalyzer
 
-- [ ] Create `src/gobby/sessions/analyzer.py`
-- [ ] Define `HandoffContext` dataclass
-- [ ] Implement `TranscriptAnalyzer.extract_handoff_context()`
-- [ ] Implement `_extract_gobby_task()` - find gobby-tasks tool calls
+- [x] Create `src/gobby/sessions/analyzer.py`
+- [x] Define `HandoffContext` dataclass
+- [x] Implement `TranscriptAnalyzer.extract_handoff_context()`
+- [x] Implement `_extract_gobby_task()` - find gobby-tasks tool calls (integrated into `_analyze_tool_use`)
 - [ ] Implement `_extract_todowrite()` - find TodoWrite state (reuse from summary.py)
-- [ ] Implement `_extract_files_modified()` - find Edit/Write tool calls
-- [ ] Implement `_extract_git_commits()` - find commits made this session:
-  - Parse Bash tool calls for `git commit` commands
-  - Run `git log --since=<session_start>` for commits made during session
-  - Extract hash (short), message, and optionally files changed
-- [ ] Implement `_get_git_status()` - run `git status --short` for uncommitted changes
-- [ ] Implement `_extract_initial_goal()` - first user message
-- [ ] Implement `_extract_recent_activity()` - last N tool calls
+- [x] Implement `_extract_files_modified()` - find Edit/Write tool calls (integrated into `_analyze_tool_use`)
+- [x] Implement `_extract_git_commits()` - find commits made this session (parses Bash commands)
+- [x] Implement `_get_git_status()` - run `git status --short` for uncommitted changes (in workflow action)
+- [x] Implement `_extract_initial_goal()` - first user message
+- [x] Implement `_extract_recent_activity()` - last N tool calls
 - [ ] Add unit tests for TranscriptAnalyzer
 
 ### Phase 2: Workflow Action
 
-- [ ] Add `extract_handoff_context` action type to ActionExecutor
-- [ ] Implement handoff context storage (session-scoped)
-- [ ] Implement handoff context retrieval for injection
+- [x] Add `extract_handoff_context` action type to ActionExecutor
+- [x] Implement handoff context storage (session-scoped)
+- [x] Implement handoff context retrieval for injection
 - [ ] Add unit tests for action execution
 
 ### Phase 3: Workflow Definition
 
-- [ ] Add `on_pre_compact` trigger to session-handoff.yaml
-- [ ] Add `source='compact'` handler to `on_session_start`
-- [ ] Create injection template for structured context
+- [x] Add `on_pre_compact` trigger to session-handoff.yaml
+- [x] Add `source='compact'` handler to `on_session_start`
+- [x] Create injection template for structured context
 - [ ] Test workflow trigger conditions
 
 ### Phase 4: Hook Manager Integration
 
-- [ ] Update `_handle_event_pre_compact()` to execute workflows
-- [ ] Ensure event.data includes `trigger` field ('auto' or 'manual')
+- [x] Update `_handle_event_pre_compact()` to execute workflows
+- [x] Ensure event.data includes `trigger` field ('auto' or 'manual')
 - [ ] Test PreCompact → SessionStart flow end-to-end
 
 ### Phase 5: Testing & Documentation
@@ -344,7 +341,7 @@ async def _execute_extract_handoff_context(
 - [ ] Test with real Claude Code session (manual trigger)
 - [ ] Document autonomous handoff in README
 - [ ] Add configuration options if needed
-- [ ] Update CLAUDE.md with autonomous coding guidance
+- [x] Update CLAUDE.md with autonomous coding guidance
 
 ## Configuration
 
@@ -613,9 +610,9 @@ triggers:
 
 ### Phase 6 Checklist
 
-- [ ] Add `_handle_start_new_session` to `src/gobby/workflows/actions.py`
-- [ ] Register action in `_register_defaults()`
-- [ ] Create `src/gobby/install/shared/workflows/autonomous-loop.yaml`
+- [x] Add `_handle_start_new_session` to `src/gobby/workflows/actions.py`
+- [x] Register action in `_register_defaults()`
+- [x] Create `src/gobby/install/shared/workflows/autonomous-loop.yaml`
 - [ ] Add unit tests (mock subprocess.Popen)
 - [ ] Integration test with real session chaining
 - [ ] Document in CLAUDE.md

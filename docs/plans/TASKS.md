@@ -815,6 +815,7 @@ task_validation:
 - [x] Add `get_task` tool to MCP server
 - [x] Add `update_task` tool to MCP server
 - [x] Add `close_task` tool to MCP server
+- [ ] Add `reopen_task` tool to MCP server
 - [x] Add `delete_task` tool to MCP server
 - [x] Add `list_tasks` tool to MCP server
 - [x] Add `add_dependency` tool to MCP server
@@ -830,7 +831,7 @@ task_validation:
 - [x] Add `get_sync_status` tool to MCP server
 - [x] Update MCP tool documentation
 
-### Phase 8: CLI Commands (Completed)
+### Phase 8: CLI Commands (Mostly Complete)
 
 - [x] Add `gobby tasks` command group to CLI
 - [x] Implement `gobby tasks list` command
@@ -838,15 +839,16 @@ task_validation:
 - [x] Implement `gobby tasks create` command
 - [x] Implement `gobby tasks update` command
 - [x] Implement `gobby tasks close` command
+- [ ] Implement `gobby tasks reopen` command
 - [x] Implement `gobby tasks delete` command
-- [x] Implement `gobby tasks dep add` command
-- [x] Implement `gobby tasks dep remove` command
-- [x] Implement `gobby tasks dep tree` command
-- [x] Implement `gobby tasks dep cycles` command
-- [x] Implement `gobby tasks ready` command
-- [x] Implement `gobby tasks blocked` command
+- [ ] Implement `gobby tasks dep add` command
+- [ ] Implement `gobby tasks dep remove` command
+- [ ] Implement `gobby tasks dep tree` command
+- [ ] Implement `gobby tasks dep cycles` command
+- [ ] Implement `gobby tasks ready` command
+- [ ] Implement `gobby tasks blocked` command
 - [x] Implement `gobby tasks sync` command
-- [x] Implement `gobby tasks stats` command
+- [ ] Implement `gobby tasks stats` command
 - [x] Add CLI help text and examples
 
 ### Phase 9: Hook & Git Integration

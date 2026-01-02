@@ -835,17 +835,26 @@ def create_task_registry(
         parent_task_id: str | None = None,
     ) -> dict[str, Any]:
         """Update task fields."""
-        task = task_manager.update_task(
-            task_id,
-            title=title,
-            description=description,
-            status=status,
-            priority=priority,
-            assignee=assignee,
-            labels=labels,
-            validation_criteria=validation_criteria,
-            parent_task_id=parent_task_id,
-        )
+        # Build kwargs only for non-None values to avoid overwriting with NULL
+        kwargs: dict[str, Any] = {}
+        if title is not None:
+            kwargs["title"] = title
+        if description is not None:
+            kwargs["description"] = description
+        if status is not None:
+            kwargs["status"] = status
+        if priority is not None:
+            kwargs["priority"] = priority
+        if assignee is not None:
+            kwargs["assignee"] = assignee
+        if labels is not None:
+            kwargs["labels"] = labels
+        if validation_criteria is not None:
+            kwargs["validation_criteria"] = validation_criteria
+        if parent_task_id is not None:
+            kwargs["parent_task_id"] = parent_task_id
+
+        task = task_manager.update_task(task_id, **kwargs)
         if not task:
             return {"error": f"Task {task_id} not found"}
         result: dict[str, Any] = task.to_dict()
