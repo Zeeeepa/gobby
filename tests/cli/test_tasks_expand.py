@@ -26,17 +26,17 @@ def test_expand_command_with_flags(mock_task_manager, mock_expander):
     runner = CliRunner()
 
     with (
-        patch("gobby.cli.tasks.get_task_manager", return_value=mock_task_manager),
+        patch("gobby.cli.tasks.ai.get_task_manager", return_value=mock_task_manager),
         patch(
-            "gobby.cli.tasks.resolve_task_id",
+            "gobby.cli.tasks.ai.resolve_task_id",
             return_value=MagicMock(id="t1", project_id="p1", title="Task 1", description=None),
         ),
-        patch("gobby.cli.tasks.load_config") as mock_config,
+        patch("gobby.config.app.load_config") as mock_config,
         patch("gobby.llm.LLMService"),
         patch("gobby.tasks.expansion.TaskExpander", return_value=mock_expander),
     ):
         # Enable expansion in config
-        mock_config.return_value.task_expansion.enabled = True
+        mock_config.return_value.gobby_tasks.expansion.enabled = True
 
         # Mock successful expansion
         mock_expander.expand_task.return_value = {

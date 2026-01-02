@@ -27,14 +27,14 @@ def mock_normal_config(tmp_path):
     return ctx
 
 
-@patch("gobby.cli.tasks.get_project_context")
-@patch("gobby.cli.tasks.get_task_manager")
+@patch("gobby.cli.tasks._utils.get_project_context")
+@patch("gobby.cli.tasks._utils.get_task_manager")
 def test_stealth_mode_enabled(mock_tm, mock_ctx, mock_stealth_config, tmp_path):
     mock_ctx.return_value = mock_stealth_config
     mock_tm.return_value = MagicMock()
 
     # Mock Path.home() to point to a temporary location
-    with patch("pathlib.Path.home") as mock_home:
+    with patch("gobby.cli.tasks._utils.Path.home") as mock_home:
         mock_home.return_value = tmp_path
 
         # Mock get_sync_manager inside the context where correct config is returned
@@ -44,8 +44,8 @@ def test_stealth_mode_enabled(mock_tm, mock_ctx, mock_stealth_config, tmp_path):
         assert manager.export_path == expected_path
 
 
-@patch("gobby.cli.tasks.get_project_context")
-@patch("gobby.cli.tasks.get_task_manager")
+@patch("gobby.cli.tasks._utils.get_project_context")
+@patch("gobby.cli.tasks._utils.get_task_manager")
 def test_stealth_mode_disabled(mock_tm, mock_ctx, mock_normal_config):
     mock_ctx.return_value = mock_normal_config
     mock_tm.return_value = MagicMock()
