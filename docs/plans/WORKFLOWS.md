@@ -1263,7 +1263,7 @@ async def get_workflow_audit(
 
 ### Example Audit Output
 
-```
+```bash
 $ gobby workflow audit --result block
 
 [2024-01-15 10:23:45] BLOCK tool_call

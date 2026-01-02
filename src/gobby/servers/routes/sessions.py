@@ -100,7 +100,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Error registering session: {e}", exc_info=True)
             raise HTTPException(
-                status_code=500, detail=f"Internal error during session registration: {e}"
+                status_code=500, detail="Internal server error while registering session"
             ) from e
 
     @router.get("")

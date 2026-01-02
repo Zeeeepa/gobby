@@ -88,7 +88,7 @@ class Task:
             project_id=row["project_id"],
             title=row["title"],
             status=row["status"],
-            priority=row["priority"],
+            priority=normalize_priority(row["priority"]),
             task_type=row["type"],  # DB column is 'type'
             created_at=row["created_at"],
             updated_at=row["updated_at"],

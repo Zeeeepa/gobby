@@ -21,7 +21,8 @@ def add_label(task_id: str, label: str) -> None:
     manager = get_task_manager()
     resolved = resolve_task_id(manager, task_id)
     if not resolved:
-        return
+        click.secho(f"Error: Could not resolve task '{task_id}'", fg="red", err=True)
+        raise SystemExit(1)
 
     manager.add_label(resolved.id, label)
     click.echo(f"Added label '{label}' to task {resolved.id}")
@@ -35,7 +36,8 @@ def remove_label(task_id: str, label: str) -> None:
     manager = get_task_manager()
     resolved = resolve_task_id(manager, task_id)
     if not resolved:
-        return
+        click.secho(f"Error: Could not resolve task '{task_id}'", fg="red", err=True)
+        raise SystemExit(1)
 
     manager.remove_label(resolved.id, label)
     click.echo(f"Removed label '{label}' from task {resolved.id}")

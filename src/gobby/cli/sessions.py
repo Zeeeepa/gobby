@@ -358,9 +358,17 @@ def create_handoff(session_id: str | None, notes: str | None) -> None:
     # Read and parse transcript
     turns = []
     with open(path) as f:
-        for line in f:
+        for line_num, line in enumerate(f, start=1):
             if line.strip():
-                turns.append(json.loads(line))
+                try:
+                    turns.append(json.loads(line))
+                except json.JSONDecodeError as e:
+                    snippet = line[:50] + "..." if len(line) > 50 else line.strip()
+                    click.echo(
+                        f"Warning: Skipping malformed JSON at line {line_num}: {e} ({snippet})",
+                        err=True,
+                    )
+                    continue
 
     if not turns:
         click.echo("Transcript is empty.", err=True)

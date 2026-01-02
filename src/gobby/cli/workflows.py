@@ -146,9 +146,12 @@ def show_workflow(ctx: click.Context, name: str, json_format: bool) -> None:
             if step.description:
                 click.echo(f"      {step.description}")
             if step.allowed_tools:
-                tools = step.allowed_tools[:5]
-                more = f" (+{len(step.allowed_tools) - 5})" if len(step.allowed_tools) > 5 else ""
-                click.echo(f"      Allowed tools: {', '.join(tools)}{more}")
+                if step.allowed_tools == "all":
+                    click.echo("      Allowed tools: all")
+                else:
+                    tools = step.allowed_tools[:5]
+                    more = f" (+{len(step.allowed_tools) - 5})" if len(step.allowed_tools) > 5 else ""
+                    click.echo(f"      Allowed tools: {', '.join(tools)}{more}")
             if step.blocked_tools:
                 click.echo(f"      Blocked tools: {', '.join(step.blocked_tools[:5])}")
 
@@ -476,7 +479,7 @@ def disable_workflow(ctx: click.Context, session_id: str | None, reason: str | N
 
     state_manager.save_state(state)
     click.echo(f"✓ Disabled workflow '{state.workflow_name}'")
-    click.echo("  Tool restrictions and phase enforcement are now suspended.")
+    click.echo("  Tool restrictions and step enforcement are now suspended.")
     click.echo("  Use 'gobby workflow enable' to re-enable.")
 
 

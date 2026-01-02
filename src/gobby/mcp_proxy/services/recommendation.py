@@ -47,6 +47,7 @@ class RecommendationService:
         search_mode: SearchMode = "llm",
         top_k: int = 10,
         min_similarity: float = 0.3,
+        project_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Recommend tools based on task description.
@@ -60,23 +61,27 @@ class RecommendationService:
                 - "hybrid": Combine semantic search with LLM ranking
             top_k: Maximum recommendations to return (for semantic/hybrid)
             min_similarity: Minimum similarity threshold (for semantic/hybrid)
+            project_id: Project ID for semantic/hybrid search (overrides instance default)
 
         Returns:
             Dict with recommendations and metadata
         """
+        # Use provided project_id or fall back to instance default
+        effective_project_id = project_id or self._project_id
+
         if search_mode == "semantic":
             return await self._recommend_semantic(
-                task_description, top_k, min_similarity
+                task_description, top_k, min_similarity, effective_project_id
             )
         elif search_mode == "hybrid":
             return await self._recommend_hybrid(
-                task_description, top_k, min_similarity
+                task_description, top_k, min_similarity, effective_project_id
             )
         else:
             return await self._recommend_llm(task_description)
 
     async def _recommend_semantic(
-        self, task_description: str, top_k: int, min_similarity: float
+        self, task_description: str, top_k: int, min_similarity: float, project_id: str | None
     ) -> dict[str, Any]:
         """Recommend tools using semantic similarity search."""
         if not self._semantic_search:
@@ -86,7 +91,7 @@ class RecommendationService:
                 "task": task_description,
             }
 
-        if not self._project_id:
+        if not project_id:
             return {
                 "success": False,
                 "error": "Project ID not set for semantic search",
@@ -96,7 +101,7 @@ class RecommendationService:
         try:
             results = await self._semantic_search.search_tools(
                 query=task_description,
-                project_id=self._project_id,
+                project_id=project_id,
                 top_k=top_k,
                 min_similarity=min_similarity,
             )
@@ -124,12 +129,12 @@ class RecommendationService:
             return {"success": False, "error": str(e), "task": task_description}
 
     async def _recommend_hybrid(
-        self, task_description: str, top_k: int, min_similarity: float
+        self, task_description: str, top_k: int, min_similarity: float, project_id: str | None
     ) -> dict[str, Any]:
         """Recommend tools using semantic search + LLM re-ranking."""
         # First get semantic results
         semantic_result = await self._recommend_semantic(
-            task_description, top_k * 2, min_similarity  # Get more for re-ranking
+            task_description, top_k * 2, min_similarity, project_id  # Get more for re-ranking
         )
 
         if not semantic_result.get("success") or not semantic_result.get("recommendations"):

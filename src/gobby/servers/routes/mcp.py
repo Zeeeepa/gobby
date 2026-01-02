@@ -644,12 +644,10 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
                 raise HTTPException(status_code=400, detail="Required field: task_description")
 
             # For semantic/hybrid modes, resolve project_id from cwd
+            project_id = None
             if search_mode in ("semantic", "hybrid"):
                 try:
                     project_id = server._resolve_project_id(None, cwd)
-                    # Temporarily set project_id on the recommendation service
-                    if server._tools_handler:
-                        server._tools_handler.recommendation._project_id = project_id
                 except ValueError as e:
                     return {
                         "success": False,
@@ -666,6 +664,7 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
                     search_mode=search_mode,
                     top_k=top_k,
                     min_similarity=min_similarity,
+                    project_id=project_id,
                 )
                 response_time_ms = (time.perf_counter() - start_time) * 1000
                 result["response_time_ms"] = response_time_ms

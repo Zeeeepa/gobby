@@ -171,6 +171,7 @@ class GobbyDaemonTools:
         search_mode: SearchMode = "llm",
         top_k: int = 10,
         min_similarity: float = 0.3,
+        project_id: str | None = None,
     ) -> dict[str, Any]:
         """Recommend tools for a task.
 
@@ -180,6 +181,7 @@ class GobbyDaemonTools:
             search_mode: How to search - "llm" (default), "semantic", or "hybrid"
             top_k: Maximum recommendations to return (semantic/hybrid modes)
             min_similarity: Minimum similarity threshold (semantic/hybrid modes)
+            project_id: Project ID for semantic/hybrid search
 
         Returns:
             Dict with tool recommendations
@@ -190,6 +192,7 @@ class GobbyDaemonTools:
             search_mode=search_mode,
             top_k=top_k,
             min_similarity=min_similarity,
+            project_id=project_id,
         )
 
     # --- Semantic Search ---
