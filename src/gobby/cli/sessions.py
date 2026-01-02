@@ -296,3 +296,126 @@ def session_stats(project_id: str | None) -> None:
     click.echo("\n  By Source:")
     for source, count in sorted(by_source.items()):
         click.echo(f"    {source}: {count}")
+
+
+@sessions.command("handoff")
+@click.option("--session-id", "-s", help="Session ID (defaults to current active session)")
+@click.argument("notes", required=False)
+def create_handoff(session_id: str | None, notes: str | None) -> None:
+    """Create handoff context for a session.
+
+    Extracts structured context from the session transcript:
+    - Active gobby-task
+    - TodoWrite state
+    - Files modified
+    - Git commits and status
+    - Initial goal
+    - Recent activity
+
+    If no session ID is provided, uses the current project's most recent active session.
+    """
+    import subprocess
+    from pathlib import Path
+
+    from gobby.mcp_proxy.tools.session_messages import _format_handoff_markdown
+    from gobby.sessions.analyzer import TranscriptAnalyzer
+
+    manager = get_session_manager()
+
+    # Find session
+    if session_id:
+        session = manager.get(session_id)
+        if not session:
+            # Try prefix match
+            all_sessions = manager.list(limit=1000)
+            matches = [s for s in all_sessions if s.id.startswith(session_id)]
+            if len(matches) == 1:
+                session = matches[0]
+            elif len(matches) > 1:
+                click.echo(f"Ambiguous session ID '{session_id}'", err=True)
+                return
+            else:
+                click.echo(f"Session not found: {session_id}", err=True)
+                return
+    else:
+        # Get most recent active session
+        sessions_list = manager.list(status="active", limit=1)
+        if not sessions_list:
+            click.echo("No active session found. Specify --session-id.", err=True)
+            return
+        session = sessions_list[0]
+
+    # Check for transcript
+    if not session.jsonl_path:
+        click.echo(f"Session {session.id[:12]} has no transcript path.", err=True)
+        return
+
+    path = Path(session.jsonl_path)
+    if not path.exists():
+        click.echo(f"Transcript file not found: {path}", err=True)
+        return
+
+    # Read and parse transcript
+    turns = []
+    with open(path) as f:
+        for line in f:
+            if line.strip():
+                turns.append(json.loads(line))
+
+    if not turns:
+        click.echo("Transcript is empty.", err=True)
+        return
+
+    # Analyze transcript
+    analyzer = TranscriptAnalyzer()
+    handoff_ctx = analyzer.extract_handoff_context(turns)
+
+    # Enrich with real-time git status
+    if not handoff_ctx.git_status:
+        try:
+            result = subprocess.run(
+                ["git", "status", "--short"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                cwd=path.parent,
+            )
+            handoff_ctx.git_status = result.stdout.strip() if result.returncode == 0 else ""
+        except Exception:
+            pass
+
+    # Get recent git commits
+    try:
+        result = subprocess.run(
+            ["git", "log", "--oneline", "-10", "--format=%H|%s"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            cwd=path.parent,
+        )
+        if result.returncode == 0:
+            commits = []
+            for line in result.stdout.strip().split("\n"):
+                if "|" in line:
+                    hash_val, message = line.split("|", 1)
+                    commits.append({"hash": hash_val, "message": message})
+            if commits:
+                handoff_ctx.git_commits = commits
+    except Exception:
+        pass
+
+    # Format and save
+    markdown = _format_handoff_markdown(handoff_ctx, notes)
+    manager.update_compact_markdown(session.id, markdown)
+
+    # Output summary
+    click.echo(f"Created handoff context for session {session.id[:12]}")
+    click.echo(f"  Markdown length: {len(markdown)} chars")
+    click.echo(f"  Active task: {'Yes' if handoff_ctx.active_gobby_task else 'No'}")
+    click.echo(f"  Todo items: {len(handoff_ctx.todo_state)}")
+    click.echo(f"  Files modified: {len(handoff_ctx.files_modified)}")
+    click.echo(f"  Git commits: {len(handoff_ctx.git_commits)}")
+    click.echo(f"  Initial goal: {'Yes' if handoff_ctx.initial_goal else 'No'}")
+
+    if notes:
+        click.echo(f"  Notes: {notes[:50]}{'...' if len(notes) > 50 else ''}")
