@@ -710,12 +710,12 @@ class TestEnsureDaemonRunningFailures:
                 with patch("gobby.mcp_proxy.stdio.start_daemon_process") as mock_start:
                     mock_start.return_value = {"success": False, "error": "failed"}
 
-                    with patch("sys.exit") as mock_exit:
+                    # Use side_effect to make sys.exit raise SystemExit
+                    with patch("sys.exit", side_effect=SystemExit(1)) as mock_exit:
                         from gobby.mcp_proxy.stdio import ensure_daemon_running
 
-                        # Ensure exit is raised/called
-                        # sys.exit usually raises SystemExit which pytest catches
-                        with pytest.raises(SystemExit):  # Expect exit(1) to be called
+                        # sys.exit(1) will raise SystemExit due to side_effect
+                        with pytest.raises(SystemExit):
                             await ensure_daemon_running()
 
                         mock_exit.assert_called_with(1)
@@ -736,7 +736,8 @@ class TestEnsureDaemonRunningFailures:
                             with patch(
                                 "gobby.mcp_proxy.stdio.asyncio.sleep", new_callable=AsyncMock
                             ):
-                                with patch("sys.exit") as mock_exit:
+                                # Use side_effect to make sys.exit raise SystemExit
+                                with patch("sys.exit", side_effect=SystemExit(1)) as mock_exit:
                                     from gobby.mcp_proxy.stdio import ensure_daemon_running
 
                                     with pytest.raises(SystemExit):

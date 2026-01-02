@@ -245,7 +245,7 @@ def status(ctx: click.Context) -> None:
         click.echo(f"Note: Stale PID file found (PID {pid})")
         sys.exit(0)
 
-    # Get process info
+    # Get process info for uptime (fallback)
     try:
         process = psutil.Process(pid)
         uptime_seconds = time.time() - process.create_time()
@@ -256,15 +256,81 @@ def status(ctx: click.Context) -> None:
     http_port = config.daemon_port
     websocket_port = config.websocket.port
 
+    # Try to fetch rich status from daemon API
+    status_kwargs: dict = {
+        "running": True,
+        "pid": pid,
+        "pid_file": str(pid_file),
+        "log_files": str(log_dir),
+        "uptime": uptime_str,
+        "http_port": http_port,
+        "websocket_port": websocket_port,
+    }
+
+    try:
+        response = httpx.get(f"http://localhost:{http_port}/admin/status", timeout=2.0)
+        if response.status_code == 200:
+            data = response.json()
+
+            # Process metrics
+            process_data = data.get("process")
+            if process_data:
+                status_kwargs["memory_mb"] = process_data.get("memory_rss_mb")
+                status_kwargs["cpu_percent"] = process_data.get("cpu_percent")
+
+            # MCP servers
+            mcp_servers = data.get("mcp_servers", {})
+            if mcp_servers:
+                total = len(mcp_servers)
+                connected = sum(1 for s in mcp_servers.values() if s.get("connected"))
+                status_kwargs["mcp_total"] = total
+                status_kwargs["mcp_connected"] = connected
+                status_kwargs["mcp_tools_cached"] = data.get("mcp_tools_cached", 0)
+
+                # Find unhealthy servers
+                unhealthy = []
+                for name, info in mcp_servers.items():
+                    health = info.get("health")
+                    if health and health not in ("healthy", None):
+                        unhealthy.append((name, health))
+                    elif info.get("consecutive_failures", 0) > 0:
+                        unhealthy.append((name, f"{info['consecutive_failures']} failures"))
+                if unhealthy:
+                    status_kwargs["mcp_unhealthy"] = unhealthy
+
+            # Sessions
+            sessions = data.get("sessions", {})
+            if sessions:
+                status_kwargs["sessions_active"] = sessions.get("active", 0)
+                status_kwargs["sessions_paused"] = sessions.get("paused", 0)
+                status_kwargs["sessions_handoff_ready"] = sessions.get("handoff_ready", 0)
+
+            # Tasks
+            tasks = data.get("tasks", {})
+            if tasks:
+                status_kwargs["tasks_open"] = tasks.get("open", 0)
+                status_kwargs["tasks_in_progress"] = tasks.get("in_progress", 0)
+                status_kwargs["tasks_ready"] = tasks.get("ready", 0)
+                status_kwargs["tasks_blocked"] = tasks.get("blocked", 0)
+
+            # Memory & Skills
+            memory = data.get("memory", {})
+            if memory and memory.get("count", 0) > 0:
+                status_kwargs["memories_count"] = memory.get("count", 0)
+                status_kwargs["memories_avg_importance"] = memory.get("avg_importance", 0.0)
+
+            skills = data.get("skills", {})
+            if skills and skills.get("count", 0) > 0:
+                status_kwargs["skills_count"] = skills.get("count", 0)
+                status_kwargs["skills_total_uses"] = skills.get("total_uses", 0)
+
+    except (httpx.ConnectError, httpx.TimeoutException):
+        # Daemon not responding - show basic status
+        pass
+    except Exception as e:
+        logger.debug(f"Failed to fetch daemon status: {e}")
+
     # Format and display status
-    message = format_status_message(
-        running=True,
-        pid=pid,
-        pid_file=str(pid_file),
-        log_files=str(log_dir),
-        uptime=uptime_str,
-        http_port=http_port,
-        websocket_port=websocket_port,
-    )
+    message = format_status_message(**status_kwargs)
     click.echo(message)
     sys.exit(0)

@@ -480,6 +480,7 @@ class HTTPServer:
 
             # Get MCP server status - include ALL configured servers
             mcp_health = {}
+            mcp_tools_cached = 0
             if self.mcp_manager is not None:
                 try:
                     # Iterate over all configured servers, not just connected ones
@@ -503,6 +504,67 @@ class HTTPServer:
                 except Exception as e:
                     logger.warning(f"Failed to get MCP health: {e}")
 
+            # Count internal tools
+            if self._internal_manager:
+                for registry in self._internal_manager.get_all_registries():
+                    mcp_tools_cached += len(registry.list_tools())
+
+            # Get session statistics
+            session_stats = {"active": 0, "paused": 0, "handoff_ready": 0, "total": 0}
+            if self.session_manager is not None:
+                try:
+                    all_sessions = self.session_manager.list(limit=1000)
+                    session_stats["total"] = len(all_sessions)
+                    for s in all_sessions:
+                        if s.status == "active":
+                            session_stats["active"] += 1
+                        elif s.status == "paused":
+                            session_stats["paused"] += 1
+                        elif s.status == "handoff_ready":
+                            session_stats["handoff_ready"] += 1
+                except Exception as e:
+                    logger.warning(f"Failed to get session stats: {e}")
+
+            # Get task statistics
+            task_stats = {"open": 0, "in_progress": 0, "closed": 0, "ready": 0, "blocked": 0}
+            if self.task_manager is not None:
+                try:
+                    all_tasks = self.task_manager.list_tasks(limit=1000)
+                    for t in all_tasks:
+                        if t.status == "open":
+                            task_stats["open"] += 1
+                        elif t.status == "in_progress":
+                            task_stats["in_progress"] += 1
+                        elif t.status == "closed":
+                            task_stats["closed"] += 1
+                    # Get ready and blocked counts
+                    ready_tasks = self.task_manager.list_ready_tasks(limit=1000)
+                    task_stats["ready"] = len(ready_tasks)
+                    blocked_tasks = self.task_manager.list_blocked_tasks(limit=1000)
+                    task_stats["blocked"] = len(blocked_tasks)
+                except Exception as e:
+                    logger.warning(f"Failed to get task stats: {e}")
+
+            # Get memory statistics
+            memory_stats = {"count": 0, "avg_importance": 0.0}
+            if self.memory_manager is not None:
+                try:
+                    stats = self.memory_manager.get_stats()
+                    memory_stats["count"] = stats.get("total_count", 0)
+                    memory_stats["avg_importance"] = stats.get("avg_importance", 0.0)
+                except Exception as e:
+                    logger.warning(f"Failed to get memory stats: {e}")
+
+            # Get skill statistics
+            skill_stats = {"count": 0, "total_uses": 0}
+            if self.skill_learner is not None:
+                try:
+                    skills = self.skill_learner.storage.list_skills(limit=1000)
+                    skill_stats["count"] = len(skills)
+                    skill_stats["total_uses"] = sum(s.usage_count for s in skills)
+                except Exception as e:
+                    logger.warning(f"Failed to get skill stats: {e}")
+
             # Calculate response time
             response_time_ms = (time.perf_counter() - start_time) * 1000
 
@@ -518,6 +580,11 @@ class HTTPServer:
                 "process": process_metrics,
                 "background_tasks": background_tasks,
                 "mcp_servers": mcp_health,
+                "mcp_tools_cached": mcp_tools_cached,
+                "sessions": session_stats,
+                "tasks": task_stats,
+                "memory": memory_stats,
+                "skills": skill_stats,
                 "response_time_ms": response_time_ms,
             }
 

@@ -20,14 +20,13 @@ class TestFormatStatusMessage:
         result = format_status_message(running=True)
 
         assert "Status: Running" in result
-        assert "PID:" not in result  # No PID provided
+        assert "(PID:" not in result  # No PID provided
 
     def test_running_status_with_pid(self):
         """Test running status with PID."""
         result = format_status_message(running=True, pid=12345)
 
-        assert "Status: Running" in result
-        assert "PID: 12345" in result
+        assert "Status: Running (PID: 12345)" in result
 
     def test_running_status_with_uptime(self):
         """Test running status with uptime."""
@@ -43,6 +42,7 @@ class TestFormatStatusMessage:
         )
 
         assert "PID file: /var/run/gobby.pid" in result
+        assert "Paths:" in result
 
     def test_running_status_with_log_files(self):
         """Test running status with log files path."""
@@ -51,7 +51,8 @@ class TestFormatStatusMessage:
             log_files="/var/log/gobby/"
         )
 
-        assert "Log files: /var/log/gobby/" in result
+        assert "Logs: /var/log/gobby/" in result
+        assert "Paths:" in result
 
     def test_server_configuration_with_http_port(self):
         """Test server configuration section with HTTP port."""
@@ -61,7 +62,7 @@ class TestFormatStatusMessage:
         )
 
         assert "Server Configuration:" in result
-        assert "HTTP Port: 8765" in result
+        assert "HTTP: localhost:8765" in result
 
     def test_server_configuration_with_websocket_port(self):
         """Test server configuration section with WebSocket port."""
@@ -71,7 +72,7 @@ class TestFormatStatusMessage:
         )
 
         assert "Server Configuration:" in result
-        assert "WebSocket Port: 8766" in result
+        assert "WebSocket: localhost:8766" in result
 
     def test_server_configuration_with_both_ports(self):
         """Test server configuration with both ports."""
@@ -81,8 +82,8 @@ class TestFormatStatusMessage:
             websocket_port=8766
         )
 
-        assert "HTTP Port: 8765" in result
-        assert "WebSocket Port: 8766" in result
+        assert "HTTP: localhost:8765" in result
+        assert "WebSocket: localhost:8766" in result
 
     def test_no_server_configuration_when_no_ports(self):
         """Test that server configuration section is hidden when no ports."""
@@ -106,17 +107,19 @@ class TestFormatStatusMessage:
         assert "=" * 70 in result
         assert "GOBBY DAEMON STATUS" in result
 
-        # Status section
-        assert "Status: Running" in result
-        assert "PID: 54321" in result
+        # Status section (PID now on status line)
+        assert "Status: Running (PID: 54321)" in result
         assert "Uptime: 2h 30m 15s" in result
+
+        # Paths section (renamed from inline log_files)
+        assert "Paths:" in result
         assert "PID file: /home/user/.gobby/daemon.pid" in result
-        assert "Log files: /home/user/.gobby/logs/" in result
+        assert "Logs: /home/user/.gobby/logs/" in result
 
         # Server configuration section
         assert "Server Configuration:" in result
-        assert "HTTP Port: 8765" in result
-        assert "WebSocket Port: 8766" in result
+        assert "HTTP: localhost:8765" in result
+        assert "WebSocket: localhost:8766" in result
 
     def test_stopped_status_no_details(self):
         """Test stopped status doesn't show running details."""
@@ -154,3 +157,83 @@ class TestFormatStatusMessage:
         assert "\n" in result
         lines = result.split("\n")
         assert len(lines) > 5  # Should have multiple lines
+
+    def test_mcp_proxy_section(self):
+        """Test MCP proxy section with server stats."""
+        result = format_status_message(
+            running=True,
+            mcp_connected=3,
+            mcp_total=5,
+            mcp_tools_cached=42
+        )
+
+        assert "MCP Proxy:" in result
+        assert "Servers: 3 connected / 5 total" in result
+        assert "Tools cached: 42" in result
+
+    def test_mcp_proxy_unhealthy(self):
+        """Test MCP proxy with unhealthy servers."""
+        result = format_status_message(
+            running=True,
+            mcp_connected=2,
+            mcp_total=4,
+            mcp_unhealthy=[("server1", "retry"), ("server2", "failed")]
+        )
+
+        assert "Unhealthy: server1 (retry), server2 (failed)" in result
+
+    def test_sessions_section(self):
+        """Test sessions section."""
+        result = format_status_message(
+            running=True,
+            sessions_active=2,
+            sessions_paused=3,
+            sessions_handoff_ready=1
+        )
+
+        assert "Sessions:" in result
+        assert "Active: 2" in result
+        assert "Paused: 3" in result
+        assert "Handoff Ready: 1" in result
+
+    def test_tasks_section(self):
+        """Test tasks section."""
+        result = format_status_message(
+            running=True,
+            tasks_open=10,
+            tasks_in_progress=2,
+            tasks_ready=5,
+            tasks_blocked=3
+        )
+
+        assert "Tasks:" in result
+        assert "Open: 10" in result
+        assert "In Progress: 2" in result
+        assert "Ready: 5" in result
+        assert "Blocked: 3" in result
+
+    def test_memory_and_skills_section(self):
+        """Test memory and skills section."""
+        result = format_status_message(
+            running=True,
+            memories_count=50,
+            memories_avg_importance=0.65,
+            skills_count=10,
+            skills_total_uses=100
+        )
+
+        assert "Memory & Skills:" in result
+        assert "Memories: 50 (avg importance: 0.65)" in result
+        assert "Skills: 10 (100 total uses)" in result
+
+    def test_process_metrics(self):
+        """Test process metrics (memory, CPU)."""
+        result = format_status_message(
+            running=True,
+            uptime="1h 0m 0s",
+            memory_mb=45.5,
+            cpu_percent=2.3
+        )
+
+        assert "Memory: 45.5 MB" in result
+        assert "CPU: 2.3%" in result

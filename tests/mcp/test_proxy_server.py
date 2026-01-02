@@ -72,6 +72,10 @@ def mock_mcp_manager():
     manager.mcp_db_manager = MagicMock()
     manager.mcp_db_manager.get_cached_tools.return_value = []
 
+    # Lazy connection attributes (added in Sprint 13)
+    manager.lazy_connect = True
+    manager.get_lazy_connection_states = MagicMock(return_value={})
+
     return manager
 
 
