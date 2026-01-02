@@ -268,6 +268,104 @@ git add .gobby/tasks.jsonl
 git commit -m "Update tasks"
 ```
 
+## Workflow Management
+
+### `gobby workflow list`
+
+List available workflows.
+
+```bash
+gobby workflow list [--all] [--json]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--all` | Show all workflows including phase-based |
+| `--json` | Output as JSON |
+
+### `gobby workflow show`
+
+Show workflow details.
+
+```bash
+gobby workflow show <name> [--json]
+```
+
+### `gobby workflow set`
+
+Activate a workflow for a session.
+
+```bash
+gobby workflow set <name> [--session ID] [--phase INITIAL_PHASE]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--session`, `-s` | Session ID (defaults to current) |
+| `--phase`, `-p` | Initial phase (defaults to first) |
+
+**Note:** Only for phase-based workflows. Lifecycle workflows auto-run.
+
+### `gobby workflow status`
+
+Show current workflow state for a session.
+
+```bash
+gobby workflow status [--session ID] [--json]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--session`, `-s` | Session ID (defaults to current) |
+| `--json` | Output as JSON |
+
+### `gobby workflow clear`
+
+Clear/deactivate workflow for a session.
+
+```bash
+gobby workflow clear [--session ID] [--force]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--session`, `-s` | Session ID (defaults to current) |
+| `--force`, `-f` | Skip confirmation |
+
+### `gobby workflow phase`
+
+Manually transition to a phase (escape hatch).
+
+```bash
+gobby workflow phase <phase-name> [--session ID] [--force]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--session`, `-s` | Session ID (defaults to current) |
+| `--force`, `-f` | Skip exit condition checks |
+
+### `gobby workflow artifact`
+
+Mark an artifact as complete.
+
+```bash
+gobby workflow artifact <type> <file-path> [--session ID]
+```
+
+### `gobby workflow import`
+
+Import a workflow from a file.
+
+```bash
+gobby workflow import <source> [--name NAME] [--global]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--name`, `-n` | Override workflow name |
+| `--global` | Install to global directory |
+
 ## Exit Codes
 
 | Code | Meaning |

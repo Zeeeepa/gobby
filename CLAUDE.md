@@ -303,6 +303,99 @@ call_tool(server_name="gobby-skills", tool_name="create_skill", arguments={
 call_tool(server_name="gobby-skills", tool_name="apply_skill", arguments={"skill_id": "sk-abc123"})
 ```
 
+## Workflow Engine
+
+Gobby includes a workflow engine that enforces structured AI agent behavior through phases and tool restrictions.
+
+### Workflow Types
+
+**Lifecycle Workflows** - Event-driven, respond to session events (e.g., `session-handoff` for context handoff). Multiple can run simultaneously.
+
+**Phase-Based Workflows** - State machines with tool restrictions and transitions (e.g., `plan-execute`, `plan-act-reflect`). Only one active per session.
+
+### Key Concepts
+
+- **Phases**: Named states with allowed/blocked tools
+- **Transitions**: Automatic phase changes based on conditions
+- **Exit Conditions**: Requirements to leave a phase (e.g., user approval, artifact exists)
+- **Actions**: Operations executed on phase enter/exit (inject context, capture artifacts, etc.)
+
+### Quick Start
+
+```bash
+# List available workflows
+uv run gobby workflow list
+
+# Activate a workflow for current session
+uv run gobby workflow set plan-execute
+
+# Check workflow status
+uv run gobby workflow status
+
+# Manual phase override (escape hatch)
+uv run gobby workflow phase <phase-name> --force
+```
+
+### Workflow YAML Schema
+
+```yaml
+name: my-workflow
+type: phase              # or "lifecycle"
+extends: base-workflow   # Optional inheritance
+
+phases:
+  - name: plan
+    allowed_tools: [Read, Glob, Grep, WebSearch]
+    blocked_tools: [Edit, Write, Bash]
+    exit_conditions:
+      - type: user_approval
+        prompt: "Ready to implement?"
+
+  - name: execute
+    allowed_tools: all
+
+triggers:
+  on_session_start:
+    - action: enter_phase
+      phase: plan
+```
+
+### Built-in Templates
+
+| Template | Type | Description |
+|----------|------|-------------|
+| `session-handoff` | lifecycle | Session summary and context handoff (default) |
+| `plan-execute` | phase | Planning with tool restrictions, then execution |
+| `react` | phase | Reason-Act-Observe loop |
+| `plan-act-reflect` | phase | Periodic reflection checkpoints |
+| `plan-to-tasks` | phase | Decompose plan into tasks, execute with verification |
+| `test-driven` | phase | TDD: write-test -> implement -> refactor |
+
+### Tool Filtering
+
+When a phase-based workflow is active, `list_tools()` returns only tools allowed in the current phase. Blocked tools are hidden (not grayed out).
+
+### State Behavior
+
+- **Workflow state resets when session ends** - Each session starts fresh
+- **Tasks persist across sessions** - Use `gobby-tasks` for durable work items
+- **Lifecycle workflows auto-run** - `session-handoff` is always active by default
+
+### Platform Notes
+
+- **Claude Code / Gemini CLI**: Full enforcement (tool blocking, context injection)
+- **Codex**: Notify hook only - can track state but cannot enforce restrictions
+
+### File Locations
+
+| Location | Purpose |
+|----------|---------|
+| `~/.gobby/workflows/` | Global workflow definitions |
+| `.gobby/workflows/` | Project-specific workflows |
+| `~/.gobby/workflows/templates/` | Built-in templates |
+
+For complete documentation, see [docs/guides/workflows.md](docs/guides/workflows.md).
+
 ## Testing
 
 Tests use pytest with asyncio support. Key test configuration in `pyproject.toml`:
