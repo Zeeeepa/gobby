@@ -55,7 +55,7 @@ class TestSummaryFileGeneratorInit:
 
     def test_init_without_llm_service(self, mock_transcript_processor):
         """Test initialization without LLM service falls back to ClaudeLLMProvider."""
-        with patch("gobby.sessions.summary.load_config") as mock_load:
+        with patch("gobby.config.app.load_config") as mock_load:
             mock_config = MagicMock()
             mock_load.return_value = mock_config
 
