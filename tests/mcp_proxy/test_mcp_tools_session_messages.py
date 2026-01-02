@@ -138,6 +138,7 @@ def test_full_registry_has_session_tools(full_sessions_registry):
         "session_stats",
         "get_handoff_context",
         "create_handoff",
+        "get_session_commits",
     ]
 
     tools_list = full_sessions_registry.list_tools()
@@ -487,3 +488,131 @@ async def test_pickup_prefix_match(mock_session_manager, full_sessions_registry)
 
     assert result["found"] is True
     assert result["session_id"] == "sess-abc123def"
+
+
+# --- Get Session Commits Tool Tests ---
+
+
+@pytest.mark.asyncio
+async def test_get_session_commits(mock_session_manager, full_sessions_registry):
+    """Test get_session_commits tool execution."""
+    from datetime import datetime, timezone
+    from unittest.mock import patch
+
+    mock_session = _make_mock_session("sess-abc")
+    mock_session.created_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+    mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
+    mock_session_manager.get.return_value = mock_session
+
+    # Mock subprocess.run to return git log output
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = "abc123|Fix bug|2025-01-01T11:00:00+00:00\ndef456|Add feature|2025-01-01T11:30:00+00:00"
+
+    with patch("subprocess.run", return_value=mock_result) as mock_run:
+        result = await full_sessions_registry.call(
+            "get_session_commits", {"session_id": "sess-abc"}
+        )
+
+    mock_session_manager.get.assert_called_with("sess-abc")
+    assert result["session_id"] == "sess-abc"
+    assert result["count"] == 2
+    assert len(result["commits"]) == 2
+    assert result["commits"][0]["hash"] == "abc123"
+    assert result["commits"][0]["message"] == "Fix bug"
+    assert result["commits"][1]["hash"] == "def456"
+    assert "timeframe" in result
+
+
+@pytest.mark.asyncio
+async def test_get_session_commits_not_found(mock_session_manager, full_sessions_registry):
+    """Test get_session_commits returns error when session not found."""
+    mock_session_manager.get.return_value = None
+    mock_session_manager.list.return_value = []
+
+    result = await full_sessions_registry.call(
+        "get_session_commits", {"session_id": "nonexistent"}
+    )
+
+    assert "error" in result
+    assert "not found" in result["error"]
+
+
+@pytest.mark.asyncio
+async def test_get_session_commits_prefix_match(mock_session_manager, full_sessions_registry):
+    """Test get_session_commits supports prefix matching."""
+    from datetime import datetime, timezone
+    from unittest.mock import patch
+
+    mock_session = _make_mock_session("sess-abc123")
+    mock_session.created_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+    mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
+
+    mock_session_manager.get.return_value = None  # Direct lookup fails
+    mock_session_manager.list.return_value = [mock_session]  # Prefix match works
+
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = ""
+
+    with patch("subprocess.run", return_value=mock_result):
+        result = await full_sessions_registry.call(
+            "get_session_commits", {"session_id": "sess-abc"}
+        )
+
+    assert result["session_id"] == "sess-abc123"
+    assert result["count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_get_session_commits_no_commits(mock_session_manager, full_sessions_registry):
+    """Test get_session_commits with no commits in timeframe."""
+    from datetime import datetime, timezone
+    from unittest.mock import patch
+
+    mock_session = _make_mock_session("sess-abc")
+    mock_session.created_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+    mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    mock_session.jsonl_path = None  # No transcript path
+    mock_session_manager.get.return_value = mock_session
+
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = ""
+
+    with patch("subprocess.run", return_value=mock_result):
+        result = await full_sessions_registry.call(
+            "get_session_commits", {"session_id": "sess-abc"}
+        )
+
+    assert result["session_id"] == "sess-abc"
+    assert result["count"] == 0
+    assert result["commits"] == []
+
+
+@pytest.mark.asyncio
+async def test_get_session_commits_git_error(mock_session_manager, full_sessions_registry):
+    """Test get_session_commits handles git errors."""
+    from datetime import datetime, timezone
+    from unittest.mock import patch
+
+    mock_session = _make_mock_session("sess-abc")
+    mock_session.created_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+    mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
+    mock_session_manager.get.return_value = mock_session
+
+    mock_result = MagicMock()
+    mock_result.returncode = 128
+    mock_result.stderr = "fatal: not a git repository"
+
+    with patch("subprocess.run", return_value=mock_result):
+        result = await full_sessions_registry.call(
+            "get_session_commits", {"session_id": "sess-abc"}
+        )
+
+    assert result["session_id"] == "sess-abc"
+    assert "error" in result
+    assert "Git command failed" in result["error"]
