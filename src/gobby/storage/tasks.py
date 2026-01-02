@@ -49,7 +49,10 @@ class Task:
     # Optional fields
     description: str | None = None
     parent_task_id: str | None = None
-    discovered_in_session_id: str | None = None
+    created_in_session_id: str | None = None
+    closed_in_session_id: str | None = None
+    closed_commit_sha: str | None = None
+    closed_at: str | None = None
     assignee: str | None = None
     labels: list[str] | None = None
     closed_reason: str | None = None
@@ -90,7 +93,16 @@ class Task:
             updated_at=row["updated_at"],
             description=row["description"],
             parent_task_id=row["parent_task_id"],
-            discovered_in_session_id=row["discovered_in_session_id"],
+            created_in_session_id=row["created_in_session_id"]
+            if "created_in_session_id" in keys
+            else row.get("discovered_in_session_id"),
+            closed_in_session_id=row["closed_in_session_id"]
+            if "closed_in_session_id" in keys
+            else None,
+            closed_commit_sha=row["closed_commit_sha"]
+            if "closed_commit_sha" in keys
+            else None,
+            closed_at=row["closed_at"] if "closed_at" in keys else None,
             assignee=row["assignee"],
             labels=labels,
             closed_reason=row["closed_reason"],
@@ -134,7 +146,10 @@ class Task:
             "updated_at": self.updated_at,
             "description": self.description,
             "parent_task_id": self.parent_task_id,
-            "discovered_in_session_id": self.discovered_in_session_id,
+            "created_in_session_id": self.created_in_session_id,
+            "closed_in_session_id": self.closed_in_session_id,
+            "closed_commit_sha": self.closed_commit_sha,
+            "closed_at": self.closed_at,
             "assignee": self.assignee,
             "labels": self.labels,
             "closed_reason": self.closed_reason,
@@ -245,7 +260,7 @@ class LocalTaskManager:
         title: str,
         description: str | None = None,
         parent_task_id: str | None = None,
-        discovered_in_session_id: str | None = None,
+        created_in_session_id: str | None = None,
         priority: int = 2,
         task_type: str = "task",
         assignee: str | None = None,
@@ -282,7 +297,7 @@ class LocalTaskManager:
                         """
                         INSERT INTO tasks (
                             id, project_id, title, description, parent_task_id,
-                            discovered_in_session_id, priority, type, assignee,
+                            created_in_session_id, priority, type, assignee,
                             labels, status, created_at, updated_at,
                             original_instruction, validation_status,
                             details, test_strategy, complexity_score,
@@ -297,7 +312,7 @@ class LocalTaskManager:
                             title,
                             description,
                             parent_task_id,
-                            discovered_in_session_id,
+                            created_in_session_id,
                             priority,
                             task_type,  # DB column is 'type'
                             assignee,
@@ -481,13 +496,22 @@ class LocalTaskManager:
         self._notify_listeners()
         return self.get_task(task_id)
 
-    def close_task(self, task_id: str, reason: str | None = None, force: bool = False) -> Task:
+    def close_task(
+        self,
+        task_id: str,
+        reason: str | None = None,
+        force: bool = False,
+        closed_in_session_id: str | None = None,
+        closed_commit_sha: str | None = None,
+    ) -> Task:
         """Close a task.
 
         Args:
             task_id: The task ID to close
             reason: Optional reason for closing
             force: If True, close even if there are open children (default: False)
+            closed_in_session_id: Session ID where task was closed
+            closed_commit_sha: Git commit SHA at time of closing
 
         Raises:
             ValueError: If task not found or has open children (and force=False)
@@ -509,8 +533,15 @@ class LocalTaskManager:
         now = datetime.now(UTC).isoformat()
         with self.db.transaction() as conn:
             cursor = conn.execute(
-                "UPDATE tasks SET status = 'closed', closed_reason = ?, updated_at = ? WHERE id = ?",
-                (reason, now, task_id),
+                """UPDATE tasks SET
+                    status = 'closed',
+                    closed_reason = ?,
+                    closed_at = ?,
+                    closed_in_session_id = ?,
+                    closed_commit_sha = ?,
+                    updated_at = ?
+                WHERE id = ?""",
+                (reason, now, closed_in_session_id, closed_commit_sha, now, task_id),
             )
             if cursor.rowcount == 0:
                 raise ValueError(f"Task {task_id} not found")

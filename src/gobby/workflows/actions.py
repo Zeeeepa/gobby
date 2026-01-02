@@ -645,7 +645,7 @@ class ActionExecutor:
                 tasks_data=tasks,
                 workflow_name=workflow_name or "unnamed",
                 parent_task_id=parent_task_id,
-                discovered_in_session_id=context.session_id,
+                created_in_session_id=context.session_id,
             )
 
             # Store ID mapping in workflow state for reference

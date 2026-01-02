@@ -21,7 +21,7 @@ def persist_decomposed_tasks(
     tasks_data: list[dict[str, Any]],
     workflow_name: str,
     parent_task_id: str | None = None,
-    discovered_in_session_id: str | None = None,
+    created_in_session_id: str | None = None,
 ) -> dict[str, str]:
     """Persist a list of decomposed tasks to the database with ID mapping.
 
@@ -40,7 +40,7 @@ def persist_decomposed_tasks(
             - labels (list[str]): Task labels (optional)
         workflow_name: Name of the workflow these tasks belong to
         parent_task_id: Optional parent task ID for all created tasks
-        discovered_in_session_id: Optional session ID where tasks were discovered
+        created_in_session_id: Optional session ID where task was created
 
     Returns:
         Dict mapping original task references to database task IDs.
@@ -83,7 +83,7 @@ def persist_decomposed_tasks(
                 priority=priority,
                 labels=labels,
                 parent_task_id=parent_task_id,
-                discovered_in_session_id=discovered_in_session_id,
+                created_in_session_id=created_in_session_id,
                 workflow_name=workflow_name,
                 verification=verification,
                 sequence_order=index,

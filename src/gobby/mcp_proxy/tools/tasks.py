@@ -718,7 +718,7 @@ def create_task_registry(
             labels=labels,
             test_strategy=test_strategy,
             validation_criteria=validation_criteria,
-            discovered_in_session_id=session_id,
+            created_in_session_id=session_id,
         )
 
         # Handle 'blocks' argument if provided (syntactic sugar)
@@ -782,7 +782,7 @@ def create_task_registry(
                 },
                 "session_id": {
                     "type": "string",
-                    "description": "Session ID to associate with this task (tracked as discovered_in_session_id)",
+                    "description": "Session ID to associate with this task (tracked as created_in_session_id)",
                     "default": None,
                 },
             },
@@ -951,6 +951,7 @@ def create_task_registry(
         reason: str = "completed",
         changes_summary: str | None = None,
         skip_validation: bool = False,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """Close a task with validation.
 
@@ -962,6 +963,7 @@ def create_task_registry(
             reason: Reason for closing
             changes_summary: Summary of changes (enables LLM validation for leaf tasks)
             skip_validation: Skip all validation checks
+            session_id: Session ID where task is being closed (auto-links to session)
 
         Returns:
             Closed task or error with validation feedback
@@ -1026,15 +1028,33 @@ def create_task_registry(
                             "validation_status": result.status,
                         }
 
-        # All checks passed - close the task
-        closed_task = task_manager.close_task(task_id, reason=reason)
+        # Get git commit SHA (best-effort)
+        from gobby.utils.git import run_git_command
+
+        commit_sha = run_git_command(["git", "rev-parse", "HEAD"], cwd=".")
+
+        # All checks passed - close the task with session and commit tracking
+        closed_task = task_manager.close_task(
+            task_id,
+            reason=reason,
+            closed_in_session_id=session_id,
+            closed_commit_sha=commit_sha,
+        )
+
+        # Auto-link session if provided
+        if session_id:
+            try:
+                session_task_manager.link_task(session_id, task_id, "closed")
+            except Exception:
+                pass  # Best-effort linking, don't fail the close
+
         result: dict[str, Any] = closed_task.to_dict()
         result["validated"] = not should_skip
         return result
 
     registry.register(
         name="close_task",
-        description="Close a task. Parent tasks require all children closed. Leaf tasks validate with LLM. Validation auto-skipped for: duplicate, already_implemented, wont_fix, obsolete.",
+        description="Close a task. Parent tasks require all children closed. Leaf tasks validate with LLM. Validation auto-skipped for: duplicate, already_implemented, wont_fix, obsolete. Automatically captures git commit SHA.",
         input_schema={
             "type": "object",
             "properties": {
@@ -1053,6 +1073,11 @@ def create_task_registry(
                     "type": "boolean",
                     "description": "Explicitly skip validation checks.",
                     "default": False,
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Session ID where task is being closed. Auto-links task to session with 'closed' action.",
+                    "default": None,
                 },
             },
             "required": ["task_id"],
