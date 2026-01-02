@@ -280,7 +280,7 @@ gobby workflow list [--all] [--json]
 
 | Option | Description |
 |--------|-------------|
-| `--all` | Show all workflows including phase-based |
+| `--all` | Show all workflows including step-based |
 | `--json` | Output as JSON |
 
 ### `gobby workflow show`
@@ -296,15 +296,15 @@ gobby workflow show <name> [--json]
 Activate a workflow for a session.
 
 ```bash
-gobby workflow set <name> [--session ID] [--phase INITIAL_PHASE]
+gobby workflow set <name> [--session ID] [--step INITIAL_STEP]
 ```
 
 | Option | Description |
 |--------|-------------|
 | `--session`, `-s` | Session ID (defaults to current) |
-| `--phase`, `-p` | Initial phase (defaults to first) |
+| `--step`, `-p` | Initial step (defaults to first) |
 
-**Note:** Only for phase-based workflows. Lifecycle workflows auto-run.
+**Note:** Only for step-based workflows. Lifecycle workflows auto-run.
 
 ### `gobby workflow status`
 
@@ -332,12 +332,12 @@ gobby workflow clear [--session ID] [--force]
 | `--session`, `-s` | Session ID (defaults to current) |
 | `--force`, `-f` | Skip confirmation |
 
-### `gobby workflow phase`
+### `gobby workflow step`
 
-Manually transition to a phase (escape hatch).
+Manually transition to a step (escape hatch).
 
 ```bash
-gobby workflow phase <phase-name> [--session ID] [--force]
+gobby workflow step <step-name> [--session ID] [--force]
 ```
 
 | Option | Description |

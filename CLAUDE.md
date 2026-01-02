@@ -326,20 +326,20 @@ call_tool(server_name="gobby-skills", tool_name="apply_skill", arguments={"skill
 
 ## Workflow Engine
 
-Gobby includes a workflow engine that enforces structured AI agent behavior through phases and tool restrictions.
+Gobby includes a workflow engine that enforces structured AI agent behavior through steps and tool restrictions.
 
 ### Workflow Types
 
 **Lifecycle Workflows** - Event-driven, respond to session events (e.g., `session-handoff` for context handoff). Multiple can run simultaneously.
 
-**Phase-Based Workflows** - State machines with tool restrictions and transitions (e.g., `plan-execute`, `plan-act-reflect`). Only one active per session.
+**Step-Based Workflows** - State machines with tool restrictions and transitions (e.g., `plan-execute`, `plan-act-reflect`). Only one active per session.
 
 ### Key Concepts
 
-- **Phases**: Named states with allowed/blocked tools
-- **Transitions**: Automatic phase changes based on conditions
-- **Exit Conditions**: Requirements to leave a phase (e.g., user approval, artifact exists)
-- **Actions**: Operations executed on phase enter/exit (inject context, capture artifacts, etc.)
+- **Steps**: Named states with allowed/blocked tools
+- **Transitions**: Automatic step changes based on conditions
+- **Exit Conditions**: Requirements to leave a step (e.g., user approval, artifact exists)
+- **Actions**: Operations executed on step enter/exit (inject context, capture artifacts, etc.)
 
 ### Quick Start
 
@@ -353,18 +353,18 @@ uv run gobby workflow set plan-execute
 # Check workflow status
 uv run gobby workflow status
 
-# Manual phase override (escape hatch)
-uv run gobby workflow phase <phase-name> --force
+# Manual step override (escape hatch)
+uv run gobby workflow step <step-name> --force
 ```
 
 ### Workflow YAML Schema
 
 ```yaml
 name: my-workflow
-type: phase              # or "lifecycle"
+type: stepped            # or "lifecycle"
 extends: base-workflow   # Optional inheritance
 
-phases:
+steps:
   - name: plan
     allowed_tools: [Read, Glob, Grep, WebSearch]
     blocked_tools: [Edit, Write, Bash]
@@ -377,8 +377,8 @@ phases:
 
 triggers:
   on_session_start:
-    - action: enter_phase
-      phase: plan
+    - action: enter_step
+      step: plan
 ```
 
 ### Built-in Templates
@@ -386,15 +386,15 @@ triggers:
 | Template | Type | Description |
 |----------|------|-------------|
 | `session-handoff` | lifecycle | Session summary and context handoff (default) |
-| `plan-execute` | phase | Planning with tool restrictions, then execution |
-| `react` | phase | Reason-Act-Observe loop |
-| `plan-act-reflect` | phase | Periodic reflection checkpoints |
-| `plan-to-tasks` | phase | Decompose plan into tasks, execute with verification |
-| `test-driven` | phase | TDD: write-test -> implement -> refactor |
+| `plan-execute` | stepped | Planning with tool restrictions, then execution |
+| `react` | stepped | Reason-Act-Observe loop |
+| `plan-act-reflect` | stepped | Periodic reflection checkpoints |
+| `plan-to-tasks` | stepped | Decompose plan into tasks, execute with verification |
+| `test-driven` | stepped | TDD: write-test -> implement -> refactor |
 
 ### Tool Filtering
 
-When a phase-based workflow is active, `list_tools()` returns only tools allowed in the current phase. Blocked tools are hidden (not grayed out).
+When a step-based workflow is active, `list_tools()` returns only tools allowed in the current step. Blocked tools are hidden (not grayed out).
 
 ### Configuration
 

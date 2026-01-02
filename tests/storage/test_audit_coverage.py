@@ -1,0 +1,142 @@
+import pytest
+import sqlite3
+import json
+from datetime import datetime, timedelta, UTC
+from unittest.mock import MagicMock
+from gobby.storage.workflow_audit import WorkflowAuditManager
+from gobby.storage.database import LocalDatabase
+
+
+@pytest.fixture
+def test_db(tmp_path):
+    """Create a temporary database for testing."""
+    db_path = tmp_path / "test_audit.db"
+    db = LocalDatabase(str(db_path))
+    # Create the table manually as we don't have migrations in this test context
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS workflow_audit_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            step TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            tool_name TEXT,
+            rule_id TEXT,
+            condition TEXT,
+            result TEXT NOT NULL,
+            reason TEXT,
+            context TEXT
+        )
+    """)
+    return db
+
+
+@pytest.fixture
+def audit_manager(test_db):
+    """Create an audit manager instance."""
+    return WorkflowAuditManager(test_db)
+
+
+def test_log_basic_entry(audit_manager):
+    """Test logging a basic entry."""
+    row_id = audit_manager.log(
+        session_id="sess-1", step="plan", event_type="tool_call", result="allow", reason="whitelist"
+    )
+    assert row_id is not None
+
+    count = audit_manager.get_entry_count()
+    assert count == 1
+
+    entries = audit_manager.get_entries()
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry.session_id == "sess-1"
+    assert entry.step == "plan"
+    assert entry.result == "allow"
+    assert entry.reason == "whitelist"
+
+
+def test_log_helpers(audit_manager):
+    """Test helper logging methods."""
+    # log_tool_call
+    audit_manager.log_tool_call(
+        session_id="sess-1", step="exec", tool_name="read_file", result="block", reason="bad file"
+    )
+
+    # log_rule_eval
+    audit_manager.log_rule_eval(
+        session_id="sess-1", step="exec", rule_id="r1", condition="always", result="allow"
+    )
+
+    # log_transition
+    audit_manager.log_transition(session_id="sess-1", from_step="plan", to_step="exec")
+
+    # log_exit_check
+    audit_manager.log_exit_check(session_id="sess-1", step="exec", condition="done", result="met")
+
+    # log_approval
+    audit_manager.log_approval(
+        session_id="sess-1", step="check", result="approved", condition_id="c1", prompt="approve?"
+    )
+
+    assert audit_manager.get_entry_count() == 5
+
+
+def test_get_entries_filtering(audit_manager):
+    """Test filtering entries."""
+    audit_manager.log(session_id="s1", step="1", event_type="e1", result="allow")
+    audit_manager.log(session_id="s2", step="1", event_type="e2", result="block")
+    audit_manager.log(session_id="s1", step="1", event_type="e3", result="block")
+
+    # Filter by session
+    entries = audit_manager.get_entries(session_id="s1")
+    assert len(entries) == 2
+    assert all(e.session_id == "s1" for e in entries)
+
+    # Filter by result
+    entries = audit_manager.get_entries(result="block")
+    assert len(entries) == 2
+    assert all(e.result == "block" for e in entries)
+
+    # Limit
+    entries = audit_manager.get_entries(limit=1)
+    assert len(entries) == 1
+
+
+def test_cleanup_entries(audit_manager, test_db):
+    """Test cleaning up old entries."""
+    # Insert old entry manually to bypass generic timestamp usage in log()
+    old_time = (datetime.now(UTC) - timedelta(days=10)).isoformat()
+    test_db.execute(
+        "INSERT INTO workflow_audit_log (session_id, timestamp, step, event_type, result) VALUES (?, ?, ?, ?, ?)",
+        ("old", old_time, "s", "e", "r"),
+    )
+
+    # Insert new entry
+    audit_manager.log("new", "s", "e", "allow")
+
+    assert audit_manager.get_entry_count() == 2
+
+    deleted = audit_manager.cleanup_old_entries(days=7)
+    assert deleted == 1
+
+    assert audit_manager.get_entry_count() == 1
+    entries = audit_manager.get_entries()
+    assert entries[0].session_id == "new"
+
+
+def test_log_error_handling(audit_manager):
+    """Test error handling in log method."""
+    # Break the DB connection to force error
+    # By convention, if we close the connection inside LocalDatabase, generic execute might check.
+    # But LocalDatabase manages connections per execute usually? No, it holds conn.
+    # We can mock db.execute to raise Exception.
+
+    original_execute = audit_manager.db.execute
+    audit_manager.db.execute = MagicMock(side_effect=Exception("DB Error"))
+
+    row_id = audit_manager.log("s1", "step", "event", "result")
+    assert row_id is None
+
+    # Cleanup
+    audit_manager.db.execute = original_execute
