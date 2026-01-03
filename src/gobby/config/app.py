@@ -873,7 +873,7 @@ class WorkflowConfig(BaseModel):
         description="Require an active gobby-task (in_progress) before allowing Edit/Write tools",
     )
     protected_tools: list[str] = Field(
-        default=["Edit", "Write", "NotebookEdit"],
+        default_factory=lambda: ["Edit", "Write", "NotebookEdit"],
         description="Tools that require an active task when require_task_before_edit is enabled",
     )
 

@@ -488,22 +488,21 @@ class TestLocalSessionManager:
         assert updated is not None
         assert updated.parent_session_id == parent.id
 
-    def test_session_should_not_be_its_own_parent(
+    def test_storage_allows_self_parenting_without_guard(
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
     ):
         """
-        Regression test: Session should never reference itself as parent.
+        Test that storage layer allows setting a session as its own parent.
 
-        This tests the scenario where a session is marked handoff_ready during
-        pre_compact, then on session_start with source='compact', the same
-        session is found as the "parent" and incorrectly set as its own parent.
+        This documents that the storage layer does NOT prevent self-parenting.
+        The prevention logic is handled at the hook_manager level by not looking
+        for parent sessions on 'compact' events, only on 'clear' events.
 
-        The fix is in hook_manager.py: don't look for parent sessions on 'compact'
-        events, only on 'clear' events.
+        This test verifies the storage behavior so we know the guard must be
+        at a higher level.
         """
-        # Simulate the bug scenario:
         # 1. Create a session
         session = session_manager.register(
             external_id="compact-session",
@@ -515,7 +514,7 @@ class TestLocalSessionManager:
         # 2. Mark it handoff_ready (simulating pre_compact)
         session_manager.update_status(session.id, "handoff_ready")
 
-        # 3. Find parent (this is what happens on session_start)
+        # 3. Find parent - this finds the same session since it matches criteria
         parent = session_manager.find_parent(
             machine_id="machine",
             project_id=sample_project["id"],
@@ -523,20 +522,18 @@ class TestLocalSessionManager:
             status="handoff_ready",
         )
 
-        # The bug was: parent.id == session.id, then we'd set parent_session_id to itself
+        # The storage layer finds the session as its own "parent"
         assert parent is not None
-        assert parent.id == session.id  # This is expected - it finds itself
+        assert parent.id == session.id  # Storage layer returns itself
 
-        # The KEY assertion: we should NEVER set a session as its own parent
-        # This is enforced in hook_manager.py by not looking for parents on 'compact'
-        # But if we did, this would be the bug:
-        if parent.id == session.id:
-            # In real code, this should be prevented at the hook_manager level
-            # by checking session_source == "clear" (not "compact")
-            pass  # Don't actually set self-referential parent
+        # 4. Verify storage layer allows self-parenting (no guard at this level)
+        # This demonstrates that the hook_manager MUST prevent this case
+        updated = session_manager.update_parent_session_id(session.id, session.id)
+        assert updated is not None
+        assert updated.parent_session_id == session.id  # Storage allows it
 
-        # Verify the session doesn't have itself as parent
-        current = session_manager.get(session.id)
-        assert current.parent_session_id != current.id, (
-            "Session should never reference itself as parent_session_id"
-        )
+        # The fix for the self-parenting bug is in hook_manager.py:
+        # - On 'compact' events: don't look for parent sessions
+        # - On 'clear' events: look for handoff_ready sessions as parent
+        # This test proves the storage layer has no guard, validating the
+        # architecture decision to handle this at the hook_manager level.

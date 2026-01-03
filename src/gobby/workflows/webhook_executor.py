@@ -326,7 +326,7 @@ class WebhookExecutor:
                 # Non-retryable error
                 return result
 
-            except TimeoutError:
+            except (asyncio.TimeoutError, TimeoutError):
                 last_error = f"Timeout after {timeout}s"
                 logger.debug(f"Webhook timeout: {url}")
                 continue  # Retry on timeout

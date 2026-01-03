@@ -87,6 +87,10 @@ class PluginAction:
 
 def _check_type(value: Any, expected_type: str) -> bool:
     """Check if a value matches a JSON Schema type."""
+    # Explicitly reject bool for numeric types since bool is a subclass of int
+    if expected_type in ("integer", "number") and isinstance(value, bool):
+        return False
+
     type_map = {
         "string": str,
         "number": (int, float),
