@@ -381,31 +381,39 @@ History:
     def _summarize_results(self, context: dict) -> dict[str, Any]:
         """Convert agent history into structured context."""
         # Extract files that were read or found relevant
-        # This is heuristics based on what tools were called successfully
-        relevant_files = []
+        found_files = set()
+        web_search_results: list[dict[str, Any]] = []
 
-        for item in context["history"]:
+        # Process history to extract files and web search results
+        history = context["history"]
+        i = 0
+        while i < len(history):
+            item = history[i]
             if item["role"] == "model":
                 action = item.get("parsed_action")
-                if action and action["tool"] == "read_file":
-                    fname = action["args"][0]
-                    relevant_files.append(fname)
-            elif item["role"] == "tool":
-                # If we read a file, the output is the snippet
-                # We need to link it back to the filename which is hard without index
-                pass
+                if action:
+                    tool = action["tool"]
+                    args = action.get("args", [])
 
-        # Easier: Just look at the snippets dict if we populated it during execution
-        # (We didn't in _read_file, let's fix that or just use the history)
+                    if tool == "read_file" and args:
+                        found_files.add(args[0])
 
-        # Let's populate found_files from read_file calls
-        found = set()
-        for action in [x["parsed_action"] for x in context["history"] if x.get("parsed_action")]:
-            if action and action["tool"] == "read_file" and action["args"]:
-                found.add(action["args"][0])
+                    # Capture web search results (action followed by tool output)
+                    if tool in ("search_web", "google_search", "brave_search") and args:
+                        query = args[0]
+                        # Look for the tool output in the next item
+                        if i + 1 < len(history) and history[i + 1]["role"] == "tool":
+                            result = history[i + 1]["content"]
+                            web_search_results.append({
+                                "tool": tool,
+                                "query": query,
+                                "result": result[:2000] if len(result) > 2000 else result,
+                            })
+            i += 1
 
         return {
-            "relevant_files": list(found),
-            "findings": "Agent research completed.",  # Could summarize history with LLM if needed
-            "raw_history": context["history"],
+            "relevant_files": list(found_files),
+            "findings": "Agent research completed.",
+            "web_research": web_search_results,
+            "raw_history": history,
         }

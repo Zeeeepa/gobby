@@ -30,6 +30,37 @@ DEFAULT_COMMIT_WINDOW = 10
 DEFAULT_MAX_CHARS = 50000
 
 
+def run_git_command(
+    cmd: list[str],
+    cwd: str | Path | None = None,
+    timeout: int = 10,
+) -> subprocess.CompletedProcess | None:
+    """Run git command with standardized exception handling.
+
+    Returns CompletedProcess on success, None on exception (logs debug).
+    Caller is responsible for checking returncode and processing stdout.
+
+    Args:
+        cmd: Git command as list of strings (e.g., ["git", "diff"])
+        cwd: Working directory for the command
+        timeout: Command timeout in seconds (default: 10)
+
+    Returns:
+        CompletedProcess on success, None if exception occurred
+    """
+    try:
+        return subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=cwd,
+        )
+    except Exception as e:
+        logger.debug(f"Git command failed ({' '.join(cmd)}): {e}")
+        return None
+
+
 def get_last_commit_diff(
     max_chars: int = DEFAULT_MAX_CHARS,
     cwd: str | Path | None = None,
@@ -43,27 +74,15 @@ def get_last_commit_diff(
     Returns:
         Diff string from HEAD~1..HEAD, or None if not available
     """
-    try:
-        result = subprocess.run(
-            ["git", "diff", "HEAD~1..HEAD"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=cwd,
-        )
-
-        if result.returncode != 0 or not result.stdout.strip():
-            return None
-
-        diff = result.stdout
-        if len(diff) > max_chars:
-            diff = diff[:max_chars] + "\n\n... [diff truncated] ..."
-
-        return diff
-
-    except Exception as e:
-        logger.debug(f"Failed to get last commit diff: {e}")
+    result = run_git_command(["git", "diff", "HEAD~1..HEAD"], cwd=cwd)
+    if result is None or result.returncode != 0 or not result.stdout.strip():
         return None
+
+    diff = result.stdout
+    if len(diff) > max_chars:
+        diff = diff[:max_chars] + "\n\n... [diff truncated] ..."
+
+    return diff
 
 
 def get_recent_commits(
@@ -79,29 +98,17 @@ def get_recent_commits(
     Returns:
         List of dicts with 'sha' and 'subject' keys
     """
-    try:
-        result = subprocess.run(
-            ["git", "log", f"-{n}", "--pretty=format:%H|%s"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=cwd,
-        )
-
-        if result.returncode != 0 or not result.stdout.strip():
-            return []
-
-        commits = []
-        for line in result.stdout.strip().split("\n"):
-            if "|" in line:
-                sha, subject = line.split("|", 1)
-                commits.append({"sha": sha, "subject": subject})
-
-        return commits
-
-    except Exception as e:
-        logger.debug(f"Failed to get recent commits: {e}")
+    result = run_git_command(["git", "log", f"-{n}", "--pretty=format:%H|%s"], cwd=cwd)
+    if result is None or result.returncode != 0 or not result.stdout.strip():
         return []
+
+    commits = []
+    for line in result.stdout.strip().split("\n"):
+        if "|" in line:
+            sha, subject = line.split("|", 1)
+            commits.append({"sha": sha, "subject": subject})
+
+    return commits
 
 
 def get_multi_commit_diff(
@@ -119,28 +126,17 @@ def get_multi_commit_diff(
     Returns:
         Combined diff string, or None if not available
     """
-    try:
-        # Get diff from HEAD~N to HEAD
-        result = subprocess.run(
-            ["git", "diff", f"HEAD~{commit_count}..HEAD"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            cwd=cwd,
-        )
-
-        if result.returncode != 0 or not result.stdout.strip():
-            return None
-
-        diff = result.stdout
-        if len(diff) > max_chars:
-            diff = diff[:max_chars] + "\n\n... [diff truncated] ..."
-
-        return diff
-
-    except Exception as e:
-        logger.debug(f"Failed to get multi-commit diff: {e}")
+    result = run_git_command(
+        ["git", "diff", f"HEAD~{commit_count}..HEAD"], cwd=cwd, timeout=30
+    )
+    if result is None or result.returncode != 0 or not result.stdout.strip():
         return None
+
+    diff = result.stdout
+    if len(diff) > max_chars:
+        diff = diff[:max_chars] + "\n\n... [diff truncated] ..."
+
+    return diff
 
 
 def get_commits_since(
@@ -158,27 +154,15 @@ def get_commits_since(
     Returns:
         Diff string, or None if not available
     """
-    try:
-        result = subprocess.run(
-            ["git", "diff", f"{since_sha}..HEAD"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-            cwd=cwd,
-        )
-
-        if result.returncode != 0 or not result.stdout.strip():
-            return None
-
-        diff = result.stdout
-        if len(diff) > max_chars:
-            diff = diff[:max_chars] + "\n\n... [diff truncated] ..."
-
-        return diff
-
-    except Exception as e:
-        logger.debug(f"Failed to get commits since {since_sha}: {e}")
+    result = run_git_command(["git", "diff", f"{since_sha}..HEAD"], cwd=cwd, timeout=30)
+    if result is None or result.returncode != 0 or not result.stdout.strip():
         return None
+
+    diff = result.stdout
+    if len(diff) > max_chars:
+        diff = diff[:max_chars] + "\n\n... [diff truncated] ..."
+
+    return diff
 
 
 def extract_file_patterns_from_text(text: str) -> list[str]:
@@ -336,34 +320,17 @@ def get_validation_context_smart(
     remaining_chars = max_chars
 
     # Strategy 1: Current uncommitted changes
-    try:
-        unstaged = subprocess.run(
-            ["git", "diff"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=cwd,
-        )
-        staged = subprocess.run(
-            ["git", "diff", "--cached"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=cwd,
-        )
+    staged = run_git_command(["git", "diff", "--cached"], cwd=cwd)
+    if staged and staged.stdout.strip():
+        content = staged.stdout[:remaining_chars // 2]
+        context_parts.append(f"=== STAGED CHANGES ===\n{content}")
+        remaining_chars -= len(content)
 
-        if staged.stdout.strip():
-            content = staged.stdout[:remaining_chars // 2]
-            context_parts.append(f"=== STAGED CHANGES ===\n{content}")
-            remaining_chars -= len(content)
-
-        if unstaged.stdout.strip():
-            content = unstaged.stdout[:remaining_chars // 2]
-            context_parts.append(f"=== UNSTAGED CHANGES ===\n{content}")
-            remaining_chars -= len(content)
-
-    except Exception as e:
-        logger.debug(f"Failed to get uncommitted changes: {e}")
+    unstaged = run_git_command(["git", "diff"], cwd=cwd)
+    if unstaged and unstaged.stdout.strip():
+        content = unstaged.stdout[:remaining_chars // 2]
+        context_parts.append(f"=== UNSTAGED CHANGES ===\n{content}")
+        remaining_chars -= len(content)
 
     # Strategy 2: Multi-commit window
     if remaining_chars > 5000:  # Only if we have room

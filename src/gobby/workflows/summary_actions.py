@@ -7,7 +7,7 @@ These functions handle session summary generation, title synthesis, and handoff 
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from gobby.workflows.git_utils import get_file_changes, get_git_status
 
@@ -125,7 +125,7 @@ async def generate_summary(
     transcript_processor: Any,
     template: str | None = None,
     previous_summary: str | None = None,
-    mode: str = "clear",
+    mode: Literal["clear", "compact"] = "clear",
 ) -> dict[str, Any] | None:
     """Generate a session summary using LLM and store it in the session record.
 
@@ -136,11 +136,21 @@ async def generate_summary(
         transcript_processor: Transcript processor instance
         template: Optional prompt template
         previous_summary: Previous summary_markdown for cumulative compression (compact mode)
-        mode: "clear" or "compact" - affects how turns are extracted
+        mode: "clear" or "compact" - passed to LLM context to control summarization density
 
     Returns:
         Dict with summary_generated and summary_length, or error
+
+    Raises:
+        ValueError: If mode is not "clear" or "compact"
     """
+    # Validate mode parameter
+    valid_modes = {"clear", "compact"}
+    if mode not in valid_modes:
+        raise ValueError(
+            f"Invalid mode '{mode}'. Must be one of: {', '.join(sorted(valid_modes))}"
+        )
+
     if not llm_service or not transcript_processor:
         logger.warning("generate_summary: Missing LLM service or transcript processor")
         return {"error": "Missing services"}
@@ -174,9 +184,12 @@ async def generate_summary(
                 if line.strip():
                     turns.append(json.loads(line))
 
-        # Get turns since last /clear (up to 50 turns)
-        # For compact mode, we still use this - the full JSONL is available
-        # and the template will instruct the LLM to focus on what's new
+        # Turn extraction is deliberately mode-agnostic: we always extract the most
+        # recent turns since the last /clear and let the prompt control summarization
+        # density. The mode parameter is passed to the LLM context where the template
+        # can adjust output format (e.g., compact mode may instruct denser summaries).
+        # TODO: If requirements change, mode-specific extraction logic could be added
+        # here (e.g., extracting fewer turns for compact mode).
         recent_turns = transcript_processor.extract_turns_since_clear(turns, max_turns=50)
 
         # Format turns for LLM
@@ -228,7 +241,7 @@ async def generate_handoff(
     transcript_processor: Any,
     template: str | None = None,
     previous_summary: str | None = None,
-    mode: str = "clear",
+    mode: Literal["clear", "compact"] = "clear",
 ) -> dict[str, Any] | None:
     """Generate a handoff record by summarizing the session.
 
@@ -245,6 +258,9 @@ async def generate_handoff(
 
     Returns:
         Dict with handoff_created and summary_length, or error
+
+    Raises:
+        ValueError: If mode is not "clear" or "compact" (via generate_summary)
     """
     # Reuse generate_summary logic
     summary_result = await generate_summary(

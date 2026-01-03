@@ -29,6 +29,82 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
+# Plugin Action Registration
+# =============================================================================
+
+
+@dataclass
+class PluginAction:
+    """A registered workflow action from a plugin.
+
+    Attributes:
+        name: Action name (without plugin prefix).
+        handler: Async callable matching ActionHandler protocol.
+        schema: JSON Schema dict describing the action's input parameters.
+        plugin_name: Name of the plugin that registered this action.
+    """
+
+    name: str
+    handler: Callable
+    schema: dict[str, Any]
+    plugin_name: str
+
+    def validate_input(self, kwargs: dict[str, Any]) -> tuple[bool, str | None]:
+        """Validate input arguments against the action's schema.
+
+        Args:
+            kwargs: Input arguments to validate.
+
+        Returns:
+            Tuple of (is_valid, error_message).
+            If valid, error_message is None.
+        """
+        if not self.schema:
+            return True, None  # No schema means no validation
+
+        # Basic JSON Schema validation (properties + required)
+        properties = self.schema.get("properties", {})
+        required = self.schema.get("required", [])
+
+        # Check required fields
+        for field in required:
+            if field not in kwargs:
+                return False, f"Missing required field: {field}"
+
+        # Check property types if specified
+        for prop_name, prop_schema in properties.items():
+            if prop_name not in kwargs:
+                continue  # Optional field not provided
+
+            value = kwargs[prop_name]
+            prop_type = prop_schema.get("type")
+
+            if prop_type and not _check_type(value, prop_type):
+                return False, f"Field '{prop_name}' has invalid type: expected {prop_type}"
+
+        return True, None
+
+
+def _check_type(value: Any, expected_type: str) -> bool:
+    """Check if a value matches a JSON Schema type."""
+    type_map = {
+        "string": str,
+        "number": (int, float),
+        "integer": int,
+        "boolean": bool,
+        "array": list,
+        "object": dict,
+        "null": type(None),
+    }
+
+    expected = type_map.get(expected_type)
+    if expected is None:
+        return True  # Unknown type, skip validation
+
+    return isinstance(value, expected)
+
+
+# =============================================================================
 # Decorator
 # =============================================================================
 
@@ -128,7 +204,7 @@ class HookPlugin(ABC):
     def __init__(self) -> None:
         """Initialize plugin instance."""
         # Containers for registered workflow extensions
-        self._actions: dict[str, Callable] = {}
+        self._actions: dict[str, PluginAction] = {}
         self._conditions: dict[str, Callable] = {}
         self.logger = logging.getLogger(f"gobby.plugins.{self.name}")
 
@@ -153,17 +229,83 @@ class HookPlugin(ABC):
 
     def register_action(self, name: str, handler: Callable) -> None:
         """
-        Register a workflow action.
+        Register a workflow action (simple form without schema).
 
         Actions registered here can be used in workflow YAML files.
         They will be available as `plugin:<plugin-name>:<action-name>`.
+
+        For actions that require input validation, use register_workflow_action().
 
         Args:
             name: Action name (without plugin prefix).
             handler: Async callable matching ActionHandler protocol.
         """
-        self._actions[name] = handler
+        action = PluginAction(
+            name=name,
+            handler=handler,
+            schema={},
+            plugin_name=self.name,
+        )
+        self._actions[name] = action
         self.logger.debug(f"Registered action: {name}")
+
+    def register_workflow_action(
+        self,
+        action_type: str,
+        schema: dict[str, Any],
+        executor_fn: Callable,
+    ) -> None:
+        """
+        Register a workflow action with schema validation.
+
+        Actions registered here can be used in workflow YAML files.
+        They will be available as `plugin:<plugin-name>:<action-type>`.
+        Input arguments will be validated against the schema before execution.
+
+        Args:
+            action_type: Action name (without plugin prefix).
+            schema: JSON Schema dict for input validation. Should contain:
+                - properties: Dict of property names to their schemas
+                - required: List of required property names
+                Example:
+                    {
+                        "properties": {
+                            "message": {"type": "string"},
+                            "channel": {"type": "string"}
+                        },
+                        "required": ["message"]
+                    }
+            executor_fn: Async callable matching ActionHandler protocol:
+                async def handler(context: ActionContext, **kwargs) -> dict | None
+
+        Raises:
+            ValueError: If action_type is already registered.
+        """
+        if action_type in self._actions:
+            raise ValueError(
+                f"Action type '{action_type}' is already registered for plugin '{self.name}'"
+            )
+
+        action = PluginAction(
+            name=action_type,
+            handler=executor_fn,
+            schema=schema,
+            plugin_name=self.name,
+        )
+        self._actions[action_type] = action
+        self.logger.debug(f"Registered workflow action: {action_type} with schema")
+
+    def get_action(self, name: str) -> PluginAction | None:
+        """
+        Get a registered action by name.
+
+        Args:
+            name: Action name (without plugin prefix).
+
+        Returns:
+            PluginAction if found, None otherwise.
+        """
+        return self._actions.get(name)
 
     def register_condition(self, name: str, evaluator: Callable) -> None:
         """
@@ -316,11 +458,33 @@ class PluginRegistry:
                     for h in handlers
                     if h.plugin is p
                 ],
-                "actions": list(p._actions.keys()),
+                "actions": [
+                    {
+                        "name": action.name,
+                        "has_schema": bool(action.schema),
+                        "schema": action.schema if action.schema else None,
+                    }
+                    for action in p._actions.values()
+                ],
                 "conditions": list(p._conditions.keys()),
             }
             for p in self._plugins.values()
         ]
+
+    def get_plugin_action(self, plugin_name: str, action_name: str) -> PluginAction | None:
+        """Get a specific action from a plugin.
+
+        Args:
+            plugin_name: Name of the plugin.
+            action_name: Name of the action.
+
+        Returns:
+            PluginAction if found, None otherwise.
+        """
+        plugin = self._plugins.get(plugin_name)
+        if plugin is None:
+            return None
+        return plugin.get_action(action_name)
 
 
 # =============================================================================

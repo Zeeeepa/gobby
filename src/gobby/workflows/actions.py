@@ -121,6 +121,8 @@ class ActionExecutor:
         Actions are registered with the naming convention:
         plugin:<plugin-name>:<action-name>
 
+        Plugin actions with schemas will have their inputs validated before execution.
+
         Args:
             plugin_registry: PluginRegistry instance containing loaded plugins.
         """
@@ -128,10 +130,44 @@ class ActionExecutor:
             return
 
         for plugin_name, plugin in plugin_registry._plugins.items():
-            for action_name, action_handler in plugin._actions.items():
+            for action_name, plugin_action in plugin._actions.items():
                 full_name = f"plugin:{plugin_name}:{action_name}"
-                self._handlers[full_name] = action_handler
+
+                # Create wrapper that validates schema before calling handler
+                if plugin_action.schema:
+                    wrapper = self._create_validating_wrapper(plugin_action)
+                    self._handlers[full_name] = wrapper
+                else:
+                    # No schema, use handler directly
+                    self._handlers[full_name] = plugin_action.handler
+
                 logger.debug(f"Registered plugin action: {full_name}")
+
+    def _create_validating_wrapper(self, plugin_action: Any) -> ActionHandler:
+        """Create a wrapper handler that validates input against schema.
+
+        Args:
+            plugin_action: PluginAction with schema and handler.
+
+        Returns:
+            Wrapper handler that validates before calling the real handler.
+        """
+
+        async def validating_handler(
+            context: ActionContext, **kwargs: Any
+        ) -> dict[str, Any] | None:
+            # Validate input against schema
+            is_valid, error = plugin_action.validate_input(kwargs)
+            if not is_valid:
+                logger.warning(
+                    f"Plugin action '{plugin_action.name}' validation failed: {error}"
+                )
+                return {"error": f"Schema validation failed: {error}"}
+
+            # Call the actual handler
+            return await plugin_action.handler(context, **kwargs)
+
+        return validating_handler
 
     def _register_defaults(self) -> None:
         """Register built-in actions."""

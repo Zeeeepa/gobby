@@ -14,6 +14,8 @@ triggers:
       require: true  # Block if handoff context missing
       template: |
         ## Previous Session Context
+        *Injected by Gobby session handoff*
+
         {{ summary }}
 
     # Context handoff - inject compact handoff after compaction
@@ -23,6 +25,8 @@ triggers:
       require: true  # Block if handoff context missing
       template: |
         ## Continuation Context
+        *Injected by Gobby compact handoff*
+
         {{ handoff }}
 
     # Memory injection - inject relevant stored memories

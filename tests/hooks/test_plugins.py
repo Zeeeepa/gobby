@@ -238,7 +238,10 @@ class TestHookPlugin:
 
         plugin.register_action("my_action", my_action)
         assert "my_action" in plugin._actions
-        assert plugin._actions["my_action"] is my_action
+        # Actions are now stored as PluginAction objects
+        assert plugin._actions["my_action"].handler is my_action
+        assert plugin._actions["my_action"].name == "my_action"
+        assert plugin._actions["my_action"].schema == {}  # Empty schema by default
 
     def test_register_condition(self):
         """Test condition registration."""
@@ -898,11 +901,334 @@ class TestPluginActionExecution:
         assert len(plugins) == 1
 
         plugin_info = plugins[0]
-        assert "sync_action" in plugin_info["actions"]
-        assert "async_action" in plugin_info["actions"]
-        assert "data_action" in plugin_info["actions"]
-        assert "context_action" in plugin_info["actions"]
-        assert "error_action" in plugin_info["actions"]
+        # Actions are now listed as dicts with name/has_schema/schema
+        action_names = [a["name"] for a in plugin_info["actions"]]
+        assert "sync_action" in action_names
+        assert "async_action" in action_names
+        assert "data_action" in action_names
+        assert "context_action" in action_names
+        assert "error_action" in action_names
+        # Verify structure
+        for action in plugin_info["actions"]:
+            assert "name" in action
+            assert "has_schema" in action
+            assert action["has_schema"] is False  # No schemas in this plugin
+
+
+class TestRegisterWorkflowAction:
+    """Tests for register_workflow_action with schema validation."""
+
+    def test_register_workflow_action_with_schema(self):
+        """Test registering action with JSON schema."""
+        plugin = SamplePlugin()
+
+        async def my_action(context, **kwargs):
+            return {"message": kwargs.get("message")}
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "message": {"type": "string"},
+                "count": {"type": "integer"},
+            },
+            "required": ["message"],
+        }
+
+        plugin.register_workflow_action("send_message", schema, my_action)
+
+        assert "send_message" in plugin._actions
+        action = plugin._actions["send_message"]
+        assert action.handler is my_action
+        assert action.schema == schema
+        assert action.name == "send_message"
+        assert action.plugin_name == "sample-plugin"
+
+    def test_register_workflow_action_duplicate_raises(self):
+        """Test that duplicate action registration raises error."""
+        plugin = SamplePlugin()
+
+        async def action1(context, **kwargs):
+            return {}
+
+        async def action2(context, **kwargs):
+            return {}
+
+        plugin.register_workflow_action("my_action", {}, action1)
+
+        with pytest.raises(ValueError, match="already registered"):
+            plugin.register_workflow_action("my_action", {}, action2)
+
+    def test_validate_input_success(self):
+        """Test successful schema validation."""
+        plugin = SamplePlugin()
+
+        async def my_action(context, **kwargs):
+            return {}
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+                "count": {"type": "integer"},
+            },
+            "required": ["name"],
+        }
+
+        plugin.register_workflow_action("test", schema, my_action)
+        action = plugin._actions["test"]
+
+        is_valid, error = action.validate_input({"name": "test", "count": 5})
+        assert is_valid is True
+        assert error is None
+
+    def test_validate_input_missing_required(self):
+        """Test validation fails for missing required field."""
+        plugin = SamplePlugin()
+
+        async def my_action(context, **kwargs):
+            return {}
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"},
+            },
+            "required": ["name"],
+        }
+
+        plugin.register_workflow_action("test", schema, my_action)
+        action = plugin._actions["test"]
+
+        is_valid, error = action.validate_input({})
+        assert is_valid is False
+        assert "Missing required field: name" in error
+
+    def test_validate_input_wrong_type(self):
+        """Test validation fails for wrong type."""
+        plugin = SamplePlugin()
+
+        async def my_action(context, **kwargs):
+            return {}
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "count": {"type": "integer"},
+            },
+        }
+
+        plugin.register_workflow_action("test", schema, my_action)
+        action = plugin._actions["test"]
+
+        is_valid, error = action.validate_input({"count": "not_an_int"})
+        assert is_valid is False
+        assert "invalid type" in error
+
+    def test_validate_input_no_schema(self):
+        """Test validation passes when no schema defined."""
+        plugin = SamplePlugin()
+
+        async def my_action(context, **kwargs):
+            return {}
+
+        plugin.register_workflow_action("test", {}, my_action)
+        action = plugin._actions["test"]
+
+        is_valid, error = action.validate_input({"anything": "goes"})
+        assert is_valid is True
+        assert error is None
+
+    def test_get_action(self):
+        """Test get_action retrieves registered action."""
+        plugin = SamplePlugin()
+
+        async def my_action(context, **kwargs):
+            return {}
+
+        plugin.register_workflow_action("my_action", {}, my_action)
+
+        action = plugin.get_action("my_action")
+        assert action is not None
+        assert action.name == "my_action"
+
+        missing = plugin.get_action("nonexistent")
+        assert missing is None
+
+    def test_list_plugins_shows_schema_info(self):
+        """Test that list_plugins shows schema information."""
+        registry = PluginRegistry()
+        plugin = SamplePlugin()
+
+        async def action1(context, **kwargs):
+            return {}
+
+        async def action2(context, **kwargs):
+            return {}
+
+        schema = {"type": "object", "properties": {"x": {"type": "string"}}}
+        plugin.register_workflow_action("with_schema", schema, action1)
+        plugin.register_action("without_schema", action2)
+        registry.register_plugin(plugin)
+
+        plugins = registry.list_plugins()
+        actions = {a["name"]: a for a in plugins[0]["actions"]}
+
+        assert actions["with_schema"]["has_schema"] is True
+        assert actions["with_schema"]["schema"] == schema
+        assert actions["without_schema"]["has_schema"] is False
+        assert actions["without_schema"]["schema"] is None
+
+
+class TestSchemaValidationInActionExecutor:
+    """Tests for schema validation when executing plugin actions."""
+
+    @pytest.fixture
+    def registry_with_schema_actions(self):
+        """Create registry with plugin that has schema-validated actions."""
+        from gobby.hooks.plugins import HookPlugin, PluginRegistry
+
+        class SchemaPlugin(HookPlugin):
+            name = "schema-plugin"
+
+            def on_load(self, config: dict) -> None:
+                schema = {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "count": {"type": "integer"},
+                    },
+                    "required": ["name"],
+                }
+                self.register_workflow_action("validated_action", schema, self._action)
+
+            async def _action(self, context, **kwargs):
+                return {"received": kwargs}
+
+        registry = PluginRegistry()
+        plugin = SchemaPlugin()
+        plugin.on_load({})
+        registry.register_plugin(plugin)
+        return registry
+
+    @pytest.mark.asyncio
+    async def test_valid_input_passes(self, registry_with_schema_actions):
+        """Test that valid input passes schema validation."""
+        from unittest.mock import MagicMock
+
+        from gobby.workflows.actions import ActionContext, ActionExecutor
+        from gobby.workflows.definitions import WorkflowState
+
+        executor = ActionExecutor(
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=MagicMock(),
+        )
+        executor.register_plugin_actions(registry_with_schema_actions)
+
+        state = WorkflowState(
+            session_id="test",
+            workflow_name="test",
+            step="test",
+        )
+        context = ActionContext(
+            session_id="test",
+            state=state,
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=MagicMock(),
+        )
+
+        result = await executor.execute(
+            "plugin:schema-plugin:validated_action",
+            context,
+            name="test",
+            count=42,
+        )
+
+        assert result is not None
+        assert "error" not in result
+        assert result["received"]["name"] == "test"
+        assert result["received"]["count"] == 42
+
+    @pytest.mark.asyncio
+    async def test_invalid_input_returns_error(self, registry_with_schema_actions):
+        """Test that invalid input returns validation error."""
+        from unittest.mock import MagicMock
+
+        from gobby.workflows.actions import ActionContext, ActionExecutor
+        from gobby.workflows.definitions import WorkflowState
+
+        executor = ActionExecutor(
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=MagicMock(),
+        )
+        executor.register_plugin_actions(registry_with_schema_actions)
+
+        state = WorkflowState(
+            session_id="test",
+            workflow_name="test",
+            step="test",
+        )
+        context = ActionContext(
+            session_id="test",
+            state=state,
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=MagicMock(),
+        )
+
+        # Missing required 'name' field
+        result = await executor.execute(
+            "plugin:schema-plugin:validated_action",
+            context,
+            count=42,
+        )
+
+        assert result is not None
+        assert "error" in result
+        assert "Schema validation failed" in result["error"]
+        assert "Missing required field: name" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_wrong_type_returns_error(self, registry_with_schema_actions):
+        """Test that wrong type returns validation error."""
+        from unittest.mock import MagicMock
+
+        from gobby.workflows.actions import ActionContext, ActionExecutor
+        from gobby.workflows.definitions import WorkflowState
+
+        executor = ActionExecutor(
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=MagicMock(),
+        )
+        executor.register_plugin_actions(registry_with_schema_actions)
+
+        state = WorkflowState(
+            session_id="test",
+            workflow_name="test",
+            step="test",
+        )
+        context = ActionContext(
+            session_id="test",
+            state=state,
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=MagicMock(),
+        )
+
+        # 'count' should be integer, not string
+        result = await executor.execute(
+            "plugin:schema-plugin:validated_action",
+            context,
+            name="test",
+            count="not_a_number",
+        )
+
+        assert result is not None
+        assert "error" in result
+        assert "Schema validation failed" in result["error"]
 
 
 class TestPluginActionRegistrationOnLoad:

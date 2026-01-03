@@ -1148,7 +1148,15 @@ def create_task_registry(
 
         # Get project repo_path for git commands
         repo_path = get_project_repo_path(task.project_id)
-        commit_sha = run_git_command(["git", "rev-parse", "HEAD"], cwd=repo_path or ".")
+        if repo_path is None:
+            import logging
+
+            logging.getLogger(__name__).warning(
+                f"No repo_path found for project_id={task.project_id}, "
+                f"falling back to daemon working directory for git command"
+            )
+        cwd = repo_path or "."
+        commit_sha = run_git_command(["git", "rev-parse", "HEAD"], cwd=cwd)
 
         # All checks passed - close the task with session and commit tracking
         closed_task = task_manager.close_task(
