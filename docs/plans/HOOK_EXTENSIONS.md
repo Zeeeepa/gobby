@@ -526,6 +526,13 @@ CREATE INDEX idx_webhook_deliveries_event ON webhook_deliveries(event_type);
 #### Examples
 - [ ] Add example plugins to `examples/plugins/`
 - [ ] Add example webhook integration (Slack notification)
+- [ ] Add "Code Guardian" example plugin demonstrating:
+  - Hook handlers for `PRE_TOOL_CALL` and `POST_TOOL_CALL`
+  - Event blocking and content modification
+  - Context injection for reporting
+  - `register_action()` for workflow actions (`run_linter`, `format_code`)
+  - `register_condition()` for workflow conditions (`passes_lint`, `has_type_errors`)
+  - Per-plugin configuration (`checks`, `block_on_error`, `auto_fix`)
 
 ---
 
