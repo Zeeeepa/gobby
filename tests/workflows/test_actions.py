@@ -1182,3 +1182,350 @@ async def test_save_memory_error_cases(action_executor, action_context, mock_ser
     # I'll check handler code later if this fails. For now remove outcome assertion or comment it.
     # Assuming update_workflow_task is smart. But task_manager.update_task is strict.
     # I'll assert status.
+
+
+@pytest.mark.asyncio
+async def test_generate_handoff_compact_mode_precise_matching(
+    action_executor, action_context, session_manager, sample_project, mock_services, tmp_path
+):
+    """Test that compact mode detection uses precise event type matching.
+
+    Ensures that only exact matches like 'pre_compact' and 'compact' trigger
+    compact mode, not substring matches like 'not_compact_but_contains_word'.
+    """
+    # Create a transcript file
+    transcript_file = tmp_path / "transcript.jsonl"
+    import json
+
+    transcript_data = [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "Hi there!"},
+    ]
+    with open(transcript_file, "w") as f:
+        for entry in transcript_data:
+            f.write(json.dumps(entry) + "\n")
+
+    # Setup session
+    session = session_manager.register(
+        external_id="compact-test",
+        machine_id="test-machine",
+        source="test-source",
+        project_id=sample_project["id"],
+        jsonl_path=str(transcript_file),
+    )
+    action_context.session_id = session.id
+
+    # Setup mocks
+    mock_services["transcript_processor"].extract_turns_since_clear.return_value = transcript_data
+    mock_services["transcript_processor"].extract_last_messages.return_value = transcript_data
+    mock_services["template_engine"].render.return_value = "Summarize: User: hello"
+
+    mock_provider = MagicMock()
+    mock_provider.generate_summary = AsyncMock(return_value="Session Summary.")
+    mock_llm_service = MagicMock()
+    mock_llm_service.get_default_provider.return_value = mock_provider
+    mock_services["llm_service"] = mock_llm_service
+
+    action_context.llm_service = mock_services["llm_service"]
+    action_context.transcript_processor = mock_services["transcript_processor"]
+    action_context.template_engine = mock_services["template_engine"]
+
+    # Test 1: Event type "pre_compact" should trigger compact mode
+    action_context.event_data = {"event_type": "pre_compact"}
+    with patch(
+        "gobby.workflows.summary_actions.generate_summary",
+        new_callable=AsyncMock,
+    ) as mock_gen:
+        mock_gen.return_value = {"summary_generated": True, "summary_length": 10}
+        await action_executor.execute("generate_handoff", action_context)
+        # Verify mode="compact" was passed
+        call_kwargs = mock_gen.call_args.kwargs
+        assert call_kwargs.get("mode") == "compact"
+
+    # Test 2: Event type "compact" should trigger compact mode
+    action_context.event_data = {"event_type": "compact"}
+    with patch(
+        "gobby.workflows.summary_actions.generate_summary",
+        new_callable=AsyncMock,
+    ) as mock_gen:
+        mock_gen.return_value = {"summary_generated": True, "summary_length": 10}
+        await action_executor.execute("generate_handoff", action_context)
+        call_kwargs = mock_gen.call_args.kwargs
+        assert call_kwargs.get("mode") == "compact"
+
+    # Test 3: Event type containing "compact" as substring should NOT trigger compact mode
+    action_context.event_data = {"event_type": "not_compact_but_contains_word"}
+    with patch(
+        "gobby.workflows.summary_actions.generate_summary",
+        new_callable=AsyncMock,
+    ) as mock_gen:
+        mock_gen.return_value = {"summary_generated": True, "summary_length": 10}
+        await action_executor.execute("generate_handoff", action_context)
+        call_kwargs = mock_gen.call_args.kwargs
+        # Should default to "clear" mode, not "compact"
+        assert call_kwargs.get("mode") == "clear"
+
+    # Test 4: Event type "mycompact" should NOT trigger compact mode
+    action_context.event_data = {"event_type": "mycompact"}
+    with patch(
+        "gobby.workflows.summary_actions.generate_summary",
+        new_callable=AsyncMock,
+    ) as mock_gen:
+        mock_gen.return_value = {"summary_generated": True, "summary_length": 10}
+        await action_executor.execute("generate_handoff", action_context)
+        call_kwargs = mock_gen.call_args.kwargs
+        assert call_kwargs.get("mode") == "clear"
+
+    # Test 5: Empty event_data should default to "clear" mode
+    action_context.event_data = {}
+    with patch(
+        "gobby.workflows.summary_actions.generate_summary",
+        new_callable=AsyncMock,
+    ) as mock_gen:
+        mock_gen.return_value = {"summary_generated": True, "summary_length": 10}
+        await action_executor.execute("generate_handoff", action_context)
+        call_kwargs = mock_gen.call_args.kwargs
+        assert call_kwargs.get("mode") == "clear"
+
+
+@pytest.mark.asyncio
+async def test_generate_summary_mode_validation():
+    """Test that generate_summary raises ValueError for invalid mode values."""
+    from gobby.workflows.summary_actions import generate_summary
+
+    # Mock session_manager
+    mock_session_manager = MagicMock()
+    mock_llm_service = MagicMock()
+    mock_transcript_processor = MagicMock()
+
+    # Test invalid mode raises ValueError
+    with pytest.raises(ValueError) as exc_info:
+        await generate_summary(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            llm_service=mock_llm_service,
+            transcript_processor=mock_transcript_processor,
+            mode="invalid_mode",  # type: ignore  # Testing runtime validation
+        )
+
+    assert "Invalid mode 'invalid_mode'" in str(exc_info.value)
+    assert "clear" in str(exc_info.value)
+    assert "compact" in str(exc_info.value)
+
+    # Test another invalid mode
+    with pytest.raises(ValueError) as exc_info:
+        await generate_summary(
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            llm_service=mock_llm_service,
+            transcript_processor=mock_transcript_processor,
+            mode="compacted",  # type: ignore  # Testing runtime validation
+        )
+
+    assert "Invalid mode 'compacted'" in str(exc_info.value)
+
+
+class TestWebhookAction:
+    """Tests for the webhook action handler integration."""
+
+    @pytest.mark.asyncio
+    async def test_webhook_action_basic_url(self, action_executor, action_context):
+        """Test basic webhook execution with URL."""
+        with patch("gobby.workflows.actions.WebhookExecutor") as MockExecutor:
+            # Mock successful response
+            mock_result = MagicMock()
+            mock_result.success = True
+            mock_result.status_code = 200
+            mock_result.body = '{"status": "ok"}'
+            mock_result.error = None
+            mock_result.headers = {"Content-Type": "application/json"}
+            mock_result.json_body.return_value = {"status": "ok"}
+
+            mock_executor_instance = MockExecutor.return_value
+            mock_executor_instance.execute = AsyncMock(return_value=mock_result)
+
+            result = await action_executor.execute(
+                "webhook",
+                action_context,
+                url="https://example.com/webhook",
+                method="POST",
+                payload={"test": "data"},
+            )
+
+            assert result is not None
+            assert result["success"] is True
+            assert result["status_code"] == 200
+            assert result["error"] is None
+
+            # Verify executor was called correctly
+            mock_executor_instance.execute.assert_called_once()
+            call_kwargs = mock_executor_instance.execute.call_args.kwargs
+            assert call_kwargs["url"] == "https://example.com/webhook"
+            assert call_kwargs["method"] == "POST"
+
+    @pytest.mark.asyncio
+    async def test_webhook_action_invalid_config_missing_url(
+        self, action_executor, action_context
+    ):
+        """Test webhook action fails gracefully for missing url/webhook_id."""
+        result = await action_executor.execute(
+            "webhook",
+            action_context,
+            method="POST",  # Missing url and webhook_id
+        )
+
+        assert result is not None
+        assert result["success"] is False
+        assert "required" in result["error"].lower() or "url" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_webhook_action_invalid_method(self, action_executor, action_context):
+        """Test webhook action fails for invalid HTTP method."""
+        result = await action_executor.execute(
+            "webhook",
+            action_context,
+            url="https://example.com/webhook",
+            method="INVALID",
+        )
+
+        assert result is not None
+        assert result["success"] is False
+        assert "method" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_webhook_action_capture_response(self, action_executor, action_context):
+        """Test webhook action captures response into workflow variables."""
+        with patch("gobby.workflows.actions.WebhookExecutor") as MockExecutor:
+            mock_result = MagicMock()
+            mock_result.success = True
+            mock_result.status_code = 201
+            mock_result.body = '{"id": "new-123"}'
+            mock_result.error = None
+            mock_result.headers = {"X-Request-Id": "req-456"}
+            mock_result.json_body.return_value = {"id": "new-123"}
+
+            mock_executor_instance = MockExecutor.return_value
+            mock_executor_instance.execute = AsyncMock(return_value=mock_result)
+
+            result = await action_executor.execute(
+                "webhook",
+                action_context,
+                url="https://api.example.com/create",
+                method="POST",
+                capture_response={
+                    "status_var": "webhook_status",
+                    "body_var": "webhook_body",
+                    "headers_var": "webhook_headers",
+                },
+            )
+
+            assert result["success"] is True
+
+            # Verify variables were captured in workflow state
+            assert action_context.state.variables["webhook_status"] == 201
+            assert action_context.state.variables["webhook_body"] == {"id": "new-123"}
+            assert action_context.state.variables["webhook_headers"] == {"X-Request-Id": "req-456"}
+
+    @pytest.mark.asyncio
+    async def test_webhook_action_failure(self, action_executor, action_context):
+        """Test webhook action handles failure gracefully."""
+        with patch("gobby.workflows.actions.WebhookExecutor") as MockExecutor:
+            mock_result = MagicMock()
+            mock_result.success = False
+            mock_result.status_code = 500
+            mock_result.body = "Internal Server Error"
+            mock_result.error = "HTTP 500"
+            mock_result.headers = {}
+
+            mock_executor_instance = MockExecutor.return_value
+            mock_executor_instance.execute = AsyncMock(return_value=mock_result)
+
+            result = await action_executor.execute(
+                "webhook",
+                action_context,
+                url="https://api.example.com/fail",
+            )
+
+            assert result["success"] is False
+            assert result["status_code"] == 500
+            assert result["error"] == "HTTP 500"
+            assert result["body"] is None  # Body not returned on failure
+
+    @pytest.mark.asyncio
+    async def test_webhook_action_with_retry_config(self, action_executor, action_context):
+        """Test webhook action passes retry configuration to executor."""
+        with patch("gobby.workflows.actions.WebhookExecutor") as MockExecutor:
+            mock_result = MagicMock()
+            mock_result.success = True
+            mock_result.status_code = 200
+            mock_result.body = "{}"
+            mock_result.error = None
+            mock_result.headers = {}
+
+            mock_executor_instance = MockExecutor.return_value
+            mock_executor_instance.execute = AsyncMock(return_value=mock_result)
+
+            result = await action_executor.execute(
+                "webhook",
+                action_context,
+                url="https://api.example.com/retry",
+                retry={
+                    "max_attempts": 5,
+                    "backoff_seconds": 2,
+                    "retry_on_status": [429, 503],
+                },
+            )
+
+            assert result["success"] is True
+
+            # Verify retry config was passed
+            call_kwargs = mock_executor_instance.execute.call_args.kwargs
+            assert call_kwargs["retry_config"] is not None
+            assert call_kwargs["retry_config"]["max_attempts"] == 5
+
+    @pytest.mark.asyncio
+    async def test_webhook_action_webhook_id_not_supported(
+        self, action_executor, action_context
+    ):
+        """Test webhook action returns error for webhook_id without registry."""
+        result = await action_executor.execute(
+            "webhook",
+            action_context,
+            webhook_id="slack_alerts",
+        )
+
+        assert result is not None
+        assert result["success"] is False
+        assert "registry" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_webhook_action_interpolation_context(
+        self, action_executor, action_context
+    ):
+        """Test webhook action builds interpolation context from state."""
+        # Set up workflow state with variables and artifacts
+        action_context.state.variables = {"task_id": "123", "status": "completed"}
+        action_context.state.artifacts = {"plan": "/path/to/plan.md"}
+
+        with patch("gobby.workflows.actions.WebhookExecutor") as MockExecutor:
+            mock_result = MagicMock()
+            mock_result.success = True
+            mock_result.status_code = 200
+            mock_result.body = "{}"
+            mock_result.error = None
+            mock_result.headers = {}
+
+            mock_executor_instance = MockExecutor.return_value
+            mock_executor_instance.execute = AsyncMock(return_value=mock_result)
+
+            await action_executor.execute(
+                "webhook",
+                action_context,
+                url="https://api.example.com/notify",
+                payload={"task": "{{ state.variables.task_id }}"},
+            )
+
+            # Verify context was passed for interpolation
+            call_kwargs = mock_executor_instance.execute.call_args.kwargs
+            assert call_kwargs["context"]["state"]["variables"]["task_id"] == "123"
+            assert call_kwargs["context"]["artifacts"]["plan"] == "/path/to/plan.md"

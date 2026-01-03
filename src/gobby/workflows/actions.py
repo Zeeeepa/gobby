@@ -46,6 +46,8 @@ from gobby.workflows.summary_actions import (
 from gobby.workflows.task_enforcement_actions import require_active_task
 from gobby.workflows.templates import TemplateEngine
 from gobby.workflows.todo_actions import mark_todo_complete, write_todos
+from gobby.workflows.webhook import WebhookAction
+from gobby.workflows.webhook_executor import WebhookExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +171,8 @@ class ActionExecutor:
         self.register("mark_loop_complete", self._handle_mark_loop_complete)
         # Task enforcement
         self.register("require_active_task", self._handle_require_active_task)
+        # Webhook
+        self.register("webhook", self._handle_webhook)
 
     async def execute(
         self, action_type: str, context: ActionContext, **kwargs: Any
@@ -755,3 +759,104 @@ class ActionExecutor:
             project_id=project_id,
             workflow_state=context.state,
         )
+
+    async def _handle_webhook(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Execute a webhook HTTP request.
+
+        Args (via kwargs):
+            url: Target URL for the request (required unless webhook_id provided)
+            webhook_id: ID of a pre-configured webhook (alternative to url)
+            method: HTTP method (GET, POST, PUT, PATCH, DELETE), default: POST
+            headers: Request headers dict (supports ${secrets.VAR} interpolation)
+            payload: Request body as dict or string (supports template interpolation)
+            timeout: Request timeout in seconds (1-300), default: 30
+            retry: Retry configuration dict with:
+                - max_attempts: Max retry attempts (1-10), default: 3
+                - backoff_seconds: Initial backoff delay, default: 1
+                - retry_on_status: HTTP status codes to retry on
+            capture_response: Response capture config with:
+                - status_var: Variable name for status code
+                - body_var: Variable name for response body
+                - headers_var: Variable name for response headers
+            on_success: Step to transition to on success (2xx)
+            on_failure: Step to transition to on failure
+
+        Returns:
+            Dict with success status, status_code, and captured response data.
+        """
+        try:
+            # Parse WebhookAction from kwargs to validate config
+            webhook_action = WebhookAction.from_dict(kwargs)
+        except ValueError as e:
+            logger.error(f"Invalid webhook action config: {e}")
+            return {"success": False, "error": str(e)}
+
+        # Build context for variable interpolation
+        interpolation_context = {}
+        if context.state.variables:
+            interpolation_context["state"] = {"variables": context.state.variables}
+        if context.state.artifacts:
+            interpolation_context["artifacts"] = context.state.artifacts
+
+        # Get secrets from config if available
+        secrets = {}
+        if self.config:
+            secrets = getattr(self.config, "webhook_secrets", {})
+
+        # Create executor with template engine for payload interpolation
+        executor = WebhookExecutor(
+            template_engine=context.template_engine,
+            secrets=secrets,
+        )
+
+        # Execute the webhook
+        if webhook_action.url:
+            result = await executor.execute(
+                url=webhook_action.url,
+                method=webhook_action.method,
+                headers=webhook_action.headers,
+                payload=webhook_action.payload,
+                timeout=webhook_action.timeout,
+                retry_config=webhook_action.retry.to_dict() if webhook_action.retry else None,
+                context=interpolation_context,
+            )
+        elif webhook_action.webhook_id:
+            # webhook_id execution requires a registry which would be configured
+            # at the daemon level - for now we return an error if no registry
+            logger.warning("webhook_id execution not yet supported without registry")
+            return {"success": False, "error": "webhook_id requires configured webhook registry"}
+        else:
+            return {"success": False, "error": "Either url or webhook_id is required"}
+
+        # Capture response into workflow variables if configured
+        if webhook_action.capture_response:
+            if not context.state.variables:
+                context.state.variables = {}
+
+            capture = webhook_action.capture_response
+            if capture.status_var and result.status_code is not None:
+                context.state.variables[capture.status_var] = result.status_code
+            if capture.body_var and result.body is not None:
+                # Try to parse as JSON, fall back to raw string
+                json_body = result.json_body()
+                context.state.variables[capture.body_var] = json_body if json_body else result.body
+            if capture.headers_var and result.headers is not None:
+                context.state.variables[capture.headers_var] = result.headers
+
+        # Log outcome
+        if result.success:
+            logger.info(f"Webhook {webhook_action.method} {webhook_action.url} succeeded: {result.status_code}")
+        else:
+            logger.warning(
+                f"Webhook {webhook_action.method} {webhook_action.url} failed: "
+                f"{result.error or result.status_code}"
+            )
+
+        return {
+            "success": result.success,
+            "status_code": result.status_code,
+            "error": result.error,
+            "body": result.body if result.success else None,
+        }
