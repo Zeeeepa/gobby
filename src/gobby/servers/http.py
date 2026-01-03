@@ -67,6 +67,7 @@ class HTTPServer:
         skill_sync_manager: Any | None = None,
         task_expander: Any | None = None,
         task_validator: Any | None = None,
+        metrics_manager: Any | None = None,
     ) -> None:
         """
         Initialize HTTP server.
@@ -108,6 +109,7 @@ class HTTPServer:
         self.skill_sync_manager = skill_sync_manager
         self.task_expander = task_expander
         self.task_validator = task_validator
+        self.metrics_manager = metrics_manager
 
         # Initialize WebSocket broadcaster
         # Note: websocket_server might be None if disabled
@@ -150,6 +152,7 @@ class HTTPServer:
                 skill_storage=skill_learner.storage if skill_learner else None,
                 local_session_manager=session_manager,
                 skill_sync_manager=skill_sync_manager,
+                metrics_manager=self.metrics_manager,
             )
             registry_count = len(self._internal_manager)
             logger.debug(f"Internal registries initialized: {registry_count} registries")

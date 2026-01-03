@@ -10,8 +10,8 @@ from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
     from gobby.memory.manager import MemoryManager
-    from gobby.skills import SkillLearner
     from gobby.sessions.manager import SessionManager
+    from gobby.skills import SkillLearner
     from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.skills import LocalSkillManager
@@ -37,9 +37,10 @@ def setup_internal_registries(
     skill_storage: LocalSkillManager | None = None,
     local_session_manager: LocalSessionManager | None = None,
     skill_sync_manager: SkillSyncManager | None = None,
+    metrics_manager: ToolMetricsManager | None = None,
 ) -> InternalRegistryManager:
     """
-    Setup internal MCP registries (tasks, messages, memory, skills).
+    Setup internal MCP registries (tasks, messages, memory, skills, metrics).
 
     Args:
         _config: Daemon configuration (reserved for future use)
@@ -54,6 +55,7 @@ def setup_internal_registries(
         skill_storage: Skill storage manager
         local_session_manager: Local session manager for session CRUD
         skill_sync_manager: Skill sync manager for skill export
+        metrics_manager: Tool metrics manager for metrics operations
 
     Returns:
         InternalRegistryManager containing all registries
@@ -130,6 +132,16 @@ def setup_internal_registries(
     )
     manager.add_registry(workflows_registry)
     logger.debug("Workflows registry initialized")
+
+    # Initialize metrics registry if metrics_manager is available
+    if metrics_manager is not None:
+        from gobby.mcp_proxy.tools.metrics import create_metrics_registry
+
+        metrics_registry = create_metrics_registry(
+            metrics_manager=metrics_manager,
+        )
+        manager.add_registry(metrics_registry)
+        logger.debug("Metrics registry initialized")
 
     logger.info(f"Internal registries initialized: {len(manager)} registries")
     return manager

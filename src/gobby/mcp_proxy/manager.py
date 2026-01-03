@@ -61,6 +61,7 @@ class MCPClientManager:
         preconnect_servers: list[str] | None = None,
         connection_timeout: float = 30.0,
         max_connection_retries: int = 3,
+        metrics_manager: Any | None = None,
     ):
         """
         Initialize manager.
@@ -78,6 +79,7 @@ class MCPClientManager:
             preconnect_servers: List of server names to connect eagerly even in lazy mode
             connection_timeout: Timeout in seconds for connection attempts
             max_connection_retries: Maximum retry attempts for failed connections
+            metrics_manager: ToolMetricsManager instance for recording call metrics
         """
         self._connections: dict[str, BaseTransportConnection] = {}
         self._configs: dict[str, MCPServerConfig] = {}
@@ -93,6 +95,7 @@ class MCPClientManager:
         self.project_path = project_path
         self.project_id = project_id
         self.mcp_db_manager = mcp_db_manager
+        self.metrics_manager = metrics_manager
 
         # Lazy connection settings
         self.lazy_connect = lazy_connect
@@ -510,7 +513,7 @@ class MCPClientManager:
                     else:
                         raise MCPError(f"Connection returned no session for '{server_name}'")
 
-                except asyncio.TimeoutError as e:
+                except TimeoutError:
                     last_error = MCPError(f"Connection timeout after {self.connection_timeout}s")
                     self._lazy_connector.mark_failed(server_name, str(last_error))
                 except Exception as e:
@@ -557,6 +560,8 @@ class MCPClientManager:
         timeout: float | None = None,
     ) -> Any:
         """Call a tool on a specific server."""
+        start_time = time.perf_counter()
+        success = False
         try:
             session = await self.get_session(server_name)
             if timeout:
@@ -566,11 +571,33 @@ class MCPClientManager:
             else:
                 result = await session.call_tool(tool_name, arguments or {})
             self.health[server_name].record_success()
+            success = True
             return result
         except Exception as e:
             if server_name in self.health:
                 self.health[server_name].record_failure(str(e))
             raise
+        finally:
+            # Record metrics if manager is configured
+            if self.metrics_manager:
+                latency_ms = (time.perf_counter() - start_time) * 1000
+                # Get project_id from server config (servers are project-scoped)
+                server_config = self._configs.get(server_name)
+                metrics_project_id = (
+                    server_config.project_id if server_config else self.project_id
+                )
+                if metrics_project_id:
+                    try:
+                        self.metrics_manager.record_call(
+                            server_name=server_name,
+                            tool_name=tool_name,
+                            project_id=metrics_project_id,
+                            latency_ms=latency_ms,
+                            success=success,
+                        )
+                    except Exception:
+                        # Don't let metrics recording failures affect tool calls
+                        logger.debug(f"Failed to record metrics for {server_name}.{tool_name}")
 
     async def read_resource(self, server_name: str, uri: str) -> Any:
         """Read a resource from a specific server."""

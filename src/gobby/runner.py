@@ -49,6 +49,7 @@ class GobbyRunner:
         self.verbose = verbose
         self.machine_id = get_machine_id()
         self._shutdown_requested = False
+        self._metrics_cleanup_task: asyncio.Task | None = None
 
         # Initialize local storage
         self.database = LocalDatabase()
@@ -91,8 +92,16 @@ class GobbyRunner:
         # LocalMCPManager handles server/tool storage in SQLite
         self.mcp_db_manager = LocalMCPManager(self.database)
 
+        # Tool Metrics Manager for tracking call statistics
+        from gobby.mcp_proxy.metrics import ToolMetricsManager
+
+        self.metrics_manager = ToolMetricsManager(self.database)
+
         # MCPClientManager loads servers from database on init
-        self.mcp_proxy = MCPClientManager(mcp_db_manager=self.mcp_db_manager)
+        self.mcp_proxy = MCPClientManager(
+            mcp_db_manager=self.mcp_db_manager,
+            metrics_manager=self.metrics_manager,
+        )
 
         # Task Sync Manager
         self.task_sync_manager = TaskSyncManager(self.task_manager)
@@ -190,6 +199,7 @@ class GobbyRunner:
             skill_sync_manager=self.skill_sync_manager,
             task_expander=self.task_expander,
             task_validator=self.task_validator,
+            metrics_manager=self.metrics_manager,
         )
 
         # Ensure message_processor property is set (redundant but explicit):
@@ -217,6 +227,21 @@ class GobbyRunner:
             if self.message_processor:
                 self.message_processor.websocket_server = self.websocket_server
 
+    async def _metrics_cleanup_loop(self) -> None:
+        """Background loop for periodic metrics cleanup (every 24 hours)."""
+        interval_seconds = 24 * 60 * 60  # 24 hours
+
+        while not self._shutdown_requested:
+            try:
+                await asyncio.sleep(interval_seconds)
+                deleted = self.metrics_manager.cleanup_old_metrics()
+                if deleted > 0:
+                    logger.info(f"Periodic metrics cleanup: removed {deleted} old entries")
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"Error in metrics cleanup loop: {e}")
+
     def _setup_signal_handlers(self) -> None:
         loop = asyncio.get_running_loop()
 
@@ -239,12 +264,26 @@ class GobbyRunner:
             except Exception as e:
                 logger.error(f"MCP connection failed: {e}")
 
+            # Run metrics cleanup on startup
+            try:
+                deleted = self.metrics_manager.cleanup_old_metrics()
+                if deleted > 0:
+                    logger.info(f"Startup metrics cleanup: removed {deleted} old entries")
+            except Exception as e:
+                logger.warning(f"Metrics cleanup failed: {e}")
+
             # Start Message Processor
             if self.message_processor:
                 await self.message_processor.start()
 
             # Start Session Lifecycle Manager
             await self.lifecycle_manager.start()
+
+            # Start periodic metrics cleanup (every 24 hours)
+            self._metrics_cleanup_task = asyncio.create_task(
+                self._metrics_cleanup_loop(),
+                name="metrics-cleanup",
+            )
 
             # Start WebSocket server
             websocket_task = None

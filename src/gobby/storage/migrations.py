@@ -689,6 +689,32 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         ALTER TABLE tasks DROP COLUMN platform_id;
         """,
     ),
+    (
+        28,
+        "Create tool_metrics table for tracking tool call statistics",
+        """
+        CREATE TABLE IF NOT EXISTS tool_metrics (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            server_name TEXT NOT NULL,
+            tool_name TEXT NOT NULL,
+            call_count INTEGER NOT NULL DEFAULT 0,
+            success_count INTEGER NOT NULL DEFAULT 0,
+            failure_count INTEGER NOT NULL DEFAULT 0,
+            total_latency_ms REAL NOT NULL DEFAULT 0,
+            avg_latency_ms REAL,
+            last_called_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(project_id, server_name, tool_name)
+        );
+        CREATE INDEX IF NOT EXISTS idx_tool_metrics_project ON tool_metrics(project_id);
+        CREATE INDEX IF NOT EXISTS idx_tool_metrics_server ON tool_metrics(server_name);
+        CREATE INDEX IF NOT EXISTS idx_tool_metrics_tool ON tool_metrics(tool_name);
+        CREATE INDEX IF NOT EXISTS idx_tool_metrics_call_count ON tool_metrics(call_count DESC);
+        CREATE INDEX IF NOT EXISTS idx_tool_metrics_last_called ON tool_metrics(last_called_at);
+        """,
+    ),
 ]
 
 
