@@ -38,10 +38,10 @@ from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.hooks.plugins import PluginLoader, run_plugin_handlers
 from gobby.hooks.webhooks import WebhookDispatcher
 from gobby.memory.manager import MemoryManager
-from gobby.skills import SkillLearner
 from gobby.sessions.manager import SessionManager
 from gobby.sessions.summary import SummaryFileGenerator
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
+from gobby.skills import SkillLearner
 from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import LocalMemoryManager
 from gobby.storage.session_messages import LocalSessionMessageManager
@@ -210,13 +210,12 @@ class HookManager:
         from gobby.workflows.actions import ActionExecutor
         from gobby.workflows.templates import TemplateEngine
 
-        # Workflow loader now handles project-specific paths dynamically via project_path parameter
+        # Workflow loader handles project-specific paths dynamically via project_path parameter
         # Global workflows are loaded from ~/.gobby/workflows/
         # Project-specific workflows are loaded from {project_path}/.gobby/workflows/
-        # Include built-in templates
-        builtin_workflows = Path(__file__).parent.parent / "templates" / "workflows"
+        # Workflows are installed via `gobby install` from install/shared/workflows/
         self._workflow_loader = WorkflowLoader(
-            workflow_dirs=[Path.home() / ".gobby" / "workflows", builtin_workflows]
+            workflow_dirs=[Path.home() / ".gobby" / "workflows"]
         )
         self._workflow_state_manager = WorkflowStateManager(self._database)
 

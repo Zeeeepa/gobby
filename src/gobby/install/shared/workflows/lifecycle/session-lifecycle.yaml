@@ -29,6 +29,9 @@ triggers:
     - action: memory_inject
       # Uses config defaults: importance_threshold=0.3, injection_limit=10
 
+    # Memory sync - import from JSONL for Git persistence
+    - action: memory_sync_import
+
   on_before_agent:
     # Memory recall - inject memories relevant to the user's prompt via semantic search
     - action: memory_recall_relevant
@@ -97,6 +100,9 @@ triggers:
 
     # Memory extraction - extract learnings to memory
     - action: memory_extract
+
+    # Memory sync - export to JSONL for Git persistence
+    - action: memory_sync_export
 
     # Skills learning - extract reusable skills from session
     - action: skills_learn
