@@ -88,7 +88,12 @@ async def require_active_task(
     has_project_task = False
     project_task_hint = ""
 
-    if task_manager:
+    if task_manager is None:
+        logger.debug(
+            f"require_active_task: task_manager unavailable, skipping DB fallback check "
+            f"(project_id={project_id}, session_id={session_id})"
+        )
+    else:
         try:
             project_tasks = task_manager.list_tasks(
                 project_id=project_id,

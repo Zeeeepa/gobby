@@ -36,7 +36,6 @@ def workflow_state():
     )
 
 
-@pytest.mark.asyncio
 class TestRequireActiveTask:
     """Tests for require_active_task action."""
 
