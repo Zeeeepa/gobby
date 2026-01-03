@@ -60,6 +60,34 @@ class ConditionEvaluator:
     Supports simple boolean logic and variable access.
     """
 
+    def __init__(self) -> None:
+        """Initialize the condition evaluator."""
+        self._plugin_conditions: dict[str, Any] = {}
+
+    def register_plugin_conditions(self, plugin_registry: Any) -> None:
+        """
+        Register conditions from loaded plugins.
+
+        Conditions are registered with the naming convention:
+        plugin_<plugin_name>_<condition_name>
+
+        These can be called in 'when' clauses like:
+        when: "plugin_my_plugin_passes_lint()"
+
+        Args:
+            plugin_registry: PluginRegistry instance containing loaded plugins.
+        """
+        if plugin_registry is None:
+            return
+
+        for plugin_name, plugin in plugin_registry._plugins.items():
+            # Sanitize plugin name for use as identifier
+            safe_name = plugin_name.replace("-", "_").replace(".", "_")
+            for condition_name, evaluator in plugin._conditions.items():
+                full_name = f"plugin_{safe_name}_{condition_name}"
+                self._plugin_conditions[full_name] = evaluator
+                logger.debug(f"Registered plugin condition: {full_name}")
+
     def evaluate(self, condition: str, context: dict[str, Any]) -> bool:
         """
         Evaluate a condition string against a context dictionary.
@@ -92,6 +120,9 @@ class ConditionEvaluator:
                 "list": list,
                 "dict": dict,
             }
+
+            # Add plugin conditions as callable functions
+            allowed_globals.update(self._plugin_conditions)
 
             return bool(eval(condition, allowed_globals, context))
         except Exception as e:

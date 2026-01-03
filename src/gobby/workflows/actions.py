@@ -109,6 +109,25 @@ class ActionExecutor:
         """Register an action handler."""
         self._handlers[name] = handler
 
+    def register_plugin_actions(self, plugin_registry: Any) -> None:
+        """
+        Register actions from loaded plugins.
+
+        Actions are registered with the naming convention:
+        plugin:<plugin-name>:<action-name>
+
+        Args:
+            plugin_registry: PluginRegistry instance containing loaded plugins.
+        """
+        if plugin_registry is None:
+            return
+
+        for plugin_name, plugin in plugin_registry._plugins.items():
+            for action_name, action_handler in plugin._actions.items():
+                full_name = f"plugin:{plugin_name}:{action_name}"
+                self._handlers[full_name] = action_handler
+                logger.debug(f"Registered plugin action: {full_name}")
+
     def _register_defaults(self) -> None:
         """Register built-in actions."""
         self.register("inject_context", self._handle_inject_context)

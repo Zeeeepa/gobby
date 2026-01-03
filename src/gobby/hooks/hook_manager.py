@@ -291,6 +291,13 @@ class HookManager:
                             f"Loaded {len(loaded)} plugin(s): "
                             f"{', '.join(p.name for p in loaded)}"
                         )
+                        # Register plugin actions and conditions with workflow system
+                        self._action_executor.register_plugin_actions(
+                            self._plugin_loader.registry
+                        )
+                        self._workflow_engine.evaluator.register_plugin_conditions(
+                            self._plugin_loader.registry
+                        )
                 except Exception as e:
                     self.logger.error(f"Failed to load plugins: {e}", exc_info=True)
 
