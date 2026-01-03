@@ -743,9 +743,15 @@ class ActionExecutor:
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Check for active task before allowing protected tools."""
+        # Get project_id from session for project-scoped task filtering
+        current_session = context.session_manager.get(context.session_id)
+        project_id = current_session.project_id if current_session else None
+
         return await require_active_task(
             task_manager=self.task_manager,
             session_id=context.session_id,
             config=context.config,
             event_data=context.event_data,
+            project_id=project_id,
+            workflow_state=context.state,
         )
