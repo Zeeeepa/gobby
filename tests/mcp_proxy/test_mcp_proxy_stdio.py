@@ -484,11 +484,11 @@ class TestDaemonProxyMethods:
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
             mock_req.side_effect = [
                 {"success": True, "mcp_servers": {"srv1": {}, "srv2": {}}},  # details
-                {"status": "success", "tools": [{"name": "t1"}]},  # srv1 tools
-                {"status": "success", "tools": [{"name": "t2"}]},  # srv2 tools
+                {"success": True, "tools": [{"name": "t1"}]},  # srv1 tools
+                {"success": True, "tools": [{"name": "t2"}]},  # srv2 tools
             ]
             result = await proxy.list_tools()
-            assert result["status"] == "success"
+            assert result["success"] is True
             assert len(result["servers"]) == 2
 
     @pytest.mark.asyncio
@@ -499,7 +499,7 @@ class TestDaemonProxyMethods:
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
             mock_req.return_value = {"name": "tool", "description": "desc", "inputSchema": {}}
             result = await proxy.get_tool_schema("srv", "tool")
-            assert result["status"] == "success"
+            assert result["success"] is True
             assert result["tool"]["name"] == "tool"
 
     @pytest.mark.asyncio
@@ -543,7 +543,7 @@ class TestDaemonProxyMethods:
         proxy = DaemonProxy(8765)
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
             result = await proxy.init_project("name")
-            assert result["status"] == "error"
+            assert result["success"] is False
             assert "not available" in result["error"]
             mock_req.assert_not_called()
 
@@ -574,7 +574,7 @@ class TestDaemonProxyMethods:
         proxy = DaemonProxy(8765)
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
             result = await proxy.add_mcp_server(name="n", transport="stdio", command="c")
-            assert result["status"] == "error"
+            assert result["success"] is False
             assert "not available" in result["error"]
             mock_req.assert_not_called()
 
@@ -585,7 +585,7 @@ class TestDaemonProxyMethods:
         proxy = DaemonProxy(8765)
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
             result = await proxy.remove_mcp_server("name")
-            assert result["status"] == "error"
+            assert result["success"] is False
             assert "not available" in result["error"]
             mock_req.assert_not_called()
 
@@ -596,7 +596,7 @@ class TestDaemonProxyMethods:
         proxy = DaemonProxy(8765)
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
             result = await proxy.import_mcp_server(from_project="p")
-            assert result["status"] == "error"
+            assert result["success"] is False
             assert "not available" in result["error"]
             mock_req.assert_not_called()
 
