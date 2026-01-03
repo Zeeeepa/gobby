@@ -45,15 +45,38 @@ def hook_handler(
             - Priority < 50: Pre-handlers (run before core, can block)
             - Priority >= 50: Post-handlers (run after core, observe only)
 
-    Example:
+    Handler Signatures:
+        Pre-handlers (priority < 50):
+            def handler(self, event: HookEvent) -> HookResponse | None
+            - Receives only the event
+            - Return HookResponse with decision="deny" or "block" to block
+            - Return None to continue to next handler
+
+        Post-handlers (priority >= 50):
+            def handler(self, event: HookEvent, core_response: HookResponse | None) -> None
+            - Receives event AND the core handler's response
+            - Cannot block; return value is ignored
+            - IMPORTANT: Must accept two arguments or a TypeError will be raised
+
+    Examples:
         class MyPlugin(HookPlugin):
             name = "my-plugin"
 
+            # Pre-handler: can block dangerous tools
             @hook_handler(HookEventType.BEFORE_TOOL, priority=10)
             def check_tool(self, event: HookEvent) -> HookResponse | None:
                 if "dangerous" in event.data.get("tool_name", ""):
                     return HookResponse(decision="deny", reason="Blocked")
                 return None  # Continue to next handler
+
+            # Post-handler: observe and log after core processing
+            @hook_handler(HookEventType.AFTER_TOOL, priority=60)
+            def log_tool_result(
+                self, event: HookEvent, core_response: HookResponse | None
+            ) -> None:
+                tool = event.data.get("tool_name", "unknown")
+                status = core_response.decision if core_response else "no-response"
+                logger.info(f"Tool {tool} completed with status: {status}")
     """
 
     def decorator(func: Callable) -> Callable:
@@ -321,6 +344,7 @@ class PluginLoader:
         self.config = config
         self.registry = PluginRegistry()
         self._loaded_modules: dict[str, Any] = {}
+        self._plugin_sources: dict[str, Path] = {}  # Maps plugin name -> source file path
 
     def discover_plugins(self, dirs: list[str] | None = None) -> list[type[HookPlugin]]:
         """
@@ -396,6 +420,8 @@ class PluginLoader:
                 and hasattr(obj, "name")
                 and obj.name  # Must have a non-empty name
             ):
+                # Store source path on the class for reload tracking
+                obj._gobby_source_path = path  # type: ignore[attr-defined]
                 plugin_classes.append(obj)
 
         return plugin_classes
@@ -435,6 +461,10 @@ class PluginLoader:
 
         # Register in registry
         self.registry.register_plugin(plugin)
+
+        # Track source path for reload support
+        if hasattr(plugin_class, "_gobby_source_path"):
+            self._plugin_sources[plugin.name] = plugin_class._gobby_source_path
 
         logger.info(f"Loaded plugin: {plugin.name} v{plugin.version}")
         return plugin
@@ -521,23 +551,43 @@ class PluginLoader:
             logger.warning(f"Plugin not found for reload: {name}")
             return None
 
-        plugin_class = type(plugin)
+        # Get source path before unloading (prefer tracked path over name-based key)
+        source_path = self._plugin_sources.get(name)
 
         # Unload
         self.unload_plugin(name)
 
+        # Compute module name from source path if available, else fall back to plugin name
+        if source_path is not None:
+            module_name = f"gobby_plugin_{source_path.stem}"
+        else:
+            module_name = f"gobby_plugin_{name}"
+
         # Clear module cache to force reimport
-        module_name = f"gobby_plugin_{name}"
         if module_name in self._loaded_modules:
             del self._loaded_modules[module_name]
         if module_name in sys.modules:
             del sys.modules[module_name]
 
-        # Reload
-        try:
-            return self.load_plugin(plugin_class)
-        except Exception as e:
-            logger.error(f"Failed to reload plugin {name}: {e}")
+        # Clear source tracking (will be re-added on load)
+        if name in self._plugin_sources:
+            del self._plugin_sources[name]
+
+        # Reload from source file if available
+        if source_path is not None and source_path.exists():
+            try:
+                plugin_classes = self._load_module(source_path)
+                # Find the plugin class with matching name
+                for plugin_class in plugin_classes:
+                    if plugin_class.name == name:
+                        return self.load_plugin(plugin_class)
+                logger.error(f"Plugin class '{name}' not found in reloaded module")
+                return None
+            except Exception as e:
+                logger.error(f"Failed to reload plugin {name}: {e}")
+                return None
+        else:
+            logger.error(f"Cannot reload plugin {name}: source path not available")
             return None
 
 

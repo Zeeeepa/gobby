@@ -280,26 +280,27 @@ class HookManager:
 
         # Initialize Plugin Loader (Sprint 9: Python Plugins)
         self._plugin_loader: PluginLoader | None = None
+        plugins_config = None
         if self._config and hasattr(self._config, "hook_extensions"):
             plugins_config = self._config.hook_extensions.plugins
-            if plugins_config.enabled:
-                self._plugin_loader = PluginLoader(plugins_config)
-                try:
-                    loaded = self._plugin_loader.load_all()
-                    if loaded:
-                        self.logger.info(
-                            f"Loaded {len(loaded)} plugin(s): "
-                            f"{', '.join(p.name for p in loaded)}"
-                        )
-                        # Register plugin actions and conditions with workflow system
-                        self._action_executor.register_plugin_actions(
-                            self._plugin_loader.registry
-                        )
-                        self._workflow_engine.evaluator.register_plugin_conditions(
-                            self._plugin_loader.registry
-                        )
-                except Exception as e:
-                    self.logger.error(f"Failed to load plugins: {e}", exc_info=True)
+        if plugins_config is not None and plugins_config.enabled:
+            self._plugin_loader = PluginLoader(plugins_config)
+            try:
+                loaded = self._plugin_loader.load_all()
+                if loaded:
+                    self.logger.info(
+                        f"Loaded {len(loaded)} plugin(s): "
+                        f"{', '.join(p.name for p in loaded)}"
+                    )
+                    # Register plugin actions and conditions with workflow system
+                    self._action_executor.register_plugin_actions(
+                        self._plugin_loader.registry
+                    )
+                    self._workflow_engine.evaluator.register_plugin_conditions(
+                        self._plugin_loader.registry
+                    )
+            except Exception as e:
+                self.logger.error(f"Failed to load plugins: {e}", exc_info=True)
 
         # Session manager handles registration, lookup, and status updates
         # Note: source is passed explicitly per call (Phase 2C+), not stored in manager
