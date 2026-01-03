@@ -81,7 +81,7 @@ def install_codex_notify() -> dict[str, Any]:
         else:
             existing = ""
 
-        pattern = re.compile(r"(?m)^\\s*notify\\s*=.*$")
+        pattern = re.compile(r"(?m)^\s*notify\s*=.*$")
         if pattern.search(existing):
             updated = pattern.sub(notify_line, existing)
         else:

@@ -77,21 +77,37 @@ def install_claude(project_path: Path) -> dict[str, Any]:
         return result
 
     # Copy hook files
-    for filename, make_executable in hook_files.items():
-        source_file = install_hooks_dir / filename
-        target_file = hooks_dir / filename
+    try:
+        for filename, make_executable in hook_files.items():
+            source_file = install_hooks_dir / filename
+            target_file = hooks_dir / filename
 
-        if target_file.exists():
-            target_file.unlink()
+            if target_file.exists():
+                target_file.unlink()
 
-        copy2(source_file, target_file)
-        if make_executable:
-            target_file.chmod(0o755)
+            copy2(source_file, target_file)
+            if make_executable:
+                target_file.chmod(0o755)
+    except OSError as e:
+        logger.error(f"Failed to copy hook files: {e}")
+        result["error"] = f"Failed to copy hook files: {e}"
+        return result
 
     # Install shared content (skills, workflows)
-    shared = install_shared_content(claude_path, project_path)
+    try:
+        shared = install_shared_content(claude_path, project_path)
+    except Exception as e:
+        logger.error(f"Failed to install shared content: {e}")
+        result["error"] = f"Failed to install shared content: {e}"
+        return result
+
     # Install CLI-specific content (can override shared)
-    cli = install_cli_content("claude", claude_path)
+    try:
+        cli = install_cli_content("claude", claude_path)
+    except Exception as e:
+        logger.error(f"Failed to install CLI content: {e}")
+        result["error"] = f"Failed to install CLI content: {e}"
+        return result
 
     result["skills_installed"] = shared["skills"] + cli["skills"]
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
@@ -99,26 +115,56 @@ def install_claude(project_path: Path) -> dict[str, Any]:
     result["plugins_installed"] = shared.get("plugins", [])
 
     # Backup existing settings.json if it exists
+    backup_file = None
     if settings_file.exists():
         timestamp = int(time.time())
         backup_file = claude_path / f"settings.json.{timestamp}.backup"
-        copy2(settings_file, backup_file)
+        try:
+            copy2(settings_file, backup_file)
+        except OSError as e:
+            logger.error(f"Failed to create backup of settings.json: {e}")
+            result["error"] = f"Failed to create backup: {e}"
+            return result
+
+        # Verify backup exists
+        if not backup_file.exists():
+            logger.error("Backup file was not created successfully")
+            result["error"] = "Backup file was not created successfully"
+            return result
 
     # Load existing settings or create empty
+    existing_settings: dict[str, Any] = {}
     if settings_file.exists():
-        with open(settings_file) as f:
-            existing_settings = json.load(f)
-    else:
-        existing_settings = {}
+        try:
+            with open(settings_file) as f:
+                existing_settings = json.load(f)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse settings.json: {e}")
+            result["error"] = f"Failed to parse settings.json: {e}"
+            return result
+        except OSError as e:
+            logger.error(f"Failed to read settings.json: {e}")
+            result["error"] = f"Failed to read settings.json: {e}"
+            return result
 
     # Load Gobby hooks from template
-    with open(source_hooks_template) as f:
-        gobby_settings_str = f.read()
+    try:
+        with open(source_hooks_template) as f:
+            gobby_settings_str = f.read()
+    except OSError as e:
+        logger.error(f"Failed to read hooks template: {e}")
+        result["error"] = f"Failed to read hooks template: {e}"
+        return result
 
     # Replace $PROJECT_PATH with absolute project path
     abs_project_path = str(project_path.resolve())
     gobby_settings_str = gobby_settings_str.replace("$PROJECT_PATH", abs_project_path)
-    gobby_settings = json.loads(gobby_settings_str)
+    try:
+        gobby_settings = json.loads(gobby_settings_str)
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse hooks template: {e}")
+        result["error"] = f"Failed to parse hooks template: {e}"
+        return result
 
     # Ensure hooks section exists
     if "hooks" not in existing_settings:
@@ -130,9 +176,34 @@ def install_claude(project_path: Path) -> dict[str, Any]:
         existing_settings["hooks"][hook_type] = hook_config
         hooks_installed.append(hook_type)
 
-    # Write merged settings back
-    with open(settings_file, "w") as f:
-        json.dump(existing_settings, f, indent=2)
+    # Write merged settings back using atomic write
+    try:
+        fd, temp_path = tempfile.mkstemp(
+            dir=str(claude_path), suffix=".tmp", prefix="settings_"
+        )
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(existing_settings, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            # Atomic replace
+            os.replace(temp_path, settings_file)
+        except Exception:
+            # Clean up temp file if it still exists
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            raise
+    except OSError as e:
+        logger.error(f"Failed to write settings.json: {e}")
+        # Attempt to restore from backup if we have one
+        if backup_file and backup_file.exists():
+            try:
+                copy2(backup_file, settings_file)
+                logger.info("Restored settings.json from backup after write failure")
+            except OSError as restore_error:
+                logger.error(f"Failed to restore from backup: {restore_error}")
+        result["error"] = f"Failed to write settings.json: {e}"
+        return result
 
     result["success"] = True
     return result
