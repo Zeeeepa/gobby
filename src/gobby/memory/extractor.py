@@ -19,6 +19,18 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Directories to skip when analyzing source files and directory structure
+SKIP_DIRS = frozenset({
+    "node_modules",
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+    ".next",
+})
+
 
 @dataclass
 class ExtractedMemory:
@@ -345,8 +357,7 @@ class MemoryExtractor:
                 break
 
         # Skip common non-source directories
-        skip_dirs = {"node_modules", ".git", "__pycache__", ".venv", "venv", "dist", "build"}
-        source_files = [f for f in source_files if not any(skip in f.parts for skip in skip_dirs)][
+        source_files = [f for f in source_files if not any(skip in f.parts for skip in SKIP_DIRS)][
             :max_files
         ]
 
@@ -365,16 +376,6 @@ class MemoryExtractor:
         if max_depth <= 0:
             return ""
 
-        skip_dirs = {
-            "node_modules",
-            ".git",
-            "__pycache__",
-            ".venv",
-            "venv",
-            "dist",
-            "build",
-            ".next",
-        }
         lines = []
 
         try:
@@ -382,7 +383,7 @@ class MemoryExtractor:
             for entry in entries[:30]:  # Limit entries per level
                 if entry.name.startswith(".") and entry.name not in {".github", ".gobby"}:
                     continue
-                if entry.name in skip_dirs:
+                if entry.name in SKIP_DIRS:
                     continue
 
                 if entry.is_dir():
