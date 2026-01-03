@@ -675,3 +675,104 @@ class TestWorkflowEngineIntegration:
         # The engine logs inject_context results
         # We're just verifying it doesn't crash
         await engine._execute_actions(actions, workflow_state)
+
+
+# =============================================================================
+# Test Plugin Action Timeout and Cancellation
+# =============================================================================
+
+
+class TestPluginActionTimeoutAndCancellation:
+    """Tests for plugin action timeout and cancellation handling."""
+
+    @pytest.mark.asyncio
+    async def test_slow_plugin_action_can_be_cancelled(
+        self, action_executor, action_context
+    ):
+        """Plugin action can be cancelled via asyncio cancellation."""
+        import asyncio
+
+        # Start slow action but cancel it
+        task = asyncio.create_task(
+            action_executor.execute(
+                "plugin:workflow-test:slow_action",
+                action_context,
+                delay=10.0,  # 10 second delay
+            )
+        )
+
+        # Give it a moment to start, then cancel
+        await asyncio.sleep(0.01)
+        task.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    @pytest.mark.asyncio
+    async def test_slow_plugin_action_respects_timeout(
+        self, action_executor, action_context
+    ):
+        """Plugin action respects asyncio.wait_for timeout."""
+        import asyncio
+
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(
+                action_executor.execute(
+                    "plugin:workflow-test:slow_action",
+                    action_context,
+                    delay=10.0,  # 10 second delay
+                ),
+                timeout=0.05,  # 50ms timeout
+            )
+
+    @pytest.mark.asyncio
+    async def test_fast_plugin_action_completes_before_timeout(
+        self, action_executor, action_context
+    ):
+        """Fast plugin action completes successfully with timeout."""
+        import asyncio
+
+        result = await asyncio.wait_for(
+            action_executor.execute(
+                "plugin:workflow-test:slow_action",
+                action_context,
+                delay=0.01,  # 10ms delay
+            ),
+            timeout=1.0,  # 1 second timeout
+        )
+
+        assert result is not None
+        assert result["completed"] is True
+
+    @pytest.mark.asyncio
+    async def test_plugin_action_cancellation_does_not_affect_subsequent_actions(
+        self, action_executor, action_context, workflow_test_plugin
+    ):
+        """Cancelling one action does not prevent subsequent actions."""
+        import asyncio
+
+        # Start and cancel a slow action
+        task = asyncio.create_task(
+            action_executor.execute(
+                "plugin:workflow-test:slow_action",
+                action_context,
+                delay=10.0,
+            )
+        )
+        await asyncio.sleep(0.01)
+        task.cancel()
+
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+        # Subsequent action should still work
+        result = await action_executor.execute(
+            "plugin:workflow-test:track_call",
+            action_context,
+        )
+
+        assert result is not None
+        assert result["tracked"] is True
+        assert len(workflow_test_plugin.action_calls) == 1
