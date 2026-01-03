@@ -25,6 +25,9 @@ def manager(db):
     return LocalTaskManager(db)
 
 
+@pytest.mark.slow
+@pytest.mark.integration
+@pytest.mark.e2e
 def test_create_task_with_expansion_fields(manager):
     task = manager.create_task(
         project_id="p1",
@@ -48,6 +51,9 @@ def test_create_task_with_expansion_fields(manager):
     assert fetched.complexity_score == 5
 
 
+@pytest.mark.slow
+@pytest.mark.integration
+@pytest.mark.e2e
 def test_update_task_expansion_fields(manager):
     task = manager.create_task(project_id="p1", title="Update Me")
     assert task.description is None
@@ -62,6 +68,9 @@ def test_update_task_expansion_fields(manager):
     assert fetched.complexity_score == 8
 
 
+@pytest.mark.slow
+@pytest.mark.integration
+@pytest.mark.e2e
 def test_to_dict_includes_expansion_fields(manager):
     task = manager.create_task(project_id="p1", title="Dict Test", description="Secret details")
 
