@@ -182,6 +182,10 @@ class WorkflowEngine:
         if event.event_type == HookEventType.AFTER_TOOL:
             state.step_action_count += 1
             state.total_action_count += 1
+
+            # Detect gobby-tasks calls for session-scoped task claiming
+            self._detect_task_claim(event, state)
+
             self.state_manager.save_state(state)  # Persist updates
 
         return HookResponse(decision="allow")
@@ -869,3 +873,62 @@ class WorkflowEngine:
                 )
             except Exception as e:
                 logger.debug(f"Failed to log approval audit: {e}")
+
+    def _detect_task_claim(self, event: HookEvent, state: WorkflowState) -> None:
+        """Detect gobby-tasks calls that claim a task for this session.
+
+        Sets `task_claimed: true` in workflow state variables when the agent
+        successfully creates a task or updates a task to in_progress status.
+
+        This enables session-scoped task enforcement where each session must
+        explicitly claim a task rather than free-riding on project-wide checks.
+
+        Args:
+            event: The AFTER_TOOL hook event
+            state: Current workflow state (modified in place)
+        """
+        if not event.data:
+            return
+
+        tool_name = event.data.get("tool_name", "")
+        tool_input = event.data.get("tool_input", {}) or {}
+        tool_output = event.data.get("tool_output", {}) or {}
+
+        # Check if this is a gobby-tasks call via MCP proxy
+        # Tool name could be "call_tool" (from Skill) or "mcp__gobby__call_tool" (direct)
+        if tool_name not in ("call_tool", "mcp__gobby__call_tool"):
+            return
+
+        # Check server is gobby-tasks
+        server_name = tool_input.get("server_name", "")
+        if server_name != "gobby-tasks":
+            return
+
+        # Check inner tool name
+        inner_tool_name = tool_input.get("tool_name", "")
+        if inner_tool_name not in ("create_task", "update_task"):
+            return
+
+        # For update_task, only count if status is being set to in_progress
+        if inner_tool_name == "update_task":
+            arguments = tool_input.get("arguments", {}) or {}
+            if arguments.get("status") != "in_progress":
+                return
+
+        # Check if the call succeeded (not an error)
+        # tool_output structure varies, but errors typically have "error" key
+        # or the MCP response has "status": "error"
+        if isinstance(tool_output, dict):
+            if tool_output.get("error") or tool_output.get("status") == "error":
+                return
+            # Also check nested result for MCP proxy responses
+            result = tool_output.get("result", {})
+            if isinstance(result, dict) and result.get("error"):
+                return
+
+        # All conditions met - set task_claimed
+        state.variables["task_claimed"] = True
+        logger.info(
+            f"Session {state.session_id}: task_claimed=True "
+            f"(via {inner_tool_name})"
+        )
