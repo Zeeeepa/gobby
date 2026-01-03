@@ -7,6 +7,7 @@ from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.mcp_proxy.models import MCPError
 
 if TYPE_CHECKING:
+    from gobby.mcp_proxy.services.fallback import ToolFallbackResolver
     from gobby.mcp_proxy.services.tool_filter import ToolFilterService
     from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 
@@ -32,101 +33,51 @@ class ToolProxyService:
         mcp_manager: MCPClientManager,
         internal_manager: "InternalRegistryManager | None" = None,
         tool_filter: "ToolFilterService | None" = None,
+        fallback_resolver: "ToolFallbackResolver | None" = None,
     ):
         self._mcp_manager = mcp_manager
         self._internal_manager = internal_manager
         self._tool_filter = tool_filter
+        self._fallback_resolver = fallback_resolver
 
     async def list_tools(
         self,
-        server_name: str | None = None,
+        server_name: str,
         session_id: str | None = None,
     ) -> dict[str, Any]:
         """
-        List tools with progressive disclosure format.
+        List tools for a specific server with progressive disclosure format.
 
         When session_id is provided and a workflow is active, tools are filtered
         based on the current phase's allowed_tools and blocked_tools settings.
 
         Args:
-            server_name: Optional server to filter by (e.g., "gobby-tasks", "context7")
+            server_name: Server name (e.g., "gobby-tasks", "context7")
             session_id: Optional session ID to apply workflow phase filtering
 
         Returns:
-            Dict with server name(s) and lightweight tool metadata:
-            - If server specified: {"server": "name", "tools": [{name, brief}, ...]}
-            - If no server: {"servers": [{"name": "...", "tools": [...]}, ...]}
+            Dict with tool metadata: {"status": "success", "tools": [...], "tool_count": N}
         """
-        # Check if requesting a specific internal server
-        if (
-            server_name
-            and self._internal_manager
-            and self._internal_manager.is_internal(server_name)
-        ):
+        # Check internal servers first (gobby-tasks, gobby-memory, etc.)
+        if self._internal_manager and self._internal_manager.is_internal(server_name):
             registry = self._internal_manager.get_registry(server_name)
             if registry:
                 tools = registry.list_tools()
                 # Apply phase filtering if session_id provided
                 if session_id and self._tool_filter:
                     tools = self._tool_filter.filter_tools(tools, session_id)
-                return {"server": server_name, "tools": tools}
+                return {"status": "success", "tools": tools, "tool_count": len(tools)}
             return {
-                "server": server_name,
+                "status": "error",
                 "tools": [],
                 "error": f"Internal server '{server_name}' not found",
             }
 
-        # Check if requesting a specific external server
-        if server_name:
-            if self._mcp_manager.has_server(server_name):
-                tools_map = await self._mcp_manager.list_tools(server_name)
-                tools_list = tools_map.get(server_name, [])
-                # Convert to lightweight format
-                brief_tools = []
-                for tool in tools_list:
-                    if isinstance(tool, dict):
-                        brief_tools.append(
-                            {
-                                "name": tool.get("name", "unknown"),
-                                "brief": safe_truncate(tool.get("description", "")),
-                            }
-                        )
-                    else:
-                        brief_tools.append(
-                            {
-                                "name": tool.name,
-                                "brief": safe_truncate(tool.description),
-                            }
-                        )
-                # Apply phase filtering if session_id provided
-                if session_id and self._tool_filter:
-                    brief_tools = self._tool_filter.filter_tools(brief_tools, session_id)
-                return {"server": server_name, "tools": brief_tools}
-
-            # NOTE: Keeping return-dict error pattern for list_tools as it returns "data"
-            # But for action-oriented methods we switch to raising MCPError
-            return {
-                "server": server_name,
-                "tools": [],
-                "error": f"Server '{server_name}' not found",
-            }
-
-        # No server specified - return all servers
-        servers_result = []
-
-        # Add internal servers first
-        if self._internal_manager:
-            for registry in self._internal_manager.get_all_registries():
-                servers_result.append(
-                    {
-                        "name": registry.name,
-                        "tools": registry.list_tools(),
-                    }
-                )
-
-        # Add external servers
-        tools_map = await self._mcp_manager.list_tools()
-        for srv_name, tools_list in tools_map.items():
+        # Check external servers
+        if self._mcp_manager.has_server(server_name):
+            tools_map = await self._mcp_manager.list_tools(server_name)
+            tools_list = tools_map.get(server_name, [])
+            # Convert to lightweight format
             brief_tools = []
             for tool in tools_list:
                 if isinstance(tool, dict):
@@ -143,13 +94,16 @@ class ToolProxyService:
                             "brief": safe_truncate(tool.description),
                         }
                     )
-            servers_result.append({"name": srv_name, "tools": brief_tools})
+            # Apply phase filtering if session_id provided
+            if session_id and self._tool_filter:
+                brief_tools = self._tool_filter.filter_tools(brief_tools, session_id)
+            return {"status": "success", "tools": brief_tools, "tool_count": len(brief_tools)}
 
-        # Apply phase filtering to all servers if session_id provided
-        if session_id and self._tool_filter:
-            servers_result = self._tool_filter.filter_servers_tools(servers_result, session_id)
-
-        return {"servers": servers_result}
+        return {
+            "status": "error",
+            "tools": [],
+            "error": f"Server '{server_name}' not found",
+        }
 
     async def call_tool(
         self,
@@ -157,16 +111,56 @@ class ToolProxyService:
         tool_name: str,
         arguments: dict[str, Any] | None = None,
     ) -> Any:
-        """Execute a tool."""
-        # Check internal tools first
-        if self._internal_manager and self._internal_manager.is_internal(server_name):
-            registry = self._internal_manager.get_registry(server_name)
-            if registry:
-                return await registry.call(tool_name, arguments or {})
-            raise MCPError(f"Internal server '{server_name}' not found")
+        """Execute a tool.
 
-        # Use MCP manager for external servers
-        return await self._mcp_manager.call_tool(server_name, tool_name, arguments)
+        On error, includes fallback_suggestions if a fallback resolver is configured.
+        Returns a dict with {success: False, error: ..., fallback_suggestions: [...]}
+        on failure, or the raw tool result on success.
+        """
+        try:
+            # Check internal tools first
+            if self._internal_manager and self._internal_manager.is_internal(server_name):
+                registry = self._internal_manager.get_registry(server_name)
+                if registry:
+                    return await registry.call(tool_name, arguments or {})
+                raise MCPError(f"Internal server '{server_name}' not found")
+
+            # Use MCP manager for external servers
+            return await self._mcp_manager.call_tool(server_name, tool_name, arguments)
+
+        except Exception as e:
+            error_message = str(e)
+            logger.warning(f"Tool call failed: {server_name}/{tool_name}: {error_message}")
+
+            # Build error response with fallback suggestions
+            response: dict[str, Any] = {
+                "success": False,
+                "error": error_message,
+                "server_name": server_name,
+                "tool_name": tool_name,
+            }
+
+            # Get fallback suggestions if resolver is available
+            if self._fallback_resolver:
+                try:
+                    project_id = self._mcp_manager.project_id
+                    if project_id:
+                        suggestions = await self._fallback_resolver.find_alternatives_for_error(
+                            server_name=server_name,
+                            tool_name=tool_name,
+                            error_message=error_message,
+                            project_id=project_id,
+                        )
+                        response["fallback_suggestions"] = suggestions
+                    else:
+                        response["fallback_suggestions"] = []
+                except Exception as fallback_error:
+                    logger.debug(f"Fallback resolver failed: {fallback_error}")
+                    response["fallback_suggestions"] = []
+            else:
+                response["fallback_suggestions"] = []
+
+            return response
 
     async def read_resource(self, server_name: str, uri: str) -> Any:
         """Read a resource."""

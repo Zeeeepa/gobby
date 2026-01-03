@@ -715,6 +715,26 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_tool_metrics_last_called ON tool_metrics(last_called_at);
         """,
     ),
+    (
+        29,
+        "Create tool_schema_hashes table for incremental tool re-indexing",
+        """
+        CREATE TABLE IF NOT EXISTS tool_schema_hashes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            server_name TEXT NOT NULL,
+            tool_name TEXT NOT NULL,
+            project_id TEXT NOT NULL,
+            schema_hash TEXT NOT NULL,
+            last_verified_at TEXT NOT NULL DEFAULT (datetime('now')),
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(project_id, server_name, tool_name)
+        );
+        CREATE INDEX IF NOT EXISTS idx_schema_hashes_server ON tool_schema_hashes(server_name);
+        CREATE INDEX IF NOT EXISTS idx_schema_hashes_project ON tool_schema_hashes(project_id);
+        CREATE INDEX IF NOT EXISTS idx_schema_hashes_verified ON tool_schema_hashes(last_verified_at);
+        """,
+    ),
 ]
 
 

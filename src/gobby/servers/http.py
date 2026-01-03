@@ -176,6 +176,17 @@ class HTTPServer:
                 tool_filter = ToolFilterService(db=mcp_db_manager.db)
                 logger.debug("Tool filter service initialized")
 
+            # Create fallback resolver for alternative tool suggestions on error
+            fallback_resolver = None
+            if semantic_search and self.metrics_manager:
+                from gobby.mcp_proxy.services.fallback import ToolFallbackResolver
+
+                fallback_resolver = ToolFallbackResolver(
+                    semantic_search=semantic_search,
+                    metrics_manager=self.metrics_manager,
+                )
+                logger.debug("Fallback resolver initialized")
+
             # Create tools handler
             self._tools_handler = GobbyDaemonTools(
                 mcp_manager=mcp_manager,
@@ -191,6 +202,7 @@ class HTTPServer:
                 config_manager=mcp_db_manager,
                 semantic_search=semantic_search,
                 tool_filter=tool_filter,
+                fallback_resolver=fallback_resolver,
             )
             self._mcp_server = create_mcp_server(self._tools_handler)
             logger.debug("MCP server initialized and will be mounted at /mcp")
