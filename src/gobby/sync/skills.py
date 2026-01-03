@@ -146,11 +146,11 @@ class SkillSyncManager:
         Export skills to Claude Code plugin format.
 
         Creates:
-        - .gobby/.claude-plugin/plugin.json (manifest)
-        - .gobby/skills/<name>/SKILL.md (per skill)
+        - .claude/.claude-plugin/plugin.json (manifest)
+        - .claude/skills/<name>/SKILL.md (per skill)
 
         Args:
-            output_dir: Output directory (default: .gobby in current directory)
+            output_dir: Output directory (default: .claude in current directory)
 
         Returns:
             Count of exported skills
@@ -159,12 +159,12 @@ class SkillSyncManager:
 
     def _export_claude_format_sync(self, output_dir: Path | None = None) -> int:
         """Export skills in Claude Code plugin format (sync)."""
-        gobby_dir = output_dir or Path(".gobby")
-        skills_dir = gobby_dir / "skills"
+        claude_dir = output_dir or Path(".claude")
+        skills_dir = claude_dir / "skills"
         skills_dir.mkdir(parents=True, exist_ok=True)
 
         # Create plugin manifest
-        plugin_dir = gobby_dir / ".claude-plugin"
+        plugin_dir = claude_dir / ".claude-plugin"
         plugin_dir.mkdir(parents=True, exist_ok=True)
         manifest_file = plugin_dir / "plugin.json"
         if not manifest_file.exists():
@@ -224,7 +224,7 @@ class SkillSyncManager:
                 logger.error(f"Failed to export skill '{skill.name}' to Claude format: {e}")
                 continue
 
-        logger.info(f"Exported {count} skills to Claude Code format in {gobby_dir}")
+        logger.info(f"Exported {count} skills to Claude Code format in {claude_dir}")
         return count
 
     async def export_to_codex_format(self, output_dir: Path | None = None) -> int:
@@ -365,7 +365,7 @@ class SkillSyncManager:
         """
         results = {}
 
-        # Claude Code: .gobby/skills/ in project
+        # Claude Code: .claude/skills/ in project
         results["claude"] = await self.export_to_claude_format(project_dir)
 
         # Codex: ~/.codex/skills/
