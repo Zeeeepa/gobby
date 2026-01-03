@@ -141,6 +141,7 @@ class ActionExecutor:
         self.register("memory_sync_export", self._handle_memory_sync_export)
         # Skills
         self.register("skills_learn", self._handle_skills_learn)
+        self.register("skills_sync_export", self._handle_skills_sync_export)
         self.register("extract_handoff_context", self._handle_extract_handoff_context)
         self.register("start_new_session", self._handle_start_new_session)
         self.register("mark_loop_complete", self._handle_mark_loop_complete)
@@ -602,6 +603,22 @@ class ActionExecutor:
             return {"skills_learned": len(new_skills), "skill_names": [s.name for s in new_skills]}
         except Exception as e:
             logger.error(f"skills_learn: Failed: {e}", exc_info=True)
+            return {"error": str(e)}
+
+    async def _handle_skills_sync_export(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Export skills to filesystem for CLI discovery."""
+        if not self.skill_sync_manager:
+            return None
+
+        try:
+            results = await self.skill_sync_manager.export_to_all_formats()
+            total = sum(results.values())
+            logger.info(f"skills_sync_export: Exported {total} skills")
+            return {"exported": total, "by_format": results}
+        except Exception as e:
+            logger.error(f"skills_sync_export: Failed: {e}", exc_info=True)
             return {"error": str(e)}
 
     async def _handle_save_memory(

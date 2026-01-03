@@ -990,6 +990,10 @@ class HookManager:
                 external_id, source=event.source.value, machine_id=machine_id
             )
 
+        # Ensure session_id is available in event metadata for workflow actions
+        if session_id and not event.metadata.get("_platform_session_id"):
+            event.metadata["_platform_session_id"] = session_id
+
         # Execute lifecycle workflow triggers (e.g. generate_handoff on /clear)
         self.logger.debug("Calling workflow handler for all lifecycle workflows on session_end")
         try:

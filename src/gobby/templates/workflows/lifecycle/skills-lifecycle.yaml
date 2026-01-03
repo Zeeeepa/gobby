@@ -9,3 +9,4 @@ settings:
 triggers:
   on_session_end:
     - action: skills_learn
+    - action: skills_sync_export
