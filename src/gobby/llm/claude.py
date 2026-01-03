@@ -408,10 +408,12 @@ class ClaudeLLMProvider(LLMProvider):
             return "Generation unavailable (Claude CLI not found)"
 
         # Configure Claude Agent SDK
+        # Use tools=[] to disable all tools for pure text generation
         options = ClaudeAgentOptions(
             system_prompt=system_prompt or "You are a helpful assistant.",
             max_turns=1,
             model=model or "claude-haiku-4-5",
+            tools=[],  # Explicitly disable all tools
             allowed_tools=[],
             permission_mode="default",
             cli_path=cli_path,
@@ -420,17 +422,32 @@ class ClaudeLLMProvider(LLMProvider):
         # Run async query
         async def _run_query() -> str:
             result_text = ""
+            message_count = 0
             async for message in query(prompt=prompt, options=options):
+                message_count += 1
+                self.logger.debug(f"generate_text message {message_count}: {type(message).__name__}")
                 if isinstance(message, AssistantMessage):
                     for block in message.content:
                         if isinstance(block, TextBlock):
+                            self.logger.debug(f"  TextBlock: {block.text[:100]}...")
                             result_text += block.text
+                        elif isinstance(block, ToolUseBlock):
+                            self.logger.debug(f"  ToolUseBlock: {block.name}")
+                elif isinstance(message, ResultMessage):
+                    # ResultMessage contains the final result from the agent
+                    self.logger.debug(f"  ResultMessage: result={message.result}, type={type(message.result)}")
+                    if message.result:
+                        result_text = message.result
+            if message_count == 0:
+                self.logger.warning("generate_text: No messages received from Claude SDK")
+            elif not result_text:
+                self.logger.warning(f"generate_text: {message_count} messages but no text content")
             return result_text
 
         try:
             return await _run_query()
         except Exception as e:
-            self.logger.error(f"Failed to generate text with Claude: {e}")
+            self.logger.error(f"Failed to generate text with Claude: {e}", exc_info=True)
             return f"Generation failed: {e}"
 
     async def generate_with_mcp_tools(
