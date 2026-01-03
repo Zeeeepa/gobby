@@ -40,7 +40,8 @@ class WebhookResult:
         if not self.body:
             return None
         try:
-            return json.loads(self.body)
+            result: dict[str, Any] = json.loads(self.body)
+            return result
         except json.JSONDecodeError:
             return None
 
@@ -244,7 +245,8 @@ class WebhookExecutor:
             return None
 
         if self.template_engine and isinstance(payload, str):
-            return self.template_engine.render(payload, context)
+            rendered: str = self.template_engine.render(payload, context)
+            return rendered
 
         # For dicts, we could deep-interpolate, but for now just return as-is
         # since the tests expect the executor to handle the interpolation
@@ -333,14 +335,6 @@ class WebhookExecutor:
                 last_error = str(e)
                 logger.debug(f"Webhook connection error: {url} - {e}")
                 continue  # Retry on aiohttp client errors
-
-            except Exception as e:
-                # Re-raise non-aiohttp exceptions to avoid masking programming errors
-                if not isinstance(e, aiohttp.ClientError):
-                    raise
-                last_error = str(e)
-                logger.warning(f"Webhook error: {url} - {e}")
-                continue
 
         # All retries exhausted
         return WebhookResult(
