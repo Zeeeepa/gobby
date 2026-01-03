@@ -281,21 +281,37 @@ class TaskValidator:
                 description=description or "(no description)",
             )
         else:
-            prompt = (
-                "Generate clear, testable acceptance criteria for the following task.\n"
-                "Return a concise bulleted list of specific conditions that must be met.\n"
-                "Focus on observable outcomes, not implementation details.\n\n"
-                f"Task: {title}\n"
-            )
-            if description:
-                prompt += f"Description: {description}\n"
+            prompt = f"""Generate validation criteria for the following task.
 
-            prompt += (
-                "\nFormat your response as a simple bulleted list, e.g.:\n"
-                "- Condition 1\n"
-                "- Condition 2\n"
-                "- Condition 3\n"
-            )
+Task: {title}
+Description: {description or "(no description)"}
+
+Requirements for good criteria:
+1. **Objectively verifiable** - Can be checked with a yes/no answer
+2. **Specific** - Include concrete values, file paths, or behaviors (no vague terms like "appropriate" or "reasonable")
+3. **Actionable** - Each criterion maps to something that can be tested or inspected
+4. **Complete** - Cover the full scope of the task including edge cases and error handling
+5. **Structured** - Use markdown checkboxes for easy tracking
+
+Format your response as:
+# <Task Title Summary>
+
+## Deliverable
+- [ ] Primary output (file, class, function, etc.)
+
+## Functional Requirements
+- [ ] Specific behavior 1
+- [ ] Specific behavior 2
+
+## Edge Cases / Error Handling
+- [ ] How errors are handled
+- [ ] Boundary conditions
+
+## Verification
+- [ ] How to verify completion (tests pass, command works, etc.)
+
+Use concrete examples: "timeout defaults to 30 seconds" not "timeout has a reasonable default".
+"""
 
         try:
             provider = self.llm_service.get_provider(self.config.provider)
