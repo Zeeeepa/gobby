@@ -84,7 +84,7 @@ class GobbyDaemonTools:
             )
 
         return {
-            "status": "success",
+            "success": True,
             "servers": server_list,
             "total_count": len(server_list),
             "connected_count": len([s for s in server_list if s["connected"]]),

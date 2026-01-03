@@ -938,7 +938,7 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
                         response_time_ms = (time.perf_counter() - start_time) * 1000
                         metrics.inc_counter("mcp_tool_calls_succeeded_total")
                         return {
-                            "status": "success",
+                            "success": True,
                             "result": result,
                             "response_time_ms": response_time_ms,
                         }
@@ -971,7 +971,7 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
                 metrics.inc_counter("mcp_tool_calls_succeeded_total")
 
                 return {
-                    "status": "success",
+                    "success": True,
                     "result": result,
                     "response_time_ms": response_time_ms,
                 }

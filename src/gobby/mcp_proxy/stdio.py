@@ -81,16 +81,16 @@ class DaemonProxy:
             return await self._request("GET", f"/mcp/{server}/tools")
         # List all - need to get server list first
         status = await self.get_status()
-        if status.get("success") is False or status.get("status") == "error":
+        if status.get("success") is False:
             return status
         servers = status.get("mcp_servers", {})
         all_tools: dict[str, list[dict[str, Any]]] = {}
         for srv_name in servers:
             result = await self._request("GET", f"/mcp/{srv_name}/tools")
-            if result.get("status") == "success":
+            if result.get("success"):
                 all_tools[srv_name] = result.get("tools", [])
         return {
-            "status": "success",
+            "success": True,
             "servers": [{"name": n, "tools": t} for n, t in all_tools.items()],
         }
 
@@ -126,9 +126,9 @@ class DaemonProxy:
             json={"server_name": server_name, "tool_name": tool_name},
         )
         if "error" in result:
-            return {"status": "error", "error": result["error"]}
+            return {"success": False, "error": result["error"]}
         return {
-            "status": "success",
+            "success": True,
             "tool": {
                 "name": result.get("name"),
                 "description": result.get("description"),
@@ -188,21 +188,21 @@ class DaemonProxy:
 
     async def add_mcp_server(self, **kwargs: Any) -> dict[str, Any]:
         """Add an MCP server - not available via stdio."""
-        return {"status": "error", "error": "add_mcp_server not available via stdio proxy"}
+        return {"success": False, "error": "add_mcp_server not available via stdio proxy"}
 
     async def remove_mcp_server(self, name: str) -> dict[str, Any]:
         """Remove an MCP server - not available via stdio."""
-        return {"status": "error", "error": "remove_mcp_server not available via stdio proxy"}
+        return {"success": False, "error": "remove_mcp_server not available via stdio proxy"}
 
     async def import_mcp_server(self, **kwargs: Any) -> dict[str, Any]:
         """Import an MCP server - not available via stdio."""
-        return {"status": "error", "error": "import_mcp_server not available via stdio proxy"}
+        return {"success": False, "error": "import_mcp_server not available via stdio proxy"}
 
     async def init_project(
         self, name: str | None = None, github_url: str | None = None
     ) -> dict[str, Any]:
         """Initialize a project - not available via stdio."""
-        return {"status": "error", "error": "init_project not available via stdio proxy"}
+        return {"success": False, "error": "init_project not available via stdio proxy"}
 
     async def execute_code(
         self,

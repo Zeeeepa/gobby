@@ -56,7 +56,7 @@ class ToolProxyService:
             session_id: Optional session ID to apply workflow phase filtering
 
         Returns:
-            Dict with tool metadata: {"status": "success", "tools": [...], "tool_count": N}
+            Dict with tool metadata: {"success": true, "tools": [...], "tool_count": N}
         """
         # Check internal servers first (gobby-tasks, gobby-memory, etc.)
         if self._internal_manager and self._internal_manager.is_internal(server_name):
@@ -66,9 +66,9 @@ class ToolProxyService:
                 # Apply phase filtering if session_id provided
                 if session_id and self._tool_filter:
                     tools = self._tool_filter.filter_tools(tools, session_id)
-                return {"status": "success", "tools": tools, "tool_count": len(tools)}
+                return {"success": True, "tools": tools, "tool_count": len(tools)}
             return {
-                "status": "error",
+                "success": False,
                 "tools": [],
                 "error": f"Internal server '{server_name}' not found",
             }
@@ -97,10 +97,10 @@ class ToolProxyService:
             # Apply phase filtering if session_id provided
             if session_id and self._tool_filter:
                 brief_tools = self._tool_filter.filter_tools(brief_tools, session_id)
-            return {"status": "success", "tools": brief_tools, "tool_count": len(brief_tools)}
+            return {"success": True, "tools": brief_tools, "tool_count": len(brief_tools)}
 
         return {
-            "status": "error",
+            "success": False,
             "tools": [],
             "error": f"Server '{server_name}' not found",
         }
@@ -174,7 +174,7 @@ class ToolProxyService:
             if registry:
                 schema = registry.get_schema(tool_name)
                 if schema:
-                    return {"status": "success", "tool": schema}
+                    return {"success": True, "tool": schema}
                 return {
                     "success": False,
                     "error": f"Tool '{tool_name}' not found on '{server_name}'",
