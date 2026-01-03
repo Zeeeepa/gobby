@@ -151,21 +151,13 @@ class CompactHandoffConfig(BaseModel):
         default=True,
         description="Enable compact handoff context extraction and injection",
     )
-    prompt: str = Field(
-        default="""## Continuation Context
-
-{active_task_section}
-{todo_state_section}
-{git_commits_section}
-{git_status_section}
-{files_modified_section}
-{initial_goal_section}
-{recent_activity_section}
-""",
-        description="Template for formatting handoff context. Available placeholders: "
-        "{active_task_section}, {todo_state_section}, {git_commits_section}, "
-        "{git_status_section}, {files_modified_section}, {initial_goal_section}, "
-        "{recent_activity_section}",
+    # DEPRECATED: prompt field is no longer used.
+    # Template is now defined in session-handoff.yaml workflow file.
+    # Kept for backwards compatibility but will be removed in a future version.
+    prompt: str | None = Field(
+        default=None,
+        description="DEPRECATED: Template moved to session-handoff.yaml workflow. "
+        "This field is ignored.",
     )
 
 

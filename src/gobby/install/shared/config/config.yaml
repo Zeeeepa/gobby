@@ -111,20 +111,10 @@ session_lifecycle:
   transcript_processing_batch_size: 10    
 compact_handoff:
   enabled: true
-  # Prompt for formatting handoff context. Each section is pre-rendered markdown.
-  # Available placeholders (only included if data exists):
-  # {active_task_section}, {todo_state_section}, {git_commits_section}, {git_status_section},
-  # {files_modified_section}, {initial_goal_section}, {recent_activity_section}
-  prompt: |
-    ## Continuation Context
-
-    {active_task_section}
-    {todo_state_section}
-    {git_commits_section}
-    {git_status_section}
-    {files_modified_section}
-    {initial_goal_section}
-    {recent_activity_section}
+  # NOTE: The 'prompt' field is deprecated. Template is now in session-handoff.yaml workflow.
+  # To customize the compact handoff format, edit:
+  #   .gobby/workflows/lifecycle/session-handoff.yaml
+  # Look for the inject_context action with source: compact_handoff
 session_summary:
   enabled: false
   provider: claude

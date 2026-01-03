@@ -39,8 +39,8 @@ class TestToolFilterService:
         return ToolFilterService(db=mock_db, loader=mock_loader, state_manager=None)
 
 
-class TestGetPhaseRestrictions:
-    """Tests for get_phase_restrictions method."""
+class TestGetStepRestrictions:
+    """Tests for get_step_restrictions method."""
 
     @pytest.fixture
     def mock_db(self):
@@ -65,87 +65,81 @@ class TestGetPhaseRestrictions:
     def test_returns_none_without_state_manager(self, mock_db, mock_loader):
         """Test returns None when no state manager is available."""
         service = ToolFilterService(db=None, loader=mock_loader, state_manager=None)
-        result = service.get_phase_restrictions("session-123")
+        result = service.get_step_restrictions("session-123")
         assert result is None
 
     def test_returns_none_when_no_workflow_state(self, service, mock_state_manager):
         """Test returns None when session has no workflow state."""
         mock_state_manager.get_state.return_value = None
-        result = service.get_phase_restrictions("session-123")
+        result = service.get_step_restrictions("session-123")
         assert result is None
         mock_state_manager.get_state.assert_called_once_with("session-123")
 
-    def test_returns_none_when_workflow_not_found(
-        self, service, mock_state_manager, mock_loader
-    ):
+    def test_returns_none_when_workflow_not_found(self, service, mock_state_manager, mock_loader):
         """Test returns None when workflow definition is not found."""
         mock_state = MagicMock()
         mock_state.workflow_name = "unknown-workflow"
-        mock_state.phase = "phase1"
+        mock_state.step = "step1"
         mock_state_manager.get_state.return_value = mock_state
         mock_loader.load_workflow.return_value = None
 
-        result = service.get_phase_restrictions("session-123")
+        result = service.get_step_restrictions("session-123")
         assert result is None
 
-    def test_returns_none_when_phase_not_found(
-        self, service, mock_state_manager, mock_loader
-    ):
-        """Test returns None when phase is not found in workflow."""
+    def test_returns_none_when_step_not_found(self, service, mock_state_manager, mock_loader):
+        """Test returns None when step is not found in workflow."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
-        mock_state.phase = "unknown-phase"
+        mock_state.step = "unknown-step"
         mock_state_manager.get_state.return_value = mock_state
 
         mock_definition = MagicMock()
-        mock_definition.get_phase.return_value = None
+        mock_definition.get_step.return_value = None
         mock_loader.load_workflow.return_value = mock_definition
 
-        result = service.get_phase_restrictions("session-123")
+        result = service.get_step_restrictions("session-123")
         assert result is None
 
-    def test_returns_restrictions_when_found(
-        self, service, mock_state_manager, mock_loader
-    ):
-        """Test returns phase restrictions when workflow and phase found."""
+    def test_returns_restrictions_when_found(self, service, mock_state_manager, mock_loader):
+        """Test returns step restrictions when workflow and step found."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
-        mock_state.phase = "discovery"
+        mock_state.step = "discovery"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_phase = MagicMock()
-        mock_phase.allowed_tools = ["search", "read"]
-        mock_phase.blocked_tools = ["write", "delete"]
+        mock_step = MagicMock()
+        mock_step.allowed_tools = ["search", "read"]
+        mock_step.blocked_tools = ["write", "delete"]
 
         mock_definition = MagicMock()
-        mock_definition.get_phase.return_value = mock_phase
+        mock_definition.get_step.return_value = mock_step
         mock_loader.load_workflow.return_value = mock_definition
 
-        result = service.get_phase_restrictions("session-123")
+        result = service.get_step_restrictions("session-123")
 
         assert result == {
             "workflow_name": "test-workflow",
-            "phase": "discovery",
+            "step": "discovery",
             "allowed_tools": ["search", "read"],
             "blocked_tools": ["write", "delete"],
         }
 
     def test_returns_all_allowed_tools(self, service, mock_state_manager, mock_loader):
-        """Test returns 'all' for allowed_tools when phase allows all."""
+        """Test returns 'all' for allowed_tools when step allows all."""
         mock_state = MagicMock()
         mock_state.workflow_name = "open-workflow"
-        mock_state.phase = "open-phase"
+        mock_state.step = "open-step"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_phase = MagicMock()
-        mock_phase.allowed_tools = "all"
-        mock_phase.blocked_tools = []
+        mock_step = MagicMock()
+        mock_step.allowed_tools = "all"
+        mock_step.blocked_tools = []
 
         mock_definition = MagicMock()
-        mock_definition.get_phase.return_value = mock_phase
+        mock_definition.get_step.return_value = mock_step
         mock_loader.load_workflow.return_value = mock_definition
 
-        result = service.get_phase_restrictions("session-123")
+        result = service.get_step_restrictions("session-123")
 
         assert result["allowed_tools"] == "all"
         assert result["blocked_tools"] == []
@@ -187,15 +181,15 @@ class TestIsToolAllowed:
         """Test tool is blocked when in blocked_tools list."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
-        mock_state.phase = "restricted"
+        mock_state.step = "restricted"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_phase = MagicMock()
-        mock_phase.allowed_tools = "all"
-        mock_phase.blocked_tools = ["dangerous-tool"]
+        mock_step = MagicMock()
+        mock_step.allowed_tools = "all"
+        mock_step.blocked_tools = ["dangerous-tool"]
 
         mock_definition = MagicMock()
-        mock_definition.get_phase.return_value = mock_phase
+        mock_definition.get_step.return_value = mock_step
         mock_loader.load_workflow.return_value = mock_definition
 
         allowed, reason = service.is_tool_allowed("dangerous-tool", "session-123")
@@ -208,15 +202,15 @@ class TestIsToolAllowed:
         """Test tool is allowed when in allowed_tools list."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
-        mock_state.phase = "discovery"
+        mock_state.step = "discovery"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_phase = MagicMock()
-        mock_phase.allowed_tools = ["search", "read"]
-        mock_phase.blocked_tools = []
+        mock_step = MagicMock()
+        mock_step.allowed_tools = ["search", "read"]
+        mock_step.blocked_tools = []
 
         mock_definition = MagicMock()
-        mock_definition.get_phase.return_value = mock_phase
+        mock_definition.get_step.return_value = mock_step
         mock_loader.load_workflow.return_value = mock_definition
 
         allowed, reason = service.is_tool_allowed("search", "session-123")
@@ -224,21 +218,19 @@ class TestIsToolAllowed:
         assert allowed is True
         assert reason is None
 
-    def test_not_allowed_when_not_in_allowed_list(
-        self, service, mock_state_manager, mock_loader
-    ):
+    def test_not_allowed_when_not_in_allowed_list(self, service, mock_state_manager, mock_loader):
         """Test tool is not allowed when not in allowed_tools list."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
-        mock_state.phase = "discovery"
+        mock_state.step = "discovery"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_phase = MagicMock()
-        mock_phase.allowed_tools = ["search", "read"]
-        mock_phase.blocked_tools = []
+        mock_step = MagicMock()
+        mock_step.allowed_tools = ["search", "read"]
+        mock_step.blocked_tools = []
 
         mock_definition = MagicMock()
-        mock_definition.get_phase.return_value = mock_phase
+        mock_definition.get_step.return_value = mock_step
         mock_loader.load_workflow.return_value = mock_definition
 
         allowed, reason = service.is_tool_allowed("write", "session-123")
@@ -246,21 +238,19 @@ class TestIsToolAllowed:
         assert allowed is False
         assert "not in allowed list" in reason.lower()
 
-    def test_allowed_when_all_tools_allowed(
-        self, service, mock_state_manager, mock_loader
-    ):
+    def test_allowed_when_all_tools_allowed(self, service, mock_state_manager, mock_loader):
         """Test any tool is allowed when allowed_tools is 'all'."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
-        mock_state.phase = "open"
+        mock_state.step = "open"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_phase = MagicMock()
-        mock_phase.allowed_tools = "all"
-        mock_phase.blocked_tools = []
+        mock_step = MagicMock()
+        mock_step.allowed_tools = "all"
+        mock_step.blocked_tools = []
 
         mock_definition = MagicMock()
-        mock_definition.get_phase.return_value = mock_phase
+        mock_definition.get_step.return_value = mock_step
         mock_loader.load_workflow.return_value = mock_definition
 
         allowed, reason = service.is_tool_allowed("any-tool", "session-123")
@@ -274,15 +264,15 @@ class TestIsToolAllowed:
         """Test blocked list takes priority even when allowed_tools is 'all'."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
-        mock_state.phase = "open-but-restricted"
+        mock_state.step = "open-but-restricted"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_phase = MagicMock()
-        mock_phase.allowed_tools = "all"
-        mock_phase.blocked_tools = ["dangerous"]
+        mock_step = MagicMock()
+        mock_step.allowed_tools = "all"
+        mock_step.blocked_tools = ["dangerous"]
 
         mock_definition = MagicMock()
-        mock_definition.get_phase.return_value = mock_phase
+        mock_definition.get_step.return_value = mock_step
         mock_loader.load_workflow.return_value = mock_definition
 
         allowed, reason = service.is_tool_allowed("dangerous", "session-123")
@@ -325,9 +315,7 @@ class TestFilterTools:
 
         assert result == tools
 
-    def test_returns_all_tools_when_no_workflow_active(
-        self, service, mock_state_manager
-    ):
+    def test_returns_all_tools_when_no_workflow_active(self, service, mock_state_manager):
         """Test returns all tools when no workflow is active."""
         mock_state_manager.get_state.return_value = None
 
@@ -344,15 +332,15 @@ class TestFilterTools:
         """Test filters out tools in blocked list."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
-        mock_state.phase = "restricted"
+        mock_state.step = "restricted"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_phase = MagicMock()
-        mock_phase.allowed_tools = "all"
-        mock_phase.blocked_tools = ["tool2"]
+        mock_step = MagicMock()
+        mock_step.allowed_tools = "all"
+        mock_step.blocked_tools = ["tool2"]
 
         mock_definition = MagicMock()
-        mock_definition.get_phase.return_value = mock_phase
+        mock_definition.get_step.return_value = mock_step
         mock_loader.load_workflow.return_value = mock_definition
 
         tools = [
@@ -372,15 +360,15 @@ class TestFilterTools:
         """Test filters to only allowed tools when list specified."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
-        mock_state.phase = "discovery"
+        mock_state.step = "discovery"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_phase = MagicMock()
-        mock_phase.allowed_tools = ["tool1", "tool3"]
-        mock_phase.blocked_tools = []
+        mock_step = MagicMock()
+        mock_step.allowed_tools = ["tool1", "tool3"]
+        mock_step.blocked_tools = []
 
         mock_definition = MagicMock()
-        mock_definition.get_phase.return_value = mock_phase
+        mock_definition.get_step.return_value = mock_step
         mock_loader.load_workflow.return_value = mock_definition
 
         tools = [
@@ -395,21 +383,19 @@ class TestFilterTools:
         assert {"name": "tool1", "brief": "desc1"} in result
         assert {"name": "tool3", "brief": "desc3"} in result
 
-    def test_blocked_takes_priority_in_filter(
-        self, service, mock_state_manager, mock_loader
-    ):
+    def test_blocked_takes_priority_in_filter(self, service, mock_state_manager, mock_loader):
         """Test blocked tools are filtered even if in allowed list."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
-        mock_state.phase = "mixed"
+        mock_state.step = "mixed"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_phase = MagicMock()
-        mock_phase.allowed_tools = ["tool1", "tool2", "tool3"]
-        mock_phase.blocked_tools = ["tool2"]  # Blocked takes priority
+        mock_step = MagicMock()
+        mock_step.allowed_tools = ["tool1", "tool2", "tool3"]
+        mock_step.blocked_tools = ["tool2"]  # Blocked takes priority
 
         mock_definition = MagicMock()
-        mock_definition.get_phase.return_value = mock_phase
+        mock_definition.get_step.return_value = mock_step
         mock_loader.load_workflow.return_value = mock_definition
 
         tools = [
@@ -458,21 +444,19 @@ class TestFilterServersTools:
 
         assert result == servers
 
-    def test_filters_tools_across_servers(
-        self, service, mock_state_manager, mock_loader
-    ):
+    def test_filters_tools_across_servers(self, service, mock_state_manager, mock_loader):
         """Test filters tools across multiple servers."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
-        mock_state.phase = "restricted"
+        mock_state.step = "restricted"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_phase = MagicMock()
-        mock_phase.allowed_tools = ["tool1", "tool3"]
-        mock_phase.blocked_tools = []
+        mock_step = MagicMock()
+        mock_step.allowed_tools = ["tool1", "tool3"]
+        mock_step.blocked_tools = []
 
         mock_definition = MagicMock()
-        mock_definition.get_phase.return_value = mock_phase
+        mock_definition.get_step.return_value = mock_step
         mock_loader.load_workflow.return_value = mock_definition
 
         servers = [
@@ -507,15 +491,15 @@ class TestFilterServersTools:
         """Test keeps servers even when all tools filtered out."""
         mock_state = MagicMock()
         mock_state.workflow_name = "test-workflow"
-        mock_state.phase = "very-restricted"
+        mock_state.step = "very-restricted"
         mock_state_manager.get_state.return_value = mock_state
 
-        mock_phase = MagicMock()
-        mock_phase.allowed_tools = ["nonexistent"]
-        mock_phase.blocked_tools = []
+        mock_step = MagicMock()
+        mock_step.allowed_tools = ["nonexistent"]
+        mock_step.blocked_tools = []
 
         mock_definition = MagicMock()
-        mock_definition.get_phase.return_value = mock_phase
+        mock_definition.get_step.return_value = mock_step
         mock_loader.load_workflow.return_value = mock_definition
 
         servers = [
@@ -538,13 +522,11 @@ class TestLazyInitialization:
         service = ToolFilterService(db=mock_db, loader=None, state_manager=None)
 
         # Patch at source module since import happens locally in method
-        with patch(
-            "gobby.workflows.state_manager.WorkflowStateManager"
-        ) as mock_class:
+        with patch("gobby.workflows.state_manager.WorkflowStateManager") as mock_class:
             mock_class.return_value = MagicMock()
             mock_class.return_value.get_state.return_value = None
 
-            service.get_phase_restrictions("session-123")
+            service.get_step_restrictions("session-123")
 
             mock_class.assert_called_once_with(mock_db)
 
@@ -554,22 +536,18 @@ class TestLazyInitialization:
         mock_state_manager = MagicMock()
         mock_state = MagicMock()
         mock_state.workflow_name = "test"
-        mock_state.phase = "phase1"
+        mock_state.step = "phase1"
         mock_state_manager.get_state.return_value = mock_state
 
-        service = ToolFilterService(
-            db=mock_db, loader=None, state_manager=mock_state_manager
-        )
+        service = ToolFilterService(db=mock_db, loader=None, state_manager=mock_state_manager)
 
         # Patch at source module since import happens locally in method
-        with patch(
-            "gobby.workflows.loader.WorkflowLoader"
-        ) as mock_class:
+        with patch("gobby.workflows.loader.WorkflowLoader") as mock_class:
             mock_loader = MagicMock()
             mock_loader.load_workflow.return_value = None
             mock_class.return_value = mock_loader
 
-            service.get_phase_restrictions("session-123")
+            service.get_step_restrictions("session-123")
 
             mock_class.assert_called_once()
 
@@ -578,16 +556,12 @@ class TestLazyInitialization:
         mock_state_manager = MagicMock()
         mock_state_manager.get_state.return_value = None
 
-        service = ToolFilterService(
-            db=MagicMock(), loader=None, state_manager=mock_state_manager
-        )
+        service = ToolFilterService(db=MagicMock(), loader=None, state_manager=mock_state_manager)
 
         # Patch at source module since import happens locally in method
-        with patch(
-            "gobby.workflows.state_manager.WorkflowStateManager"
-        ) as mock_class:
-            service.get_phase_restrictions("session-123")
-            service.get_phase_restrictions("session-456")
+        with patch("gobby.workflows.state_manager.WorkflowStateManager") as mock_class:
+            service.get_step_restrictions("session-123")
+            service.get_step_restrictions("session-456")
 
             # Should not create new instance - use existing
             mock_class.assert_not_called()
@@ -599,7 +573,7 @@ class TestLazyInitialization:
         mock_state_manager = MagicMock()
         mock_state = MagicMock()
         mock_state.workflow_name = "test"
-        mock_state.phase = "phase1"
+        mock_state.step = "phase1"
         mock_state_manager.get_state.return_value = mock_state
 
         service = ToolFilterService(
@@ -607,11 +581,9 @@ class TestLazyInitialization:
         )
 
         # Patch at source module since import happens locally in method
-        with patch(
-            "gobby.workflows.loader.WorkflowLoader"
-        ) as mock_class:
-            service.get_phase_restrictions("session-123")
-            service.get_phase_restrictions("session-456")
+        with patch("gobby.workflows.loader.WorkflowLoader") as mock_class:
+            service.get_step_restrictions("session-123")
+            service.get_step_restrictions("session-456")
 
             # Should not create new instance - use existing
             mock_class.assert_not_called()

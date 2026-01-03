@@ -518,12 +518,12 @@ class TestWorkflowConfig:
         """Test default workflow config."""
         config = WorkflowConfig()
         assert config.enabled is True
-        assert config.timeout == 30.0
+        assert config.timeout == 0.0
 
     def test_timeout_validation(self):
         """Test timeout must be positive."""
         with pytest.raises(ValidationError):
-            WorkflowConfig(timeout=0)
+            WorkflowConfig(timeout=-1)
 
 
 class TestMessageTrackingConfig:

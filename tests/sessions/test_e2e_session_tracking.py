@@ -49,8 +49,15 @@ async def env(tmp_path) -> AsyncGenerator[dict, None]:
         # Note: type ignore for MockWebSocketServer as it doesn't fully implement protocol but enough for test
         processor = SessionMessageProcessor(db, poll_interval=0.1, websocket_server=ws)  # type: ignore
 
+        # Configure mock config
+        mock_config = MagicMock()
+        mock_config.workflow.timeout = 0.0
+        mock_config.workflow.enabled = True
+        # Also need daemon config
+        mock_config.daemon_health_check_interval = 10.0
+
         # Create HookManager
-        hm = HookManager(daemon_host="test", message_processor=processor, config=MagicMock())
+        hm = HookManager(daemon_host="test", message_processor=processor, config=mock_config)
 
         # Force daemon status to be ready for tests
         hm._get_cached_daemon_status = MagicMock(return_value=(True, "OK", "running", None))  # type: ignore

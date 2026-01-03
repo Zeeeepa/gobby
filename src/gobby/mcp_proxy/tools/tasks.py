@@ -783,7 +783,7 @@ def create_task_registry(
                 },
                 "session_id": {
                     "type": "string",
-                    "description": "Session ID to associate with this task (tracked as created_in_session_id)",
+                    "description": "Your session ID (from system context). Pass this to track which session created the task.",
                     "default": None,
                 },
             },
@@ -834,6 +834,10 @@ def create_task_registry(
         labels: list[str] | None = None,
         validation_criteria: str | None = None,
         parent_task_id: str | None = None,
+        test_strategy: str | None = None,
+        workflow_name: str | None = None,
+        verification: str | None = None,
+        sequence_order: int | None = None,
     ) -> dict[str, Any]:
         """Update task fields."""
         # Build kwargs only for non-None values to avoid overwriting with NULL
@@ -854,6 +858,14 @@ def create_task_registry(
             kwargs["validation_criteria"] = validation_criteria
         if parent_task_id is not None:
             kwargs["parent_task_id"] = parent_task_id
+        if test_strategy is not None:
+            kwargs["test_strategy"] = test_strategy
+        if workflow_name is not None:
+            kwargs["workflow_name"] = workflow_name
+        if verification is not None:
+            kwargs["verification"] = verification
+        if sequence_order is not None:
+            kwargs["sequence_order"] = sequence_order
 
         task = task_manager.update_task(task_id, **kwargs)
         if not task:
@@ -895,6 +907,26 @@ def create_task_registry(
                 "parent_task_id": {
                     "type": "string",
                     "description": "Parent task ID (for re-parenting)",
+                    "default": None,
+                },
+                "test_strategy": {
+                    "type": "string",
+                    "description": "Testing approach for the task",
+                    "default": None,
+                },
+                "workflow_name": {
+                    "type": "string",
+                    "description": "Workflow name for execution context",
+                    "default": None,
+                },
+                "verification": {
+                    "type": "string",
+                    "description": "Verification steps or notes",
+                    "default": None,
+                },
+                "sequence_order": {
+                    "type": "integer",
+                    "description": "Order in a sequence of tasks",
                     "default": None,
                 },
             },
@@ -1080,7 +1112,7 @@ def create_task_registry(
                 },
                 "session_id": {
                     "type": "string",
-                    "description": "Session ID where task is being closed. Auto-links task to session with 'closed' action.",
+                    "description": "Your session ID (from system context). Pass this to track which session closed the task.",
                     "default": None,
                 },
                 "override_justification": {

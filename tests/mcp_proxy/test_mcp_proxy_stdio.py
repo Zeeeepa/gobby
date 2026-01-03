@@ -501,12 +501,10 @@ class TestDaemonProxyMethods:
         from gobby.mcp_proxy.stdio import DaemonProxy
 
         proxy = DaemonProxy(8765)
-        with patch.object(proxy, "get_status", new_callable=AsyncMock) as mock_status:
-            mock_status.return_value = {
-                "success": True,
-                "mcp_servers": {
-                    "srv1": {"status": "connected", "connected": True, "tool_count": 5}
-                },
+        with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = {
+                "total_count": 1,
+                "servers": [{"name": "srv1", "status": "connected"}],
             }
             result = await proxy.list_mcp_servers()
             assert result["total_count"] == 1

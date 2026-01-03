@@ -76,6 +76,9 @@ triggers:
       when: "event.data.get('source') == 'compact'"
       source: compact_handoff
       require: true  # Block if handoff context missing
+      template: |
+        ## Continuation Context
+        {{ handoff }}
 
   # Autonomous Handover Flow - extract context before compaction
   # Saves formatted markdown to session.compact_markdown

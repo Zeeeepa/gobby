@@ -125,7 +125,8 @@ def inject_context(
             elif source == "workflow_state":
                 render_context["workflow_state_text"] = content
             elif source == "compact_handoff":
-                render_context["handoff"] = {"notes": content}
+                # Pass content to template (like /clear does with summary)
+                render_context["handoff"] = content
 
             content = template_engine.render(template, render_context)
 
@@ -272,20 +273,13 @@ def extract_handoff_context(
         if real_commits:
             handoff_ctx.git_commits = real_commits
 
-        # Get prompt template from config
-        prompt_template = None
-        if config:
-            compact_config = getattr(config, "compact_handoff", None)
-            if compact_config:
-                prompt_template = compact_config.prompt
-
-        # Format as markdown using config template
-        markdown = format_handoff_as_markdown(handoff_ctx, prompt_template)
+        # Format as markdown (like /clear stores formatted summary)
+        markdown = format_handoff_as_markdown(handoff_ctx)
 
         # Save to session.compact_markdown
         session_manager.update_compact_markdown(session_id, markdown)
 
-        logger.info(f"Saved compact handoff context ({len(markdown)} chars) to session {session_id}")
+        logger.debug(f"Saved compact handoff markdown ({len(markdown)} chars) to session {session_id}")
         return {"handoff_context_extracted": True, "markdown_length": len(markdown)}
 
     except Exception as e:
@@ -293,28 +287,25 @@ def extract_handoff_context(
         return {"error": str(e)}
 
 
-def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> str:
-    """Format HandoffContext as markdown for injection.
+def format_handoff_as_markdown(ctx: Any) -> str:
+    """Format HandoffContext as markdown for storage.
 
     Args:
         ctx: HandoffContext with extracted session data
-        prompt_template: Optional template from config with {section} placeholders
 
     Returns:
-        Formatted markdown string
+        Formatted markdown string with all sections
     """
-    sections: dict[str, str] = {}
+    sections: list[str] = []
 
     # Active task section
     if ctx.active_gobby_task:
         task = ctx.active_gobby_task
-        sections["active_task_section"] = (
+        sections.append(
             f"### Active Task\n"
             f"**{task.get('title', 'Untitled')}** ({task.get('id', 'unknown')})\n"
-            f"Status: {task.get('status', 'unknown')}\n"
+            f"Status: {task.get('status', 'unknown')}"
         )
-    else:
-        sections["active_task_section"] = ""
 
     # Todo state section
     if ctx.todo_state:
@@ -323,70 +314,35 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> 
             status = todo.get("status", "pending")
             marker = "x" if status == "completed" else ">" if status == "in_progress" else " "
             lines.append(f"- [{marker}] {todo.get('content', '')}")
-        sections["todo_state_section"] = "\n".join(lines) + "\n"
-    else:
-        sections["todo_state_section"] = ""
+        sections.append("\n".join(lines))
 
     # Git commits section
     if ctx.git_commits:
         lines = ["### Commits This Session"]
         for commit in ctx.git_commits:
             lines.append(f"- `{commit.get('hash', '')[:7]}` {commit.get('message', '')}")
-        sections["git_commits_section"] = "\n".join(lines) + "\n"
-    else:
-        sections["git_commits_section"] = ""
+        sections.append("\n".join(lines))
 
     # Git status section
     if ctx.git_status:
-        sections["git_status_section"] = f"### Uncommitted Changes\n```\n{ctx.git_status}\n```\n"
-    else:
-        sections["git_status_section"] = ""
+        sections.append(f"### Uncommitted Changes\n```\n{ctx.git_status}\n```")
 
     # Files modified section
     if ctx.files_modified:
         lines = ["### Files Being Modified"]
         for f in ctx.files_modified:
             lines.append(f"- {f}")
-        sections["files_modified_section"] = "\n".join(lines) + "\n"
-    else:
-        sections["files_modified_section"] = ""
+        sections.append("\n".join(lines))
 
     # Initial goal section
     if ctx.initial_goal:
-        sections["initial_goal_section"] = f"### Original Goal\n{ctx.initial_goal}\n"
-    else:
-        sections["initial_goal_section"] = ""
+        sections.append(f"### Original Goal\n{ctx.initial_goal}")
 
     # Recent activity section
     if ctx.recent_activity:
         lines = ["### Recent Activity"]
         for activity in ctx.recent_activity[-5:]:
             lines.append(f"- {activity}")
-        sections["recent_activity_section"] = "\n".join(lines) + "\n"
-    else:
-        sections["recent_activity_section"] = ""
+        sections.append("\n".join(lines))
 
-    # Use template if provided, otherwise use default format
-    if prompt_template:
-        try:
-            result = prompt_template.format(**sections)
-            result = re.sub(r"\n{3,}", "\n\n", result)
-            return result.strip() + "\n"
-        except KeyError as e:
-            logger.warning(f"Invalid placeholder in compact_handoff prompt: {e}")
-
-    # Default format
-    lines = ["## Continuation Context", ""]
-    for section in [
-        "active_task_section",
-        "todo_state_section",
-        "git_commits_section",
-        "git_status_section",
-        "files_modified_section",
-        "initial_goal_section",
-        "recent_activity_section",
-    ]:
-        if sections[section]:
-            lines.append(sections[section])
-
-    return "\n".join(lines)
+    return "\n\n".join(sections)
