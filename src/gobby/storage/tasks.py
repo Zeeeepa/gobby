@@ -56,7 +56,6 @@ class Task:
     assignee: str | None = None
     labels: list[str] | None = None
     closed_reason: str | None = None
-    platform_id: str | None = None
     validation_status: Literal["pending", "valid", "invalid"] | None = None
     validation_feedback: str | None = None
     test_strategy: str | None = None
@@ -103,7 +102,6 @@ class Task:
             assignee=row["assignee"],
             labels=labels,
             closed_reason=row["closed_reason"],
-            platform_id=row["platform_id"] if "platform_id" in keys else None,
             validation_status=row["validation_status"] if "validation_status" in keys else None,
             validation_feedback=row["validation_feedback"]
             if "validation_feedback" in keys
@@ -149,7 +147,6 @@ class Task:
             "assignee": self.assignee,
             "labels": self.labels,
             "closed_reason": self.closed_reason,
-            "platform_id": self.platform_id,
             "validation_status": self.validation_status,
             "validation_feedback": self.validation_feedback,
             "test_strategy": self.test_strategy,

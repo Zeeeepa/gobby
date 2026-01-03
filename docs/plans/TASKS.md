@@ -34,7 +34,6 @@ The core task system provides immediate value without workflows. Agents can use 
 CREATE TABLE tasks (
     id TEXT PRIMARY KEY,              -- Human-friendly: gt-xxxxxx (6 chars, collision-resistant)
     project_id TEXT NOT NULL,         -- FK to projects
-    platform_id TEXT,                 -- UUID for future platform sync (nullable, populated on sync)
     parent_task_id TEXT,              -- For hierarchical breakdown (gt-a1b2c3.1)
     created_in_session_id TEXT,       -- Session where task was created
     closed_in_session_id TEXT,        -- Session where task was closed
@@ -70,7 +69,6 @@ CREATE TABLE tasks (
 CREATE INDEX idx_tasks_project ON tasks(project_id);
 CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_parent ON tasks(parent_task_id);
-CREATE UNIQUE INDEX idx_tasks_platform_id ON tasks(platform_id) WHERE platform_id IS NOT NULL;
 ```
 
 ### Dependencies Table
@@ -119,10 +117,9 @@ CREATE INDEX idx_session_tasks_task ON session_tasks(task_id);
 
 ## ID Generation
 
-Tasks use a hash-based ID with optional platform UUID for fleet sync:
+Tasks use a hash-based ID format:
 
 - **`id`**: Human-friendly `gt-{6 chars}` (collision-resistant within central DB)
-- **`platform_id`**: UUID for future platform sync (nullable, generated on first sync)
 
 ### ID Format
 
@@ -148,21 +145,7 @@ def generate_task_id(project_id: str) -> str:
 def generate_child_id(parent_id: str, child_num: int) -> str:
     """Generate child ID from parent."""
     return f"{parent_id}.{child_num}"
-
-def generate_platform_id() -> str:
-    """Generate UUID for platform sync (called lazily on first sync)."""
-    import uuid
-    return uuid.uuid4().hex
 ```
-
-### Platform Sync (Future)
-
-When gobby connects to the remote platform for fleet management:
-
-1. Tasks without `platform_id` get a UUID generated on first sync
-2. Platform uses `platform_id` for cross-machine references
-3. Local tools continue using human-friendly `gt-xxxxxx` IDs
-4. JSONL exports include both `id` and `platform_id` for portability
 
 ## Ready Work Query
 
@@ -199,10 +182,8 @@ LIMIT ?;
 Each line is a complete task record with embedded dependencies:
 
 ```json
-{"id":"gt-a1b2c3","platform_id":null,"project_id":"proj-123","title":"Fix auth bug","status":"open","priority":1,"task_type":"bug","dependencies":[{"depends_on":"gt-x9y8z7","dep_type":"blocks"}],"created_at":"2025-01-15T10:00:00Z","updated_at":"2025-01-15T10:00:00Z"}
+{"id":"gt-a1b2c3","project_id":"proj-123","title":"Fix auth bug","status":"open","priority":1,"task_type":"bug","dependencies":[{"depends_on":"gt-x9y8z7","dep_type":"blocks"}],"created_at":"2025-01-15T10:00:00Z","updated_at":"2025-01-15T10:00:00Z"}
 ```
-
-Note: `platform_id` is null until first platform sync, then contains UUID.
 
 ### Sync Behavior
 
@@ -1536,8 +1517,8 @@ For large tasks, use `expand_task(id)` to break them down before starting.
 
 | # | Question | Decision | Rationale |
 |---|----------|----------|-----------|
-| 1 | **Task ID format** | `gt-{6 chars}` + optional `platform_id` UUID | Human-friendly IDs for local use. UUID generated lazily on platform sync. Minimal refactor now, fleet-ready later. |
-| 2 | **Task scope** | Single machine now, fleet-ready | Central DB supports multiple projects. `platform_id` column ready for gobby_platform fleet management. |
+| 1 | **Task ID format** | `gt-{6 chars}` | Human-friendly IDs for local use. Collision-resistant within central DB. |
+| 2 | **Task scope** | Single machine | Central DB supports multiple projects. |
 | 3 | **Stealth mode** | Store JSONL in `~/.gobby/tasks/{project_id}.jsonl` | Per-project setting to avoid committing tasks to git. |
 | 4 | **ID collision handling** | Retry with random salt on collision | SHA-256 with 6 hex chars gives ~16M unique IDs. Collision unlikely, but handle gracefully with retry. |
 | 5 | **LLM provider for expansion/validation** | Use existing `llm_providers` infrastructure | Subscription SDKs (Claude/Codex/Gemini) or LiteLLM for API keys. Same pattern as session summaries, tool recommendations. |

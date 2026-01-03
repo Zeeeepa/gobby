@@ -380,10 +380,10 @@ class TaskSyncManager:
                             """
                             INSERT INTO tasks (
                                 id, project_id, title, description, status, type,
-                                labels, created_at, updated_at, platform_id
-                            ) VALUES (?, ?, ?, ?, 'open', 'issue', ?, ?, ?, ?)
+                                labels, created_at, updated_at
+                            ) VALUES (?, ?, ?, ?, 'open', 'issue', ?, ?, ?)
                             """,
-                            (task_id, project_id, title, desc, labels_json, created_at, updated_at, f"github:{issue_num}"),
+                            (task_id, project_id, title, desc, labels_json, created_at, updated_at),
                         )
                         imported_count += 1
 

@@ -681,6 +681,14 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         PRAGMA foreign_keys = ON;
         """,
     ),
+    (
+        27,
+        "Remove platform_id column from tasks table",
+        """
+        DROP INDEX IF EXISTS idx_tasks_platform_id;
+        ALTER TABLE tasks DROP COLUMN platform_id;
+        """,
+    ),
 ]
 
 
