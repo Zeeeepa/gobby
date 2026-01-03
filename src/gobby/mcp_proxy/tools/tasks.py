@@ -131,12 +131,41 @@ def create_task_registry(
                     }
                 )
 
+        # Auto-generate validation criteria for each subtask
+        validation_generated = 0
+        if task_validator and subtask_ids:
+            for sid in subtask_ids:
+                subtask = task_manager.get_task(sid)
+                if subtask and not subtask.validation_criteria:
+                    try:
+                        criteria = await task_validator.generate_criteria(
+                            title=subtask.title,
+                            description=subtask.description,
+                        )
+                        if criteria:
+                            task_manager.update_task(sid, validation_criteria=criteria)
+                            validation_generated += 1
+                    except Exception as e:
+                        # Log but don't fail expansion if validation criteria generation fails
+                        import logging
+
+                        logging.getLogger(__name__).warning(
+                            f"Failed to generate validation criteria for {sid}: {e}"
+                        )
+
+        # Update parent task validation criteria
+        task_manager.update_task(
+            task_id,
+            validation_criteria="All child tasks must be completed (status: closed).",
+        )
+
         return {
             "task_id": task_id,
             "subtask_ids": subtask_ids,
             "subtasks": created_subtasks,
             "tool_calls": result.get("tool_calls", 0),
             "text": result.get("text", ""),
+            "validation_criteria_generated": validation_generated,
         }
 
     @registry.tool(

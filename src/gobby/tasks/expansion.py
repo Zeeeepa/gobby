@@ -290,6 +290,7 @@ class TaskExpander:
                 priority=spec.priority,
                 task_type=spec.task_type,
                 parent_task_id=parent_task_id,
+                test_strategy=spec.test_strategy,
             )
 
             created_ids.append(task.id)
