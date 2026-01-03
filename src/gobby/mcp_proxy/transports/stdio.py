@@ -1,5 +1,6 @@
 """Stdio transport connection."""
 
+import asyncio
 import logging
 from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
@@ -112,11 +113,15 @@ class StdioTransportConnection(BaseTransportConnection):
     async def disconnect(self) -> None:
         """Disconnect from stdio server."""
         # Exit session context manager (not the session object itself)
-        # Exit session context manager (not the session object itself)
         session_ctx = self._session_context
         if session_ctx is not None:
             try:
-                await session_ctx.__aexit__(None, None, None)
+                await asyncio.wait_for(
+                    session_ctx.__aexit__(None, None, None),
+                    timeout=2.0
+                )
+            except TimeoutError:
+                logger.warning(f"Session close timed out for {self.config.name}")
             except RuntimeError as e:
                 # Expected when exiting cancel scope from different task
                 if "cancel scope" not in str(e):
@@ -129,7 +134,12 @@ class StdioTransportConnection(BaseTransportConnection):
         transport_ctx = self._transport_context
         if transport_ctx is not None:
             try:
-                await transport_ctx.__aexit__(None, None, None)
+                await asyncio.wait_for(
+                    transport_ctx.__aexit__(None, None, None),
+                    timeout=2.0
+                )
+            except TimeoutError:
+                logger.warning(f"Transport close timed out for {self.config.name}")
             except RuntimeError as e:
                 # Expected when exiting cancel scope from different task
                 if "cancel scope" not in str(e):

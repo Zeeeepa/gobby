@@ -326,9 +326,9 @@ class GobbyRunner:
             if websocket_task:
                 websocket_task.cancel()
                 try:
-                    await websocket_task
-                except asyncio.CancelledError:
-                    pass
+                    await asyncio.wait_for(websocket_task, timeout=3.0)
+                except (asyncio.CancelledError, TimeoutError):
+                    logger.warning("WebSocket server shutdown timed out or cancelled")
 
             # Cancel metrics cleanup task
             if self._metrics_cleanup_task and not self._metrics_cleanup_task.done():

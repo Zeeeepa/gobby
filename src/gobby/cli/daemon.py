@@ -216,8 +216,8 @@ def restart(ctx: click.Context, verbose: bool) -> None:
         click.echo("Failed to stop daemon, aborting restart", err=True)
         sys.exit(1)
 
-    # Wait a moment for cleanup
-    time.sleep(1)
+    # Wait for cleanup and port release (TIME_WAIT state)
+    time.sleep(3)
 
     # Call start command
     ctx.invoke(start, verbose=verbose)

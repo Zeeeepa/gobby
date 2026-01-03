@@ -275,13 +275,19 @@ class TestRestartDaemonProcess:
                     "output": "Daemon restarted",
                 }
 
+                # Mock both sleep and to_thread (for port checking)
                 with patch("gobby.mcp_proxy.daemon_control.asyncio.sleep", new_callable=AsyncMock):
-                    result = await restart_daemon_process(12345, 8765, 8766)
+                    with patch(
+                        "gobby.mcp_proxy.daemon_control.asyncio.to_thread",
+                        new_callable=AsyncMock,
+                        return_value=True,  # Ports are free
+                    ):
+                        result = await restart_daemon_process(12345, 8765, 8766)
 
-                    assert result["success"] is True
-                    assert result["pid"] == 54321
-                    mock_stop.assert_called_once_with(12345)
-                    mock_start.assert_called_once_with(8765, 8766)
+                        assert result["success"] is True
+                        assert result["pid"] == 54321
+                        mock_stop.assert_called_once_with(12345)
+                        mock_start.assert_called_once_with(8765, 8766)
 
 
 class TestCheckDaemonHttpHealth:

@@ -544,10 +544,15 @@ class WebSocketServer:
         self._server.close()
         await self._server.wait_closed()
 
-        # Close remaining client connections
+        # Close remaining client connections with timeout
         for websocket in list(self.clients.keys()):
             try:
-                await websocket.close(code=1001, reason="Server shutting down")
+                await asyncio.wait_for(
+                    websocket.close(code=1001, reason="Server shutting down"),
+                    timeout=2.0
+                )
+            except TimeoutError:
+                logger.warning("Client connection close timed out")
             except Exception as e:
                 logger.warning(f"Error closing client connection: {e}")
 

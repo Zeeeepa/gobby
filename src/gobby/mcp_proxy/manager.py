@@ -427,10 +427,18 @@ class MCPClientManager:
             await asyncio.gather(*self._reconnect_tasks, return_exceptions=True)
         self._reconnect_tasks.clear()
 
+        async def disconnect_with_timeout(name: str, connection: Any) -> None:
+            try:
+                await asyncio.wait_for(connection.disconnect(), timeout=5.0)
+            except TimeoutError:
+                logger.warning(f"Connection disconnect timed out for {name}")
+            except Exception as e:
+                logger.warning(f"Error disconnecting {name}: {e}")
+
         tasks = []
         for name, connection in self._connections.items():
             if connection.is_connected:
-                tasks.append(asyncio.create_task(connection.disconnect()))
+                tasks.append(asyncio.create_task(disconnect_with_timeout(name, connection)))
                 self.health[name].state = ConnectionState.DISCONNECTED
 
         if tasks:

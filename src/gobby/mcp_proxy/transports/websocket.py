@@ -1,5 +1,6 @@
 """WebSocket transport connection."""
 
+import asyncio
 import logging
 from collections.abc import Callable, Coroutine
 from typing import TYPE_CHECKING, Any
@@ -103,7 +104,12 @@ class WebSocketTransportConnection(BaseTransportConnection):
         # Exit session context manager (not the session object itself)
         if self._session_context is not None:
             try:
-                await self._session_context.__aexit__(None, None, None)
+                await asyncio.wait_for(
+                    self._session_context.__aexit__(None, None, None),
+                    timeout=2.0
+                )
+            except TimeoutError:
+                logger.warning(f"Session close timed out for {self.config.name}")
             except RuntimeError as e:
                 # Expected when exiting cancel scope from different task
                 if "cancel scope" not in str(e):
@@ -115,7 +121,12 @@ class WebSocketTransportConnection(BaseTransportConnection):
 
         if self._transport_context is not None:
             try:
-                await self._transport_context.__aexit__(None, None, None)
+                await asyncio.wait_for(
+                    self._transport_context.__aexit__(None, None, None),
+                    timeout=2.0
+                )
+            except TimeoutError:
+                logger.warning(f"Transport close timed out for {self.config.name}")
             except RuntimeError as e:
                 # Expected when exiting cancel scope from different task
                 if "cancel scope" not in str(e):

@@ -121,9 +121,9 @@ class HTTPTransportConnection(BaseTransportConnection):
             if not self._owner_task.done():
                 self._owner_task.cancel()
                 try:
-                    await self._owner_task
-                except asyncio.CancelledError:
-                    pass
+                    await asyncio.wait_for(self._owner_task, timeout=2.0)
+                except (asyncio.CancelledError, TimeoutError):
+                    logger.warning(f"Owner task cleanup timed out for {self.config.name}")
             self._owner_task = None
         self._disconnect_event = None
         self._session_ready = None
