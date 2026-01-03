@@ -1437,7 +1437,7 @@ For large tasks, use `expand_task(id)` to break them down before starting.
   - Remove JSON schema from prompt
   - Update tests and documentation
 
-### Phase 12.5: Task Validation ✅ COMPLETED
+### Phase 12.5: Task Validation (Core Complete, External Validator Pending)
 
 > Uses configured `task_validation` provider. Validates task completion against `validation_criteria`.
 > Tools are registered in `gobby-tasks` internal MCP server.
@@ -1471,12 +1471,12 @@ For large tasks, use `expand_task(id)` to break them down before starting.
 - [x] Increment `validation_fail_count` on failure
 - [x] Store `validation_status` and `validation_feedback` on every validation (pass or fail)
 - [x] Block task close on any non-valid status (invalid or pending)
-- [ ] If `create_fix_subtask: true`, create subtask with failure details (deferred)
-- [ ] If `validation_fail_count >= max_validation_fails`, set status → `failed` (deferred)
+- [x] If `create_fix_subtask: true`, create subtask with failure details
+- [x] If `validation_fail_count >= max_validation_fails`, set status → `failed`
 
-**External Validator Support:**
+**External Validator Support:** (See TASKS_V2.md Phase 7 for full implementation plan)
 
-- [ ] When `use_external_validator: true` on task, spawn separate validation agent (deferred)
+- [ ] When `use_external_validator: true` on task, spawn separate validation agent
 - [ ] Validation agent uses configured provider/model from `task_validation`
 - [ ] Pass task context, files changed, test results to validation agent
 
@@ -1498,10 +1498,30 @@ For large tasks, use `expand_task(id)` to break them down before starting.
 
 - [x] Manual testing with real LLM validation
 - [x] Test git diff auto-fetch in close_task
-- [ ] Add unit tests for TaskValidator (deferred)
-- [ ] Add integration tests with mock LLM (deferred)
-- [ ] Test failure → subtask creation flow (deferred)
-- [ ] Test max_validation_fails → failed status flow (deferred)
+- [x] Add unit tests for TaskValidator
+  - `tests/tasks/test_task_validation.py`:
+    - `TestTaskValidatorEdgeCases` - validation with criteria only, git diff detection, empty/malformed LLM responses, file context errors
+    - `TestTaskValidatorLLMErrors` - provider not found, timeout, connection errors
+    - `TestGatherValidationContext` - single/multiple file gathering, nonexistent files, binary files
+- [x] Add integration tests with mock LLM
+  - `tests/mcp_proxy/test_validation_integration.py`:
+    - `test_validate_task_tool_success` - validates and closes task on success
+    - `test_validate_task_llm_returns_pending` - handles LLM error status
+    - `test_validate_task_llm_exception` - handles LLM exceptions
+    - `test_validate_parent_task_*` - parent task validation with child status checks
+    - `test_validate_task_without_changes_summary_uses_smart_context` - auto-context gathering
+    - `test_generate_criteria_*` - criteria generation for leaf/parent tasks
+    - `test_reset_validation_count` - reset failure count
+- [x] Test failure → subtask creation flow
+  - `tests/mcp_proxy/test_validation_integration.py`:
+    - `test_validate_task_tool_failure_retry` - creates fix subtask on first failure
+    - `test_validate_task_failure_creates_fix_subtask_with_correct_fields` - verifies subtask fields (project_id, parent_task_id, priority=1, type=bug, feedback in description)
+    - `test_validate_task_second_failure_creates_second_subtask` - creates subtask on 2nd failure (fail_count=1→2)
+- [x] Test max_validation_fails → failed status flow
+  - `tests/mcp_proxy/test_validation_integration.py`:
+    - `test_validate_task_tool_failure_max_retries` - marks task as failed when fail_count reaches 3
+    - `test_validate_task_exactly_at_max_retries` - no subtask created at MAX_RETRIES, task marked failed
+    - `test_validate_task_beyond_max_retries` - handles fail_count > MAX_RETRIES
 
 ### Phase 13: Agent Instructions
 
