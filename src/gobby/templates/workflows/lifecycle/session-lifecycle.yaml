@@ -1,9 +1,42 @@
-name: session-handoff
-description: "Session summary generation and context handoff between sessions"
+name: session-lifecycle
+description: "Unified session lifecycle: context handoff, memory, and skills"
 type: lifecycle
 
+settings:
+  priority: 10  # Run first - critical for handoff before other LLM calls
+
 triggers:
+  on_session_start:
+    # Context handoff - inject previous session summary
+    - action: inject_context
+      when: "event.data.get('source') == 'clear'"
+      source: previous_session_summary
+      require: true  # Block if handoff context missing
+      template: |
+        ## Previous Session Context
+        {{ summary }}
+
+    # Context handoff - inject compact handoff after compaction
+    - action: inject_context
+      when: "event.data.get('source') == 'compact'"
+      source: compact_handoff
+      require: true  # Block if handoff context missing
+      template: |
+        ## Continuation Context
+        {{ handoff }}
+
+    # Memory injection - inject relevant stored memories
+    - action: memory_inject
+      # Uses config defaults: importance_threshold=0.3, injection_limit=10
+
+  on_before_agent:
+    # Memory recall - inject memories relevant to the user's prompt via semantic search
+    - action: memory_recall_relevant
+      limit: 5
+      min_importance: 0.3
+
   on_session_end:
+    # Session summary generation
     - action: generate_handoff
       when: "event.data.get('reason') == 'clear'"
       include:
@@ -62,25 +95,16 @@ triggers:
         Focus on actionable insights and context that would be valuable when resuming work later.
         Use only ASCII-safe characters - avoid Unicode em-dashes, smart quotes, or special characters.
 
-  on_session_start:
-    - action: inject_context
-      when: "event.data.get('source') == 'clear'"
-      source: previous_session_summary
-      require: true  # Block if handoff context missing
-      template: |
-        ## Previous Session Context
-        {{ summary }}
+    # Memory extraction - extract learnings to memory
+    - action: memory_extract
 
-    # Inject handoff context after compaction (reads from session.compact_markdown)
-    - action: inject_context
-      when: "event.data.get('source') == 'compact'"
-      source: compact_handoff
-      require: true  # Block if handoff context missing
-      template: |
-        ## Continuation Context
-        {{ handoff }}
+    # Skills learning - extract reusable skills from session
+    - action: skills_learn
 
-  # Autonomous Handover Flow - extract context before compaction
-  # Saves formatted markdown to session.compact_markdown
+    # Skills export - export to filesystem for CLI discovery
+    - action: skills_sync_export
+
   on_pre_compact:
+    # Extract structured context before compaction
+    # Saves formatted markdown to session.compact_markdown
     - action: extract_handoff_context
