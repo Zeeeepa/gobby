@@ -254,6 +254,25 @@ def get_install_dir() -> Path:
     return package_install_dir
 
 
+def _is_process_alive(pid: int) -> bool:
+    """Check if a process is truly alive (not zombie, not dead).
+
+    Uses psutil to check process status, which handles zombies correctly.
+    os.kill(pid, 0) succeeds on zombie processes, but they're effectively dead.
+
+    Args:
+        pid: Process ID to check
+
+    Returns:
+        True only if process exists and is not a zombie
+    """
+    try:
+        proc = psutil.Process(pid)
+        return proc.status() != psutil.STATUS_ZOMBIE
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        return False
+
+
 def stop_daemon(quiet: bool = False) -> bool:
     """Stop the daemon process. Returns True on success, False on failure.
 
@@ -277,16 +296,14 @@ def stop_daemon(quiet: bool = False) -> bool:
     except Exception as e:
         if not quiet:
             click.echo(f"Error reading PID file: {e}", err=True)
-        pid_file.unlink()
+        pid_file.unlink(missing_ok=True)
         return False
 
-    # Check if process is actually running
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
+    # Check if process is actually running (handles zombies correctly)
+    if not _is_process_alive(pid):
         if not quiet:
             click.echo(f"Gobby daemon is not running (stale PID file with PID {pid})")
-        pid_file.unlink()
+        pid_file.unlink(missing_ok=True)
         return True
 
     try:
@@ -295,26 +312,48 @@ def stop_daemon(quiet: bool = False) -> bool:
         if not quiet:
             click.echo(f"Sent shutdown signal to Gobby daemon (PID {pid})")
 
-        # Wait for shutdown
+        # Wait for graceful shutdown
         max_wait = 5
         for _ in range(max_wait * 10):
             time.sleep(0.1)
-            try:
-                os.kill(pid, 0)
-            except ProcessLookupError:
+            if not _is_process_alive(pid):
                 if not quiet:
                     click.echo("Gobby daemon stopped successfully")
-                pid_file.unlink()
+                pid_file.unlink(missing_ok=True)
                 return True
 
+        # Process didn't stop gracefully - try force kill
         if not quiet:
-            click.echo(f"Warning: Process still running after {max_wait}s", err=True)
+            click.echo(f"Process didn't stop gracefully after {max_wait}s, force killing...")
+
+        try:
+            os.kill(pid, signal.SIGKILL)
+            time.sleep(0.5)
+        except ProcessLookupError:
+            pass  # Already dead
+
+        # Final check
+        if not _is_process_alive(pid):
+            if not quiet:
+                click.echo("Gobby daemon force killed successfully")
+            pid_file.unlink(missing_ok=True)
+            return True
+
+        if not quiet:
+            click.echo("Warning: Failed to stop process", err=True)
         return False
 
     except PermissionError:
         if not quiet:
             click.echo(f"Error: Permission denied to stop process (PID {pid})", err=True)
         return False
+
+    except ProcessLookupError:
+        # Process died between our check and sending signal - that's fine
+        if not quiet:
+            click.echo("Gobby daemon stopped")
+        pid_file.unlink(missing_ok=True)
+        return True
 
     except Exception as e:
         if not quiet:
