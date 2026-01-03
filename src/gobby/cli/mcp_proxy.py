@@ -49,7 +49,9 @@ def call_mcp_api(
 ) -> dict[str, Any] | None:
     """Call MCP API endpoint and handle errors."""
     try:
-        response = client.call_http_api(endpoint, method=method, json_data=json_data, timeout=timeout)
+        response = client.call_http_api(
+            endpoint, method=method, json_data=json_data, timeout=timeout
+        )
         if response.status_code == 200:
             return cast(dict[str, Any], response.json())
         else:

@@ -123,11 +123,13 @@ def create_task_registry(
         for sid in subtask_ids:
             subtask = task_manager.get_task(sid)
             if subtask:
-                created_subtasks.append({
-                    "id": subtask.id,
-                    "title": subtask.title,
-                    "status": subtask.status,
-                })
+                created_subtasks.append(
+                    {
+                        "id": subtask.id,
+                        "title": subtask.title,
+                        "status": subtask.status,
+                    }
+                )
 
         return {
             "task_id": task_id,
@@ -482,20 +484,24 @@ def create_task_registry(
                     enable_code_context=True,
                 )
                 subtask_ids = result.get("subtask_ids", [])
-                results.append({
-                    "task_id": task.id,
-                    "title": task.title,
-                    "subtasks_created": len(subtask_ids),
-                    "status": "success" if not result.get("error") else "error",
-                    "error": result.get("error"),
-                })
+                results.append(
+                    {
+                        "task_id": task.id,
+                        "title": task.title,
+                        "subtasks_created": len(subtask_ids),
+                        "status": "success" if not result.get("error") else "error",
+                        "error": result.get("error"),
+                    }
+                )
             except Exception as e:
-                results.append({
-                    "task_id": task.id,
-                    "title": task.title,
-                    "status": "error",
-                    "error": str(e),
-                })
+                results.append(
+                    {
+                        "task_id": task.id,
+                        "title": task.title,
+                        "status": "error",
+                        "error": str(e),
+                    }
+                )
 
         return {
             "expanded_count": len([r for r in results if r["status"] == "success"]),

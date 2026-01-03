@@ -328,7 +328,9 @@ class WorkflowAuditManager:
                 except json.JSONDecodeError:
                     pass
 
-            timestamp = datetime.fromisoformat(row["timestamp"]) if row["timestamp"] else datetime.now(UTC)
+            timestamp = (
+                datetime.fromisoformat(row["timestamp"]) if row["timestamp"] else datetime.now(UTC)
+            )
 
             entries.append(
                 WorkflowAuditEntry(

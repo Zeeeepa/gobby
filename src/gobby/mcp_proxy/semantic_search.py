@@ -284,9 +284,7 @@ class SemanticToolSearch:
         )
         return [ToolEmbedding.from_row(row) for row in rows]
 
-    def get_embeddings_for_server(
-        self, server_name: str, project_id: str
-    ) -> list[ToolEmbedding]:
+    def get_embeddings_for_server(self, server_name: str, project_id: str) -> list[ToolEmbedding]:
         """
         Get all embeddings for a server in a project.
 
@@ -362,9 +360,7 @@ class SemanticToolSearch:
         if not existing:
             return True
 
-        current_hash = _compute_text_hash(
-            _build_tool_text(name, description, input_schema)
-        )
+        current_hash = _compute_text_hash(_build_tool_text(name, description, input_schema))
         return existing.text_hash != current_hash
 
     def get_embedding_stats(self, project_id: str | None = None) -> dict[str, Any]:
@@ -392,9 +388,7 @@ class SemanticToolSearch:
                 (project_id,),
             )
         else:
-            count_row = self.db.fetchone(
-                "SELECT COUNT(*) as count FROM tool_embeddings", ()
-            )
+            count_row = self.db.fetchone("SELECT COUNT(*) as count FROM tool_embeddings", ())
             servers_rows = self.db.fetchall(
                 """
                 SELECT server_name, COUNT(*) as count
@@ -482,9 +476,7 @@ class SemanticToolSearch:
         try:
             import litellm
         except ImportError as e:
-            raise RuntimeError(
-                "litellm package not installed. Run: pip install litellm"
-            ) from e
+            raise RuntimeError("litellm package not installed. Run: pip install litellm") from e
 
         try:
             response = await litellm.aembedding(
@@ -711,7 +703,4 @@ class SemanticToolSearch:
             """
             rows = self.db.fetchall(query, (project_id,))
 
-        return {
-            row["id"]: {"name": row["name"], "description": row["description"]}
-            for row in rows
-        }
+        return {row["id"]: {"name": row["name"], "description": row["description"]} for row in rows}

@@ -40,7 +40,7 @@ class SessionMessageProcessor:
         self.db = db
         self.message_manager = LocalSessionMessageManager(db)
         self.poll_interval = poll_interval
-        self.websocket_server: "WebSocketServer | None" = websocket_server
+        self.websocket_server: WebSocketServer | None = websocket_server
 
         # Track active sessions: session_id -> transcript_path
         self._active_sessions: dict[str, str] = {}

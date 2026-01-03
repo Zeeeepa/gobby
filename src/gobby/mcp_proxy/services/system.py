@@ -54,7 +54,8 @@ class SystemService:
         # Count configured vs connected
         configured_count = len(health)
         connected_count = sum(
-            1 for h in health.values()
+            1
+            for h in health.values()
             if h.get("state") == "connected" or h.get("lazy_connection", {}).get("is_connected")
         )
 

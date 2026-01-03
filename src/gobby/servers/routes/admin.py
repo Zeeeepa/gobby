@@ -84,9 +84,7 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             "completed": metrics._counters.get(
                 "background_tasks_completed_total", Counter("", "")
             ).value,
-            "failed": metrics._counters.get(
-                "background_tasks_failed_total", Counter("", "")
-            ).value,
+            "failed": metrics._counters.get("background_tasks_failed_total", Counter("", "")).value,
         }
 
         # Get MCP server status - include ALL configured servers

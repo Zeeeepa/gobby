@@ -125,7 +125,6 @@ You have access to the following tools:
 4. done(reason): Finish research
 """
         # Add search tool if available and enabled
-        search_tool_def = ""
         # Check both config global enable AND request-specific enable
         # Note: config.web_research_enabled is the global "allowed" switch.
         # enable_web_search is the per-request "requested" switch.
@@ -138,7 +137,7 @@ You have access to the following tools:
             tools = await self.mcp_manager.list_tools()  # Assuming this API
             # Flatten tools list
             all_tools = []
-            for server, server_tools in tools.items():
+            for _server, server_tools in tools.items():
                 all_tools.extend(server_tools)
 
             for t in all_tools:

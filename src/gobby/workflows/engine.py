@@ -6,7 +6,7 @@ from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.storage.workflow_audit import WorkflowAuditManager
 
 from .definitions import WorkflowDefinition, WorkflowState
-from .evaluator import ApprovalCheckResult, ConditionEvaluator, check_approval_response
+from .evaluator import ConditionEvaluator, check_approval_response
 from .loader import WorkflowLoader
 from .state_manager import WorkflowStateManager
 
@@ -570,7 +570,9 @@ class WorkflowEngine:
                 kwargs.pop("when", None)
 
                 result = await self.action_executor.execute(action_type, action_ctx, **kwargs)
-                logger.debug(f"Action '{action_type}' result: {type(result)}, keys={list(result.keys()) if isinstance(result, dict) else 'N/A'}")
+                logger.debug(
+                    f"Action '{action_type}' result: {type(result)}, keys={list(result.keys()) if isinstance(result, dict) else 'N/A'}"
+                )
 
                 if result and isinstance(result, dict):
                     # Update shared context for chaining
@@ -579,7 +581,9 @@ class WorkflowEngine:
 
                     if "inject_context" in result:
                         injected_context.append(result["inject_context"])
-                        logger.debug(f"Added to injected_context, now has {len(injected_context)} items, total chars={sum(len(c) for c in injected_context)}")
+                        logger.debug(
+                            f"Added to injected_context, now has {len(injected_context)} items, total chars={sum(len(c) for c in injected_context)}"
+                        )
 
                     # Capture system_message (last one wins)
                     if "system_message" in result:
@@ -601,7 +605,9 @@ class WorkflowEngine:
                 )
 
         final_context = "\n\n".join(injected_context) if injected_context else None
-        logger.debug(f"_evaluate_workflow_triggers returning: context_len={len(final_context) if final_context else 0}, system_message={system_message is not None}")
+        logger.debug(
+            f"_evaluate_workflow_triggers returning: context_len={len(final_context) if final_context else 0}, system_message={system_message is not None}"
+        )
         return HookResponse(
             decision="allow",
             context=final_context,

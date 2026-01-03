@@ -279,15 +279,15 @@ def register_proxy_tools(mcp: FastMCP, proxy: DaemonProxy) -> None:
         return await proxy.list_mcp_servers()
 
     @mcp.tool()
-    async def list_tools(server: str | None = None) -> dict[str, Any]:
+    async def list_tools(server: str) -> dict[str, Any]:
         """
         List tools from MCP servers.
 
         Use this to discover tools available on servers.
 
         Args:
-            server: Optional server name (e.g., "context7", "supabase").
-                   If not provided, returns tools from all servers.
+            server: Server name (e.g., "context7", "supabase").
+                   Use list_mcp_servers() first to discover available servers.
 
         Returns:
             Dict with tool listings

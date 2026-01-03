@@ -15,7 +15,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from gobby.mcp_proxy.models import MCPServerConfig
+    pass
 
 logger = logging.getLogger("gobby.mcp.lazy")
 
@@ -68,9 +68,7 @@ class CircuitBreaker:
             logger.warning("Circuit breaker reopened after half-open failure")
         elif self.failure_count >= self.failure_threshold:
             self.state = CircuitState.OPEN
-            logger.warning(
-                f"Circuit breaker opened after {self.failure_count} failures"
-            )
+            logger.warning(f"Circuit breaker opened after {self.failure_count} failures")
 
     def can_execute(self) -> bool:
         """Check if request can proceed."""
@@ -110,7 +108,7 @@ class RetryConfig:
 
     def get_delay(self, attempt: int) -> float:
         """Get delay for given attempt number (0-indexed)."""
-        delay = self.initial_delay * (self.multiplier ** attempt)
+        delay = self.initial_delay * (self.multiplier**attempt)
         return min(delay, self.max_delay)
 
 
@@ -303,9 +301,7 @@ class LazyServerConnector:
             name: {
                 "is_connected": state.is_connected,
                 "configured_at": state.configured_at.isoformat(),
-                "connected_at": state.connected_at.isoformat()
-                if state.connected_at
-                else None,
+                "connected_at": state.connected_at.isoformat() if state.connected_at else None,
                 "last_attempt_at": state.last_attempt_at.isoformat()
                 if state.last_attempt_at
                 else None,
@@ -325,6 +321,5 @@ class CircuitBreakerOpen(Exception):
         self.server_name = server_name
         self.recovery_in = recovery_in
         super().__init__(
-            f"Circuit breaker open for '{server_name}'. "
-            f"Recovery attempt in {recovery_in:.1f}s"
+            f"Circuit breaker open for '{server_name}'. Recovery attempt in {recovery_in:.1f}s"
         )

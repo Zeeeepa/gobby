@@ -6,7 +6,6 @@ These functions handle context injection, message injection, and handoff extract
 
 import json
 import logging
-import re
 from pathlib import Path
 from typing import Any
 
@@ -40,9 +39,7 @@ def inject_context(
     """
     # Validate required parameters
     if session_manager is None:
-        logger.warning(
-            f"inject_context: session_manager is None (session_id={session_id})"
-        )
+        logger.warning(f"inject_context: session_manager is None (session_id={session_id})")
         return None
 
     if state is None:
@@ -50,9 +47,7 @@ def inject_context(
         return None
 
     if template_engine is None:
-        logger.warning(
-            f"inject_context: template_engine is None (session_id={session_id})"
-        )
+        logger.warning(f"inject_context: template_engine is None (session_id={session_id})")
         return None
 
     if not session_id:
@@ -104,7 +99,9 @@ def inject_context(
             parent = session_manager.get(current_session.parent_session_id)
             if parent and parent.compact_markdown:
                 content = parent.compact_markdown
-                logger.debug(f"Loaded compact_markdown ({len(content)} chars) from parent session {current_session.parent_session_id}")
+                logger.debug(
+                    f"Loaded compact_markdown ({len(content)} chars) from parent session {current_session.parent_session_id}"
+                )
 
     if content:
         if template:
@@ -279,7 +276,9 @@ def extract_handoff_context(
         # Save to session.compact_markdown
         session_manager.update_compact_markdown(session_id, markdown)
 
-        logger.debug(f"Saved compact handoff markdown ({len(markdown)} chars) to session {session_id}")
+        logger.debug(
+            f"Saved compact handoff markdown ({len(markdown)} chars) to session {session_id}"
+        )
         return {"handoff_context_extracted": True, "markdown_length": len(markdown)}
 
     except Exception as e:
@@ -287,15 +286,17 @@ def extract_handoff_context(
         return {"error": str(e)}
 
 
-def format_handoff_as_markdown(ctx: Any) -> str:
+def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> str:
     """Format HandoffContext as markdown for storage.
 
     Args:
         ctx: HandoffContext with extracted session data
+        prompt_template: Optional custom template (unused, reserved for future)
 
     Returns:
         Formatted markdown string with all sections
     """
+    _ = prompt_template  # Reserved for future template support
     sections: list[str] = []
 
     # Active task section

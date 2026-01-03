@@ -354,9 +354,7 @@ class LocalSessionManager:
         Returns:
             Dictionary mapping status to count
         """
-        rows = self.db.fetchall(
-            "SELECT status, COUNT(*) as count FROM sessions GROUP BY status"
-        )
+        rows = self.db.fetchall("SELECT status, COUNT(*) as count FROM sessions GROUP BY status")
         return {row["status"]: row["count"] for row in rows}
 
     def delete(self, session_id: str) -> bool:

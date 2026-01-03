@@ -9,7 +9,6 @@ Provides LLM-powered extraction of memories from:
 
 import json
 import logging
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -347,10 +346,9 @@ class MemoryExtractor:
 
         # Skip common non-source directories
         skip_dirs = {"node_modules", ".git", "__pycache__", ".venv", "venv", "dist", "build"}
-        source_files = [
-            f for f in source_files
-            if not any(skip in f.parts for skip in skip_dirs)
-        ][:max_files]
+        source_files = [f for f in source_files if not any(skip in f.parts for skip in skip_dirs)][
+            :max_files
+        ]
 
         for source_file in source_files[:5]:  # Sample 5 files for patterns
             try:
@@ -367,7 +365,16 @@ class MemoryExtractor:
         if max_depth <= 0:
             return ""
 
-        skip_dirs = {"node_modules", ".git", "__pycache__", ".venv", "venv", "dist", "build", ".next"}
+        skip_dirs = {
+            "node_modules",
+            ".git",
+            "__pycache__",
+            ".venv",
+            "venv",
+            "dist",
+            "build",
+            ".next",
+        }
         lines = []
 
         try:

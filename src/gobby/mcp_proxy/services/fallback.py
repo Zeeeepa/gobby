@@ -115,9 +115,7 @@ class ToolFallbackResolver:
             return []
 
         # Build query from tool info and error context
-        query = self._build_search_query(
-            failed_tool_name, failed_tool_description, error_context
-        )
+        query = self._build_search_query(failed_tool_name, failed_tool_description, error_context)
 
         # Get semantically similar tools
         try:
@@ -146,9 +144,7 @@ class ToolFallbackResolver:
         # Enrich with success rates and compute combined scores
         suggestions = []
         for result in search_results[:top_k]:
-            success_rate = self._get_success_rate(
-                result.server_name, result.tool_name, project_id
-            )
+            success_rate = self._get_success_rate(result.server_name, result.tool_name, project_id)
 
             score = self._compute_score(result.similarity, success_rate)
 
@@ -166,9 +162,7 @@ class ToolFallbackResolver:
         # Sort by combined score (descending)
         suggestions.sort(key=lambda s: s.score, reverse=True)
 
-        logger.debug(
-            f"Found {len(suggestions)} fallback suggestions for '{failed_tool_name}'"
-        )
+        logger.debug(f"Found {len(suggestions)} fallback suggestions for '{failed_tool_name}'")
         return suggestions
 
     def _build_search_query(
@@ -199,9 +193,7 @@ class ToolFallbackResolver:
 
         return "\n".join(parts)
 
-    def _get_success_rate(
-        self, server_name: str, tool_name: str, project_id: str
-    ) -> float | None:
+    def _get_success_rate(self, server_name: str, tool_name: str, project_id: str) -> float | None:
         """
         Get success rate for a tool from metrics.
 
@@ -226,9 +218,7 @@ class ToolFallbackResolver:
             logger.debug(f"Failed to get success rate for {server_name}/{tool_name}: {e}")
             return None
 
-    def _compute_score(
-        self, similarity: float, success_rate: float | None
-    ) -> float:
+    def _compute_score(self, similarity: float, success_rate: float | None) -> float:
         """
         Compute combined ranking score.
 
@@ -248,10 +238,7 @@ class ToolFallbackResolver:
             success_rate if success_rate is not None else self.DEFAULT_SUCCESS_RATE
         )
 
-        return (
-            similarity * self._similarity_weight
-            + effective_success_rate * self._success_weight
-        )
+        return similarity * self._similarity_weight + effective_success_rate * self._success_weight
 
     async def find_alternatives_for_error(
         self,
@@ -290,9 +277,7 @@ class ToolFallbackResolver:
 
         return [s.to_dict() for s in suggestions]
 
-    async def _get_tool_description(
-        self, server_name: str, tool_name: str
-    ) -> str | None:
+    async def _get_tool_description(self, server_name: str, tool_name: str) -> str | None:
         """
         Get tool description from semantic search's cached data.
 

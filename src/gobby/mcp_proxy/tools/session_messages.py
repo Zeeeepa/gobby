@@ -13,6 +13,7 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 
 from __future__ import annotations
 
+from datetime import UTC
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
     from gobby.storage.sessions import LocalSessionManager
 
 
-def _format_handoff_markdown(ctx: "HandoffContext", notes: str | None = None) -> str:
+def _format_handoff_markdown(ctx: HandoffContext, notes: str | None = None) -> str:
     """
     Format HandoffContext as markdown for session handoff.
 
@@ -40,9 +41,7 @@ def _format_handoff_markdown(ctx: "HandoffContext", notes: str | None = None) ->
     if ctx.active_gobby_task:
         task = ctx.active_gobby_task
         sections.append("### Active Task")
-        sections.append(
-            f"**{task.get('title', 'Untitled')}** ({task.get('id', 'unknown')})"
-        )
+        sections.append(f"**{task.get('title', 'Untitled')}** ({task.get('id', 'unknown')})")
         sections.append(f"Status: {task.get('status', 'unknown')}")
         sections.append("")
 
@@ -251,7 +250,6 @@ def create_session_messages_registry(
                 Success status, markdown length, and extracted context summary
             """
             import json
-            import re
             import subprocess
             from pathlib import Path
 
@@ -432,9 +430,7 @@ def create_session_messages_registry(
 
             # Optionally link child session
             if link_child_session_id:
-                session_manager.update_parent_session_id(
-                    link_child_session_id, parent_session.id
-                )
+                session_manager.update_parent_session_id(link_child_session_id, parent_session.id)
 
             return {
                 "found": True,
@@ -442,9 +438,7 @@ def create_session_messages_registry(
                 "has_context": True,
                 "context": context,
                 "context_type": (
-                    "compact_markdown"
-                    if parent_session.compact_markdown
-                    else "summary_markdown"
+                    "compact_markdown" if parent_session.compact_markdown else "summary_markdown"
                 ),
                 "parent_title": parent_session.title,
                 "parent_status": parent_session.status,
@@ -638,7 +632,7 @@ def create_session_messages_registry(
                 Session ID, list of commits, and count
             """
             import subprocess
-            from datetime import datetime, timezone
+            from datetime import datetime
             from pathlib import Path
 
             if session_manager is None:
@@ -679,7 +673,7 @@ def create_session_messages_registry(
                 else:
                     until_time = session.updated_at
             else:
-                until_time = datetime.now(timezone.utc)
+                until_time = datetime.now(UTC)
 
             # Format as ISO 8601 for git
             since_str = since_time.strftime("%Y-%m-%dT%H:%M:%S")

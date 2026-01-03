@@ -268,7 +268,7 @@ def _is_process_alive(pid: int) -> bool:
     """
     try:
         proc = psutil.Process(pid)
-        return proc.status() != psutil.STATUS_ZOMBIE
+        return bool(proc.status() != psutil.STATUS_ZOMBIE)
     except (psutil.NoSuchProcess, psutil.AccessDenied):
         return False
 

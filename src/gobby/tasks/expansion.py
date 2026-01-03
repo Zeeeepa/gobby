@@ -125,9 +125,7 @@ class TaskExpander:
 
             response = await provider.generate_text(
                 prompt=prompt,
-                system_prompt=self.prompt_builder.get_system_prompt(
-                    tdd_mode=self.config.tdd_mode
-                ),
+                system_prompt=self.prompt_builder.get_system_prompt(tdd_mode=self.config.tdd_mode),
                 model=self.config.model,
             )
 
@@ -153,9 +151,7 @@ class TaskExpander:
                 subtask_specs=subtask_specs,
             )
 
-            logger.info(
-                f"Expansion complete for {task_id}: created {len(subtask_ids)} subtasks"
-            )
+            logger.info(f"Expansion complete for {task_id}: created {len(subtask_ids)} subtasks")
 
             return {
                 "subtask_ids": subtask_ids,
@@ -302,7 +298,9 @@ class TaskExpander:
             # Add dependencies (depends_on indices -> this task is blocked by those)
             if spec.depends_on:
                 for dep_idx in spec.depends_on:
-                    if 0 <= dep_idx < len(created_ids) - 1:  # -1 because current task is already added
+                    if (
+                        0 <= dep_idx < len(created_ids) - 1
+                    ):  # -1 because current task is already added
                         blocker_id = created_ids[dep_idx]
                         try:
                             dep_manager.add_dependency(task.id, blocker_id, "blocks")
@@ -315,4 +313,3 @@ class TaskExpander:
                         )
 
         return created_ids
-

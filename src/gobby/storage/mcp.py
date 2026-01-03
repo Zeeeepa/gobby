@@ -456,9 +456,7 @@ class LocalMCPManager:
 
         # Detect changes using schema hash if manager available
         if schema_hash_manager:
-            changes = schema_hash_manager.check_tools_for_changes(
-                server_name, project_id, tools
-            )
+            changes = schema_hash_manager.check_tools_for_changes(server_name, project_id, tools)
             new_tools = set(changes["new"])
             changed_tools = set(changes["changed"])
         else:
@@ -494,9 +492,7 @@ class LocalMCPManager:
                 # Store hash for new tool
                 if schema_hash_manager:
                     schema_hash = compute_schema_hash(input_schema)
-                    schema_hash_manager.store_hash(
-                        server_name, tool_name, project_id, schema_hash
-                    )
+                    schema_hash_manager.store_hash(server_name, tool_name, project_id, schema_hash)
 
             elif tool_name in changed_tools:
                 # Update changed tool
@@ -519,17 +515,13 @@ class LocalMCPManager:
                 # Update hash for changed tool
                 if schema_hash_manager:
                     schema_hash = compute_schema_hash(input_schema)
-                    schema_hash_manager.store_hash(
-                        server_name, tool_name, project_id, schema_hash
-                    )
+                    schema_hash_manager.store_hash(server_name, tool_name, project_id, schema_hash)
 
             else:
                 # Unchanged tool - just update verification time
                 stats["unchanged"] += 1
                 if schema_hash_manager:
-                    schema_hash_manager.update_verification_time(
-                        server_name, tool_name, project_id
-                    )
+                    schema_hash_manager.update_verification_time(server_name, tool_name, project_id)
 
         # Remove stale tools (tools that no longer exist on server)
         stale_tools = set(existing_tools.keys()) - current_tool_names

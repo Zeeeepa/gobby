@@ -251,9 +251,7 @@ class ActionExecutor:
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Increment a numeric workflow variable."""
-        return increment_variable(
-            context.state, kwargs.get("name"), kwargs.get("amount", 1)
-        )
+        return increment_variable(context.state, kwargs.get("name"), kwargs.get("amount", 1))
 
     async def _handle_call_llm(
         self, context: ActionContext, **kwargs: Any

@@ -354,9 +354,7 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             status = body.get("status")
 
             if not session_id or not status:
-                raise HTTPException(
-                    status_code=400, detail="Required fields: session_id, status"
-                )
+                raise HTTPException(status_code=400, detail="Required fields: session_id, status")
 
             session = server.session_manager.update_status(session_id, status)
 

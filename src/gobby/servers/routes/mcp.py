@@ -53,9 +53,14 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
                 registry = server._internal_manager.get_registry(server_name)
                 if registry:
                     tools = registry.list_tools()
-                    elapsed = time.perf_counter() - start_time
-                    metrics.observe_histogram("list_mcp_tools", elapsed)
-                    return {"server": server_name, "tools": tools}
+                    response_time_ms = (time.perf_counter() - start_time) * 1000
+                    metrics.observe_histogram("list_mcp_tools", response_time_ms / 1000)
+                    return {
+                        "status": "success",
+                        "tools": tools,
+                        "tool_count": len(tools),
+                        "response_time_ms": response_time_ms,
+                    }
                 raise HTTPException(
                     status_code=404, detail=f"Internal server '{server_name}' not found"
                 )
@@ -88,9 +93,7 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
                 for tool in tools_result.tools:
                     tool_dict = {
                         "name": tool.name,
-                        "description": tool.description
-                        if hasattr(tool, "description")
-                        else None,
+                        "description": tool.description if hasattr(tool, "description") else None,
                     }
 
                     # Handle inputSchema
@@ -120,7 +123,6 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
 
                 return {
                     "status": "success",
-                    "server": server_name,
                     "tools": tools,
                     "tool_count": len(tools),
                     "response_time_ms": response_time_ms,
@@ -216,9 +218,7 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             # If specific server requested
             if server_filter:
                 # Check internal first
-                if server._internal_manager and server._internal_manager.is_internal(
-                    server_filter
-                ):
+                if server._internal_manager and server._internal_manager.is_internal(server_filter):
                     registry = server._internal_manager.get_registry(server_filter)
                     if registry:
                         tools_by_server[server_filter] = registry.list_tools()
@@ -539,9 +539,7 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             current_project_id = project_ctx["id"]
 
             if not server.config:
-                raise HTTPException(
-                    status_code=500, detail="Daemon configuration not available"
-                )
+                raise HTTPException(status_code=500, detail="Daemon configuration not available")
 
             # Create importer
             from gobby.mcp_proxy.importer import MCPServerImporter

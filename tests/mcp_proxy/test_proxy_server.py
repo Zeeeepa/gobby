@@ -223,21 +223,17 @@ async def test_remove_mcp_server(daemon_tools, mock_mcp_manager):
 
 @pytest.mark.asyncio
 async def test_list_tools(daemon_tools, mock_mcp_manager):
-    # Setup internal registry
-    internal_registry = MagicMock()
-    internal_registry.name = "internal1"
-    internal_registry.list_tools.return_value = [{"name": "it1", "brief": "internal tool"}]
-    daemon_tools.internal_manager.get_all_registries.return_value = [internal_registry]
-
     # Mock the external tools - mcp_manager.list_tools returns dict mapping server -> tools
     mock_mcp_manager.list_tools = AsyncMock(
         return_value={"downstream": [{"name": "dt1", "description": "downstream tool"}]}
     )
+    mock_mcp_manager.has_server.return_value = True
 
-    result = await daemon_tools.list_tools()
-    # The actual implementation returns {"servers": [...]} without "success" key
-    assert "servers" in result
-    assert len(result["servers"]) >= 2  # internal1 + downstream
+    # list_tools now requires a server parameter
+    result = await daemon_tools.list_tools(server="downstream")
+    assert result["status"] == "success"
+    assert "tools" in result
+    assert "tool_count" in result
 
 
 @pytest.mark.asyncio

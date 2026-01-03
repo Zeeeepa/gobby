@@ -148,9 +148,7 @@ class SessionLifecycleManager:
 
         return processed
 
-    async def _process_session_transcript(
-        self, session_id: str, jsonl_path: str | None
-    ) -> None:
+    async def _process_session_transcript(self, session_id: str, jsonl_path: str | None) -> None:
         """
         Process a full transcript for a session.
 

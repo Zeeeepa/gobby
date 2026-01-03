@@ -44,16 +44,12 @@ async def call_mcp_tool(
             return {"error": f"Server {server_name} not connected"}
 
         # Call tool
-        result = await mcp_manager.call_tool(
-            server_name, tool_name, arguments or {}
-        )
+        result = await mcp_manager.call_tool(server_name, tool_name, arguments or {})
 
         # Store result in workflow variable if 'as' specified
         if output_as:
             if state is None:
-                raise ValueError(
-                    "state must be provided when output_as is specified"
-                )
+                raise ValueError("state must be provided when output_as is specified")
             if not state.variables:
                 state.variables = {}
             state.variables[output_as] = result

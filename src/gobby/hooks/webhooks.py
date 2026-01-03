@@ -21,7 +21,7 @@ import httpx
 
 if TYPE_CHECKING:
     from gobby.config.app import WebhookEndpointConfig, WebhooksConfig
-    from gobby.hooks.events import HookEvent, HookResponse
+    from gobby.hooks.events import HookEvent
 
 logger = logging.getLogger(__name__)
 
@@ -91,9 +91,7 @@ class WebhookDispatcher:
             await self._client.aclose()
             self._client = None
 
-    def _matches_event(
-        self, endpoint: WebhookEndpointConfig, event_type: str
-    ) -> bool:
+    def _matches_event(self, endpoint: WebhookEndpointConfig, event_type: str) -> bool:
         """Check if an endpoint should receive the given event type.
 
         Args:
@@ -193,9 +191,7 @@ class WebhookDispatcher:
 
                 # Success on 2xx status codes
                 if 200 <= response.status_code < 300:
-                    logger.debug(
-                        f"Webhook {endpoint.name} succeeded: {response.status_code}"
-                    )
+                    logger.debug(f"Webhook {endpoint.name} succeeded: {response.status_code}")
                     return WebhookResult(
                         endpoint_name=endpoint.name,
                         success=True,
@@ -208,9 +204,7 @@ class WebhookDispatcher:
 
                 # 4xx errors are not retryable (client error)
                 if 400 <= response.status_code < 500:
-                    logger.warning(
-                        f"Webhook {endpoint.name} client error: {response.status_code}"
-                    )
+                    logger.warning(f"Webhook {endpoint.name} client error: {response.status_code}")
                     return WebhookResult(
                         endpoint_name=endpoint.name,
                         success=False,
@@ -254,9 +248,7 @@ class WebhookDispatcher:
 
         # All retries exhausted
         duration_ms = (datetime.now() - start_time).total_seconds() * 1000
-        logger.error(
-            f"Webhook {endpoint.name} failed after {attempts} attempts: {last_error}"
-        )
+        logger.error(f"Webhook {endpoint.name} failed after {attempts} attempts: {last_error}")
 
         return WebhookResult(
             endpoint_name=endpoint.name,
@@ -285,9 +277,7 @@ class WebhookDispatcher:
         # Find matching endpoints
         event_type = event.event_type.value
         matching_endpoints = [
-            ep
-            for ep in self.config.endpoints
-            if ep.enabled and self._matches_event(ep, event_type)
+            ep for ep in self.config.endpoints if ep.enabled and self._matches_event(ep, event_type)
         ]
 
         if not matching_endpoints:
@@ -310,18 +300,13 @@ class WebhookDispatcher:
             # If a blocking webhook says "block", we might stop processing
             # But we still dispatch all blocking webhooks to collect all decisions
             if result.decision == "block":
-                logger.info(
-                    f"Blocking webhook {endpoint.name} returned decision: block"
-                )
+                logger.info(f"Blocking webhook {endpoint.name} returned decision: block")
 
         # Dispatch non-blocking webhooks concurrently
         if non_blocking:
             if self.config.async_dispatch:
                 # Fire and forget for truly async dispatch
-                tasks = [
-                    self._dispatch_single(ep, payload)
-                    for ep in non_blocking
-                ]
+                tasks = [self._dispatch_single(ep, payload) for ep in non_blocking]
                 non_blocking_results = await asyncio.gather(*tasks)
                 results.extend(non_blocking_results)
             else:
@@ -332,9 +317,7 @@ class WebhookDispatcher:
 
         return results
 
-    def get_blocking_decision(
-        self, results: list[WebhookResult]
-    ) -> tuple[str, str | None]:
+    def get_blocking_decision(self, results: list[WebhookResult]) -> tuple[str, str | None]:
         """Get the overall decision from blocking webhook results.
 
         If any blocking webhook returns "block" or "deny", the overall

@@ -8,7 +8,7 @@ from pathlib import Path
 import click
 
 GIT_HOOK_SCRIPTS = {
-    "pre-commit": '''#!/bin/sh
+    "pre-commit": """#!/bin/sh
 # Gobby task sync hook - export tasks before commit
 # Installed by: gobby tasks hooks install
 
@@ -16,8 +16,8 @@ GIT_HOOK_SCRIPTS = {
 if command -v gobby >/dev/null 2>&1; then
     gobby tasks sync --export --quiet 2>/dev/null || true
 fi
-''',
-    "post-merge": '''#!/bin/sh
+""",
+    "post-merge": """#!/bin/sh
 # Gobby task sync hook - import tasks after merge/pull
 # Installed by: gobby tasks hooks install
 
@@ -25,8 +25,8 @@ fi
 if command -v gobby >/dev/null 2>&1; then
     gobby tasks sync --import --quiet 2>/dev/null || true
 fi
-''',
-    "post-checkout": '''#!/bin/sh
+""",
+    "post-checkout": """#!/bin/sh
 # Gobby task sync hook - import tasks on branch switch
 # Installed by: gobby tasks hooks install
 
@@ -36,7 +36,7 @@ if [ "$3" = "1" ]; then
         gobby tasks sync --import --quiet 2>/dev/null || true
     fi
 fi
-''',
+""",
 }
 
 

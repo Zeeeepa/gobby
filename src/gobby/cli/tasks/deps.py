@@ -2,9 +2,9 @@
 Dependency management commands for tasks.
 """
 
-import click
-
 from typing import Literal
+
+import click
 
 from gobby.cli.tasks._utils import get_task_manager, resolve_task_id
 
@@ -21,7 +21,12 @@ DependencyType = Literal["blocks", "related", "discovered-from"]
 @dep_cmd.command("add")
 @click.argument("task_id")
 @click.argument("blocker_id")
-@click.option("--type", "dep_type", default="blocks", help="Dependency type (blocks, related, discovered-from)")
+@click.option(
+    "--type",
+    "dep_type",
+    default="blocks",
+    help="Dependency type (blocks, related, discovered-from)",
+)
 def dep_add(task_id: str, blocker_id: str, dep_type: DependencyType) -> None:
     """Add a dependency: BLOCKER blocks TASK.
 

@@ -212,7 +212,7 @@ def rebuild_embeddings(ctx: click.Context, project_id: str | None, force: bool) 
     try:
         stats = asyncio.run(manager.rebuild_embeddings(project_id=project_id, force=force))
 
-        click.echo(f"Done!")
+        click.echo("Done!")
         click.echo(f"  Embedded: {stats['embedded']}")
         click.echo(f"  Skipped: {stats['skipped']}")
         if stats["failed"] > 0:
@@ -222,7 +222,7 @@ def rebuild_embeddings(ctx: click.Context, project_id: str | None, force: bool) 
 
     except RuntimeError as e:
         click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
 
 @memory.command("embedding-stats")
@@ -253,7 +253,6 @@ def extract_agent_md(
     project_id: str | None,
 ) -> None:
     """Extract memories from agent markdown files (CLAUDE.md, GEMINI.md, CODEX.md)."""
-    from pathlib import Path
 
     from gobby.memory.extractor import MemoryExtractor
 
@@ -269,18 +268,22 @@ def extract_agent_md(
     except Exception as e:
         click.echo(f"Warning: LLM service not available: {e}", err=True)
         click.echo("Extraction requires an LLM. Configure llm_providers in config.yaml")
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
     extractor = MemoryExtractor(manager, llm_service)
 
     click.echo("Extracting memories from agent markdown files...")
 
     if file_path:
-        result = asyncio.run(extractor.extract_from_agent_md(file_path=file_path, project_id=project_id))
+        result = asyncio.run(
+            extractor.extract_from_agent_md(file_path=file_path, project_id=project_id)
+        )
     else:
-        result = asyncio.run(extractor.extract_from_agent_md(project_path=project_path, project_id=project_id))
+        result = asyncio.run(
+            extractor.extract_from_agent_md(project_path=project_path, project_id=project_id)
+        )
 
-    click.echo(f"Done!")
+    click.echo("Done!")
     click.echo(f"  Created: {result.created}")
     click.echo(f"  Skipped (duplicates): {result.skipped}")
     if result.errors:
@@ -315,7 +318,7 @@ def extract_codebase(
     except Exception as e:
         click.echo(f"Warning: LLM service not available: {e}", err=True)
         click.echo("Extraction requires an LLM. Configure llm_providers in config.yaml")
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
     extractor = MemoryExtractor(manager, llm_service)
 
@@ -329,7 +332,7 @@ def extract_codebase(
         )
     )
 
-    click.echo(f"Done!")
+    click.echo("Done!")
     click.echo(f"  Created: {result.created}")
     click.echo(f"  Skipped (duplicates): {result.skipped}")
     if result.errors:

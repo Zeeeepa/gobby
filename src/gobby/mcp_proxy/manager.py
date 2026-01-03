@@ -289,8 +289,7 @@ class MCPClientManager:
         # In lazy mode, only connect preconnect servers
         if self.lazy_connect:
             configs_to_connect = [
-                c for c in configs_to_connect
-                if c.name in self.preconnect_servers
+                c for c in configs_to_connect if c.name in self.preconnect_servers
             ]
             if configs_to_connect:
                 logger.info(
@@ -583,9 +582,7 @@ class MCPClientManager:
                 latency_ms = (time.perf_counter() - start_time) * 1000
                 # Get project_id from server config (servers are project-scoped)
                 server_config = self._configs.get(server_name)
-                metrics_project_id = (
-                    server_config.project_id if server_config else self.project_id
-                )
+                metrics_project_id = server_config.project_id if server_config else self.project_id
                 if metrics_project_id:
                     try:
                         self.metrics_manager.record_call(

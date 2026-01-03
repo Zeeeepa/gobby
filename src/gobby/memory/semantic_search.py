@@ -146,9 +146,7 @@ class SemanticMemorySearch:
         try:
             import litellm
         except ImportError as e:
-            raise RuntimeError(
-                "litellm package not installed. Run: pip install litellm"
-            ) from e
+            raise RuntimeError("litellm package not installed. Run: pip install litellm") from e
 
         try:
             response = await litellm.aembedding(
@@ -383,9 +381,7 @@ class SemanticMemorySearch:
                 (project_id,),
             )
         else:
-            total_row = self.db.fetchone(
-                "SELECT COUNT(*) as count FROM memories", ()
-            )
+            total_row = self.db.fetchone("SELECT COUNT(*) as count FROM memories", ())
             embedded_row = self.db.fetchone(
                 "SELECT COUNT(*) as count FROM memories WHERE embedding IS NOT NULL",
                 (),
@@ -421,8 +417,6 @@ class SemanticMemorySearch:
                 (project_id,),
             )
         else:
-            cursor = self.db.execute(
-                "UPDATE memories SET embedding = NULL", ()
-            )
+            cursor = self.db.execute("UPDATE memories SET embedding = NULL", ())
 
         return cursor.rowcount

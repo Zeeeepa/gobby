@@ -1,0 +1,225 @@
+"""
+Gemini CLI installation for Gobby hooks.
+
+This module handles installing and uninstalling Gobby hooks, skills,
+and workflows for Gemini CLI.
+"""
+
+import json
+import logging
+import time
+from pathlib import Path
+from shutil import copy2, which
+from typing import Any
+
+from gobby.cli.utils import get_install_dir
+
+from .shared import install_cli_content, install_shared_content
+
+logger = logging.getLogger(__name__)
+
+
+def install_gemini(project_path: Path) -> dict[str, Any]:
+    """Install Gobby integration for Gemini CLI (hooks, skills, workflows).
+
+    Args:
+        project_path: Path to the project root
+
+    Returns:
+        Dict with installation results including success status and installed items
+    """
+    hooks_installed: list[str] = []
+    result: dict[str, Any] = {
+        "success": False,
+        "hooks_installed": hooks_installed,
+        "skills_installed": [],
+        "workflows_installed": [],
+        "commands_installed": [],
+        "error": None,
+    }
+
+    gemini_path = project_path / ".gemini"
+    settings_file = gemini_path / "settings.json"
+
+    # Ensure .gemini subdirectories exist
+    gemini_path.mkdir(parents=True, exist_ok=True)
+    hooks_dir = gemini_path / "hooks"
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+
+    # Get source files
+    install_dir = get_install_dir()
+    gemini_install_dir = install_dir / "gemini"
+    install_hooks_dir = gemini_install_dir / "hooks"
+    source_hooks_template = gemini_install_dir / "hooks-template.json"
+
+    # Verify source files exist
+    dispatcher_file = install_hooks_dir / "hook_dispatcher.py"
+    if not dispatcher_file.exists():
+        result["error"] = f"Missing hook dispatcher: {dispatcher_file}"
+        return result
+
+    if not source_hooks_template.exists():
+        result["error"] = f"Missing hooks template: {source_hooks_template}"
+        return result
+
+    # Copy hook dispatcher
+    target_dispatcher = hooks_dir / "hook_dispatcher.py"
+    if target_dispatcher.exists():
+        target_dispatcher.unlink()
+    copy2(dispatcher_file, target_dispatcher)
+    target_dispatcher.chmod(0o755)
+
+    # Install shared content (skills, workflows)
+    shared = install_shared_content(gemini_path, project_path)
+    # Install CLI-specific content (can override shared)
+    cli = install_cli_content("gemini", gemini_path)
+
+    result["skills_installed"] = shared["skills"] + cli["skills"]
+    result["workflows_installed"] = shared["workflows"] + cli["workflows"]
+    result["commands_installed"] = cli.get("commands", [])
+    result["plugins_installed"] = shared.get("plugins", [])
+
+    # Backup existing settings.json if it exists
+    if settings_file.exists():
+        timestamp = int(time.time())
+        backup_file = gemini_path / f"settings.json.{timestamp}.backup"
+        copy2(settings_file, backup_file)
+
+    # Load existing settings or create empty
+    if settings_file.exists():
+        try:
+            with open(settings_file) as f:
+                existing_settings = json.load(f)
+        except json.JSONDecodeError:
+            # If invalid JSON, treat as empty but warn (backup already made)
+            existing_settings = {}
+    else:
+        existing_settings = {}
+
+    # Load Gobby hooks from template
+    with open(source_hooks_template) as f:
+        gobby_settings_str = f.read()
+
+    # Resolve uv path dynamically to avoid PATH issues in Gemini CLI
+    uv_path = which("uv")
+    if not uv_path:
+        uv_path = "uv"  # Fallback
+
+    # Replace $PROJECT_PATH with absolute project path
+    abs_project_path = str(project_path.resolve())
+
+    # Replace variables in template
+    gobby_settings_str = gobby_settings_str.replace("$PROJECT_PATH", abs_project_path)
+
+    # Also replace "uv run python" with absolute path if found
+    # The template uses "uv run python" by default
+    if uv_path != "uv":
+        gobby_settings_str = gobby_settings_str.replace("uv run python", f"{uv_path} run python")
+
+    gobby_settings = json.loads(gobby_settings_str)
+
+    # Ensure hooks section exists
+    if "hooks" not in existing_settings:
+        existing_settings["hooks"] = {}
+
+    # Merge Gobby hooks (preserving any existing hooks)
+    gobby_hooks = gobby_settings.get("hooks", {})
+    for hook_type, hook_config in gobby_hooks.items():
+        existing_settings["hooks"][hook_type] = hook_config
+        hooks_installed.append(hook_type)
+
+    # Crucially, ensure hooks are enabled in Gemini CLI
+    if "general" not in existing_settings:
+        existing_settings["general"] = {}
+    existing_settings["general"]["enableHooks"] = True
+
+    # Write merged settings back
+    with open(settings_file, "w") as f:
+        json.dump(existing_settings, f, indent=2)
+
+    result["success"] = True
+    return result
+
+
+def uninstall_gemini(project_path: Path) -> dict[str, Any]:
+    """Uninstall Gobby integration from Gemini CLI.
+
+    Args:
+        project_path: Path to the project root
+
+    Returns:
+        Dict with uninstallation results including success status and removed items
+    """
+    hooks_removed: list[str] = []
+    files_removed: list[str] = []
+    result: dict[str, Any] = {
+        "success": False,
+        "hooks_removed": hooks_removed,
+        "files_removed": files_removed,
+        "error": None,
+    }
+
+    gemini_path = project_path / ".gemini"
+    settings_file = gemini_path / "settings.json"
+    hooks_dir = gemini_path / "hooks"
+
+    if not settings_file.exists():
+        # No settings file means nothing to uninstall
+        result["success"] = True
+        return result
+
+    # Backup settings.json
+    timestamp = int(time.time())
+    backup_file = gemini_path / f"settings.json.{timestamp}.backup"
+    copy2(settings_file, backup_file)
+
+    # Remove hooks from settings.json
+    with open(settings_file) as f:
+        settings = json.load(f)
+
+    if "hooks" in settings:
+        hook_types = [
+            "SessionStart",
+            "SessionEnd",
+            "BeforeAgent",
+            "AfterAgent",
+            "BeforeTool",
+            "AfterTool",
+            "BeforeToolSelection",
+            "BeforeModel",
+            "AfterModel",
+            "PreCompress",
+            "Notification",
+        ]
+
+        for hook_type in hook_types:
+            if hook_type in settings["hooks"]:
+                del settings["hooks"][hook_type]
+                hooks_removed.append(hook_type)
+
+        # Also remove the "general" section if "enableHooks" was the only entry
+        if "general" in settings and settings["general"].get("enableHooks") is True:
+            # Check if there are other entries in "general"
+            if len(settings["general"]) == 1:
+                del settings["general"]
+            else:
+                del settings["general"]["enableHooks"]
+
+        with open(settings_file, "w") as f:
+            json.dump(settings, f, indent=2)
+
+    # Remove hook dispatcher
+    dispatcher_file = hooks_dir / "hook_dispatcher.py"
+    if dispatcher_file.exists():
+        dispatcher_file.unlink()
+        files_removed.append("hook_dispatcher.py")
+
+    # Attempt to remove empty hooks directory
+    try:
+        if hooks_dir.exists() and not any(hooks_dir.iterdir()):
+            hooks_dir.rmdir()
+    except Exception:
+        pass
+
+    result["success"] = True
+    return result

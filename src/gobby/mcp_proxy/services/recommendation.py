@@ -134,7 +134,10 @@ class RecommendationService:
         """Recommend tools using semantic search + LLM re-ranking."""
         # First get semantic results
         semantic_result = await self._recommend_semantic(
-            task_description, top_k * 2, min_similarity, project_id  # Get more for re-ranking
+            task_description,
+            top_k * 2,
+            min_similarity,
+            project_id,  # Get more for re-ranking
         )
 
         if not semantic_result.get("success") or not semantic_result.get("recommendations"):

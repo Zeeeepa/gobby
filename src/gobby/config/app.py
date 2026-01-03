@@ -18,9 +18,7 @@ from pydantic import BaseModel, Field, field_validator
 # Pattern for environment variable substitution:
 # ${VAR} - simple substitution
 # ${VAR:-default} - with default value if VAR is unset or empty
-ENV_VAR_PATTERN = re.compile(
-    r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}"
-)
+ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 
 
 def expand_env_vars(content: str) -> str:

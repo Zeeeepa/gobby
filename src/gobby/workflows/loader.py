@@ -204,9 +204,7 @@ class WorkflowLoader:
             self._scan_directory(project_dir, is_project=True, discovered=discovered)
 
         # 3. Filter to lifecycle workflows only
-        lifecycle_workflows = [
-            w for w in discovered.values() if w.definition.type == "lifecycle"
-        ]
+        lifecycle_workflows = [w for w in discovered.values() if w.definition.type == "lifecycle"]
 
         # 4. Sort: project first, then by priority (asc), then by name (alpha)
         sorted_workflows = sorted(

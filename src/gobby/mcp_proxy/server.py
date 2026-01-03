@@ -101,9 +101,7 @@ class GobbyDaemonTools:
         """Call a tool."""
         return await self.tool_proxy.call_tool(server_name, tool_name, arguments)
 
-    async def list_tools(
-        self, server: str, session_id: str | None = None
-    ) -> dict[str, Any]:
+    async def list_tools(self, server: str, session_id: str | None = None) -> dict[str, Any]:
         """List tools for a specific server, optionally filtered by workflow phase restrictions."""
         return await self.tool_proxy.list_tools(server, session_id=session_id)
 

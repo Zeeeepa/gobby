@@ -37,7 +37,10 @@ class CodeExecutionService:
             Result dict with success status and output or error
         """
         if not self._llm_service or not self._config:
-            return {"success": False, "error": "Code execution not available - LLM service not configured"}
+            return {
+                "success": False,
+                "error": "Code execution not available - LLM service not configured",
+            }
 
         if not self._config.code_execution.enabled:
             return {"success": False, "error": "Code execution is disabled in configuration"}
@@ -87,7 +90,10 @@ class CodeExecutionService:
             Result dict with processed data or error
         """
         if not self._llm_service or not self._config:
-            return {"success": False, "error": "Code execution not available - LLM service not configured"}
+            return {
+                "success": False,
+                "error": "Code execution not available - LLM service not configured",
+            }
 
         if not self._config.code_execution.enabled:
             return {"success": False, "error": "Code execution is disabled in configuration"}
@@ -98,24 +104,24 @@ class CodeExecutionService:
             if isinstance(data, list):
                 original_size = len(data)
                 if original_size <= max_preview:
-                    data_str = json.dumps(data, indent=2, default=str)
+                    json.dumps(data, indent=2, default=str)
                 else:
                     preview = data[:max_preview]
-                    data_str = json.dumps(preview, indent=2, default=str)
+                    json.dumps(preview, indent=2, default=str)
             else:
                 original_size = 1
-                data_str = json.dumps(data, indent=2, default=str)
+                json.dumps(data, indent=2, default=str)
 
             params_str = f"\n\nParameters: {json.dumps(parameters, indent=2)}" if parameters else ""
 
             # Build code that includes the data and asks for the operation
-            code = f'''# Dataset ({original_size} items total):
+            code = f"""# Dataset ({original_size} items total):
 data = {json.dumps(data, default=str)}
 
 # Operation to perform: {operation}{params_str}
 
 # Write Python code to perform the operation and print the result:
-'''
+"""
             # Build context for intelligent code generation
             context = f"""Process this dataset by performing: {operation}
 
@@ -141,4 +147,3 @@ Requirements:
         except Exception as e:
             logger.error(f"Dataset processing failed: {e}")
             return {"success": False, "error": str(e)}
-

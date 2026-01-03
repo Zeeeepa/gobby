@@ -162,7 +162,9 @@ def validate_task_cmd(task_id: str, summary: str | None, summary_file: str | Non
 
 @click.command("generate-criteria")
 @click.argument("task_id", required=False)
-@click.option("--all", "generate_all", is_flag=True, help="Generate criteria for all tasks missing it")
+@click.option(
+    "--all", "generate_all", is_flag=True, help="Generate criteria for all tasks missing it"
+)
 def generate_criteria_cmd(task_id: str | None, generate_all: bool) -> None:
     """Generate validation criteria for a task.
 
@@ -304,7 +306,9 @@ def _generate_criteria_for_all(manager: LocalTaskManager) -> None:
                 click.echo(f"  {e}", err=True)
                 error_count += 1
 
-    click.echo(f"\nDone: {parent_count} parent tasks, {leaf_count} leaf tasks, {error_count} errors")
+    click.echo(
+        f"\nDone: {parent_count} parent tasks, {leaf_count} leaf tasks, {error_count} errors"
+    )
 
 
 @click.command("expand")
@@ -354,7 +358,9 @@ def expand_task_cmd(
             return
 
         llm_service = LLMService(config)
-        expander = TaskExpander(config.gobby_tasks.expansion, llm_service, manager, mcp_manager=None)
+        expander = TaskExpander(
+            config.gobby_tasks.expansion, llm_service, manager, mcp_manager=None
+        )
 
     except Exception as e:
         click.echo(f"Error initializing services: {e}", err=True)
@@ -510,7 +516,9 @@ def complexity_cmd(
 
         click.echo(f"Analyzed {len(results)} tasks:\n")
         for r in results:
-            click.echo(f"  {r['task_id'][:12]} | Score: {r['complexity_score']:2}/10 | {r['title'][:50]}")
+            click.echo(
+                f"  {r['task_id'][:12]} | Score: {r['complexity_score']:2}/10 | {r['title'][:50]}"
+            )
 
     else:
         # Single task analysis
@@ -533,7 +541,7 @@ def complexity_cmd(
         click.echo(f"Complexity Score: {result['complexity_score']}/10")
         click.echo(f"Reasoning: {result['reasoning']}")
         click.echo(f"Recommended Subtasks: {result['recommended_subtasks']}")
-        if result['existing_subtasks'] > 0:
+        if result["existing_subtasks"] > 0:
             click.echo(f"Existing Subtasks: {result['existing_subtasks']}")
 
 
@@ -633,7 +641,9 @@ def expand_all_cmd(
             return
 
         llm_service = LLMService(config)
-        expander = TaskExpander(config.gobby_tasks.expansion, llm_service, manager, mcp_manager=None)
+        expander = TaskExpander(
+            config.gobby_tasks.expansion, llm_service, manager, mcp_manager=None
+        )
     except Exception as e:
         click.echo(f"Error initializing services: {e}", err=True)
         return
@@ -653,24 +663,28 @@ def expand_all_cmd(
                     enable_code_context=True,
                 )
                 subtask_ids = result.get("subtask_ids", [])
-                results.append({
-                    "task_id": task.id,
-                    "title": task.title,
-                    "subtasks_created": len(subtask_ids),
-                    "status": "success" if not result.get("error") else "error",
-                    "error": result.get("error"),
-                })
+                results.append(
+                    {
+                        "task_id": task.id,
+                        "title": task.title,
+                        "subtasks_created": len(subtask_ids),
+                        "status": "success" if not result.get("error") else "error",
+                        "error": result.get("error"),
+                    }
+                )
                 if result.get("error"):
                     click.echo(f"  Error: {result['error']}")
                 else:
                     click.echo(f"  Created {len(subtask_ids)} subtasks")
             except Exception as e:
-                results.append({
-                    "task_id": task.id,
-                    "title": task.title,
-                    "status": "error",
-                    "error": str(e),
-                })
+                results.append(
+                    {
+                        "task_id": task.id,
+                        "title": task.title,
+                        "status": "error",
+                        "error": str(e),
+                    }
+                )
                 click.echo(f"  Error: {e}")
         return results
 
@@ -746,7 +760,9 @@ def import_spec_cmd(file: str, spec_type: str, parent_task_id: str | None) -> No
             return
 
         llm_service = LLMService(config)
-        expander = TaskExpander(config.gobby_tasks.expansion, llm_service, manager, mcp_manager=None)
+        expander = TaskExpander(
+            config.gobby_tasks.expansion, llm_service, manager, mcp_manager=None
+        )
     except Exception as e:
         click.echo(f"Error initializing services: {e}", err=True)
         return
@@ -786,7 +802,9 @@ def import_spec_cmd(file: str, spec_type: str, parent_task_id: str | None) -> No
     dep_manager = TaskDependencyManager(manager.db)
     for subtask_id in subtask_ids:
         try:
-            dep_manager.add_dependency(task_id=spec_task.id, depends_on=subtask_id, dep_type="blocks")
+            dep_manager.add_dependency(
+                task_id=spec_task.id, depends_on=subtask_id, dep_type="blocks"
+            )
         except ValueError:
             pass
 
@@ -864,8 +882,7 @@ def suggest_cmd(task_type: str | None, no_prefer_subtasks: bool, json_format: bo
             "score": best_score,
             "reason": reason_str,
             "alternatives": [
-                {"task_id": t.id, "title": t.title, "score": s}
-                for t, s, _ in scored[1:4]
+                {"task_id": t.id, "title": t.title, "score": s} for t, s, _ in scored[1:4]
             ],
         }
         click.echo(json_mod.dumps(result, indent=2, default=str))

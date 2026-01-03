@@ -95,8 +95,7 @@ def persist_decomposed_tasks(
             continue
 
     logger.info(
-        f"Persisted {len(id_mapping)} tasks for workflow '{workflow_name}' "
-        f"in project {project_id}"
+        f"Persisted {len(id_mapping)} tasks for workflow '{workflow_name}' in project {project_id}"
     )
     return id_mapping
 

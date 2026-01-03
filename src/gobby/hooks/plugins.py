@@ -15,9 +15,10 @@ import inspect
 import logging
 import sys
 from abc import ABC
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 
@@ -131,7 +132,7 @@ class HookPlugin(ABC):
         self._conditions: dict[str, Callable] = {}
         self.logger = logging.getLogger(f"gobby.plugins.{self.name}")
 
-    def on_load(self, config: dict[str, Any]) -> None:
+    def on_load(self, config: dict[str, Any]) -> None:  # noqa: B027
         """
         Called when plugin is loaded.
 
@@ -140,15 +141,15 @@ class HookPlugin(ABC):
         Args:
             config: Plugin-specific configuration from PluginItemConfig.config
         """
-        pass
+        # Optional lifecycle hook - subclasses may override
 
-    def on_unload(self) -> None:
+    def on_unload(self) -> None:  # noqa: B027
         """
         Called when plugin is unloaded.
 
         Override to cleanup resources.
         """
-        pass
+        # Optional lifecycle hook - subclasses may override
 
     def register_action(self, name: str, handler: Callable) -> None:
         """
@@ -413,7 +414,7 @@ class PluginLoader:
 
         # Find HookPlugin subclasses
         plugin_classes: list[type[HookPlugin]] = []
-        for name, obj in inspect.getmembers(module, inspect.isclass):
+        for _name, obj in inspect.getmembers(module, inspect.isclass):
             if (
                 issubclass(obj, HookPlugin)
                 and obj is not HookPlugin
@@ -624,10 +625,12 @@ def run_plugin_handlers(
                 result = handler.method(event)
                 if result is not None and isinstance(result, HookResponse):
                     if result.decision in ("deny", "block"):
-                        logger.info(
-                            f"Plugin {handler.plugin.name} blocked event: {result.reason}"
+                        logger.info(f"Plugin {handler.plugin.name} blocked event: {result.reason}")
+                        return HookResponse(
+                            decision=result.decision,
+                            reason=result.reason,
+                            metadata=result.metadata,
                         )
-                        return result
             else:
                 # Post-handlers receive the core response but can't block
                 handler.method(event, core_response)
@@ -635,8 +638,7 @@ def run_plugin_handlers(
         except Exception as e:
             # Fail-open: log error but continue processing
             logger.error(
-                f"Plugin handler {handler.plugin.name}.{handler.method.__name__} "
-                f"failed: {e}",
+                f"Plugin handler {handler.plugin.name}.{handler.method.__name__} failed: {e}",
                 exc_info=True,
             )
 

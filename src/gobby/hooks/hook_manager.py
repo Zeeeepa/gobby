@@ -214,9 +214,7 @@ class HookManager:
         # Global workflows are loaded from ~/.gobby/workflows/
         # Project-specific workflows are loaded from {project_path}/.gobby/workflows/
         # Workflows are installed via `gobby install` from install/shared/workflows/
-        self._workflow_loader = WorkflowLoader(
-            workflow_dirs=[Path.home() / ".gobby" / "workflows"]
-        )
+        self._workflow_loader = WorkflowLoader(workflow_dirs=[Path.home() / ".gobby" / "workflows"])
         self._workflow_state_manager = WorkflowStateManager(self._database)
 
         # Initialize Template Engine
@@ -288,13 +286,10 @@ class HookManager:
                 loaded = self._plugin_loader.load_all()
                 if loaded:
                     self.logger.info(
-                        f"Loaded {len(loaded)} plugin(s): "
-                        f"{', '.join(p.name for p in loaded)}"
+                        f"Loaded {len(loaded)} plugin(s): {', '.join(p.name for p in loaded)}"
                     )
                     # Register plugin actions and conditions with workflow system
-                    self._action_executor.register_plugin_actions(
-                        self._plugin_loader.registry
-                    )
+                    self._action_executor.register_plugin_actions(self._plugin_loader.registry)
                     self._workflow_engine.evaluator.register_plugin_conditions(
                         self._plugin_loader.registry
                     )
@@ -636,9 +631,7 @@ class HookManager:
         # --- Plugin Pre-Handlers (Sprint 9: can block) ---
         if self._plugin_loader:
             try:
-                pre_response = run_plugin_handlers(
-                    self._plugin_loader.registry, event, pre=True
-                )
+                pre_response = run_plugin_handlers(self._plugin_loader.registry, event, pre=True)
                 if pre_response and pre_response.decision in ("deny", "block"):
                     self.logger.info(f"Plugin blocked event: {pre_response.reason}")
                     return pre_response
@@ -760,7 +753,7 @@ class HookManager:
 
         # Execute in event loop
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
             # Already in async context - this method shouldn't be called here
             # Fall back to creating a new thread to run the coroutine synchronously
             import concurrent.futures

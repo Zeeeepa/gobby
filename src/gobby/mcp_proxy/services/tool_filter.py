@@ -132,7 +132,10 @@ class ToolFilterService:
             return True, None
 
         if tool_name not in allowed:
-            return False, f"Tool '{tool_name}' is not in allowed list for step '{restrictions['step']}'"
+            return (
+                False,
+                f"Tool '{tool_name}' is not in allowed list for step '{restrictions['step']}'",
+            )
 
         return True, None
 
@@ -218,9 +221,11 @@ class ToolFilterService:
 
             filtered_tools = self.filter_tools(tools, session_id, project_path)
 
-            result.append({
-                "name": server_name,
-                "tools": filtered_tools,
-            })
+            result.append(
+                {
+                    "name": server_name,
+                    "tools": filtered_tools,
+                }
+            )
 
         return result

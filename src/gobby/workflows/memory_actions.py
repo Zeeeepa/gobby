@@ -103,8 +103,7 @@ async def memory_inject(
 
         if not project_memories:
             logger.debug(
-                f"memory_inject: No memories found for project {project_id} "
-                f"(threshold={threshold})"
+                f"memory_inject: No memories found for project {project_id} (threshold={threshold})"
             )
             return {"injected": False, "reason": "No memories found", "count": 0}
 

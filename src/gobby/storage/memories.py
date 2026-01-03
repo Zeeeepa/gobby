@@ -252,9 +252,7 @@ class LocalMemoryManager:
         limit: int = 20,
     ) -> list[Memory]:
         # Escape LIKE wildcards in query_text
-        escaped_query = (
-            query_text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        )
+        escaped_query = query_text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         sql = "SELECT * FROM memories WHERE content LIKE ? ESCAPE '\\'"
         params: list[Any] = [f"%{escaped_query}%"]
 

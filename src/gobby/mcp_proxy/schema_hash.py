@@ -135,9 +135,7 @@ class SchemaHashManager:
 
         result = self.get_hash(server_name, tool_name, project_id)
         if result is None:
-            raise RuntimeError(
-                f"Failed to retrieve hash for {server_name}/{tool_name} after store"
-            )
+            raise RuntimeError(f"Failed to retrieve hash for {server_name}/{tool_name} after store")
         return result
 
     def get_hash(
@@ -163,9 +161,7 @@ class SchemaHashManager:
         )
         return SchemaHashRecord.from_row(row) if row else None
 
-    def get_hashes_for_server(
-        self, server_name: str, project_id: str
-    ) -> list[SchemaHashRecord]:
+    def get_hashes_for_server(self, server_name: str, project_id: str) -> list[SchemaHashRecord]:
         """
         Get all hashes for a server.
 
@@ -236,8 +232,7 @@ class SchemaHashManager:
 
         # Get all stored hashes for this server
         stored_hashes = {
-            h.tool_name: h.schema_hash
-            for h in self.get_hashes_for_server(server_name, project_id)
+            h.tool_name: h.schema_hash for h in self.get_hashes_for_server(server_name, project_id)
         }
 
         for tool in tools:
@@ -254,9 +249,7 @@ class SchemaHashManager:
 
         return result
 
-    def update_verification_time(
-        self, server_name: str, tool_name: str, project_id: str
-    ) -> bool:
+    def update_verification_time(self, server_name: str, tool_name: str, project_id: str) -> bool:
         """
         Update last_verified_at timestamp without changing hash.
 
@@ -281,9 +274,7 @@ class SchemaHashManager:
         )
         return cursor.rowcount > 0
 
-    def delete_hash(
-        self, server_name: str, tool_name: str, project_id: str
-    ) -> bool:
+    def delete_hash(self, server_name: str, tool_name: str, project_id: str) -> bool:
         """
         Delete a schema hash.
 
@@ -304,9 +295,7 @@ class SchemaHashManager:
         )
         return cursor.rowcount > 0
 
-    def delete_hashes_for_server(
-        self, server_name: str, project_id: str
-    ) -> int:
+    def delete_hashes_for_server(self, server_name: str, project_id: str) -> int:
         """
         Delete all hashes for a server.
 
@@ -380,9 +369,7 @@ class SchemaHashManager:
                 (project_id,),
             )
         else:
-            count_row = self.db.fetchone(
-                "SELECT COUNT(*) as count FROM tool_schema_hashes"
-            )
+            count_row = self.db.fetchone("SELECT COUNT(*) as count FROM tool_schema_hashes")
             server_rows = self.db.fetchall(
                 """
                 SELECT server_name, COUNT(*) as count

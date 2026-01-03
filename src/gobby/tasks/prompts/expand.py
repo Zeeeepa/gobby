@@ -200,7 +200,9 @@ class ExpansionPromptBuilder:
             for t in context.related_tasks:
                 context_parts.append(f"- {t.title} ({t.status})")
 
-        context_str = "\n".join(context_parts) if context_parts else "No additional context available."
+        context_str = (
+            "\n".join(context_parts) if context_parts else "No additional context available."
+        )
 
         # Format research findings
         research_str = context.agent_findings or "No research performed."

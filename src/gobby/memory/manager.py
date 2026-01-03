@@ -28,7 +28,7 @@ class MemoryManager:
         self.storage = LocalMemoryManager(db)
         self.config = config
         self._openai_api_key = openai_api_key
-        self._semantic_search: "SemanticMemorySearch | None" = None
+        self._semantic_search: SemanticMemorySearch | None = None
 
     @property
     def semantic_search(self) -> "SemanticMemorySearch":
@@ -189,7 +189,7 @@ class MemoryManager:
         try:
             # Run async search in sync context
             try:
-                loop = asyncio.get_running_loop()
+                asyncio.get_running_loop()
                 # We're in an async context - this shouldn't happen in normal sync calls
                 # Fall back to text search to avoid complexity
                 logger.debug("In async context, using text search")

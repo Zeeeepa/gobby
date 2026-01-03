@@ -288,7 +288,10 @@ class TaskSyncManager:
             # Parse repo from URL
             match = re.match(r"https?://github\.com/([^/]+)/([^/]+)/?", repo_url)
             if not match:
-                return {"success": False, "error": "Invalid GitHub URL. Expected: https://github.com/owner/repo"}
+                return {
+                    "success": False,
+                    "error": "Invalid GitHub URL. Expected: https://github.com/owner/repo",
+                }
 
             owner, repo = match.groups()
             repo = repo.rstrip(".git")  # Handle .git suffix
@@ -304,11 +307,17 @@ class TaskSyncManager:
 
             # Fetch issues using gh CLI
             cmd = [
-                "gh", "issue", "list",
-                "--repo", f"{owner}/{repo}",
-                "--state", "open",
-                "--limit", str(limit),
-                "--json", "number,title,body,labels,createdAt",
+                "gh",
+                "issue",
+                "list",
+                "--repo",
+                f"{owner}/{repo}",
+                "--state",
+                "open",
+                "--limit",
+                str(limit),
+                "--json",
+                "number,title,body,labels,createdAt",
             ]
 
             result = subprocess.run(cmd, capture_output=True, text=True)
@@ -321,7 +330,12 @@ class TaskSyncManager:
             issues = json.loads(result.stdout)
 
             if not issues:
-                return {"success": True, "message": "No open issues found", "imported": [], "count": 0}
+                return {
+                    "success": True,
+                    "message": "No open issues found",
+                    "imported": [],
+                    "count": 0,
+                }
 
             # Resolve project ID if not provided
             if not project_id:

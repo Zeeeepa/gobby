@@ -61,9 +61,7 @@ class ToolMetrics:
             "failure_count": self.failure_count,
             "total_latency_ms": self.total_latency_ms,
             "avg_latency_ms": self.avg_latency_ms,
-            "success_rate": (
-                self.success_count / self.call_count if self.call_count > 0 else None
-            ),
+            "success_rate": (self.success_count / self.call_count if self.call_count > 0 else None),
             "last_called_at": self.last_called_at,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
@@ -211,9 +209,7 @@ class ToolMetricsManager:
                 "total_calls": total_calls,
                 "total_success": total_success,
                 "total_failure": total_failure,
-                "overall_success_rate": (
-                    total_success / total_calls if total_calls > 0 else None
-                ),
+                "overall_success_rate": (total_success / total_calls if total_calls > 0 else None),
                 "overall_avg_latency_ms": (
                     total_latency / total_calls if total_calls > 0 else None
                 ),
@@ -290,7 +286,7 @@ class ToolMetricsManager:
         )
 
         if row and row["call_count"] > 0:
-            return row["success_count"] / row["call_count"]
+            return float(row["success_count"]) / float(row["call_count"])
         return None
 
     def reset_metrics(
@@ -356,7 +352,9 @@ class ToolMetricsManager:
 
         deleted = cursor.rowcount
         if deleted > 0:
-            logger.info(f"Metrics cleanup: deleted {deleted} stale metrics (older than {retention_days} days)")
+            logger.info(
+                f"Metrics cleanup: deleted {deleted} stale metrics (older than {retention_days} days)"
+            )
         return deleted
 
     def get_retention_stats(self) -> dict[str, Any]:

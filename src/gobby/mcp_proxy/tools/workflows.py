@@ -92,10 +92,12 @@ def create_workflows_registry(
                     "blocked_tools": s.blocked_tools,
                 }
                 for s in definition.steps
-            ] if definition.steps else [],
-            "triggers": {
-                name: len(actions) for name, actions in definition.triggers.items()
-            } if definition.triggers else {},
+            ]
+            if definition.steps
+            else [],
+            "triggers": {name: len(actions) for name, actions in definition.triggers.items()}
+            if definition.triggers
+            else {},
             "settings": definition.settings,
         }
 
@@ -152,12 +154,14 @@ def create_workflows_registry(
                     if workflow_type and wf_type != workflow_type:
                         continue
 
-                    workflows.append({
-                        "name": name,
-                        "type": wf_type,
-                        "description": data.get("description", ""),
-                        "source": "project" if is_project else "global",
-                    })
+                    workflows.append(
+                        {
+                            "name": name,
+                            "type": wf_type,
+                            "description": data.get("description", ""),
+                            "source": "project" if is_project else "global",
+                        }
+                    )
                     seen_names.add(name)
 
                 except Exception:

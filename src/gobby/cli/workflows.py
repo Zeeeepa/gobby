@@ -63,7 +63,9 @@ def list_workflows(ctx: click.Context, show_all: bool, json_format: bool) -> Non
         if not search_dir.exists():
             continue
 
-        is_project = search_dir == (project_path / ".gobby" / "workflows") if project_path else False
+        is_project = (
+            search_dir == (project_path / ".gobby" / "workflows") if project_path else False
+        )
 
         for yaml_path in search_dir.glob("*.yaml"):
             name = yaml_path.stem
@@ -84,13 +86,15 @@ def list_workflows(ctx: click.Context, show_all: bool, json_format: bool) -> Non
                 if not show_all and wf_type != "lifecycle":
                     pass  # Show all by default now
 
-                workflows.append({
-                    "name": name,
-                    "type": wf_type,
-                    "description": description,
-                    "source": "project" if is_project else "global",
-                    "path": str(yaml_path),
-                })
+                workflows.append(
+                    {
+                        "name": name,
+                        "type": wf_type,
+                        "description": description,
+                        "source": "project" if is_project else "global",
+                        "path": str(yaml_path),
+                    }
+                )
                 seen_names.add(name)
 
             except Exception as e:
@@ -107,10 +111,10 @@ def list_workflows(ctx: click.Context, show_all: bool, json_format: bool) -> Non
 
     click.echo(f"Found {len(workflows)} workflow(s):\n")
     for wf in workflows:
-        source_tag = f"[{wf['source']}]" if wf['source'] == 'project' else ""
+        source_tag = f"[{wf['source']}]" if wf["source"] == "project" else ""
         type_tag = f"({wf['type']})"
         click.echo(f"  {wf['name']} {type_tag} {source_tag}")
-        if wf['description']:
+        if wf["description"]:
             click.echo(f"    {wf['description'][:80]}")
 
 
@@ -150,13 +154,15 @@ def show_workflow(ctx: click.Context, name: str, json_format: bool) -> None:
                     click.echo("      Allowed tools: all")
                 else:
                     tools = step.allowed_tools[:5]
-                    more = f" (+{len(step.allowed_tools) - 5})" if len(step.allowed_tools) > 5 else ""
+                    more = (
+                        f" (+{len(step.allowed_tools) - 5})" if len(step.allowed_tools) > 5 else ""
+                    )
                     click.echo(f"      Allowed tools: {', '.join(tools)}{more}")
             if step.blocked_tools:
                 click.echo(f"      Blocked tools: {', '.join(step.blocked_tools[:5])}")
 
     if definition.triggers:
-        click.echo(f"\nTriggers:")
+        click.echo("\nTriggers:")
         for trigger_name, actions in definition.triggers.items():
             click.echo(f"  {trigger_name}: {len(actions)} action(s)")
 
@@ -191,19 +197,24 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
         return
 
     if json_format:
-        click.echo(json.dumps({
-            "session_id": session_id,
-            "has_workflow": True,
-            "workflow_name": state.workflow_name,
-            "step": state.step,
-            "step_action_count": state.step_action_count,
-            "total_action_count": state.total_action_count,
-            "reflection_pending": state.reflection_pending,
-            "disabled": state.disabled,
-            "disabled_reason": state.disabled_reason,
-            "artifacts": list(state.artifacts.keys()) if state.artifacts else [],
-            "updated_at": state.updated_at.isoformat() if state.updated_at else None,
-        }, indent=2))
+        click.echo(
+            json.dumps(
+                {
+                    "session_id": session_id,
+                    "has_workflow": True,
+                    "workflow_name": state.workflow_name,
+                    "step": state.step,
+                    "step_action_count": state.step_action_count,
+                    "total_action_count": state.total_action_count,
+                    "reflection_pending": state.reflection_pending,
+                    "disabled": state.disabled,
+                    "disabled_reason": state.disabled_reason,
+                    "artifacts": list(state.artifacts.keys()) if state.artifacts else [],
+                    "updated_at": state.updated_at.isoformat() if state.updated_at else None,
+                },
+                indent=2,
+            )
+        )
         return
 
     click.echo(f"Session: {session_id[:12]}...")
@@ -345,9 +356,7 @@ def clear_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
 @click.option("--force", "-f", is_flag=True, help="Skip exit condition checks")
 @click.pass_context
-def set_step(
-    ctx: click.Context, step_name: str, session_id: str | None, force: bool
-) -> None:
+def set_step(ctx: click.Context, step_name: str, session_id: str | None, force: bool) -> None:
     """Manually transition to a step (escape hatch)."""
     from datetime import UTC, datetime
 
@@ -593,7 +602,7 @@ def import_workflow(ctx: click.Context, source: str, name: str | None, is_global
 
     except yaml.YAMLError as e:
         click.echo(f"Invalid YAML: {e}", err=True)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
     # Determine destination
     workflow_name = name or data.get("name", source_path.stem)
@@ -620,7 +629,12 @@ def import_workflow(ctx: click.Context, source: str, name: str | None, is_global
 
 @workflow.command("audit")
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
-@click.option("--type", "-t", "event_type", help="Filter by event type (tool_call, rule_eval, transition, approval)")
+@click.option(
+    "--type",
+    "-t",
+    "event_type",
+    help="Filter by event type (tool_call, rule_eval, transition, approval)",
+)
 @click.option("--result", "-r", help="Filter by result (allow, block, transition)")
 @click.option("--limit", "-n", default=50, help="Maximum entries to show (default: 50)")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
@@ -664,18 +678,20 @@ def audit_workflow(
     if json_format:
         output = []
         for entry in entries:
-            output.append({
-                "id": entry.id,
-                "timestamp": entry.timestamp.isoformat(),
-                "step": entry.step,
-                "event_type": entry.event_type,
-                "tool_name": entry.tool_name,
-                "rule_id": entry.rule_id,
-                "condition": entry.condition,
-                "result": entry.result,
-                "reason": entry.reason,
-                "context": entry.context,
-            })
+            output.append(
+                {
+                    "id": entry.id,
+                    "timestamp": entry.timestamp.isoformat(),
+                    "step": entry.step,
+                    "event_type": entry.event_type,
+                    "tool_name": entry.tool_name,
+                    "rule_id": entry.rule_id,
+                    "condition": entry.condition,
+                    "result": entry.result,
+                    "reason": entry.reason,
+                    "context": entry.context,
+                }
+            )
         click.echo(json.dumps(output, indent=2))
         return
 

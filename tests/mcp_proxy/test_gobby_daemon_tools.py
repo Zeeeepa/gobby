@@ -1,6 +1,6 @@
 """Tests for GobbyDaemonTools handler class in server.py."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -267,23 +267,25 @@ class TestGobbyDaemonToolsListTools:
     """Tests for list_tools functionality."""
 
     @pytest.mark.asyncio
-    async def test_list_tools_returns_all_tools(self, tools_handler):
-        """Test that list_tools returns all available tools."""
+    async def test_list_tools_returns_tools_for_server(self, tools_handler):
+        """Test that list_tools returns tools for a specific server."""
         tools_handler.tool_proxy.list_tools = AsyncMock(
             return_value={
+                "status": "success",
                 "tools": [
-                    {"name": "tool1", "server": "server1", "description": "First tool"},
-                    {"name": "tool2", "server": "server2", "description": "Second tool"},
+                    {"name": "tool1", "brief": "First tool"},
+                    {"name": "tool2", "brief": "Second tool"},
                 ],
-                "count": 2,
+                "tool_count": 2,
             }
         )
 
-        result = await tools_handler.list_tools()
+        result = await tools_handler.list_tools(server="server1")
 
+        assert result["status"] == "success"
         assert "tools" in result
         assert len(result["tools"]) == 2
-        assert result["count"] == 2
+        assert result["tool_count"] == 2
 
     @pytest.mark.asyncio
     async def test_list_tools_filters_by_server(self, tools_handler):
@@ -302,11 +304,15 @@ class TestGobbyDaemonToolsListTools:
     @pytest.mark.asyncio
     async def test_list_tools_with_session_id(self, tools_handler):
         """Test that list_tools passes session_id for workflow filtering."""
-        tools_handler.tool_proxy.list_tools = AsyncMock(return_value={"tools": []})
+        tools_handler.tool_proxy.list_tools = AsyncMock(
+            return_value={"status": "success", "tools": [], "tool_count": 0}
+        )
 
-        await tools_handler.list_tools(session_id="session-123")
+        await tools_handler.list_tools(server="server1", session_id="session-123")
 
-        tools_handler.tool_proxy.list_tools.assert_called_once_with(None, session_id="session-123")
+        tools_handler.tool_proxy.list_tools.assert_called_once_with(
+            "server1", session_id="session-123"
+        )
 
 
 class TestGobbyDaemonToolsGetToolSchema:

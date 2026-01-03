@@ -61,6 +61,9 @@ class CodeGuardianPlugin(HookPlugin):
         self.auto_fix: bool = True
         self.file_patterns: list[str] = ["*.py"]
         self.ignore_paths: list[str] = [".venv", "__pycache__", "node_modules"]
+        # Rules to exclude from auto-fix (F401=unused imports, F811=redefinition)
+        # These are commonly "wrong" during multi-step refactoring
+        self.auto_fix_exclude_rules: list[str] = ["F401", "F811"]
 
         # State tracking
         self._last_check_results: dict[str, Any] = {}
@@ -74,6 +77,9 @@ class CodeGuardianPlugin(HookPlugin):
         self.auto_fix = config.get("auto_fix", self.auto_fix)
         self.file_patterns = config.get("file_patterns", self.file_patterns)
         self.ignore_paths = config.get("ignore_paths", self.ignore_paths)
+        self.auto_fix_exclude_rules = config.get(
+            "auto_fix_exclude_rules", self.auto_fix_exclude_rules
+        )
 
         self.logger.info(
             f"Code Guardian loaded: checks={self.checks}, "
@@ -91,8 +97,7 @@ class CodeGuardianPlugin(HookPlugin):
     def on_unload(self) -> None:
         """Cleanup on plugin unload."""
         self.logger.info(
-            f"Code Guardian stats: checked={self._files_checked}, "
-            f"blocked={self._files_blocked}"
+            f"Code Guardian stats: checked={self._files_checked}, blocked={self._files_blocked}"
         )
 
     # =========================================================================
@@ -135,9 +140,7 @@ class CodeGuardianPlugin(HookPlugin):
         return None
 
     @hook_handler(HookEventType.AFTER_TOOL, priority=60)
-    def report_after_tool(
-        self, event: HookEvent, core_response: HookResponse | None
-    ) -> None:
+    def report_after_tool(self, event: HookEvent, core_response: HookResponse | None) -> None:
         """
         Post-handler: Log results and track statistics.
 
@@ -169,9 +172,7 @@ class CodeGuardianPlugin(HookPlugin):
                     "status": "failed",
                     "errors": errors,
                 }
-                self.logger.warning(
-                    f"Post-edit lint issues in {path.name}: {len(errors)} error(s)"
-                )
+                self.logger.warning(f"Post-edit lint issues in {path.name}: {len(errors)} error(s)")
 
                 # Try auto-fix if enabled
                 if self.auto_fix and "ruff" in self.checks:
@@ -273,13 +274,19 @@ class CodeGuardianPlugin(HookPlugin):
         return []
 
     def _run_ruff_fix(self, path: Path) -> bool:
-        """Run ruff --fix on a file."""
+        """Run ruff --fix on a file, excluding configured rules."""
         if not shutil.which("ruff"):
             return False
 
         try:
+            # Build command with excluded rules
+            cmd = ["ruff", "check", "--fix"]
+            for rule in self.auto_fix_exclude_rules:
+                cmd.extend(["--ignore", rule])
+            cmd.append(str(path))
+
             result = subprocess.run(
-                ["ruff", "check", "--fix", str(path)],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=30,
@@ -308,7 +315,11 @@ class CodeGuardianPlugin(HookPlugin):
             )
 
             if result.returncode != 0 and result.stdout:
-                return [line.strip() for line in result.stdout.strip().split("\n") if line.strip() and ": error:" in line]
+                return [
+                    line.strip()
+                    for line in result.stdout.strip().split("\n")
+                    if line.strip() and ": error:" in line
+                ]
 
         except subprocess.TimeoutExpired:
             self.logger.warning(f"mypy timed out on {path}")

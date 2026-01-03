@@ -13,7 +13,7 @@ import click
 import httpx
 import psutil
 
-from gobby.utils.status import format_status_message, fetch_rich_status
+from gobby.utils.status import fetch_rich_status, format_status_message
 
 from .utils import (
     format_uptime,

@@ -92,7 +92,9 @@ def show_session(session_id: str, json_format: bool) -> None:
         if len(matches) == 1:
             session = matches[0]
         elif len(matches) > 1:
-            click.echo(f"Ambiguous session ID '{session_id}' matches {len(matches)} sessions:", err=True)
+            click.echo(
+                f"Ambiguous session ID '{session_id}' matches {len(matches)} sessions:", err=True
+            )
             for s in matches[:5]:
                 click.echo(f"  {s.id}: {s.title or '(no title)'}", err=True)
             return

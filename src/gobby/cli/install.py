@@ -2,121 +2,28 @@
 Installation commands for hooks.
 """
 
-import json
 import logging
-import re
 import shutil
 import sys
-import time
 from pathlib import Path
-from shutil import copy2, copytree
+from shutil import copy2
 from typing import Any
 
 import click
 
+from .installers import (
+    install_antigravity,
+    install_claude,
+    install_codex_notify,
+    install_gemini,
+    install_git_hooks,
+    uninstall_claude,
+    uninstall_codex_notify,
+    uninstall_gemini,
+)
 from .utils import get_install_dir
 
 logger = logging.getLogger(__name__)
-
-
-def _install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list[str]]:
-    """Install shared content from src/install/shared/.
-
-    Skills are CLI-specific and go to {cli_path}/skills/.
-    Workflows are cross-CLI and go to {project_path}/.gobby/workflows/.
-    Plugins are global and go to ~/.gobby/plugins/.
-    """
-    shared_dir = get_install_dir() / "shared"
-    installed: dict[str, list[str]] = {"skills": [], "workflows": [], "plugins": []}
-
-    # Install shared skills to CLI directory
-    shared_skills = shared_dir / "skills"
-    if shared_skills.exists():
-        target_skills = cli_path / "skills"
-        target_skills.mkdir(parents=True, exist_ok=True)
-        for skill_dir in shared_skills.iterdir():
-            if skill_dir.is_dir():
-                target_skill = target_skills / skill_dir.name
-                if target_skill.exists():
-                    shutil.rmtree(target_skill)
-                copytree(skill_dir, target_skill)
-                installed["skills"].append(skill_dir.name)
-
-    # Install shared workflows to .gobby/workflows/ (cross-CLI)
-    shared_workflows = shared_dir / "workflows"
-    if shared_workflows.exists():
-        target_workflows = project_path / ".gobby" / "workflows"
-        target_workflows.mkdir(parents=True, exist_ok=True)
-        for workflow_file in shared_workflows.iterdir():
-            if workflow_file.is_file():
-                copy2(workflow_file, target_workflows / workflow_file.name)
-                installed["workflows"].append(workflow_file.name)
-
-    # Install shared plugins to ~/.gobby/plugins/ (global)
-    shared_plugins = shared_dir / "plugins"
-    if shared_plugins.exists():
-        target_plugins = Path("~/.gobby/plugins").expanduser()
-        target_plugins.mkdir(parents=True, exist_ok=True)
-        for plugin_file in shared_plugins.iterdir():
-            if plugin_file.is_file() and plugin_file.suffix == ".py":
-                copy2(plugin_file, target_plugins / plugin_file.name)
-                installed["plugins"].append(plugin_file.name)
-
-    return installed
-
-
-def _install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]]:
-    """Install CLI-specific skills/workflows/commands (layered on top of shared).
-
-    CLI-specific content can add to or override shared content.
-    """
-    cli_dir = get_install_dir() / cli_name
-    installed: dict[str, list[str]] = {"skills": [], "workflows": [], "commands": []}
-
-    # CLI-specific skills (can override shared)
-    cli_skills = cli_dir / "skills"
-    if cli_skills.exists():
-        target_skills = target_path / "skills"
-        target_skills.mkdir(parents=True, exist_ok=True)
-        for skill_dir in cli_skills.iterdir():
-            if skill_dir.is_dir():
-                target_skill = target_skills / skill_dir.name
-                if target_skill.exists():
-                    shutil.rmtree(target_skill)
-                copytree(skill_dir, target_skill)
-                installed["skills"].append(skill_dir.name)
-
-    # CLI-specific workflows
-    cli_workflows = cli_dir / "workflows"
-    if cli_workflows.exists():
-        target_workflows = target_path / "workflows"
-        target_workflows.mkdir(parents=True, exist_ok=True)
-        for workflow_file in cli_workflows.iterdir():
-            if workflow_file.is_file():
-                copy2(workflow_file, target_workflows / workflow_file.name)
-                installed["workflows"].append(workflow_file.name)
-
-    # CLI-specific commands (slash commands)
-    # Claude/Gemini: commands/, Codex: prompts/
-    for cmd_dir_name in ["commands", "prompts"]:
-        cli_commands = cli_dir / cmd_dir_name
-        if cli_commands.exists():
-            target_commands = target_path / cmd_dir_name
-            target_commands.mkdir(parents=True, exist_ok=True)
-            for item in cli_commands.iterdir():
-                if item.is_dir():
-                    # Directory of commands (e.g., memory/)
-                    target_subdir = target_commands / item.name
-                    if target_subdir.exists():
-                        shutil.rmtree(target_subdir)
-                    copytree(item, target_subdir)
-                    installed["commands"].append(f"{item.name}/")
-                elif item.is_file():
-                    # Single command file
-                    copy2(item, target_commands / item.name)
-                    installed["commands"].append(item.name)
-
-    return installed
 
 
 def _ensure_daemon_config() -> dict[str, Any]:
@@ -167,757 +74,52 @@ def _is_codex_cli_installed() -> bool:
     return shutil.which("codex") is not None
 
 
-def _install_claude(project_path: Path) -> dict[str, Any]:
-    """Install Gobby integration for Claude Code (hooks, skills, workflows)."""
-    hooks_installed: list[str] = []
-    result: dict[str, Any] = {
-        "success": False,
-        "hooks_installed": hooks_installed,
-        "skills_installed": [],
-        "workflows_installed": [],
-        "commands_installed": [],
-        "error": None,
-    }
-
-    claude_path = project_path / ".claude"
-    settings_file = claude_path / "settings.json"
-
-    # Ensure .claude subdirectories exist
-    claude_path.mkdir(parents=True, exist_ok=True)
-    hooks_dir = claude_path / "hooks"
-    hooks_dir.mkdir(parents=True, exist_ok=True)
-
-    # Get source files
-    install_dir = get_install_dir()
-    claude_install_dir = install_dir / "claude"
-    install_hooks_dir = claude_install_dir / "hooks"
-
-    # Hook files to copy
-    hook_files = {
-        "hook_dispatcher.py": True,  # Make executable
-        "validate_settings.py": True,  # Make executable
-    }
-
-    source_hooks_template = claude_install_dir / "hooks-template.json"
-
-    # Verify all source files exist
-    missing_files = []
-    for filename in hook_files.keys():
-        source_file = install_hooks_dir / filename
-        if not source_file.exists():
-            missing_files.append(str(source_file))
-
-    if not source_hooks_template.exists():
-        missing_files.append(str(source_hooks_template))
-
-    if missing_files:
-        result["error"] = f"Missing source files: {missing_files}"
-        return result
-
-    # Copy hook files
-    for filename, make_executable in hook_files.items():
-        source_file = install_hooks_dir / filename
-        target_file = hooks_dir / filename
-
-        if target_file.exists():
-            target_file.unlink()
-
-        copy2(source_file, target_file)
-        if make_executable:
-            target_file.chmod(0o755)
-
-    # Install shared content (skills, workflows)
-    shared = _install_shared_content(claude_path, project_path)
-    # Install CLI-specific content (can override shared)
-    cli = _install_cli_content("claude", claude_path)
-
-    result["skills_installed"] = shared["skills"] + cli["skills"]
-    result["workflows_installed"] = shared["workflows"] + cli["workflows"]
-    result["commands_installed"] = cli.get("commands", [])
-    result["plugins_installed"] = shared.get("plugins", [])
-
-    # Backup existing settings.json if it exists
-    if settings_file.exists():
-        timestamp = int(time.time())
-        backup_file = claude_path / f"settings.json.{timestamp}.backup"
-        copy2(settings_file, backup_file)
-
-    # Load existing settings or create empty
-    if settings_file.exists():
-        with open(settings_file) as f:
-            existing_settings = json.load(f)
-    else:
-        existing_settings = {}
-
-    # Load Gobby hooks from template
-    with open(source_hooks_template) as f:
-        gobby_settings_str = f.read()
-
-    # Replace $PROJECT_PATH with absolute project path
-    abs_project_path = str(project_path.resolve())
-    gobby_settings_str = gobby_settings_str.replace("$PROJECT_PATH", abs_project_path)
-    gobby_settings = json.loads(gobby_settings_str)
-
-    # Ensure hooks section exists
-    if "hooks" not in existing_settings:
-        existing_settings["hooks"] = {}
-
-    # Merge Gobby hooks
-    gobby_hooks = gobby_settings.get("hooks", {})
-    for hook_type, hook_config in gobby_hooks.items():
-        existing_settings["hooks"][hook_type] = hook_config
-        hooks_installed.append(hook_type)
-
-    # Write merged settings back
-    with open(settings_file, "w") as f:
-        json.dump(existing_settings, f, indent=2)
-
-    result["success"] = True
-    return result
-
-
-def _install_gemini(project_path: Path) -> dict[str, Any]:
-    """Install Gobby integration for Gemini CLI (hooks, skills, workflows)."""
-    hooks_installed: list[str] = []
-    result: dict[str, Any] = {
-        "success": False,
-        "hooks_installed": hooks_installed,
-        "skills_installed": [],
-        "workflows_installed": [],
-        "commands_installed": [],
-        "error": None,
-    }
-
-    gemini_path = project_path / ".gemini"
-    settings_file = gemini_path / "settings.json"
-
-    # Ensure .gemini subdirectories exist
-    gemini_path.mkdir(parents=True, exist_ok=True)
-    hooks_dir = gemini_path / "hooks"
-    hooks_dir.mkdir(parents=True, exist_ok=True)
-
-    # Get source files
-    install_dir = get_install_dir()
-    gemini_install_dir = install_dir / "gemini"
-    install_hooks_dir = gemini_install_dir / "hooks"
-    source_hooks_template = gemini_install_dir / "hooks-template.json"
-
-    # Verify source files exist
-    dispatcher_file = install_hooks_dir / "hook_dispatcher.py"
-    if not dispatcher_file.exists():
-        result["error"] = f"Missing hook dispatcher: {dispatcher_file}"
-        return result
-
-    if not source_hooks_template.exists():
-        result["error"] = f"Missing hooks template: {source_hooks_template}"
-        return result
-
-    # Copy hook dispatcher
-    target_dispatcher = hooks_dir / "hook_dispatcher.py"
-    if target_dispatcher.exists():
-        target_dispatcher.unlink()
-    copy2(dispatcher_file, target_dispatcher)
-    target_dispatcher.chmod(0o755)
-
-    # Install shared content (skills, workflows)
-    shared = _install_shared_content(gemini_path, project_path)
-    # Install CLI-specific content (can override shared)
-    cli = _install_cli_content("gemini", gemini_path)
-
-    result["skills_installed"] = shared["skills"] + cli["skills"]
-    result["workflows_installed"] = shared["workflows"] + cli["workflows"]
-    result["commands_installed"] = cli.get("commands", [])
-    result["plugins_installed"] = shared.get("plugins", [])
-
-    # Backup existing settings.json if it exists
-    if settings_file.exists():
-        timestamp = int(time.time())
-        backup_file = gemini_path / f"settings.json.{timestamp}.backup"
-        copy2(settings_file, backup_file)
-
-    # Load existing settings or create empty
-    if settings_file.exists():
-        try:
-            with open(settings_file) as f:
-                existing_settings = json.load(f)
-        except json.JSONDecodeError:
-            # If invalid JSON, treat as empty but warn (backup already made)
-            existing_settings = {}
-    else:
-        existing_settings = {}
-
-    # Load Gobby hooks from template
-    with open(source_hooks_template) as f:
-        gobby_settings_str = f.read()
-
-    # Resolve uv path dynamically to avoid PATH issues in Gemini CLI
-    from shutil import which
-
-    uv_path = which("uv")
-    if not uv_path:
-        uv_path = "uv"  # Fallback
-
-    # Replace $PROJECT_PATH with absolute project path
-    abs_project_path = str(project_path.resolve())
-
-    # Replace variables in template
-    gobby_settings_str = gobby_settings_str.replace("$PROJECT_PATH", abs_project_path)
-
-    # Also replace "uv run python" with absolute path if found
-    # The template uses "uv run python" by default
-    if uv_path != "uv":
-        gobby_settings_str = gobby_settings_str.replace("uv run python", f"{uv_path} run python")
-
-    gobby_settings = json.loads(gobby_settings_str)
-
-    # Ensure hooks section exists
-    if "hooks" not in existing_settings:
-        existing_settings["hooks"] = {}
-
-    # Merge Gobby hooks (preserving any existing hooks)
-    gobby_hooks = gobby_settings.get("hooks", {})
-    for hook_type, hook_config in gobby_hooks.items():
-        existing_settings["hooks"][hook_type] = hook_config
-        hooks_installed.append(hook_type)
-
-    # Crucially, ensure hooks are enabled in Gemini CLI
-    if "general" not in existing_settings:
-        existing_settings["general"] = {}
-    existing_settings["general"]["enableHooks"] = True
-
-    # Write merged settings back
-    with open(settings_file, "w") as f:
-        json.dump(existing_settings, f, indent=2)
-
-    result["success"] = True
-    return result
-
-
-def _install_codex_notify() -> dict[str, Any]:
-    """Install Codex notify script and configure ~/.codex/config.toml."""
-    import json as _json
-
-    files_installed: list[str] = []
-    result: dict[str, Any] = {
-        "success": False,
-        "files_installed": files_installed,
-        "skills_installed": [],
-        "workflows_installed": [],
-        "commands_installed": [],
-        "config_updated": False,
-        "error": None,
-    }
-
-    install_dir = get_install_dir()
-    source_notify = install_dir / "codex" / "hooks" / "hook_dispatcher.py"
-    if not source_notify.exists():
-        result["error"] = f"Missing source file: {source_notify}"
-        return result
-
-    # Install hook dispatcher to ~/.gobby/hooks/codex/hook_dispatcher.py
-    notify_dir = Path.home() / ".gobby" / "hooks" / "codex"
-    notify_dir.mkdir(parents=True, exist_ok=True)
-    target_notify = notify_dir / "hook_dispatcher.py"
-
-    if target_notify.exists():
-        target_notify.unlink()
-
-    copy2(source_notify, target_notify)
-    target_notify.chmod(0o755)
-    files_installed.append(str(target_notify))
-
-    # Install shared content - skills to ~/.codex, workflows to ~/.gobby
-    codex_home = Path.home() / ".codex"
-    gobby_home = Path.home()  # workflows go to ~/.gobby/workflows/
-    shared = _install_shared_content(codex_home, gobby_home)
-    # Install CLI-specific content (can override shared)
-    cli = _install_cli_content("codex", codex_home)
-
-    result["skills_installed"] = shared["skills"] + cli["skills"]
-    result["workflows_installed"] = shared["workflows"] + cli["workflows"]
-    result["commands_installed"] = cli.get("commands", [])
-    result["plugins_installed"] = shared.get("plugins", [])
-
-    # Update ~/.codex/config.toml
-    codex_config_dir = codex_home
-
-    codex_config_dir.mkdir(parents=True, exist_ok=True)
-    codex_config_path = codex_config_dir / "config.toml"
-
-    notify_command = ["python3", str(target_notify)]
-    notify_line = f"notify = {_json.dumps(notify_command)}"
-
-    try:
-        if codex_config_path.exists():
-            existing = codex_config_path.read_text(encoding="utf-8")
-        else:
-            existing = ""
-
-        pattern = re.compile(r"(?m)^\\s*notify\\s*=.*$")
-        if pattern.search(existing):
-            updated = pattern.sub(notify_line, existing)
-        else:
-            updated = (existing.rstrip() + "\n\n" if existing.strip() else "") + notify_line + "\n"
-
-        if updated != existing:
-            if codex_config_path.exists():
-                backup_path = codex_config_path.with_suffix(".toml.bak")
-                backup_path.write_text(existing, encoding="utf-8")
-
-            codex_config_path.write_text(updated, encoding="utf-8")
-            result["config_updated"] = True
-
-        result["success"] = True
-        return result
-
-    except Exception as e:
-        result["error"] = f"Failed to update Codex config: {e}"
-        return result
-
-
-def _uninstall_claude(project_path: Path) -> dict[str, Any]:
-    """Uninstall Gobby integration from Claude Code."""
-    import shutil
-
-    hooks_removed: list[str] = []
-    files_removed: list[str] = []
-    skills_removed: list[str] = []
-    result: dict[str, Any] = {
-        "success": False,
-        "hooks_removed": hooks_removed,
-        "files_removed": files_removed,
-        "skills_removed": skills_removed,
-        "error": None,
-    }
-
-    claude_path = project_path / ".claude"
-    settings_file = claude_path / "settings.json"
-    hooks_dir = claude_path / "hooks"
-    skills_dir = claude_path / "skills"
-
-    if not settings_file.exists():
-        result["error"] = f"Settings file not found: {settings_file}"
-        return result
-
-    # Backup settings.json
-    timestamp = int(time.time())
-    backup_file = claude_path / f"settings.json.{timestamp}.backup"
-    copy2(settings_file, backup_file)
-
-    # Remove hooks from settings.json
-    with open(settings_file) as f:
-        settings = json.load(f)
-
-    if "hooks" in settings:
-        hook_types = [
-            "SessionStart",
-            "SessionEnd",
-            "UserPromptSubmit",
-            "PreToolUse",
-            "PostToolUse",
-            "PreCompact",
-            "Notification",
-            "Stop",
-            "SubagentStart",
-            "SubagentStop",
-            "PermissionRequest",
-        ]
-
-        for hook_type in hook_types:
-            if hook_type in settings["hooks"]:
-                del settings["hooks"][hook_type]
-                hooks_removed.append(hook_type)
-
-        with open(settings_file, "w") as f:
-            json.dump(settings, f, indent=2)
-
-    # Remove hook files
-    hook_files = [
-        "hook_dispatcher.py",
-        "validate_settings.py",
-        "README.md",
-        "HOOK_SCHEMAS.md",
-    ]
-
-    for filename in hook_files:
-        file_path = hooks_dir / filename
-        if file_path.exists():
-            file_path.unlink()
-            files_removed.append(filename)
-
-    # Remove Gobby skills
-    install_dir = get_install_dir()
-    install_skills_dir = install_dir / "claude" / "skills"
-
-    if install_skills_dir.exists():
-        for skill_dir in install_skills_dir.iterdir():
-            if skill_dir.is_dir():
-                target_skill_dir = skills_dir / skill_dir.name
-                if target_skill_dir.exists():
-                    shutil.rmtree(target_skill_dir)
-                    skills_removed.append(skill_dir.name)
-
-    result["success"] = True
-    return result
-
-
-def _uninstall_gemini(project_path: Path) -> dict[str, Any]:
-    """Uninstall Gobby integration from Gemini CLI."""
-    hooks_removed: list[str] = []
-    files_removed: list[str] = []
-    result: dict[str, Any] = {
-        "success": False,
-        "hooks_removed": hooks_removed,
-        "files_removed": files_removed,
-        "error": None,
-    }
-
-    gemini_path = project_path / ".gemini"
-    settings_file = gemini_path / "settings.json"
-    hooks_dir = gemini_path / "hooks"
-
-    if not settings_file.exists():
-        # No settings file means nothing to uninstall
-        result["success"] = True
-        return result
-
-    # Backup settings.json
-    timestamp = int(time.time())
-    backup_file = gemini_path / f"settings.json.{timestamp}.backup"
-    copy2(settings_file, backup_file)
-
-    # Remove hooks from settings.json
-    with open(settings_file) as f:
-        settings = json.load(f)
-
-    if "hooks" in settings:
-        hook_types = [
-            "SessionStart",
-            "SessionEnd",
-            "BeforeAgent",
-            "AfterAgent",
-            "BeforeTool",
-            "AfterTool",
-            "BeforeToolSelection",
-            "BeforeModel",
-            "AfterModel",
-            "PreCompress",
-            "Notification",
-        ]
-
-        for hook_type in hook_types:
-            if hook_type in settings["hooks"]:
-                del settings["hooks"][hook_type]
-                hooks_removed.append(hook_type)
-
-        # Also remove the "general" section if "enableHooks" was the only entry
-        if "general" in settings and settings["general"].get("enableHooks") is True:
-            # Check if there are other entries in "general"
-            if len(settings["general"]) == 1:
-                del settings["general"]
-            else:
-                del settings["general"]["enableHooks"]
-
-        with open(settings_file, "w") as f:
-            json.dump(settings, f, indent=2)
-
-    # Remove hook dispatcher
-    dispatcher_file = hooks_dir / "hook_dispatcher.py"
-    if dispatcher_file.exists():
-        dispatcher_file.unlink()
-        files_removed.append("hook_dispatcher.py")
-
-    # Attempt to remove empty hooks directory
-    try:
-        if hooks_dir.exists() and not any(hooks_dir.iterdir()):
-            hooks_dir.rmdir()
-    except Exception:
-        pass
-
-    result["success"] = True
-    return result
-
-
-def _uninstall_codex_notify() -> dict[str, Any]:
-    """Uninstall Codex notify script and remove from ~/.codex/config.toml."""
-    files_removed: list[str] = []
-    result: dict[str, Any] = {
-        "success": False,
-        "files_removed": files_removed,
-        "config_updated": False,
-        "error": None,
-    }
-
-    # Remove hook dispatcher from ~/.gobby/hooks/codex/hook_dispatcher.py
-    notify_file = Path.home() / ".gobby" / "hooks" / "codex" / "hook_dispatcher.py"
-    if notify_file.exists():
-        notify_file.unlink()
-        files_removed.append(str(notify_file))
-
-    # Try to remove empty parent directories
-    notify_dir = notify_file.parent
-    try:
-        if notify_dir.exists() and not any(notify_dir.iterdir()):
-            notify_dir.rmdir()
-    except Exception:
-        pass
-
-    # Update ~/.codex/config.toml to remove notify line
-    codex_config_path = Path.home() / ".codex" / "config.toml"
-
-    try:
-        if codex_config_path.exists():
-            existing = codex_config_path.read_text(encoding="utf-8")
-
-            # Remove notify = [...] line
-            pattern = re.compile(r"(?m)^\s*notify\s*=.*$\n?")
-            if pattern.search(existing):
-                updated = pattern.sub("", existing)
-
-                # Clean up multiple blank lines
-                updated = re.sub(r"\n{3,}", "\n\n", updated)
-
-                if updated != existing:
-                    # Backup before modifying
-                    backup_path = codex_config_path.with_suffix(".toml.bak")
-                    backup_path.write_text(existing, encoding="utf-8")
-
-                    codex_config_path.write_text(updated, encoding="utf-8")
-                    result["config_updated"] = True
-
-        result["success"] = True
-        return result
-
-    except Exception as e:
-        result["error"] = f"Failed to update Codex config: {e}"
-        return result
-
-
-def _install_git_hooks(project_path: Path) -> dict[str, Any]:
-    """Install Gobby git hooks to the current repository.
-
-    Uses inline scripts for task auto-sync on commit/merge/checkout.
-    """
-    import stat
-
-    git_dir = project_path / ".git"
-    if not git_dir.exists():
-        return {"success": False, "error": "Not a git repository (no .git directory found)"}
-
-    hooks_dir = git_dir / "hooks"
-    hooks_dir.mkdir(parents=True, exist_ok=True)
-
-    # Inline hook scripts for task sync
-    hook_scripts = {
-        "pre-commit": '''#!/bin/sh
-# Gobby task sync hook - export tasks before commit
-# Installed by: gobby install --hooks
-
-if command -v gobby >/dev/null 2>&1; then
-    gobby tasks sync --export --quiet 2>/dev/null || true
-fi
-''',
-        "post-merge": '''#!/bin/sh
-# Gobby task sync hook - import tasks after merge/pull
-# Installed by: gobby install --hooks
-
-if command -v gobby >/dev/null 2>&1; then
-    gobby tasks sync --import --quiet 2>/dev/null || true
-fi
-''',
-        "post-checkout": '''#!/bin/sh
-# Gobby task sync hook - import tasks on branch switch
-# Installed by: gobby install --hooks
-
-# $3 is 1 if this was a branch checkout (vs file checkout)
-if [ "$3" = "1" ]; then
-    if command -v gobby >/dev/null 2>&1; then
-        gobby tasks sync --import --quiet 2>/dev/null || true
-    fi
-fi
-''',
-    }
-
-    installed = []
-    skipped = []
-
-    for hook_name, script in hook_scripts.items():
-        hook_path = hooks_dir / hook_name
-
-        if hook_path.exists():
-            content = hook_path.read_text()
-            if "gobby" in content.lower():
-                skipped.append(f"{hook_name} (already installed)")
-                continue
-            else:
-                skipped.append(f"{hook_name} (existing hook)")
-                continue
-
-        hook_path.write_text(script)
-        hook_path.chmod(hook_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-        installed.append(hook_name)
-
-    return {"success": True, "installed": installed, "skipped": skipped}
-
-
-def _install_antigravity(project_path: Path) -> dict[str, Any]:
-    """Install Gobby integration for Antigravity agent (hooks, skills, workflows)."""
-    hooks_installed: list[str] = []
-    result: dict[str, Any] = {
-        "success": False,
-        "hooks_installed": hooks_installed,
-        "skills_installed": [],
-        "workflows_installed": [],
-        "commands_installed": [],
-        "error": None,
-    }
-
-    antigravity_path = project_path / ".antigravity"
-    settings_file = antigravity_path / "settings.json"
-
-    # Ensure .antigravity subdirectories exist
-    antigravity_path.mkdir(parents=True, exist_ok=True)
-    hooks_dir = antigravity_path / "hooks"
-    hooks_dir.mkdir(parents=True, exist_ok=True)
-
-    # Get source files
-    install_dir = get_install_dir()
-    antigravity_install_dir = install_dir / "antigravity"
-    install_hooks_dir = antigravity_install_dir / "hooks"
-    source_hooks_template = antigravity_install_dir / "hooks-template.json"
-
-    # Verify source files exist
-    dispatcher_file = install_hooks_dir / "hook_dispatcher.py"
-    if not dispatcher_file.exists():
-        result["error"] = f"Missing hook dispatcher: {dispatcher_file}"
-        return result
-
-    if not source_hooks_template.exists():
-        result["error"] = f"Missing hooks template: {source_hooks_template}"
-        return result
-
-    # Copy hook dispatcher
-    target_dispatcher = hooks_dir / "hook_dispatcher.py"
-    if target_dispatcher.exists():
-        target_dispatcher.unlink()
-    copy2(dispatcher_file, target_dispatcher)
-    target_dispatcher.chmod(0o755)
-
-    # Install shared content (skills, workflows)
-    shared = _install_shared_content(antigravity_path, project_path)
-    # Install CLI-specific content (can override shared)
-    cli = _install_cli_content("antigravity", antigravity_path)
-
-    result["skills_installed"] = shared["skills"] + cli["skills"]
-    result["workflows_installed"] = shared["workflows"] + cli["workflows"]
-    result["commands_installed"] = cli.get("commands", [])
-    result["plugins_installed"] = shared.get("plugins", [])
-
-    # Backup existing settings.json if it exists
-    if settings_file.exists():
-        timestamp = int(time.time())
-        backup_file = antigravity_path / f"settings.json.{timestamp}.backup"
-        copy2(settings_file, backup_file)
-
-    # Load existing settings or create empty
-    if settings_file.exists():
-        try:
-            with open(settings_file) as f:
-                existing_settings = json.load(f)
-        except json.JSONDecodeError:
-            existing_settings = {}
-    else:
-        existing_settings = {}
-
-    # Load Gobby hooks from template
-    with open(source_hooks_template) as f:
-        gobby_settings_str = f.read()
-
-    # Resolve uv path
-    from shutil import which
-
-    uv_path = which("uv")
-    if not uv_path:
-        uv_path = "uv"
-
-    abs_project_path = str(project_path.resolve())
-
-    # Replace variables
-    gobby_settings_str = gobby_settings_str.replace("$PROJECT_PATH", abs_project_path)
-    if uv_path != "uv":
-        gobby_settings_str = gobby_settings_str.replace("uv run python", f"{uv_path} run python")
-
-    gobby_settings = json.loads(gobby_settings_str)
-
-    # Ensure hooks section exists
-    if "hooks" not in existing_settings:
-        existing_settings["hooks"] = {}
-
-    # Merge Gobby hooks
-    gobby_hooks = gobby_settings.get("hooks", {})
-    for hook_type, hook_config in gobby_hooks.items():
-        existing_settings["hooks"][hook_type] = hook_config
-        hooks_installed.append(hook_type)
-
-    # Enable hooks
-    if "general" not in existing_settings:
-        existing_settings["general"] = {}
-    existing_settings["general"]["enableHooks"] = True
-
-    # Write settings
-    with open(settings_file, "w") as f:
-        json.dump(existing_settings, f, indent=2)
-
-    result["success"] = True
-    return result
-
-
 @click.command("install")
 @click.option(
     "--claude",
-    "install_claude",
+    "claude_flag",
     is_flag=True,
     help="Install Claude Code hooks only",
 )
 @click.option(
     "--gemini",
-    "install_gemini",
+    "gemini_flag",
     is_flag=True,
     help="Install Gemini CLI hooks only",
 )
 @click.option(
     "--codex",
-    "install_codex",
+    "codex_flag",
     is_flag=True,
     help="Configure Codex notify integration (interactive Codex)",
 )
 @click.option(
     "--hooks",
     "--git-hooks",
-    "install_hooks",
+    "hooks_flag",
     is_flag=True,
     help="Install Git hooks for task auto-sync (pre-commit, post-merge, post-checkout)",
 )
 @click.option(
     "--all",
-    "install_all",
+    "all_flag",
     is_flag=True,
     default=False,
     help="Install hooks for all detected CLIs (default behavior when no flags specified)",
 )
 @click.option(
     "--antigravity",
-    "install_antigravity",
+    "antigravity_flag",
     is_flag=True,
     help="Install Antigravity agent hooks (internal)",
 )
 def install(
-    install_claude: bool,
-    install_gemini: bool,
-    install_codex: bool,
-    install_hooks: bool,
-    install_all: bool,
-    install_antigravity: bool,
+    claude_flag: bool,
+    gemini_flag: bool,
+    codex_flag: bool,
+    hooks_flag: bool,
+    all_flag: bool,
+    antigravity_flag: bool,
 ) -> None:
     """Install Gobby hooks to AI coding CLIs and Git.
 
@@ -937,21 +139,21 @@ def install(
     # Let's explicitly check flags.
 
     if (
-        not install_claude
-        and not install_gemini
-        and not install_codex
-        and not install_hooks
-        and not install_all
-        and not install_antigravity
+        not claude_flag
+        and not gemini_flag
+        and not codex_flag
+        and not hooks_flag
+        and not all_flag
+        and not antigravity_flag
     ):
-        install_all = True
+        all_flag = True
 
     codex_detected = _is_codex_cli_installed()
 
     # Build list of CLIs to install
     clis_to_install = []
 
-    if install_all:
+    if all_flag:
         # Auto-detect installed CLIs
         if _is_claude_code_installed():
             clis_to_install.append("claude")
@@ -962,10 +164,10 @@ def install(
 
         # Check for git
         if (project_path / ".git").exists():
-            install_hooks = True  # Include git hooks in --all? Or leave separate?
+            hooks_flag = True  # Include git hooks in --all? Or leave separate?
             # Let's include them in --all for "complete setup", but maybe log it clearly.
 
-        if not clis_to_install and not install_hooks:
+        if not clis_to_install and not hooks_flag:
             click.echo("No supported AI coding CLIs detected.")
             click.echo("\nSupported CLIs:")
             click.echo("  - Claude Code: npm install -g @anthropic-ai/claude-code")
@@ -976,13 +178,13 @@ def install(
             )
             sys.exit(1)
     else:
-        if install_claude:
+        if claude_flag:
             clis_to_install.append("claude")
-        if install_gemini:
+        if gemini_flag:
             clis_to_install.append("gemini")
-        if install_codex:
+        if codex_flag:
             clis_to_install.append("codex")
-        if install_antigravity:
+        if antigravity_flag:
             clis_to_install.append("antigravity")
 
     # Get install directory info
@@ -1002,7 +204,7 @@ def install(
         click.echo(f"Created daemon config: {config_result['path']}")
 
     toggles = list(clis_to_install)
-    if install_hooks:
+    if hooks_flag:
         toggles.append("git-hooks")
 
     click.echo(f"Components to configure: {', '.join(toggles)}")
@@ -1017,7 +219,7 @@ def install(
         click.echo("Claude Code")
         click.echo("-" * 40)
 
-        result = _install_claude(project_path)
+        result = install_claude(project_path)
         results["claude"] = result
 
         if result["success"]:
@@ -1037,7 +239,9 @@ def install(
                 for cmd in result["commands_installed"]:
                     click.echo(f"  - {cmd}")
             if result.get("plugins_installed"):
-                click.echo(f"Installed {len(result['plugins_installed'])} plugins to ~/.gobby/plugins/")
+                click.echo(
+                    f"Installed {len(result['plugins_installed'])} plugins to ~/.gobby/plugins/"
+                )
                 for plugin in result["plugins_installed"]:
                     click.echo(f"  - {plugin}")
             click.echo(f"Configuration: {project_path / '.claude' / 'settings.json'}")
@@ -1051,7 +255,7 @@ def install(
         click.echo("Gemini CLI")
         click.echo("-" * 40)
 
-        result = _install_gemini(project_path)
+        result = install_gemini(project_path)
         results["gemini"] = result
 
         if result["success"]:
@@ -1071,7 +275,9 @@ def install(
                 for cmd in result["commands_installed"]:
                     click.echo(f"  - {cmd}")
             if result.get("plugins_installed"):
-                click.echo(f"Installed {len(result['plugins_installed'])} plugins to ~/.gobby/plugins/")
+                click.echo(
+                    f"Installed {len(result['plugins_installed'])} plugins to ~/.gobby/plugins/"
+                )
                 for plugin in result["plugins_installed"]:
                     click.echo(f"  - {plugin}")
             click.echo(f"Configuration: {project_path / '.gemini' / 'settings.json'}")
@@ -1091,7 +297,7 @@ def install(
             click.echo("  npm install -g @openai/codex\n")
             results["codex"] = {"success": False, "error": "Codex CLI not detected"}
         else:
-            result = _install_codex_notify()
+            result = install_codex_notify()
             results["codex"] = result
 
             if result["success"]:
@@ -1116,7 +322,9 @@ def install(
                     for cmd in result["commands_installed"]:
                         click.echo(f"  - {cmd}")
                 if result.get("plugins_installed"):
-                    click.echo(f"Installed {len(result['plugins_installed'])} plugins to ~/.gobby/plugins/")
+                    click.echo(
+                        f"Installed {len(result['plugins_installed'])} plugins to ~/.gobby/plugins/"
+                    )
                     for plugin in result["plugins_installed"]:
                         click.echo(f"  - {plugin}")
             else:
@@ -1124,12 +332,12 @@ def install(
         click.echo("")
 
     # Install Git Hooks
-    if install_hooks:
+    if hooks_flag:
         click.echo("-" * 40)
         click.echo("Git Hooks (Task Auto-Sync)")
         click.echo("-" * 40)
 
-        result = _install_git_hooks(project_path)
+        result = install_git_hooks(project_path)
         results["git-hooks"] = result
 
         if result["success"]:
@@ -1154,7 +362,7 @@ def install(
         click.echo("Antigravity Agent")
         click.echo("-" * 40)
 
-        result = _install_antigravity(project_path)
+        result = install_antigravity(project_path)
         results["antigravity"] = result
 
         if result["success"]:
@@ -1174,7 +382,9 @@ def install(
                 for cmd in result["commands_installed"]:
                     click.echo(f"  - {cmd}")
             if result.get("plugins_installed"):
-                click.echo(f"Installed {len(result['plugins_installed'])} plugins to ~/.gobby/plugins/")
+                click.echo(
+                    f"Installed {len(result['plugins_installed'])} plugins to ~/.gobby/plugins/"
+                )
                 for plugin in result["plugins_installed"]:
                     click.echo(f"  - {plugin}")
             click.echo(f"Configuration: {project_path / '.antigravity' / 'settings.json'}")
@@ -1208,33 +418,31 @@ def install(
 @click.command("uninstall")
 @click.option(
     "--claude",
-    "uninstall_claude",
+    "claude_flag",
     is_flag=True,
     help="Uninstall Claude Code hooks only",
 )
 @click.option(
     "--gemini",
-    "uninstall_gemini",
+    "gemini_flag",
     is_flag=True,
     help="Uninstall Gemini CLI hooks only",
 )
 @click.option(
     "--codex",
-    "uninstall_codex",
+    "codex_flag",
     is_flag=True,
     help="Uninstall Codex notify integration",
 )
 @click.option(
     "--all",
-    "uninstall_all",
+    "all_flag",
     is_flag=True,
     default=False,
     help="Uninstall hooks from all CLIs (default behavior when no flags specified)",
 )
 @click.confirmation_option(prompt="Are you sure you want to uninstall Gobby hooks?")
-def uninstall(
-    uninstall_claude: bool, uninstall_gemini: bool, uninstall_codex: bool, uninstall_all: bool
-) -> None:
+def uninstall(claude_flag: bool, gemini_flag: bool, codex_flag: bool, all_flag: bool) -> None:
     """Uninstall Gobby hooks from AI coding CLIs.
 
     By default (no flags), uninstalls from all CLIs that have hooks installed.
@@ -1246,13 +454,13 @@ def uninstall(
 
     # Determine which CLIs to uninstall
     # If no flags specified, act like --all
-    if not uninstall_claude and not uninstall_gemini and not uninstall_codex and not uninstall_all:
-        uninstall_all = True
+    if not claude_flag and not gemini_flag and not codex_flag and not all_flag:
+        all_flag = True
 
     # Build list of CLIs to uninstall
     clis_to_uninstall = []
 
-    if uninstall_all:
+    if all_flag:
         # Check which CLIs have hooks installed
         claude_settings = project_path / ".claude" / "settings.json"
         gemini_settings = project_path / ".gemini" / "settings.json"
@@ -1272,11 +480,11 @@ def uninstall(
             click.echo(f"         {codex_notify}")
             sys.exit(0)
     else:
-        if uninstall_claude:
+        if claude_flag:
             clis_to_uninstall.append("claude")
-        if uninstall_gemini:
+        if gemini_flag:
             clis_to_uninstall.append("gemini")
-        if uninstall_codex:
+        if codex_flag:
             clis_to_uninstall.append("codex")
 
     click.echo("=" * 60)
@@ -1295,7 +503,7 @@ def uninstall(
         click.echo("Claude Code")
         click.echo("-" * 40)
 
-        result = _uninstall_claude(project_path)
+        result = uninstall_claude(project_path)
         results["claude"] = result
 
         if result["success"]:
@@ -1319,7 +527,7 @@ def uninstall(
         click.echo("Gemini CLI")
         click.echo("-" * 40)
 
-        result = _uninstall_gemini(project_path)
+        result = uninstall_gemini(project_path)
         results["gemini"] = result
 
         if result["success"]:
@@ -1341,7 +549,7 @@ def uninstall(
         click.echo("Codex")
         click.echo("-" * 40)
 
-        result = _uninstall_codex_notify()
+        result = uninstall_codex_notify()
         results["codex"] = result
 
         if result["success"]:
