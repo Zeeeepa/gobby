@@ -89,19 +89,19 @@ def inject_context(
         content = "## Workflow State\n" + json.dumps(state_dict, indent=2, default=str)
 
     elif source == "compact_handoff":
-        # Look at parent session's compact_markdown (like previous_session_summary does)
+        # Look at CURRENT session's compact_markdown (not parent)
+        # On compact, the same session continues - compact_markdown was saved to this session
+        # during pre_compact, so we read it from the current session itself.
         current_session = session_manager.get(session_id)
         logger.debug(
             f"compact_handoff lookup: session_id={session_id}, "
-            f"parent_session_id={getattr(current_session, 'parent_session_id', None) if current_session else None}"
+            f"compact_markdown exists: {bool(getattr(current_session, 'compact_markdown', None)) if current_session else False}"
         )
-        if current_session and current_session.parent_session_id:
-            parent = session_manager.get(current_session.parent_session_id)
-            if parent and parent.compact_markdown:
-                content = parent.compact_markdown
-                logger.debug(
-                    f"Loaded compact_markdown ({len(content)} chars) from parent session {current_session.parent_session_id}"
-                )
+        if current_session and current_session.compact_markdown:
+            content = current_session.compact_markdown
+            logger.debug(
+                f"Loaded compact_markdown ({len(content)} chars) from current session {session_id}"
+            )
 
     if content:
         if template:

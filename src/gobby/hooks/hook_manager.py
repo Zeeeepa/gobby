@@ -913,9 +913,13 @@ class HookManager:
             f"🟢 Session start: cli={cli_source}, project={project_id}, source={session_source}"
         )
 
-        # Step 1: Find parent session if this is a handoff (source='clear' or 'compact')
+        # Step 1: Find parent session if this is a handoff (source='clear' only)
+        # Note: 'compact' is NOT a handoff - it's a continuation of the same session.
+        # On compact, the same external_id is reused, so looking for a parent would find
+        # the same session (which was marked handoff_ready in pre_compact), causing it
+        # to reference itself as its own parent.
         parent_session_id = None
-        if session_source in ("clear", "compact"):
+        if session_source == "clear":
             try:
                 parent = self._session_storage.find_parent(
                     machine_id=machine_id,
