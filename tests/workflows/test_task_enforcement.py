@@ -206,3 +206,36 @@ class TestRequireActiveTask:
         assert "inject_context" in result
         assert "claim a task for this session" in result["inject_context"]
         assert "Each session must explicitly" in result["inject_context"]
+
+    async def test_new_session_starts_without_task_claimed(
+        self, mock_config, mock_task_manager
+    ):
+        """New sessions start without task_claimed variable (blocks protected tools).
+
+        This verifies session isolation - a fresh session has no task_claimed
+        and cannot use protected tools until it claims a task.
+        """
+        # Simulate a fresh session with new WorkflowState
+        fresh_state = WorkflowState(
+            session_id="new-session-123",
+            workflow_name="test-workflow",
+            step="test-step",
+            step_entered_at=datetime.now(UTC),
+            variables={},  # Empty - no task_claimed
+        )
+        mock_task_manager.list_tasks.return_value = []
+
+        result = await require_active_task(
+            task_manager=mock_task_manager,
+            session_id="new-session-123",
+            config=mock_config,
+            event_data={"tool_name": "Edit"},
+            project_id="proj-123",
+            workflow_state=fresh_state,
+        )
+
+        # New session should be blocked from protected tools
+        assert result is not None
+        assert result["decision"] == "block"
+        # Verify task_claimed is not in variables
+        assert "task_claimed" not in fresh_state.variables
