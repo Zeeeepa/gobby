@@ -8,7 +8,9 @@ Multi-strategy context gathering:
 1. Current uncommitted changes (staged + unstaged)
 2. Multi-commit window (last N commits, configurable)
 3. File-based analysis (read files mentioned in criteria)
-4. Codebase grep for test files related to the task
+
+TODO: Add strategy 4 - codebase grep for test files related to the task.
+      Implementation location: get_validation_context_smart() after Strategy 3.
 """
 
 import logging
@@ -291,10 +293,13 @@ def get_validation_context_smart(
 ) -> str | None:
     """Gather validation context using multiple strategies.
 
-    Strategies (in order):
+    Multi-strategy context gathering:
     1. Current uncommitted changes (staged + unstaged)
-    2. Multi-commit window diff (last N commits)
+    2. Multi-commit window (last N commits, configurable)
     3. File-based analysis (read files mentioned in criteria)
+
+    TODO: Add strategy 4 - codebase grep for test files related to the task.
+          Implementation location: after Strategy 3 below.
 
     Args:
         task_title: Task title for context
