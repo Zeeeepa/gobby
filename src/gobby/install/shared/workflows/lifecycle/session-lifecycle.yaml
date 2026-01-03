@@ -38,6 +38,11 @@ triggers:
       limit: 5
       min_importance: 0.3
 
+  on_before_tool:
+    # Task enforcement - require active task before file modifications
+    # Enable via config: workflow.require_task_before_edit: true
+    - action: require_active_task
+
   on_session_end:
     # Session summary generation
     - action: generate_handoff

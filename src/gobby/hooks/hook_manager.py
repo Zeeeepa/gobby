@@ -48,6 +48,7 @@ from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.skills import LocalSkillManager
+from gobby.storage.tasks import LocalTaskManager
 from gobby.utils.daemon_client import DaemonClient
 from gobby.workflows.engine import WorkflowEngine
 from gobby.workflows.hooks import WorkflowHookHandler
@@ -174,6 +175,7 @@ class HookManager:
         self._memory_storage = LocalMemoryManager(self._database)
         self._skill_storage = LocalSkillManager(self._database)
         self._message_manager = LocalSessionMessageManager(self._database)
+        self._task_manager = LocalTaskManager(self._database)
 
         # Use config or defaults
         memory_config = (
@@ -238,6 +240,7 @@ class HookManager:
             skill_learner=self._skill_learner,
             memory_sync_manager=self.memory_sync_manager,
             skill_sync_manager=self.skill_sync_manager,
+            task_manager=self._task_manager,
         )
         self._workflow_engine = WorkflowEngine(
             loader=self._workflow_loader,

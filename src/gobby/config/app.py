@@ -860,6 +860,14 @@ class WorkflowConfig(BaseModel):
         default=0.0,
         description="Timeout in seconds for workflow execution. 0 = no timeout (default)",
     )
+    require_task_before_edit: bool = Field(
+        default=False,
+        description="Require an active gobby-task (in_progress) before allowing Edit/Write tools",
+    )
+    protected_tools: list[str] = Field(
+        default=["Edit", "Write", "NotebookEdit"],
+        description="Tools that require an active task when require_task_before_edit is enabled",
+    )
 
     @field_validator("timeout")
     @classmethod

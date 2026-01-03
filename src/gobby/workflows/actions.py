@@ -43,6 +43,7 @@ from gobby.workflows.summary_actions import (
     generate_summary,
     synthesize_title,
 )
+from gobby.workflows.task_enforcement_actions import require_active_task
 from gobby.workflows.templates import TemplateEngine
 from gobby.workflows.todo_actions import mark_todo_complete, write_todos
 
@@ -90,6 +91,7 @@ class ActionExecutor:
         skill_learner: Any | None = None,
         memory_sync_manager: Any | None = None,
         skill_sync_manager: Any | None = None,
+        task_manager: Any | None = None,
     ):
         self.db = db
         self.session_manager = session_manager
@@ -102,6 +104,7 @@ class ActionExecutor:
         self.skill_learner = skill_learner
         self.memory_sync_manager = memory_sync_manager
         self.skill_sync_manager = skill_sync_manager
+        self.task_manager = task_manager
         self._handlers: dict[str, ActionHandler] = {}
         self._register_defaults()
 
@@ -164,6 +167,8 @@ class ActionExecutor:
         self.register("extract_handoff_context", self._handle_extract_handoff_context)
         self.register("start_new_session", self._handle_start_new_session)
         self.register("mark_loop_complete", self._handle_mark_loop_complete)
+        # Task enforcement
+        self.register("require_active_task", self._handle_require_active_task)
 
     async def execute(
         self, action_type: str, context: ActionContext, **kwargs: Any
@@ -497,9 +502,12 @@ class ActionExecutor:
         mode = kwargs.get("mode", "clear")
 
         # Check if this is a compact event based on event_data
+        # Use precise matching against known compact event types to avoid false positives
+        COMPACT_EVENT_TYPES = {"pre_compact", "compact"}
         if context.event_data:
-            event_type = context.event_data.get("event_type", "")
-            if event_type == "pre_compact" or "compact" in str(event_type).lower():
+            raw_event_type = context.event_data.get("event_type") or ""
+            normalized_event_type = str(raw_event_type).strip().lower()
+            if normalized_event_type in COMPACT_EVENT_TYPES:
                 mode = "compact"
 
         # For compact mode, fetch previous summary for cumulative compression
@@ -730,3 +738,14 @@ class ActionExecutor:
     def _get_file_changes(self) -> str:
         """Get detailed file changes from git."""
         return get_file_changes()
+
+    async def _handle_require_active_task(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Check for active task before allowing protected tools."""
+        return await require_active_task(
+            task_manager=self.task_manager,
+            session_id=context.session_id,
+            config=context.config,
+            event_data=context.event_data,
+        )
