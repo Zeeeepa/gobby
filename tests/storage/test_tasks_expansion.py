@@ -29,14 +29,14 @@ def test_create_task_with_expansion_fields(manager):
     task = manager.create_task(
         project_id="p1",
         title="Test Expansion",
-        details="Rich details here",
+        description="Rich details here",
         test_strategy="Unit tests",
         complexity_score=5,
         estimated_subtasks=3,
         expansion_context='{"foo": "bar"}',
     )
 
-    assert task.details == "Rich details here"
+    assert task.description == "Rich details here"
     assert task.test_strategy == "Unit tests"
     assert task.complexity_score == 5
     assert task.estimated_subtasks == 3
@@ -44,28 +44,28 @@ def test_create_task_with_expansion_fields(manager):
 
     # Verify persistence
     fetched = manager.get_task(task.id)
-    assert fetched.details == "Rich details here"
+    assert fetched.description == "Rich details here"
     assert fetched.complexity_score == 5
 
 
 def test_update_task_expansion_fields(manager):
     task = manager.create_task(project_id="p1", title="Update Me")
-    assert task.details is None
+    assert task.description is None
 
-    updated = manager.update_task(task.id, details="Updated details", complexity_score=8)
+    updated = manager.update_task(task.id, description="Updated details", complexity_score=8)
 
-    assert updated.details == "Updated details"
+    assert updated.description == "Updated details"
     assert updated.complexity_score == 8
 
     fetched = manager.get_task(task.id)
-    assert fetched.details == "Updated details"
+    assert fetched.description == "Updated details"
     assert fetched.complexity_score == 8
 
 
 def test_to_dict_includes_expansion_fields(manager):
-    task = manager.create_task(project_id="p1", title="Dict Test", details="Secret details")
+    task = manager.create_task(project_id="p1", title="Dict Test", description="Secret details")
 
     d = task.to_dict()
-    assert d["details"] == "Secret details"
+    assert d["description"] == "Secret details"
     assert "complexity_score" in d
     assert "expansion_context" in d

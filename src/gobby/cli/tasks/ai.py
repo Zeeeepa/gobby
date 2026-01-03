@@ -109,7 +109,7 @@ def validate_task_cmd(task_id: str, summary: str | None, summary_file: str | Non
             validator.validate_task(
                 task_id=resolved.id,
                 title=resolved.title,
-                original_instruction=resolved.original_instruction,
+                description=resolved.description,
                 changes_summary=changes_summary,
                 validation_criteria=resolved.validation_criteria,
             )
@@ -402,8 +402,6 @@ def expand_task_cmd(
     def process_subtask_data(data: dict[str, Any]) -> Task:
         nonlocal global_index
         desc = data.get("description", "")
-        if "details" in data:
-            desc += f"\n\nDetails: {data['details']}"
         if "test_strategy" in data:
             desc += f"\n\nTest Strategy: {data['test_strategy']}"
 

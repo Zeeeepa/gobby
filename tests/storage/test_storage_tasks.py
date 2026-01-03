@@ -251,7 +251,6 @@ class TestLocalTaskManager:
             task_type="chore",
             assignee="me",
             labels=["l1"],
-            details="det",
             test_strategy="strat",
             complexity_score=10,
             estimated_subtasks=5,
@@ -268,7 +267,6 @@ class TestLocalTaskManager:
         assert updated.task_type == "chore"
         assert updated.assignee == "me"
         assert updated.labels == ["l1"]
-        assert updated.details == "det"
         assert updated.test_strategy == "strat"
         assert updated.complexity_score == 10
         assert updated.estimated_subtasks == 5

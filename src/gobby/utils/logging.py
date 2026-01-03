@@ -211,7 +211,9 @@ def setup_file_logging(verbose: bool = False) -> None:
     pkg_logger.setLevel(log_level)
 
     # Remove any existing handlers to avoid duplicates
-    pkg_logger.handlers.clear()
+    for handler in pkg_logger.handlers[:]:
+        handler.close()
+        pkg_logger.removeHandler(handler)
 
     # Get log format from config (text or json)
     log_format_type = getattr(config.logging, "format", "text").lower()
@@ -322,7 +324,9 @@ def setup_mcp_logging(verbose: bool = False) -> tuple[logging.Logger, logging.Lo
     mcp_server_logger.setLevel(log_level)
 
     # Clear existing handlers to avoid duplicates
-    mcp_server_logger.handlers.clear()
+    for handler in mcp_server_logger.handlers[:]:
+        handler.close()
+        mcp_server_logger.removeHandler(handler)
 
     mcp_server_handler = logging.handlers.RotatingFileHandler(
         filename=str(mcp_server_log_path),
@@ -340,7 +344,9 @@ def setup_mcp_logging(verbose: bool = False) -> tuple[logging.Logger, logging.Lo
     mcp_client_logger.setLevel(log_level)
 
     # Clear existing handlers to avoid duplicates
-    mcp_client_logger.handlers.clear()
+    for handler in mcp_client_logger.handlers[:]:
+        handler.close()
+        mcp_client_logger.removeHandler(handler)
 
     mcp_client_handler = logging.handlers.RotatingFileHandler(
         filename=str(mcp_client_log_path),

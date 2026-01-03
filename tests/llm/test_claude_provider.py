@@ -168,15 +168,16 @@ async def test_execute_code_success(claude_config):
 @pytest.mark.asyncio
 async def test_execute_code_timeout(claude_config):
     async def mock_query(prompt, options):
-        await asyncio.sleep(0.2)  # Longer than timeout
+        await asyncio.sleep(0.5)  # Longer than timeout
         yield MockResultMessage(result="Done")
 
     with mock_claude_sdk(mock_query):
         provider = ClaudeLLMProvider(claude_config)
-        with patch("asyncio.wait_for", side_effect=TimeoutError):
-            result = await provider.execute_code("sleep", timeout=1, prompt_template="{code}")
-            assert result["success"] is False
-            assert result["error_type"] == "TimeoutError"
+        # Use a real timeout shorter than the sleep
+        result = await provider.execute_code("sleep", timeout=0.1, prompt_template="{code}")
+
+        assert result["success"] is False
+        assert result["error_type"] == "TimeoutError"
 
 
 @pytest.mark.asyncio

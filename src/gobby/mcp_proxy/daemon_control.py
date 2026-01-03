@@ -173,7 +173,7 @@ async def restart_daemon_process(
     # Wait for ports to be free with actual port checking
     import socket
 
-    async def is_port_free(p: int) -> bool:
+    def is_port_free(p: int) -> bool:
         """Check if a port is available by attempting to bind to it."""
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

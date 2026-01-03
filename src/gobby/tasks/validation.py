@@ -107,7 +107,7 @@ class TaskValidator:
         self,
         task_id: str,
         title: str,
-        original_instruction: str | None,
+        description: str | None,
         changes_summary: str,
         validation_criteria: str | None = None,
         context_files: list[str] | None = None,
@@ -118,7 +118,7 @@ class TaskValidator:
         Args:
             task_id: Task ID
             title: Task title
-            original_instruction: Original user instruction/request
+            description: Task description (used as fallback if no validation_criteria)
             changes_summary: Summary of changes made (files, diffs, etc.)
             validation_criteria: Specific criteria to validate against (optional)
             context_files: List of files to read for context (optional)
@@ -129,10 +129,10 @@ class TaskValidator:
         if not self.config.enabled:
             return ValidationResult(status="pending", feedback="Validation disabled")
 
-        if not original_instruction and not validation_criteria:
-            logger.warning(f"Cannot validate task {task_id}: missing instruction and criteria")
+        if not description and not validation_criteria:
+            logger.warning(f"Cannot validate task {task_id}: missing description and criteria")
             return ValidationResult(
-                status="pending", feedback="Missing original instruction and criteria"
+                status="pending", feedback="Missing task description and validation criteria"
             )
 
         logger.info(f"Validating task {task_id}: {title}")
@@ -146,7 +146,7 @@ class TaskValidator:
         criteria_text = (
             f"Validation Criteria:\n{validation_criteria}"
             if validation_criteria
-            else f"Original Instruction:\n{original_instruction}"
+            else f"Task Description:\n{description}"
         )
 
         # Detect if changes_summary is a git diff

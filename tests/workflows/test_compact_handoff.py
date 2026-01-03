@@ -93,9 +93,14 @@ def action_executor(temp_db, session_manager):
 
 @pytest.fixture
 def workflow_state():
-    """Create a workflow state for testing."""
+    """Create a workflow state for testing.
+
+    Note: Tests commonly override session_id with the actual session ID
+    after creating sessions via session_manager.register(). The placeholder
+    value is not used directly.
+    """
     return WorkflowState(
-        session_id="test-session",
+        session_id="placeholder",
         workflow_name="session-handoff",
         step="compact",
     )

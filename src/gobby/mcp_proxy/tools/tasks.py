@@ -198,7 +198,7 @@ def create_task_registry(
             result = await task_validator.validate_task(
                 task_id=task.id,
                 title=task.title,
-                original_instruction=task.original_instruction,
+                description=task.description,
                 changes_summary=changes_summary,
                 validation_criteria=task.validation_criteria,
                 context_files=context_files,
@@ -1045,7 +1045,7 @@ def create_task_registry(
                     result = await task_validator.validate_task(
                         task_id=task.id,
                         title=task.title,
-                        original_instruction=task.original_instruction,
+                        description=task.description,
                         changes_summary=validation_context,
                         validation_criteria=task.validation_criteria,
                     )

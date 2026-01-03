@@ -64,12 +64,13 @@ class WorkflowHookHandler:
                     return future.result(timeout=self.timeout)
 
             try:
-                return asyncio.run(self.engine.evaluate_all_lifecycle_workflows(event))
-            except RuntimeError:
-                logger.warning(
-                    "Could not run workflow engine: Event loop is already running."
-                )
+                asyncio.get_running_loop()
+                # If we get here, a loop is running
+                logger.warning("Could not run workflow engine: Event loop is already running.")
                 return HookResponse(decision="allow")
+            except RuntimeError:
+                # No loop running, safe to use asyncio.run
+                return asyncio.run(self.engine.evaluate_all_lifecycle_workflows(event))
 
         except Exception as e:
             logger.error(f"Error handling all lifecycle workflows: {e}", exc_info=True)
@@ -112,13 +113,15 @@ class WorkflowHookHandler:
             # Case 2: No loop running, or we just want to run it.
             # Create a new loop or use asyncio.run if appropriate
             try:
-                return asyncio.run(self.engine.handle_event(event))
-            except RuntimeError:
-                # Loop likely already running
+                asyncio.get_running_loop()
+                # If we get here, a loop is running
                 logger.warning(
                     "Could not run workflow engine: Event loop is already running and we are blocking it."
                 )
                 return HookResponse(decision="allow")
+            except RuntimeError:
+                # No loop running, safe to use asyncio.run
+                return asyncio.run(self.engine.handle_event(event))
 
         except Exception as e:
             logger.error(f"Error handling workflow hook: {e}", exc_info=True)
@@ -149,12 +152,15 @@ class WorkflowHookHandler:
                     return future.result(timeout=self.timeout)
 
             try:
+                asyncio.get_running_loop()
+                # If we get here, a loop is running
+                logger.warning("Could not run workflow engine: Event loop is already running.")
+                return HookResponse(decision="allow")
+            except RuntimeError:
+                # No loop running, safe to use asyncio.run
                 return asyncio.run(
                     self.engine.evaluate_lifecycle_triggers(workflow_name, event, context_data)
                 )
-            except RuntimeError:
-                logger.warning("Could not run workflow engine: Event loop is already running.")
-                return HookResponse(decision="allow")
 
         except Exception as e:
             logger.error(f"Error handling lifecycle workflow: {e}", exc_info=True)

@@ -69,7 +69,7 @@ def persist_decomposed_tasks(
         verification = task_data.get("verification")
         priority = task_data.get("priority", 2)
         labels = task_data.get("labels", [])
-        description = task_data.get("details") or task_data.get("description")
+        description = task_data.get("description")
 
         # Don't use description as both title and description
         if description == title:

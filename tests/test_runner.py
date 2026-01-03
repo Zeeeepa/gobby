@@ -355,7 +355,8 @@ class TestMainFunction:
     def test_main_runs_asyncio(self):
         """Test that main runs the async runner."""
         with patch("asyncio.run") as mock_run:
-            with patch("gobby.runner.run_gobby"):
+            with patch("gobby.runner.run_gobby") as mock_run_gobby:
+                mock_run_gobby.return_value = None
                 main(config_path=Path("/tmp/config.yaml"), verbose=True)
 
             mock_run.assert_called_once()
@@ -363,15 +364,19 @@ class TestMainFunction:
     def test_main_handles_keyboard_interrupt(self):
         """Test that main handles KeyboardInterrupt gracefully."""
         with patch("asyncio.run", side_effect=KeyboardInterrupt()):
-            with pytest.raises(SystemExit) as exc_info:
-                main()
+            with patch("gobby.runner.run_gobby") as mock_run_gobby:
+                mock_run_gobby.return_value = None
+                with pytest.raises(SystemExit) as exc_info:
+                    main()
 
             assert exc_info.value.code == 0
 
     def test_main_handles_exception(self):
         """Test that main handles exceptions and exits with code 1."""
         with patch("asyncio.run", side_effect=Exception("Test error")):
-            with pytest.raises(SystemExit) as exc_info:
-                main()
+            with patch("gobby.runner.run_gobby") as mock_run_gobby:
+                mock_run_gobby.return_value = None
+                with pytest.raises(SystemExit) as exc_info:
+                    main()
 
             assert exc_info.value.code == 1

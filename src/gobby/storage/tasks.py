@@ -59,8 +59,6 @@ class Task:
     platform_id: str | None = None
     validation_status: Literal["pending", "valid", "invalid"] | None = None
     validation_feedback: str | None = None
-    original_instruction: str | None = None
-    details: str | None = None
     test_strategy: str | None = None
     complexity_score: int | None = None
     estimated_subtasks: int | None = None
@@ -110,10 +108,6 @@ class Task:
             validation_feedback=row["validation_feedback"]
             if "validation_feedback" in keys
             else None,
-            original_instruction=row["original_instruction"]
-            if "original_instruction" in keys
-            else None,
-            details=row["details"] if "details" in keys else None,
             test_strategy=row["test_strategy"] if "test_strategy" in keys else None,
             complexity_score=row["complexity_score"] if "complexity_score" in keys else None,
             estimated_subtasks=row["estimated_subtasks"] if "estimated_subtasks" in keys else None,
@@ -158,8 +152,6 @@ class Task:
             "platform_id": self.platform_id,
             "validation_status": self.validation_status,
             "validation_feedback": self.validation_feedback,
-            "original_instruction": self.original_instruction,
-            "details": self.details,
             "test_strategy": self.test_strategy,
             "complexity_score": self.complexity_score,
             "estimated_subtasks": self.estimated_subtasks,
@@ -268,8 +260,6 @@ class LocalTaskManager:
         task_type: str = "task",
         assignee: str | None = None,
         labels: list[str] | None = None,
-        original_instruction: str | None = None,
-        details: str | None = None,
         test_strategy: str | None = None,
         complexity_score: int | None = None,
         estimated_subtasks: int | None = None,
@@ -289,7 +279,7 @@ class LocalTaskManager:
         task_id = ""
 
         # Default validation status
-        validation_status = "pending" if original_instruction else None
+        validation_status = "pending" if validation_criteria else None
 
         for attempt in range(max_retries + 1):
             try:
@@ -302,12 +292,11 @@ class LocalTaskManager:
                             id, project_id, title, description, parent_task_id,
                             created_in_session_id, priority, type, assignee,
                             labels, status, created_at, updated_at,
-                            original_instruction, validation_status,
-                            details, test_strategy, complexity_score,
+                            validation_status, test_strategy, complexity_score,
                             estimated_subtasks, expansion_context,
                             validation_criteria, use_external_validator, validation_fail_count,
                             workflow_name, verification, sequence_order
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
                         """,
                         (
                             task_id,
@@ -322,9 +311,7 @@ class LocalTaskManager:
                             labels_json,
                             now,
                             now,
-                            original_instruction,
                             validation_status,
-                            details,
                             test_strategy,
                             complexity_score,
                             estimated_subtasks,
@@ -392,7 +379,6 @@ class LocalTaskManager:
         parent_task_id: str | None | Any = UNSET,
         validation_status: str | None | Any = UNSET,
         validation_feedback: str | None | Any = UNSET,
-        details: str | None | Any = UNSET,
         test_strategy: str | None | Any = UNSET,
         complexity_score: int | None | Any = UNSET,
         estimated_subtasks: int | None | Any = UNSET,
@@ -447,9 +433,6 @@ class LocalTaskManager:
         if validation_feedback is not UNSET:
             updates.append("validation_feedback = ?")
             params.append(validation_feedback)
-        if details is not UNSET:
-            updates.append("details = ?")
-            params.append(details)
         if test_strategy is not UNSET:
             updates.append("test_strategy = ?")
             params.append(test_strategy)
