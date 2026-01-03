@@ -1,5 +1,7 @@
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from gobby.mcp_proxy.tools.tasks import create_task_registry
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.tasks.validation import TaskValidator, ValidationResult
@@ -18,6 +20,7 @@ def mock_task_validator():
     return validator
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_validate_task_tool_success(mock_task_manager, mock_task_validator):
     # Setup
@@ -60,6 +63,7 @@ async def test_validate_task_tool_success(mock_task_manager, mock_task_validator
         mock_task_manager.close_task.assert_called_with("t1", reason="Completed via validation")
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_validate_task_tool_failure_retry(mock_task_manager, mock_task_validator):
     # Setup
@@ -125,6 +129,7 @@ async def test_validate_task_tool_failure_retry(mock_task_manager, mock_task_val
         assert "fix1" in update_args["validation_feedback"]
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_validate_task_tool_failure_max_retries(mock_task_manager, mock_task_validator):
     # Setup -> already failed 2 times (max is 3, so failing one more time makes 3 -> failed?)
@@ -180,6 +185,7 @@ async def test_validate_task_tool_failure_max_retries(mock_task_manager, mock_ta
 # ============================================================================
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_validate_parent_task_all_children_closed(mock_task_manager, mock_task_validator):
     """Test that parent task validates successfully when all children are closed."""
@@ -239,6 +245,7 @@ async def test_validate_parent_task_all_children_closed(mock_task_manager, mock_
         mock_task_manager.close_task.assert_called_with("parent1", reason="Completed via validation")
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_validate_parent_task_some_children_open(mock_task_manager, mock_task_validator):
     """Test that parent task validation fails when some children are still open."""
@@ -316,6 +323,7 @@ async def test_validate_parent_task_some_children_open(mock_task_manager, mock_t
 # ============================================================================
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_validate_task_llm_returns_pending(mock_task_manager, mock_task_validator):
     """Test handling when LLM validation returns pending status (error case)."""
@@ -354,10 +362,13 @@ async def test_validate_task_llm_returns_pending(mock_task_manager, mock_task_va
         # Pending is not valid, but also doesn't increment fail count (it's an error, not rejection)
         assert result["is_valid"] is False
         assert result["status"] == "pending"
+        # Fail count should remain unchanged (0)
+        assert result.get("fail_count", 0) == 0
         # Task should NOT be closed
         mock_task_manager.close_task.assert_not_called()
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_validate_task_llm_exception(mock_task_manager, mock_task_validator):
     """Test handling when LLM throws an exception during validation."""
@@ -398,6 +409,7 @@ async def test_validate_task_llm_exception(mock_task_manager, mock_task_validato
 # ============================================================================
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_validate_task_failure_creates_fix_subtask_with_correct_fields(
     mock_task_manager, mock_task_validator
@@ -470,6 +482,7 @@ async def test_validate_task_failure_creates_fix_subtask_with_correct_fields(
         assert "fix-abc" in update_args["validation_feedback"]
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_validate_task_second_failure_creates_second_subtask(
     mock_task_manager, mock_task_validator
@@ -529,6 +542,7 @@ async def test_validate_task_second_failure_creates_second_subtask(
 # ============================================================================
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_validate_task_exactly_at_max_retries(mock_task_manager, mock_task_validator):
     """Test behavior when validation fails exactly at max retries (3)."""
@@ -577,6 +591,7 @@ async def test_validate_task_exactly_at_max_retries(mock_task_manager, mock_task
         assert "Exceeded max retries (3)" in update_args["validation_feedback"]
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_validate_task_beyond_max_retries(mock_task_manager, mock_task_validator):
     """Test behavior when task already has max failures and fails again."""
@@ -628,6 +643,7 @@ async def test_validate_task_beyond_max_retries(mock_task_manager, mock_task_val
 # ============================================================================
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_validate_task_without_changes_summary_uses_smart_context(
     mock_task_manager, mock_task_validator
@@ -678,6 +694,7 @@ async def test_validate_task_without_changes_summary_uses_smart_context(
         assert "Smart context from git diff" in validator_call.kwargs["changes_summary"]
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_validate_task_no_context_available_raises_error(
     mock_task_manager, mock_task_validator
@@ -724,6 +741,7 @@ async def test_validate_task_no_context_available_raises_error(
 # ============================================================================
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_generate_criteria_for_leaf_task(mock_task_manager, mock_task_validator):
     """Test generating validation criteria for a leaf task (no children)."""
@@ -766,6 +784,7 @@ async def test_generate_criteria_for_leaf_task(mock_task_manager, mock_task_vali
         mock_task_manager.update_task.assert_called()
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_generate_criteria_for_parent_task(mock_task_manager, mock_task_validator):
     """Test generating validation criteria for a parent task (has children)."""
@@ -814,6 +833,7 @@ async def test_generate_criteria_for_parent_task(mock_task_manager, mock_task_va
         mock_task_validator.generate_criteria.assert_not_called()
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_generate_criteria_skips_existing(mock_task_manager, mock_task_validator):
     """Test that criteria generation is skipped if criteria already exists."""
@@ -853,6 +873,7 @@ async def test_generate_criteria_skips_existing(mock_task_manager, mock_task_val
 # ============================================================================
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_reset_validation_count(mock_task_manager, mock_task_validator):
     """Test resetting validation failure count."""
