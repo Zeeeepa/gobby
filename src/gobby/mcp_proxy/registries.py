@@ -9,6 +9,7 @@ from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
+    from gobby.mcp_proxy.metrics import ToolMetricsManager
     from gobby.memory.manager import MemoryManager
     from gobby.sessions.manager import SessionManager
     from gobby.skills import SkillLearner

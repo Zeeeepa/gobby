@@ -98,6 +98,9 @@ class ToolMetricsManager:
         """
         Record a tool call with its metrics.
 
+        Uses atomic INSERT ... ON CONFLICT DO UPDATE to prevent race conditions
+        under concurrent writes.
+
         Args:
             server_name: Name of the MCP server
             tool_name: Name of the tool
@@ -106,75 +109,51 @@ class ToolMetricsManager:
             success: Whether the call succeeded
         """
         now = datetime.now(UTC).isoformat()
+        metrics_id = f"tm-{uuid.uuid4().hex[:6]}"
+        success_inc = 1 if success else 0
+        failure_inc = 0 if success else 1
 
-        # Check if metrics row exists for this tool
-        row = self.db.fetchone(
+        # Atomic upsert: INSERT new row or UPDATE existing with increments
+        # Uses SQLite's INSERT ... ON CONFLICT DO UPDATE (upsert)
+        self.db.execute(
             """
-            SELECT id, call_count, success_count, failure_count, total_latency_ms
-            FROM tool_metrics
-            WHERE project_id = ? AND server_name = ? AND tool_name = ?
+            INSERT INTO tool_metrics (
+                id, project_id, server_name, tool_name,
+                call_count, success_count, failure_count,
+                total_latency_ms, avg_latency_ms,
+                last_called_at, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(project_id, server_name, tool_name) DO UPDATE SET
+                call_count = call_count + 1,
+                success_count = success_count + ?,
+                failure_count = failure_count + ?,
+                total_latency_ms = total_latency_ms + ?,
+                avg_latency_ms = (total_latency_ms + ?) / (call_count + 1),
+                last_called_at = ?,
+                updated_at = ?
             """,
-            (project_id, server_name, tool_name),
+            (
+                # INSERT values
+                metrics_id,
+                project_id,
+                server_name,
+                tool_name,
+                success_inc,
+                failure_inc,
+                latency_ms,
+                latency_ms,  # avg = total for first call
+                now,
+                now,
+                now,
+                # ON CONFLICT UPDATE values
+                success_inc,
+                failure_inc,
+                latency_ms,
+                latency_ms,
+                now,
+                now,
+            ),
         )
-
-        if row:
-            # Update existing metrics
-            new_call_count = row["call_count"] + 1
-            new_success_count = row["success_count"] + (1 if success else 0)
-            new_failure_count = row["failure_count"] + (0 if success else 1)
-            new_total_latency = row["total_latency_ms"] + latency_ms
-            new_avg_latency = new_total_latency / new_call_count
-
-            self.db.execute(
-                """
-                UPDATE tool_metrics
-                SET call_count = ?,
-                    success_count = ?,
-                    failure_count = ?,
-                    total_latency_ms = ?,
-                    avg_latency_ms = ?,
-                    last_called_at = ?,
-                    updated_at = ?
-                WHERE id = ?
-                """,
-                (
-                    new_call_count,
-                    new_success_count,
-                    new_failure_count,
-                    new_total_latency,
-                    new_avg_latency,
-                    now,
-                    now,
-                    row["id"],
-                ),
-            )
-        else:
-            # Create new metrics row
-            metrics_id = f"tm-{uuid.uuid4().hex[:6]}"
-            self.db.execute(
-                """
-                INSERT INTO tool_metrics (
-                    id, project_id, server_name, tool_name,
-                    call_count, success_count, failure_count,
-                    total_latency_ms, avg_latency_ms,
-                    last_called_at, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    metrics_id,
-                    project_id,
-                    server_name,
-                    tool_name,
-                    1,
-                    1 if success else 0,
-                    0 if success else 1,
-                    latency_ms,
-                    latency_ms,  # avg = total for first call
-                    now,
-                    now,
-                    now,
-                ),
-            )
 
     def get_metrics(
         self,

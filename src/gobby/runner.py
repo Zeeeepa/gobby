@@ -330,6 +330,14 @@ class GobbyRunner:
                 except asyncio.CancelledError:
                     pass
 
+            # Cancel metrics cleanup task
+            if self._metrics_cleanup_task and not self._metrics_cleanup_task.done():
+                self._metrics_cleanup_task.cancel()
+                try:
+                    await asyncio.wait_for(self._metrics_cleanup_task, timeout=2.0)
+                except (asyncio.CancelledError, TimeoutError):
+                    pass
+
             try:
                 await asyncio.wait_for(self.mcp_proxy.disconnect_all(), timeout=3.0)
             except TimeoutError:
