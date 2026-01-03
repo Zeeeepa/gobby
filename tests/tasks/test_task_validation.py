@@ -458,3 +458,404 @@ class TestGetValidationContextSmart:
 
         context = get_validation_context_smart("Test task", max_chars=500)
         assert context is None or len(context) <= 600  # Some buffer for headers
+
+
+# ============================================================================
+# Additional TaskValidator Unit Tests
+# ============================================================================
+
+
+class TestTaskValidatorEdgeCases:
+    """Additional edge case tests for TaskValidator."""
+
+    @pytest.fixture
+    def mock_llm(self):
+        llm = MagicMock(spec=LLMService)
+        provider = AsyncMock(spec=LLMProvider)
+        llm.get_provider.return_value = provider
+        return llm
+
+    @pytest.fixture
+    def config(self):
+        return TaskValidationConfig(enabled=True, provider="claude", model="test-model")
+
+    @pytest.mark.asyncio
+    async def test_validate_with_validation_criteria_only(self, config, mock_llm):
+        """Test validation with validation_criteria but no description."""
+        validator = TaskValidator(config, mock_llm)
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.return_value = '{"status": "valid", "feedback": "OK"}'
+
+        result = await validator.validate_task(
+            task_id="task-1",
+            title="Test Task",
+            description=None,  # No description
+            changes_summary="Made changes",
+            validation_criteria="Must have tests",  # Has criteria
+        )
+
+        assert result.status == "valid"
+        # Verify criteria was used in prompt
+        call_args = mock_provider.generate_text.call_args
+        prompt = call_args.kwargs["prompt"]
+        assert "Validation Criteria" in prompt
+        assert "Must have tests" in prompt
+
+    @pytest.mark.asyncio
+    async def test_validate_with_git_diff_context(self, config, mock_llm):
+        """Test validation detects git diff format in changes_summary."""
+        validator = TaskValidator(config, mock_llm)
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.return_value = '{"status": "valid", "feedback": "OK"}'
+
+        # Git diff formatted summary
+        git_diff = """Git diff from HEAD~1:
+--- a/src/file.py
++++ b/src/file.py
+@@ -1,3 +1,4 @@
++import os
+ def main():
+     pass
+"""
+        result = await validator.validate_task(
+            task_id="task-1",
+            title="Add import",
+            description="Add os import",
+            changes_summary=git_diff,
+        )
+
+        assert result.status == "valid"
+        call_args = mock_provider.generate_text.call_args
+        prompt = call_args.kwargs["prompt"]
+        # Should include git diff context hint
+        assert "Code Changes (git diff)" in prompt or "ACTUAL code changes" in prompt
+
+    @pytest.mark.asyncio
+    async def test_validate_with_at_symbol_diff(self, config, mock_llm):
+        """Test that @@ in changes_summary triggers git diff detection."""
+        validator = TaskValidator(config, mock_llm)
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.return_value = '{"status": "valid", "feedback": "OK"}'
+
+        result = await validator.validate_task(
+            task_id="task-1",
+            title="Fix bug",
+            description="Fix the bug",
+            changes_summary="@@ -10,5 +10,6 @@ some context\n+added line",
+        )
+
+        assert result.status == "valid"
+
+    @pytest.mark.asyncio
+    async def test_validate_empty_llm_response(self, config, mock_llm):
+        """Test handling of empty string LLM response."""
+        validator = TaskValidator(config, mock_llm)
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.return_value = ""
+
+        result = await validator.validate_task(
+            task_id="task-1",
+            title="Test",
+            description="Test description",
+            changes_summary="changes",
+        )
+
+        assert result.status == "pending"
+        assert "Empty response" in result.feedback
+
+    @pytest.mark.asyncio
+    async def test_validate_whitespace_only_response(self, config, mock_llm):
+        """Test handling of whitespace-only LLM response."""
+        validator = TaskValidator(config, mock_llm)
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.return_value = "   \n\t  "
+
+        result = await validator.validate_task(
+            task_id="task-1",
+            title="Test",
+            description="Test description",
+            changes_summary="changes",
+        )
+
+        assert result.status == "pending"
+        assert "Empty response" in result.feedback
+
+    @pytest.mark.asyncio
+    async def test_validate_json_without_code_block(self, config, mock_llm):
+        """Test parsing JSON without markdown code block."""
+        validator = TaskValidator(config, mock_llm)
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.return_value = '{"status": "invalid", "feedback": "Missing tests"}'
+
+        result = await validator.validate_task(
+            task_id="task-1",
+            title="Test",
+            description="Test description",
+            changes_summary="changes",
+        )
+
+        assert result.status == "invalid"
+        assert result.feedback == "Missing tests"
+
+    @pytest.mark.asyncio
+    async def test_validate_json_with_preamble(self, config, mock_llm):
+        """Test parsing JSON with LLM preamble text."""
+        validator = TaskValidator(config, mock_llm)
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.return_value = (
+            'Based on my analysis, here is my assessment:\n'
+            '{"status": "valid", "feedback": "All criteria met"}'
+        )
+
+        result = await validator.validate_task(
+            task_id="task-1",
+            title="Test",
+            description="Test description",
+            changes_summary="changes",
+        )
+
+        assert result.status == "valid"
+        assert result.feedback == "All criteria met"
+
+    @pytest.mark.asyncio
+    async def test_validate_malformed_json(self, config, mock_llm):
+        """Test handling of malformed JSON response."""
+        validator = TaskValidator(config, mock_llm)
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.return_value = '{"status": "valid", feedback: missing quotes}'
+
+        result = await validator.validate_task(
+            task_id="task-1",
+            title="Test",
+            description="Test description",
+            changes_summary="changes",
+        )
+
+        assert result.status == "pending"
+        assert "failed" in result.feedback.lower()
+
+    @pytest.mark.asyncio
+    async def test_validate_missing_status_field(self, config, mock_llm):
+        """Test handling of JSON response missing status field."""
+        validator = TaskValidator(config, mock_llm)
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.return_value = '{"feedback": "Looks good"}'
+
+        result = await validator.validate_task(
+            task_id="task-1",
+            title="Test",
+            description="Test description",
+            changes_summary="changes",
+        )
+
+        # Should return pending status (default from .get())
+        assert result.status == "pending"
+
+    @pytest.mark.asyncio
+    async def test_validate_with_file_context_error(self, config, mock_llm, tmp_path):
+        """Test graceful handling when context file cannot be read."""
+        validator = TaskValidator(config, mock_llm)
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.return_value = '{"status": "valid", "feedback": "OK"}'
+
+        # Non-existent file
+        missing_file = tmp_path / "nonexistent.py"
+
+        result = await validator.validate_task(
+            task_id="task-1",
+            title="Test",
+            description="Test description",
+            changes_summary="changes",
+            context_files=[str(missing_file)],
+        )
+
+        # Should still succeed - error is logged but validation proceeds
+        assert result.status == "valid"
+
+    @pytest.mark.asyncio
+    async def test_generate_criteria_with_custom_prompt(self, mock_llm):
+        """Test criteria generation with custom prompt from config."""
+        custom_prompt = "Custom prompt for {title}: {description}"
+        config = TaskValidationConfig(
+            enabled=True,
+            provider="claude",
+            model="test-model",
+            criteria_prompt=custom_prompt,
+        )
+        validator = TaskValidator(config, mock_llm)
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.return_value = "Custom criteria result"
+
+        result = await validator.generate_criteria("My Task", "Task description")
+
+        assert result == "Custom criteria result"
+        call_args = mock_provider.generate_text.call_args
+        prompt = call_args.kwargs["prompt"]
+        assert "Custom prompt for My Task" in prompt
+
+    @pytest.mark.asyncio
+    async def test_generate_criteria_no_description(self, config, mock_llm):
+        """Test criteria generation with no description."""
+        validator = TaskValidator(config, mock_llm)
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.return_value = "- Check implementation\n- Run tests"
+
+        result = await validator.generate_criteria("Implement feature")
+
+        assert result is not None
+        call_args = mock_provider.generate_text.call_args
+        prompt = call_args.kwargs["prompt"]
+        assert "(no description)" in prompt
+
+
+class TestTaskValidatorLLMErrors:
+    """Tests for LLM error handling in TaskValidator."""
+
+    @pytest.fixture
+    def mock_llm(self):
+        llm = MagicMock(spec=LLMService)
+        provider = AsyncMock(spec=LLMProvider)
+        llm.get_provider.return_value = provider
+        return llm
+
+    @pytest.fixture
+    def config(self):
+        return TaskValidationConfig(enabled=True, provider="claude", model="test-model")
+
+    @pytest.mark.asyncio
+    async def test_validate_provider_not_found(self, config, mock_llm):
+        """Test handling when LLM provider is not found."""
+        mock_llm.get_provider.side_effect = ValueError("Provider not configured")
+        validator = TaskValidator(config, mock_llm)
+
+        result = await validator.validate_task(
+            task_id="task-1",
+            title="Test",
+            description="Test description",
+            changes_summary="changes",
+        )
+
+        assert result.status == "pending"
+        assert "failed" in result.feedback.lower()
+
+    @pytest.mark.asyncio
+    async def test_validate_timeout_error(self, config, mock_llm):
+        """Test handling of timeout during LLM call."""
+        import asyncio
+
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.side_effect = asyncio.TimeoutError("Request timed out")
+        validator = TaskValidator(config, mock_llm)
+
+        result = await validator.validate_task(
+            task_id="task-1",
+            title="Test",
+            description="Test description",
+            changes_summary="changes",
+        )
+
+        assert result.status == "pending"
+        assert "failed" in result.feedback.lower()
+
+    @pytest.mark.asyncio
+    async def test_validate_connection_error(self, config, mock_llm):
+        """Test handling of connection error during LLM call."""
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.side_effect = ConnectionError("Network error")
+        validator = TaskValidator(config, mock_llm)
+
+        result = await validator.validate_task(
+            task_id="task-1",
+            title="Test",
+            description="Test description",
+            changes_summary="changes",
+        )
+
+        assert result.status == "pending"
+        assert "failed" in result.feedback.lower()
+
+    @pytest.mark.asyncio
+    async def test_generate_criteria_llm_timeout(self, config, mock_llm):
+        """Test criteria generation when LLM times out."""
+        import asyncio
+
+        mock_provider = mock_llm.get_provider.return_value
+        mock_provider.generate_text.side_effect = asyncio.TimeoutError()
+        validator = TaskValidator(config, mock_llm)
+
+        result = await validator.generate_criteria("Test Task", "Description")
+
+        assert result is None
+
+
+class TestGatherValidationContext:
+    """Tests for TaskValidator.gather_validation_context method."""
+
+    @pytest.fixture
+    def mock_llm(self):
+        llm = MagicMock(spec=LLMService)
+        return llm
+
+    @pytest.fixture
+    def config(self):
+        return TaskValidationConfig(enabled=True, provider="claude", model="test-model")
+
+    @pytest.mark.asyncio
+    async def test_gather_single_file(self, config, mock_llm, tmp_path):
+        """Test gathering context from a single file."""
+        validator = TaskValidator(config, mock_llm)
+        test_file = tmp_path / "test.py"
+        test_file.write_text("def hello(): return 'world'")
+
+        context = await validator.gather_validation_context([str(test_file)])
+
+        assert "test.py" in context
+        assert "def hello()" in context
+
+    @pytest.mark.asyncio
+    async def test_gather_multiple_files(self, config, mock_llm, tmp_path):
+        """Test gathering context from multiple files."""
+        validator = TaskValidator(config, mock_llm)
+        file1 = tmp_path / "file1.py"
+        file2 = tmp_path / "file2.py"
+        file1.write_text("# File 1 content")
+        file2.write_text("# File 2 content")
+
+        context = await validator.gather_validation_context([str(file1), str(file2)])
+
+        assert "file1.py" in context
+        assert "file2.py" in context
+        assert "File 1 content" in context
+        assert "File 2 content" in context
+
+    @pytest.mark.asyncio
+    async def test_gather_nonexistent_file(self, config, mock_llm, tmp_path):
+        """Test gathering context with a nonexistent file."""
+        validator = TaskValidator(config, mock_llm)
+        missing = tmp_path / "missing.py"
+
+        context = await validator.gather_validation_context([str(missing)])
+
+        assert "missing.py" in context
+        assert "Error reading file" in context
+
+    @pytest.mark.asyncio
+    async def test_gather_empty_file_list(self, config, mock_llm):
+        """Test gathering context with empty file list."""
+        validator = TaskValidator(config, mock_llm)
+
+        context = await validator.gather_validation_context([])
+
+        assert context == ""
+
+    @pytest.mark.asyncio
+    async def test_gather_binary_file(self, config, mock_llm, tmp_path):
+        """Test handling of binary file that cannot be decoded as UTF-8."""
+        validator = TaskValidator(config, mock_llm)
+        binary_file = tmp_path / "binary.bin"
+        binary_file.write_bytes(b'\x80\x81\x82\x83')  # Invalid UTF-8
+
+        context = await validator.gather_validation_context([str(binary_file)])
+
+        assert "binary.bin" in context
+        assert "Error reading file" in context
