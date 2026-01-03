@@ -706,6 +706,40 @@ class WebhooksConfig(BaseModel):
     )
 
 
+class PluginItemConfig(BaseModel):
+    """Configuration for an individual plugin."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable or disable this plugin",
+    )
+    config: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Plugin-specific configuration passed to on_load()",
+    )
+
+
+class PluginsConfig(BaseModel):
+    """Configuration for Python plugin system."""
+
+    enabled: bool = Field(
+        default=False,
+        description="Enable plugin system (disabled by default for security)",
+    )
+    plugin_dirs: list[str] = Field(
+        default_factory=lambda: ["~/.gobby/plugins", ".gobby/plugins"],
+        description="Directories to scan for plugins (supports ~ expansion)",
+    )
+    auto_discover: bool = Field(
+        default=True,
+        description="Automatically discover and load plugins from plugin_dirs",
+    )
+    plugins: dict[str, PluginItemConfig] = Field(
+        default_factory=dict,
+        description="Per-plugin configuration keyed by plugin name",
+    )
+
+
 class HookExtensionsConfig(BaseModel):
     """Configuration for hook extensions (broadcasting, webhooks, plugins)."""
 
@@ -716,6 +750,10 @@ class HookExtensionsConfig(BaseModel):
     webhooks: WebhooksConfig = Field(
         default_factory=WebhooksConfig,
         description="HTTP webhook configuration",
+    )
+    plugins: PluginsConfig = Field(
+        default_factory=PluginsConfig,
+        description="Python plugin system configuration",
     )
 
 

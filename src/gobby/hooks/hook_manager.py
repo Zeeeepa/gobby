@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
+from gobby.hooks.plugins import PluginLoader, run_plugin_handlers
 from gobby.hooks.webhooks import WebhookDispatcher
 from gobby.memory.manager import MemoryManager
 from gobby.skills import SkillLearner
@@ -276,6 +277,22 @@ class HookManager:
 
             webhooks_config = WebhooksConfig()
         self._webhook_dispatcher = WebhookDispatcher(webhooks_config)
+
+        # Initialize Plugin Loader (Sprint 9: Python Plugins)
+        self._plugin_loader: PluginLoader | None = None
+        if self._config and hasattr(self._config, "hook_extensions"):
+            plugins_config = self._config.hook_extensions.plugins
+            if plugins_config.enabled:
+                self._plugin_loader = PluginLoader(plugins_config)
+                try:
+                    loaded = self._plugin_loader.load_all()
+                    if loaded:
+                        self.logger.info(
+                            f"Loaded {len(loaded)} plugin(s): "
+                            f"{', '.join(p.name for p in loaded)}"
+                        )
+                except Exception as e:
+                    self.logger.error(f"Failed to load plugins: {e}", exc_info=True)
 
         # Session manager handles registration, lookup, and status updates
         # Note: source is passed explicitly per call (Phase 2C+), not stored in manager
@@ -609,6 +626,20 @@ class HookManager:
             # Fail-open for webhook errors
         # -----------------------------------------------
 
+        # --- Plugin Pre-Handlers (Sprint 9: can block) ---
+        if self._plugin_loader:
+            try:
+                pre_response = run_plugin_handlers(
+                    self._plugin_loader.registry, event, pre=True
+                )
+                if pre_response and pre_response.decision in ("deny", "block"):
+                    self.logger.info(f"Plugin blocked event: {pre_response.reason}")
+                    return pre_response
+            except Exception as e:
+                self.logger.error(f"Plugin pre-handler failed: {e}", exc_info=True)
+                # Fail-open for plugin errors
+        # -------------------------------------------------
+
         # Execute handler
         try:
             response = handler(event)
@@ -645,6 +676,20 @@ class HookManager:
                 self._dispatch_webhooks_async(event)
             except Exception as e:
                 self.logger.warning(f"Non-blocking webhook dispatch failed: {e}")
+
+            # --- Plugin Post-Handlers (Sprint 9: observe only) ---
+            if self._plugin_loader:
+                try:
+                    run_plugin_handlers(
+                        self._plugin_loader.registry,
+                        event,
+                        pre=False,
+                        core_response=response,
+                    )
+                except Exception as e:
+                    self.logger.error(f"Plugin post-handler failed: {e}", exc_info=True)
+                    # Continue - post-handlers are observe-only
+            # -----------------------------------------------------
 
             return cast(HookResponse, response)
         except Exception as e:

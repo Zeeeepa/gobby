@@ -1,0 +1,593 @@
+"""
+Python plugin system for hook handlers.
+
+This module provides infrastructure for dynamically loading Python plugins
+that can intercept and modify hook behavior.
+
+Security Note: Plugins run with full daemon privileges. Only enable plugins
+you trust. The plugin system is disabled by default.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import inspect
+import logging
+import sys
+from abc import ABC
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable
+
+from gobby.hooks.events import HookEvent, HookEventType, HookResponse
+
+if TYPE_CHECKING:
+    from gobby.config.app import PluginsConfig
+
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Decorator
+# =============================================================================
+
+
+def hook_handler(
+    event_type: HookEventType,
+    priority: int = 50,
+) -> Callable[[Callable], Callable]:
+    """
+    Decorator to mark a method as a hook handler.
+
+    Args:
+        event_type: The HookEventType this handler responds to.
+        priority: Execution priority (lower = earlier).
+            - Priority < 50: Pre-handlers (run before core, can block)
+            - Priority >= 50: Post-handlers (run after core, observe only)
+
+    Example:
+        class MyPlugin(HookPlugin):
+            name = "my-plugin"
+
+            @hook_handler(HookEventType.BEFORE_TOOL, priority=10)
+            def check_tool(self, event: HookEvent) -> HookResponse | None:
+                if "dangerous" in event.data.get("tool_name", ""):
+                    return HookResponse(decision="deny", reason="Blocked")
+                return None  # Continue to next handler
+    """
+
+    def decorator(func: Callable) -> Callable:
+        # Store metadata on the function
+        func._hook_event_type = event_type  # type: ignore[attr-defined]
+        func._hook_priority = priority  # type: ignore[attr-defined]
+        return func
+
+    return decorator
+
+
+# =============================================================================
+# Base Class
+# =============================================================================
+
+
+class HookPlugin(ABC):
+    """
+    Base class for hook plugins.
+
+    Subclass this to create a plugin. At minimum, set the `name` class attribute
+    and implement handler methods decorated with @hook_handler.
+
+    Attributes:
+        name: Unique plugin identifier (required).
+        version: Plugin version string (default: "1.0.0").
+        description: Human-readable description.
+
+    Example:
+        class MyPlugin(HookPlugin):
+            name = "my-plugin"
+            version = "1.0.0"
+            description = "Blocks dangerous commands"
+
+            def on_load(self, config: dict) -> None:
+                self.blocked_patterns = config.get("blocked", [])
+
+            @hook_handler(HookEventType.BEFORE_TOOL, priority=10)
+            def check_tool(self, event: HookEvent) -> HookResponse | None:
+                # Return HookResponse to block, None to continue
+                return None
+    """
+
+    name: str
+    version: str = "1.0.0"
+    description: str = ""
+
+    def __init__(self) -> None:
+        """Initialize plugin instance."""
+        # Containers for registered workflow extensions
+        self._actions: dict[str, Callable] = {}
+        self._conditions: dict[str, Callable] = {}
+        self.logger = logging.getLogger(f"gobby.plugins.{self.name}")
+
+    def on_load(self, config: dict[str, Any]) -> None:
+        """
+        Called when plugin is loaded.
+
+        Override to initialize plugin state with configuration.
+
+        Args:
+            config: Plugin-specific configuration from PluginItemConfig.config
+        """
+        pass
+
+    def on_unload(self) -> None:
+        """
+        Called when plugin is unloaded.
+
+        Override to cleanup resources.
+        """
+        pass
+
+    def register_action(self, name: str, handler: Callable) -> None:
+        """
+        Register a workflow action.
+
+        Actions registered here can be used in workflow YAML files.
+        They will be available as `plugin:<plugin-name>:<action-name>`.
+
+        Args:
+            name: Action name (without plugin prefix).
+            handler: Async callable matching ActionHandler protocol.
+        """
+        self._actions[name] = handler
+        self.logger.debug(f"Registered action: {name}")
+
+    def register_condition(self, name: str, evaluator: Callable) -> None:
+        """
+        Register a workflow condition.
+
+        Conditions registered here can be used in workflow `when` clauses.
+        They will be available as `plugin:<plugin-name>:<condition-name>`.
+
+        Args:
+            name: Condition name (without plugin prefix).
+            evaluator: Callable that returns bool given context dict.
+        """
+        self._conditions[name] = evaluator
+        self.logger.debug(f"Registered condition: {name}")
+
+
+# =============================================================================
+# Handler Registration
+# =============================================================================
+
+
+@dataclass
+class RegisteredHandler:
+    """A registered hook handler with metadata."""
+
+    plugin: HookPlugin
+    method: Callable
+    event_type: HookEventType
+    priority: int
+
+
+@dataclass
+class PluginRegistry:
+    """
+    Manages loaded plugins and their handlers.
+
+    Maintains a registry of plugins and their hook handlers, providing
+    priority-sorted handler retrieval.
+    """
+
+    _plugins: dict[str, HookPlugin] = field(default_factory=dict)
+    _handlers: dict[HookEventType, list[RegisteredHandler]] = field(default_factory=dict)
+
+    def register_plugin(self, plugin: HookPlugin) -> None:
+        """
+        Register a plugin and its handlers.
+
+        Scans the plugin for methods decorated with @hook_handler and
+        registers them in priority order.
+
+        Args:
+            plugin: The plugin instance to register.
+
+        Raises:
+            ValueError: If a plugin with the same name is already registered.
+        """
+        if plugin.name in self._plugins:
+            raise ValueError(f"Plugin already registered: {plugin.name}")
+
+        self._plugins[plugin.name] = plugin
+
+        # Find and register all @hook_handler decorated methods
+        for name, method in inspect.getmembers(plugin, predicate=inspect.ismethod):
+            if hasattr(method, "_hook_event_type"):
+                event_type = method._hook_event_type
+                priority = getattr(method, "_hook_priority", 50)
+
+                handler = RegisteredHandler(
+                    plugin=plugin,
+                    method=method,
+                    event_type=event_type,
+                    priority=priority,
+                )
+
+                if event_type not in self._handlers:
+                    self._handlers[event_type] = []
+
+                self._handlers[event_type].append(handler)
+                # Keep sorted by priority
+                self._handlers[event_type].sort(key=lambda h: h.priority)
+
+                logger.debug(
+                    f"Registered handler: {plugin.name}.{name} for {event_type.value} "
+                    f"(priority={priority})"
+                )
+
+    def unregister_plugin(self, name: str) -> None:
+        """
+        Unregister a plugin and remove its handlers.
+
+        Args:
+            name: The plugin name to unregister.
+        """
+        if name not in self._plugins:
+            logger.warning(f"Plugin not registered: {name}")
+            return
+
+        plugin = self._plugins.pop(name)
+
+        # Remove handlers for this plugin
+        for event_type in list(self._handlers.keys()):
+            self._handlers[event_type] = [
+                h for h in self._handlers[event_type] if h.plugin is not plugin
+            ]
+            if not self._handlers[event_type]:
+                del self._handlers[event_type]
+
+        logger.info(f"Unregistered plugin: {name}")
+
+    def get_handlers(
+        self,
+        event_type: HookEventType,
+        pre_only: bool = False,
+        post_only: bool = False,
+    ) -> list[RegisteredHandler]:
+        """
+        Get handlers for an event type, optionally filtered by priority.
+
+        Args:
+            event_type: The event type to get handlers for.
+            pre_only: If True, only return handlers with priority < 50.
+            post_only: If True, only return handlers with priority >= 50.
+
+        Returns:
+            List of RegisteredHandler sorted by priority.
+        """
+        handlers = self._handlers.get(event_type, [])
+
+        if pre_only:
+            return [h for h in handlers if h.priority < 50]
+        if post_only:
+            return [h for h in handlers if h.priority >= 50]
+
+        return handlers
+
+    def get_plugin(self, name: str) -> HookPlugin | None:
+        """Get a plugin by name."""
+        return self._plugins.get(name)
+
+    def list_plugins(self) -> list[dict[str, Any]]:
+        """List all registered plugins with metadata."""
+        return [
+            {
+                "name": p.name,
+                "version": p.version,
+                "description": p.description,
+                "handlers": [
+                    {"event": h.event_type.value, "priority": h.priority}
+                    for handlers in self._handlers.values()
+                    for h in handlers
+                    if h.plugin is p
+                ],
+                "actions": list(p._actions.keys()),
+                "conditions": list(p._conditions.keys()),
+            }
+            for p in self._plugins.values()
+        ]
+
+
+# =============================================================================
+# Plugin Loader
+# =============================================================================
+
+
+class PluginLoader:
+    """
+    Discovers and loads plugins from configured directories.
+
+    Handles plugin discovery, import, instantiation, and lifecycle management.
+    """
+
+    def __init__(self, config: PluginsConfig) -> None:
+        """
+        Initialize the plugin loader.
+
+        Args:
+            config: Plugin system configuration.
+        """
+        self.config = config
+        self.registry = PluginRegistry()
+        self._loaded_modules: dict[str, Any] = {}
+
+    def discover_plugins(self, dirs: list[str] | None = None) -> list[type[HookPlugin]]:
+        """
+        Discover plugin classes from configured directories.
+
+        Args:
+            dirs: Optional list of directories to scan. Uses config.plugin_dirs if None.
+
+        Returns:
+            List of discovered HookPlugin subclasses.
+        """
+        search_dirs = dirs or self.config.plugin_dirs
+        discovered: list[type[HookPlugin]] = []
+
+        for dir_path in search_dirs:
+            # Expand ~ and resolve path
+            expanded = Path(dir_path).expanduser().resolve()
+
+            if not expanded.exists():
+                logger.debug(f"Plugin directory does not exist: {expanded}")
+                continue
+
+            if not expanded.is_dir():
+                logger.warning(f"Plugin path is not a directory: {expanded}")
+                continue
+
+            # Scan for Python files
+            for py_file in expanded.glob("*.py"):
+                if py_file.name.startswith("_"):
+                    continue  # Skip __init__.py, __pycache__, etc.
+
+                try:
+                    plugin_classes = self._load_module(py_file)
+                    discovered.extend(plugin_classes)
+                except Exception as e:
+                    logger.error(f"Failed to load plugin module {py_file}: {e}")
+
+        logger.info(f"Discovered {len(discovered)} plugin class(es)")
+        return discovered
+
+    def _load_module(self, path: Path) -> list[type[HookPlugin]]:
+        """
+        Load a Python module and find HookPlugin subclasses.
+
+        Args:
+            path: Path to the Python file.
+
+        Returns:
+            List of HookPlugin subclasses found in the module.
+        """
+        module_name = f"gobby_plugin_{path.stem}"
+
+        # Check if already loaded
+        if module_name in self._loaded_modules:
+            module = self._loaded_modules[module_name]
+        else:
+            # Load the module
+            spec = importlib.util.spec_from_file_location(module_name, path)
+            if spec is None or spec.loader is None:
+                raise ImportError(f"Cannot load module spec from {path}")
+
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = module
+            spec.loader.exec_module(module)
+            self._loaded_modules[module_name] = module
+
+        # Find HookPlugin subclasses
+        plugin_classes: list[type[HookPlugin]] = []
+        for name, obj in inspect.getmembers(module, inspect.isclass):
+            if (
+                issubclass(obj, HookPlugin)
+                and obj is not HookPlugin
+                and hasattr(obj, "name")
+                and obj.name  # Must have a non-empty name
+            ):
+                plugin_classes.append(obj)
+
+        return plugin_classes
+
+    def load_plugin(
+        self,
+        plugin_class: type[HookPlugin],
+        config: dict[str, Any] | None = None,
+    ) -> HookPlugin:
+        """
+        Instantiate and load a plugin.
+
+        Args:
+            plugin_class: The plugin class to instantiate.
+            config: Optional configuration to pass to on_load().
+
+        Returns:
+            The loaded plugin instance.
+        """
+        # Get per-plugin config from PluginsConfig if available
+        plugin_config = config or {}
+        if plugin_class.name in self.config.plugins:
+            item_config = self.config.plugins[plugin_class.name]
+            if not item_config.enabled:
+                raise ValueError(f"Plugin is disabled in config: {plugin_class.name}")
+            plugin_config = item_config.config
+
+        # Instantiate
+        plugin = plugin_class()
+
+        # Call lifecycle hook
+        try:
+            plugin.on_load(plugin_config)
+        except Exception as e:
+            logger.error(f"Plugin on_load failed for {plugin.name}: {e}")
+            raise
+
+        # Register in registry
+        self.registry.register_plugin(plugin)
+
+        logger.info(f"Loaded plugin: {plugin.name} v{plugin.version}")
+        return plugin
+
+    def unload_plugin(self, name: str) -> None:
+        """
+        Unload a plugin.
+
+        Args:
+            name: The plugin name to unload.
+        """
+        plugin = self.registry.get_plugin(name)
+        if plugin is None:
+            logger.warning(f"Plugin not found: {name}")
+            return
+
+        # Call lifecycle hook
+        try:
+            plugin.on_unload()
+        except Exception as e:
+            logger.error(f"Plugin on_unload failed for {name}: {e}")
+            # Continue with unregistration even if on_unload fails
+
+        # Unregister
+        self.registry.unregister_plugin(name)
+
+        logger.info(f"Unloaded plugin: {name}")
+
+    def load_all(self) -> list[HookPlugin]:
+        """
+        Discover and load all plugins.
+
+        Returns:
+            List of successfully loaded plugins.
+        """
+        if not self.config.enabled:
+            logger.debug("Plugin system is disabled")
+            return []
+
+        loaded: list[HookPlugin] = []
+
+        if self.config.auto_discover:
+            plugin_classes = self.discover_plugins()
+
+            for plugin_class in plugin_classes:
+                # Check if explicitly disabled
+                if plugin_class.name in self.config.plugins:
+                    if not self.config.plugins[plugin_class.name].enabled:
+                        logger.debug(f"Skipping disabled plugin: {plugin_class.name}")
+                        continue
+
+                try:
+                    plugin = self.load_plugin(plugin_class)
+                    loaded.append(plugin)
+                except Exception as e:
+                    logger.error(f"Failed to load plugin {plugin_class.name}: {e}")
+                    # Continue loading other plugins
+
+        return loaded
+
+    def unload_all(self) -> None:
+        """Unload all plugins."""
+        plugin_names = list(self.registry._plugins.keys())
+        for name in plugin_names:
+            try:
+                self.unload_plugin(name)
+            except Exception as e:
+                logger.error(f"Failed to unload plugin {name}: {e}")
+
+    def reload_plugin(self, name: str) -> HookPlugin | None:
+        """
+        Reload a plugin (unload then load).
+
+        Note: Plugin state is lost on reload.
+
+        Args:
+            name: The plugin name to reload.
+
+        Returns:
+            The reloaded plugin instance, or None if reload failed.
+        """
+        plugin = self.registry.get_plugin(name)
+        if plugin is None:
+            logger.warning(f"Plugin not found for reload: {name}")
+            return None
+
+        plugin_class = type(plugin)
+
+        # Unload
+        self.unload_plugin(name)
+
+        # Clear module cache to force reimport
+        module_name = f"gobby_plugin_{name}"
+        if module_name in self._loaded_modules:
+            del self._loaded_modules[module_name]
+        if module_name in sys.modules:
+            del sys.modules[module_name]
+
+        # Reload
+        try:
+            return self.load_plugin(plugin_class)
+        except Exception as e:
+            logger.error(f"Failed to reload plugin {name}: {e}")
+            return None
+
+
+# =============================================================================
+# Handler Execution
+# =============================================================================
+
+
+def run_plugin_handlers(
+    registry: PluginRegistry,
+    event: HookEvent,
+    pre: bool = True,
+    core_response: HookResponse | None = None,
+) -> HookResponse | None:
+    """
+    Execute plugin handlers for an event.
+
+    Args:
+        registry: The plugin registry.
+        event: The hook event to process.
+        pre: If True, run pre-handlers (priority < 50). If False, run post-handlers.
+        core_response: For post-handlers, the response from the core handler.
+
+    Returns:
+        For pre-handlers: HookResponse if any handler blocks, None otherwise.
+        For post-handlers: Always None (observe only).
+    """
+    handlers = registry.get_handlers(event.event_type, pre_only=pre, post_only=not pre)
+
+    for handler in handlers:
+        try:
+            if pre:
+                # Pre-handlers can return HookResponse to block
+                result = handler.method(event)
+                if result is not None and isinstance(result, HookResponse):
+                    if result.decision in ("deny", "block"):
+                        logger.info(
+                            f"Plugin {handler.plugin.name} blocked event: {result.reason}"
+                        )
+                        return result
+            else:
+                # Post-handlers receive the core response but can't block
+                handler.method(event, core_response)
+
+        except Exception as e:
+            # Fail-open: log error but continue processing
+            logger.error(
+                f"Plugin handler {handler.plugin.name}.{handler.method.__name__} "
+                f"failed: {e}",
+                exc_info=True,
+            )
+
+    return None

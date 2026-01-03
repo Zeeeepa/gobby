@@ -20,6 +20,16 @@ from gobby.hooks.events import (
     HookResponse,
     SessionSource,
 )
+
+# Plugin system
+from gobby.hooks.plugins import (
+    HookPlugin,
+    PluginLoader,
+    PluginRegistry,
+    RegisteredHandler,
+    hook_handler,
+    run_plugin_handlers,
+)
 from gobby.sessions.manager import SessionManager
 from gobby.sessions.summary import SummaryFileGenerator
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
@@ -39,4 +49,11 @@ __all__ = [
     "HookEvent",
     "HookResponse",
     "EVENT_TYPE_CLI_SUPPORT",
+    # Plugin system
+    "HookPlugin",
+    "PluginLoader",
+    "PluginRegistry",
+    "RegisteredHandler",
+    "hook_handler",
+    "run_plugin_handlers",
 ]
