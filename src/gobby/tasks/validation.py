@@ -16,13 +16,46 @@ from gobby.llm import LLMService
 logger = logging.getLogger(__name__)
 
 
-def get_git_diff(max_chars: int = 50000) -> str | None:
-    """Get uncommitted changes from git.
-
-    Combines staged and unstaged changes.
+def get_last_commit_diff(max_chars: int = 50000) -> str | None:
+    """Get diff from the most recent commit.
 
     Args:
         max_chars: Maximum characters to return (truncates if larger)
+
+    Returns:
+        Diff string from HEAD~1..HEAD, or None if not available
+    """
+    try:
+        result = subprocess.run(
+            ["git", "diff", "HEAD~1..HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        if result.returncode != 0 or not result.stdout.strip():
+            return None
+
+        diff = result.stdout
+        if len(diff) > max_chars:
+            diff = diff[:max_chars] + "\n\n... [diff truncated] ..."
+
+        return diff
+
+    except Exception as e:
+        logger.debug(f"Failed to get last commit diff: {e}")
+        return None
+
+
+def get_git_diff(max_chars: int = 50000, fallback_to_last_commit: bool = True) -> str | None:
+    """Get changes from git for validation.
+
+    First checks for uncommitted changes (staged + unstaged).
+    If none found and fallback_to_last_commit is True, returns the last commit's diff.
+
+    Args:
+        max_chars: Maximum characters to return (truncates if larger)
+        fallback_to_last_commit: If True, fall back to last commit diff when no uncommitted changes
 
     Returns:
         Combined diff string, or None if not in git repo or no changes
@@ -52,6 +85,13 @@ def get_git_diff(max_chars: int = 50000) -> str | None:
             diff_parts.append("=== STAGED CHANGES ===\n" + staged.stdout)
         if unstaged.stdout.strip():
             diff_parts.append("=== UNSTAGED CHANGES ===\n" + unstaged.stdout)
+
+        # If no uncommitted changes, try last commit
+        if not diff_parts and fallback_to_last_commit:
+            last_commit_diff = get_last_commit_diff(max_chars)
+            if last_commit_diff:
+                return f"=== LAST COMMIT ===\n{last_commit_diff}"
+            return None
 
         if not diff_parts:
             return None

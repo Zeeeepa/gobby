@@ -1039,7 +1039,7 @@ def create_task_registry(
 
                     git_diff = get_git_diff()
                     if git_diff:
-                        validation_context = f"Git diff of uncommitted changes:\n\n{git_diff}"
+                        validation_context = f"Git diff:\n\n{git_diff}"
 
                 if validation_context:
                     result = await task_validator.validate_task(
