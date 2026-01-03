@@ -1037,7 +1037,7 @@ Types of memories to extract:
 - "context": Important project context (goals, constraints, decisions)
 
 Session Summary:
-{content}
+{summary}
 
 Return a JSON array directly (empty array [] if nothing worth remembering):
 [
@@ -1054,7 +1054,7 @@ Guidelines:
 - Set importance 0.3-0.5 for nice-to-know, 0.6-0.8 for important, 0.9-1.0 for critical
 - Keep content concise but complete (one clear statement per memory)
 - Avoid duplicating obvious information or temporary context""",
-        description="Prompt template for session memory extraction (use {content} placeholder)",
+        description="Prompt template for session memory extraction (use {summary} placeholder)",
     )
 
     agent_md_extraction_prompt: str = Field(
