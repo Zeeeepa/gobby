@@ -15,6 +15,7 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.storage.projects import LocalProjectManager
 from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.task_dependencies import TaskDependencyManager
 from gobby.storage.tasks import (
@@ -58,6 +59,16 @@ def create_task_registry(
         name="gobby-tasks",
         description="Task management - CRUD, dependencies, sync",
     )
+
+    # Create project manager for looking up project repo_path
+    project_manager = LocalProjectManager(task_manager.db)
+
+    def get_project_repo_path(project_id: str | None) -> str | None:
+        """Get the repo_path for a project by ID."""
+        if not project_id:
+            return None
+        project = project_manager.get(project_id)
+        return project.repo_path if project else None
 
     @registry.tool(
         name="expand_task",
@@ -233,10 +244,14 @@ def create_task_registry(
             if not validation_context:
                 from gobby.tasks.validation import get_validation_context_smart
 
+                # Get project repo_path for git commands
+                repo_path = get_project_repo_path(task.project_id)
+
                 smart_context = get_validation_context_smart(
                     task_title=task.title,
                     validation_criteria=task.validation_criteria,
                     task_description=task.description,
+                    cwd=repo_path,
                 )
                 if smart_context:
                     validation_context = f"Validation context:\n\n{smart_context}"
@@ -1093,11 +1108,15 @@ def create_task_registry(
                 if not validation_context:
                     from gobby.tasks.validation import get_validation_context_smart
 
+                    # Get project repo_path for git commands
+                    repo_path = get_project_repo_path(task.project_id)
+
                     # Smart context gathering: uncommitted changes + multi-commit window + file analysis
                     smart_context = get_validation_context_smart(
                         task_title=task.title,
                         validation_criteria=task.validation_criteria,
                         task_description=task.description,
+                        cwd=repo_path,
                     )
                     if smart_context:
                         validation_context = f"Validation context:\n\n{smart_context}"
@@ -1127,7 +1146,9 @@ def create_task_registry(
         # Get git commit SHA (best-effort)
         from gobby.utils.git import run_git_command
 
-        commit_sha = run_git_command(["git", "rev-parse", "HEAD"], cwd=".")
+        # Get project repo_path for git commands
+        repo_path = get_project_repo_path(task.project_id)
+        commit_sha = run_git_command(["git", "rev-parse", "HEAD"], cwd=repo_path or ".")
 
         # All checks passed - close the task with session and commit tracking
         closed_task = task_manager.close_task(

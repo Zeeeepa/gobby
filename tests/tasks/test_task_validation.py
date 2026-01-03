@@ -859,3 +859,114 @@ class TestGatherValidationContext:
 
         assert "binary.bin" in context
         assert "Error reading file" in context
+
+
+class TestCwdParameter:
+    """Tests for cwd parameter in git functions.
+
+    Verifies that all git-related functions correctly pass the cwd parameter
+    to subprocess.run, allowing validation to run in a different directory
+    than the daemon's working directory.
+    """
+
+    @patch("subprocess.run")
+    def test_get_git_diff_passes_cwd(self, mock_run):
+        """Test that get_git_diff passes cwd to subprocess.run."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="diff content")
+
+        get_git_diff(cwd="/path/to/project")
+
+        # Both subprocess.run calls should have cwd set
+        for call in mock_run.call_args_list:
+            assert call.kwargs.get("cwd") == "/path/to/project"
+
+    @patch("subprocess.run")
+    def test_get_recent_commits_passes_cwd(self, mock_run):
+        """Test that get_recent_commits passes cwd to subprocess.run."""
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="abc123|Commit message"
+        )
+
+        get_recent_commits(n=5, cwd="/custom/path")
+
+        mock_run.assert_called_once()
+        assert mock_run.call_args.kwargs.get("cwd") == "/custom/path"
+
+    @patch("subprocess.run")
+    def test_get_multi_commit_diff_passes_cwd(self, mock_run):
+        """Test that get_multi_commit_diff passes cwd to subprocess.run."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="diff content")
+
+        get_multi_commit_diff(commit_count=10, cwd="/repo/path")
+
+        mock_run.assert_called_once()
+        assert mock_run.call_args.kwargs.get("cwd") == "/repo/path"
+
+    @patch("subprocess.run")
+    def test_get_commits_since_passes_cwd(self, mock_run):
+        """Test that get_commits_since passes cwd to subprocess.run."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="diff content")
+
+        get_commits_since("abc123", cwd="/another/path")
+
+        mock_run.assert_called_once()
+        assert mock_run.call_args.kwargs.get("cwd") == "/another/path"
+
+    @patch("subprocess.run")
+    @patch("gobby.tasks.validation.get_multi_commit_diff")
+    @patch("gobby.tasks.validation.get_recent_commits")
+    def test_get_validation_context_smart_passes_cwd(
+        self, mock_commits, mock_diff, mock_run
+    ):
+        """Test that get_validation_context_smart passes cwd to subprocess calls."""
+        # Mock subprocess for Strategy 1 (uncommitted changes) - empty to trigger Strategy 2
+        mock_run.return_value = MagicMock(returncode=0, stdout="")
+        # Mock multi-commit diff to trigger get_recent_commits call
+        mock_diff.return_value = "multi commit diff content"
+        mock_commits.return_value = [
+            {"sha": "abc123", "subject": "First commit"}
+        ]
+
+        get_validation_context_smart(
+            task_title="Test task",
+            cwd="/project/root"
+        )
+
+        # Verify subprocess.run was called with cwd for Strategy 1
+        for call in mock_run.call_args_list:
+            assert call.kwargs.get("cwd") == "/project/root"
+
+        # Verify helper functions were called with cwd
+        mock_diff.assert_called()
+        assert mock_diff.call_args.kwargs.get("cwd") == "/project/root"
+
+        mock_commits.assert_called()
+        assert mock_commits.call_args.kwargs.get("cwd") == "/project/root"
+
+    @patch("subprocess.run")
+    def test_get_git_diff_none_cwd_is_default(self, mock_run):
+        """Test that cwd=None uses default behavior (current directory)."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="diff")
+
+        get_git_diff(cwd=None)
+
+        # cwd should be None (default behavior)
+        for call in mock_run.call_args_list:
+            assert call.kwargs.get("cwd") is None
+
+    @patch("subprocess.run")
+    @patch("gobby.tasks.validation.get_last_commit_diff")
+    def test_get_git_diff_fallback_passes_cwd(self, mock_last_commit, mock_run):
+        """Test that fallback to last commit also passes cwd."""
+        # No uncommitted changes
+        mock_run.return_value = MagicMock(returncode=0, stdout="")
+        mock_last_commit.return_value = "last commit diff"
+
+        get_git_diff(fallback_to_last_commit=True, cwd="/fallback/path")
+
+        mock_last_commit.assert_called_once()
+        # Verify max_chars and cwd were passed
+        call_args = mock_last_commit.call_args
+        assert call_args.args[0] == 50000  # max_chars
+        assert call_args.kwargs.get("cwd") == "/fallback/path"

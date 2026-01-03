@@ -30,11 +30,15 @@ DEFAULT_COMMIT_WINDOW = 10
 DEFAULT_MAX_CHARS = 50000
 
 
-def get_last_commit_diff(max_chars: int = DEFAULT_MAX_CHARS) -> str | None:
+def get_last_commit_diff(
+    max_chars: int = DEFAULT_MAX_CHARS,
+    cwd: str | Path | None = None,
+) -> str | None:
     """Get diff from the most recent commit.
 
     Args:
         max_chars: Maximum characters to return (truncates if larger)
+        cwd: Working directory for git commands (project repo path)
 
     Returns:
         Diff string from HEAD~1..HEAD, or None if not available
@@ -45,6 +49,7 @@ def get_last_commit_diff(max_chars: int = DEFAULT_MAX_CHARS) -> str | None:
             capture_output=True,
             text=True,
             timeout=10,
+            cwd=cwd,
         )
 
         if result.returncode != 0 or not result.stdout.strip():
@@ -61,11 +66,15 @@ def get_last_commit_diff(max_chars: int = DEFAULT_MAX_CHARS) -> str | None:
         return None
 
 
-def get_recent_commits(n: int = DEFAULT_COMMIT_WINDOW) -> list[dict[str, str]]:
+def get_recent_commits(
+    n: int = DEFAULT_COMMIT_WINDOW,
+    cwd: str | Path | None = None,
+) -> list[dict[str, str]]:
     """Get list of recent commits with SHA and subject.
 
     Args:
         n: Number of commits to retrieve
+        cwd: Working directory for git commands (project repo path)
 
     Returns:
         List of dicts with 'sha' and 'subject' keys
@@ -76,6 +85,7 @@ def get_recent_commits(n: int = DEFAULT_COMMIT_WINDOW) -> list[dict[str, str]]:
             capture_output=True,
             text=True,
             timeout=10,
+            cwd=cwd,
         )
 
         if result.returncode != 0 or not result.stdout.strip():
@@ -97,12 +107,14 @@ def get_recent_commits(n: int = DEFAULT_COMMIT_WINDOW) -> list[dict[str, str]]:
 def get_multi_commit_diff(
     commit_count: int = DEFAULT_COMMIT_WINDOW,
     max_chars: int = DEFAULT_MAX_CHARS,
+    cwd: str | Path | None = None,
 ) -> str | None:
     """Get combined diff from the last N commits.
 
     Args:
         commit_count: Number of commits to include in diff
         max_chars: Maximum characters to return
+        cwd: Working directory for git commands (project repo path)
 
     Returns:
         Combined diff string, or None if not available
@@ -114,6 +126,7 @@ def get_multi_commit_diff(
             capture_output=True,
             text=True,
             timeout=30,
+            cwd=cwd,
         )
 
         if result.returncode != 0 or not result.stdout.strip():
@@ -130,12 +143,17 @@ def get_multi_commit_diff(
         return None
 
 
-def get_commits_since(since_sha: str, max_chars: int = DEFAULT_MAX_CHARS) -> str | None:
+def get_commits_since(
+    since_sha: str,
+    max_chars: int = DEFAULT_MAX_CHARS,
+    cwd: str | Path | None = None,
+) -> str | None:
     """Get diff from a specific commit SHA to HEAD.
 
     Args:
         since_sha: Starting commit SHA
         max_chars: Maximum characters to return
+        cwd: Working directory for git commands (project repo path)
 
     Returns:
         Diff string, or None if not available
@@ -146,6 +164,7 @@ def get_commits_since(since_sha: str, max_chars: int = DEFAULT_MAX_CHARS) -> str
             capture_output=True,
             text=True,
             timeout=30,
+            cwd=cwd,
         )
 
         if result.returncode != 0 or not result.stdout.strip():
@@ -290,6 +309,7 @@ def get_validation_context_smart(
     task_description: str | None = None,
     commit_window: int = DEFAULT_COMMIT_WINDOW,
     max_chars: int = DEFAULT_MAX_CHARS,
+    cwd: str | Path | None = None,
 ) -> str | None:
     """Gather validation context using multiple strategies.
 
@@ -307,6 +327,7 @@ def get_validation_context_smart(
         task_description: Task description text
         commit_window: Number of commits to look back
         max_chars: Maximum characters to return
+        cwd: Working directory for git commands (project repo path)
 
     Returns:
         Validation context string, or None if nothing found
@@ -321,12 +342,14 @@ def get_validation_context_smart(
             capture_output=True,
             text=True,
             timeout=10,
+            cwd=cwd,
         )
         staged = subprocess.run(
             ["git", "diff", "--cached"],
             capture_output=True,
             text=True,
             timeout=10,
+            cwd=cwd,
         )
 
         if staged.stdout.strip():
@@ -344,10 +367,10 @@ def get_validation_context_smart(
 
     # Strategy 2: Multi-commit window
     if remaining_chars > 5000:  # Only if we have room
-        multi_diff = get_multi_commit_diff(commit_window, remaining_chars // 2)
+        multi_diff = get_multi_commit_diff(commit_window, remaining_chars // 2, cwd=cwd)
         if multi_diff:
             # Get commit list for context
-            commits = get_recent_commits(commit_window)
+            commits = get_recent_commits(commit_window, cwd=cwd)
             commit_summary = "\n".join(
                 f"  - {c['sha'][:8]}: {c['subject'][:60]}" for c in commits[:5]
             )
@@ -366,7 +389,7 @@ def get_validation_context_smart(
         patterns = extract_file_patterns_from_text(search_text)
 
         if patterns:
-            files = find_matching_files(patterns, max_files=5)
+            files = find_matching_files(patterns, base_dir=cwd or ".", max_files=5)
             if files:
                 file_content = read_files_content(files, remaining_chars)
                 context_parts.append(f"=== RELEVANT FILES ===\n{file_content}")
@@ -381,7 +404,11 @@ def get_validation_context_smart(
     return combined
 
 
-def get_git_diff(max_chars: int = 50000, fallback_to_last_commit: bool = True) -> str | None:
+def get_git_diff(
+    max_chars: int = 50000,
+    fallback_to_last_commit: bool = True,
+    cwd: str | Path | None = None,
+) -> str | None:
     """Get changes from git for validation.
 
     First checks for uncommitted changes (staged + unstaged).
@@ -390,6 +417,7 @@ def get_git_diff(max_chars: int = 50000, fallback_to_last_commit: bool = True) -
     Args:
         max_chars: Maximum characters to return (truncates if larger)
         fallback_to_last_commit: If True, fall back to last commit diff when no uncommitted changes
+        cwd: Working directory for git commands (project repo path)
 
     Returns:
         Combined diff string, or None if not in git repo or no changes
@@ -401,6 +429,7 @@ def get_git_diff(max_chars: int = 50000, fallback_to_last_commit: bool = True) -
             capture_output=True,
             text=True,
             timeout=10,
+            cwd=cwd,
         )
 
         # Get staged changes
@@ -409,6 +438,7 @@ def get_git_diff(max_chars: int = 50000, fallback_to_last_commit: bool = True) -
             capture_output=True,
             text=True,
             timeout=10,
+            cwd=cwd,
         )
 
         if unstaged.returncode != 0 and staged.returncode != 0:
@@ -422,7 +452,7 @@ def get_git_diff(max_chars: int = 50000, fallback_to_last_commit: bool = True) -
 
         # If no uncommitted changes, try last commit
         if not diff_parts and fallback_to_last_commit:
-            last_commit_diff = get_last_commit_diff(max_chars)
+            last_commit_diff = get_last_commit_diff(max_chars, cwd=cwd)
             if last_commit_diff:
                 return f"=== LAST COMMIT ===\n{last_commit_diff}"
             return None
