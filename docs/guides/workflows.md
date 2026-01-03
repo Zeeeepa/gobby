@@ -241,8 +241,11 @@ steps:
 | `mark_todo_complete` | Mark todo item done |
 | `persist_tasks` | Create persistent tasks |
 | `call_mcp_tool` | Call any MCP tool |
+| `webhook` | Send HTTP request to external service |
+| `plugin:<name>:<action>` | Execute custom plugin action |
 
 See [Workflow Actions Reference](../architecture/workflow-actions.md) for full details.
+See [Webhooks and Plugins Guide](webhooks-and-plugins.md) for webhook examples and plugin development.
 
 ## Built-in Templates
 
@@ -529,6 +532,7 @@ Look at `allowed_tools` and `blocked_tools` for the current step.
 ## See Also
 
 - [Workflow Actions Reference](../architecture/workflow-actions.md)
+- [Webhooks and Plugins Guide](webhooks-and-plugins.md)
 - [MCP Tools Reference](../architecture/mcp-tools.md)
 - [CLI Commands Reference](../architecture/cli-commands.md)
 - [Task Management Guide](tasks.md)

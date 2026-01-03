@@ -225,3 +225,64 @@ Signals that the agent should switch its behavioral mode.
 - action: switch_mode
   mode: plan
 ```
+
+## External Integrations
+
+### `webhook`
+
+Sends an HTTP request to an external service.
+**Usage:** Any trigger, especially `on_session_end`, `on_error`
+
+```yaml
+- action: webhook
+  url: "https://hooks.slack.com/services/xxx"
+  method: POST
+  headers:
+    Authorization: "Bearer ${secrets.API_TOKEN}"
+  payload:
+    text: "Session ${session_id} completed"
+  timeout: 30
+  retry:
+    max_attempts: 3
+    backoff_seconds: 2
+  capture_response:
+    status_var: "webhook_status"
+    body_var: "webhook_body"
+```
+
+**Parameters:**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `url` | string | - | Target URL (required unless using `webhook_id`) |
+| `webhook_id` | string | - | Reference to registered webhook in config |
+| `method` | enum | `POST` | HTTP method: GET, POST, PUT, PATCH, DELETE |
+| `headers` | dict | `{}` | Request headers (supports `${secrets.VAR}`) |
+| `payload` | dict/string | `null` | Request body |
+| `timeout` | int | `30` | Timeout in seconds (1-300) |
+| `retry` | object | `null` | Retry config with max_attempts, backoff_seconds |
+| `capture_response` | object | `null` | Variables to capture response into |
+| `on_success` | string | `null` | Action to run on 2xx response |
+| `on_failure` | string | `null` | Action to run after retries fail |
+
+See [Webhooks and Plugins Guide](../guides/webhooks-and-plugins.md) for examples.
+
+## Plugin Actions
+
+### `plugin:<name>:<action>`
+
+Executes a custom action from a plugin.
+**Usage:** Any trigger
+
+```yaml
+# Format: plugin:<plugin-name>:<action-name>
+- action: plugin:code-guardian:run_linter
+  files: ["src/main.py"]
+
+- action: plugin:example-notify:http_notify
+  url: "https://api.example.com"
+  method: POST
+  payload:
+    message: "Hello"
+```
+
+Plugin actions are registered via Python plugins in `~/.gobby/plugins/`. See [Webhooks and Plugins Guide](../guides/webhooks-and-plugins.md) for development instructions.
