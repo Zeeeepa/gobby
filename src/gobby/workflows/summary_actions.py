@@ -124,6 +124,8 @@ async def generate_summary(
     llm_service: Any,
     transcript_processor: Any,
     template: str | None = None,
+    previous_summary: str | None = None,
+    mode: str = "clear",
 ) -> dict[str, Any] | None:
     """Generate a session summary using LLM and store it in the session record.
 
@@ -133,6 +135,8 @@ async def generate_summary(
         llm_service: LLM service instance
         transcript_processor: Transcript processor instance
         template: Optional prompt template
+        previous_summary: Previous summary_markdown for cumulative compression (compact mode)
+        mode: "clear" or "compact" - affects how turns are extracted
 
     Returns:
         Dict with summary_generated and summary_length, or error
@@ -171,6 +175,8 @@ async def generate_summary(
                     turns.append(json.loads(line))
 
         # Get turns since last /clear (up to 50 turns)
+        # For compact mode, we still use this - the full JSONL is available
+        # and the template will instruct the LLM to focus on what's new
         recent_turns = transcript_processor.extract_turns_since_clear(turns, max_turns=50)
 
         # Format turns for LLM
@@ -196,6 +202,8 @@ async def generate_summary(
             "last_messages": last_messages_str,
             "git_status": git_status,
             "file_changes": file_changes,
+            "previous_summary": previous_summary or "",
+            "mode": mode,
         }
         provider = llm_service.get_default_provider()
         summary_content = await provider.generate_summary(
@@ -209,7 +217,7 @@ async def generate_summary(
     # 4. Save to session
     session_manager.update_summary(session_id, summary_markdown=summary_content)
 
-    logger.info(f"Generated summary for session {session_id}")
+    logger.info(f"Generated summary for session {session_id} (mode={mode})")
     return {"summary_generated": True, "summary_length": len(summary_content)}
 
 
@@ -219,6 +227,8 @@ async def generate_handoff(
     llm_service: Any,
     transcript_processor: Any,
     template: str | None = None,
+    previous_summary: str | None = None,
+    mode: str = "clear",
 ) -> dict[str, Any] | None:
     """Generate a handoff record by summarizing the session.
 
@@ -230,6 +240,8 @@ async def generate_handoff(
         llm_service: LLM service instance
         transcript_processor: Transcript processor instance
         template: Optional prompt template
+        previous_summary: Previous summary for cumulative compression (compact mode)
+        mode: "clear" or "compact"
 
     Returns:
         Dict with handoff_created and summary_length, or error
@@ -241,6 +253,8 @@ async def generate_handoff(
         llm_service=llm_service,
         transcript_processor=transcript_processor,
         template=template,
+        previous_summary=previous_summary,
+        mode=mode,
     )
 
     if summary_result and "error" in summary_result:

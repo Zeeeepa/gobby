@@ -488,13 +488,40 @@ class ActionExecutor:
     async def _handle_generate_handoff(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """Generate a handoff record (summary + mark status)."""
+        """Generate a handoff record (summary + mark status).
+
+        For compact mode, fetches the current session's existing summary_markdown
+        as previous_summary for cumulative compression.
+        """
+        # Detect mode from kwargs or event data
+        mode = kwargs.get("mode", "clear")
+
+        # Check if this is a compact event based on event_data
+        if context.event_data:
+            event_type = context.event_data.get("event_type", "")
+            if event_type == "pre_compact" or "compact" in str(event_type).lower():
+                mode = "compact"
+
+        # For compact mode, fetch previous summary for cumulative compression
+        previous_summary = None
+        if mode == "compact":
+            current_session = context.session_manager.get(context.session_id)
+            if current_session:
+                previous_summary = getattr(current_session, "summary_markdown", None)
+                if previous_summary:
+                    logger.debug(
+                        f"Compact mode: using previous summary ({len(previous_summary)} chars) "
+                        f"for cumulative compression"
+                    )
+
         return await generate_handoff(
             session_manager=context.session_manager,
             session_id=context.session_id,
             llm_service=context.llm_service,
             transcript_processor=context.transcript_processor,
             template=kwargs.get("template"),
+            previous_summary=previous_summary,
+            mode=mode,
         )
 
     async def _handle_generate_summary(

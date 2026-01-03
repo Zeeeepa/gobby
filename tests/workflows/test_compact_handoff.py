@@ -170,36 +170,31 @@ async def test_inject_context_reads_compact_handoff(
     sample_project,
     workflow_state,
 ):
-    """Test that inject_context with source=compact_handoff reads from parent session."""
-    # Create a parent session with compact_markdown
-    parent_session = session_manager.register(
-        external_id="parent-ext-id",
+    """Test that inject_context with source=compact_handoff reads from current session.
+
+    Note: /compact keeps the same session ID - it's a continuation, not a new session.
+    The compact_markdown is saved to the current session during pre_compact, then
+    read from the same session when the context window restarts with source=compact.
+    """
+    # Create a session with compact_markdown (simulating same session after compact)
+    session = session_manager.register(
+        external_id="test-ext-id",
         machine_id="test-machine",
         source="claude_code",
         project_id=sample_project["id"],
-        title="Parent Session",
+        title="Test Session",
     )
 
-    # Save compact_markdown to parent session
+    # Save compact_markdown to the session (as pre_compact would do)
     test_markdown = "### Original Goal\nFix the bug"
-    session_manager.update_compact_markdown(parent_session.id, test_markdown)
+    session_manager.update_compact_markdown(session.id, test_markdown)
 
-    # Create child session linked to parent
-    child_session = session_manager.register(
-        external_id="child-ext-id",
-        machine_id="test-machine",
-        source="claude_code",
-        project_id=sample_project["id"],
-        title="Child Session",
-        parent_session_id=parent_session.id,
-    )
-
-    # Update workflow state with child session ID
-    workflow_state.session_id = child_session.id
+    # Update workflow state with session ID
+    workflow_state.session_id = session.id
 
     # Create action context
     context = ActionContext(
-        session_id=child_session.id,
+        session_id=session.id,
         state=workflow_state,
         db=action_executor.db,
         session_manager=session_manager,
@@ -212,7 +207,7 @@ async def test_inject_context_reads_compact_handoff(
         "inject_context", context, source="compact_handoff"
     )
 
-    # Verify injection returns the parent's markdown
+    # Verify injection returns the session's own markdown
     assert result is not None
     assert "inject_context" in result
     assert result["inject_context"] == test_markdown
@@ -228,21 +223,29 @@ async def test_full_compact_handoff_flow(
     workflow_state,
     mock_config,
 ):
-    """Test the complete compact handoff flow: extract -> save -> inject via child session."""
-    # Step 1: Create parent session with transcript
-    parent_session = session_manager.register(
-        external_id="parent-ext-id",
+    """Test the complete compact handoff flow: extract -> save -> inject on same session.
+
+    Note: /compact keeps the same session ID - it's a continuation, not a new session.
+    The flow is:
+    1. Session runs, hits context limit
+    2. pre_compact hook fires -> extract_handoff_context saves to session.compact_markdown
+    3. Context window restarts with source=compact
+    4. session_start hook fires -> inject_context reads from same session's compact_markdown
+    """
+    # Step 1: Create session with transcript
+    session = session_manager.register(
+        external_id="test-ext-id",
         machine_id="test-machine",
         source="claude_code",
         project_id=sample_project["id"],
-        title="Parent Session",
+        title="Test Session",
         jsonl_path=str(sample_transcript),
     )
-    workflow_state.session_id = parent_session.id
+    workflow_state.session_id = session.id
 
     # Step 2: Execute extract_handoff_context (simulating pre_compact)
     extract_context = ActionContext(
-        session_id=parent_session.id,
+        session_id=session.id,
         state=workflow_state,
         db=action_executor.db,
         session_manager=session_manager,
@@ -259,29 +262,20 @@ async def test_full_compact_handoff_flow(
     assert extract_result.get("handoff_context_extracted") is True
 
     # Step 3: Verify compact_markdown is persisted
-    session_after_extract = session_manager.get(parent_session.id)
+    session_after_extract = session_manager.get(session.id)
     assert session_after_extract.compact_markdown is not None
     saved_markdown = session_after_extract.compact_markdown
 
-    # Step 4: Create child session linked to parent (simulates post-compact new session)
-    child_session = session_manager.register(
-        external_id="child-ext-id",
-        machine_id="test-machine",
-        source="claude_code",
-        project_id=sample_project["id"],
-        title="Child Session",
-        parent_session_id=parent_session.id,
-    )
-
-    # Step 5: Execute inject_context from child session (simulating session_start after compact)
-    child_workflow_state = WorkflowState(
-        session_id=child_session.id,
+    # Step 4: Execute inject_context on same session (simulating session_start after compact)
+    # The session ID stays the same - /compact is a continuation, not a new session
+    inject_workflow_state = WorkflowState(
+        session_id=session.id,
         workflow_name="session-handoff",
         step="compact",
     )
     inject_ctx = ActionContext(
-        session_id=child_session.id,
-        state=child_workflow_state,
+        session_id=session.id,
+        state=inject_workflow_state,
         db=action_executor.db,
         session_manager=session_manager,
         template_engine=MagicMock(spec=TemplateEngine),
@@ -292,7 +286,7 @@ async def test_full_compact_handoff_flow(
         "inject_context", inject_ctx, source="compact_handoff"
     )
 
-    # Step 6: Verify injected context matches saved markdown from parent
+    # Step 5: Verify injected context matches saved markdown
     assert inject_result is not None
     assert inject_result.get("inject_context") == saved_markdown
 

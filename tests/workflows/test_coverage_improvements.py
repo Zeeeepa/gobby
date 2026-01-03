@@ -109,22 +109,22 @@ async def test_inject_context_workflow_state(mock_action_context):
 
 @pytest.mark.asyncio
 async def test_inject_context_compact_handoff(mock_action_context):
-    """Test injecting compact handoff context from parent session."""
+    """Test injecting compact handoff context from current session.
+
+    Note: /compact keeps the same session ID - it's a continuation, not a new session.
+    The compact_markdown is read from the current session, not a parent.
+    """
     context = mock_action_context
 
-    # Create mock parent session with compact_markdown
-    mock_parent = MagicMock()
-    mock_parent.compact_markdown = "Compact summary"
-
-    # Create mock current session with parent_session_id
+    # Create mock current session with compact_markdown
+    # (saved during pre_compact, read during session_start after compact)
     mock_session = MagicMock()
-    mock_session.parent_session_id = "parent-123"
+    mock_session.compact_markdown = "Compact summary"
 
-    # session_manager.get is called 3 times:
-    # 1. Get current session to check parent_session_id
-    # 2. Get parent session to read compact_markdown
-    # 3. Get current session again for render context
-    context.session_manager.get.side_effect = [mock_session, mock_parent, mock_session]
+    # session_manager.get is called twice:
+    # 1. Get current session to read compact_markdown
+    # 2. Get current session again for render context
+    context.session_manager.get.side_effect = [mock_session, mock_session]
 
     result = await context.executor.execute(
         "inject_context", context, source="compact_handoff", template="Handoff: {{ handoff }}"
@@ -134,12 +134,16 @@ async def test_inject_context_compact_handoff(mock_action_context):
 
 @pytest.mark.asyncio
 async def test_inject_context_require_blocks_on_missing(mock_action_context):
-    """Test inject_context with require=True blocks when no content found."""
+    """Test inject_context with require=True blocks when no content found.
+
+    Note: /compact reads from the current session, not a parent.
+    If the current session has no compact_markdown, it blocks.
+    """
     context = mock_action_context
 
-    # Current session has no parent
+    # Current session has no compact_markdown
     mock_session = MagicMock()
-    mock_session.parent_session_id = None
+    mock_session.compact_markdown = None
     context.session_manager.get.return_value = mock_session
 
     result = await context.executor.execute(
@@ -152,21 +156,19 @@ async def test_inject_context_require_blocks_on_missing(mock_action_context):
 
 @pytest.mark.asyncio
 async def test_inject_context_require_allows_with_content(mock_action_context):
-    """Test inject_context with require=True allows when content found in parent."""
+    """Test inject_context with require=True allows when content found.
+
+    Note: /compact reads from the current session's compact_markdown,
+    not from a parent session.
+    """
     context = mock_action_context
 
-    # Create mock parent session with compact_markdown
-    mock_parent = MagicMock()
-    mock_parent.compact_markdown = "Test handoff content"
-
-    # Create mock current session with parent_session_id
+    # Current session has compact_markdown
     mock_session = MagicMock()
-    mock_session.parent_session_id = "parent-123"
+    mock_session.compact_markdown = "Test handoff content"
 
-    # session_manager.get is called 2 times (no template, so no 3rd call):
-    # 1. Get current session to check parent_session_id
-    # 2. Get parent session to read compact_markdown
-    context.session_manager.get.side_effect = [mock_session, mock_parent]
+    # session_manager.get is called once (no template, no render context call)
+    context.session_manager.get.return_value = mock_session
 
     result = await context.executor.execute(
         "inject_context", context, source="compact_handoff", require=True
