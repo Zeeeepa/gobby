@@ -7,6 +7,7 @@ TDD Red Phase: These tests should FAIL initially because WebhookExecutor doesn't
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 
 from gobby.workflows.webhook_executor import WebhookExecutor, WebhookResult
@@ -92,7 +93,6 @@ def executor(mock_template_engine, mock_webhook_registry, mock_secrets):
 class TestWebhookExecutorSuccessPath:
     """Tests for successful webhook execution."""
 
-    @pytest.mark.asyncio
     async def test_executor_makes_http_request_with_correct_method(self, executor):
         """Executor should make HTTP request with the configured method."""
         mock_response = create_mock_response(status=200, body='{"ok": true}')
@@ -112,7 +112,6 @@ class TestWebhookExecutorSuccessPath:
             assert call_args[1]["method"] == "PUT"
             assert call_args[1]["url"] == "https://api.example.com/events"
 
-    @pytest.mark.asyncio
     async def test_executor_sends_headers_from_config(self, executor):
         """Executor should send configured headers including interpolated values."""
         mock_response = create_mock_response(status=200)
@@ -135,7 +134,6 @@ class TestWebhookExecutorSuccessPath:
             assert headers["Authorization"] == "Bearer test-token"
             assert headers["X-Custom-Header"] == "custom-value"
 
-    @pytest.mark.asyncio
     async def test_executor_interpolates_payload_variables(self, executor, mock_template_engine):
         """Executor should interpolate ${context.var} in payload."""
         mock_response = create_mock_response(status=200)
@@ -154,7 +152,6 @@ class TestWebhookExecutorSuccessPath:
             assert isinstance(result, WebhookResult)
             assert result.success is True
 
-    @pytest.mark.asyncio
     async def test_executor_captures_response(self, executor):
         """Executor should capture status, body, and headers from response."""
         mock_response = create_mock_response(
@@ -181,11 +178,10 @@ class TestWebhookExecutorSuccessPath:
 class TestWebhookExecutorFailureHandling:
     """Tests for failure handling and retries."""
 
-    @pytest.mark.asyncio
     async def test_request_timeout_raises_error(self, executor):
         """Request timeout should raise TimeoutError after configured seconds."""
         mock_session = MagicMock()
-        mock_session.request = MagicMock(side_effect=asyncio.TimeoutError())
+        mock_session.request = MagicMock(side_effect=TimeoutError())
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=None)
 
@@ -201,7 +197,6 @@ class TestWebhookExecutorFailureHandling:
             assert result.success is False
             assert "timeout" in result.error.lower()
 
-    @pytest.mark.asyncio
     async def test_http_5xx_triggers_retry(self, executor):
         """HTTP 5xx response should trigger retry when in retry_on_status."""
         # Create responses: 500, 500, 200
@@ -225,7 +220,6 @@ class TestWebhookExecutorFailureHandling:
             assert mock_session.request.call_count == 3
             assert result.success is True
 
-    @pytest.mark.asyncio
     async def test_retries_use_exponential_backoff(self, executor):
         """Retries should use exponential backoff (backoff_seconds * 2^attempt)."""
         call_times = []
@@ -259,7 +253,6 @@ class TestWebhookExecutorFailureHandling:
                 second_delay = call_times[2] - call_times[1]
                 assert second_delay >= first_delay  # Second delay should be longer
 
-    @pytest.mark.asyncio
     async def test_max_attempts_exhausted_calls_on_failure(self, executor):
         """After max_attempts exhausted, on_failure handler should be called."""
         mock_response = create_mock_response(status=500, body="Internal Server Error")
@@ -285,7 +278,6 @@ class TestWebhookExecutorFailureHandling:
             assert result.success is False
             assert on_failure_called is True
 
-    @pytest.mark.asyncio
     async def test_network_error_triggers_retry(self, executor):
         """Network errors (connection refused) should trigger retry."""
         call_count = [0]
@@ -293,7 +285,7 @@ class TestWebhookExecutorFailureHandling:
         def mock_request_side_effect(*args, **kwargs):
             call_count[0] += 1
             if call_count[0] < 2:
-                raise ConnectionError("Connection refused")
+                raise aiohttp.ClientError("Connection refused")
             return create_mock_response(status=200)
 
         mock_session = MagicMock()
@@ -318,7 +310,6 @@ class TestWebhookExecutorFailureHandling:
 class TestWebhookExecutorEdgeCases:
     """Tests for edge cases and special handling."""
 
-    @pytest.mark.asyncio
     async def test_webhook_id_resolves_to_url(self, executor, mock_webhook_registry):
         """webhook_id should resolve to URL from webhook registry."""
         mock_response = create_mock_response(status=200)
@@ -334,7 +325,6 @@ class TestWebhookExecutorEdgeCases:
             assert call_args[1]["url"] == "https://hooks.slack.com/services/xxx"
             assert result.success is True
 
-    @pytest.mark.asyncio
     async def test_missing_webhook_id_raises_error(self, executor):
         """Missing webhook_id in registry should raise clear error."""
         with pytest.raises(ValueError, match="webhook_id.*not found|unknown webhook"):
@@ -343,7 +333,6 @@ class TestWebhookExecutorEdgeCases:
                 payload={},
             )
 
-    @pytest.mark.asyncio
     async def test_secrets_interpolation_in_headers(self, executor, mock_secrets):
         """Secrets interpolation (${secrets.API_KEY}) should work in headers."""
         mock_response = create_mock_response(status=200)
@@ -364,7 +353,6 @@ class TestWebhookExecutorEdgeCases:
             assert headers["Authorization"] == "Bearer secret-api-key-123"
             assert result.success is True
 
-    @pytest.mark.asyncio
     async def test_large_response_body_handled(self, executor):
         """Large response bodies (>1MB) should be handled without memory issues."""
         large_body = "x" * (1024 * 1024 + 100)  # Just over 1MB

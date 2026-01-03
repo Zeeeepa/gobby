@@ -12,8 +12,9 @@ import json
 import logging
 import re
 import time
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
-from typing import Any, Callable, Coroutine
+from typing import Any
 
 import aiohttp
 
@@ -143,6 +144,9 @@ class WebhookExecutor:
         headers: dict[str, str] | None = None,
         timeout: int | None = None,
         context: dict[str, Any] | None = None,
+        retry_config: dict[str, Any] | None = None,
+        on_success: Callable[[WebhookResult], Coroutine[Any, Any, None]] | None = None,
+        on_failure: Callable[[WebhookResult], Coroutine[Any, Any, None]] | None = None,
     ) -> WebhookResult:
         """Execute a webhook by looking up its ID in the registry.
 
@@ -153,6 +157,9 @@ class WebhookExecutor:
             headers: Additional headers (merged with registry headers).
             timeout: Override timeout from registry.
             context: Context for variable interpolation.
+            retry_config: Optional retry configuration dict.
+            on_success: Async callback for successful (2xx) response.
+            on_failure: Async callback after all retries exhausted.
 
         Returns:
             WebhookResult with response data or error.
@@ -180,6 +187,9 @@ class WebhookExecutor:
             payload=payload,
             timeout=timeout or config.get("timeout", 30),
             context=context,
+            retry_config=retry_config,
+            on_success=on_success,
+            on_failure=on_failure,
         )
 
     def _interpolate_secrets(self, headers: dict[str, str]) -> dict[str, str]:
@@ -190,14 +200,25 @@ class WebhookExecutor:
 
         Returns:
             Headers with secrets interpolated.
+
+        Raises:
+            ValueError: If a referenced secret is not found in self.secrets.
         """
         result = {}
         pattern = re.compile(r"\$\{secrets\.(\w+)\}")
 
         for key, value in headers.items():
             if isinstance(value, str):
+                # Find all secret references in the value
+                matches = pattern.findall(value)
+                for secret_name in matches:
+                    if secret_name not in self.secrets:
+                        raise ValueError(
+                            f"Missing secret '{secret_name}' referenced in header '{key}'"
+                        )
+                # Replace all secrets with their values
                 result[key] = pattern.sub(
-                    lambda m: self.secrets.get(m.group(1), m.group(0)),
+                    lambda m: self.secrets[m.group(1)],
                     value,
                 )
             else:
@@ -303,20 +324,23 @@ class WebhookExecutor:
                 # Non-retryable error
                 return result
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 last_error = f"Timeout after {timeout}s"
                 logger.debug(f"Webhook timeout: {url}")
                 continue  # Retry on timeout
 
-            except ConnectionError as e:
+            except aiohttp.ClientError as e:
                 last_error = str(e)
                 logger.debug(f"Webhook connection error: {url} - {e}")
-                continue  # Retry on connection error
+                continue  # Retry on aiohttp client errors
 
             except Exception as e:
+                # Re-raise non-aiohttp exceptions to avoid masking programming errors
+                if not isinstance(e, aiohttp.ClientError):
+                    raise
                 last_error = str(e)
                 logger.warning(f"Webhook error: {url} - {e}")
-                continue  # Retry on other errors
+                continue
 
         # All retries exhausted
         return WebhookResult(
