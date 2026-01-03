@@ -75,6 +75,19 @@ hook_extensions:
     - pre-tool-use
     - post-tool-use
     include_payload: true
+  plugins:
+    enabled: false  # Set to true to enable plugins (runs with daemon privileges)
+    plugin_dirs:
+      - ~/.gobby/plugins
+      - .gobby/plugins
+    auto_discover: true
+    plugins:
+      code-guardian:
+        enabled: true  # Will load when plugins.enabled is true
+        config:
+          checks: [ruff]
+          block_on_error: false  # Start permissive, user can enable blocking
+          auto_fix: true
 workflow:
   enabled: true
   timeout: 30.0
