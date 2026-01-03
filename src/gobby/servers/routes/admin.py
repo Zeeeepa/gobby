@@ -114,11 +114,25 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             except Exception as e:
                 logger.warning(f"Failed to get MCP health: {e}")
 
-        # Count internal tools from gobby-* registries (not downstream MCP servers)
+        # Count internal tools from gobby-* registries and add them to mcp_health
         internal_tools_count = 0
         if server._internal_manager:
             for registry in server._internal_manager.get_all_registries():
-                internal_tools_count += len(registry.list_tools())
+                tools = registry.list_tools()
+                internal_tools_count += len(tools)
+                # Include internal servers in mcp_health for unified server count
+                mcp_health[registry.name] = {
+                    "connected": True,  # Internal servers are always available
+                    "status": "connected",
+                    "enabled": True,
+                    "transport": "internal",
+                    "health": "healthy",
+                    "consecutive_failures": 0,
+                    "last_health_check": None,
+                    "response_time_ms": None,
+                    "internal": True,  # Flag to distinguish from downstream servers
+                    "tool_count": len(tools),
+                }
 
         # Get session statistics using efficient count queries
         session_stats = {"active": 0, "paused": 0, "handoff_ready": 0, "total": 0}
