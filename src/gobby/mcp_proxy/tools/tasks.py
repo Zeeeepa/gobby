@@ -170,7 +170,7 @@ def create_task_registry(
 
     @registry.tool(
         name="validate_task",
-        description="Validate if a task is completed according to its description.",
+        description="Validate if a task is completed. Auto-gathers context from recent commits and relevant files if changes_summary not provided.",
     )
     async def validate_task(
         task_id: str,
@@ -183,9 +183,14 @@ def create_task_registry(
         For parent tasks (tasks with children), validation checks if all children are closed.
         For leaf tasks, uses LLM-based validation against criteria.
 
+        If changes_summary is not provided for leaf tasks, uses smart context gathering:
+        1. Current uncommitted changes (staged + unstaged)
+        2. Multi-commit window (last 10 commits)
+        3. File-based analysis (reads files mentioned in criteria)
+
         Args:
             task_id: ID of the task to validate
-            changes_summary: Summary of changes made (required for leaf tasks, ignored for parent tasks)
+            changes_summary: Summary of changes made (optional - auto-gathered if not provided)
             context_files: List of file paths to read for context (optional)
 
         Returns:
@@ -223,14 +228,30 @@ def create_task_registry(
             if not task_validator:
                 raise RuntimeError("Task validation is not enabled")
 
-            if not changes_summary:
-                raise ValueError("changes_summary is required for leaf task validation")
+            # Use provided changes_summary or auto-gather via smart context
+            validation_context = changes_summary
+            if not validation_context:
+                from gobby.tasks.validation import get_validation_context_smart
+
+                smart_context = get_validation_context_smart(
+                    task_title=task.title,
+                    validation_criteria=task.validation_criteria,
+                    task_description=task.description,
+                )
+                if smart_context:
+                    validation_context = f"Validation context:\n\n{smart_context}"
+
+            if not validation_context:
+                raise ValueError(
+                    "No changes found for validation. Either provide changes_summary "
+                    "or ensure there are uncommitted changes or recent commits."
+                )
 
             result = await task_validator.validate_task(
                 task_id=task.id,
                 title=task.title,
                 description=task.description,
-                changes_summary=changes_summary,
+                changes_summary=validation_context,
                 validation_criteria=task.validation_criteria,
                 context_files=context_files,
             )
@@ -1067,14 +1088,19 @@ def create_task_registry(
                     }
             elif task_validator and task.validation_criteria:
                 # Leaf task with validation criteria: run LLM validation
-                # Use provided changes_summary or auto-fetch git diff
+                # Use provided changes_summary or auto-fetch via smart context gathering
                 validation_context = changes_summary
                 if not validation_context:
-                    from gobby.tasks.validation import get_git_diff
+                    from gobby.tasks.validation import get_validation_context_smart
 
-                    git_diff = get_git_diff()
-                    if git_diff:
-                        validation_context = f"Git diff:\n\n{git_diff}"
+                    # Smart context gathering: uncommitted changes + multi-commit window + file analysis
+                    smart_context = get_validation_context_smart(
+                        task_title=task.title,
+                        validation_criteria=task.validation_criteria,
+                        task_description=task.description,
+                    )
+                    if smart_context:
+                        validation_context = f"Validation context:\n\n{smart_context}"
 
                 if validation_context:
                     result = await task_validator.validate_task(

@@ -3,11 +3,19 @@ Task validation module.
 
 Handles validating task completion against acceptance criteria
 using LLM providers.
+
+Multi-strategy context gathering:
+1. Current uncommitted changes (staged + unstaged)
+2. Multi-commit window (last N commits, configurable)
+3. File-based analysis (read files mentioned in criteria)
+4. Codebase grep for test files related to the task
 """
 
 import logging
+import re
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 from gobby.config.app import TaskValidationConfig
@@ -15,8 +23,12 @@ from gobby.llm import LLMService
 
 logger = logging.getLogger(__name__)
 
+# Default number of commits to look back when gathering context
+DEFAULT_COMMIT_WINDOW = 10
+DEFAULT_MAX_CHARS = 50000
 
-def get_last_commit_diff(max_chars: int = 50000) -> str | None:
+
+def get_last_commit_diff(max_chars: int = DEFAULT_MAX_CHARS) -> str | None:
     """Get diff from the most recent commit.
 
     Args:
@@ -45,6 +57,323 @@ def get_last_commit_diff(max_chars: int = 50000) -> str | None:
     except Exception as e:
         logger.debug(f"Failed to get last commit diff: {e}")
         return None
+
+
+def get_recent_commits(n: int = DEFAULT_COMMIT_WINDOW) -> list[dict[str, str]]:
+    """Get list of recent commits with SHA and subject.
+
+    Args:
+        n: Number of commits to retrieve
+
+    Returns:
+        List of dicts with 'sha' and 'subject' keys
+    """
+    try:
+        result = subprocess.run(
+            ["git", "log", f"-{n}", "--pretty=format:%H|%s"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        if result.returncode != 0 or not result.stdout.strip():
+            return []
+
+        commits = []
+        for line in result.stdout.strip().split("\n"):
+            if "|" in line:
+                sha, subject = line.split("|", 1)
+                commits.append({"sha": sha, "subject": subject})
+
+        return commits
+
+    except Exception as e:
+        logger.debug(f"Failed to get recent commits: {e}")
+        return []
+
+
+def get_multi_commit_diff(
+    commit_count: int = DEFAULT_COMMIT_WINDOW,
+    max_chars: int = DEFAULT_MAX_CHARS,
+) -> str | None:
+    """Get combined diff from the last N commits.
+
+    Args:
+        commit_count: Number of commits to include in diff
+        max_chars: Maximum characters to return
+
+    Returns:
+        Combined diff string, or None if not available
+    """
+    try:
+        # Get diff from HEAD~N to HEAD
+        result = subprocess.run(
+            ["git", "diff", f"HEAD~{commit_count}..HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        if result.returncode != 0 or not result.stdout.strip():
+            return None
+
+        diff = result.stdout
+        if len(diff) > max_chars:
+            diff = diff[:max_chars] + "\n\n... [diff truncated] ..."
+
+        return diff
+
+    except Exception as e:
+        logger.debug(f"Failed to get multi-commit diff: {e}")
+        return None
+
+
+def get_commits_since(since_sha: str, max_chars: int = DEFAULT_MAX_CHARS) -> str | None:
+    """Get diff from a specific commit SHA to HEAD.
+
+    Args:
+        since_sha: Starting commit SHA
+        max_chars: Maximum characters to return
+
+    Returns:
+        Diff string, or None if not available
+    """
+    try:
+        result = subprocess.run(
+            ["git", "diff", f"{since_sha}..HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        if result.returncode != 0 or not result.stdout.strip():
+            return None
+
+        diff = result.stdout
+        if len(diff) > max_chars:
+            diff = diff[:max_chars] + "\n\n... [diff truncated] ..."
+
+        return diff
+
+    except Exception as e:
+        logger.debug(f"Failed to get commits since {since_sha}: {e}")
+        return None
+
+
+def extract_file_patterns_from_text(text: str) -> list[str]:
+    """Extract file paths and patterns from text (criteria, description, title).
+
+    Looks for:
+    - Explicit file paths (src/foo/bar.py, tests/test_foo.py)
+    - Module references (gobby.tasks.validation -> src/gobby/tasks/validation.py)
+    - Test patterns (test_validation -> tests/**/test_validation*.py)
+
+    Args:
+        text: Text to search for file patterns
+
+    Returns:
+        List of file path patterns (may include globs)
+    """
+    patterns: set[str] = set()
+
+    # Match explicit file paths like src/foo/bar.py or ./tests/test_x.py
+    file_path_re = re.compile(r'[./]?[\w\-]+(?:/[\w\-]+)*\.\w+')
+    for match in file_path_re.findall(text):
+        # Skip URLs and common false positives
+        if not match.startswith("http") and not match.startswith("www."):
+            patterns.add(match.lstrip("./"))
+
+    # Match module references like gobby.tasks.validation
+    module_re = re.compile(r'\b(gobby(?:\.\w+)+)\b')
+    for match in module_re.findall(text):
+        # Convert module path to file path
+        file_path = "src/" + match.replace(".", "/") + ".py"
+        patterns.add(file_path)
+
+    # Extract test file hints from test_ prefixed words
+    test_re = re.compile(r'\btest_(\w+)\b')
+    for match in test_re.findall(text):
+        patterns.add(f"tests/**/test_{match}*.py")
+
+    # Extract class/function names and look for their definitions
+    class_re = re.compile(r'\b([A-Z][a-zA-Z0-9]+(?:Manager|Validator|Plugin|Handler|Service))\b')
+    for match in class_re.findall(text):
+        # These could be in any .py file, add as grep pattern hint
+        patterns.add(f"**/{''.join(c if c.islower() else '_' + c.lower() for c in match).lstrip('_')}*.py")
+
+    return list(patterns)
+
+
+def find_matching_files(
+    patterns: list[str],
+    base_dir: str | Path = ".",
+    max_files: int = 10,
+) -> list[Path]:
+    """Find files matching the given patterns.
+
+    Args:
+        patterns: List of file path patterns (may include globs)
+        base_dir: Base directory to search from
+        max_files: Maximum number of files to return
+
+    Returns:
+        List of Path objects for matching files
+    """
+    base = Path(base_dir)
+    found: list[Path] = []
+
+    for pattern in patterns:
+        if len(found) >= max_files:
+            break
+
+        # Handle glob patterns
+        if "*" in pattern:
+            try:
+                matches = list(base.glob(pattern))
+                for match in matches[:max_files - len(found)]:
+                    if match.is_file() and match not in found:
+                        found.append(match)
+            except Exception as e:
+                logger.debug(f"Failed to glob pattern {pattern}: {e}")
+        else:
+            # Direct file path
+            path = base / pattern
+            if path.is_file() and path not in found:
+                found.append(path)
+
+    return found
+
+
+def read_files_content(
+    files: list[Path],
+    max_chars: int = DEFAULT_MAX_CHARS,
+) -> str:
+    """Read content from multiple files.
+
+    Args:
+        files: List of file paths to read
+        max_chars: Maximum total characters to return
+
+    Returns:
+        Concatenated file contents with headers
+    """
+    content_parts: list[str] = []
+    total_chars = 0
+
+    for file_path in files:
+        if total_chars >= max_chars:
+            content_parts.append("\n... [additional files truncated] ...")
+            break
+
+        try:
+            content = file_path.read_text(encoding="utf-8")
+            remaining = max_chars - total_chars
+
+            if len(content) > remaining:
+                content = content[:remaining] + "\n... [file truncated] ..."
+
+            content_parts.append(f"=== {file_path} ===\n{content}\n")
+            total_chars += len(content)
+
+        except Exception as e:
+            logger.debug(f"Failed to read {file_path}: {e}")
+            content_parts.append(f"=== {file_path} ===\n(Error reading file: {e})\n")
+
+    return "\n".join(content_parts)
+
+
+def get_validation_context_smart(
+    task_title: str,
+    validation_criteria: str | None = None,
+    task_description: str | None = None,
+    commit_window: int = DEFAULT_COMMIT_WINDOW,
+    max_chars: int = DEFAULT_MAX_CHARS,
+) -> str | None:
+    """Gather validation context using multiple strategies.
+
+    Strategies (in order):
+    1. Current uncommitted changes (staged + unstaged)
+    2. Multi-commit window diff (last N commits)
+    3. File-based analysis (read files mentioned in criteria)
+
+    Args:
+        task_title: Task title for context
+        validation_criteria: Validation criteria text
+        task_description: Task description text
+        commit_window: Number of commits to look back
+        max_chars: Maximum characters to return
+
+    Returns:
+        Validation context string, or None if nothing found
+    """
+    context_parts: list[str] = []
+    remaining_chars = max_chars
+
+    # Strategy 1: Current uncommitted changes
+    try:
+        unstaged = subprocess.run(
+            ["git", "diff"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        staged = subprocess.run(
+            ["git", "diff", "--cached"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        if staged.stdout.strip():
+            content = staged.stdout[:remaining_chars // 2]
+            context_parts.append(f"=== STAGED CHANGES ===\n{content}")
+            remaining_chars -= len(content)
+
+        if unstaged.stdout.strip():
+            content = unstaged.stdout[:remaining_chars // 2]
+            context_parts.append(f"=== UNSTAGED CHANGES ===\n{content}")
+            remaining_chars -= len(content)
+
+    except Exception as e:
+        logger.debug(f"Failed to get uncommitted changes: {e}")
+
+    # Strategy 2: Multi-commit window
+    if remaining_chars > 5000:  # Only if we have room
+        multi_diff = get_multi_commit_diff(commit_window, remaining_chars // 2)
+        if multi_diff:
+            # Get commit list for context
+            commits = get_recent_commits(commit_window)
+            commit_summary = "\n".join(
+                f"  - {c['sha'][:8]}: {c['subject'][:60]}" for c in commits[:5]
+            )
+
+            context_parts.append(
+                f"=== RECENT COMMITS (last {commit_window}) ===\n"
+                f"{commit_summary}\n\n"
+                f"=== COMBINED DIFF ===\n{multi_diff}"
+            )
+            remaining_chars -= len(multi_diff) + len(commit_summary)
+
+    # Strategy 3: File-based analysis
+    if remaining_chars > 2000:
+        # Extract file patterns from task info
+        search_text = f"{task_title} {validation_criteria or ''} {task_description or ''}"
+        patterns = extract_file_patterns_from_text(search_text)
+
+        if patterns:
+            files = find_matching_files(patterns, max_files=5)
+            if files:
+                file_content = read_files_content(files, remaining_chars)
+                context_parts.append(f"=== RELEVANT FILES ===\n{file_content}")
+
+    if not context_parts:
+        return None
+
+    combined = "\n\n".join(context_parts)
+    if len(combined) > max_chars:
+        combined = combined[:max_chars] + "\n\n... [context truncated] ..."
+
+    return combined
 
 
 def get_git_diff(max_chars: int = 50000, fallback_to_last_commit: bool = True) -> str | None:
