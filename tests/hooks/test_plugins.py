@@ -1,7 +1,7 @@
 """Tests for the Python plugin system."""
 
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -17,7 +17,6 @@ from gobby.hooks.plugins import (
     hook_handler,
     run_plugin_handlers,
 )
-
 
 # =============================================================================
 # Test Fixtures
@@ -81,7 +80,7 @@ def sample_event() -> HookEvent:
         event_type=HookEventType.BEFORE_TOOL,
         session_id="test-session",
         source=SessionSource.CLAUDE,
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         data={"tool_name": "Edit", "tool_input": {}},
     )
 
@@ -93,7 +92,7 @@ def blocked_event() -> HookEvent:
         event_type=HookEventType.BEFORE_TOOL,
         session_id="test-session",
         source=SessionSource.CLAUDE,
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         data={"tool_name": "blocked_command"},
     )
 
@@ -454,7 +453,7 @@ class TestRunPluginHandlers:
             event_type=HookEventType.AFTER_TOOL,
             session_id="test-session",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             data={},
         )
         core_response = HookResponse(decision="allow")
@@ -560,3 +559,398 @@ class TestWorkflowIntegration:
         result = evaluator.evaluate("plugin_sample_plugin_check()", {})
         assert result is True
         assert call_count == 1
+
+
+# =============================================================================
+# Test Plugin Action Execution (Extended)
+# =============================================================================
+
+
+class PluginWithActions(HookPlugin):
+    """Plugin with workflow actions for testing."""
+
+    name = "action-plugin"
+    version = "1.0.0"
+    description = "Plugin with workflow actions"
+
+    def on_load(self, config: dict) -> None:
+        self.config = config
+
+        # Register sync action
+        self.register_action("sync_action", self._sync_action)
+        # Register async action
+        self.register_action("async_action", self._async_action)
+        # Register action that returns data
+        self.register_action("data_action", self._data_action)
+        # Register action that accesses context
+        self.register_action("context_action", self._context_action)
+        # Register action that raises error
+        self.register_action("error_action", self._error_action)
+
+    async def _sync_action(self, context, **kwargs):
+        """Simple action that returns success."""
+        return {"status": "ok", "kwargs": kwargs}
+
+    async def _async_action(self, context, **kwargs):
+        """Async action with await."""
+        import asyncio
+        await asyncio.sleep(0.01)
+        return {"async": True, "value": kwargs.get("value", "default")}
+
+    async def _data_action(self, context, **kwargs):
+        """Action that returns complex data."""
+        return {
+            "items": [1, 2, 3],
+            "nested": {"key": "value"},
+            "config_value": self.config.get("test_key"),
+        }
+
+    async def _context_action(self, context, **kwargs):
+        """Action that accesses ActionContext fields."""
+        return {
+            "session_id": context.session_id,
+            "has_state": context.state is not None,
+            "has_db": context.db is not None,
+        }
+
+    async def _error_action(self, context, **kwargs):
+        """Action that raises an error."""
+        raise ValueError("Intentional error for testing")
+
+
+class AnotherPlugin(HookPlugin):
+    """Second plugin for namespace testing."""
+
+    name = "another-plugin"
+
+    def on_load(self, config: dict) -> None:
+        self.register_action("my_action", self._my_action)
+
+    async def _my_action(self, context, **kwargs):
+        return {"from": "another-plugin"}
+
+
+class TestPluginActionExecution:
+    """Tests for plugin action execution through ActionExecutor."""
+
+    @pytest.fixture
+    def mock_db(self):
+        """Create a mock database."""
+        return MagicMock()
+
+    @pytest.fixture
+    def mock_session_manager(self):
+        """Create a mock session manager."""
+        manager = MagicMock()
+        manager.get.return_value = MagicMock(project_id="test-project")
+        return manager
+
+    @pytest.fixture
+    def mock_template_engine(self):
+        """Create a mock template engine."""
+        return MagicMock()
+
+    @pytest.fixture
+    def executor_with_plugins(self, mock_db, mock_session_manager, mock_template_engine):
+        """Create ActionExecutor with registered plugin actions."""
+        from gobby.workflows.actions import ActionExecutor
+
+        registry = PluginRegistry()
+
+        # Load plugin with actions
+        plugin = PluginWithActions()
+        plugin.on_load({"test_key": "test_value"})
+        registry.register_plugin(plugin)
+
+        # Load second plugin
+        another = AnotherPlugin()
+        another.on_load({})
+        registry.register_plugin(another)
+
+        executor = ActionExecutor(
+            db=mock_db,
+            session_manager=mock_session_manager,
+            template_engine=mock_template_engine,
+        )
+        executor.register_plugin_actions(registry)
+
+        return executor
+
+    @pytest.fixture
+    def workflow_state(self):
+        """Create a WorkflowState with all required fields."""
+        from gobby.workflows.definitions import WorkflowState
+        return WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+        )
+
+    @pytest.mark.asyncio
+    async def test_execute_plugin_action_with_kwargs(self, executor_with_plugins, workflow_state):
+        """Test executing plugin action with keyword arguments."""
+        from gobby.workflows.actions import ActionContext
+
+        context = ActionContext(
+            session_id="test-session",
+            state=workflow_state,
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=MagicMock(),
+        )
+
+        result = await executor_with_plugins.execute(
+            "plugin:action-plugin:sync_action",
+            context,
+            foo="bar",
+            num=42,
+        )
+
+        assert result is not None
+        assert result["status"] == "ok"
+        assert result["kwargs"]["foo"] == "bar"
+        assert result["kwargs"]["num"] == 42
+
+    @pytest.mark.asyncio
+    async def test_execute_async_plugin_action(self, executor_with_plugins, workflow_state):
+        """Test executing async plugin action."""
+        from gobby.workflows.actions import ActionContext
+
+        context = ActionContext(
+            session_id="test-session",
+            state=workflow_state,
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=MagicMock(),
+        )
+
+        result = await executor_with_plugins.execute(
+            "plugin:action-plugin:async_action",
+            context,
+            value="async_test",
+        )
+
+        assert result is not None
+        assert result["async"] is True
+        assert result["value"] == "async_test"
+
+    @pytest.mark.asyncio
+    async def test_plugin_action_returns_complex_data(self, executor_with_plugins, workflow_state):
+        """Test plugin action returning nested data structures."""
+        from gobby.workflows.actions import ActionContext
+
+        context = ActionContext(
+            session_id="test-session",
+            state=workflow_state,
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=MagicMock(),
+        )
+
+        result = await executor_with_plugins.execute(
+            "plugin:action-plugin:data_action",
+            context,
+        )
+
+        assert result is not None
+        assert result["items"] == [1, 2, 3]
+        assert result["nested"]["key"] == "value"
+        assert result["config_value"] == "test_value"
+
+    @pytest.mark.asyncio
+    async def test_plugin_action_accesses_context(self, executor_with_plugins):
+        """Test plugin action can access ActionContext fields."""
+        from gobby.workflows.actions import ActionContext
+        from gobby.workflows.definitions import WorkflowState
+
+        state = WorkflowState(
+            session_id="ctx-session-123",
+            workflow_name="test-workflow",
+            step="test-step",
+        )
+        context = ActionContext(
+            session_id="ctx-session-123",
+            state=state,
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=MagicMock(),
+        )
+
+        result = await executor_with_plugins.execute(
+            "plugin:action-plugin:context_action",
+            context,
+        )
+
+        assert result is not None
+        assert result["session_id"] == "ctx-session-123"
+        assert result["has_state"] is True
+        assert result["has_db"] is True
+
+    @pytest.mark.asyncio
+    async def test_plugin_action_error_handling(self, executor_with_plugins, workflow_state):
+        """Test that errors in plugin actions are caught and returned."""
+        from gobby.workflows.actions import ActionContext
+
+        context = ActionContext(
+            session_id="test-session",
+            state=workflow_state,
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=MagicMock(),
+        )
+
+        result = await executor_with_plugins.execute(
+            "plugin:action-plugin:error_action",
+            context,
+        )
+
+        assert result is not None
+        assert "error" in result
+        assert "Intentional error" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_multiple_plugins_namespace_isolation(self, executor_with_plugins, workflow_state):
+        """Test that actions from different plugins are properly namespaced."""
+        from gobby.workflows.actions import ActionContext
+
+        context = ActionContext(
+            session_id="test-session",
+            state=workflow_state,
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=MagicMock(),
+        )
+
+        # Both plugins have registered actions
+        assert "plugin:action-plugin:sync_action" in executor_with_plugins._handlers
+        assert "plugin:another-plugin:my_action" in executor_with_plugins._handlers
+
+        # Execute action from second plugin
+        result = await executor_with_plugins.execute(
+            "plugin:another-plugin:my_action",
+            context,
+        )
+
+        assert result is not None
+        assert result["from"] == "another-plugin"
+
+    @pytest.mark.asyncio
+    async def test_unknown_plugin_action_returns_none(self, executor_with_plugins, workflow_state):
+        """Test that unknown plugin action returns None."""
+        from gobby.workflows.actions import ActionContext
+
+        context = ActionContext(
+            session_id="test-session",
+            state=workflow_state,
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=MagicMock(),
+        )
+
+        result = await executor_with_plugins.execute(
+            "plugin:nonexistent:action",
+            context,
+        )
+
+        assert result is None
+
+    def test_register_plugin_actions_with_none_registry(self):
+        """Test that register_plugin_actions handles None registry gracefully."""
+        from gobby.workflows.actions import ActionExecutor
+
+        executor = ActionExecutor(
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=MagicMock(),
+        )
+
+        # Should not raise
+        executor.register_plugin_actions(None)
+
+        # Should not have any plugin actions
+        plugin_actions = [k for k in executor._handlers.keys() if k.startswith("plugin:")]
+        assert len(plugin_actions) == 0
+
+    def test_register_plugin_actions_empty_registry(self):
+        """Test registering from empty registry."""
+        from gobby.workflows.actions import ActionExecutor
+
+        registry = PluginRegistry()
+        executor = ActionExecutor(
+            db=MagicMock(),
+            session_manager=MagicMock(),
+            template_engine=MagicMock(),
+        )
+
+        executor.register_plugin_actions(registry)
+
+        plugin_actions = [k for k in executor._handlers.keys() if k.startswith("plugin:")]
+        assert len(plugin_actions) == 0
+
+    def test_plugin_actions_listed_in_plugin_info(self):
+        """Test that registered actions appear in plugin listing."""
+        registry = PluginRegistry()
+        plugin = PluginWithActions()
+        plugin.on_load({})
+        registry.register_plugin(plugin)
+
+        plugins = registry.list_plugins()
+        assert len(plugins) == 1
+
+        plugin_info = plugins[0]
+        assert "sync_action" in plugin_info["actions"]
+        assert "async_action" in plugin_info["actions"]
+        assert "data_action" in plugin_info["actions"]
+        assert "context_action" in plugin_info["actions"]
+        assert "error_action" in plugin_info["actions"]
+
+
+class TestPluginActionRegistrationOnLoad:
+    """Tests for plugin action registration during on_load lifecycle."""
+
+    def test_actions_registered_during_on_load(self):
+        """Test that actions are available after on_load."""
+        plugin = PluginWithActions()
+
+        # Before on_load, no actions
+        assert len(plugin._actions) == 0
+
+        plugin.on_load({})
+
+        # After on_load, actions registered
+        assert len(plugin._actions) == 5
+        assert "sync_action" in plugin._actions
+        assert "async_action" in plugin._actions
+
+    def test_actions_cleared_on_new_instance(self):
+        """Test that each plugin instance has separate actions dict."""
+        plugin1 = PluginWithActions()
+        plugin1.on_load({})
+
+        plugin2 = PluginWithActions()
+
+        # plugin2 hasn't called on_load yet
+        assert len(plugin2._actions) == 0
+
+        # plugin1 still has actions
+        assert len(plugin1._actions) == 5
+
+    def test_action_receives_plugin_config(self):
+        """Test that action can access plugin config set during on_load."""
+        plugin = PluginWithActions()
+        plugin.on_load({"custom_key": "custom_value"})
+
+        # The plugin stores config in on_load
+        assert plugin.config["custom_key"] == "custom_value"
+
+    def test_unload_preserves_action_registration(self):
+        """Test that on_unload doesn't affect action dict (registry handles cleanup)."""
+        plugin = PluginWithActions()
+        plugin.on_load({})
+
+        assert len(plugin._actions) == 5
+
+        plugin.on_unload()
+
+        # Actions still in plugin's dict (registry cleanup is separate)
+        assert len(plugin._actions) == 5
