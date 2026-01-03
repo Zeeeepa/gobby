@@ -5,6 +5,7 @@ This module provides tools to gather relevant context from the codebase and
 project state to inform the task expansion process.
 """
 
+import asyncio
 import itertools
 import logging
 from dataclasses import dataclass
@@ -26,6 +27,7 @@ class ExpansionContext:
     file_snippets: dict[str, str]
     project_patterns: dict[str, str]
     agent_findings: str = ""
+    web_research: list[dict[str, Any]] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -35,6 +37,7 @@ class ExpansionContext:
             "relevant_files": self.relevant_files,
             "project_patterns": self.project_patterns,
             "agent_findings": self.agent_findings,
+            "web_research": self.web_research,
             # We don't include full snippets in dict summary often, but useful for debug
             "snippet_count": len(self.file_snippets),
         }
@@ -82,43 +85,40 @@ class ExpansionContextGatherer:
 
         # 2. Agentic research (if enabled)
         agent_findings = ""
-        # Check explicit flag first, then config
+        web_research: list[dict[str, Any]] | None = None
         research_globally_enabled = getattr(self.config, "codebase_research_enabled", False)
-        # Web research is a sub-feature of research agent, controlled by separate config usually,
-        # but here we are gating the whole research agent.
-        # Let's clarify: The 'TaskResearchAgent' does codebase research.
-        # Web research is a tool available to it.
-        # The `enable_web_research` flag specifically targets web search capabilities if available.
-        # But we also have `codebase_research_enabled` config.
-
-        # Logic:
-        # If enable_code_context is False, we likely skip research too?
-        # Or is research separate?
-        # Assuming research builds on code context.
         should_run_research = enable_code_context and research_globally_enabled
 
         if should_run_research and self.llm_service:
+            # Apply research timeout if configured
+            research_timeout = getattr(self.config, "research_timeout", 60.0)
             try:
-                from gobby.tasks.research import TaskResearchAgent
+                async with asyncio.timeout(research_timeout):
+                    from gobby.tasks.research import TaskResearchAgent
 
-                agent = TaskResearchAgent(self.config, self.llm_service, self.mcp_manager)
-                # Pass web research flag to agent run if supported, or config override
-                # Since TaskResearchAgent reads config, we might need to override it temporarily
-                # or assume the agent checks the flag passed to run.
-                # Let's update TaskResearchAgent.run to accept flags too, or config.
-                # For now, we'll rely on the agent using the passed config, but we can't easily
-                # change the config object here without side effects.
-                # Better: TaskResearchAgent takes flags in run()
-                research_result = await agent.run(task, enable_web_search=enable_web_research)
+                    agent = TaskResearchAgent(self.config, self.llm_service, self.mcp_manager)
+                    research_result = await agent.run(task, enable_web_search=enable_web_research)
 
-                # Merge found files
-                for f in research_result.get("relevant_files", []):
-                    if f not in relevant_files:
-                        relevant_files.append(f)
+                    # Merge found files
+                    for f in research_result.get("relevant_files", []):
+                        if f not in relevant_files:
+                            relevant_files.append(f)
 
-                agent_findings = research_result.get("findings", "")
-                logger.info(
-                    f"Agentic research added {len(research_result.get('relevant_files', []))} files"
+                    agent_findings = research_result.get("findings", "")
+
+                    # Capture web research results if any
+                    web_research_data = research_result.get("web_research", [])
+                    if web_research_data:
+                        web_research = web_research_data
+                        logger.info(f"Captured {len(web_research)} web search results")
+
+                    logger.info(
+                        f"Agentic research added {len(research_result.get('relevant_files', []))} files"
+                    )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"Research phase timed out after {research_timeout}s. "
+                    f"Continuing with partial context. Consider increasing task_expansion.research_timeout."
                 )
             except Exception as e:
                 logger.error(f"Agentic research failed: {e}")
@@ -133,6 +133,7 @@ class ExpansionContextGatherer:
             file_snippets=file_snippets,
             project_patterns=project_patterns,
             agent_findings=agent_findings,
+            web_research=web_research,
         )
 
     async def _find_related_tasks(self, task: Task) -> list[Task]:

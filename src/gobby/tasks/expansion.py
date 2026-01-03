@@ -5,6 +5,7 @@ Handles breaking down high-level tasks into smaller, actionable subtasks
 using LLM providers with structured JSON output.
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -15,7 +16,7 @@ from gobby.config.app import TaskExpansionConfig
 from gobby.llm import LLMService
 from gobby.storage.task_dependencies import TaskDependencyManager
 from gobby.storage.tasks import LocalTaskManager, Task
-from gobby.tasks.context import ExpansionContextGatherer
+from gobby.tasks.context import ExpansionContext, ExpansionContextGatherer
 from gobby.tasks.prompts.expand import ExpansionPromptBuilder
 
 logger = logging.getLogger(__name__)
@@ -90,6 +91,36 @@ class TaskExpander:
 
         logger.info(f"Expanding task {task_id}: {title}")
 
+        # Apply overall timeout for entire expansion
+        timeout_seconds = self.config.timeout
+        try:
+            async with asyncio.timeout(timeout_seconds):
+                return await self._expand_task_impl(
+                    task_id=task_id,
+                    title=title,
+                    description=description,
+                    context=context,
+                    enable_web_research=enable_web_research,
+                    enable_code_context=enable_code_context,
+                )
+        except asyncio.TimeoutError:
+            error_msg = (
+                f"Task expansion timed out after {timeout_seconds} seconds. "
+                f"Consider increasing task_expansion.timeout in config or simplifying the task."
+            )
+            logger.error(f"Expansion timeout for {task_id}: {error_msg}")
+            return {"error": error_msg, "subtask_ids": [], "subtask_count": 0, "timeout": True}
+
+    async def _expand_task_impl(
+        self,
+        task_id: str,
+        title: str,
+        description: str | None = None,
+        context: str | None = None,
+        enable_web_research: bool = False,
+        enable_code_context: bool = True,
+    ) -> dict[str, Any]:
+        """Internal implementation of expand_task (called within timeout context)."""
         # Gather enhanced context
         task_obj = self.task_manager.get_task(task_id)
         if not task_obj:
@@ -150,6 +181,9 @@ class TaskExpander:
                 project_id=task_obj.project_id,
                 subtask_specs=subtask_specs,
             )
+
+            # Save expansion context to the parent task for audit/reuse
+            self._save_expansion_context(task_id, expansion_ctx)
 
             logger.info(f"Expansion complete for {task_id}: created {len(subtask_ids)} subtasks")
 
@@ -314,3 +348,43 @@ class TaskExpander:
                         )
 
         return created_ids
+
+    def _save_expansion_context(
+        self,
+        task_id: str,
+        context: "ExpansionContext",
+    ) -> None:
+        """
+        Save expansion context to the task for audit and reuse.
+
+        Stores web research results and other context in the task's
+        expansion_context field as JSON.
+
+        Args:
+            task_id: ID of the task to update
+            context: The expansion context to save
+        """
+        try:
+            # Build a slim context dict focused on web research
+            context_data: dict[str, Any] = {}
+
+            if context.web_research:
+                context_data["web_research"] = context.web_research
+
+            if context.agent_findings:
+                context_data["agent_findings"] = context.agent_findings
+
+            if context.relevant_files:
+                context_data["relevant_files"] = context.relevant_files
+
+            if not context_data:
+                logger.debug(f"No expansion context to save for {task_id}")
+                return
+
+            # Serialize and update the task
+            context_json = json.dumps(context_data)
+            self.task_manager.update_task(task_id, expansion_context=context_json)
+            logger.info(f"Saved expansion context for {task_id} ({len(context_json)} bytes)")
+
+        except Exception as e:
+            logger.warning(f"Failed to save expansion context for {task_id}: {e}")

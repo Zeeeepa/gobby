@@ -814,6 +814,14 @@ class TaskExpansionConfig(BaseModel):
         default="auto",
         description="Default expansion strategy: auto (LLM decides), phased, sequential, or parallel",
     )
+    timeout: float = Field(
+        default=300.0,
+        description="Maximum time in seconds for entire task expansion (default: 5 minutes)",
+    )
+    research_timeout: float = Field(
+        default=60.0,
+        description="Maximum time in seconds for research phase (default: 60 seconds)",
+    )
 
 
 class TaskValidationConfig(BaseModel):

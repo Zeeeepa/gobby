@@ -36,6 +36,8 @@ gobby-tasks:
     web_research_enabled: true
     max_subtasks: 10
     default_strategy: auto  # auto, phased, sequential, or parallel
+    timeout: 300.0  # Max time for entire expansion (5 minutes)
+    research_timeout: 60.0  # Max time for research phase (1 minute)
   validation:
     enabled: true
     provider: claude

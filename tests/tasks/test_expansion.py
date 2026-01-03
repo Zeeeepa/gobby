@@ -362,3 +362,66 @@ class TestSubtaskSpec:
         assert spec.task_type == "feature"
         assert spec.test_strategy == "Run pytest"
         assert spec.depends_on == [0, 1]
+
+
+class TestExpansionTimeout:
+    """Tests for expansion timeout handling."""
+
+    @pytest.mark.asyncio
+    async def test_expansion_timeout_returns_error(
+        self, mock_task_manager, mock_llm_service, sample_task
+    ):
+        """Test that expansion timeout returns a proper error."""
+        import asyncio
+
+        # Config with very short timeout
+        config = TaskExpansionConfig(enabled=True, timeout=0.001)
+
+        mock_task_manager.get_task.return_value = sample_task
+
+        with patch("gobby.tasks.expansion.ExpansionContextGatherer") as MockGatherer:
+            mock_gatherer_instance = MockGatherer.return_value
+
+            # Make gather_context take longer than timeout
+            async def slow_gather(*args, **kwargs):
+                await asyncio.sleep(1)  # 1 second, much longer than 0.001s timeout
+                return ExpansionContext(
+                    task=sample_task,
+                    related_tasks=[],
+                    relevant_files=[],
+                    file_snippets={},
+                    project_patterns={},
+                )
+
+            mock_gatherer_instance.gather_context = slow_gather
+
+            expander = TaskExpander(config, mock_llm_service, mock_task_manager)
+
+            result = await expander.expand_task("t1", "Main Task")
+
+            # Should return timeout error
+            assert "error" in result
+            assert "timed out" in result["error"]
+            assert result.get("timeout") is True
+            assert result["subtask_ids"] == []
+            assert result["subtask_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_expansion_timeout_config_default(
+        self, mock_task_manager, mock_llm_service
+    ):
+        """Test that timeout defaults to 300 seconds."""
+        config = TaskExpansionConfig(enabled=True)
+
+        assert config.timeout == 300.0
+        assert config.research_timeout == 60.0
+
+    @pytest.mark.asyncio
+    async def test_expansion_timeout_configurable(
+        self, mock_task_manager, mock_llm_service
+    ):
+        """Test that timeout can be configured."""
+        config = TaskExpansionConfig(enabled=True, timeout=600.0, research_timeout=120.0)
+
+        assert config.timeout == 600.0
+        assert config.research_timeout == 120.0
