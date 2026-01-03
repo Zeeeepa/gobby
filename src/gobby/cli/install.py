@@ -24,9 +24,10 @@ def _install_shared_content(cli_path: Path, project_path: Path) -> dict[str, lis
 
     Skills are CLI-specific and go to {cli_path}/skills/.
     Workflows are cross-CLI and go to {project_path}/.gobby/workflows/.
+    Plugins are global and go to ~/.gobby/plugins/.
     """
     shared_dir = get_install_dir() / "shared"
-    installed: dict[str, list[str]] = {"skills": [], "workflows": []}
+    installed: dict[str, list[str]] = {"skills": [], "workflows": [], "plugins": []}
 
     # Install shared skills to CLI directory
     shared_skills = shared_dir / "skills"
@@ -50,6 +51,16 @@ def _install_shared_content(cli_path: Path, project_path: Path) -> dict[str, lis
             if workflow_file.is_file():
                 copy2(workflow_file, target_workflows / workflow_file.name)
                 installed["workflows"].append(workflow_file.name)
+
+    # Install shared plugins to ~/.gobby/plugins/ (global)
+    shared_plugins = shared_dir / "plugins"
+    if shared_plugins.exists():
+        target_plugins = Path("~/.gobby/plugins").expanduser()
+        target_plugins.mkdir(parents=True, exist_ok=True)
+        for plugin_file in shared_plugins.iterdir():
+            if plugin_file.is_file() and plugin_file.suffix == ".py":
+                copy2(plugin_file, target_plugins / plugin_file.name)
+                installed["plugins"].append(plugin_file.name)
 
     return installed
 
@@ -223,6 +234,7 @@ def _install_claude(project_path: Path) -> dict[str, Any]:
     result["skills_installed"] = shared["skills"] + cli["skills"]
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
     result["commands_installed"] = cli.get("commands", [])
+    result["plugins_installed"] = shared.get("plugins", [])
 
     # Backup existing settings.json if it exists
     if settings_file.exists():
@@ -315,6 +327,7 @@ def _install_gemini(project_path: Path) -> dict[str, Any]:
     result["skills_installed"] = shared["skills"] + cli["skills"]
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
     result["commands_installed"] = cli.get("commands", [])
+    result["plugins_installed"] = shared.get("plugins", [])
 
     # Backup existing settings.json if it exists
     if settings_file.exists():
@@ -423,6 +436,7 @@ def _install_codex_notify() -> dict[str, Any]:
     result["skills_installed"] = shared["skills"] + cli["skills"]
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
     result["commands_installed"] = cli.get("commands", [])
+    result["plugins_installed"] = shared.get("plugins", [])
 
     # Update ~/.codex/config.toml
     codex_config_dir = codex_home
@@ -797,6 +811,7 @@ def _install_antigravity(project_path: Path) -> dict[str, Any]:
     result["skills_installed"] = shared["skills"] + cli["skills"]
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
     result["commands_installed"] = cli.get("commands", [])
+    result["plugins_installed"] = shared.get("plugins", [])
 
     # Backup existing settings.json if it exists
     if settings_file.exists():
@@ -1021,6 +1036,10 @@ def install(
                 click.echo(f"Installed {len(result['commands_installed'])} commands")
                 for cmd in result["commands_installed"]:
                     click.echo(f"  - {cmd}")
+            if result.get("plugins_installed"):
+                click.echo(f"Installed {len(result['plugins_installed'])} plugins to ~/.gobby/plugins/")
+                for plugin in result["plugins_installed"]:
+                    click.echo(f"  - {plugin}")
             click.echo(f"Configuration: {project_path / '.claude' / 'settings.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
@@ -1051,6 +1070,10 @@ def install(
                 click.echo(f"Installed {len(result['commands_installed'])} commands")
                 for cmd in result["commands_installed"]:
                     click.echo(f"  - {cmd}")
+            if result.get("plugins_installed"):
+                click.echo(f"Installed {len(result['plugins_installed'])} plugins to ~/.gobby/plugins/")
+                for plugin in result["plugins_installed"]:
+                    click.echo(f"  - {plugin}")
             click.echo(f"Configuration: {project_path / '.gemini' / 'settings.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
@@ -1092,6 +1115,10 @@ def install(
                     click.echo(f"Installed {len(result['commands_installed'])} commands")
                     for cmd in result["commands_installed"]:
                         click.echo(f"  - {cmd}")
+                if result.get("plugins_installed"):
+                    click.echo(f"Installed {len(result['plugins_installed'])} plugins to ~/.gobby/plugins/")
+                    for plugin in result["plugins_installed"]:
+                        click.echo(f"  - {plugin}")
             else:
                 click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -1146,6 +1173,10 @@ def install(
                 click.echo(f"Installed {len(result['commands_installed'])} commands")
                 for cmd in result["commands_installed"]:
                     click.echo(f"  - {cmd}")
+            if result.get("plugins_installed"):
+                click.echo(f"Installed {len(result['plugins_installed'])} plugins to ~/.gobby/plugins/")
+                for plugin in result["plugins_installed"]:
+                    click.echo(f"  - {plugin}")
             click.echo(f"Configuration: {project_path / '.antigravity' / 'settings.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
