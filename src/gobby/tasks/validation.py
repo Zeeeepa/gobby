@@ -78,7 +78,7 @@ def get_last_commit_diff(
     if result is None or result.returncode != 0 or not result.stdout.strip():
         return None
 
-    diff = result.stdout
+    diff: str = result.stdout
     if len(diff) > max_chars:
         diff = diff[:max_chars] + "\n\n... [diff truncated] ..."
 
@@ -132,7 +132,7 @@ def get_multi_commit_diff(
     if result is None or result.returncode != 0 or not result.stdout.strip():
         return None
 
-    diff = result.stdout
+    diff: str = result.stdout
     if len(diff) > max_chars:
         diff = diff[:max_chars] + "\n\n... [diff truncated] ..."
 
@@ -158,7 +158,7 @@ def get_commits_since(
     if result is None or result.returncode != 0 or not result.stdout.strip():
         return None
 
-    diff = result.stdout
+    diff: str = result.stdout
     if len(diff) > max_chars:
         diff = diff[:max_chars] + "\n\n... [diff truncated] ..."
 
@@ -389,53 +389,36 @@ def get_git_diff(
     Returns:
         Combined diff string, or None if not in git repo or no changes
     """
-    try:
-        # Get unstaged changes
-        unstaged = subprocess.run(
-            ["git", "diff"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=cwd,
-        )
+    unstaged = run_git_command(["git", "diff"], cwd=cwd)
+    staged = run_git_command(["git", "diff", "--cached"], cwd=cwd)
 
-        # Get staged changes
-        staged = subprocess.run(
-            ["git", "diff", "--cached"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=cwd,
-        )
-
-        if unstaged.returncode != 0 and staged.returncode != 0:
-            return None
-
-        diff_parts = []
-        if staged.stdout.strip():
-            diff_parts.append("=== STAGED CHANGES ===\n" + staged.stdout)
-        if unstaged.stdout.strip():
-            diff_parts.append("=== UNSTAGED CHANGES ===\n" + unstaged.stdout)
-
-        # If no uncommitted changes, try last commit
-        if not diff_parts and fallback_to_last_commit:
-            last_commit_diff = get_last_commit_diff(max_chars, cwd=cwd)
-            if last_commit_diff:
-                return f"=== LAST COMMIT ===\n{last_commit_diff}"
-            return None
-
-        if not diff_parts:
-            return None
-
-        combined = "\n".join(diff_parts)
-        if len(combined) > max_chars:
-            combined = combined[:max_chars] + "\n\n... [diff truncated] ..."
-
-        return combined
-
-    except Exception as e:
-        logger.debug(f"Failed to get git diff: {e}")
+    # Check if both commands failed (not in git repo or git error)
+    unstaged_failed = unstaged is None or unstaged.returncode != 0
+    staged_failed = staged is None or staged.returncode != 0
+    if unstaged_failed and staged_failed:
         return None
+
+    diff_parts = []
+    if staged and staged.stdout.strip():
+        diff_parts.append("=== STAGED CHANGES ===\n" + staged.stdout)
+    if unstaged and unstaged.stdout.strip():
+        diff_parts.append("=== UNSTAGED CHANGES ===\n" + unstaged.stdout)
+
+    # If no uncommitted changes, try last commit
+    if not diff_parts and fallback_to_last_commit:
+        last_commit_diff = get_last_commit_diff(max_chars, cwd=cwd)
+        if last_commit_diff:
+            return f"=== LAST COMMIT ===\n{last_commit_diff}"
+        return None
+
+    if not diff_parts:
+        return None
+
+    combined = "\n".join(diff_parts)
+    if len(combined) > max_chars:
+        combined = combined[:max_chars] + "\n\n... [diff truncated] ..."
+
+    return combined
 
 
 @dataclass
