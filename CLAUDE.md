@@ -256,6 +256,13 @@ call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_i
    - Close the task with `close_task(task_id="...", commit_sha="...")`
    - Never leave completed work uncommitted or tasks unclosed
 
+**IMPORTANT - Closing Tasks with Code Changes:**
+- When closing a task that involved code changes, ALWAYS commit first, then close with `commit_sha`
+- If `close_task` returns an error about missing commits, commit the changes - do NOT use `no_commit_needed=true` to bypass
+- The `no_commit_needed=true` option is ONLY for tasks that genuinely have no code changes (e.g., documentation review, research, planning)
+- NEVER fabricate an `override_justification` - if you're uncertain whether to commit, ask the user
+- When user says "close the task", this means: commit any code changes first, then close with the commit SHA
+
 **Task Tools:**
 
 | Tool | Description |
