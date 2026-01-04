@@ -272,6 +272,7 @@ class TestHookManagerSessionEnd:
         response = hook_manager_with_mocks.handle(end_event)
         assert response.decision == "allow"
 
+    @pytest.mark.integration
     def test_session_end_auto_links_commits(
         self,
         hook_manager_with_mocks: HookManager,
