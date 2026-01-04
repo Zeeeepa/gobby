@@ -829,3 +829,249 @@ async def test_reset_validation_count(
     assert result["validation_fail_count"] == 0
     assert "reset to 0" in result["message"]
     mock_task_manager.update_task.assert_called_with("t1", validation_fail_count=0)
+
+
+# ============================================================================
+# Close Task with Commit-Based Validation Tests
+# ============================================================================
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_close_task_uses_commit_diff_when_commits_linked(
+    mock_task_manager, mock_task_validator
+):
+    """Test that close_task uses commit-based diff when task has linked commits."""
+    task = Task(
+        id="t1",
+        title="Task with commits",
+        project_id="p1",
+        status="open",
+        description="Do it",
+        validation_criteria="Must have tests",
+        commits=["abc123", "def456"],  # Has linked commits
+        priority=2,
+        task_type="task",
+        created_at="now",
+        updated_at="now",
+    )
+    mock_task_manager.get_task.return_value = task
+    mock_task_manager.list_tasks.return_value = []
+
+    mock_task_validator.validate_task.return_value = ValidationResult(
+        status="valid", feedback="OK"
+    )
+    mock_task_manager.close_task.return_value = task
+
+    from gobby.tasks.commits import TaskDiffResult
+
+    with (
+        patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"),
+        patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager"),
+        patch("gobby.mcp_proxy.tools.tasks.get_task_diff") as mock_diff,
+        patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as mock_pm,
+        patch("gobby.utils.git.run_git_command", return_value="abc123"),
+    ):
+        mock_diff.return_value = TaskDiffResult(
+            diff="diff content from commits",
+            commits=["abc123", "def456"],
+            has_uncommitted_changes=False,
+            file_count=3,
+        )
+        mock_pm.return_value.get.return_value = MagicMock(repo_path="/test/repo")
+
+        registry = create_task_registry(
+            task_manager=mock_task_manager,
+            sync_manager=MagicMock(),
+            task_validator=mock_task_validator,
+        )
+
+        result = await registry.call("close_task", {"task_id": "t1"})
+
+        # Should have used get_task_diff for commit-based context
+        mock_diff.assert_called_once()
+        # Validator should have received commit diff context
+        validator_call = mock_task_validator.validate_task.call_args
+        assert "diff content from commits" in validator_call.kwargs["changes_summary"]
+        assert result.get("validated", True) is True
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_close_task_falls_back_to_smart_context_when_no_commits(
+    mock_task_manager, mock_task_validator
+):
+    """Test that close_task falls back to smart context when no commits linked."""
+    task = Task(
+        id="t1",
+        title="Task without commits",
+        project_id="p1",
+        status="open",
+        description="Do it",
+        validation_criteria="Must have tests",
+        commits=None,  # No commits
+        priority=2,
+        task_type="task",
+        created_at="now",
+        updated_at="now",
+    )
+    mock_task_manager.get_task.return_value = task
+    mock_task_manager.list_tasks.return_value = []
+
+    mock_task_validator.validate_task.return_value = ValidationResult(
+        status="valid", feedback="OK"
+    )
+    mock_task_manager.close_task.return_value = task
+
+    with (
+        patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"),
+        patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager"),
+        patch("gobby.mcp_proxy.tools.tasks.get_task_diff") as mock_diff,
+        patch(
+            "gobby.tasks.validation.get_validation_context_smart"
+        ) as mock_smart_context,
+        patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as mock_pm,
+        patch("gobby.utils.git.run_git_command", return_value="abc123"),
+    ):
+        mock_smart_context.return_value = "Smart context fallback"
+        mock_pm.return_value.get.return_value = MagicMock(repo_path="/test/repo")
+
+        registry = create_task_registry(
+            task_manager=mock_task_manager,
+            sync_manager=MagicMock(),
+            task_validator=mock_task_validator,
+        )
+
+        result = await registry.call("close_task", {"task_id": "t1"})
+
+        # Should NOT have called get_task_diff (no commits)
+        mock_diff.assert_not_called()
+        # Should have used smart context fallback
+        mock_smart_context.assert_called_once()
+        # Validator should have received smart context
+        validator_call = mock_task_validator.validate_task.call_args
+        assert "Smart context fallback" in validator_call.kwargs["changes_summary"]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_close_task_commit_diff_with_uncommitted_changes(
+    mock_task_manager, mock_task_validator
+):
+    """Test that close_task includes uncommitted changes in diff when available."""
+    task = Task(
+        id="t1",
+        title="Task with commits",
+        project_id="p1",
+        status="open",
+        description="Do it",
+        validation_criteria="Must have tests",
+        commits=["abc123"],
+        priority=2,
+        task_type="task",
+        created_at="now",
+        updated_at="now",
+    )
+    mock_task_manager.get_task.return_value = task
+    mock_task_manager.list_tasks.return_value = []
+
+    mock_task_validator.validate_task.return_value = ValidationResult(
+        status="valid", feedback="OK"
+    )
+    mock_task_manager.close_task.return_value = task
+
+    from gobby.tasks.commits import TaskDiffResult
+
+    with (
+        patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"),
+        patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager"),
+        patch("gobby.mcp_proxy.tools.tasks.get_task_diff") as mock_diff,
+        patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as mock_pm,
+        patch("gobby.utils.git.run_git_command", return_value="abc123"),
+    ):
+        mock_diff.return_value = TaskDiffResult(
+            diff="diff content plus uncommitted",
+            commits=["abc123"],
+            has_uncommitted_changes=True,
+            file_count=5,
+        )
+        mock_pm.return_value.get.return_value = MagicMock(repo_path="/test/repo")
+
+        registry = create_task_registry(
+            task_manager=mock_task_manager,
+            sync_manager=MagicMock(),
+            task_validator=mock_task_validator,
+        )
+
+        result = await registry.call("close_task", {"task_id": "t1"})
+
+        # get_task_diff should have been called with include_uncommitted=True
+        mock_diff.assert_called_once()
+        call_kwargs = mock_diff.call_args.kwargs
+        assert call_kwargs.get("include_uncommitted") is True
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_close_task_commit_diff_empty_falls_back_to_smart_context(
+    mock_task_manager, mock_task_validator
+):
+    """Test that close_task falls back when commit diff is empty."""
+    task = Task(
+        id="t1",
+        title="Task with commits but empty diff",
+        project_id="p1",
+        status="open",
+        description="Do it",
+        validation_criteria="Must have tests",
+        commits=["abc123"],
+        priority=2,
+        task_type="task",
+        created_at="now",
+        updated_at="now",
+    )
+    mock_task_manager.get_task.return_value = task
+    mock_task_manager.list_tasks.return_value = []
+
+    mock_task_validator.validate_task.return_value = ValidationResult(
+        status="valid", feedback="OK"
+    )
+    mock_task_manager.close_task.return_value = task
+
+    from gobby.tasks.commits import TaskDiffResult
+
+    with (
+        patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"),
+        patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager"),
+        patch("gobby.mcp_proxy.tools.tasks.get_task_diff") as mock_diff,
+        patch(
+            "gobby.tasks.validation.get_validation_context_smart"
+        ) as mock_smart_context,
+        patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as mock_pm,
+        patch("gobby.utils.git.run_git_command", return_value="abc123"),
+    ):
+        # Empty diff from commits
+        mock_diff.return_value = TaskDiffResult(
+            diff="",
+            commits=["abc123"],
+            has_uncommitted_changes=False,
+            file_count=0,
+        )
+        mock_smart_context.return_value = "Smart context as fallback for empty diff"
+        mock_pm.return_value.get.return_value = MagicMock(repo_path="/test/repo")
+
+        registry = create_task_registry(
+            task_manager=mock_task_manager,
+            sync_manager=MagicMock(),
+            task_validator=mock_task_validator,
+        )
+
+        result = await registry.call("close_task", {"task_id": "t1"})
+
+        # Should have tried get_task_diff first
+        mock_diff.assert_called_once()
+        # But then fallen back to smart context because diff was empty
+        mock_smart_context.assert_called_once()
+        # Validator should have received smart context
+        validator_call = mock_task_validator.validate_task.call_args
+        assert "Smart context as fallback" in validator_call.kwargs["changes_summary"]

@@ -1226,20 +1226,39 @@ def create_task_registry(
                 # Use provided changes_summary or auto-fetch via smart context gathering
                 validation_context = changes_summary
                 if not validation_context:
-                    from gobby.tasks.validation import get_validation_context_smart
-
                     # Get project repo_path for git commands
                     repo_path = get_project_repo_path(task.project_id)
 
-                    # Smart context gathering: uncommitted changes + multi-commit window + file analysis
-                    smart_context = get_validation_context_smart(
-                        task_title=task.title,
-                        validation_criteria=task.validation_criteria,
-                        task_description=task.description,
-                        cwd=repo_path,
-                    )
-                    if smart_context:
-                        validation_context = f"Validation context:\n\n{smart_context}"
+                    # First try commit-based diff if task has linked commits
+                    if task.commits:
+                        try:
+                            diff_result = get_task_diff(
+                                task_id=task.id,
+                                task_manager=task_manager,
+                                include_uncommitted=True,  # Include uncommitted for complete picture
+                                cwd=repo_path,
+                            )
+                            if diff_result.diff:
+                                validation_context = (
+                                    f"Commit-based diff ({len(diff_result.commits)} commits, "
+                                    f"{diff_result.file_count} files):\n\n{diff_result.diff}"
+                                )
+                        except Exception:
+                            pass  # Fall back to smart context on error
+
+                    # Fall back to smart context if no commit diff available
+                    if not validation_context:
+                        from gobby.tasks.validation import get_validation_context_smart
+
+                        # Smart context gathering: uncommitted changes + multi-commit window + file analysis
+                        smart_context = get_validation_context_smart(
+                            task_title=task.title,
+                            validation_criteria=task.validation_criteria,
+                            task_description=task.description,
+                            cwd=repo_path,
+                        )
+                        if smart_context:
+                            validation_context = f"Validation context:\n\n{smart_context}"
 
                 if validation_context:
                     result = await task_validator.validate_task(
