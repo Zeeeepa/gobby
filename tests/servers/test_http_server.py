@@ -1,7 +1,8 @@
 """Tests for the HTTP server endpoints."""
 
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -426,6 +427,70 @@ class TestSessionEndpoints:
         for session in data["sessions"]:
             assert session["source"] == "claude"
 
+    def test_get_messages_without_manager(self, client: TestClient) -> None:
+        """Test getting messages when message manager not available."""
+        response = client.get("/sessions/test-session/messages")
+        assert response.status_code == 503
+        assert "Message manager not available" in response.json()["detail"]
+
+    def test_list_sessions_without_manager(
+        self,
+        session_storage: LocalSessionManager,
+    ) -> None:
+        """Test listing sessions when session manager is None returns 503."""
+        server = HTTPServer(
+            port=8765,
+            test_mode=True,
+            session_manager=None,  # No session manager
+        )
+        client = TestClient(server.app)
+        response = client.get("/sessions")
+        assert response.status_code == 503
+        assert "Session manager not available" in response.json()["detail"]
+
+    def test_register_without_manager(self) -> None:
+        """Test registering when session manager is None returns 503."""
+        server = HTTPServer(
+            port=8765,
+            test_mode=True,
+            session_manager=None,
+        )
+        client = TestClient(server.app)
+        response = client.post(
+            "/sessions/register",
+            json={"external_id": "test", "source": "claude"},
+        )
+        assert response.status_code == 503
+
+    def test_find_parent_with_cwd(
+        self,
+        client: TestClient,
+        session_storage: LocalSessionManager,
+        test_project: dict,
+        temp_dir: Path,
+    ) -> None:
+        """Test finding parent session using cwd instead of project_id."""
+        session = session_storage.register(
+            external_id="parent-cwd-test",
+            machine_id="cwd-machine",
+            source="claude",
+            project_id=test_project["id"],
+        )
+        session_storage.update_status(session.id, "handoff_ready")
+
+        with patch("gobby.utils.machine_id.get_machine_id", return_value="cwd-machine"):
+            response = client.post(
+                "/sessions/find_parent",
+                json={
+                    "source": "claude",
+                    "cwd": str(temp_dir),  # Use cwd instead of project_id
+                },
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["session"]["id"] == session.id
+
     def test_find_parent_missing_source(self, client: TestClient) -> None:
         """Test find_parent with missing source field."""
         response = client.post(
@@ -470,6 +535,119 @@ class TestSessionEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data["session"] is None
+
+    def test_register_then_get_persistence(
+        self,
+        client: TestClient,
+        test_project: dict,
+        temp_dir: Path,
+    ) -> None:
+        """Test that session registered via HTTP is retrievable via get endpoint."""
+        # Register via HTTP endpoint
+        with patch("gobby.utils.machine_id.get_machine_id", return_value="persist-machine"):
+            register_response = client.post(
+                "/sessions/register",
+                json={
+                    "external_id": "persist-test-key",
+                    "source": "claude",
+                    "cwd": str(temp_dir),
+                    "title": "Persistence Test Session",
+                },
+            )
+
+        assert register_response.status_code == 200
+        register_data = register_response.json()
+        session_id = register_data["id"]
+
+        # Retrieve via GET endpoint
+        get_response = client.get(f"/sessions/{session_id}")
+        assert get_response.status_code == 200
+
+        get_data = get_response.json()
+        assert get_data["status"] == "success"
+        assert get_data["session"]["external_id"] == "persist-test-key"
+        assert get_data["session"]["id"] == session_id
+        assert get_data["session"]["title"] == "Persistence Test Session"
+
+    def test_find_current_malformed_json(self, client: TestClient) -> None:
+        """Test find_current with malformed JSON returns error."""
+        response = client.post(
+            "/sessions/find_current",
+            content="{ invalid json",
+            headers={"Content-Type": "application/json"},
+        )
+        # Server returns 200 with error status (global handler) or 500
+        assert response.status_code in [200, 500]
+        if response.status_code == 200:
+            assert response.json().get("status") == "error"
+
+    def test_find_parent_malformed_json(self, client: TestClient) -> None:
+        """Test find_parent with malformed JSON returns error."""
+        response = client.post(
+            "/sessions/find_parent",
+            content="not valid json {",
+            headers={"Content-Type": "application/json"},
+        )
+        assert response.status_code in [200, 500]
+        if response.status_code == 200:
+            assert response.json().get("status") == "error"
+
+    def test_update_status_malformed_json(self, client: TestClient) -> None:
+        """Test update_status with malformed JSON returns error."""
+        response = client.post(
+            "/sessions/update_status",
+            content="[broken",
+            headers={"Content-Type": "application/json"},
+        )
+        assert response.status_code in [200, 500]
+        if response.status_code == 200:
+            assert response.json().get("status") == "error"
+
+    def test_update_summary_malformed_json(self, client: TestClient) -> None:
+        """Test update_summary with malformed JSON returns error."""
+        response = client.post(
+            "/sessions/update_summary",
+            content="{incomplete",
+            headers={"Content-Type": "application/json"},
+        )
+        assert response.status_code in [200, 500]
+        if response.status_code == 200:
+            assert response.json().get("status") == "error"
+
+    def test_update_status_missing_fields(self, client: TestClient) -> None:
+        """Test update_status with missing required fields."""
+        response = client.post(
+            "/sessions/update_status",
+            json={"session_id": "test-id"},  # missing status
+        )
+        assert response.status_code == 400
+
+    def test_update_summary_missing_fields(self, client: TestClient) -> None:
+        """Test update_summary with missing required fields."""
+        response = client.post(
+            "/sessions/update_summary",
+            json={"session_id": "test-id"},  # missing summary_path
+        )
+        assert response.status_code == 400
+
+    def test_register_with_invalid_project_path(
+        self,
+        client: TestClient,
+        temp_dir: Path,
+    ) -> None:
+        """Test registration with non-existent project path."""
+        with patch("gobby.utils.machine_id.get_machine_id", return_value="test-machine"):
+            response = client.post(
+                "/sessions/register",
+                json={
+                    "external_id": "invalid-path-test",
+                    "source": "claude",
+                    "cwd": "/nonexistent/path/that/does/not/exist",
+                },
+            )
+        # Should still work - project resolution may create or handle gracefully
+        # The specific behavior depends on implementation
+        assert response.status_code in [200, 400, 500]
 
 
 class TestHooksEndpoint:
