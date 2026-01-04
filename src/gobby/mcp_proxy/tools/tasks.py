@@ -1629,17 +1629,28 @@ def create_task_registry(
         func=list_ready_tasks,
     )
 
-    def list_blocked_tasks(limit: int = 20) -> dict[str, Any]:
+    def list_blocked_tasks(
+        parent_task_id: str | None = None,
+        limit: int = 20,
+    ) -> dict[str, Any]:
         """List tasks that are currently blocked, including what blocks them."""
-        blocked_items = task_manager.list_blocked_tasks(limit=limit)
-        return {"blocked_tasks": blocked_items}
+        blocked_tasks = task_manager.list_blocked_tasks(
+            parent_task_id=parent_task_id,
+            limit=limit,
+        )
+        return {"tasks": [t.to_dict() for t in blocked_tasks], "count": len(blocked_tasks)}
 
     registry.register(
         name="list_blocked_tasks",
-        description="List tasks that are currently blocked, including what blocks them.",
+        description="List tasks that are currently blocked by external dependencies (excludes parent tasks blocked by their own children).",
         input_schema={
             "type": "object",
             "properties": {
+                "parent_task_id": {
+                    "type": "string",
+                    "description": "Filter by parent task (find blocked subtasks)",
+                    "default": None,
+                },
                 "limit": {"type": "integer", "description": "Max results", "default": 20},
             },
         },

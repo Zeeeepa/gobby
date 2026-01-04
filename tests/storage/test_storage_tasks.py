@@ -168,6 +168,54 @@ class TestLocalTaskManager:
         blocked = task_manager.list_blocked_tasks(project_id=project_id)
         # T1 is no longer blocked by OPEN task
 
+    def test_parent_blocked_by_children_is_still_ready(self, task_manager, dep_manager, project_id):
+        """Parent tasks blocked by their own children should still be considered 'ready'.
+
+        This is because 'blocked by children' means 'cannot close until children done',
+        not 'cannot start working'. The parent should still appear in list_ready_tasks.
+        """
+        # Create parent and child
+        parent = task_manager.create_task(project_id, "Parent Epic")
+        child = task_manager.create_task(
+            project_id, "Child Task", parent_task_id=parent.id
+        )
+
+        # Create the dependency: parent depends_on child with type "blocks"
+        # This means child blocks parent (parent can't close until child is done)
+        dep_manager.add_dependency(parent.id, child.id, "blocks")
+
+        # Both parent and child should be ready (the child->parent block is a completion block)
+        ready = task_manager.list_ready_tasks(project_id=project_id)
+        ready_ids = {t.id for t in ready}
+        assert parent.id in ready_ids, "Parent should be ready despite being blocked by its child"
+        assert child.id in ready_ids, "Child should be ready (no blockers)"
+
+        # Parent should NOT appear in list_blocked_tasks
+        blocked = task_manager.list_blocked_tasks(project_id=project_id)
+        blocked_ids = {t.id for t in blocked}
+        assert parent.id not in blocked_ids, "Parent should not be 'blocked' by its own child"
+
+        # Now add an external blocker (a task that is NOT a child)
+        external_blocker = task_manager.create_task(project_id, "External Blocker")
+        dep_manager.add_dependency(parent.id, external_blocker.id, "blocks")
+
+        # Now parent should be blocked by the external task
+        ready = task_manager.list_ready_tasks(project_id=project_id)
+        ready_ids = {t.id for t in ready}
+        assert parent.id not in ready_ids, "Parent should NOT be ready (blocked by external task)"
+
+        blocked = task_manager.list_blocked_tasks(project_id=project_id)
+        blocked_ids = {t.id for t in blocked}
+        assert parent.id in blocked_ids, "Parent should be blocked by external task"
+
+        # Close the external blocker
+        task_manager.close_task(external_blocker.id)
+
+        # Parent should be ready again (only blocked by its own child)
+        ready = task_manager.list_ready_tasks(project_id=project_id)
+        ready_ids = {t.id for t in ready}
+        assert parent.id in ready_ids, "Parent should be ready again"
+
     def test_labels_management(self, task_manager, project_id):
         task = task_manager.create_task(project_id, "Label Task", labels=["a"])
 

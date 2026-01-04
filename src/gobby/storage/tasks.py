@@ -790,9 +790,11 @@ class LocalTaskManager:
         with siblings sorted by priority ASC, then created_at ASC.
         """
         # Use recursive CTE to find tasks with ready parent chains
+        # Note: "blocked by own children" is a completion block, not a work block.
+        # Parent tasks should still be considered "ready" even if blocked by children.
         query = """
         WITH RECURSIVE ready_tasks AS (
-            -- Base case: open tasks with no parent and no blocking deps
+            -- Base case: open tasks with no parent and no external blocking deps
             SELECT t.id FROM tasks t
             WHERE t.status = 'open'
             AND t.parent_task_id IS NULL
@@ -802,11 +804,14 @@ class LocalTaskManager:
                 WHERE d.task_id = t.id
                   AND d.dep_type = 'blocks'
                   AND blocker.status != 'closed'
+                  -- Exclude parent blocked by own children (completion block, not work block)
+                  -- Use COALESCE to handle NULL parent_task_id (NULL != x returns NULL, not TRUE)
+                  AND COALESCE(blocker.parent_task_id, '') != t.id
             )
 
             UNION ALL
 
-            -- Recursive case: open tasks whose parent is ready and no blocking deps
+            -- Recursive case: open tasks whose parent is ready and no external blocking deps
             SELECT t.id FROM tasks t
             JOIN ready_tasks rt ON t.parent_task_id = rt.id
             WHERE t.status = 'open'
@@ -816,6 +821,8 @@ class LocalTaskManager:
                 WHERE d.task_id = t.id
                   AND d.dep_type = 'blocks'
                   AND blocker.status != 'closed'
+                  -- Exclude parent blocked by own children (completion block, not work block)
+                  AND COALESCE(blocker.parent_task_id, '') != t.id
             )
         )
         SELECT t.* FROM tasks t
@@ -850,10 +857,14 @@ class LocalTaskManager:
     def list_blocked_tasks(
         self,
         project_id: str | None = None,
+        parent_task_id: str | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> list[Task]:
         """List tasks that are blocked by at least one open blocking dependency.
+
+        Only considers "external" blockers - excludes parent tasks being blocked
+        by their own children (which is a "completion" block, not a "work" block).
 
         Results are ordered hierarchically: parents appear before their children,
         with siblings sorted by priority ASC, then created_at ASC.
@@ -867,6 +878,9 @@ class LocalTaskManager:
             WHERE d.task_id = t.id
               AND d.dep_type = 'blocks'
               AND blocker.status != 'closed'
+              -- Exclude parent blocked by own children (completion block, not work block)
+              -- Use COALESCE to handle NULL parent_task_id (NULL != x returns NULL, not TRUE)
+              AND COALESCE(blocker.parent_task_id, '') != t.id
         )
         """
         params: list[Any] = []
@@ -874,6 +888,9 @@ class LocalTaskManager:
         if project_id:
             query += " AND t.project_id = ?"
             params.append(project_id)
+        if parent_task_id:
+            query += " AND t.parent_task_id = ?"
+            params.append(parent_task_id)
 
         query += " ORDER BY t.priority ASC, t.created_at ASC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
@@ -971,7 +988,9 @@ class LocalTaskManager:
 
     def count_ready_tasks(self, project_id: str | None = None) -> int:
         """
-        Count tasks that are open and not blocked by any open blocking dependency.
+        Count tasks that are open and not blocked by any external blocking dependency.
+
+        Excludes parent tasks blocked by their own children (completion block, not work block).
 
         Args:
             project_id: Optional project filter
@@ -988,6 +1007,9 @@ class LocalTaskManager:
             WHERE d.task_id = t.id
               AND d.dep_type = 'blocks'
               AND blocker.status != 'closed'
+              -- Exclude parent blocked by own children (completion block, not work block)
+              -- Use COALESCE to handle NULL parent_task_id (NULL != x returns NULL, not TRUE)
+              AND COALESCE(blocker.parent_task_id, '') != t.id
         )
         """
         params: list[Any] = []
@@ -1001,7 +1023,9 @@ class LocalTaskManager:
 
     def count_blocked_tasks(self, project_id: str | None = None) -> int:
         """
-        Count tasks that are blocked by at least one open blocking dependency.
+        Count tasks that are blocked by at least one external blocking dependency.
+
+        Excludes parent tasks blocked by their own children (completion block, not work block).
 
         Args:
             project_id: Optional project filter
@@ -1018,6 +1042,9 @@ class LocalTaskManager:
             WHERE d.task_id = t.id
               AND d.dep_type = 'blocks'
               AND blocker.status != 'closed'
+              -- Exclude parent blocked by own children (completion block, not work block)
+              -- Use COALESCE to handle NULL parent_task_id (NULL != x returns NULL, not TRUE)
+              AND COALESCE(blocker.parent_task_id, '') != t.id
         )
         """
         params: list[Any] = []
