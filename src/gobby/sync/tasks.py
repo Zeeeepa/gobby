@@ -72,6 +72,21 @@ class TaskSyncManager:
                     "project_id": task.project_id,
                     "parent_id": task.parent_task_id,
                     "deps_on": sorted(deps_map.get(task.id, [])),  # Sort deps for stability
+                    # Commit linking
+                    "commits": sorted(task.commits) if task.commits else [],
+                    # Validation history (for tracking validation state across syncs)
+                    "validation": {
+                        "status": task.validation_status,
+                        "feedback": task.validation_feedback,
+                        "fail_count": task.validation_fail_count,
+                        "criteria": task.validation_criteria,
+                        "override_reason": task.validation_override_reason,
+                    }
+                    if task.validation_status
+                    else None,
+                    # Escalation fields
+                    "escalated_at": task.escalated_at,
+                    "escalation_reason": task.escalation_reason,
                 }
                 export_data.append(task_dict)
 
@@ -172,24 +187,49 @@ class TaskSyncManager:
                         # Use INSERT OR REPLACE to handle upsert generically
                         # Note: Labels not in JSONL currently based on export logic
                         # Note: We need to respect the exact fields from JSONL
+
+                        # Handle commits array (stored as JSON in SQLite)
+                        commits_json = (
+                            json.dumps(data["commits"]) if data.get("commits") else None
+                        )
+
+                        # Handle validation object (extract fields)
+                        validation = data.get("validation") or {}
+                        validation_status = validation.get("status")
+                        validation_feedback = validation.get("feedback")
+                        validation_fail_count = validation.get("fail_count", 0)
+                        validation_criteria = validation.get("criteria")
+                        validation_override_reason = validation.get("override_reason")
+
                         conn.execute(
                             """
                             INSERT OR REPLACE INTO tasks (
                                 id, project_id, title, description, parent_task_id,
-                                status, priority, type, created_at, updated_at
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                status, priority, type, created_at, updated_at,
+                                commits, validation_status, validation_feedback,
+                                validation_fail_count, validation_criteria,
+                                validation_override_reason, escalated_at, escalation_reason
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """,
                             (
                                 task_id,
                                 data.get("project_id"),
                                 data["title"],
                                 data.get("description"),
-                                data.get("parent_task_id"),
+                                data.get("parent_id"),  # Note: JSONL uses parent_id, not parent_task_id
                                 data["status"],
                                 data.get("priority", 2),
                                 data.get("task_type", "task"),
                                 data["created_at"],
                                 data["updated_at"],
+                                commits_json,
+                                validation_status,
+                                validation_feedback,
+                                validation_fail_count,
+                                validation_criteria,
+                                validation_override_reason,
+                                data.get("escalated_at"),
+                                data.get("escalation_reason"),
                             ),
                         )
 

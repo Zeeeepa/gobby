@@ -425,3 +425,106 @@ class TestExpansionTimeout:
 
         assert config.timeout == 600.0
         assert config.research_timeout == 120.0
+
+
+class TestEpicTddMode:
+    """Tests for TDD mode handling with epics."""
+
+    @pytest.mark.asyncio
+    async def test_tdd_mode_disabled_for_epics(
+        self, mock_task_manager, mock_llm_service
+    ):
+        """Test that TDD mode is disabled when expanding an epic.
+
+        Epics don't need TDD pairs because their closing condition is
+        'all children are closed', not test-based verification.
+        """
+        # Create config with TDD mode enabled
+        config = TaskExpansionConfig(enabled=True, tdd_mode=True)
+
+        # Create an epic task
+        epic_task = Task(
+            id="epic-1",
+            project_id="p1",
+            title="Epic Task",
+            status="open",
+            priority=2,
+            task_type="epic",  # This is the key - task_type is epic
+            created_at="now",
+            updated_at="now",
+            description="An epic container task",
+        )
+        mock_task_manager.get_task.return_value = epic_task
+
+        mock_ctx = ExpansionContext(
+            task=epic_task,
+            related_tasks=[],
+            relevant_files=[],
+            file_snippets={},
+            project_patterns={},
+        )
+
+        with patch("gobby.tasks.expansion.ExpansionContextGatherer") as MockGatherer:
+            mock_gatherer_instance = MockGatherer.return_value
+            mock_gatherer_instance.gather_context = AsyncMock(return_value=mock_ctx)
+
+            expander = TaskExpander(config, mock_llm_service, mock_task_manager)
+
+            await expander.expand_task("epic-1", "Epic Task")
+
+            # Verify generate_text was called
+            provider = mock_llm_service.get_provider.return_value
+            provider.generate_text.assert_called_once()
+
+            # Check that the system prompt does NOT contain TDD instructions
+            call_args = provider.generate_text.call_args
+            system_prompt = call_args.kwargs["system_prompt"]
+            assert "TDD Mode Enabled" not in system_prompt
+            assert "test->implement pairs" not in system_prompt
+
+    @pytest.mark.asyncio
+    async def test_tdd_mode_enabled_for_non_epics(
+        self, mock_task_manager, mock_llm_service
+    ):
+        """Test that TDD mode is enabled for non-epic tasks when configured."""
+        # Create config with TDD mode enabled
+        config = TaskExpansionConfig(enabled=True, tdd_mode=True)
+
+        # Create a feature task (not an epic)
+        feature_task = Task(
+            id="feat-1",
+            project_id="p1",
+            title="Feature Task",
+            status="open",
+            priority=2,
+            task_type="feature",  # Not an epic
+            created_at="now",
+            updated_at="now",
+            description="A feature task",
+        )
+        mock_task_manager.get_task.return_value = feature_task
+
+        mock_ctx = ExpansionContext(
+            task=feature_task,
+            related_tasks=[],
+            relevant_files=[],
+            file_snippets={},
+            project_patterns={},
+        )
+
+        with patch("gobby.tasks.expansion.ExpansionContextGatherer") as MockGatherer:
+            mock_gatherer_instance = MockGatherer.return_value
+            mock_gatherer_instance.gather_context = AsyncMock(return_value=mock_ctx)
+
+            expander = TaskExpander(config, mock_llm_service, mock_task_manager)
+
+            await expander.expand_task("feat-1", "Feature Task")
+
+            # Verify generate_text was called
+            provider = mock_llm_service.get_provider.return_value
+            provider.generate_text.assert_called_once()
+
+            # Check that the system prompt DOES contain TDD instructions
+            call_args = provider.generate_text.call_args
+            system_prompt = call_args.kwargs["system_prompt"]
+            assert "TDD Mode Enabled" in system_prompt

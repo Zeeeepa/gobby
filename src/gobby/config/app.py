@@ -855,6 +855,70 @@ class TaskValidationConfig(BaseModel):
         default=None,
         description="Custom prompt template for generating validation criteria (use {title}, {description} placeholders)",
     )
+    # Validation loop control
+    max_iterations: int = Field(
+        default=10,
+        description="Maximum validation attempts before escalation",
+    )
+    max_consecutive_errors: int = Field(
+        default=3,
+        description="Max consecutive errors before stopping validation loop",
+    )
+    recurring_issue_threshold: int = Field(
+        default=3,
+        description="Number of times same issue can recur before escalation",
+    )
+    issue_similarity_threshold: float = Field(
+        default=0.8,
+        description="Similarity threshold (0-1) for detecting recurring issues",
+    )
+    # Build verification
+    run_build_first: bool = Field(
+        default=True,
+        description="Run build/test command before LLM validation",
+    )
+    build_command: str | None = Field(
+        default=None,
+        description="Custom build command (auto-detected if None: npm test, pytest, etc.)",
+    )
+    # External validator
+    use_external_validator: bool = Field(
+        default=False,
+        description="Use external LLM for validation (different from task agent)",
+    )
+    external_validator_model: str | None = Field(
+        default=None,
+        description="Model for external validation (defaults to validation.model)",
+    )
+    # Escalation settings
+    escalation_enabled: bool = Field(
+        default=True,
+        description="Enable task escalation on repeated validation failures",
+    )
+    escalation_notify: Literal["webhook", "slack", "none"] = Field(
+        default="none",
+        description="Notification method when task is escalated",
+    )
+    escalation_webhook_url: str | None = Field(
+        default=None,
+        description="Webhook URL for escalation notifications",
+    )
+
+    @field_validator("max_iterations", "max_consecutive_errors", "recurring_issue_threshold")
+    @classmethod
+    def validate_positive_int(cls, v: int) -> int:
+        """Validate value is positive."""
+        if v <= 0:
+            raise ValueError("Value must be positive")
+        return v
+
+    @field_validator("issue_similarity_threshold")
+    @classmethod
+    def validate_threshold(cls, v: float) -> float:
+        """Validate threshold is between 0 and 1."""
+        if not 0 <= v <= 1:
+            raise ValueError("issue_similarity_threshold must be between 0 and 1")
+        return v
 
 
 class WorkflowConfig(BaseModel):

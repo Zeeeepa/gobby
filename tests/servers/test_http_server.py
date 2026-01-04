@@ -570,49 +570,64 @@ class TestSessionEndpoints:
         assert get_data["session"]["title"] == "Persistence Test Session"
 
     def test_find_current_malformed_json(self, client: TestClient) -> None:
-        """Test find_current with malformed JSON returns error."""
+        """Test find_current with malformed JSON returns 500 error.
+
+        The route's exception handler catches JSONDecodeError and raises
+        HTTPException with status 500 before the global handler runs.
+        """
         response = client.post(
             "/sessions/find_current",
             content="{ invalid json",
             headers={"Content-Type": "application/json"},
         )
-        # Server returns 200 with error status (global handler) or 500
-        assert response.status_code in [200, 500]
-        if response.status_code == 200:
-            assert response.json().get("status") == "error"
+        assert response.status_code == 500
+        data = response.json()
+        assert "detail" in data
 
     def test_find_parent_malformed_json(self, client: TestClient) -> None:
-        """Test find_parent with malformed JSON returns error."""
+        """Test find_parent with malformed JSON returns 500 error.
+
+        The route's exception handler catches JSONDecodeError and raises
+        HTTPException with status 500 before the global handler runs.
+        """
         response = client.post(
             "/sessions/find_parent",
             content="not valid json {",
             headers={"Content-Type": "application/json"},
         )
-        assert response.status_code in [200, 500]
-        if response.status_code == 200:
-            assert response.json().get("status") == "error"
+        assert response.status_code == 500
+        data = response.json()
+        assert "detail" in data
 
     def test_update_status_malformed_json(self, client: TestClient) -> None:
-        """Test update_status with malformed JSON returns error."""
+        """Test update_status with malformed JSON returns 500 error.
+
+        The route's exception handler catches JSONDecodeError and raises
+        HTTPException with status 500 before the global handler runs.
+        """
         response = client.post(
             "/sessions/update_status",
             content="[broken",
             headers={"Content-Type": "application/json"},
         )
-        assert response.status_code in [200, 500]
-        if response.status_code == 200:
-            assert response.json().get("status") == "error"
+        assert response.status_code == 500
+        data = response.json()
+        assert "detail" in data
 
     def test_update_summary_malformed_json(self, client: TestClient) -> None:
-        """Test update_summary with malformed JSON returns error."""
+        """Test update_summary with malformed JSON returns 500 error.
+
+        The route's exception handler catches JSONDecodeError and raises
+        HTTPException with status 500 before the global handler runs.
+        """
         response = client.post(
             "/sessions/update_summary",
             content="{incomplete",
             headers={"Content-Type": "application/json"},
         )
-        assert response.status_code in [200, 500]
-        if response.status_code == 200:
-            assert response.json().get("status") == "error"
+        assert response.status_code == 500
+        data = response.json()
+        assert "detail" in data
 
     def test_update_status_missing_fields(self, client: TestClient) -> None:
         """Test update_status with missing required fields."""

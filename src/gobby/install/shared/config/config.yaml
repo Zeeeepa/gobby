@@ -51,6 +51,21 @@ gobby-tasks:
     #   Description: {description}
     #
     #   Return a bulleted list of testable conditions.
+    # Validation loop control
+    max_iterations: 10  # Max validation attempts before escalation
+    max_consecutive_errors: 3  # Max consecutive errors before stopping
+    recurring_issue_threshold: 3  # Same issue count before escalation
+    issue_similarity_threshold: 0.8  # Similarity threshold for recurring issues (0-1)
+    # Build verification
+    run_build_first: true  # Run build/test before LLM validation
+    # build_command: null  # Custom build command (auto-detect if not set)
+    # External validator
+    use_external_validator: false  # Use different LLM for validation
+    # external_validator_model: null  # Model for external validation
+    # Escalation settings
+    escalation_enabled: true  # Enable task escalation on failures
+    escalation_notify: none  # Notification method: webhook, slack, or none
+    # escalation_webhook_url: null  # Webhook URL for escalation notifications
 llm_providers:
   claude:
     models: claude-haiku-4-5,claude-sonnet-4-5,claude-opus-4-5

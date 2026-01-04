@@ -103,7 +103,7 @@ class TaskExpander:
                     enable_web_research=enable_web_research,
                     enable_code_context=enable_code_context,
                 )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             error_msg = (
                 f"Task expansion timed out after {timeout_seconds} seconds. "
                 f"Consider increasing task_expansion.timeout in config or simplifying the task."
@@ -154,9 +154,13 @@ class TaskExpander:
             # Get provider and generate text response
             provider = self.llm_service.get_provider(self.config.provider)
 
+            # Disable TDD mode for epics - their closing condition is "all children closed"
+            # so they don't need test pairs
+            tdd_mode = self.config.tdd_mode and task_obj.task_type != "epic"
+
             response = await provider.generate_text(
                 prompt=prompt,
-                system_prompt=self.prompt_builder.get_system_prompt(tdd_mode=self.config.tdd_mode),
+                system_prompt=self.prompt_builder.get_system_prompt(tdd_mode=tdd_mode),
                 model=self.config.model,
             )
 
