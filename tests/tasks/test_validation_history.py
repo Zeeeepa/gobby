@@ -274,3 +274,191 @@ class TestValidationHistoryManager:
 
         assert iteration.task_id == sample_task["id"]
         assert iteration.status == "invalid"
+
+
+class TestRecurringIssueDetection:
+    """Tests for recurring issue detection functionality."""
+
+    @pytest.fixture
+    def history_manager(self, temp_db):
+        """Create a ValidationHistoryManager with test database."""
+        return ValidationHistoryManager(temp_db)
+
+    @pytest.fixture
+    def sample_project(self, temp_db):
+        """Create a sample project for tests."""
+        temp_db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        return {"id": "test-project"}
+
+    @pytest.fixture
+    def sample_task(self, temp_db, sample_project):
+        """Create a sample task for tests."""
+        temp_db.execute(
+            """INSERT INTO tasks (id, project_id, title, status, priority, type, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("gt-recurring", sample_project["id"], "Test Task", "open", 2, "task"),
+        )
+        return {"id": "gt-recurring"}
+
+    def test_group_similar_issues_clusters_by_title(self, history_manager):
+        """Test that group_similar_issues clusters issues with similar titles."""
+        issues = [
+            Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Test auth failed"),
+            Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Test auth failed"),
+            Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Test auth fails"),  # Similar
+            Issue(IssueType.LINT_ERROR, IssueSeverity.MINOR, "Unused import"),
+        ]
+
+        groups = history_manager.group_similar_issues(issues)
+
+        # Should have 2 groups: auth failures and lint error
+        assert len(groups) == 2
+        # The auth group should have 3 issues
+        auth_group = [g for g in groups if "auth" in g[0].title.lower()][0]
+        assert len(auth_group) >= 2
+
+    def test_group_similar_issues_respects_threshold(self, history_manager):
+        """Test that fuzzy matching respects similarity threshold."""
+        issues = [
+            Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Test authentication failed"),
+            Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Test authorization failed"),  # Different
+        ]
+
+        # With high threshold, these should be separate groups
+        groups = history_manager.group_similar_issues(issues, similarity_threshold=0.9)
+        assert len(groups) == 2
+
+        # With lower threshold, they might be grouped
+        groups_low = history_manager.group_similar_issues(issues, similarity_threshold=0.5)
+        assert len(groups_low) <= 2
+
+    def test_group_similar_issues_same_location_strong_match(self, history_manager):
+        """Test that same location is a strong match signal."""
+        issues = [
+            Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Authentication failed", location="src/auth.py:42"),
+            Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Password validation error", location="src/auth.py:42"),
+            Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Database connection timeout", location="src/db.py:100"),
+        ]
+
+        groups = history_manager.group_similar_issues(issues)
+
+        # Issues at same location should be grouped together even with different titles
+        auth_group = [g for g in groups if any(i.location == "src/auth.py:42" for i in g)]
+        assert len(auth_group) == 1
+        assert len(auth_group[0]) == 2
+
+    def test_has_recurring_issues_true_when_threshold_exceeded(self, history_manager, sample_task):
+        """Test has_recurring_issues returns True when threshold exceeded."""
+        # Record 3 iterations with the same issue
+        same_issue = Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Same test fails")
+
+        for i in range(1, 4):
+            history_manager.record_iteration(
+                task_id=sample_task["id"],
+                iteration=i,
+                status="invalid",
+                issues=[same_issue],
+            )
+
+        result = history_manager.has_recurring_issues(sample_task["id"], threshold=2)
+        assert result is True
+
+    def test_has_recurring_issues_false_below_threshold(self, history_manager, sample_task):
+        """Test has_recurring_issues returns False below threshold."""
+        # Record 2 iterations with the same issue
+        same_issue = Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Test fails")
+
+        for i in range(1, 3):
+            history_manager.record_iteration(
+                task_id=sample_task["id"],
+                iteration=i,
+                status="invalid",
+                issues=[same_issue],
+            )
+
+        result = history_manager.has_recurring_issues(sample_task["id"], threshold=3)
+        assert result is False
+
+    def test_has_recurring_issues_false_for_different_issues(self, history_manager, sample_task):
+        """Test has_recurring_issues returns False for different issues each time."""
+        # Record iterations with completely different issues
+        different_issues = [
+            Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Authentication test failed"),
+            Issue(IssueType.LINT_ERROR, IssueSeverity.MINOR, "Unused import detected"),
+            Issue(IssueType.TYPE_ERROR, IssueSeverity.BLOCKER, "Database connection timeout"),
+        ]
+        for i, issue in enumerate(different_issues, 1):
+            history_manager.record_iteration(
+                task_id=sample_task["id"],
+                iteration=i,
+                status="invalid",
+                issues=[issue],
+            )
+
+        result = history_manager.has_recurring_issues(sample_task["id"], threshold=2)
+        assert result is False
+
+    def test_get_recurring_issue_summary_returns_grouped_analysis(self, history_manager, sample_task):
+        """Test get_recurring_issue_summary returns grouped analysis."""
+        # Record multiple iterations with recurring issues
+        auth_issue = Issue(IssueType.TEST_FAILURE, IssueSeverity.BLOCKER, "Auth test failed")
+        lint_issue = Issue(IssueType.LINT_ERROR, IssueSeverity.MINOR, "Unused import")
+
+        history_manager.record_iteration(
+            task_id=sample_task["id"], iteration=1, status="invalid",
+            issues=[auth_issue, lint_issue]
+        )
+        history_manager.record_iteration(
+            task_id=sample_task["id"], iteration=2, status="invalid",
+            issues=[auth_issue]  # Auth issue recurs
+        )
+        history_manager.record_iteration(
+            task_id=sample_task["id"], iteration=3, status="invalid",
+            issues=[auth_issue]  # Auth issue recurs again
+        )
+
+        summary = history_manager.get_recurring_issue_summary(sample_task["id"])
+
+        assert summary is not None
+        assert "recurring_issues" in summary
+        assert len(summary["recurring_issues"]) >= 1
+        # Auth issue should be identified as recurring
+        recurring_titles = [r["title"] for r in summary["recurring_issues"]]
+        assert any("auth" in t.lower() for t in recurring_titles)
+
+    def test_get_recurring_issue_summary_includes_count(self, history_manager, sample_task):
+        """Test that recurring issue summary includes occurrence count."""
+        issue = Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Recurring error")
+
+        for i in range(1, 5):
+            history_manager.record_iteration(
+                task_id=sample_task["id"], iteration=i, status="invalid",
+                issues=[issue]
+            )
+
+        summary = history_manager.get_recurring_issue_summary(sample_task["id"])
+
+        assert summary["recurring_issues"][0]["count"] == 4
+
+    def test_get_recurring_issue_summary_empty_history(self, history_manager, sample_task):
+        """Test get_recurring_issue_summary with no history."""
+        summary = history_manager.get_recurring_issue_summary(sample_task["id"])
+
+        assert summary["recurring_issues"] == []
+        assert summary["total_iterations"] == 0
+
+    def test_group_similar_issues_empty_list(self, history_manager):
+        """Test group_similar_issues with empty list."""
+        groups = history_manager.group_similar_issues([])
+        assert groups == []
+
+    def test_group_similar_issues_single_issue(self, history_manager):
+        """Test group_similar_issues with single issue."""
+        issues = [Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Single issue")]
+        groups = history_manager.group_similar_issues(issues)
+        assert len(groups) == 1
+        assert len(groups[0]) == 1

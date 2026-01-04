@@ -6,7 +6,8 @@ Provides storage and retrieval of validation iteration history.
 import json
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from difflib import SequenceMatcher
+from typing import TYPE_CHECKING, Any
 
 from gobby.tasks.validation_models import Issue
 
@@ -190,3 +191,167 @@ class ValidationHistoryManager:
             validator_type=row["validator_type"],
             created_at=row["created_at"],
         )
+
+    # =========================================================================
+    # Recurring Issue Detection
+    # =========================================================================
+
+    def group_similar_issues(
+        self,
+        issues: list[Issue],
+        similarity_threshold: float = 0.8,
+    ) -> list[list[Issue]]:
+        """Group issues by similarity.
+
+        Uses fuzzy string matching on titles and exact matching on locations.
+        Issues at the same location are always grouped together.
+
+        Args:
+            issues: List of Issue objects to group.
+            similarity_threshold: Minimum similarity ratio (0-1) for title matching.
+
+        Returns:
+            List of groups, where each group is a list of similar Issues.
+        """
+        if not issues:
+            return []
+
+        groups: list[list[Issue]] = []
+        used: set[int] = set()
+
+        for i, issue in enumerate(issues):
+            if i in used:
+                continue
+
+            # Start a new group with this issue
+            group = [issue]
+            used.add(i)
+
+            # Find similar issues
+            for j, other in enumerate(issues):
+                if j in used:
+                    continue
+
+                if self._issues_are_similar(issue, other, similarity_threshold):
+                    group.append(other)
+                    used.add(j)
+
+            groups.append(group)
+
+        return groups
+
+    def _issues_are_similar(
+        self,
+        issue1: Issue,
+        issue2: Issue,
+        threshold: float,
+    ) -> bool:
+        """Check if two issues are similar.
+
+        Args:
+            issue1: First issue to compare.
+            issue2: Second issue to compare.
+            threshold: Minimum similarity ratio for title matching.
+
+        Returns:
+            True if issues are considered similar.
+        """
+        # Same location is a strong match signal
+        if issue1.location and issue2.location and issue1.location == issue2.location:
+            return True
+
+        # Check title similarity using SequenceMatcher
+        ratio = SequenceMatcher(None, issue1.title.lower(), issue2.title.lower()).ratio()
+        return ratio >= threshold
+
+    def has_recurring_issues(
+        self,
+        task_id: str,
+        threshold: int = 2,
+        similarity_threshold: float = 0.8,
+    ) -> bool:
+        """Check if a task has recurring issues across iterations.
+
+        Args:
+            task_id: ID of the task to check.
+            threshold: Minimum number of occurrences to consider recurring.
+            similarity_threshold: Minimum similarity ratio for grouping issues.
+
+        Returns:
+            True if any issue recurs at least `threshold` times.
+        """
+        history = self.get_iteration_history(task_id)
+        if not history:
+            return False
+
+        # Collect all issues from all iterations
+        all_issues: list[Issue] = []
+        for iteration in history:
+            if iteration.issues:
+                all_issues.extend(iteration.issues)
+
+        if not all_issues:
+            return False
+
+        # Group similar issues
+        groups = self.group_similar_issues(all_issues, similarity_threshold)
+
+        # Check if any group exceeds the threshold
+        return any(len(group) >= threshold for group in groups)
+
+    def get_recurring_issue_summary(
+        self,
+        task_id: str,
+        threshold: int = 2,
+        similarity_threshold: float = 0.8,
+    ) -> dict[str, Any]:
+        """Get a summary of recurring issues for a task.
+
+        Args:
+            task_id: ID of the task to analyze.
+            threshold: Minimum occurrences to consider an issue recurring.
+            similarity_threshold: Minimum similarity ratio for grouping.
+
+        Returns:
+            Dictionary with:
+                - recurring_issues: List of recurring issue summaries
+                - total_iterations: Total number of validation iterations
+        """
+        history = self.get_iteration_history(task_id)
+
+        if not history:
+            return {
+                "recurring_issues": [],
+                "total_iterations": 0,
+            }
+
+        # Collect all issues
+        all_issues: list[Issue] = []
+        for iteration in history:
+            if iteration.issues:
+                all_issues.extend(iteration.issues)
+
+        # Group similar issues
+        groups = self.group_similar_issues(all_issues, similarity_threshold)
+
+        # Filter to only recurring issues (meeting threshold)
+        recurring_issues = []
+        for group in groups:
+            if len(group) >= threshold:
+                # Use the first issue as the representative
+                representative = group[0]
+                recurring_issues.append({
+                    "title": representative.title,
+                    "type": representative.issue_type.value,
+                    "severity": representative.severity.value,
+                    "location": representative.location,
+                    "count": len(group),
+                })
+
+        # Sort by count descending
+        recurring_issues.sort(key=lambda x: x["count"], reverse=True)
+
+        return {
+            "recurring_issues": recurring_issues,
+            "total_iterations": len(history),
+        }
