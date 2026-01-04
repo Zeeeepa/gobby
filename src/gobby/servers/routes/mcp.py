@@ -220,23 +220,28 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
                     if registry:
                         tools_by_server[server_filter] = registry.list_tools()
                 elif server.mcp_manager and server.mcp_manager.has_server(server_filter):
-                    try:
-                        # Use ensure_connected for lazy loading
-                        session = await server.mcp_manager.ensure_connected(server_filter)
-                        tools_result = await session.list_tools()
-                        tools_list = []
-                        for t in tools_result.tools:
-                            desc = getattr(t, "description", "") or ""
-                            tools_list.append(
-                                {
-                                    "name": t.name,
-                                    "brief": desc[:100],
-                                }
-                            )
-                        tools_by_server[server_filter] = tools_list
-                    except Exception as e:
-                        logger.warning(f"Failed to list tools from {server_filter}: {e}")
+                    # Check if server is enabled before attempting connection
+                    server_config = server.mcp_manager._configs.get(server_filter)
+                    if server_config and not server_config.enabled:
                         tools_by_server[server_filter] = []
+                    else:
+                        try:
+                            # Use ensure_connected for lazy loading
+                            session = await server.mcp_manager.ensure_connected(server_filter)
+                            tools_result = await session.list_tools()
+                            tools_list = []
+                            for t in tools_result.tools:
+                                desc = getattr(t, "description", "") or ""
+                                tools_list.append(
+                                    {
+                                        "name": t.name,
+                                        "brief": desc[:100],
+                                    }
+                                )
+                            tools_by_server[server_filter] = tools_list
+                        except Exception as e:
+                            logger.warning(f"Failed to list tools from {server_filter}: {e}")
+                            tools_by_server[server_filter] = []
             else:
                 # Get tools from all servers
                 # Internal servers
