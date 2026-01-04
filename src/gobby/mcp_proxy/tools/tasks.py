@@ -34,6 +34,11 @@ from gobby.utils.project_init import initialize_project
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
 
+# Reasons for which commit linking and validation are skipped when closing tasks
+SKIP_REASONS: frozenset[str] = frozenset(
+    {"duplicate", "already_implemented", "wont_fix", "obsolete"}
+)
+
 
 def create_task_registry(
     task_manager: LocalTaskManager,
@@ -1387,8 +1392,7 @@ def create_task_registry(
 
         # Check for linked commits (unless task type doesn't require commits)
         # Skip commit check for certain close reasons that imply no work was done
-        skip_commit_reasons = {"duplicate", "already_implemented", "wont_fix", "obsolete"}
-        requires_commit_check = reason.lower() not in skip_commit_reasons
+        requires_commit_check = reason.lower() not in SKIP_REASONS
 
         if requires_commit_check and not task.commits:
             # No commits linked - require explicit acknowledgment
@@ -1410,8 +1414,7 @@ def create_task_registry(
                 }
 
         # Auto-skip validation for certain close reasons
-        skip_reasons = {"duplicate", "already_implemented", "wont_fix", "obsolete"}
-        should_skip = skip_validation or reason.lower() in skip_reasons
+        should_skip = skip_validation or reason.lower() in SKIP_REASONS
 
         if not should_skip:
             # Check if task has children (is a parent task)

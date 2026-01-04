@@ -905,10 +905,13 @@ class WorkflowEngine:
                 logger.debug(f"Failed to log approval audit: {e}")
 
     def _detect_task_claim(self, event: HookEvent, state: WorkflowState) -> None:
-        """Detect gobby-tasks calls that claim a task for this session.
+        """Detect gobby-tasks calls that claim or release a task for this session.
 
         Sets `task_claimed: true` in workflow state variables when the agent
         successfully creates a task or updates a task to in_progress status.
+
+        Clears `task_claimed: false` when the agent closes a task, requiring
+        them to claim another task before making further file modifications.
 
         This enables session-scoped task enforcement where each session must
         explicitly claim a task rather than free-riding on project-wide checks.
@@ -936,7 +939,7 @@ class WorkflowEngine:
 
         # Check inner tool name
         inner_tool_name = tool_input.get("tool_name", "")
-        if inner_tool_name not in ("create_task", "update_task"):
+        if inner_tool_name not in ("create_task", "update_task", "close_task"):
             return
 
         # For update_task, only count if status is being set to in_progress
@@ -944,6 +947,9 @@ class WorkflowEngine:
             arguments = tool_input.get("arguments", {}) or {}
             if arguments.get("status") != "in_progress":
                 return
+
+        # For close_task, we'll clear task_claimed after success check
+        is_close_task = inner_tool_name == "close_task"
 
         # Check if the call succeeded (not an error)
         # tool_output structure varies, but errors typically have "error" key
@@ -955,6 +961,15 @@ class WorkflowEngine:
             result = tool_output.get("result", {})
             if isinstance(result, dict) and result.get("error"):
                 return
+
+        # Handle close_task - clear the claim
+        if is_close_task:
+            state.variables["task_claimed"] = False
+            logger.info(
+                f"Session {state.session_id}: task_claimed=False "
+                f"(task closed via close_task)"
+            )
+            return
 
         # All conditions met - set task_claimed
         state.variables["task_claimed"] = True
