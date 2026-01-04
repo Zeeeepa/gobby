@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -271,3 +271,213 @@ async def test_expand_task_with_flags(mock_task_manager, mock_sync_manager):
             enable_web_research=True,
             enable_code_context=False,
         )
+
+
+# =============================================================================
+# Commit Linking MCP Tools Tests
+# =============================================================================
+
+
+def test_task_registry_has_commit_linking_tools(task_registry):
+    """Test that commit linking tools are registered."""
+    expected_tools = [
+        "link_commit",
+        "unlink_commit",
+        "auto_link_commits",
+        "get_task_diff",
+    ]
+
+    tools_list = task_registry.list_tools()
+    tool_names = [t["name"] for t in tools_list]
+
+    for tool_name in expected_tools:
+        assert tool_name in tool_names, f"Missing commit linking tool: {tool_name}"
+
+
+def test_link_commit_schema(task_registry):
+    """Test link_commit tool schema."""
+    schema = task_registry.get_schema("link_commit")
+
+    assert schema is not None
+    assert schema["name"] == "link_commit"
+    assert "inputSchema" in schema
+
+    properties = schema["inputSchema"]["properties"]
+    assert "task_id" in properties
+    assert "commit_sha" in properties
+
+
+def test_unlink_commit_schema(task_registry):
+    """Test unlink_commit tool schema."""
+    schema = task_registry.get_schema("unlink_commit")
+
+    assert schema is not None
+    assert schema["name"] == "unlink_commit"
+    assert "inputSchema" in schema
+
+    properties = schema["inputSchema"]["properties"]
+    assert "task_id" in properties
+    assert "commit_sha" in properties
+
+
+def test_auto_link_commits_schema(task_registry):
+    """Test auto_link_commits tool schema."""
+    schema = task_registry.get_schema("auto_link_commits")
+
+    assert schema is not None
+    assert schema["name"] == "auto_link_commits"
+    assert "inputSchema" in schema
+
+    properties = schema["inputSchema"]["properties"]
+    # Optional parameters
+    assert "task_id" in properties or "since" in properties
+
+
+def test_get_task_diff_schema(task_registry):
+    """Test get_task_diff tool schema."""
+    schema = task_registry.get_schema("get_task_diff")
+
+    assert schema is not None
+    assert schema["name"] == "get_task_diff"
+    assert "inputSchema" in schema
+
+    properties = schema["inputSchema"]["properties"]
+    assert "task_id" in properties
+
+
+@pytest.mark.asyncio
+async def test_link_commit_tool(mock_task_manager, mock_sync_manager):
+    """Test link_commit tool execution."""
+    registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+    mock_task = MagicMock()
+    mock_task.id = "t1"
+    mock_task.commits = ["abc123"]
+    mock_task.to_dict.return_value = {"id": "t1", "commits": ["abc123"]}
+    mock_task_manager.link_commit.return_value = mock_task
+
+    result = await registry.call(
+        "link_commit",
+        {"task_id": "t1", "commit_sha": "abc123"},
+    )
+
+    mock_task_manager.link_commit.assert_called_with("t1", "abc123")
+    assert result["task_id"] == "t1"
+    assert "abc123" in result["commits"]
+
+
+@pytest.mark.asyncio
+async def test_unlink_commit_tool(mock_task_manager, mock_sync_manager):
+    """Test unlink_commit tool execution."""
+    registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+    mock_task = MagicMock()
+    mock_task.id = "t1"
+    mock_task.commits = []
+    mock_task.to_dict.return_value = {"id": "t1", "commits": []}
+    mock_task_manager.unlink_commit.return_value = mock_task
+
+    result = await registry.call(
+        "unlink_commit",
+        {"task_id": "t1", "commit_sha": "abc123"},
+    )
+
+    mock_task_manager.unlink_commit.assert_called_with("t1", "abc123")
+    assert result["task_id"] == "t1"
+
+
+@pytest.mark.asyncio
+async def test_get_task_diff_tool(mock_task_manager, mock_sync_manager):
+    """Test get_task_diff tool execution."""
+    registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+    mock_task = MagicMock()
+    mock_task.id = "t1"
+    mock_task.commits = ["abc123"]
+    mock_task_manager.get_task.return_value = mock_task
+
+    with patch("gobby.mcp_proxy.tools.tasks.get_task_diff") as mock_diff:
+        from gobby.tasks.commits import TaskDiffResult
+
+        mock_diff.return_value = TaskDiffResult(
+            diff="diff content",
+            commits=["abc123"],
+            has_uncommitted_changes=False,
+            file_count=2,
+        )
+
+        result = await registry.call(
+            "get_task_diff",
+            {"task_id": "t1", "include_uncommitted": False},
+        )
+
+        assert result["diff"] == "diff content"
+        assert result["commits"] == ["abc123"]
+        assert result["file_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_auto_link_commits_tool(mock_task_manager, mock_sync_manager):
+    """Test auto_link_commits tool execution."""
+    registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+    with patch("gobby.mcp_proxy.tools.tasks.auto_link_commits_fn") as mock_auto_link:
+        from gobby.tasks.commits import AutoLinkResult
+
+        mock_auto_link.return_value = AutoLinkResult(
+            linked_tasks={"t1": ["abc123", "def456"]},
+            total_linked=2,
+            skipped=0,
+        )
+
+        result = await registry.call(
+            "auto_link_commits",
+            {"since": "1 week ago"},
+        )
+
+        assert result["total_linked"] == 2
+        assert "t1" in result["linked_tasks"]
+
+
+@pytest.mark.asyncio
+async def test_link_commit_invalid_task(mock_task_manager, mock_sync_manager):
+    """Test link_commit with non-existent task."""
+    registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+    mock_task_manager.link_commit.side_effect = ValueError("Task not found")
+
+    result = await registry.call(
+        "link_commit",
+        {"task_id": "nonexistent", "commit_sha": "abc123"},
+    )
+
+    assert "error" in result
+
+
+@pytest.mark.asyncio
+async def test_get_task_diff_no_commits(mock_task_manager, mock_sync_manager):
+    """Test get_task_diff when task has no commits."""
+    registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+    mock_task = MagicMock()
+    mock_task.id = "t1"
+    mock_task.commits = []
+    mock_task_manager.get_task.return_value = mock_task
+
+    with patch("gobby.mcp_proxy.tools.tasks.get_task_diff") as mock_diff:
+        from gobby.tasks.commits import TaskDiffResult
+
+        mock_diff.return_value = TaskDiffResult(
+            diff="",
+            commits=[],
+            has_uncommitted_changes=False,
+            file_count=0,
+        )
+
+        result = await registry.call(
+            "get_task_diff",
+            {"task_id": "t1"},
+        )
+
+        assert result["diff"] == ""
+        assert result["commits"] == []

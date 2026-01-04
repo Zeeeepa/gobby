@@ -23,6 +23,8 @@ from gobby.storage.tasks import (
     LocalTaskManager,
 )
 from gobby.sync.tasks import TaskSyncManager
+from gobby.tasks.commits import auto_link_commits as auto_link_commits_fn
+from gobby.tasks.commits import get_task_diff
 from gobby.tasks.expansion import TaskExpander
 from gobby.tasks.validation import TaskValidator
 from gobby.utils.project_context import get_project_context
@@ -1742,6 +1744,157 @@ def create_task_registry(
         description="Get current synchronization status.",
         input_schema={"type": "object", "properties": {}},
         func=get_sync_status,
+    )
+
+    # --- Commit Linking ---
+
+    def link_commit(task_id: str, commit_sha: str) -> dict[str, Any]:
+        """Link a git commit to a task."""
+        try:
+            task = task_manager.link_commit(task_id, commit_sha)
+            return {
+                "task_id": task.id,
+                "commits": task.commits or [],
+            }
+        except ValueError as e:
+            return {"error": str(e)}
+
+    registry.register(
+        name="link_commit",
+        description="Link a git commit to a task. Useful for tracking which commits implement a task.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "string", "description": "Task ID"},
+                "commit_sha": {
+                    "type": "string",
+                    "description": "Git commit SHA (short or full)",
+                },
+            },
+            "required": ["task_id", "commit_sha"],
+        },
+        func=link_commit,
+    )
+
+    def unlink_commit(task_id: str, commit_sha: str) -> dict[str, Any]:
+        """Unlink a git commit from a task."""
+        try:
+            task = task_manager.unlink_commit(task_id, commit_sha)
+            return {
+                "task_id": task.id,
+                "commits": task.commits or [],
+            }
+        except ValueError as e:
+            return {"error": str(e)}
+
+    registry.register(
+        name="unlink_commit",
+        description="Unlink a git commit from a task.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "string", "description": "Task ID"},
+                "commit_sha": {
+                    "type": "string",
+                    "description": "Git commit SHA to unlink",
+                },
+            },
+            "required": ["task_id", "commit_sha"],
+        },
+        func=unlink_commit,
+    )
+
+    def auto_link_commits(
+        task_id: str | None = None,
+        since: str | None = None,
+    ) -> dict[str, Any]:
+        """Auto-detect and link commits that mention task IDs."""
+        # Get project repo_path
+        ctx = get_project_context()
+        repo_path = None
+        if ctx and ctx.get("id"):
+            project = project_manager.get(ctx["id"])
+            if project:
+                repo_path = project.repo_path
+
+        result = auto_link_commits_fn(
+            task_manager=task_manager,
+            task_id=task_id,
+            since=since,
+            cwd=repo_path,
+        )
+
+        return {
+            "linked_tasks": result.linked_tasks,
+            "total_linked": result.total_linked,
+            "skipped": result.skipped,
+        }
+
+    registry.register(
+        name="auto_link_commits",
+        description="Auto-detect and link commits that mention task IDs in their messages. "
+        "Supports patterns: [gt-xxxxx], gt-xxxxx:, Implements/Fixes/Closes gt-xxxxx.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "Filter to specific task ID (optional)",
+                    "default": None,
+                },
+                "since": {
+                    "type": "string",
+                    "description": "Git --since parameter (e.g., '1 week ago', '2024-01-01')",
+                    "default": None,
+                },
+            },
+        },
+        func=auto_link_commits,
+    )
+
+    def get_task_diff_tool(
+        task_id: str,
+        include_uncommitted: bool = False,
+    ) -> dict[str, Any]:
+        """Get the combined diff for all commits linked to a task."""
+        task = task_manager.get_task(task_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+
+        # Get project repo_path
+        repo_path = get_project_repo_path(task.project_id)
+
+        result = get_task_diff(
+            task_id=task_id,
+            task_manager=task_manager,
+            include_uncommitted=include_uncommitted,
+            cwd=repo_path,
+        )
+
+        return {
+            "diff": result.diff,
+            "commits": result.commits,
+            "has_uncommitted_changes": result.has_uncommitted_changes,
+            "file_count": result.file_count,
+        }
+
+    registry.register(
+        name="get_task_diff",
+        description="Get the combined diff for all commits linked to a task. "
+        "Optionally include uncommitted changes.",
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "string", "description": "Task ID"},
+                "include_uncommitted": {
+                    "type": "boolean",
+                    "description": "Include uncommitted changes in the diff",
+                    "default": False,
+                },
+            },
+            "required": ["task_id"],
+        },
+        func=get_task_diff_tool,
     )
 
     return registry
