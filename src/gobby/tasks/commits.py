@@ -3,6 +3,7 @@
 Provides utilities for linking commits to tasks and computing diffs.
 """
 
+import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,6 +13,8 @@ from gobby.utils.git import run_git_command
 
 if TYPE_CHECKING:
     from gobby.storage.tasks import LocalTaskManager
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -108,3 +111,146 @@ def get_task_diff(
         has_uncommitted_changes=has_uncommitted,
         file_count=file_count,
     )
+
+
+# Task ID patterns to search for in commit messages
+TASK_ID_PATTERNS = [
+    # [gt-xxxxx] - bracket format
+    r"\[gt-([a-zA-Z0-9]+)\]",
+    # gt-xxxxx: - colon format
+    r"\bgt-([a-zA-Z0-9]+):",
+    # Implements/Fixes/Closes gt-xxxxx
+    r"(?:implements|fixes|closes)\s+gt-([a-zA-Z0-9]+)",
+]
+
+
+def extract_task_ids_from_message(message: str) -> list[str]:
+    """Extract task IDs from a commit message.
+
+    Supports patterns:
+    - [gt-xxxxx] - bracket format
+    - gt-xxxxx: - colon format (at start of message)
+    - Implements/Fixes/Closes gt-xxxxx
+
+    Args:
+        message: Commit message to parse.
+
+    Returns:
+        List of unique task IDs found (e.g., ["gt-abc123", "gt-def456"]).
+    """
+    task_ids = set()
+
+    for pattern in TASK_ID_PATTERNS:
+        matches = re.findall(pattern, message, re.IGNORECASE)
+        for match in matches:
+            # Normalize to lowercase
+            task_id = f"gt-{match.lower()}"
+            task_ids.add(task_id)
+
+    return list(task_ids)
+
+
+@dataclass
+class AutoLinkResult:
+    """Result of auto-linking commits to tasks.
+
+    Attributes:
+        linked_tasks: Dict mapping task_id -> list of newly linked commit SHAs.
+        total_linked: Total number of commits newly linked.
+        skipped: Number of commits skipped (already linked or task not found).
+    """
+
+    linked_tasks: dict[str, list[str]] = field(default_factory=dict)
+    total_linked: int = 0
+    skipped: int = 0
+
+
+def auto_link_commits(
+    task_manager: "LocalTaskManager",
+    task_id: str | None = None,
+    since: str | None = None,
+    cwd: str | Path | None = None,
+) -> AutoLinkResult:
+    """Auto-detect and link commits that mention task IDs.
+
+    Searches commit messages for task ID patterns and links matching commits
+    to the corresponding tasks.
+
+    Args:
+        task_manager: LocalTaskManager instance for task operations.
+        task_id: Optional specific task ID to filter for.
+        since: Optional git --since parameter (e.g., "1 week ago", "2024-01-01").
+        cwd: Working directory for git commands.
+
+    Returns:
+        AutoLinkResult with details of linked and skipped commits.
+    """
+    working_dir = Path(cwd) if cwd else Path.cwd()
+
+    # Build git log command
+    # Format: "sha|message" for easy parsing
+    git_cmd = ["git", "log", "--pretty=format:%h|%s"]
+
+    if since:
+        git_cmd.append(f"--since={since}")
+
+    # Get git log output
+    log_output = run_git_command(git_cmd, cwd=working_dir)
+
+    if not log_output:
+        return AutoLinkResult()
+
+    result = AutoLinkResult()
+
+    # Parse each commit line
+    for line in log_output.strip().split("\n"):
+        if not line or "|" not in line:
+            continue
+
+        parts = line.split("|", 1)
+        if len(parts) != 2:
+            continue
+
+        commit_sha, message = parts
+
+        # Extract task IDs from message
+        found_task_ids = extract_task_ids_from_message(message)
+
+        if not found_task_ids:
+            continue
+
+        # Filter to specific task if requested
+        if task_id:
+            if task_id not in found_task_ids:
+                continue
+            found_task_ids = [task_id]
+
+        # Try to link each found task
+        for tid in found_task_ids:
+            try:
+                task = task_manager.get_task(tid)
+
+                # Check if already linked
+                existing_commits = task.commits or []
+                if commit_sha in existing_commits:
+                    result.skipped += 1
+                    continue
+
+                # Link the commit
+                task_manager.link_commit(tid, commit_sha)
+
+                # Track in result
+                if tid not in result.linked_tasks:
+                    result.linked_tasks[tid] = []
+                result.linked_tasks[tid].append(commit_sha)
+                result.total_linked += 1
+
+                logger.debug(f"Auto-linked commit {commit_sha} to task {tid}")
+
+            except ValueError:
+                # Task doesn't exist, skip
+                logger.debug(f"Skipping commit {commit_sha}: task {tid} not found")
+                result.skipped += 1
+                continue
+
+    return result
