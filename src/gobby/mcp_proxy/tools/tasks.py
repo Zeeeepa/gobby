@@ -1350,6 +1350,8 @@ def create_task_registry(
         skip_validation: bool = False,
         session_id: str | None = None,
         override_justification: str | None = None,
+        no_commit_needed: bool = False,
+        commit_sha: str | None = None,
     ) -> dict[str, Any]:
         """Close a task with validation.
 
@@ -1362,7 +1364,11 @@ def create_task_registry(
             changes_summary: Summary of changes (enables LLM validation for leaf tasks)
             skip_validation: Skip all validation checks
             session_id: Session ID where task is being closed (auto-links to session)
-            override_justification: Why agent bypassed validation (stored for audit)
+            override_justification: Why agent bypassed validation (stored for audit).
+                Also used to explain why no commit was needed when no_commit_needed=True.
+            no_commit_needed: Set to True for tasks that don't produce code changes
+                (research, planning, documentation review). Requires override_justification.
+            commit_sha: Git commit SHA to link before closing. Convenience for link + close in one call.
 
         Returns:
             Closed task or error with validation feedback
@@ -1370,6 +1376,38 @@ def create_task_registry(
         task = task_manager.get_task(task_id)
         if not task:
             return {"error": f"Task {task_id} not found"}
+
+        # Link commit if provided (convenience for link + close in one call)
+        if commit_sha:
+            task = task_manager.link_commit(task_id, commit_sha)
+
+        # Get project repo_path for git commands
+        repo_path = get_project_repo_path(task.project_id)
+        cwd = repo_path or "."
+
+        # Check for linked commits (unless task type doesn't require commits)
+        # Skip commit check for certain close reasons that imply no work was done
+        skip_commit_reasons = {"duplicate", "already_implemented", "wont_fix", "obsolete"}
+        requires_commit_check = reason.lower() not in skip_commit_reasons
+
+        if requires_commit_check and not task.commits:
+            # No commits linked - require explicit acknowledgment
+            if no_commit_needed:
+                if not override_justification:
+                    return {
+                        "error": "justification_required",
+                        "message": "When no_commit_needed=True, you must provide override_justification explaining why no commit was needed.",
+                    }
+                # Allowed to proceed - agent confirmed no commit needed
+            else:
+                return {
+                    "error": "no_commits_linked",
+                    "message": (
+                        "Cannot close task: no commits are linked. Either:\n"
+                        "1. Commit your changes and use link_commit() or include [task_id] in commit message\n"
+                        "2. Set no_commit_needed=True with override_justification if this task didn't require code changes"
+                    ),
+                }
 
         # Auto-skip validation for certain close reasons
         skip_reasons = {"duplicate", "already_implemented", "wont_fix", "obsolete"}
@@ -1399,9 +1437,6 @@ def create_task_registry(
                 # Use provided changes_summary or auto-fetch via smart context gathering
                 validation_context = changes_summary
                 if not validation_context:
-                    # Get project repo_path for git commands
-                    repo_path = get_project_repo_path(task.project_id)
-
                     # First try commit-based diff if task has linked commits
                     if task.commits:
                         try:
@@ -1458,25 +1493,17 @@ def create_task_registry(
         # Get git commit SHA (best-effort)
         from gobby.utils.git import run_git_command
 
-        # Get project repo_path for git commands
-        repo_path = get_project_repo_path(task.project_id)
-        if repo_path is None:
-            import logging
-
-            logging.getLogger(__name__).warning(
-                f"No repo_path found for project_id={task.project_id}, "
-                f"falling back to daemon working directory for git command"
-            )
-        cwd = repo_path or "."
         commit_sha = run_git_command(["git", "rev-parse", "HEAD"], cwd=cwd)
 
         # All checks passed - close the task with session and commit tracking
+        # Store override reason if validation was skipped or no commit was needed
+        store_override = should_skip or no_commit_needed
         closed_task = task_manager.close_task(
             task_id,
             reason=reason,
             closed_in_session_id=session_id,
             closed_commit_sha=commit_sha,
-            validation_override_reason=override_justification if should_skip else None,
+            validation_override_reason=override_justification if store_override else None,
         )
 
         # Auto-link session if provided
@@ -1488,18 +1515,20 @@ def create_task_registry(
 
         response: dict[str, Any] = closed_task.to_dict()
         response["validated"] = not should_skip
+        if no_commit_needed:
+            response["no_commit_needed"] = True
         return response
 
     registry.register(
         name="close_task",
-        description="Close a task. Parent tasks require all children closed. Leaf tasks validate with LLM. Validation auto-skipped for: duplicate, already_implemented, wont_fix, obsolete. Automatically captures git commit SHA.",
+        description="Close a task. Requires commits to be linked (use link_commit or include [task_id] in commit message). Parent tasks require all children closed. Leaf tasks validate with LLM. Validation auto-skipped for: duplicate, already_implemented, wont_fix, obsolete.",
         input_schema={
             "type": "object",
             "properties": {
                 "task_id": {"type": "string", "description": "Task ID"},
                 "reason": {
                     "type": "string",
-                    "description": 'Reason for closing. Use "duplicate", "already_implemented", "wont_fix", or "obsolete" to auto-skip validation.',
+                    "description": 'Reason for closing. Use "duplicate", "already_implemented", "wont_fix", or "obsolete" to auto-skip validation and commit check.',
                     "default": "completed",
                 },
                 "changes_summary": {
@@ -1519,7 +1548,17 @@ def create_task_registry(
                 },
                 "override_justification": {
                     "type": "string",
-                    "description": "Why agent bypassed validation. Stored for audit when using skip_validation or auto-skip reasons.",
+                    "description": "Why agent bypassed validation or commit requirement. Required when no_commit_needed=True.",
+                    "default": None,
+                },
+                "no_commit_needed": {
+                    "type": "boolean",
+                    "description": "Set to True for tasks that don't produce code changes (research, planning, review). Requires override_justification.",
+                    "default": False,
+                },
+                "commit_sha": {
+                    "type": "string",
+                    "description": "Git commit SHA to link before closing. Convenience for commit + close in one call.",
                     "default": None,
                 },
             },
@@ -1764,7 +1803,7 @@ def create_task_registry(
         parent_task_id: str | None = None,
         limit: int = 10,
     ) -> dict[str, Any]:
-        """List tasks that are open and have no unresolved blocking dependencies."""
+        """List tasks that are open and have no unresolved blocking dependencies. Returns tasks in brief format; use get_task() for full details."""
         tasks = task_manager.list_ready_tasks(
             priority=priority,
             task_type=task_type,
@@ -1776,7 +1815,7 @@ def create_task_registry(
 
     registry.register(
         name="list_ready_tasks",
-        description="List tasks that are open and have no unresolved blocking dependencies.",
+        description="List tasks that are open and have no unresolved blocking dependencies. Returns tasks in brief format; use get_task() for full details.",
         input_schema={
             "type": "object",
             "properties": {
@@ -1806,7 +1845,7 @@ def create_task_registry(
         parent_task_id: str | None = None,
         limit: int = 20,
     ) -> dict[str, Any]:
-        """List tasks that are currently blocked, including what blocks them."""
+        """List tasks that are currently blocked, including what blocks them. Returns tasks in brief format; use get_task() for full details."""
         blocked_tasks = task_manager.list_blocked_tasks(
             parent_task_id=parent_task_id,
             limit=limit,
@@ -1815,7 +1854,7 @@ def create_task_registry(
 
     registry.register(
         name="list_blocked_tasks",
-        description="List tasks that are currently blocked by external dependencies (excludes parent tasks blocked by their own children).",
+        description="List tasks that are currently blocked by external dependencies (excludes parent tasks blocked by their own children). Returns tasks in brief format; use get_task() for full details.",
         input_schema={
             "type": "object",
             "properties": {
