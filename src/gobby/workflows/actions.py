@@ -811,11 +811,10 @@ class ActionExecutor:
 
         # If it's a template reference like "{{ variables.session_epic }}", resolve it
         if epic_task_id and "{{" in str(epic_task_id):
-            # Try to get from workflow state variables
-            if context.state and context.state.variables:
-                # Simple resolution for "{{ variables.session_epic }}" pattern
-                if "session_epic" in str(epic_task_id):
-                    epic_task_id = context.state.variables.get("session_epic")
+            epic_task_id = context.template_engine.render(
+                str(epic_task_id),
+                {"variables": context.state.variables or {}},
+            )
 
         return await require_epic_complete(
             task_manager=self.task_manager,
