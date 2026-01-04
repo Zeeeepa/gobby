@@ -1,0 +1,169 @@
+"""
+CLI commands for commit linking.
+"""
+
+import click
+
+from gobby.cli.tasks._utils import get_task_manager, resolve_task_id
+from gobby.tasks.commits import auto_link_commits, get_task_diff
+from gobby.utils.project_context import get_project_context
+
+
+@click.group("commit")
+def commit_cmd() -> None:
+    """Manage commit links for tasks."""
+    pass
+
+
+@commit_cmd.command("link")
+@click.argument("task_id")
+@click.argument("commit_sha")
+def link_commit(task_id: str, commit_sha: str) -> None:
+    """Link a commit to a task.
+
+    TASK_ID: Task ID to link commit to
+    COMMIT_SHA: Git commit SHA (short or full)
+    """
+    manager = get_task_manager()
+    task = resolve_task_id(manager, task_id)
+    if not task:
+        raise SystemExit(1)
+
+    try:
+        updated_task = manager.link_commit(task.id, commit_sha)
+        click.echo(f"Linked commit {commit_sha} to task {task.id}")
+        if updated_task.commits:
+            click.echo(f"Total commits: {len(updated_task.commits)}")
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+
+
+@commit_cmd.command("unlink")
+@click.argument("task_id")
+@click.argument("commit_sha")
+def unlink_commit(task_id: str, commit_sha: str) -> None:
+    """Unlink a commit from a task.
+
+    TASK_ID: Task ID to unlink commit from
+    COMMIT_SHA: Git commit SHA to remove
+    """
+    manager = get_task_manager()
+    task = resolve_task_id(manager, task_id)
+    if not task:
+        raise SystemExit(1)
+
+    try:
+        updated_task = manager.unlink_commit(task.id, commit_sha)
+        click.echo(f"Unlinked commit {commit_sha} from task {task.id}")
+        if updated_task.commits:
+            click.echo(f"Remaining commits: {len(updated_task.commits)}")
+        else:
+            click.echo("No commits linked")
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+
+
+@commit_cmd.command("list")
+@click.argument("task_id")
+def list_commits(task_id: str) -> None:
+    """List commits linked to a task.
+
+    TASK_ID: Task ID to list commits for
+    """
+    manager = get_task_manager()
+    task = resolve_task_id(manager, task_id)
+    if not task:
+        raise SystemExit(1)
+
+    commits = task.commits or []
+    if not commits:
+        click.echo(f"No commits linked to task {task.id}")
+        return
+
+    click.echo(f"Commits linked to {task.id} ({len(commits)} total):")
+    for commit_sha in commits:
+        click.echo(f"  {commit_sha}")
+
+
+@commit_cmd.command("auto")
+@click.option("--task", "task_id", default=None, help="Filter to specific task ID")
+@click.option("--since", default=None, help="Git --since parameter (e.g., '1 week ago')")
+def auto_link(task_id: str | None, since: str | None) -> None:
+    """Auto-link commits that mention task IDs.
+
+    Scans commit messages for task ID patterns:
+    - [gt-xxxxx] - bracket format
+    - gt-xxxxx: - colon format
+    - Implements/Fixes/Closes gt-xxxxx
+    """
+    manager = get_task_manager()
+
+    # Get project repo path
+    ctx = get_project_context()
+    cwd = ctx.get("project_path") if ctx else None
+
+    result = auto_link_commits(
+        task_manager=manager,
+        task_id=task_id,
+        since=since,
+        cwd=cwd,
+    )
+
+    if result.total_linked == 0:
+        click.echo("No new commits linked")
+        if result.skipped > 0:
+            click.echo(f"Skipped {result.skipped} (already linked or task not found)")
+        return
+
+    click.echo(f"Linked {result.total_linked} commits:")
+    for tid, commits in result.linked_tasks.items():
+        for commit_sha in commits:
+            click.echo(f"  {commit_sha} -> {tid}")
+
+    if result.skipped > 0:
+        click.echo(f"Skipped {result.skipped} (already linked or task not found)")
+
+
+@click.command("diff")
+@click.argument("task_id")
+@click.option("--uncommitted", is_flag=True, help="Include uncommitted changes")
+@click.option("--stats", is_flag=True, help="Show stats only (no diff content)")
+def diff_cmd(task_id: str, uncommitted: bool, stats: bool) -> None:
+    """Show diff for all commits linked to a task.
+
+    TASK_ID: Task ID to get diff for
+    """
+    manager = get_task_manager()
+    task = resolve_task_id(manager, task_id)
+    if not task:
+        raise SystemExit(1)
+
+    # Get project repo path
+    ctx = get_project_context()
+    cwd = ctx.get("project_path") if ctx else None
+
+    result = get_task_diff(
+        task_id=task.id,
+        task_manager=manager,
+        include_uncommitted=uncommitted,
+        cwd=cwd,
+    )
+
+    if stats:
+        click.echo(f"Task: {task.id}")
+        click.echo(f"Commits: {len(result.commits)}")
+        click.echo(f"Files modified: {result.file_count}")
+        click.echo(f"Has uncommitted changes: {result.has_uncommitted_changes}")
+        return
+
+    if not result.diff:
+        if not result.commits:
+            click.echo(f"No commits linked to task {task.id}")
+        else:
+            click.echo("No changes in diff (empty diff)")
+        return
+
+    # Output the diff
+    click.echo(result.diff)

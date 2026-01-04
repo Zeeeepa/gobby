@@ -23,6 +23,7 @@ from gobby.cli.tasks.ai import (
     suggest_cmd,
     validate_task_cmd,
 )
+from gobby.cli.tasks.commits import commit_cmd, diff_cmd
 from gobby.cli.tasks.crud import (
     blocked_tasks,
     close_task_cmd,
@@ -173,6 +174,8 @@ def compact_stats() -> None:
 tasks.add_command(dep_cmd)
 tasks.add_command(hooks_cmd)
 tasks.add_command(label_cmd)
+tasks.add_command(commit_cmd)
+tasks.add_command(diff_cmd)
 
 
 @tasks.group("import")
