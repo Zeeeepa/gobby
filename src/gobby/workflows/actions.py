@@ -43,7 +43,7 @@ from gobby.workflows.summary_actions import (
     generate_summary,
     synthesize_title,
 )
-from gobby.workflows.task_enforcement_actions import require_active_task
+from gobby.workflows.task_enforcement_actions import require_active_task, require_epic_complete
 from gobby.workflows.templates import TemplateEngine
 from gobby.workflows.todo_actions import mark_todo_complete, write_todos
 from gobby.workflows.webhook import WebhookAction
@@ -209,6 +209,7 @@ class ActionExecutor:
         self.register("mark_loop_complete", self._handle_mark_loop_complete)
         # Task enforcement
         self.register("require_active_task", self._handle_require_active_task)
+        self.register("require_epic_complete", self._handle_require_epic_complete)
         # Webhook
         self.register("webhook", self._handle_webhook)
 
@@ -793,6 +794,33 @@ class ActionExecutor:
             task_manager=self.task_manager,
             session_id=context.session_id,
             config=context.config,
+            event_data=context.event_data,
+            project_id=project_id,
+            workflow_state=context.state,
+        )
+
+    async def _handle_require_epic_complete(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Check that all tasks under an epic are complete before allowing stop."""
+        current_session = context.session_manager.get(context.session_id)
+        project_id = current_session.project_id if current_session else None
+
+        # Get epic_task_id from kwargs - may be a template that needs resolving
+        epic_task_id = kwargs.get("epic_task_id")
+
+        # If it's a template reference like "{{ variables.session_epic }}", resolve it
+        if epic_task_id and "{{" in str(epic_task_id):
+            # Try to get from workflow state variables
+            if context.state and context.state.variables:
+                # Simple resolution for "{{ variables.session_epic }}" pattern
+                if "session_epic" in str(epic_task_id):
+                    epic_task_id = context.state.variables.get("session_epic")
+
+        return await require_epic_complete(
+            task_manager=self.task_manager,
+            session_id=context.session_id,
+            epic_task_id=epic_task_id,
             event_data=context.event_data,
             project_id=project_id,
             workflow_state=context.state,

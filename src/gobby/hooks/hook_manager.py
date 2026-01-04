@@ -1187,13 +1187,13 @@ class HookManager:
         Handle AFTER_AGENT event (stop).
 
         Updates session status to paused.
-        For Codex: synthesizes title on first event if prompt is available.
+        Executes lifecycle workflow triggers for on_after_agent (e.g., require_epic_complete).
 
         Args:
             event: HookEvent with agent response data
 
         Returns:
-            HookResponse (always allow)
+            HookResponse (allow by default, or block/modify from workflow)
         """
         session_id = event.metadata.get("_platform_session_id")
         cli_source = event.source.value
@@ -1204,11 +1204,25 @@ class HookManager:
                 self._session_manager.update_session_status(session_id, "paused")
             except Exception as e:
                 self.logger.warning(f"Failed to update session status: {e}")
-
-            # Synthesize title on first event if prompt is available (for Codex)
-            # (Features moved to workflows or removed in legacy cleanup)
         else:
             self.logger.debug(f"🛑 Agent stop: cli={cli_source}")
+
+        # Execute lifecycle workflow triggers for on_after_agent
+        # This enables actions like require_epic_complete to block the stop
+        try:
+            wf_response = self._workflow_handler.handle_all_lifecycles(event)
+            if wf_response.decision != "allow":
+                self.logger.info(
+                    f"Lifecycle workflow {wf_response.decision} agent stop: {wf_response.reason}"
+                )
+                return wf_response
+            if wf_response.context:
+                return wf_response
+        except Exception as e:
+            self.logger.error(
+                f"Failed to execute lifecycle workflows on after_agent: {e}",
+                exc_info=True,
+            )
 
         return HookResponse(decision="allow")
 

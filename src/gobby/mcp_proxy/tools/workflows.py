@@ -462,6 +462,126 @@ def create_workflows_registry(
         }
 
     @registry.tool(
+        name="set_variable",
+        description="Set a workflow variable for the current session (session-scoped, not persisted to YAML).",
+    )
+    def set_variable(
+        name: str,
+        value: str | int | float | bool | None,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Set a workflow variable for the current session.
+
+        Variables set this way are session-scoped - they persist in the database
+        for the duration of the session but do not modify the workflow YAML file.
+
+        This is useful for:
+        - Setting session_epic to enforce epic completion before stopping
+        - Setting is_worktree to mark a session as a worktree agent
+        - Dynamic configuration without modifying workflow definitions
+
+        Args:
+            name: Variable name (e.g., "session_epic", "is_worktree")
+            value: Variable value (string, number, boolean, or null)
+            session_id: Optional session ID (defaults to most recent active)
+
+        Returns:
+            Success status and updated variables
+        """
+        if not session_id:
+            row = _db.fetchone(
+                "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
+            )
+            if row:
+                session_id = row["id"]
+            else:
+                return {"success": False, "error": "No active session found"}
+
+        # Get or create state
+        state = _state_manager.get_state(session_id)
+        if not state:
+            # Create a minimal lifecycle state for variable storage
+            state = WorkflowState(
+                session_id=session_id,
+                workflow_name="__lifecycle__",
+                step="",
+                step_entered_at=datetime.now(UTC),
+                variables={},
+            )
+
+        # Set the variable
+        state.variables[name] = value
+        _state_manager.save_state(state)
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "variable": name,
+            "value": value,
+            "all_variables": state.variables,
+        }
+
+    @registry.tool(
+        name="get_variable",
+        description="Get workflow variable(s) for the current session.",
+    )
+    def get_variable(
+        name: str | None = None,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Get workflow variable(s) for the current session.
+
+        Args:
+            name: Variable name to get (if None, returns all variables)
+            session_id: Optional session ID (defaults to most recent active)
+
+        Returns:
+            Variable value(s) and session info
+        """
+        if not session_id:
+            row = _db.fetchone(
+                "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
+            )
+            if row:
+                session_id = row["id"]
+            else:
+                return {"success": False, "error": "No active session found"}
+
+        state = _state_manager.get_state(session_id)
+        if not state:
+            if name:
+                return {
+                    "success": True,
+                    "session_id": session_id,
+                    "variable": name,
+                    "value": None,
+                    "exists": False,
+                }
+            return {
+                "success": True,
+                "session_id": session_id,
+                "variables": {},
+            }
+
+        if name:
+            value = state.variables.get(name)
+            return {
+                "success": True,
+                "session_id": session_id,
+                "variable": name,
+                "value": value,
+                "exists": name in state.variables,
+            }
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "variables": state.variables,
+        }
+
+    @registry.tool(
         name="import_workflow",
         description="Import a workflow from a file path into the project or global directory.",
     )

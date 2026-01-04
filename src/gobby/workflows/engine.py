@@ -412,14 +412,21 @@ class WorkflowEngine:
         if context_data is None:
             context_data = {}
 
-        # Read task_claimed from persistent session state (set by previous events)
-        # This enables require_task_before_edit to work with lifecycle workflows
+        # Load all session variables from persistent state
+        # This enables:
+        # - require_task_before_edit (task_claimed variable)
+        # - require_epic_complete (session_epic variable)
+        # - worktree detection (is_worktree variable)
+        # - any other session-scoped variables set via gobby-workflows MCP tools
         session_id = event.metadata.get("_platform_session_id")
         if session_id:
             lifecycle_state = self.state_manager.get_state(session_id)
-            if lifecycle_state and lifecycle_state.variables.get("task_claimed"):
-                context_data["task_claimed"] = True
-                logger.debug(f"Loaded task_claimed=True from session state for {session_id}")
+            if lifecycle_state and lifecycle_state.variables:
+                context_data.update(lifecycle_state.variables)
+                logger.debug(
+                    f"Loaded {len(lifecycle_state.variables)} session variable(s) "
+                    f"for {session_id}: {list(lifecycle_state.variables.keys())}"
+                )
 
         # Track which workflow+trigger combinations have already been processed
         # to prevent duplicate execution of the same trigger
