@@ -735,6 +735,35 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_schema_hashes_verified ON tool_schema_hashes(last_verified_at);
         """,
     ),
+    (
+        30,
+        "Add commits column to tasks table for commit linking",
+        """
+        ALTER TABLE tasks ADD COLUMN commits TEXT;
+        """,
+    ),
+    (
+        31,
+        "Create task_validation_history table and add escalation columns to tasks",
+        """
+        CREATE TABLE IF NOT EXISTS task_validation_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            iteration INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            feedback TEXT,
+            issues TEXT,
+            context_type TEXT,
+            context_summary TEXT,
+            validator_type TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_validation_history_task ON task_validation_history(task_id);
+
+        ALTER TABLE tasks ADD COLUMN escalated_at TEXT;
+        ALTER TABLE tasks ADD COLUMN escalation_reason TEXT;
+        """,
+    ),
 ]
 
 

@@ -298,3 +298,83 @@ class TestLocalTaskManager:
         msg = str(exc.value)
         assert "has 5 open child task(s)" in msg
         assert "and 2 more" in msg
+
+    # =========================================================================
+    # Commit Linking Tests
+    # =========================================================================
+
+    def test_link_commit_adds_sha_to_empty_task(self, task_manager, project_id):
+        """Test linking a commit to a task with no commits."""
+        task = task_manager.create_task(project_id, "Task with commits")
+        assert task.commits is None or task.commits == []
+
+        updated = task_manager.link_commit(task.id, "abc123def456")
+
+        assert updated.commits == ["abc123def456"]
+
+    def test_link_commit_appends_to_existing(self, task_manager, project_id):
+        """Test linking adds to existing commits array."""
+        task = task_manager.create_task(project_id, "Task with commits")
+        task_manager.link_commit(task.id, "commit1")
+        updated = task_manager.link_commit(task.id, "commit2")
+
+        assert "commit1" in updated.commits
+        assert "commit2" in updated.commits
+        assert len(updated.commits) == 2
+
+    def test_link_commit_ignores_duplicate(self, task_manager, project_id):
+        """Test linking same commit twice doesn't duplicate."""
+        task = task_manager.create_task(project_id, "Task with commits")
+        task_manager.link_commit(task.id, "abc123")
+        updated = task_manager.link_commit(task.id, "abc123")
+
+        assert updated.commits == ["abc123"]
+
+    def test_link_commit_invalid_task(self, task_manager):
+        """Test linking commit to non-existent task raises error."""
+        with pytest.raises(ValueError, match="not found"):
+            task_manager.link_commit("gt-nonexistent", "abc123")
+
+    def test_unlink_commit_removes_sha(self, task_manager, project_id):
+        """Test unlinking removes commit from array."""
+        task = task_manager.create_task(project_id, "Task with commits")
+        task_manager.link_commit(task.id, "commit1")
+        task_manager.link_commit(task.id, "commit2")
+
+        updated = task_manager.unlink_commit(task.id, "commit1")
+
+        assert updated.commits == ["commit2"]
+
+    def test_unlink_commit_handles_nonexistent(self, task_manager, project_id):
+        """Test unlinking non-existent commit is a no-op."""
+        task = task_manager.create_task(project_id, "Task with commits")
+        task_manager.link_commit(task.id, "commit1")
+
+        # Should not raise, just return unchanged
+        updated = task_manager.unlink_commit(task.id, "nonexistent")
+
+        assert updated.commits == ["commit1"]
+
+    def test_unlink_commit_from_empty_task(self, task_manager, project_id):
+        """Test unlinking from task with no commits is a no-op."""
+        task = task_manager.create_task(project_id, "Empty task")
+
+        updated = task_manager.unlink_commit(task.id, "abc123")
+
+        assert updated.commits is None or updated.commits == []
+
+    def test_unlink_commit_invalid_task(self, task_manager):
+        """Test unlinking from non-existent task raises error."""
+        with pytest.raises(ValueError, match="not found"):
+            task_manager.unlink_commit("gt-nonexistent", "abc123")
+
+    def test_commits_persist_after_update(self, task_manager, project_id):
+        """Test that commits array persists through other updates."""
+        task = task_manager.create_task(project_id, "Task")
+        task_manager.link_commit(task.id, "commit1")
+
+        # Update another field
+        updated = task_manager.update_task(task.id, title="Updated Title")
+
+        assert updated.commits == ["commit1"]
+        assert updated.title == "Updated Title"

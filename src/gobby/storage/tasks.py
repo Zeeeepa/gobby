@@ -70,6 +70,8 @@ class Task:
     workflow_name: str | None = None
     verification: str | None = None
     sequence_order: int | None = None
+    # Commit linking
+    commits: list[str] | None = None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Task":
@@ -125,6 +127,7 @@ class Task:
             workflow_name=row["workflow_name"] if "workflow_name" in keys else None,
             verification=row["verification"] if "verification" in keys else None,
             sequence_order=row["sequence_order"] if "sequence_order" in keys else None,
+            commits=json.loads(row["commits"]) if "commits" in keys and row["commits"] else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -160,6 +163,7 @@ class Task:
             "workflow_name": self.workflow_name,
             "verification": self.verification,
             "sequence_order": self.sequence_order,
+            "commits": self.commits,
         }
 
 
@@ -602,6 +606,67 @@ class LocalTaskManager:
         if label in labels:
             labels.remove(label)
             return self.update_task(task_id, labels=labels)
+        return task
+
+    def link_commit(self, task_id: str, commit_sha: str) -> Task:
+        """Link a commit SHA to a task.
+
+        Adds the commit SHA to the task's commits array if not already present.
+
+        Args:
+            task_id: The task ID to link the commit to.
+            commit_sha: The git commit SHA to link.
+
+        Returns:
+            Updated Task object.
+
+        Raises:
+            ValueError: If task not found.
+        """
+        task = self.get_task(task_id)  # Raises if not found
+        commits = task.commits or []
+        if commit_sha not in commits:
+            commits.append(commit_sha)
+            # Update the commits column in the database
+            now = datetime.now(UTC).isoformat()
+            with self.db.transaction() as conn:
+                conn.execute(
+                    "UPDATE tasks SET commits = ?, updated_at = ? WHERE id = ?",
+                    (json.dumps(commits), now, task_id),
+                )
+            self._notify_listeners()
+            return self.get_task(task_id)
+        return task
+
+    def unlink_commit(self, task_id: str, commit_sha: str) -> Task:
+        """Unlink a commit SHA from a task.
+
+        Removes the commit SHA from the task's commits array if present.
+
+        Args:
+            task_id: The task ID to unlink the commit from.
+            commit_sha: The git commit SHA to unlink.
+
+        Returns:
+            Updated Task object.
+
+        Raises:
+            ValueError: If task not found.
+        """
+        task = self.get_task(task_id)  # Raises if not found
+        commits = task.commits or []
+        if commit_sha in commits:
+            commits.remove(commit_sha)
+            # Update the commits column in the database
+            now = datetime.now(UTC).isoformat()
+            commits_json = json.dumps(commits) if commits else None
+            with self.db.transaction() as conn:
+                conn.execute(
+                    "UPDATE tasks SET commits = ?, updated_at = ? WHERE id = ?",
+                    (commits_json, now, task_id),
+                )
+            self._notify_listeners()
+            return self.get_task(task_id)
         return task
 
     def delete_task(self, task_id: str, cascade: bool = False) -> bool:
