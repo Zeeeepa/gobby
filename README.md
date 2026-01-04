@@ -6,18 +6,26 @@
 
 ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/GobbyAI/gobby?utm_source=oss&utm_medium=github&utm_campaign=GobbyAI%2Fgobby&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 
-A local daemon that makes AI coding assistants smarter by unifying session tracking, optimizing MCP tool access, and maintaining context across sessions.
+**A Unified AI Coding Assistant Daemon**
 
-## Why Gobby?
+Gobby is an open-source local daemon designed to make AI coding assistants more powerful by unifying multiple AI coding agent tools (Anthropic's Claude Code, Google's Gemini CLI, OpenAI's Codex CLI) under one persistent, extensible platform. It acts as a "manager" for these AI coding assistants, providing session persistence, tool orchestration, and memory beyond what each tool offers individually.
 
-- **Multi-CLI support** — One daemon handles Claude Code, Gemini CLI, and Codex
-- **Context continuity** — Sessions don't lose context; automatic handoffs via LLM-generated summaries
-- **Memory & Skills** — Agents remember facts, learn skills from sessions, and apply them automatically
-- **Intelligent MCP proxy** — Progressive tool discovery reduces token usage; connect once, access all downstream servers
-- **Local-first** — All data in SQLite, no cloud dependencies, works offline
-- **Task Tracking** — Agent-native task management with dependency tracking and git synchronization
+## Key Features
 
-**New:** Memory system with persistent facts and learned skills. Agents can remember context across sessions and automatically apply learned patterns.
+### Multi-Model Orchestration
+Gobby unifies several AI coding assistants into one system. Claude Code is known for its powerful coding capabilities and hook system, Gemini CLI offers speed and integration with Google services, and Codex CLI provides access to OpenAI's latest models. Normally, these tools operate separately, but Gobby can coordinate them—effectively enabling AI agents to leverage each model's strengths within one workflow.
+
+### Persistent Sessions with Long-Term Memory
+Unlike ephemeral CLI agents that forget context once closed, Gobby runs as a background daemon maintaining state across sessions. Agents can remember project-specific conventions, previously solved bugs, and user preferences—accumulating knowledge over time. This gives AI assistants the continuity of a human team member rather than starting fresh each session.
+
+### MCP Server with Lazy Tool Discovery
+Gobby implements an MCP client proxy that can connect to multiple external MCP servers simultaneously with **lazy tool acquisition**. Rather than loading all tool definitions upfront (which can consume 50k+ tokens), Gobby discovers and fetches tool definitions on-demand, achieving ~96% context savings.
+
+### Intelligent Workflow Engine
+The workflow engine breaks down and tracks tasks, manages multi-step processes, and enforces structured patterns like Plan-Execute or Test-Driven Development. Define workflows in YAML with tool restrictions per step, exit conditions, and automated context injection.
+
+### Local-First Architecture
+All data lives in SQLite on your machine—no cloud dependencies, works offline. HTTP and WebSocket servers enable integration with IDEs, dashboards, or team environments while keeping everything under your control.
 
 ## CLI Support Status
 
@@ -29,8 +37,27 @@ A local daemon that makes AI coding assistants smarter by unifying session track
 
 ## For AI Agents
 
-🤖 **Are you an AI Agent?**
-Read [docs/AGENT_INSTRUCTIONS.md](docs/AGENT_INSTRUCTIONS.md) first. This file contains your standard operating procedures, session workflows, and "landing the plane" protocols.
+**Are you an AI Agent?** Read [docs/AGENT_INSTRUCTIONS.md](docs/AGENT_INSTRUCTIONS.md) first. This file contains your standard operating procedures, session workflows, and "landing the plane" protocols.
+
+## What Makes Gobby Different?
+
+| Capability | Claude Code | Codex CLI | Gemini CLI | **Gobby** |
+|------------|-------------|-----------|------------|-----------|
+| Multi-model orchestration | No | No | No | **Yes** |
+| Persistent memory | Session only | Session only | Session only | **Cross-session** |
+| Long-term skill learning | No | No | No | **Yes** |
+| Lazy tool discovery | No | No | No | **Yes (~96% savings)** |
+| Workflow enforcement | Hooks only | Limited | No | **Full YAML workflows** |
+| Task tracking | No | No | No | **Yes (with git sync)** |
+| Local-first | Yes | Yes | Yes | **Yes** |
+
+### vs AutoGPT/BabyAGI
+
+These frameworks introduced autonomy and multi-step planning, but typically use a single model and run to completion. Gobby combines autonomy with interactivity—allowing both hands-free operation and user guidance—while orchestrating multiple AI models and maintaining persistent state across sessions.
+
+### vs LangChain/Agent Frameworks
+
+Frameworks like LangChain require custom coding to achieve multi-model orchestration with memory. Gobby is a turnkey solution: a daemon configured to be an out-of-the-box AI developer assistant with best practices (like lazy tool loading) already implemented.
 
 ```bash
 # Install
@@ -170,6 +197,7 @@ Internal tools are accessed via `call_tool(server_name="gobby-*", ...)`:
 - `sync_tasks`, `get_sync_status`
 - `expand_task`, `analyze_complexity`, `expand_all`, `expand_from_spec`, `suggest_next_task` - LLM-powered expansion
 - `validate_task`, `get_validation_status`, `reset_validation_count`, `generate_validation_criteria` - Task validation (auto-fetches git diff)
+- `link_commit`, `unlink_commit`, `auto_link_commits`, `get_task_diff` - Commit linking (Task System V2)
 
 See [docs/guides/tasks.md](docs/guides/tasks.md) for the full Task System guide.
 
@@ -449,7 +477,7 @@ See [docs/hooks/CLAUDE_HOOKS_SCHEMA.md](docs/hooks/CLAUDE_HOOKS_SCHEMA.md) for d
 
 See [ROADMAP.md](ROADMAP.md) for the full implementation plan with sprint ordering and dependencies.
 
-### Implemented Features
+### Completed Features
 
 | Feature | Description | Details |
 |---------|-------------|---------|
@@ -459,6 +487,13 @@ See [ROADMAP.md](ROADMAP.md) for the full implementation plan with sprint orderi
 | **Memory System** | Persistent memory with remember/recall/forget operations, JSONL sync | [MEMORY.md](docs/plans/MEMORY.md) |
 | **Skill Learning** | Extract skills from sessions via LLM, trigger matching, auto-apply | [MEMORY.md](docs/plans/MEMORY.md) |
 | **Semantic Tool Search** | Embeddings-based tool discovery with OpenAI, hybrid recommend_tools | [MCP_PROXY_IMPROVEMENTS.md](docs/plans/MCP_PROXY_IMPROVEMENTS.md) |
+| **Autonomous Handoff** | Pre-compact context extraction and session chaining | [AUTONOMOUS_HANDOFF.md](docs/plans/AUTONOMOUS_HANDOFF.md) |
+
+### In Progress
+
+| Feature | Description | Plan |
+|---------|-------------|------|
+| **Task System V2** | Commit linking for validation context, enhanced QA loops | [TASKS_V2.md](docs/plans/TASKS_V2.md) |
 
 ### Planned Features
 
@@ -466,15 +501,36 @@ See [ROADMAP.md](ROADMAP.md) for the full implementation plan with sprint orderi
 |---------|-------------|------|
 | **Webhooks & Plugins** | HTTP callouts, Python plugin system | [HOOK_EXTENSIONS.md](docs/plans/HOOK_EXTENSIONS.md) |
 | **Tool Metrics & Self-Healing** | Track tool success rates, suggest alternatives on failure | [MCP_PROXY_IMPROVEMENTS.md](docs/plans/MCP_PROXY_IMPROVEMENTS.md) |
+| **Session Management** | Session CRUD MCP tools, handoff management | [SESSION_MANAGEMENT.md](docs/plans/SESSION_MANAGEMENT.md) |
+| **Worktree Orchestration** | Parallel development with multiple agents in worktrees | [POST_MVP_ENHANCEMENTS.md](docs/plans/POST_MVP_ENHANCEMENTS.md) |
+| **GitHub/Linear Integration** | Sync issues and PRs with gobby-tasks | [POST_MVP_ENHANCEMENTS.md](docs/plans/POST_MVP_ENHANCEMENTS.md) |
+| **Subagent System** | Spawn specialized agents with different LLM providers | [SUBAGENTS.md](docs/plans/SUBAGENTS.md) |
+| **Web Dashboard** | Real-time visualization of sessions, tasks, and agents | [UI.md](docs/plans/UI.md) |
 
 ### Milestones
 
-1. **Observable Gobby** — ✅ WebSocket event streaming + task system
-2. **Workflow Engine** — ✅ Context sources, Jinja2 templating, 7 built-in workflow templates
-3. **Memory-First Agents** — ✅ Persistent memory, skill learning, MCP tools, CLI, and JSONL sync
+**MVP (Complete)**
+1. **Observable Gobby** — WebSocket event streaming + task system
+2. **Workflow Engine** — Context sources, Jinja2 templating, 7 built-in workflow templates
+3. **Memory-First Agents** — Persistent memory, skill learning, MCP tools, CLI, and JSONL sync
+
+**In Progress**
 4. **Extensible Gobby** — Webhooks and Python plugin system
-5. **Smart MCP Proxy** — 🔶 Semantic tool search complete; tool metrics and self-healing pending
+5. **Smart MCP Proxy** — Semantic tool search complete; tool metrics and self-healing pending
 6. **Production Ready** — Full integration and documentation
+7. **Task System V2** — Commit linking, enhanced validation loops
+
+**Post-MVP Vision**
+8. **Worktree Orchestration** — Parallel development with multiple agents
+9. **External Integrations** — GitHub/Linear sync
+10. **Intelligence Layer** — Artifact index, enhanced skill routing, semantic memory
+11. **Autonomous Execution** — Hands-off task execution with stuck detection
+12. **Multi-Agent Orchestration** — Spawn agents with Claude, Gemini, Codex, or LiteLLM
+13. **Visual Control Center** — Web dashboard for everything
+
+## Contributing
+
+We welcome contributions! Please see our development setup above and open a PR with your changes.
 
 ## License
 
