@@ -51,10 +51,7 @@ This document defines the input and output schemas for all Claude Code hooks.
 
 ```json
 {
-  "hookSpecificOutput": {
-    "hookEventName": "SessionStart",
-    "additionalContext": "## Session Started\n\n- **Session ID**: `550e8400-...`\n- Machine ID: `847EB0AC-...`"
-  }
+  "systemMessage": "## Session Started\n\n- **Session ID**: `550e8400-...`\n- Machine ID: `847EB0AC-...`"
 }
 ```
 
@@ -68,7 +65,8 @@ This document defines the input and output schemas for all Claude Code hooks.
 
 **Fields:**
 
-- `hookSpecificOutput.additionalContext` (string, optional): Markdown text to inject into Claude's context
+- `systemMessage` (string, optional): Markdown text to inject into Claude's context (works for all hooks)
+- `hookSpecificOutput.additionalContext` (string, optional): Alternative for SessionStart, UserPromptSubmit, PostToolUse only
 - `status` (string, optional): Hook execution status
 
 **Exit Codes:**
@@ -548,7 +546,15 @@ This document defines the input and output schemas for all Claude Code hooks.
 
 ### Context Injection
 
-To inject text into Claude's conversation context, use:
+**Recommended:** Use `systemMessage` at the top level (works for ALL hooks):
+
+```json
+{
+  "systemMessage": "Your markdown text here..."
+}
+```
+
+**Alternative (limited):** Use `hookSpecificOutput.additionalContext` (only works for SessionStart, UserPromptSubmit, PostToolUse):
 
 ```json
 {
@@ -559,7 +565,9 @@ To inject text into Claude's conversation context, use:
 }
 ```
 
-The `additionalContext` string will be added to Claude's context window and appears in `<system-reminder>` tags.
+**Important:** The `additionalContext` field does NOT work for `PreToolUse` hooks. Always prefer `systemMessage` for reliable context injection across all hook types.
+
+The injected content appears in `<system-reminder>` tags in Claude's context window.
 
 ### Machine ID
 

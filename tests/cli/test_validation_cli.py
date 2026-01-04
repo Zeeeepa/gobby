@@ -395,9 +395,31 @@ class TestValidationHistoryCommand:
             ["tasks", "validation-history", "gt-test123", "--json"],
         )
 
-        assert result.exit_code == 0
-        # Output should be valid JSON
-        json.loads(result.output)
+        assert result.exit_code == 0, (
+            f"Expected exit code 0 for --json output, got {result.exit_code}: {result.output}"
+        )
+
+        # Output should be valid JSON with expected structure
+        try:
+            data = json.loads(result.output)
+        except json.JSONDecodeError as e:
+            pytest.fail(f"Output is not valid JSON: {e}\nOutput was: {result.output}")
+
+        # Verify top-level keys exist
+        assert "task_id" in data, (
+            f"Expected 'task_id' key in JSON output, got keys: {list(data.keys())}"
+        )
+        assert "iterations" in data, (
+            f"Expected 'iterations' key in JSON output, got keys: {list(data.keys())}"
+        )
+
+        # Verify types
+        assert isinstance(data["task_id"], str), (
+            f"Expected 'task_id' to be a string, got {type(data['task_id']).__name__}"
+        )
+        assert isinstance(data["iterations"], list), (
+            f"Expected 'iterations' to be a list, got {type(data['iterations']).__name__}"
+        )
 
 
 class TestListTasksEscalatedFilter:

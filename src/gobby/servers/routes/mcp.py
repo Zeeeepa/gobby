@@ -68,27 +68,24 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             if server.mcp_manager is None:
                 raise HTTPException(status_code=503, detail="MCP manager not available")
 
-            # Get connection for this MCP server
-            try:
-                connection = server.mcp_manager.get_client(server_name)
-            except ValueError as e:
-                raise HTTPException(status_code=404, detail=str(e)) from e
+            # Check if server is configured
+            if not server.mcp_manager.has_server(server_name):
+                raise HTTPException(status_code=404, detail=f"Unknown MCP server: '{server_name}'")
 
-            # Check if connection is active
-            if not connection.is_connected or not connection._session:
-                # Try to reconnect
-                try:
-                    await connection.connect()
-                    logger.debug(f"Reconnected to '{server_name}' for tool listing")
-                except Exception as e:
-                    raise HTTPException(
-                        status_code=503,
-                        detail=f"MCP server '{server_name}' is not connected: {e}",
-                    ) from e
+            # Use ensure_connected for lazy loading - connects on-demand if not connected
+            try:
+                session = await server.mcp_manager.ensure_connected(server_name)
+            except KeyError as e:
+                raise HTTPException(status_code=404, detail=str(e)) from e
+            except Exception as e:
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"MCP server '{server_name}' connection failed: {e}",
+                ) from e
 
             # List tools using MCP SDK
             try:
-                tools_result = await connection._session.list_tools()
+                tools_result = await session.list_tools()
                 tools = []
                 for tool in tools_result.tools:
                     tool_dict = {
@@ -222,23 +219,24 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
                     registry = server._internal_manager.get_registry(server_filter)
                     if registry:
                         tools_by_server[server_filter] = registry.list_tools()
-                elif server.mcp_manager:
+                elif server.mcp_manager and server.mcp_manager.has_server(server_filter):
                     try:
-                        connection = server.mcp_manager.get_client(server_filter)
-                        if connection.is_connected and connection._session:
-                            tools_result = await connection._session.list_tools()
-                            tools_list = []
-                            for t in tools_result.tools:
-                                desc = getattr(t, "description", "") or ""
-                                tools_list.append(
-                                    {
-                                        "name": t.name,
-                                        "brief": desc[:100],
-                                    }
-                                )
-                            tools_by_server[server_filter] = tools_list
-                    except ValueError:
-                        pass
+                        # Use ensure_connected for lazy loading
+                        session = await server.mcp_manager.ensure_connected(server_filter)
+                        tools_result = await session.list_tools()
+                        tools_list = []
+                        for t in tools_result.tools:
+                            desc = getattr(t, "description", "") or ""
+                            tools_list.append(
+                                {
+                                    "name": t.name,
+                                    "brief": desc[:100],
+                                }
+                            )
+                        tools_by_server[server_filter] = tools_list
+                    except Exception as e:
+                        logger.warning(f"Failed to list tools from {server_filter}: {e}")
+                        tools_by_server[server_filter] = []
             else:
                 # Get tools from all servers
                 # Internal servers
@@ -246,24 +244,23 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
                     for registry in server._internal_manager.get_all_registries():
                         tools_by_server[registry.name] = registry.list_tools()
 
-                # External MCP servers
+                # External MCP servers - use ensure_connected for lazy loading
                 if server.mcp_manager:
                     for config in server.mcp_manager.server_configs:
-                        if config.name in server.mcp_manager.connections:
+                        if config.enabled:
                             try:
-                                connection = server.mcp_manager.connections[config.name]
-                                if connection.is_connected and connection._session:
-                                    tools_result = await connection._session.list_tools()
-                                    tools_list = []
-                                    for t in tools_result.tools:
-                                        desc = getattr(t, "description", "") or ""
-                                        tools_list.append(
-                                            {
-                                                "name": t.name,
-                                                "brief": desc[:100],
-                                            }
-                                        )
-                                    tools_by_server[config.name] = tools_list
+                                session = await server.mcp_manager.ensure_connected(config.name)
+                                tools_result = await session.list_tools()
+                                tools_list = []
+                                for t in tools_result.tools:
+                                    desc = getattr(t, "description", "") or ""
+                                    tools_list.append(
+                                        {
+                                            "name": t.name,
+                                            "brief": desc[:100],
+                                        }
+                                    )
+                                tools_by_server[config.name] = tools_list
                             except Exception as e:
                                 logger.warning(f"Failed to list tools from {config.name}: {e}")
                                 tools_by_server[config.name] = []

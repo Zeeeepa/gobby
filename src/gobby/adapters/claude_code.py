@@ -167,18 +167,15 @@ class ClaudeCodeAdapter(BaseAdapter):
         if response.decision in ("deny", "block") and response.reason:
             result["stopReason"] = response.reason
 
-        # Add context injection if present (inside hookSpecificOutput per Claude Code schema)
-        # hookEventName is REQUIRED by Claude Code's schema
+        # Add context/instructions via systemMessage (Claude Code's schema for context injection)
+        # Combine response.context (workflow inject_context) and response.system_message if both present
+        system_message_parts = []
         if response.context:
-            hook_event_name = self.HOOK_EVENT_NAME_MAP.get(hook_type or "", "Unknown")
-            result["hookSpecificOutput"] = {
-                "hookEventName": hook_event_name,
-                "additionalContext": response.context,
-            }
-
-        # Add user-visible system message if present (e.g., handoff notification)
+            system_message_parts.append(response.context)
         if response.system_message:
-            result["systemMessage"] = response.system_message
+            system_message_parts.append(response.system_message)
+        if system_message_parts:
+            result["systemMessage"] = "\n\n".join(system_message_parts)
 
         # Add tool decision for pre-tool-use hooks
         # Claude Code schema: decision uses "approve"/"block"

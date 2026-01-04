@@ -61,10 +61,42 @@ All Claude Code hooks use this wrapper format:
   "continue": true,
   "decision": "approve",
   "stopReason": "optional reason if blocked",
-  "systemMessage": "optional user-visible message",
+  "systemMessage": "context injected into Claude's conversation",
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
-    "additionalContext": "context injected into Claude"
+    "additionalContext": "additional context (only for specific hooks)"
+  }
+}
+```
+
+#### Context Injection Fields
+
+**Important:** Claude Code has two different fields for context injection with different behaviors:
+
+| Field | Location | Works With | Purpose |
+|-------|----------|------------|---------|
+| `systemMessage` | Top-level | **All hooks** | Primary method for injecting context into Claude's conversation |
+| `hookSpecificOutput.additionalContext` | Nested | SessionStart, UserPromptSubmit, PostToolUse only | Legacy field, hook-type specific |
+
+**Recommendation:** Always use `systemMessage` at the top level for context injection. The `additionalContext` field inside `hookSpecificOutput` does NOT work for `PreToolUse` hooks (and other hook types not listed above).
+
+```json
+// ✅ CORRECT - Works for all hooks including PreToolUse
+{
+  "continue": false,
+  "decision": "block",
+  "stopReason": "No active task",
+  "systemMessage": "You must create or claim a task before editing files."
+}
+
+// ❌ WRONG - additionalContext is ignored for PreToolUse hooks
+{
+  "continue": false,
+  "decision": "block",
+  "stopReason": "No active task",
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "additionalContext": "This context will be ignored!"
   }
 }
 ```
@@ -287,9 +319,9 @@ Gemini CLI hooks use this wrapper format (via hook_dispatcher.py):
 {
   "decision": "allow",
   "reason": "optional reason",
-  "systemMessage": "optional user-visible message",
+  "systemMessage": "user-visible terminal message",
   "hookSpecificOutput": {
-    "additionalContext": "context to inject",
+    "additionalContext": "context injected into agent",
     "llm_request": {},
     "toolConfig": {}
   }
@@ -297,6 +329,17 @@ Gemini CLI hooks use this wrapper format (via hook_dispatcher.py):
 ```
 
 Exit codes: `0` = allow, `2` = deny
+
+#### Context Injection Fields
+
+**Note:** Gemini CLI's context injection differs from Claude Code:
+
+| Field | Location | Purpose |
+|-------|----------|---------|
+| `systemMessage` | Top-level | Message displayed to **user** in terminal |
+| `hookSpecificOutput.additionalContext` | Nested | Context injected into **agent** reasoning |
+
+In Gemini CLI, `additionalContext` works for: SessionStart, BeforeAgent, AfterTool
 
 ### Hook Payloads
 
@@ -603,6 +646,19 @@ class HookResponse:
     trigger_action: str | None = None    # Trigger CLI action
     metadata: dict                       # Adapter-specific data
 ```
+
+### Context Field Translation
+
+The `context` and `system_message` fields are translated differently per CLI:
+
+| HookResponse Field | Claude Code | Gemini CLI |
+|-------------------|-------------|------------|
+| `context` | → `systemMessage` (agent context) | → `hookSpecificOutput.additionalContext` (agent context) |
+| `system_message` | → `systemMessage` (combined) | → `systemMessage` (user terminal) |
+
+**Claude Code:** Both `context` and `system_message` are combined into `systemMessage` at the top level, which injects content into the agent's conversation.
+
+**Gemini CLI:** `context` goes to `additionalContext` (agent reasoning), while `system_message` goes to `systemMessage` (user terminal display).
 
 ---
 

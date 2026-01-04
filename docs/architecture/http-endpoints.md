@@ -384,9 +384,11 @@ Execute CLI hook via adapter pattern.
 ```json
 {
   "continue": true,
-  "additionalContext": "Session registered: abc123"
+  "systemMessage": "Session registered: abc123"
 }
 ```
+
+Note: Use `systemMessage` for context injection (works for all hook types). The `hookSpecificOutput.additionalContext` field only works for specific hooks (SessionStart, UserPromptSubmit, PostToolUse).
 
 ---
 

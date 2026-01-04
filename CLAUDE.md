@@ -232,7 +232,7 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title"
 
 Use the `gobby-tasks` MCP tools for persistent task tracking (requires daemon running).
 
-**IMPORTANT: Workflow Requirement**
+### IMPORTANT: Workflow Requirement
 
 Before editing files (Edit/Write tools), you MUST have an active task with `status: in_progress`. The workflow hook blocks file modifications when no task is active. Always create and start a task first:
 

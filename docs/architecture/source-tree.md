@@ -74,7 +74,6 @@ gobby/                                  # Project root
 │   │   └── summarizer.py               # Description summarizer
 │   │
 │   └── utils/                          # Utilities
-│       ├── context_injector.py         # Session context injection
 │       ├── daemon_client.py            # HTTP client
 │       ├── git.py                      # Git utilities
 │       ├── logging.py                  # Log configuration
