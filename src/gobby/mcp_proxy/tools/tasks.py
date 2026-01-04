@@ -79,6 +79,14 @@ def create_task_registry(
         project = project_manager.get(project_id)
         return project.repo_path if project else None
 
+    def get_current_project_id() -> str | None:
+        """Get the current project ID from context, or None if not in a project."""
+        ctx = get_project_context()
+        if ctx and ctx.get("id"):
+            project_id: str = ctx["id"]
+            return project_id
+        return None
+
     @registry.tool(
         name="expand_task",
         description="Expand a high-level task into smaller subtasks using AI.",
@@ -1638,8 +1646,11 @@ def create_task_registry(
         parent_task_id: str | None = None,
         title_like: str | None = None,
         limit: int = 50,
+        all_projects: bool = False,
     ) -> dict[str, Any]:
         """List tasks with optional filters."""
+        # Filter by current project unless all_projects is True
+        project_id = None if all_projects else get_current_project_id()
         tasks = task_manager.list_tasks(
             status=status,
             priority=priority,
@@ -1649,6 +1660,7 @@ def create_task_registry(
             parent_task_id=parent_task_id,
             title_like=title_like,
             limit=limit,
+            project_id=project_id,
         )
         return {"tasks": [t.to_brief() for t in tasks], "count": len(tasks)}
 
@@ -1693,6 +1705,11 @@ def create_task_registry(
                     "type": "integer",
                     "description": "Max number of tasks to return",
                     "default": 50,
+                },
+                "all_projects": {
+                    "type": "boolean",
+                    "description": "If true, list tasks from all projects instead of just the current project",
+                    "default": False,
                 },
             },
         },
@@ -1805,14 +1822,18 @@ def create_task_registry(
         assignee: str | None = None,
         parent_task_id: str | None = None,
         limit: int = 10,
+        all_projects: bool = False,
     ) -> dict[str, Any]:
         """List tasks that are open and have no unresolved blocking dependencies."""
+        # Filter by current project unless all_projects is True
+        project_id = None if all_projects else get_current_project_id()
         tasks = task_manager.list_ready_tasks(
             priority=priority,
             task_type=task_type,
             assignee=assignee,
             parent_task_id=parent_task_id,
             limit=limit,
+            project_id=project_id,
         )
         return {"tasks": [t.to_brief() for t in tasks], "count": len(tasks)}
 
@@ -1839,6 +1860,11 @@ def create_task_registry(
                     "default": None,
                 },
                 "limit": {"type": "integer", "description": "Max results", "default": 10},
+                "all_projects": {
+                    "type": "boolean",
+                    "description": "If true, list tasks from all projects instead of just the current project",
+                    "default": False,
+                },
             },
         },
         func=list_ready_tasks,
@@ -1847,11 +1873,15 @@ def create_task_registry(
     def list_blocked_tasks(
         parent_task_id: str | None = None,
         limit: int = 20,
+        all_projects: bool = False,
     ) -> dict[str, Any]:
         """List tasks that are currently blocked, including what blocks them."""
+        # Filter by current project unless all_projects is True
+        project_id = None if all_projects else get_current_project_id()
         blocked_tasks = task_manager.list_blocked_tasks(
             parent_task_id=parent_task_id,
             limit=limit,
+            project_id=project_id,
         )
         return {"tasks": [t.to_brief() for t in blocked_tasks], "count": len(blocked_tasks)}
 
@@ -1867,6 +1897,11 @@ def create_task_registry(
                     "default": None,
                 },
                 "limit": {"type": "integer", "description": "Max results", "default": 20},
+                "all_projects": {
+                    "type": "boolean",
+                    "description": "If true, list tasks from all projects instead of just the current project",
+                    "default": False,
+                },
             },
         },
         func=list_blocked_tasks,

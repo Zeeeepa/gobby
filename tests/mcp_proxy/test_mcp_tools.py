@@ -161,13 +161,48 @@ async def test_list_ready_tasks(mock_task_manager, mock_sync_manager):
     mock_t1.to_brief.return_value = {"id": "t1"}
     mock_task_manager.list_ready_tasks.return_value = [mock_t1]
 
-    result = await registry.call("list_ready_tasks", {"limit": 5})
+    # Mock get_project_context for project filtering
+    with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+        mock_ctx.return_value = {"id": "test-project-id"}
 
-    mock_task_manager.list_ready_tasks.assert_called_with(
-        priority=None, task_type=None, assignee=None, parent_task_id=None, limit=5
-    )
-    assert result["count"] == 1
-    assert result["tasks"][0]["id"] == "t1"
+        result = await registry.call("list_ready_tasks", {"limit": 5})
+
+        mock_task_manager.list_ready_tasks.assert_called_with(
+            priority=None,
+            task_type=None,
+            assignee=None,
+            parent_task_id=None,
+            limit=5,
+            project_id="test-project-id",
+        )
+        assert result["count"] == 1
+        assert result["tasks"][0]["id"] == "t1"
+
+
+@pytest.mark.asyncio
+async def test_list_ready_tasks_all_projects(mock_task_manager, mock_sync_manager):
+    """Test list_ready_tasks with all_projects=True ignores project filter."""
+    registry = create_task_registry(mock_task_manager, mock_sync_manager)
+
+    mock_t1 = MagicMock()
+    mock_t1.to_brief.return_value = {"id": "t1"}
+    mock_task_manager.list_ready_tasks.return_value = [mock_t1]
+
+    # Mock get_project_context
+    with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+        mock_ctx.return_value = {"id": "test-project-id"}
+
+        result = await registry.call("list_ready_tasks", {"limit": 5, "all_projects": True})
+
+        mock_task_manager.list_ready_tasks.assert_called_with(
+            priority=None,
+            task_type=None,
+            assignee=None,
+            parent_task_id=None,
+            limit=5,
+            project_id=None,  # Should be None when all_projects=True
+        )
+        assert result["count"] == 1
 
 
 @pytest.mark.asyncio
