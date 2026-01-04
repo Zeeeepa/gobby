@@ -96,6 +96,11 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             metrics.inc_counter("http_requests_errors_total")
             raise
 
+        except ValueError as e:
+            # ValueError from _resolve_project_id when project not initialized
+            metrics.inc_counter("http_requests_errors_total")
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
         except Exception as e:
             metrics.inc_counter("http_requests_errors_total")
             logger.error(f"Error registering session: {e}", exc_info=True)

@@ -650,7 +650,11 @@ class TestSessionEndpoints:
         client: TestClient,
         temp_dir: Path,
     ) -> None:
-        """Test registration with non-existent project path."""
+        """Test registration with non-existent project path returns 400.
+
+        When cwd points to a path without .gobby/project.json, _resolve_project_id
+        raises ValueError, which is caught and converted to HTTP 400 Bad Request.
+        """
         with patch("gobby.utils.machine_id.get_machine_id", return_value="test-machine"):
             response = client.post(
                 "/sessions/register",
@@ -660,9 +664,10 @@ class TestSessionEndpoints:
                     "cwd": "/nonexistent/path/that/does/not/exist",
                 },
             )
-        # Should still work - project resolution may create or handle gracefully
-        # The specific behavior depends on implementation
-        assert response.status_code in [200, 400, 500]
+        assert response.status_code == 400
+        data = response.json()
+        assert "detail" in data
+        assert "No .gobby/project.json found" in data["detail"]
 
 
 class TestHooksEndpoint:
