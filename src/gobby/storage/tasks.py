@@ -173,6 +173,27 @@ class Task:
             "escalation_reason": self.escalation_reason,
         }
 
+    def to_brief(self) -> dict[str, Any]:
+        """Convert Task to brief discovery format for list operations.
+
+        Returns only essential fields needed for task discovery.
+        Use get_task() with to_dict() for full task details.
+
+        This follows the progressive disclosure pattern used for MCP tools:
+        - list_tasks() returns brief format (8 fields)
+        - get_task() returns full format (33 fields)
+        """
+        return {
+            "id": self.id,
+            "title": self.title,
+            "status": self.status,
+            "priority": self.priority,
+            "type": self.task_type,
+            "parent_task_id": self.parent_task_id,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
 
 class TaskIDCollisionError(Exception):
     """Raised when a unique task ID cannot be generated."""

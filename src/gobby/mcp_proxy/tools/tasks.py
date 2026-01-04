@@ -1608,7 +1608,7 @@ def create_task_registry(
             title_like=title_like,
             limit=limit,
         )
-        return {"tasks": [t.to_dict() for t in tasks], "count": len(tasks)}
+        return {"tasks": [t.to_brief() for t in tasks], "count": len(tasks)}
 
     registry.register(
         name="list_tasks",
@@ -1772,7 +1772,7 @@ def create_task_registry(
             parent_task_id=parent_task_id,
             limit=limit,
         )
-        return {"tasks": [t.to_dict() for t in tasks], "count": len(tasks)}
+        return {"tasks": [t.to_brief() for t in tasks], "count": len(tasks)}
 
     registry.register(
         name="list_ready_tasks",
@@ -1811,7 +1811,7 @@ def create_task_registry(
             parent_task_id=parent_task_id,
             limit=limit,
         )
-        return {"tasks": [t.to_dict() for t in blocked_tasks], "count": len(blocked_tasks)}
+        return {"tasks": [t.to_brief() for t in blocked_tasks], "count": len(blocked_tasks)}
 
     registry.register(
         name="list_blocked_tasks",

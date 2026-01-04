@@ -74,7 +74,8 @@ Before you finish or hand off:
 ## Tool Usage Best Practices
 
 * **`create_task`**: Be descriptive with titles. "Fix bug" is bad. "Fix NullPointerException in login flow" is good.
-* **`list_ready_tasks`**: Use this instead of `list_tasks(status='open')` when deciding what to do next. It filters out tasks that are blocked by other open tasks.
+* **`list_ready_tasks`**: Use this instead of `list_tasks(status='open')` when deciding what to do next. It filters out tasks that are blocked by other open tasks. Returns brief format (8 fields) - use `get_task` for full details.
+* **`get_task`**: Use this to get full task details (description, validation criteria, commits, etc.) after identifying a task via list operations.
 * **`add_label`**: Use labels for categorization (e.g., `frontend`, `backend`, `urgent`, `cleanup`).
 * **`suggest_next_task`**: Let the AI recommend the best next task based on priority, complexity, and dependencies.
 * **`expand_task`**: For complex tasks, use AI to break them into manageable subtasks with dependencies.

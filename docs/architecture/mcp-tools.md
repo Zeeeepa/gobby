@@ -442,6 +442,15 @@ For token efficiency, use the three-step workflow:
 
 This pattern is **96% more token-efficient** than loading all schemas upfront.
 
+### Task List Operations
+
+The same pattern applies to `gobby-tasks` list operations:
+
+- `list_tasks`, `list_ready_tasks`, `list_blocked_tasks` return **brief format** (8 fields)
+- Use `get_task` for full task details (33 fields)
+
+Brief format fields: `id`, `title`, `status`, `priority`, `type`, `parent_task_id`, `created_at`, `updated_at`
+
 ---
 
 ## Error Handling

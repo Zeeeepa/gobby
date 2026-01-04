@@ -158,7 +158,7 @@ async def test_list_ready_tasks(mock_task_manager, mock_sync_manager):
     registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
     mock_t1 = MagicMock()
-    mock_t1.to_dict.return_value = {"id": "t1"}
+    mock_t1.to_brief.return_value = {"id": "t1"}
     mock_task_manager.list_ready_tasks.return_value = [mock_t1]
 
     result = await registry.call("list_ready_tasks", {"limit": 5})

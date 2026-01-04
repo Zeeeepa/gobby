@@ -278,6 +278,26 @@ call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_i
 | `auto_link_commits` | Auto-detect and link commits mentioning task ID |
 | `get_task_diff` | Get combined diff for all commits linked to a task |
 
+### Task Progressive Disclosure
+
+List operations (`list_tasks`, `list_ready_tasks`, `list_blocked_tasks`) return **brief format** (8 fields) to minimize token usage:
+
+```json
+{"id", "title", "status", "priority", "type", "parent_task_id", "created_at", "updated_at"}
+```
+
+Use `get_task` to retrieve full task details (33 fields) including description, validation criteria, commits, etc.
+
+```python
+# Step 1: Discover tasks with brief format
+tasks = call_tool(server_name="gobby-tasks", tool_name="list_ready_tasks", arguments={})
+# Returns: {"tasks": [{"id": "gt-abc", "title": "...", "status": "open", ...}], "count": 5}
+
+# Step 2: Get full details for a specific task
+task = call_tool(server_name="gobby-tasks", tool_name="get_task", arguments={"task_id": "gt-abc"})
+# Returns: full task with description, validation_criteria, commits, dependencies, etc.
+```
+
 ```python
 # Example MCP tool calls via daemon
 call_tool(server_name="gobby-tasks", tool_name="list_ready_tasks", arguments={})

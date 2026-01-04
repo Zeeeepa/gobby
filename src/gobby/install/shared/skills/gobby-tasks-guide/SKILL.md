@@ -230,6 +230,17 @@ mcp__gobby__call_tool(
 )
 ```
 
+**Note:** List operations return brief format (8 fields: id, title, status, priority, type, parent_task_id, created_at, updated_at). Use `get_task` for full details:
+
+```python
+# Get full task details including description, validation criteria, etc.
+mcp__gobby__call_tool(
+    server_name="gobby-tasks",
+    tool_name="get_task",
+    arguments={"task_id": "gt-abc123"}
+)
+```
+
 ### Viewing Blocked Tasks
 
 ```python

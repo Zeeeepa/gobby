@@ -862,9 +862,6 @@ gobby workflow status
 # Manually transition phase (escape hatch)
 gobby workflow phase <phase-name>
 
-# Create handoff for next session
-gobby workflow handoff "Notes about current state"
-
 # Import workflow from URL or file
 gobby workflow import https://example.com/workflow.yaml
 gobby workflow import ./my-workflow.yaml
@@ -1117,7 +1114,7 @@ Before building new workflow capabilities, extract the current session handoff b
 - [x] Add `end_workflow` MCP tool (complete/terminate active workflow)
 - [x] Add `get_workflow_status` MCP tool
 - [x] Add `request_phase_transition` MCP tool
-- [ ] Add `create_handoff` MCP tool
+- [x] Add `create_handoff` MCP tool (implemented in `gobby-sessions` server)
 - [x] Add `mark_artifact_complete` MCP tool
 - [x] Implement tool filtering based on workflow phase (via ToolFilterService)
 - [x] Update `list_tools` to respect phase restrictions

@@ -1581,3 +1581,120 @@ Sync tasks with GitHub Issues for visibility to non-agent collaborators:
 - **Visualization**: Web dashboard for task/dependency visualization
 - **JIRA/GitLab integration**: External tracker sync (lower priority than GitHub)
 - **gobby_platform**: Remote fleet management for multiple machines
+
+---
+
+## Task System V2 (Consolidated from TASKS_V2.md)
+
+> **Note**: This section consolidates the TASKS_V2.md enhancements into the main task system documentation. TASKS_V2.md has been deleted.
+
+### V2 Features Overview
+
+1. **Commit Linking** - Associate git commits with tasks for traceability
+2. **Enhanced QA Validation** - Robust validation loop with recurring issue detection
+3. **Validation History** - Track all validation attempts per task
+4. **Structured Issues** - Typed issues with severity and location
+5. **Build Verification** - Run build/tests before LLM validation
+6. **External Validator** - Separate agent for objective validation
+7. **Escalation** - Human escalation when automated resolution fails
+
+### Phase 12.6: Commit Linking (COMPLETE)
+
+- [x] Add `commits` column to tasks table (migration 30)
+- [x] Create `src/gobby/tasks/commits.py` with commit linking logic
+- [x] Implement `link_commit()`, `unlink_commit()`, `auto_link_commits()`, `get_task_diff()`
+- [x] Add MCP tools: `link_commit`, `unlink_commit`, `auto_link_commits`, `get_task_diff`
+- [x] Add CLI commands: `gobby tasks commit link/unlink/auto/list`
+- [x] Update `close_task` to use commit-based diff when available
+- [x] Add auto-linking to session_end hook
+- [x] Update JSONL sync to include commits
+
+**Auto-Linking Patterns:**
+- `[gt-abc123]` - Task ID in brackets (recommended)
+- `gt-abc123:` - Task ID with colon prefix
+- `Implements gt-abc123` - Natural language reference
+
+### Phase 12.7: Validation History (COMPLETE)
+
+- [x] Create `task_validation_history` table (migration 31)
+- [x] Create `ValidationHistoryManager` class (`src/gobby/tasks/validation_history.py`)
+- [x] Implement `record_iteration()`, `get_iteration_history()`, `clear_history()`
+- [x] Add `get_validation_history`, `clear_validation_history` MCP tools
+- [x] Add `gobby tasks validation-history` CLI command
+
+### Phase 12.8: Structured Issues (COMPLETE)
+
+- [x] Define `Issue` dataclass with type, severity, location (`src/gobby/tasks/validation_models.py`)
+- [x] Issue types: `test_failure`, `lint_error`, `acceptance_gap`, `type_error`, `security`
+- [x] Severity levels: `blocker`, `major`, `minor`
+- [x] Implement `parse_issues_from_response()` in `src/gobby/tasks/issue_extraction.py`
+
+### Phase 12.9: Recurring Issue Detection (COMPLETE)
+
+- [x] Implement `group_similar_issues()` with fuzzy matching (SequenceMatcher)
+- [x] Implement `has_recurring_issues()` check
+- [x] Add `recurring_issue_threshold` config (default: 3)
+- [x] Add `get_recurring_issues` MCP tool
+
+### Phase 12.10: Build Verification (COMPLETE)
+
+- [x] Add `run_build_first` config option
+- [x] Add `build_command` config option
+- [x] Implement `detect_build_command()` for npm, uv, cargo, go
+- [x] Implement `run_build_check()` method (`src/gobby/tasks/build_verification.py`)
+- [x] Convert build failures to structured issues
+- [x] Add `--skip-build` flag to validate CLI
+
+### Phase 12.11: Enhanced Validation Loop (COMPLETE)
+
+- [x] Create `EnhancedTaskValidator` class (`src/gobby/tasks/enhanced_validator.py`)
+- [x] Implement `validate_with_retry()` main loop
+- [x] Add `max_iterations` config (default: 10)
+- [x] Add `max_consecutive_errors` config (default: 3)
+- [x] Update `close_task` to use enhanced loop
+- [x] Add `--max-iterations` flag to CLI
+
+### Phase 12.12: External Validator (COMPLETE)
+
+- [x] Add `use_external_validator` config option
+- [x] Add `external_validator_model` config option
+- [x] Implement `run_external_validation()` (`src/gobby/tasks/external_validator.py`)
+- [x] Add `--external` flag to validate CLI
+
+### Phase 12.13: Escalation (COMPLETE)
+
+- [x] Add `escalated` as valid task status
+- [x] Add `escalated_at`, `escalation_reason` columns to tasks (migration 31)
+- [x] Create `EscalationManager` class (`src/gobby/tasks/escalation.py`)
+- [x] Implement `escalate()`, `de_escalate()`, `generate_escalation_summary()`
+- [x] Add `de_escalate_task` MCP tool
+- [x] Add `gobby tasks de-escalate` CLI command
+- [x] Add `gobby tasks list --status escalated`
+
+### V2 Configuration
+
+```yaml
+# ~/.gobby/config.yaml
+gobby_tasks:
+  validation:
+    enabled: true
+    provider: "claude"
+    model: "claude-sonnet-4-20250514"
+    max_iterations: 10
+    recurring_issue_threshold: 3
+    run_build_first: true
+    build_command: "npm test"  # Or auto-detected
+    use_external_validator: false
+    external_validator_model: "claude-sonnet-4-20250514"
+```
+
+### V2 Decisions
+
+| # | Question | Decision | Rationale |
+|---|----------|----------|-----------|
+| 1 | Commit storage | JSON array in tasks table | Simple, no join needed |
+| 2 | Validation history | Separate table + JSON cache | Full history in table, recent in task |
+| 3 | Issue similarity | Title + location fuzzy match | Catches most duplicates without ML |
+| 4 | Escalation status | New status value | Clear state, queryable |
+| 5 | Build check timing | Before LLM validation | Fail fast, save LLM costs |
+| 6 | Auto-link pattern | `[gt-xxxxx]` or `gt-xxxxx:` | Common conventions |

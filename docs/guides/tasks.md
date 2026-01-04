@@ -296,6 +296,24 @@ gobby tasks config --stealth on
 | `list_ready_tasks` | Tasks with no unresolved blockers |
 | `list_blocked_tasks` | Tasks waiting on others |
 
+### Progressive Disclosure
+
+List operations return **brief format** (8 fields) to minimize token usage:
+
+```json
+{"id", "title", "status", "priority", "type", "parent_task_id", "created_at", "updated_at"}
+```
+
+Use `get_task` to retrieve full details (description, validation criteria, commits, etc.):
+
+```python
+# Step 1: Discover tasks
+tasks = call_tool(server_name="gobby-tasks", tool_name="list_ready_tasks", arguments={})
+
+# Step 2: Get full details for specific task
+task = call_tool(server_name="gobby-tasks", tool_name="get_task", arguments={"task_id": "gt-abc"})
+```
+
 ### Session Integration
 
 | Tool | Description |
