@@ -260,7 +260,7 @@ call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_i
 | `create_task` | Create a new task with title, priority, task_type, labels |
 | `get_task` | Get task details including dependencies |
 | `update_task` | Update task fields (status, priority, assignee, etc.) |
-| `close_task` | Close a task with reason |
+| `close_task` | Close a task. Requires linked commits (pass `commit_sha` inline, or `no_commit_needed=true` for non-code tasks) |
 | `delete_task` | Delete a task (cascade optional) |
 | `list_tasks` | List tasks with filters |
 | `add_label` | Add a label to a task |
