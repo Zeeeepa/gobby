@@ -92,6 +92,11 @@ class WorkflowEngine:
                         )
 
         # 3. Load definition
+        # Skip if this is a lifecycle-only state (used for task_claimed tracking)
+        if state.workflow_name == "__lifecycle__":
+            logger.debug(f"Skipping stepped workflow handling for lifecycle state in session {session_id}")
+            return HookResponse(decision="allow")
+
         workflow = self.loader.load_workflow(state.workflow_name)
         if not workflow:
             logger.error(f"Workflow '{state.workflow_name}' not found for session {session_id}")
@@ -407,6 +412,15 @@ class WorkflowEngine:
         if context_data is None:
             context_data = {}
 
+        # Read task_claimed from persistent session state (set by previous events)
+        # This enables require_task_before_edit to work with lifecycle workflows
+        session_id = event.metadata.get("_platform_session_id")
+        if session_id:
+            lifecycle_state = self.state_manager.get_state(session_id)
+            if lifecycle_state and lifecycle_state.variables.get("task_claimed"):
+                context_data["task_claimed"] = True
+                logger.debug(f"Loaded task_claimed=True from session state for {session_id}")
+
         # Track which workflow+trigger combinations have already been processed
         # to prevent duplicate execution of the same trigger
         processed_triggers: set[tuple[str, str]] = set()
@@ -458,6 +472,22 @@ class WorkflowEngine:
                 break
 
             logger.debug(f"Triggers fired in iteration {iteration + 1}, continuing")
+
+        # Detect task claims for AFTER_TOOL events (session-scoped enforcement)
+        # This enables require_task_before_edit to work with lifecycle workflows
+        if event.event_type == HookEventType.AFTER_TOOL:
+            session_id = event.metadata.get("_platform_session_id")
+            if session_id:
+                # Get or create a minimal state for tracking task_claimed
+                state = self.state_manager.get_state(session_id)
+                if state is None:
+                    state = WorkflowState(
+                        session_id=session_id,
+                        workflow_name="__lifecycle__",
+                        step="",
+                    )
+                self._detect_task_claim(event, state)
+                self.state_manager.save_state(state)
 
         return HookResponse(
             decision=final_decision,
