@@ -230,7 +230,22 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title"
 
 ## Task Management with gobby-tasks
 
-Use the `gobby-tasks` MCP tools for persistent task tracking (requires daemon running):
+Use the `gobby-tasks` MCP tools for persistent task tracking (requires daemon running).
+
+**IMPORTANT: Workflow Requirement**
+
+Before editing files (Edit/Write tools), you MUST have an active task with `status: in_progress`. The workflow hook blocks file modifications when no task is active. Always create and start a task first:
+
+```python
+# Create a task
+call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title": "My task"})
+# Returns: {"id": "gt-abc123"}
+
+# Set it to in_progress before editing files
+call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_id": "gt-abc123", "status": "in_progress"})
+```
+
+**Task Workflow:**
 
 1. **Start of session**: Call `list_ready_tasks` or `suggest_next_task` to find work
 2. **New requests**: Create tasks with `create_task(title="...", description="...")`
@@ -258,6 +273,10 @@ Use the `gobby-tasks` MCP tools for persistent task tracking (requires daemon ru
 | `suggest_next_task` | AI suggests best next task to work on |
 | `validate_task` | Validate task completion with AI |
 | `sync_tasks` | Trigger git sync (import/export) |
+| `link_commit` | Link a git commit to a task |
+| `unlink_commit` | Remove a commit link from a task |
+| `auto_link_commits` | Auto-detect and link commits mentioning task ID |
+| `get_task_diff` | Get combined diff for all commits linked to a task |
 
 ```python
 # Example MCP tool calls via daemon
@@ -267,6 +286,152 @@ call_tool(server_name="gobby-tasks", tool_name="expand_task", arguments={"task_i
 ```
 
 If tools fail, check daemon status: `uv run gobby status`
+
+### Commit Linking
+
+Link git commits to tasks for traceability and validation context. This enables:
+- Validation against committed code (not just uncommitted changes)
+- Audit trail of what was done for each task
+- Context for validation even after changes are committed
+
+**Auto-Linking Patterns:**
+
+When committing, include the task ID in your commit message:
+- `[gt-abc123]` - Task ID in brackets (recommended)
+- `gt-abc123:` - Task ID with colon prefix
+- `Implements gt-abc123` - Natural language reference
+
+On session end, Gobby automatically scans new commits and links them to mentioned tasks.
+
+**MCP Tools:**
+
+```python
+# Manually link a commit
+call_tool(server_name="gobby-tasks", tool_name="link_commit", arguments={
+    "task_id": "gt-abc123",
+    "commit_sha": "abc1234"
+})
+
+# Auto-detect and link commits
+call_tool(server_name="gobby-tasks", tool_name="auto_link_commits", arguments={
+    "task_id": "gt-abc123",
+    "since": "1 day ago"
+})
+
+# Get diff for validation
+call_tool(server_name="gobby-tasks", tool_name="get_task_diff", arguments={
+    "task_id": "gt-abc123",
+    "include_uncommitted": true
+})
+```
+
+**CLI Commands:**
+
+```bash
+# Link commits manually
+gobby tasks commit link TASK_ID COMMIT_SHA
+gobby tasks commit unlink TASK_ID COMMIT_SHA
+
+# Auto-link from commit messages
+gobby tasks commit auto TASK_ID [--since COMMIT]
+
+# View linked commits
+gobby tasks show TASK_ID --commits
+
+# Get task diff (for validation)
+gobby tasks diff TASK_ID [--no-uncommitted]
+```
+
+### Enhanced Validation
+
+The validation system provides a robust QA loop with structured feedback, recurring issue detection, and escalation.
+
+**Validation Features:**
+
+- **Structured Issues**: Validation returns typed issues (acceptance_gap, test_failure, lint_error, type_error, security) with severity levels (blocker, major, minor)
+- **Validation History**: All validation attempts are recorded with full context
+- **Recurring Issue Detection**: Automatically detects when the same issues keep appearing
+- **Escalation**: Tasks are escalated to human review after repeated failures
+- **External Validator**: Optional separate agent validates with no prior context
+
+**MCP Tools:**
+
+| Tool | Description |
+|------|-------------|
+| `validate_task` | Run validation with optional max_iterations, external validator |
+| `get_validation_history` | View all validation iterations for a task |
+| `get_recurring_issues` | Analyze for issues appearing multiple times |
+| `clear_validation_history` | Reset validation history after major changes |
+| `de_escalate_task` | Return escalated task to open status |
+
+```python
+# Validate a task
+call_tool(server_name="gobby-tasks", tool_name="validate_task", arguments={
+    "task_id": "gt-abc123",
+    "max_iterations": 3,
+    "use_external_validator": True
+})
+
+# Check for recurring issues
+call_tool(server_name="gobby-tasks", tool_name="get_recurring_issues", arguments={
+    "task_id": "gt-abc123",
+    "threshold": 2
+})
+
+# De-escalate after human fix
+call_tool(server_name="gobby-tasks", tool_name="de_escalate_task", arguments={
+    "task_id": "gt-abc123",
+    "reason": "Fixed authentication issue manually",
+    "reset_validation": True
+})
+```
+
+**CLI Commands:**
+
+```bash
+# Validate with options
+gobby tasks validate TASK_ID --max-iterations 3 --external --skip-build
+
+# View validation history
+gobby tasks validate TASK_ID --history
+gobby tasks validation-history TASK_ID --json
+
+# Check recurring issues
+gobby tasks validate TASK_ID --recurring
+
+# Clear history after major changes
+gobby tasks validation-history TASK_ID --clear
+
+# De-escalate a task
+gobby tasks de-escalate TASK_ID --reason "Fixed manually"
+
+# List escalated tasks
+gobby tasks list --status escalated
+```
+
+**Configuration** (`~/.gobby/config.yaml`):
+
+```yaml
+gobby_tasks:
+  validation:
+    enabled: true
+    provider: "claude"
+    model: "claude-sonnet-4-20250514"
+    max_iterations: 10
+    recurring_issue_threshold: 3
+    run_build_first: true
+    build_command: "npm test"  # Or auto-detected
+    use_external_validator: false
+    external_validator_model: "claude-sonnet-4-20250514"
+```
+
+**Escalation Flow:**
+
+1. Task fails validation repeatedly (same issues)
+2. Gobby detects recurring issues and escalates
+3. Task status changes to `escalated` with reason
+4. Human reviews and fixes the issue
+5. Use `de-escalate` to return task to `open` status
 
 ## Memory Management with gobby-memory
 
