@@ -239,3 +239,75 @@ class TestRequireActiveTask:
         assert result["decision"] == "block"
         # Verify task_claimed is not in variables
         assert "task_claimed" not in fresh_state.variables
+
+    async def test_error_shown_once_then_short_reminder(
+        self, mock_config, mock_task_manager, workflow_state
+    ):
+        """First block shows full error, subsequent blocks show short reminder."""
+        mock_task_manager.list_tasks.return_value = []
+
+        # First call - should get full error
+        result1 = await require_active_task(
+            task_manager=mock_task_manager,
+            session_id="test-session",
+            config=mock_config,
+            event_data={"tool_name": "Edit"},
+            project_id="proj-123",
+            workflow_state=workflow_state,
+        )
+
+        assert result1 is not None
+        assert result1["decision"] == "block"
+        assert "Each session must explicitly" in result1["inject_context"]
+        assert workflow_state.variables.get("task_error_shown") is True
+
+        # Second call - should get short reminder
+        result2 = await require_active_task(
+            task_manager=mock_task_manager,
+            session_id="test-session",
+            config=mock_config,
+            event_data={"tool_name": "Write"},
+            project_id="proj-123",
+            workflow_state=workflow_state,
+        )
+
+        assert result2 is not None
+        assert result2["decision"] == "block"
+        assert "see previous error" in result2["inject_context"]
+        assert "Each session must explicitly" not in result2["inject_context"]
+
+    async def test_error_dedup_without_workflow_state(
+        self, mock_config, mock_task_manager
+    ):
+        """Error dedup gracefully handles missing workflow_state (no dedup)."""
+        mock_task_manager.list_tasks.return_value = []
+
+        # First call without workflow_state
+        result1 = await require_active_task(
+            task_manager=mock_task_manager,
+            session_id="test-session",
+            config=mock_config,
+            event_data={"tool_name": "Edit"},
+            project_id="proj-123",
+            workflow_state=None,
+        )
+
+        assert result1 is not None
+        assert result1["decision"] == "block"
+        # Should get full error since we can't track state
+        assert "Each session must explicitly" in result1["inject_context"]
+
+        # Second call also without workflow_state - still gets full error
+        result2 = await require_active_task(
+            task_manager=mock_task_manager,
+            session_id="test-session",
+            config=mock_config,
+            event_data={"tool_name": "Write"},
+            project_id="proj-123",
+            workflow_state=None,
+        )
+
+        assert result2 is not None
+        assert result2["decision"] == "block"
+        # Without state, each call shows full error
+        assert "Each session must explicitly" in result2["inject_context"]

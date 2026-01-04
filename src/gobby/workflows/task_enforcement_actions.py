@@ -124,6 +124,27 @@ async def require_active_task(
         f"require_active_task: Blocking '{tool_name}' - no task claimed for session {session_id}"
     )
 
+    # Check if we've already shown the full error this session
+    error_already_shown = False
+    if workflow_state:
+        error_already_shown = workflow_state.variables.get("task_error_shown", False)
+        # Mark that we've shown the error (for next time)
+        if not error_already_shown:
+            workflow_state.variables["task_error_shown"] = True
+
+    # Return short reminder if we've already shown the full error
+    if error_already_shown:
+        return {
+            "decision": "block",
+            "reason": "No task claimed. See previous **Task Required** error for instructions.",
+            "inject_context": (
+                f"**Task Required**: `{tool_name}` blocked. "
+                f"Create or claim a task before editing files (see previous error for details)."
+                f"{project_task_hint}"
+            ),
+        }
+
+    # First time - show full instructions
     return {
         "decision": "block",
         "reason": (
