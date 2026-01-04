@@ -28,6 +28,7 @@ from gobby.cli.tasks.crud import (
     blocked_tasks,
     close_task_cmd,
     create_task,
+    de_escalate_cmd,
     delete_task,
     list_tasks,
     ready_tasks,
@@ -35,6 +36,7 @@ from gobby.cli.tasks.crud import (
     show_task,
     task_stats,
     update_task,
+    validation_history_cmd,
 )
 from gobby.cli.tasks.deps import dep_cmd
 from gobby.cli.tasks.hooks import hooks_cmd
@@ -61,6 +63,8 @@ tasks.add_command(update_task)
 tasks.add_command(close_task_cmd)
 tasks.add_command(reopen_task_cmd)
 tasks.add_command(delete_task)
+tasks.add_command(de_escalate_cmd)
+tasks.add_command(validation_history_cmd)
 
 # Register AI-powered commands from extracted module
 tasks.add_command(validate_task_cmd)

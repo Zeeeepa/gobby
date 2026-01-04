@@ -487,12 +487,12 @@ class TestValidateFlagCombinations:
         """Create a CLI test runner."""
         return CliRunner()
 
-    def test_history_and_recurring_are_mutually_exclusive_with_validation(
-        self, runner: CliRunner
-    ):
-        """Test that --history and --recurring don't run validation."""
-        # When using --history or --recurring, we're just viewing data
-        # not running a new validation
+    def test_history_flag_does_not_require_summary(self, runner: CliRunner):
+        """Test that --history bypasses --summary requirement.
+
+        When using --history, we're viewing validation history data,
+        not running a new validation, so --summary is not required.
+        """
         result = runner.invoke(
             cli,
             ["tasks", "validate", "gt-test123", "--history"],
@@ -547,59 +547,59 @@ class TestValidateTaskNotFound:
         return CliRunner()
 
     @patch("gobby.cli.tasks.ai.get_task_manager")
-    @patch("gobby.cli.tasks.ai.resolve_task_id")
     def test_validate_history_task_not_found(
         self,
-        mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
     ):
         """Test validate --history with non-existent task."""
-        mock_resolve.return_value = None  # Task not found
-        mock_get_manager.return_value = MagicMock()
+        mock_manager = MagicMock()
+        mock_manager.get_task.side_effect = ValueError("not found")
+        mock_manager.find_tasks_by_prefix.return_value = []
+        mock_get_manager.return_value = mock_manager
 
         result = runner.invoke(
             cli,
             ["tasks", "validate", "gt-nonexistent", "--history"],
         )
 
-        # Should handle gracefully
-        assert "not found" in result.output.lower() or result.exit_code != 0
+        # Should handle gracefully - resolve_task_id prints "not found"
+        assert "not found" in result.output.lower()
 
     @patch("gobby.cli.tasks.crud.get_task_manager")
-    @patch("gobby.cli.tasks.crud.resolve_task_id")
     def test_validation_history_task_not_found(
         self,
-        mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
     ):
         """Test validation-history with non-existent task."""
-        mock_resolve.return_value = None
-        mock_get_manager.return_value = MagicMock()
+        mock_manager = MagicMock()
+        mock_manager.get_task.side_effect = ValueError("not found")
+        mock_manager.find_tasks_by_prefix.return_value = []
+        mock_get_manager.return_value = mock_manager
 
         result = runner.invoke(
             cli,
             ["tasks", "validation-history", "gt-nonexistent"],
         )
 
-        assert "not found" in result.output.lower() or result.exit_code != 0
+        assert "not found" in result.output.lower()
 
     @patch("gobby.cli.tasks.crud.get_task_manager")
-    @patch("gobby.cli.tasks.crud.resolve_task_id")
     def test_de_escalate_task_not_found(
         self,
-        mock_resolve: MagicMock,
         mock_get_manager: MagicMock,
         runner: CliRunner,
     ):
         """Test de-escalate with non-existent task."""
-        mock_resolve.return_value = None
-        mock_get_manager.return_value = MagicMock()
+        mock_manager = MagicMock()
+        mock_manager.get_task.side_effect = ValueError("not found")
+        mock_manager.find_tasks_by_prefix.return_value = []
+        mock_get_manager.return_value = mock_manager
 
         result = runner.invoke(
             cli,
             ["tasks", "de-escalate", "gt-nonexistent", "--reason", "test"],
         )
 
-        assert "not found" in result.output.lower() or result.exit_code != 0
+        assert "not found" in result.output.lower()

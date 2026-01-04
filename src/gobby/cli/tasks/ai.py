@@ -18,21 +18,70 @@ from gobby.utils.project_context import get_project_context
 @click.option(
     "--file", "summary_file", type=click.Path(exists=True), help="File containing changes summary"
 )
-def validate_task_cmd(task_id: str, summary: str | None, summary_file: str | None) -> None:
+@click.option("--max-iterations", type=int, default=1, help="Max validation retry attempts")
+@click.option("--external", is_flag=True, help="Use external validator agent")
+@click.option("--skip-build", is_flag=True, help="Skip build verification before validation")
+@click.option("--history", is_flag=True, help="Show validation history instead of validating")
+@click.option("--recurring", is_flag=True, help="Show recurring issues instead of validating")
+def validate_task_cmd(
+    task_id: str,
+    summary: str | None,
+    summary_file: str | None,
+    max_iterations: int,
+    external: bool,
+    skip_build: bool,
+    history: bool,
+    recurring: bool,
+) -> None:
     """Validate a task.
 
     For parent tasks (with children), validates that all children are closed.
     For leaf tasks, uses LLM-based validation against criteria.
+
+    Use --history to view past validation iterations.
+    Use --recurring to see issues that keep appearing.
     """
     import asyncio
 
     from gobby.config.app import load_config
     from gobby.llm import LLMService
     from gobby.tasks.validation import TaskValidator, ValidationResult
+    from gobby.tasks.validation_history import ValidationHistoryManager
 
     manager = get_task_manager()
     resolved = resolve_task_id(manager, task_id)
     if not resolved:
+        return
+
+    # Handle --history flag: show validation history
+    if history:
+        history_manager = ValidationHistoryManager(manager.db)
+        iterations = history_manager.get_iteration_history(resolved.id)
+        if not iterations:
+            click.echo(f"No validation history for task {resolved.id}")
+            return
+        click.echo(f"Validation history for {resolved.id}:")
+        for it in iterations:
+            click.echo(f"\n  Iteration {it.iteration}: {it.status}")
+            if it.feedback:
+                click.echo(f"    Feedback: {it.feedback[:100]}...")
+            if it.issues:
+                click.echo(f"    Issues: {len(it.issues)}")
+        return
+
+    # Handle --recurring flag: show recurring issues
+    if recurring:
+        history_manager = ValidationHistoryManager(manager.db)
+        summary_data = history_manager.get_recurring_issue_summary(resolved.id)
+        has_recurring = history_manager.has_recurring_issues(resolved.id)
+        click.echo(f"Recurring issues for {resolved.id}:")
+        click.echo(f"  Has recurring issues: {has_recurring}")
+        click.echo(f"  Total iterations: {summary_data['total_iterations']}")
+        if summary_data["recurring_issues"]:
+            for issue in summary_data["recurring_issues"]:
+                click.echo(f"  - {issue['title']} (count: {issue['count']})")
+        else:
+            click.echo("  No recurring issues found.")
         return
 
     # Check if task has children (is a parent task)

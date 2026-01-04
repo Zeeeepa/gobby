@@ -385,3 +385,94 @@ def delete_task(task_id: str, cascade: bool) -> None:
 
     manager.delete_task(resolved.id, cascade=cascade)
     click.echo(f"Deleted task {resolved.id}")
+
+
+@click.command("de-escalate")
+@click.argument("task_id")
+@click.option("--reason", "-r", required=True, help="Reason for de-escalation")
+@click.option("--reset-validation", is_flag=True, help="Reset validation fail count")
+def de_escalate_cmd(task_id: str, reason: str, reset_validation: bool) -> None:
+    """Return an escalated task to open status.
+
+    Use after human intervention resolves the issue that caused escalation.
+    """
+    manager = get_task_manager()
+    resolved = resolve_task_id(manager, task_id)
+    if not resolved:
+        return
+
+    if resolved.status != "escalated":
+        click.echo(
+            f"Task {resolved.id[:8]} is not escalated (status: {resolved.status})",
+            err=True,
+        )
+        return
+
+    # Build update kwargs
+    update_kwargs = {
+        "status": "open",
+        "escalated_at": None,
+        "escalation_reason": None,
+    }
+    if reset_validation:
+        update_kwargs["validation_fail_count"] = 0
+
+    manager.update_task(resolved.id, **update_kwargs)
+    click.echo(f"De-escalated task {resolved.id[:8]} ({reason})")
+    if reset_validation:
+        click.echo("  Validation fail count reset to 0")
+
+
+@click.command("validation-history")
+@click.argument("task_id")
+@click.option("--clear", is_flag=True, help="Clear validation history")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+def validation_history_cmd(task_id: str, clear: bool, json_format: bool) -> None:
+    """View or clear validation history for a task."""
+    from gobby.tasks.validation_history import ValidationHistoryManager
+
+    manager = get_task_manager()
+    resolved = resolve_task_id(manager, task_id)
+    if not resolved:
+        return
+
+    history_manager = ValidationHistoryManager(manager.db)
+
+    if clear:
+        history_manager.clear_history(resolved.id)
+        manager.update_task(resolved.id, validation_fail_count=0)
+        click.echo(f"Cleared validation history for {resolved.id[:8]}")
+        return
+
+    iterations = history_manager.get_iteration_history(resolved.id)
+
+    if json_format:
+        result = {
+            "task_id": resolved.id,
+            "iterations": [
+                {
+                    "iteration": it.iteration,
+                    "status": it.status,
+                    "feedback": it.feedback,
+                    "issues": [i.to_dict() for i in (it.issues or [])],
+                    "created_at": it.created_at,
+                }
+                for it in iterations
+            ],
+        }
+        click.echo(json.dumps(result, indent=2, default=str))
+        return
+
+    if not iterations:
+        click.echo(f"No validation history for task {resolved.id[:8]}")
+        return
+
+    click.echo(f"Validation history for {resolved.id[:8]}:")
+    for it in iterations:
+        click.echo(f"\n  Iteration {it.iteration}: {it.status}")
+        if it.feedback:
+            feedback_preview = it.feedback[:100] + "..." if len(it.feedback) > 100 else it.feedback
+            click.echo(f"    Feedback: {feedback_preview}")
+        if it.issues:
+            click.echo(f"    Issues: {len(it.issues)}")
+        click.echo(f"    Created: {it.created_at}")
