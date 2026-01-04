@@ -41,7 +41,7 @@ class Task:
     id: str
     project_id: str
     title: str
-    status: Literal["open", "in_progress", "closed", "failed"]
+    status: Literal["open", "in_progress", "closed", "failed", "escalated"]
     priority: int
     task_type: str  # bug, feature, task, epic, chore
     created_at: str
@@ -72,6 +72,9 @@ class Task:
     sequence_order: int | None = None
     # Commit linking
     commits: list[str] | None = None
+    # Escalation fields
+    escalated_at: str | None = None
+    escalation_reason: str | None = None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Task":
@@ -128,6 +131,8 @@ class Task:
             verification=row["verification"] if "verification" in keys else None,
             sequence_order=row["sequence_order"] if "sequence_order" in keys else None,
             commits=json.loads(row["commits"]) if "commits" in keys and row["commits"] else None,
+            escalated_at=row["escalated_at"] if "escalated_at" in keys else None,
+            escalation_reason=row["escalation_reason"] if "escalation_reason" in keys else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -164,6 +169,8 @@ class Task:
             "verification": self.verification,
             "sequence_order": self.sequence_order,
             "commits": self.commits,
+            "escalated_at": self.escalated_at,
+            "escalation_reason": self.escalation_reason,
         }
 
 
@@ -390,6 +397,8 @@ class LocalTaskManager:
         workflow_name: str | None | Any = UNSET,
         verification: str | None | Any = UNSET,
         sequence_order: int | None | Any = UNSET,
+        escalated_at: str | None | Any = UNSET,
+        escalation_reason: str | None | Any = UNSET,
     ) -> Task:
         """Update task fields."""
         updates = []
@@ -464,6 +473,12 @@ class LocalTaskManager:
         if sequence_order is not UNSET:
             updates.append("sequence_order = ?")
             params.append(sequence_order)
+        if escalated_at is not UNSET:
+            updates.append("escalated_at = ?")
+            params.append(escalated_at)
+        if escalation_reason is not UNSET:
+            updates.append("escalation_reason = ?")
+            params.append(escalation_reason)
 
         if not updates:
             return self.get_task(task_id)
