@@ -1806,7 +1806,7 @@ def create_task_registry(
         parent_task_id: str | None = None,
         limit: int = 10,
     ) -> dict[str, Any]:
-        """List tasks that are open and have no unresolved blocking dependencies. Returns tasks in brief format; use get_task() for full details."""
+        """List tasks that are open and have no unresolved blocking dependencies."""
         tasks = task_manager.list_ready_tasks(
             priority=priority,
             task_type=task_type,
@@ -1818,7 +1818,7 @@ def create_task_registry(
 
     registry.register(
         name="list_ready_tasks",
-        description="List tasks that are open and have no unresolved blocking dependencies. Returns tasks in brief format; use get_task() for full details.",
+        description="List tasks that are open and have no unresolved blocking dependencies.",
         input_schema={
             "type": "object",
             "properties": {
@@ -1848,7 +1848,7 @@ def create_task_registry(
         parent_task_id: str | None = None,
         limit: int = 20,
     ) -> dict[str, Any]:
-        """List tasks that are currently blocked, including what blocks them. Returns tasks in brief format; use get_task() for full details."""
+        """List tasks that are currently blocked, including what blocks them."""
         blocked_tasks = task_manager.list_blocked_tasks(
             parent_task_id=parent_task_id,
             limit=limit,
@@ -1857,7 +1857,7 @@ def create_task_registry(
 
     registry.register(
         name="list_blocked_tasks",
-        description="List tasks that are currently blocked by external dependencies (excludes parent tasks blocked by their own children). Returns tasks in brief format; use get_task() for full details.",
+        description="List tasks that are currently blocked by external dependencies (excludes parent tasks blocked by their own children).",
         input_schema={
             "type": "object",
             "properties": {
