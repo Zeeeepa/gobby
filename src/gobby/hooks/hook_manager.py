@@ -984,7 +984,7 @@ class HookManager:
 
         # Step 7: Build response with context and system message
         context_parts = []
-        context_parts.append(f"Session registered: {session_id}")
+        context_parts.append("")
 
         # Include any workflow context
         if wf_response.context:
