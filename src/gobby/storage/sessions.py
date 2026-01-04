@@ -95,15 +95,14 @@ class LocalSessionManager:
         parent_session_id: str | None = None,
     ) -> Session:
         """
-        Register a new session or reuse existing one for the same project.
+        Register a new session or return existing one.
 
-        For single-developer workflows, reuses the existing session for the same
-        (project_id, machine_id, source) combination, updating the external_id.
-        This preserves workflow state (e.g., task_claimed) across Claude Code
-        session restarts.
+        Looks up by (external_id, machine_id, project_id, source) to find if this
+        exact session already exists (e.g., daemon restarted mid-session). If found,
+        returns the existing session. Otherwise creates a new one.
 
         Args:
-            external_id: External session identifier
+            external_id: External session identifier (e.g., Claude Code's session ID)
             machine_id: Machine identifier
             source: CLI source (claude_code, codex, gemini)
             project_id: Project ID (required - sessions must belong to a project)
@@ -117,15 +116,13 @@ class LocalSessionManager:
         """
         now = datetime.now(UTC).isoformat()
 
-        # First, check if there's an existing session for this (project, source, machine)
-        # For single-developer workflows, we reuse it to preserve workflow state
-        existing = self.find_by_project(project_id, machine_id, source)
+        # Check if this exact session already exists (daemon restart case)
+        existing = self.find_by_external_id(external_id, machine_id, project_id, source)
         if existing:
-            # Update the external_id and other fields, reuse the session
+            # Session exists - update metadata and return it
             self.db.execute(
                 """
                 UPDATE sessions SET
-                    external_id = ?,
                     title = COALESCE(?, title),
                     jsonl_path = COALESCE(?, jsonl_path),
                     git_branch = COALESCE(?, git_branch),
@@ -135,7 +132,6 @@ class LocalSessionManager:
                 WHERE id = ?
                 """,
                 (
-                    external_id,
                     title,
                     jsonl_path,
                     git_branch,
@@ -144,9 +140,10 @@ class LocalSessionManager:
                     existing.id,
                 ),
             )
+            logger.debug(f"Reusing existing session {existing.id} for external_id={external_id}")
             return self.get(existing.id)  # type: ignore
 
-        # No existing session for this project - create new one
+        # New session - create it
         session_id = str(uuid.uuid4())
         self.db.execute(
             """
@@ -171,6 +168,7 @@ class LocalSessionManager:
                 now,
             ),
         )
+        logger.debug(f"Created new session {session_id} for external_id={external_id}")
 
         return self.get(session_id)  # type: ignore
 
@@ -195,33 +193,35 @@ class LocalSessionManager:
         )
         return Session.from_row(row) if row else None
 
-    def find_by_project(
+    def find_by_external_id(
         self,
-        project_id: str,
+        external_id: str,
         machine_id: str,
+        project_id: str,
         source: str,
     ) -> Session | None:
-        """Find most recent session for a project/machine/source combination.
+        """
+        Find session by external_id, machine_id, project_id, and source.
 
-        For single-developer workflows, this returns the session to reuse
-        when a new external_id comes in for the same project.
+        This is the primary lookup for reconnecting to an existing session
+        after daemon restart. The external_id (e.g., Claude Code's session ID)
+        is stable within a session.
 
         Args:
-            project_id: Project identifier
+            external_id: External session identifier
             machine_id: Machine identifier
+            project_id: Project identifier
             source: CLI source (claude, gemini, codex)
 
         Returns:
-            Most recent session for this combination, or None if not found.
+            Session if found, None otherwise.
         """
         row = self.db.fetchone(
             """
             SELECT * FROM sessions
-            WHERE project_id = ? AND machine_id = ? AND source = ?
-            ORDER BY updated_at DESC
-            LIMIT 1
+            WHERE external_id = ? AND machine_id = ? AND project_id = ? AND source = ?
             """,
-            (project_id, machine_id, source),
+            (external_id, machine_id, project_id, source),
         )
         return Session.from_row(row) if row else None
 
