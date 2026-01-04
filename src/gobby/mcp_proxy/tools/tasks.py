@@ -12,6 +12,7 @@ These tools are registered with the InternalToolRegistry and accessed
 via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 """
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -576,21 +577,21 @@ def create_task_registry(
 
     @registry.tool(
         name="expand_from_spec",
-        description="Create tasks from a specification document or PRD.",
+        description="Create tasks from a specification file (markdown, PRD, etc.).",
     )
     async def expand_from_spec(
-        spec_content: str,
+        spec_path: str,
         parent_task_id: str | None = None,
         task_type: str = "task",
     ) -> dict[str, Any]:
         """
-        Parse a specification document and create tasks from it.
+        Parse a specification file and create tasks from it.
 
-        Creates a parent task from the spec title/summary, then expands it
-        into subtasks using tool-based expansion.
+        Reads the file, creates a parent task from the title/summary, then
+        expands it into subtasks using tool-based expansion.
 
         Args:
-            spec_content: The specification text (markdown, requirements, etc.)
+            spec_path: Path to the specification file (markdown, requirements, etc.)
             parent_task_id: Optional parent task to nest created tasks under
             task_type: Type for created tasks (default: "task")
 
@@ -599,6 +600,18 @@ def create_task_registry(
         """
         if not task_expander:
             raise RuntimeError("Task expansion is not enabled")
+
+        # Read the spec file
+        path = Path(spec_path).expanduser().resolve()
+        if not path.exists():
+            return {"error": f"Spec file not found: {spec_path}"}
+        if not path.is_file():
+            return {"error": f"Path is not a file: {spec_path}"}
+
+        try:
+            spec_content = path.read_text(encoding="utf-8")
+        except Exception as e:
+            return {"error": f"Failed to read spec file: {e}"}
 
         # Get project context
         ctx = get_project_context()
@@ -667,6 +680,111 @@ def create_task_registry(
 
         return {
             "parent_task": spec_task.to_dict(),
+            "tasks_created": len(subtask_ids),
+            "subtask_ids": subtask_ids,
+            "subtasks": subtasks,
+        }
+
+    @registry.tool(
+        name="expand_from_prompt",
+        description="Create tasks from a user prompt (e.g., '/task implement user auth').",
+    )
+    async def expand_from_prompt(
+        prompt: str,
+        parent_task_id: str | None = None,
+        task_type: str = "task",
+    ) -> dict[str, Any]:
+        """
+        Parse a user prompt and create tasks from it.
+
+        Creates a parent task from the prompt, then expands it into subtasks
+        using tool-based expansion. Designed for use with slash commands.
+
+        Args:
+            prompt: The user's task prompt (e.g., "implement user authentication")
+            parent_task_id: Optional parent task to nest created tasks under
+            task_type: Type for created tasks (default: "task")
+
+        Returns:
+            Dictionary with parent task and created subtasks
+        """
+        if not task_expander:
+            raise RuntimeError("Task expansion is not enabled")
+
+        if not prompt or not prompt.strip():
+            return {"error": "Prompt cannot be empty"}
+
+        prompt = prompt.strip()
+
+        # Get project context
+        ctx = get_project_context()
+        if ctx and ctx.get("id"):
+            project_id = ctx["id"]
+        else:
+            init_result = initialize_project()
+            project_id = init_result.project_id
+
+        # Extract title from prompt (first line or first sentence, max 80 chars)
+        first_line = prompt.split("\n")[0].strip()
+        # If first line is short enough, use it as title
+        if len(first_line) <= 80:
+            title = first_line
+        else:
+            # Try to find a sentence boundary
+            for sep in [". ", "! ", "? ", ": "]:
+                if sep in first_line[:80]:
+                    title = first_line[: first_line.index(sep) + 1]
+                    break
+            else:
+                title = first_line[:77] + "..."
+
+        # Create a parent task for the prompt
+        prompt_task = task_manager.create_task(
+            project_id=project_id,
+            title=title,
+            description=prompt,
+            parent_task_id=parent_task_id,
+            task_type="epic" if len(prompt) > 200 else task_type,
+        )
+
+        # Expand the task into subtasks
+        result = await task_expander.expand_task(
+            task_id=prompt_task.id,
+            title=prompt_task.title,
+            description=prompt,
+            context="Break this request into actionable tasks. "
+            "Each task should be specific, testable, and implementable.",
+            enable_web_research=False,
+            enable_code_context=True,  # Use code context for prompts
+        )
+
+        if "error" in result:
+            return {
+                "error": result["error"],
+                "parent_task": prompt_task.to_dict(),
+                "subtask_ids": [],
+            }
+
+        subtask_ids = result.get("subtask_ids", [])
+
+        # Wire parent → subtask dependencies
+        for subtask_id in subtask_ids:
+            try:
+                dep_manager.add_dependency(
+                    task_id=prompt_task.id, depends_on=subtask_id, dep_type="blocks"
+                )
+            except ValueError:
+                pass
+
+        # Fetch created subtasks
+        subtasks = []
+        for sid in subtask_ids:
+            subtask = task_manager.get_task(sid)
+            if subtask:
+                subtasks.append(subtask.to_dict())
+
+        return {
+            "parent_task": prompt_task.to_dict(),
             "tasks_created": len(subtask_ids),
             "subtask_ids": subtask_ids,
             "subtasks": subtasks,

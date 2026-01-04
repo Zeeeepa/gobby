@@ -108,7 +108,7 @@ class DaemonProxy:
         ):
             timeout = config.mcp_client_proxy.tool_timeouts[tool_name]
         # Fallback for LLM-based task tools if not explicit in config
-        elif tool_name in ("expand_task", "expand_from_spec", "suggest_next_task", "validate_task"):
+        elif tool_name in ("expand_task", "expand_from_spec", "expand_from_prompt", "suggest_next_task", "validate_task"):
             timeout = 300.0
 
         return await self._request(
