@@ -241,6 +241,7 @@ class HookManager:
             memory_sync_manager=self.memory_sync_manager,
             skill_sync_manager=self.skill_sync_manager,
             task_manager=self._task_manager,
+            session_task_manager=self._session_task_manager,
         )
         self._workflow_engine = WorkflowEngine(
             loader=self._workflow_loader,

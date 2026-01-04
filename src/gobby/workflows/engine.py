@@ -962,3 +962,17 @@ class WorkflowEngine:
             f"Session {state.session_id}: task_claimed=True "
             f"(via {inner_tool_name})"
         )
+
+        # Auto-link task to session when status is set to in_progress
+        if inner_tool_name == "update_task":
+            arguments = tool_input.get("arguments", {}) or {}
+            task_id = arguments.get("task_id")
+            session_task_mgr = getattr(self.action_executor, "session_task_manager", None)
+            if task_id and session_task_mgr:
+                try:
+                    session_task_mgr.link_task(state.session_id, task_id, "worked_on")
+                    logger.info(
+                        f"Auto-linked task {task_id} to session {state.session_id}"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to auto-link task {task_id}: {e}")
