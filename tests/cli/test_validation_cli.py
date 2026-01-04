@@ -6,6 +6,7 @@ commands that don't yet exist or need extension.
 Task: gt-34841b
 """
 
+import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -15,6 +16,7 @@ from click.testing import CliRunner
 from gobby.cli import cli
 
 
+@pytest.mark.unit
 class TestValidateCommandWithNewFlags:
     """Tests for gobby tasks validate with enhanced validation flags."""
 
@@ -91,7 +93,8 @@ class TestValidateCommandWithNewFlags:
 
         # Command should accept the flag (even if validation is mocked)
         # We're testing the CLI accepts the flag, not the implementation
-        assert "--max-iterations" not in result.output or result.exit_code != 2
+        # Exit code 2 means Click rejected the flag as unrecognized
+        assert result.exit_code != 2, f"Flag --max-iterations was rejected: {result.output}"
 
     @patch("gobby.cli.tasks.ai.get_task_manager")
     @patch("gobby.cli.tasks.ai.resolve_task_id")
@@ -116,7 +119,8 @@ class TestValidateCommandWithNewFlags:
             ["tasks", "validate", "gt-test123", "--external", "--summary", "test changes"],
         )
 
-        assert "--external" not in result.output or result.exit_code != 2
+        # Exit code 2 means Click rejected the flag as unrecognized
+        assert result.exit_code != 2, f"Flag --external was rejected: {result.output}"
 
     @patch("gobby.cli.tasks.ai.get_task_manager")
     @patch("gobby.cli.tasks.ai.resolve_task_id")
@@ -141,7 +145,8 @@ class TestValidateCommandWithNewFlags:
             ["tasks", "validate", "gt-test123", "--skip-build", "--summary", "test changes"],
         )
 
-        assert "--skip-build" not in result.output or result.exit_code != 2
+        # Exit code 2 means Click rejected the flag as unrecognized
+        assert result.exit_code != 2, f"Flag --skip-build was rejected: {result.output}"
 
     @patch("gobby.cli.tasks.ai.get_task_manager")
     @patch("gobby.cli.tasks.ai.resolve_task_id")
@@ -214,8 +219,8 @@ class TestDeEscalateCommand:
     def test_de_escalate_requires_reason(self, runner: CliRunner):
         """Test that de-escalate requires a reason."""
         result = runner.invoke(cli, ["tasks", "de-escalate", "gt-test123"])
-        # Should fail or prompt for reason
-        assert result.exit_code != 0 or "--reason" in result.output
+        # --reason is required=True in Click, so omitting it should fail with exit code 2
+        assert result.exit_code == 2, f"Expected exit code 2 for missing required --reason, got {result.exit_code}"
 
     @patch("gobby.cli.tasks.crud.get_task_manager")
     @patch("gobby.cli.tasks.crud.resolve_task_id")
@@ -264,7 +269,10 @@ class TestDeEscalateCommand:
             ["tasks", "de-escalate", "gt-test123", "--reason", "Some reason"],
         )
 
-        assert result.exit_code != 0 or "not escalated" in result.output.lower()
+        # CLI prints error to stderr but returns exit code 0; check for error message
+        assert "not escalated" in result.output.lower(), (
+            f"Expected 'not escalated' message for non-escalated task, got: {result.output}"
+        )
 
     @patch("gobby.cli.tasks.crud.get_task_manager")
     @patch("gobby.cli.tasks.crud.resolve_task_id")
@@ -289,8 +297,10 @@ class TestDeEscalateCommand:
             ["tasks", "de-escalate", "gt-test123", "--reason", "Fixed", "--reset-validation"],
         )
 
-        # Flag should be accepted
-        assert "--reset-validation" not in result.output or result.exit_code != 2
+        # With valid args and an escalated task, command should succeed
+        assert result.exit_code == 0, (
+            f"Expected exit code 0 for valid de-escalate command, got {result.exit_code}: {result.output}"
+        )
 
 
 class TestValidationHistoryCommand:
@@ -387,11 +397,7 @@ class TestValidationHistoryCommand:
 
         assert result.exit_code == 0
         # Output should be valid JSON
-        import json
-        try:
-            json.loads(result.output)
-        except json.JSONDecodeError:
-            pytest.fail("Output is not valid JSON")
+        json.loads(result.output)
 
 
 class TestListTasksEscalatedFilter:
@@ -475,8 +481,8 @@ class TestListTasksEscalatedFilter:
         )
 
         assert result.exit_code == 0
-        # When showing escalated tasks, should display reason
-        # (This depends on implementation but is the expected behavior)
+        # Escalated tasks should display their escalation reason
+        assert "escalat" in result.output.lower() or "recurring" in result.output.lower()
 
 
 class TestValidateFlagCombinations:
