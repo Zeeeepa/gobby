@@ -272,6 +272,74 @@ class TestHookManagerSessionEnd:
         response = hook_manager_with_mocks.handle(end_event)
         assert response.decision == "allow"
 
+    def test_session_end_auto_links_commits(
+        self,
+        hook_manager_with_mocks: HookManager,
+        temp_dir: Path,
+    ):
+        """Test that session end auto-links commits made during session."""
+        from gobby.storage.sessions import Session
+        from gobby.tasks.commits import AutoLinkResult
+
+        # Create transcript file in temp directory
+        transcript_path = temp_dir / "transcript.jsonl"
+        transcript_path.touch()
+
+        # Mock session storage to return a session with created_at
+        mock_session = Session(
+            id="test-session-id",
+            external_id="test-external-id-123",
+            machine_id="test-machine-id",
+            source="claude",
+            project_id="test-project-id",
+            title="Test Session",
+            status="active",
+            jsonl_path=None,
+            summary_path=None,
+            summary_markdown=None,
+            compact_markdown=None,
+            git_branch=None,
+            parent_session_id=None,
+            created_at="2026-01-04T00:00:00+00:00",
+            updated_at="2026-01-04T00:00:00+00:00",
+        )
+
+        # Mock auto_link_commits to verify it's called
+        mock_result = AutoLinkResult(
+            linked_tasks={"gt-123abc": ["abc1234", "def5678"]},
+            total_linked=2,
+            skipped=1,
+        )
+
+        with (
+            patch.object(
+                hook_manager_with_mocks._session_storage, "get", return_value=mock_session
+            ),
+            patch(
+                "gobby.hooks.hook_manager.auto_link_commits", return_value=mock_result
+            ) as mock_auto_link,
+        ):
+            end_event = HookEvent(
+                event_type=HookEventType.SESSION_END,
+                session_id="test-external-id-123",
+                source=SessionSource.CLAUDE,
+                timestamp=datetime.utcnow(),
+                data={"transcript_path": str(transcript_path), "cwd": str(temp_dir)},
+                machine_id="test-machine-id",
+                metadata={"_platform_session_id": "test-session-id"},
+            )
+
+            response = hook_manager_with_mocks.handle(end_event)
+
+            assert response.decision == "allow"
+
+            # Verify auto_link_commits was called
+            mock_auto_link.assert_called_once()
+            call_kwargs = mock_auto_link.call_args.kwargs
+            assert "task_manager" in call_kwargs
+            assert call_kwargs["since"] == "2026-01-04T00:00:00+00:00"
+            assert call_kwargs["cwd"] == str(temp_dir)
+
 
 class TestHookManagerBeforeAgent:
     """Tests for before agent (user prompt submit) handling."""

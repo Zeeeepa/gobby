@@ -49,6 +49,7 @@ from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.skills import LocalSkillManager
 from gobby.storage.tasks import LocalTaskManager
+from gobby.tasks.commits import auto_link_commits
 from gobby.utils.daemon_client import DaemonClient
 from gobby.workflows.engine import WorkflowEngine
 from gobby.workflows.hooks import WorkflowHookHandler
@@ -1057,6 +1058,29 @@ class HookManager:
                 f"Failed to execute lifecycle workflows on session_end: {e}",
                 exc_info=True,
             )
+
+        # Auto-link commits made during this session to tasks
+        if session_id:
+            try:
+                session = self._session_storage.get(session_id)
+                if session:
+                    cwd = event.data.get("cwd")
+                    link_result = auto_link_commits(
+                        task_manager=self._task_manager,
+                        since=session.created_at,
+                        cwd=cwd,
+                    )
+                    if link_result.total_linked > 0:
+                        self.logger.info(
+                            f"🔗 Auto-linked {link_result.total_linked} commits to tasks: "
+                            f"{list(link_result.linked_tasks.keys())}"
+                        )
+                    elif link_result.skipped > 0:
+                        self.logger.debug(
+                            f"Skipped {link_result.skipped} commits (already linked or task not found)"
+                        )
+            except Exception as e:
+                self.logger.warning(f"Failed to auto-link session commits: {e}")
 
         # FAILOVER: Generate independent session summary file
         # This acts as a flight recorder, independent of workflow success/failure
