@@ -251,7 +251,10 @@ call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_i
 2. **New requests**: Create tasks with `create_task(title="...", description="...")`
 3. **Complex work**: Use `expand_task` to break into subtasks with AI, or use `parent_task_id` manually
 4. **Track progress**: Use `update_task` to change status (`open` -> `in_progress` -> `closed`)
-5. **End of session**: Close completed tasks with `close_task(task_id="...")`
+5. **Complete work**: After finishing a task:
+   - Commit changes with `[task-id]` in the commit message (e.g., `[gt-abc123] feat: add feature`)
+   - Close the task with `close_task(task_id="...", commit_sha="...")`
+   - Never leave completed work uncommitted or tasks unclosed
 
 **Task Tools:**
 
