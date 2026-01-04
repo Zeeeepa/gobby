@@ -8,7 +8,7 @@ A memory-first system that transforms Gobby from tracking sessions to maintainin
 
 ## Vision
 
-> "From meeting a new contractor each session to having a coworker that remembers and learns."
+> "From meeting a new contractor each session to having a coworker who remembers and learns."
 
 Current AI CLIs (Claude Code, Gemini, Codex) treat each session as independent. Gobby already tracks sessions—this plan extends that to:
 

@@ -71,6 +71,7 @@ class Issue:
             Issue instance
 
         Raises:
+            KeyError: If required fields ("type", "severity", "title") are missing
             ValueError: If type or severity values are invalid
         """
         # Parse enums - these will raise ValueError if invalid

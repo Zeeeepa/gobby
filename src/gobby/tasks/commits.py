@@ -80,10 +80,10 @@ def get_task_diff(
                 diff_parts.append(result)
         else:
             # Multiple commits: get combined diff
-            # This assumes commits are in chronological order (oldest to newest)
-            # We reverse to get oldest first, then get diff from oldest^ to newest
+            # Commits are stored in chronological order (oldest at index 0, newest at index -1)
+            # git diff oldest^..newest shows all changes in the range
             result = run_git_command(
-                ["git", "diff", f"{commits[-1]}^..{commits[0]}"],
+                ["git", "diff", f"{commits[0]}^..{commits[-1]}"],
                 cwd=working_dir,
             )
             if result:

@@ -10,6 +10,7 @@ This document outlines high-value features inspired by trending AI projects. The
 - [Continuous-Claude v2](https://github.com/parcadei/Continuous-Claude-v2) - Ledger-based state, artifact indexing (Phase 7)
 - [SkillForge](https://github.com/tripleyak/SkillForge) - Intelligent skill routing and quality scoring (Phase 8)
 - [KnowNote](https://github.com/MrSibe/KnowNote) - Local-first semantic search with sqlite-vec (Phase 9)
+- Original Design - Task-driven autonomous execution with multi-surface termination controls (Phase 10)
 
 ## Build Order
 
@@ -31,9 +32,11 @@ Phase 7: Artifact Index (searchable session history with FTS5)
 Phase 8: Enhanced Skill Routing (intelligent skill matching)
     ↓
 Phase 9: Semantic Memory Search (sqlite-vec local vectors)
+    ↓
+Phase 10: Autonomous Work Loop (task-driven execution with termination controls)
 ```
 
-Each phase is independently valuable. Phases 1-3 enhance local development workflows. Phases 4-5 add external integrations. Phase 6 ties everything together with structured pipelines. Phases 7-9 add intelligent search and context capabilities inspired by trending AI projects.
+Each phase is independently valuable. Phases 1-3 enhance local development workflows. Phases 4-5 add external integrations. Phase 6 ties everything together with structured pipelines. Phases 7-9 add intelligent search and context capabilities inspired by trending AI projects. Phase 10 enables fully autonomous task execution with robust termination controls.
 
 ---
 
@@ -1554,6 +1557,1002 @@ memory:
 
 ---
 
+## Phase 10: Autonomous Work Loop
+
+### Phase 10: Overview
+
+Enable fully autonomous task execution where the agent works through the task queue until exhausted, stopped, or stuck. The loop survives session boundaries through handoff context and uses tasks as persistent state.
+
+**Current State:** Session-lifecycle workflow handles handoff context. Task system provides persistent work tracking. Step-based workflows enforce execution structure.
+
+**Goal:** Combine these systems into a cohesive autonomous loop with robust termination controls accessible via HTTP, MCP, WebSocket, CLI, and slash commands.
+
+### Phase 10: Core Design Principles
+
+1. **Tasks as persistent state** - Workflow variables reset on session end; tasks persist across sessions
+2. **Multi-layered termination** - Stop signals from HTTP, MCP, WebSocket, CLI, slash commands, and stuck detection
+3. **Graceful degradation** - Pause/resume, skip stuck tasks, escalate to user when needed
+4. **Session chaining** - Automatic handoff when context fills, continue in new session
+5. **Observable progress** - Track commits, file changes, validation attempts for stuck detection
+
+### Loop State Machine
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                        DAEMON LAYER                             │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │                    STOP SIGNAL REGISTRY                     ││
+│  │  - HTTP endpoint: POST /api/v1/loop/stop                    ││
+│  │  - MCP tool: stop_autonomous_loop()                         ││
+│  │  - WebSocket: {"type": "stop_loop"}                         ││
+│  │  - CLI: gobby loop stop                                     ││
+│  │  - Slash command: /loop stop                                ││
+│  └─────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     LIFECYCLE WORKFLOW                          │
+│                   (Cross-Session Orchestration)                 │
+│                                                                 │
+│  on_session_start:                                              │
+│    → Check if autonomous mode enabled                           │
+│    → Inject continuation context                                │
+│    → Inject autonomous instructions                             │
+│    → Activate step-based workflow                               │
+│                                                                 │
+│  on_session_end:                                                │
+│    → Check stop signal                                          │
+│    → Check task queue (list_ready_tasks)                        │
+│    → If tasks remain AND no stop → chain session                │
+│    → If no tasks OR stop → terminate                            │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    STEP-BASED WORKFLOW                          │
+│                   (Within-Session Structure)                    │
+│                                                                 │
+│   ┌──────────┐    ┌──────────┐    ┌───────────┐    ┌─────────┐ │
+│   │  SELECT  │───▶│   PLAN   │───▶│  EXECUTE  │───▶│VALIDATE │ │
+│   │   TASK   │    │(optional)│    │           │    │         │ │
+│   └──────────┘    └──────────┘    └───────────┘    └─────────┘ │
+│        ▲                               │                │       │
+│        │                               │ (invalid)      │       │
+│        │                               ◀────────────────┘       │
+│        │                                                        │
+│        │         ┌──────────┐                                   │
+│        └─────────│   CLOSE  │◀──────────────────────────────────┘
+│                  │   TASK   │         (valid)                   │
+│                  └──────────┘                                   │
+│                       │                                         │
+│                       ▼                                         │
+│              [No more tasks?] ───yes───▶ [COMPLETE]             │
+│                       │no                                       │
+│                       └──────▶ [Loop to SELECT]                 │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       TASK LAYER                                │
+│                   (Persistent State Machine)                    │
+│                                                                 │
+│  Task States: open → in_progress → closed                       │
+│                        │                                        │
+│                        ▼ (validation fails 3x)                  │
+│                      stuck                                      │
+│                                                                 │
+│  Loop State derived from:                                       │
+│    - list_ready_tasks() count                                   │
+│    - Current in_progress task                                   │
+│    - validation_fail_count                                      │
+│    - progress_tracker metrics                                   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Termination Conditions
+
+| Trigger | Source | Check Point | Graceful? |
+| :--- | :--- | :--- | :--- |
+| No ready tasks | Task system | SELECT step | Yes |
+| Stop signal | External | Every step transition | Yes |
+| Stuck on task | Task system | VALIDATE step (3 fails) | Partial |
+| Context limit | Session | /compact → session end | Yes (chains) |
+| Escape key | User | Immediate | Abort |
+| /stop command | User | Before next action | Yes |
+
+### Phase 10: Data Model
+
+```sql
+-- Stop signal registry (in-memory or SQLite for persistence across restarts)
+CREATE TABLE loop_stop_signals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT,                          -- NULL = global stop
+    reason TEXT NOT NULL,                     -- user_requested, http_endpoint, mcp_tool, websocket, no_tasks, stuck, error
+    requested_at TEXT NOT NULL,
+    handled_at TEXT,
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+
+CREATE INDEX idx_stop_signals_session ON loop_stop_signals(session_id);
+CREATE INDEX idx_stop_signals_pending ON loop_stop_signals(handled_at) WHERE handled_at IS NULL;
+
+-- Progress tracking for stuck detection
+CREATE TABLE loop_progress (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    last_progress_at TEXT NOT NULL,
+    commits_count INTEGER DEFAULT 0,
+    files_modified_count INTEGER DEFAULT 0,
+    validation_attempts INTEGER DEFAULT 0,
+    FOREIGN KEY (session_id) REFERENCES sessions(id),
+    FOREIGN KEY (task_id) REFERENCES tasks(id)
+);
+
+-- Task selection history for loop detection
+CREATE TABLE task_selection_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    task_id TEXT NOT NULL,
+    selected_at TEXT NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES sessions(id),
+    FOREIGN KEY (task_id) REFERENCES tasks(id)
+);
+
+CREATE INDEX idx_selection_history_session ON task_selection_history(session_id);
+```
+
+### Stop Signal Registry
+
+```python
+# src/gobby/autonomous/stop_registry.py
+from enum import Enum
+from dataclasses import dataclass
+from datetime import datetime
+import threading
+
+class StopReason(Enum):
+    USER_REQUESTED = "user_requested"      # /stop or escape
+    HTTP_ENDPOINT = "http_endpoint"        # POST /api/v1/loop/stop
+    MCP_TOOL = "mcp_tool"                  # stop_autonomous_loop()
+    WEBSOCKET = "websocket"                # {"type": "stop_loop"}
+    NO_TASKS = "no_tasks"                  # Natural completion
+    STUCK = "stuck"                        # Task failed repeatedly
+    ERROR = "error"                        # Unrecoverable error
+
+@dataclass
+class StopSignal:
+    session_id: str | None
+    reason: StopReason
+    requested_at: datetime
+    handled_at: datetime | None = None
+
+class StopRegistry:
+    """Thread-safe stop signal management."""
+
+    def __init__(self):
+        self._stops: dict[str, StopSignal] = {}
+        self._global_stop: StopSignal | None = None
+        self._lock = threading.Lock()
+
+    def request_stop(
+        self,
+        reason: StopReason,
+        session_id: str | None = None,
+    ) -> StopSignal:
+        """Request stop for a session or globally."""
+        signal = StopSignal(
+            session_id=session_id,
+            reason=reason,
+            requested_at=datetime.now(),
+        )
+        with self._lock:
+            if session_id:
+                self._stops[session_id] = signal
+            else:
+                self._global_stop = signal
+        return signal
+
+    def should_stop(self, session_id: str) -> StopSignal | None:
+        """Check if session should stop."""
+        with self._lock:
+            # Global stop takes precedence
+            if self._global_stop and self._global_stop.handled_at is None:
+                return self._global_stop
+            return self._stops.get(session_id)
+
+    def mark_handled(self, session_id: str | None = None) -> None:
+        """Mark stop signal as handled."""
+        with self._lock:
+            if session_id and session_id in self._stops:
+                self._stops[session_id].handled_at = datetime.now()
+            elif self._global_stop:
+                self._global_stop.handled_at = datetime.now()
+
+    def clear(self, session_id: str | None = None) -> None:
+        """Clear stop signal after handling."""
+        with self._lock:
+            if session_id:
+                self._stops.pop(session_id, None)
+            else:
+                self._global_stop = None
+```
+
+### Progress Tracker
+
+```python
+# src/gobby/autonomous/progress_tracker.py
+from dataclasses import dataclass, field
+from datetime import datetime
+
+@dataclass
+class ProgressTracker:
+    """Track progress metrics for stuck detection."""
+
+    session_id: str
+    task_id: str
+    started_at: datetime = field(default_factory=datetime.now)
+    last_progress_at: datetime = field(default_factory=datetime.now)
+    commits: list[str] = field(default_factory=list)
+    files_modified: set[str] = field(default_factory=set)
+    validation_attempts: int = 0
+
+    def record_commit(self, sha: str) -> None:
+        self.commits.append(sha)
+        self.last_progress_at = datetime.now()
+
+    def record_file_change(self, path: str) -> None:
+        self.files_modified.add(path)
+        self.last_progress_at = datetime.now()
+
+    def record_validation_attempt(self) -> None:
+        self.validation_attempts += 1
+
+    def is_stagnant(self, threshold_minutes: int = 30) -> bool:
+        """Check if no progress for threshold time."""
+        elapsed = datetime.now() - self.last_progress_at
+        return elapsed.total_seconds() > threshold_minutes * 60
+
+    def progress_summary(self) -> dict:
+        return {
+            "duration_minutes": (datetime.now() - self.started_at).total_seconds() / 60,
+            "commits": len(self.commits),
+            "files_modified": len(self.files_modified),
+            "validation_attempts": self.validation_attempts,
+            "minutes_since_progress": (datetime.now() - self.last_progress_at).total_seconds() / 60,
+        }
+```
+
+### Stuck Detection
+
+Three layers of stuck detection:
+
+**Layer 1: Validation Failure Count** (existing in task system)
+- `validation_fail_count` increments on each failed validation
+- After 3 failures, creates fix subtask or marks stuck
+
+**Layer 2: Task Selection Loop Detection**
+- Track which tasks are selected via `task_selection_history`
+- If same task selected 3+ times without completion, trigger stuck state
+
+**Layer 3: Stagnation Detection**
+- Track commits and file changes via `ProgressTracker`
+- If no progress for configurable threshold (default 30 min), trigger stuck state
+
+### MCP Tools (gobby-loop)
+
+```python
+@mcp.tool()
+def start_autonomous_loop(
+    from_spec: str | None = None,
+    prompt: str | None = None,
+    require_plan_approval: bool = False,
+    max_validation_retries: int = 3,
+) -> dict:
+    """
+    Start the autonomous work loop.
+
+    If from_spec: Create parent task from spec file, expand into subtasks
+    If prompt: Create parent task from prompt, expand into subtasks
+    Otherwise: Work through existing ready tasks
+
+    Returns:
+    - loop_id: Identifier for this loop instance
+    - initial_task: First task to be worked on
+    - task_count: Number of ready tasks
+    """
+
+@mcp.tool()
+def stop_autonomous_loop(
+    session_id: str | None = None,
+    reason: str = "user_requested",
+    force: bool = False,
+) -> dict:
+    """
+    Stop the autonomous loop gracefully.
+
+    If session_id: Stop specific session
+    Otherwise: Stop all autonomous sessions
+
+    force=True: Immediate abort (no cleanup)
+    force=False: Complete current task step, then stop
+    """
+
+@mcp.tool()
+def get_loop_status(
+    session_id: str | None = None,
+) -> dict:
+    """
+    Get current autonomous loop status.
+
+    Returns:
+    - active: Whether loop is running
+    - current_step: select_task, plan, execute, validate, close_task, stuck, paused
+    - current_task: Task being worked on
+    - tasks_completed: Count this session
+    - tasks_remaining: Ready tasks in queue
+    - progress: Progress tracker metrics
+    - stop_requested: Whether stop signal pending
+    """
+
+@mcp.tool()
+def pause_loop(session_id: str) -> dict:
+    """
+    Pause the autonomous loop without stopping.
+
+    Agent returns to interactive mode.
+    Use resume_loop() to continue.
+    """
+
+@mcp.tool()
+def resume_loop(session_id: str) -> dict:
+    """Resume a paused autonomous loop."""
+
+@mcp.tool()
+def skip_current_task(
+    session_id: str,
+    reason: str = "user_requested",
+) -> dict:
+    """
+    Skip the current task and move to next.
+
+    Marks current task as blocked with reason.
+    Selects next ready task.
+    """
+```
+
+### HTTP Endpoints
+
+```python
+# POST /api/v1/loop/start
+@app.post("/api/v1/loop/start")
+async def start_loop(
+    from_spec: str | None = None,
+    prompt: str | None = None,
+    session_id: str | None = None,
+) -> dict:
+    """Start autonomous loop (creates new session if not provided)."""
+
+# POST /api/v1/loop/stop
+@app.post("/api/v1/loop/stop")
+async def stop_loop(
+    session_id: str | None = None,
+    force: bool = False,
+) -> dict:
+    """Stop autonomous loop."""
+
+# GET /api/v1/loop/status
+@app.get("/api/v1/loop/status")
+async def loop_status(session_id: str | None = None) -> dict:
+    """Get loop status."""
+
+# POST /api/v1/loop/pause
+@app.post("/api/v1/loop/pause")
+async def pause_loop(session_id: str) -> dict:
+    """Pause loop."""
+
+# POST /api/v1/loop/resume
+@app.post("/api/v1/loop/resume")
+async def resume_loop(session_id: str) -> dict:
+    """Resume loop."""
+
+# POST /api/v1/loop/skip
+@app.post("/api/v1/loop/skip")
+async def skip_task(session_id: str, reason: str = "user_requested") -> dict:
+    """Skip current task."""
+```
+
+### WebSocket Messages
+
+```python
+# Incoming messages (client → daemon)
+{"type": "loop_start", "prompt": "...", "from_spec": "..."}
+{"type": "loop_stop", "session_id": "...", "force": false}
+{"type": "loop_pause", "session_id": "..."}
+{"type": "loop_resume", "session_id": "..."}
+{"type": "loop_skip", "session_id": "...", "reason": "..."}
+
+# Outgoing messages (daemon → client)
+{"type": "loop_started", "session_id": "...", "task_count": 5}
+{"type": "loop_stopped", "session_id": "...", "reason": "..."}
+{"type": "loop_progress", "session_id": "...", "step": "execute", "task_id": "..."}
+{"type": "loop_task_completed", "session_id": "...", "task_id": "...", "remaining": 4}
+{"type": "loop_stuck", "session_id": "...", "task_id": "...", "reason": "..."}
+{"type": "loop_complete", "session_id": "...", "tasks_completed": 5}
+```
+
+### Phase 10: CLI Commands
+
+```bash
+# Start autonomous loop
+gobby loop start                              # Work through existing tasks
+gobby loop start --prompt "Build feature X"   # Create + expand task, then work
+gobby loop start --from-spec ./task-spec.md   # Create from spec file
+
+# Control running loop
+gobby loop stop [--session SESSION] [--force]
+gobby loop pause [--session SESSION]
+gobby loop resume [--session SESSION]
+gobby loop skip [--session SESSION] [--reason "..."]
+
+# Monitor
+gobby loop status [--session SESSION]
+gobby loop watch [--session SESSION]          # Real-time progress stream
+```
+
+### Slash Commands
+
+```
+/loop start              # Start autonomous mode in current session
+/loop start --prompt "..." # Start with initial task
+/loop stop               # Stop autonomous mode
+/loop status             # Show current loop state
+/loop skip               # Skip current task, try another
+/loop pause              # Pause loop, take manual control
+/loop resume             # Resume paused loop
+```
+
+### Workflow: autonomous-execution.yaml
+
+```yaml
+name: autonomous-execution
+type: stepped
+description: |
+  Autonomous work loop that processes tasks until exhausted or stopped.
+  Uses task system as persistent state, survives session boundaries.
+
+variables:
+  autonomous_mode: true
+  max_validation_retries: 3
+  require_plan_approval: false
+  stagnation_threshold_minutes: 30
+
+steps:
+  - name: select_task
+    description: "Select next task from queue"
+    allowed_tools: [mcp__gobby__*]
+
+    on_enter:
+      - action: check_stop_signal
+
+      - action: call_mcp_tool
+        server_name: gobby-tasks
+        tool_name: suggest_next_task
+        arguments:
+          prefer_subtasks: true
+        as: task_suggestion
+
+      - action: detect_task_loop
+        as: loop_detection
+
+      - action: inject_context
+        when: "task_suggestion.suggestion is not None"
+        content: |
+          ## Autonomous Mode: Task Selected
+
+          **{{ task_suggestion.suggestion.title }}** (`{{ task_suggestion.suggestion.id }}`)
+
+          Priority: {{ task_suggestion.suggestion.priority }}
+          Type: {{ task_suggestion.suggestion.task_type }}
+
+          **Why this task?** {{ task_suggestion.reason }}
+
+          {% if task_suggestion.suggestion.description %}
+          ### Description
+          {{ task_suggestion.suggestion.description }}
+          {% endif %}
+
+          {% if task_suggestion.suggestion.validation_criteria %}
+          ### Acceptance Criteria
+          {{ task_suggestion.suggestion.validation_criteria }}
+          {% endif %}
+
+      - action: call_mcp_tool
+        when: "task_suggestion.suggestion is not None"
+        server_name: gobby-tasks
+        tool_name: update_task
+        arguments:
+          task_id: "{{ task_suggestion.suggestion.id }}"
+          status: "in_progress"
+
+      - action: set_variable
+        name: current_task
+        value: "{{ task_suggestion.suggestion }}"
+
+    transitions:
+      - to: complete
+        when: "task_suggestion.suggestion is None"
+        message: "No more tasks in queue. Autonomous loop complete."
+
+      - to: stuck
+        when: "loop_detection.is_stuck == true"
+
+      - to: plan
+        when: "variables.require_plan_approval == true"
+
+      - to: execute
+        when: "task_suggestion.suggestion is not None"
+
+  - name: plan
+    description: "Plan execution approach (optional)"
+    allowed_tools: [Read, Glob, Grep, WebSearch, WebFetch, Task]
+    blocked_tools: [Edit, Write, Bash, NotebookEdit]
+
+    on_enter:
+      - action: memory_recall_relevant
+        query: "{{ current_task.title }}"
+        limit: 5
+        as: relevant_memories
+
+      - action: match_skills
+        prompt: "{{ current_task.title }} {{ current_task.description }}"
+        as: matched_skills
+
+      - action: inject_context
+        content: |
+          ## Planning Phase
+
+          Review the task and form an execution plan.
+
+          {% if relevant_memories %}
+          ### Relevant Memories
+          {% for mem in relevant_memories %}
+          - {{ mem.content }}
+          {% endfor %}
+          {% endif %}
+
+          {% if matched_skills %}
+          ### Applicable Skills
+          {% for skill in matched_skills %}
+          - **{{ skill.name }}**: {{ skill.trigger_pattern }}
+          {% endfor %}
+          {% endif %}
+
+          When ready, say "ready to execute" to proceed.
+
+    exit_conditions:
+      - type: user_approval
+        prompt: "Plan looks good. Ready to execute?"
+
+    transitions:
+      - to: execute
+        when: "user_says('ready') or user_says('execute') or user_says('proceed')"
+
+  - name: execute
+    description: "Execute task implementation"
+    allowed_tools: all
+
+    on_enter:
+      - action: check_stop_signal
+
+      - action: start_progress_tracking
+        task_id: "{{ current_task.id }}"
+
+      - action: inject_context
+        content: |
+          ## Execution Phase
+
+          Working on: **{{ current_task.title }}**
+
+          When complete, say "validate" to run validation.
+          Say "stuck" if you encounter blockers.
+
+    on_exit:
+      - action: stop_progress_tracking
+
+    transitions:
+      - to: validate
+        when: "user_says('validate') or user_says('done') or user_says('complete')"
+
+      - to: stuck
+        when: "user_says('stuck') or user_says('blocked')"
+
+  - name: validate
+    description: "Validate task completion"
+    allowed_tools: [Read, Glob, Grep, Bash, mcp__gobby__*]
+    blocked_tools: [Edit, Write]
+
+    on_enter:
+      - action: check_stop_signal
+
+      - action: call_mcp_tool
+        server_name: gobby-tasks
+        tool_name: validate_task
+        arguments:
+          task_id: "{{ current_task.id }}"
+        as: validation_result
+
+      - action: inject_context
+        content: |
+          ## Validation Result
+
+          **Status**: {{ validation_result.status }}
+
+          {% if validation_result.feedback %}
+          **Feedback**: {{ validation_result.feedback }}
+          {% endif %}
+
+          {% if validation_result.status == 'invalid' %}
+          Returning to execution phase to address feedback.
+          {% elif validation_result.status == 'valid' %}
+          Task validated! Proceeding to close.
+          {% endif %}
+
+    transitions:
+      - to: close_task
+        when: "validation_result.status == 'valid'"
+
+      - to: execute
+        when: "validation_result.status == 'invalid' and current_task.validation_fail_count < variables.max_validation_retries"
+
+      - to: stuck
+        when: "validation_result.status == 'invalid' and current_task.validation_fail_count >= variables.max_validation_retries"
+
+  - name: close_task
+    description: "Close completed task"
+    allowed_tools: [mcp__gobby__*]
+
+    on_enter:
+      - action: call_mcp_tool
+        server_name: gobby-tasks
+        tool_name: close_task
+        arguments:
+          task_id: "{{ current_task.id }}"
+          session_id: "{{ session.id }}"
+          skip_validation: true
+        as: close_result
+
+      - action: memory_extract
+        content: |
+          Completed task: {{ current_task.title }}
+          Approach: {{ close_result.changes_summary or 'Not recorded' }}
+
+      - action: inject_context
+        content: |
+          ## Task Closed
+
+          **{{ current_task.title }}** completed successfully.
+
+          {% if close_result.commit_sha %}
+          Commit: `{{ close_result.commit_sha }}`
+          {% endif %}
+
+          Selecting next task...
+
+    transitions:
+      - to: select_task
+        when: "always()"
+
+  - name: stuck
+    description: "Handle stuck state"
+    allowed_tools: [Read, Glob, Grep, mcp__gobby__*]
+
+    on_enter:
+      - action: call_mcp_tool
+        server_name: gobby-tasks
+        tool_name: update_task
+        arguments:
+          task_id: "{{ current_task.id }}"
+          status: "blocked"
+
+      - action: remember
+        content: |
+          Task "{{ current_task.title }}" got stuck.
+          Validation attempts: {{ current_task.validation_fail_count }}
+        memory_type: pattern
+        importance: 0.8
+        tags: ["stuck", "autonomous"]
+
+      - action: inject_context
+        content: |
+          ## Stuck on Task
+
+          Task `{{ current_task.id }}` has been marked as blocked.
+
+          Options:
+          1. **"try different"** - Skip and select another task
+          2. **"escalate"** - Pause loop and wait for user guidance
+          3. **"force close"** - Close task anyway (skip validation)
+
+          What would you like to do?
+
+    transitions:
+      - to: select_task
+        when: "user_says('try different') or user_says('skip')"
+
+      - to: paused
+        when: "user_says('escalate') or user_says('pause')"
+
+      - to: close_task
+        when: "user_says('force close')"
+
+  - name: paused
+    description: "Loop paused, awaiting user input"
+    allowed_tools: all
+
+    on_enter:
+      - action: inject_context
+        content: |
+          ## Autonomous Loop Paused
+
+          The loop has been paused. You have full control.
+
+          Say **"resume"** to continue autonomous operation.
+          Say **"stop"** to end the loop.
+
+    transitions:
+      - to: select_task
+        when: "user_says('resume') or user_says('continue')"
+
+      - to: complete
+        when: "user_says('stop') or user_says('end')"
+
+  - name: complete
+    description: "Loop completed"
+    allowed_tools: all
+
+    on_enter:
+      - action: call_mcp_tool
+        server_name: gobby-tasks
+        tool_name: list_tasks
+        arguments:
+          status: "closed"
+          limit: 100
+        as: completed_tasks
+
+      - action: inject_context
+        content: |
+          ## Autonomous Loop Complete
+
+          **Tasks Completed This Session**: {{ completed_tasks | length }}
+
+          {% for task in completed_tasks[:10] %}
+          - {{ task.title }}
+          {% endfor %}
+
+          {% if completed_tasks | length > 10 %}
+          ... and {{ completed_tasks | length - 10 }} more
+          {% endif %}
+
+          Loop has ended. Normal interactive mode resumed.
+
+triggers:
+  on_session_start:
+    - action: set_variable
+      name: autonomous_mode
+      value: true
+      when: "session.data.get('autonomous') == true"
+```
+
+### Workflow: autonomous-lifecycle.yaml
+
+```yaml
+name: autonomous-lifecycle
+type: lifecycle
+priority: 100
+
+triggers:
+  on_session_start:
+    - action: set_workflow
+      workflow: autonomous-execution
+      when: "session.data.get('autonomous') == true"
+
+    - action: inject_context
+      when: "session.data.get('autonomous') == true"
+      content: |
+        ## Autonomous Work Mode Active
+
+        This session will automatically work through the task queue until:
+        - All tasks are complete
+        - A stop signal is received
+        - The loop gets stuck
+
+        **Stop Commands**: `/loop stop`, escape key, or say "stop loop"
+
+        Beginning task selection...
+
+  on_session_end:
+    - action: call_mcp_tool
+      server_name: gobby-tasks
+      tool_name: list_ready_tasks
+      arguments:
+        limit: 1
+      as: remaining_tasks
+      when: "event.data.get('autonomous') == true and event.data.get('reason') != 'user_abort'"
+
+    - action: check_stop_signal
+      as: stop_check
+
+    - action: start_new_session
+      when: >
+        remaining_tasks and
+        len(remaining_tasks) > 0 and
+        stop_check.decision != 'block'
+      prompt: |
+        AUTONOMOUS WORK SESSION (Continued)
+
+        {{ handoff.compact_markdown or handoff.summary_markdown }}
+
+        Remaining tasks: {{ len(remaining_tasks) }}
+
+        Continuing autonomous work loop...
+      session_data:
+        autonomous: true
+        parent_session_id: "{{ session.id }}"
+
+  on_before_agent:
+    - action: check_stop_signal
+      when: "workflow.autonomous_mode == true"
+
+  on_after_tool:
+    - action: track_progress
+      tool_pattern: "git commit|Edit|Write"
+      when: "workflow.autonomous_mode == true"
+```
+
+### Phase 10: Configuration
+
+```yaml
+autonomous_loop:
+  enabled: true
+
+  # Execution settings
+  require_plan_approval: false              # Require approval before execute step
+  max_validation_retries: 3                 # Retries before marking stuck
+
+  # Stuck detection
+  stuck_detection:
+    enabled: true
+    task_selection_threshold: 3             # Same task selected N times = stuck
+    stagnation_threshold_minutes: 30        # No progress for N minutes = stuck
+    validation_fail_threshold: 3            # N validation failures = stuck
+
+  # Session chaining
+  session_chaining:
+    enabled: true
+    max_chain_depth: 10                     # Max consecutive sessions
+    handoff_template: "{{ compact_markdown or summary_markdown }}"
+
+  # Progress tracking
+  progress_tracking:
+    enabled: true
+    track_commits: true
+    track_file_changes: true
+    emit_websocket_events: true
+
+  # Termination
+  graceful_stop_timeout_seconds: 30         # Wait for current step to complete
+```
+
+### Memory Integration
+
+Autonomous loop learns from failures and successes:
+
+```yaml
+# In autonomous-lifecycle.yaml
+on_session_start:
+  - action: memory_recall
+    query: "stuck blocked failed autonomous"
+    memory_type: pattern
+    limit: 5
+    as: failure_patterns
+    when: "session.data.get('autonomous') == true"
+
+  - action: inject_context
+    when: "failure_patterns"
+    content: |
+      ### Past Failure Patterns (Avoid These)
+      {% for pattern in failure_patterns %}
+      - {{ pattern.content }}
+      {% endfor %}
+
+on_task_closed:
+  - action: call_mcp_tool
+    server_name: gobby-skills
+    tool_name: learn_skill_from_session
+    arguments:
+      session_id: "{{ session.id }}"
+      filter_to_task: "{{ current_task.id }}"
+    when: "current_task.validation_fail_count == 0"
+```
+
+### Phase 10: Implementation Checklist
+
+#### Phase 10.1: Stop Signal Infrastructure
+
+- [ ] Create `src/gobby/autonomous/stop_registry.py` with `StopRegistry` class
+- [ ] Add database migration for `loop_stop_signals` table
+- [ ] Implement thread-safe stop signal management
+- [ ] Add stop signal checking to workflow engine
+
+#### Phase 10.2: Progress Tracking
+
+- [ ] Create `src/gobby/autonomous/progress_tracker.py` with `ProgressTracker` class
+- [ ] Add database migration for `loop_progress` table
+- [ ] Implement progress recording from tool results
+- [ ] Add stagnation detection algorithm
+
+#### Phase 10.3: Stuck Detection
+
+- [ ] Add database migration for `task_selection_history` table
+- [ ] Implement task selection loop detection
+- [ ] Create `check_stop_signal` workflow action
+- [ ] Create `detect_task_loop` workflow action
+- [ ] Create `start_progress_tracking` / `stop_progress_tracking` actions
+
+#### Phase 10.4: MCP Tools
+
+- [ ] Create `src/gobby/mcp_proxy/tools/loop.py` with `LoopToolRegistry`
+- [ ] Register as `gobby-loop` internal server
+- [ ] Implement `start_autonomous_loop`, `stop_autonomous_loop`, `get_loop_status`
+- [ ] Implement `pause_loop`, `resume_loop`, `skip_current_task`
+
+#### Phase 10.5: HTTP Endpoints
+
+- [ ] Add `/api/v1/loop/*` endpoints to `src/gobby/servers/http.py`
+- [ ] Implement start, stop, pause, resume, skip, status endpoints
+- [ ] Add authentication/authorization for loop control
+
+#### Phase 10.6: WebSocket Integration
+
+- [ ] Add loop control message handlers to WebSocket server
+- [ ] Implement loop progress event emission
+- [ ] Add real-time status streaming
+
+#### Phase 10.7: CLI Commands
+
+- [ ] Add `gobby loop` command group to CLI
+- [ ] Implement start, stop, pause, resume, skip, status, watch commands
+- [ ] Add progress output formatting
+
+#### Phase 10.8: Slash Commands
+
+- [ ] Create `/loop` skill with subcommands
+- [ ] Register slash command handlers
+- [ ] Integrate with session context
+
+#### Phase 10.9: Workflow Files
+
+- [ ] Create `autonomous-execution.yaml` step-based workflow
+- [ ] Create `autonomous-lifecycle.yaml` lifecycle workflow
+- [ ] Install to `~/.gobby/workflows/` on daemon start
+
+#### Phase 10.10: Integration Testing
+
+- [ ] Test natural completion (no more tasks)
+- [ ] Test all stop signal sources (HTTP, MCP, WS, CLI, /slash)
+- [ ] Test stuck detection (validation fails, selection loop, stagnation)
+- [ ] Test session chaining on context limit
+- [ ] Test pause/resume flow
+- [ ] Test skip task flow
+- [ ] Test memory/skill integration
+
+---
+
 ## Decisions
 
 | # | Question | Decision | Rationale |
@@ -1566,6 +2565,11 @@ memory:
 | 6 | **Linear auth** | API key | Linear's standard auth method |
 | 7 | **Pipeline phases** | Fixed 5-phase model | Clear structure, matches Auto-Claude pattern |
 | 8 | **External validator** | Separate agent context | Avoids bias from implementation agent |
+| 9 | **Loop state persistence** | Tasks (not workflow variables) | Workflow vars reset on session end; tasks survive |
+| 10 | **Stop signal registry** | Thread-safe in-memory + SQLite | Fast checks, persistence across daemon restarts |
+| 11 | **Stuck detection layers** | 3 layers (validation, selection, stagnation) | Comprehensive coverage of stuck scenarios |
+| 12 | **Session chaining trigger** | on_session_end lifecycle hook | Natural hook point, runs after handoff extraction |
+| 13 | **Autonomous mode activation** | session.data.autonomous flag | Clean separation, explicit opt-in per session |
 
 ---
 
@@ -1582,6 +2586,7 @@ memory:
 | **Artifact Index** | **High** | **Medium** | **P1** | Continuous-Claude v2 |
 | **Enhanced Skill Routing** | **High** | **Medium** | **P2** | SkillForge |
 | **Semantic Memory Search** | **Medium** | **Medium** | **P2** | KnowNote |
+| **Autonomous Work Loop** | **High** | **High** | **P1** | Original Design |
 
 **Recommendations:**
 
@@ -1589,3 +2594,12 @@ memory:
 2. **Parallel development** - Worktree Coordination (Phase 1) + Merge Resolution (Phase 2) for multi-agent workflows
 3. **Intelligence layer** - Skill Routing (Phase 8) + Semantic Memory (Phase 9) make Gobby smarter over time
 4. **External integrations** - GitHub/Linear after core intelligence is solid
+5. **Autonomous execution** - Autonomous Work Loop (Phase 10) enables hands-off task execution; depends on existing task system + workflows being stable
+
+**Phase 10 Dependencies:**
+- Requires stable task system (gobby-tasks) - ✅ Exists
+- Requires stable workflow engine - ✅ Exists
+- Requires session handoff - ✅ Exists
+- Benefits from Artifact Index (Phase 7) for better handoff context
+- Benefits from Enhanced Skill Routing (Phase 8) for smarter task execution
+- Benefits from QA Loop Enhancement (Phase 3) for better validation

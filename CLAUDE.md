@@ -242,7 +242,7 @@ Use the `gobby-tasks` MCP tools for persistent task tracking (requires daemon ru
 
 | Tool | Description |
 |------|-------------|
-| `create_task` | Create a new task with title, priority, type, labels |
+| `create_task` | Create a new task with title, priority, task_type, labels |
 | `get_task` | Get task details including dependencies |
 | `update_task` | Update task fields (status, priority, assignee, etc.) |
 | `close_task` | Close a task with reason |
