@@ -7,11 +7,12 @@ which does not yet exist.
 Task: gt-14b076
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from gobby.config.app import TaskValidationConfig
-from gobby.tasks.validation_models import Issue, IssueType, IssueSeverity
+from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
 
 
 class TestRunExternalValidation:
@@ -31,7 +32,7 @@ class TestRunExternalValidation:
     @pytest.fixture
     def mock_llm_service(self):
         """Create a mock LLM service."""
-        from gobby.llm import LLMService, LLMProvider
+        from gobby.llm import LLMProvider, LLMService
 
         service = MagicMock(spec=LLMService)
         provider = AsyncMock(spec=LLMProvider)
@@ -142,7 +143,7 @@ class TestRunExternalValidation:
         self, validation_config, mock_llm_service, sample_task
     ):
         """Test that external validation correctly parses structured JSON response."""
-        from gobby.tasks.external_validator import run_external_validation, ExternalValidationResult
+        from gobby.tasks.external_validator import ExternalValidationResult, run_external_validation
 
         mock_provider = mock_llm_service.get_provider.return_value
         mock_provider.generate_text.return_value = '''
@@ -181,7 +182,7 @@ class TestRunExternalValidation:
         self, validation_config, mock_llm_service, sample_task
     ):
         """Test graceful handling of LLM errors during external validation."""
-        from gobby.tasks.external_validator import run_external_validation, ExternalValidationResult
+        from gobby.tasks.external_validator import ExternalValidationResult, run_external_validation
 
         mock_provider = mock_llm_service.get_provider.return_value
         mock_provider.generate_text.side_effect = Exception("LLM API error")
@@ -203,7 +204,7 @@ class TestRunExternalValidation:
         self, validation_config, mock_llm_service, sample_task
     ):
         """Test handling of malformed JSON response from external validator."""
-        from gobby.tasks.external_validator import run_external_validation, ExternalValidationResult
+        from gobby.tasks.external_validator import ExternalValidationResult, run_external_validation
 
         mock_provider = mock_llm_service.get_provider.return_value
         mock_provider.generate_text.return_value = "This is not valid JSON response"
@@ -225,10 +226,11 @@ class TestRunExternalValidation:
     ):
         """Test handling of timeout during external validation."""
         import asyncio
-        from gobby.tasks.external_validator import run_external_validation, ExternalValidationResult
+
+        from gobby.tasks.external_validator import ExternalValidationResult, run_external_validation
 
         mock_provider = mock_llm_service.get_provider.return_value
-        mock_provider.generate_text.side_effect = asyncio.TimeoutError("Request timed out")
+        mock_provider.generate_text.side_effect = TimeoutError("Request timed out")
 
         result = await run_external_validation(
             config=validation_config,
@@ -270,7 +272,7 @@ class TestExternalValidatorToggle:
 
     @pytest.fixture
     def mock_llm_service(self):
-        from gobby.llm import LLMService, LLMProvider
+        from gobby.llm import LLMProvider, LLMService
 
         service = MagicMock(spec=LLMService)
         provider = AsyncMock(spec=LLMProvider)
@@ -353,6 +355,40 @@ class TestExternalValidatorToggle:
         # Should still run external validation
         mock_provider.generate_text.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_skip_external_validation_when_disabled_and_not_forced(self, mock_llm_service):
+        """Test that external validation is skipped when config disabled and force_external=False."""
+        from gobby.tasks.external_validator import ExternalValidationResult, run_external_validation
+
+        # Config has external disabled
+        config = TaskValidationConfig(
+            enabled=True,
+            provider="claude",
+            model="claude-haiku-4-5",
+            use_external_validator=False,
+        )
+
+        mock_provider = mock_llm_service.get_provider.return_value
+
+        task = {"id": "test", "title": "Test", "validation_criteria": "Test"}
+
+        result = await run_external_validation(
+            config=config,
+            llm_service=mock_llm_service,
+            task=task,
+            changes_context="diff",
+            force_external=False,  # Not overriding
+        )
+
+        # LLM provider should NOT be called
+        mock_provider.generate_text.assert_not_called()
+
+        # Result should indicate validation was skipped
+        assert isinstance(result, ExternalValidationResult)
+        assert result.status == "skipped"
+        assert "skipped" in result.summary.lower() or "disabled" in result.summary.lower()
+        assert result.issues == []
+
 
 class TestExternalValidationResult:
     """Tests for ExternalValidationResult dataclass."""
@@ -412,7 +448,7 @@ class TestExternalValidatorPrompt:
 
     @pytest.fixture
     def mock_llm_service(self):
-        from gobby.llm import LLMService, LLMProvider
+        from gobby.llm import LLMProvider, LLMService
 
         service = MagicMock(spec=LLMService)
         provider = AsyncMock(spec=LLMProvider)

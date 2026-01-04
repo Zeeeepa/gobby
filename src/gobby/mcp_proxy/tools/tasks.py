@@ -27,6 +27,7 @@ from gobby.tasks.commits import auto_link_commits as auto_link_commits_fn
 from gobby.tasks.commits import get_task_diff
 from gobby.tasks.expansion import TaskExpander
 from gobby.tasks.validation import TaskValidator
+from gobby.tasks.validation_history import ValidationHistoryManager
 from gobby.utils.project_context import get_project_context
 from gobby.utils.project_init import initialize_project
 
@@ -372,6 +373,177 @@ def create_task_registry(
             "task_id": updated_task.id,
             "validation_fail_count": updated_task.validation_fail_count,
             "message": "Validation failure count reset to 0",
+        }
+
+    @registry.tool(
+        name="get_validation_history",
+        description="Get full validation history for a task, including all iterations, feedback, and issues.",
+    )
+    def get_validation_history(task_id: str) -> dict[str, Any]:
+        """
+        Get validation history for a task.
+
+        Returns all validation iterations with their status, feedback, and issues.
+
+        Args:
+            task_id: Task ID
+
+        Returns:
+            Validation history with all iterations
+        """
+        task = task_manager.get_task(task_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+
+        history = validation_history_manager.get_iteration_history(task_id)
+
+        # Convert iterations to serializable format
+        history_dicts = []
+        for iteration in history:
+            iter_dict: dict[str, Any] = {
+                "iteration": iteration.iteration,
+                "status": iteration.status,
+                "feedback": iteration.feedback,
+                "issues": [i.to_dict() for i in (iteration.issues or [])],
+                "context_type": iteration.context_type,
+                "context_summary": iteration.context_summary,
+                "validator_type": iteration.validator_type,
+                "created_at": iteration.created_at,
+            }
+            history_dicts.append(iter_dict)
+
+        return {
+            "task_id": task_id,
+            "history": history_dicts,
+            "total_iterations": len(history_dicts),
+        }
+
+    @registry.tool(
+        name="get_recurring_issues",
+        description="Analyze validation history for recurring issues that keep appearing across iterations.",
+    )
+    def get_recurring_issues(
+        task_id: str,
+        threshold: int = 2,
+    ) -> dict[str, Any]:
+        """
+        Get recurring issues analysis for a task.
+
+        Finds issues that appear multiple times across validation iterations.
+
+        Args:
+            task_id: Task ID
+            threshold: Minimum occurrences to consider an issue recurring (default: 2)
+
+        Returns:
+            Recurring issues analysis with grouped issues and counts
+        """
+        task = task_manager.get_task(task_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+
+        summary = validation_history_manager.get_recurring_issue_summary(
+            task_id, threshold=threshold
+        )
+
+        has_recurring = validation_history_manager.has_recurring_issues(
+            task_id, threshold=threshold
+        )
+
+        return {
+            "task_id": task_id,
+            "recurring_issues": summary["recurring_issues"],
+            "total_iterations": summary["total_iterations"],
+            "has_recurring": has_recurring,
+        }
+
+    @registry.tool(
+        name="clear_validation_history",
+        description="Clear all validation history for a task. Use after major changes that invalidate previous feedback.",
+    )
+    def clear_validation_history(
+        task_id: str,
+        reason: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Clear validation history for a fresh start.
+
+        Removes all validation iterations and resets the fail count.
+
+        Args:
+            task_id: Task ID
+            reason: Optional reason for clearing history
+
+        Returns:
+            Confirmation of cleared history
+        """
+        task = task_manager.get_task(task_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+
+        # Get count before clearing for response
+        history = validation_history_manager.get_iteration_history(task_id)
+        iterations_count = len(history)
+
+        # Clear history
+        validation_history_manager.clear_history(task_id)
+
+        # Also reset validation fail count
+        task_manager.update_task(task_id, validation_fail_count=0)
+
+        return {
+            "task_id": task_id,
+            "cleared": True,
+            "iterations_cleared": iterations_count,
+            "reason": reason,
+        }
+
+    @registry.tool(
+        name="de_escalate_task",
+        description="Return an escalated task to open status after human intervention resolves the issue.",
+    )
+    def de_escalate_task(
+        task_id: str,
+        reason: str,
+        reset_validation: bool = False,
+    ) -> dict[str, Any]:
+        """
+        De-escalate a task back to open status.
+
+        Args:
+            task_id: Task ID
+            reason: Reason for de-escalation (required)
+            reset_validation: Also reset validation fail count (default: False)
+
+        Returns:
+            Updated task details
+        """
+        task = task_manager.get_task(task_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+
+        if task.status != "escalated":
+            return {"error": f"Task {task_id} is not escalated (current status: {task.status})"}
+
+        # Build update kwargs
+        update_kwargs: dict[str, Any] = {
+            "status": "open",
+            "escalated_at": None,
+            "escalation_reason": None,
+        }
+
+        if reset_validation:
+            update_kwargs["validation_fail_count"] = 0
+
+        updated_task = task_manager.update_task(task_id, **update_kwargs)
+
+        return {
+            "task_id": updated_task.id,
+            "status": updated_task.status,
+            "escalated_at": updated_task.escalated_at,
+            "escalation_reason": updated_task.escalation_reason,
+            "de_escalation_reason": reason,
+            "validation_reset": reset_validation,
         }
 
     @registry.tool(
@@ -876,6 +1048,7 @@ def create_task_registry(
     # Helper managers
     dep_manager = TaskDependencyManager(task_manager.db)
     session_task_manager = SessionTaskManager(task_manager.db)
+    validation_history_manager = ValidationHistoryManager(task_manager.db)
 
     # --- Task CRUD ---
 

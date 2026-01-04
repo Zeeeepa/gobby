@@ -58,6 +58,14 @@ async def run_external_validation(
     Returns:
         ExternalValidationResult with status, summary, and any issues found
     """
+    # Check if external validation should be skipped
+    if not force_external and not config.use_external_validator:
+        return ExternalValidationResult(
+            status="skipped",
+            summary="External validation skipped (disabled in config)",
+            issues=[],
+        )
+
     # Determine which model to use
     model = config.external_validator_model or config.model
 
