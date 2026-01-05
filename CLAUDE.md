@@ -202,6 +202,131 @@ The daemon implements progressive tool discovery to reduce token usage:
 
 Tool schemas are cached in SQLite (`mcp_servers` and `tools` tables) via `LocalMCPManager`.
 
+## MCP Tool Semantic Search
+
+The daemon includes semantic search for finding tools by natural language queries:
+
+### Search Modes
+
+| Mode | Description |
+|------|-------------|
+| `llm` | LLM-based recommendations using full server descriptions (default) |
+| `semantic` | Embedding similarity search across all tools |
+| `hybrid` | Semantic search followed by LLM re-ranking |
+
+### MCP Tools
+
+```python
+# Search for tools by description
+call_tool(server_name="gobby", tool_name="search_tools", arguments={
+    "query": "send emails",
+    "top_k": 5,
+    "min_similarity": 0.3
+})
+
+# Get tool recommendations for a task
+call_tool(server_name="gobby", tool_name="recommend_tools", arguments={
+    "task_description": "I need to query a PostgreSQL database",
+    "search_mode": "hybrid"  # llm, semantic, or hybrid
+})
+
+# Get alternative tools when one fails
+call_tool(server_name="gobby", tool_name="get_tool_alternatives", arguments={
+    "server_name": "supabase",
+    "tool_name": "run_query",
+    "error_message": "Connection refused"
+})
+```
+
+### CLI Commands
+
+```bash
+# Refresh tool embeddings (detect schema changes)
+gobby mcp-proxy refresh
+
+# Force full refresh (regenerate all embeddings)
+gobby mcp-proxy refresh --force
+
+# Refresh only a specific server
+gobby mcp-proxy refresh --server context7
+```
+
+### Configuration
+
+```yaml
+# ~/.gobby/config.yaml
+mcp_client_proxy:
+  search_mode: llm           # Default: llm, semantic, or hybrid
+  embedding_model: text-embedding-3-small
+  min_similarity: 0.3        # Threshold for semantic search
+  top_k: 10                  # Default number of results
+  refresh_on_server_add: true
+  refresh_timeout: 300.0
+```
+
+## Tool Metrics
+
+The daemon tracks call metrics for all MCP tools, useful for monitoring and debugging:
+
+### Metrics Tracked
+
+| Metric | Description |
+|--------|-------------|
+| `call_count` | Total number of calls to the tool |
+| `success_count` | Number of successful calls |
+| `failure_count` | Number of failed calls |
+| `success_rate` | Ratio of successes to total calls (0.0-1.0) |
+| `avg_latency_ms` | Average response time in milliseconds |
+| `last_called_at` | Timestamp of most recent call |
+
+### Database Tables
+
+- `tool_metrics` - Real-time metrics per tool (retained 7 days by default)
+- `tool_metrics_daily` - Aggregated historical data for long-term analysis
+
+### Interpreting Metrics
+
+- **Low success_rate** (< 0.5) - Tool may be misconfigured or server unreliable
+- **High avg_latency_ms** (> 5000) - Consider increasing timeouts
+- **call_count = 0** - Tool hasn't been used; may need discovery via recommend_tools
+
+### Cleanup
+
+Metrics older than 7 days are automatically aggregated to `tool_metrics_daily` and then deleted from `tool_metrics` to keep the main table lean.
+
+## Tool Fallback Resolver
+
+When a tool call fails, the fallback resolver suggests alternative tools:
+
+### How It Works
+
+1. Takes the failed tool name and error message
+2. Uses semantic search to find similar tools
+3. Weights results by similarity and historical success rate
+4. Returns ranked alternatives with scores
+
+### MCP Tool
+
+```python
+# Get alternatives after a tool failure
+result = call_tool(server_name="gobby", tool_name="get_tool_alternatives", arguments={
+    "server_name": "context7",
+    "tool_name": "get_library_docs",
+    "error_message": "Timeout exceeded",
+    "top_k": 3
+})
+# Returns: {"alternatives": [{"server_name": "...", "tool_name": "...", "score": 0.85}, ...]}
+```
+
+### Scoring Algorithm
+
+```
+score = (similarity * 0.7) + (success_rate * 0.3)
+```
+
+- `similarity` - Semantic similarity to the failed tool (0.0-1.0)
+- `success_rate` - Historical success rate of the alternative (0.0-1.0, default 0.5 if unknown)
+
 ## Internal Tool Registry Pattern
 
 Internal tools use a `gobby-*` prefix for server names and are handled locally:
