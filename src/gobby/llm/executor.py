@@ -268,10 +268,17 @@ class AgentExecutor(ABC):
             nonlocal completion_result
 
             if tool_name == "complete":
+                # Validate status against allowed values for complete() tool
+                allowed_statuses = {"success", "partial", "blocked"}
+                raw_status = arguments.get("status")
+                validated_status: Literal["success", "partial", "blocked"] = (
+                    raw_status if raw_status in allowed_statuses else "success"
+                )
+
                 # Extract completion data
                 completion_result = AgentResult(
                     output=arguments.get("output", ""),
-                    status=arguments.get("status", "success"),
+                    status=validated_status,
                     artifacts=arguments.get("artifacts", {}),
                     files_modified=arguments.get("files_modified", []),
                     next_steps=arguments.get("next_steps", []),
