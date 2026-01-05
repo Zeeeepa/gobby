@@ -809,6 +809,10 @@ class LocalTaskManager:
 
         Results are ordered hierarchically: parents appear before their children,
         with siblings sorted by priority ASC, then created_at ASC.
+
+        Note: The limit is applied AFTER hierarchical ordering to ensure coherent
+        tree structures. We fetch all ready tasks, order them hierarchically,
+        then return the first N tasks in tree traversal order.
         """
         # Use recursive CTE to find tasks with ready parent chains
         # Note: "blocked by own children" is a completion block, not a work block.
@@ -868,12 +872,18 @@ class LocalTaskManager:
             query += " AND t.parent_task_id = ?"
             params.append(parent_task_id)
 
-        query += " ORDER BY t.priority ASC, t.created_at ASC LIMIT ? OFFSET ?"
-        params.extend([limit, offset])
+        # Fetch all matching tasks (no SQL limit) so we can order hierarchically first
+        # Use a safety cap to prevent runaway queries
+        internal_limit = 1000
+        query += " ORDER BY t.priority ASC, t.created_at ASC LIMIT ?"
+        params.append(internal_limit)
 
         rows = self.db.fetchall(query, tuple(params))
         tasks = [Task.from_row(row) for row in rows]
-        return order_tasks_hierarchically(tasks)
+
+        # Order hierarchically, then apply user's limit/offset
+        ordered = order_tasks_hierarchically(tasks)
+        return ordered[offset : offset + limit] if limit else ordered
 
     def list_blocked_tasks(
         self,
@@ -889,6 +899,9 @@ class LocalTaskManager:
 
         Results are ordered hierarchically: parents appear before their children,
         with siblings sorted by priority ASC, then created_at ASC.
+
+        Note: The limit is applied AFTER hierarchical ordering to ensure coherent
+        tree structures.
         """
         query = """
         SELECT t.* FROM tasks t
@@ -913,12 +926,17 @@ class LocalTaskManager:
             query += " AND t.parent_task_id = ?"
             params.append(parent_task_id)
 
-        query += " ORDER BY t.priority ASC, t.created_at ASC LIMIT ? OFFSET ?"
-        params.extend([limit, offset])
+        # Fetch all matching tasks (no SQL limit) so we can order hierarchically first
+        internal_limit = 1000
+        query += " ORDER BY t.priority ASC, t.created_at ASC LIMIT ?"
+        params.append(internal_limit)
 
         rows = self.db.fetchall(query, tuple(params))
         tasks = [Task.from_row(row) for row in rows]
-        return order_tasks_hierarchically(tasks)
+
+        # Order hierarchically, then apply user's limit/offset
+        ordered = order_tasks_hierarchically(tasks)
+        return ordered[offset : offset + limit] if limit else ordered
 
     def list_workflow_tasks(
         self,
