@@ -43,7 +43,7 @@ from gobby.workflows.summary_actions import (
     generate_summary,
     synthesize_title,
 )
-from gobby.workflows.task_enforcement_actions import require_active_task, require_epic_complete
+from gobby.workflows.task_enforcement_actions import require_active_task, require_task_complete
 from gobby.workflows.templates import TemplateEngine
 from gobby.workflows.todo_actions import mark_todo_complete, write_todos
 from gobby.workflows.webhook import WebhookAction
@@ -209,7 +209,7 @@ class ActionExecutor:
         self.register("mark_loop_complete", self._handle_mark_loop_complete)
         # Task enforcement
         self.register("require_active_task", self._handle_require_active_task)
-        self.register("require_epic_complete", self._handle_require_epic_complete)
+        self.register("require_task_complete", self._handle_require_task_complete)
         # Webhook
         self.register("webhook", self._handle_webhook)
 
@@ -799,27 +799,27 @@ class ActionExecutor:
             workflow_state=context.state,
         )
 
-    async def _handle_require_epic_complete(
+    async def _handle_require_task_complete(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """Check that all tasks under an epic are complete before allowing stop."""
+        """Check that a task (and its subtasks) are complete before allowing stop."""
         current_session = context.session_manager.get(context.session_id)
         project_id = current_session.project_id if current_session else None
 
-        # Get epic_task_id from kwargs - may be a template that needs resolving
-        epic_task_id = kwargs.get("epic_task_id")
+        # Get task_id from kwargs - may be a template that needs resolving
+        task_id = kwargs.get("task_id")
 
-        # If it's a template reference like "{{ variables.session_epic }}", resolve it
-        if epic_task_id and "{{" in str(epic_task_id):
-            epic_task_id = context.template_engine.render(
-                str(epic_task_id),
+        # If it's a template reference like "{{ variables.session_task }}", resolve it
+        if task_id and "{{" in str(task_id):
+            task_id = context.template_engine.render(
+                str(task_id),
                 {"variables": context.state.variables or {}},
             )
 
-        return await require_epic_complete(
+        return await require_task_complete(
             task_manager=self.task_manager,
             session_id=context.session_id,
-            epic_task_id=epic_task_id,
+            task_id=task_id,
             event_data=context.event_data,
             project_id=project_id,
             workflow_state=context.state,

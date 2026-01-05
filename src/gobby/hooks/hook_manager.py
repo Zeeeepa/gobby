@@ -1187,7 +1187,7 @@ class HookManager:
         Handle AFTER_AGENT event (stop).
 
         Updates session status to paused.
-        Executes lifecycle workflow triggers for on_after_agent (e.g., require_epic_complete).
+        Executes lifecycle workflow triggers for on_after_agent (e.g., require_task_complete).
 
         Args:
             event: HookEvent with agent response data
@@ -1208,7 +1208,7 @@ class HookManager:
             self.logger.debug(f"🛑 Agent stop: cli={cli_source}")
 
         # Execute lifecycle workflow triggers for on_after_agent
-        # This enables actions like require_epic_complete to block the stop
+        # This enables actions like require_task_complete to block the stop
         try:
             wf_response = self._workflow_handler.handle_all_lifecycles(event)
             if wf_response.decision != "allow":

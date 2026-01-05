@@ -246,8 +246,8 @@ worktrees:
 #### Phase 1.7: Workflow Exclusions for Worktree Agents
 
 - [ ] Set `is_worktree: true` variable in worktree agent sessions
-- [ ] Exclude worktree agents from `require_epic_complete` enforcement
-  - Main session owns the epic; worktree agents work on assigned subtasks
+- [ ] Exclude worktree agents from `require_task_complete` enforcement
+  - Main session owns the parent task; worktree agents work on assigned subtasks
   - Check `variables.get('is_worktree')` in `on_after_agent` trigger
 - [ ] Allow worktree agents to stop when their assigned task is complete
 - [ ] Main session tracks overall epic progress across all worktree agents

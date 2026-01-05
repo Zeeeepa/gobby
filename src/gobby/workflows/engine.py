@@ -415,7 +415,7 @@ class WorkflowEngine:
         # Load all session variables from persistent state
         # This enables:
         # - require_task_before_edit (task_claimed variable)
-        # - require_epic_complete (session_epic variable)
+        # - require_task_complete (session_task variable)
         # - worktree detection (is_worktree variable)
         # - any other session-scoped variables set via gobby-workflows MCP tools
         session_id = event.metadata.get("_platform_session_id")

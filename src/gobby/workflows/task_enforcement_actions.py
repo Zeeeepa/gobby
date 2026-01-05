@@ -2,7 +2,7 @@
 Task enforcement actions for workflow engine.
 
 Provides actions that enforce task tracking before allowing certain tools,
-and enforce epic completion before allowing agent to stop.
+and enforce task completion before allowing agent to stop.
 """
 
 import logging
@@ -16,78 +16,72 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-async def require_epic_complete(
+async def require_task_complete(
     task_manager: "LocalTaskManager | None",
     session_id: str,
-    epic_task_id: str | None,
+    task_id: str | None,
     event_data: dict[str, Any] | None = None,
     project_id: str | None = None,
     workflow_state: "WorkflowState | None" = None,
 ) -> dict[str, Any] | None:
     """
-    Block agent from stopping until all tasks under an epic are complete.
+    Block agent from stopping until a task (and its subtasks) are complete.
 
     This action is designed for on_after_agent triggers to enforce that the
-    agent completes all subtasks under a parent epic before stopping.
+    agent completes all subtasks under a parent task before stopping.
 
     Logic:
-    1. If epic has incomplete subtasks and agent has no claimed task → suggest next subtask
-    2. If epic has incomplete subtasks and agent has claimed task → remind to finish it
-    3. If all subtasks done but epic not closed → remind to close the epic
-    4. If epic is closed → allow stop
+    1. If task has incomplete subtasks and agent has no claimed task → suggest next subtask
+    2. If task has incomplete subtasks and agent has claimed task → remind to finish it
+    3. If all subtasks done but task not closed → remind to close the task
+    4. If task is closed → allow stop
 
     Args:
         task_manager: LocalTaskManager for querying tasks
         session_id: Current session ID
-        epic_task_id: The parent epic task ID to enforce completion on
-        event_data: Hook event data (includes stop_hook_active flag)
+        task_id: The parent task ID to enforce completion on
+        event_data: Hook event data
         project_id: Optional project ID for scoping
         workflow_state: Workflow state with variables (task_claimed, etc.)
 
     Returns:
-        Dict with decision="block" and reason if epic incomplete,
+        Dict with decision="block" and reason if task incomplete,
         or None to allow the stop.
     """
-    if not epic_task_id:
-        logger.debug("require_epic_complete: No epic_task_id specified, allowing")
+    if not task_id:
+        logger.debug("require_task_complete: No task_id specified, allowing")
         return None
 
     if not task_manager:
-        logger.debug("require_epic_complete: No task_manager available, allowing")
+        logger.debug("require_task_complete: No task_manager available, allowing")
         return None
-
-    # Check stop_hook_active to prevent infinite loops
-    # If we've already blocked once and agent is continuing, check iteration count
-    stop_hook_active = False
-    if event_data:
-        stop_hook_active = event_data.get("stop_hook_active", False)
 
     # Track how many times we've blocked in this session
     block_count = 0
     if workflow_state:
-        block_count = workflow_state.variables.get("_epic_block_count", 0)
+        block_count = workflow_state.variables.get("_task_block_count", 0)
 
     # Safety valve: after 5 blocks, allow to prevent infinite loop
     if block_count >= 5:
         logger.warning(
-            f"require_epic_complete: Reached max block count ({block_count}), allowing stop"
+            f"require_task_complete: Reached max block count ({block_count}), allowing stop"
         )
         return None
 
     try:
-        # Get the epic task
-        epic = task_manager.get_task(epic_task_id)
-        if not epic:
-            logger.warning(f"require_epic_complete: Epic '{epic_task_id}' not found, allowing")
+        # Get the parent task
+        parent_task = task_manager.get_task(task_id)
+        if not parent_task:
+            logger.warning(f"require_task_complete: Task '{task_id}' not found, allowing")
             return None
 
-        # If epic is already closed, allow
-        if epic.status == "closed":
-            logger.debug(f"require_epic_complete: Epic '{epic_task_id}' is closed, allowing")
+        # If task is already closed, allow
+        if parent_task.status == "closed":
+            logger.debug(f"require_task_complete: Task '{task_id}' is closed, allowing")
             return None
 
-        # Get all subtasks under this epic
-        subtasks = task_manager.list_tasks(parent_task_id=epic_task_id)
+        # Get all subtasks under this task
+        subtasks = task_manager.list_tasks(parent_task_id=task_id)
 
         # Find incomplete subtasks
         incomplete = [t for t in subtasks if t.status != "closed"]
@@ -102,19 +96,19 @@ async def require_epic_complete(
 
         # Increment block count
         if workflow_state:
-            workflow_state.variables["_epic_block_count"] = block_count + 1
+            workflow_state.variables["_task_block_count"] = block_count + 1
 
-        # Case 1: No incomplete subtasks, but epic not closed
+        # Case 1: No incomplete subtasks, but task not closed
         if not incomplete:
             logger.info(
-                f"require_epic_complete: All subtasks done, epic '{epic_task_id}' needs closing"
+                f"require_task_complete: All subtasks done, task '{task_id}' needs closing"
             )
             return {
                 "decision": "block",
                 "reason": (
-                    f"All subtasks under epic '{epic.title}' are complete. "
-                    f"Close the parent epic to finish:\n"
-                    f"close_task(task_id=\"{epic_task_id}\")"
+                    f"All subtasks under '{parent_task.title}' are complete. "
+                    f"Close the parent task to finish:\n"
+                    f"close_task(task_id=\"{task_id}\")"
                 ),
             }
 
@@ -125,12 +119,12 @@ async def require_epic_complete(
             if ready_subtasks:
                 next_task = ready_subtasks[0]
                 logger.info(
-                    f"require_epic_complete: No claimed task, suggesting '{next_task.id}'"
+                    f"require_task_complete: No claimed task, suggesting '{next_task.id}'"
                 )
                 return {
                     "decision": "block",
                     "reason": (
-                        f"Epic '{epic.title}' has {len(incomplete)} incomplete subtask(s). "
+                        f"'{parent_task.title}' has {len(incomplete)} incomplete subtask(s). "
                         f"Claim and work on the next one:\n"
                         f"update_task(task_id=\"{next_task.id}\", status=\"in_progress\")\n\n"
                         f"Next subtask: {next_task.title}"
@@ -140,12 +134,12 @@ async def require_epic_complete(
                 # There are in-progress tasks but not claimed by this session
                 next_task = in_progress[0]
                 logger.info(
-                    f"require_epic_complete: Found in_progress task '{next_task.id}' to claim"
+                    f"require_task_complete: Found in_progress task '{next_task.id}' to claim"
                 )
                 return {
                     "decision": "block",
                     "reason": (
-                        f"Epic '{epic.title}' has {len(incomplete)} incomplete subtask(s). "
+                        f"'{parent_task.title}' has {len(incomplete)} incomplete subtask(s). "
                         f"Task '{next_task.id}' is in progress - claim it:\n"
                         f"update_task(task_id=\"{next_task.id}\", status=\"in_progress\")\n\n"
                         f"Task: {next_task.title}"
@@ -154,12 +148,12 @@ async def require_epic_complete(
 
         # Case 3: Has claimed task but subtasks still incomplete
         if has_claimed_task and incomplete:
-            # Check if the claimed task is under this epic
-            claimed_under_epic = any(t.id == claimed_task_id for t in subtasks)
+            # Check if the claimed task is under this parent
+            claimed_under_parent = any(t.id == claimed_task_id for t in subtasks)
 
-            if claimed_under_epic:
+            if claimed_under_parent:
                 logger.info(
-                    f"require_epic_complete: Claimed task '{claimed_task_id}' still incomplete"
+                    f"require_task_complete: Claimed task '{claimed_task_id}' still incomplete"
                 )
                 return {
                     "decision": "block",
@@ -167,19 +161,19 @@ async def require_epic_complete(
                         f"Your current task is not yet complete. "
                         f"Finish and close it before stopping:\n"
                         f"close_task(task_id=\"{claimed_task_id}\")\n\n"
-                        f"Epic '{epic.title}' still has {len(incomplete)} incomplete subtask(s)."
+                        f"'{parent_task.title}' still has {len(incomplete)} incomplete subtask(s)."
                     ),
                 }
             else:
-                # Claimed task is not under this epic - remind about epic work
+                # Claimed task is not under this parent - remind about parent work
                 next_task = incomplete[0]
                 logger.info(
-                    "require_epic_complete: Claimed task not under epic, redirecting"
+                    "require_task_complete: Claimed task not under parent, redirecting"
                 )
                 return {
                     "decision": "block",
                     "reason": (
-                        f"Epic '{epic.title}' has {len(incomplete)} incomplete subtask(s). "
+                        f"'{parent_task.title}' has {len(incomplete)} incomplete subtask(s). "
                         f"Work on the next subtask:\n"
                         f"update_task(task_id=\"{next_task.id}\", status=\"in_progress\")\n\n"
                         f"Next: {next_task.title}"
@@ -187,17 +181,17 @@ async def require_epic_complete(
                 }
 
         # Fallback: shouldn't reach here, but block with generic message
-        logger.info(f"require_epic_complete: Generic block for epic '{epic_task_id}'")
+        logger.info(f"require_task_complete: Generic block for task '{task_id}'")
         return {
             "decision": "block",
             "reason": (
-                f"Epic '{epic.title}' is not yet complete. "
+                f"'{parent_task.title}' is not yet complete. "
                 f"{len(incomplete)} subtask(s) remaining."
             ),
         }
 
     except Exception as e:
-        logger.error(f"require_epic_complete: Error checking epic: {e}")
+        logger.error(f"require_task_complete: Error checking task: {e}")
         # On error, allow to avoid blocking legitimate work
         return None
 
