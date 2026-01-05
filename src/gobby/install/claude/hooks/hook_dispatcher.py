@@ -253,11 +253,17 @@ def main() -> int:
             if debug_mode:
                 logger.debug(f"Output data: {result}")
 
+            # Check for block decision - return exit code 2 to signal blocking
+            # For blocking, output goes to STDERR (Claude reads stderr on exit 2)
+            if result.get("continue") is False or result.get("decision") == "block":
+                print(json.dumps(result), file=sys.stderr)
+                return 2
+
             # Only print output if there's something meaningful to show
             # Empty dicts cause Claude Code to show "hook success: Success"
             if result and result != {}:
                 print(json.dumps(result))
-            # Otherwise print nothing - just exit 0
+
             return 0
         else:
             # HTTP error from daemon

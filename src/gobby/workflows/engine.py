@@ -972,16 +972,29 @@ class WorkflowEngine:
         # Handle close_task - clear the claim
         if is_close_task:
             state.variables["task_claimed"] = False
+            state.variables["claimed_task_id"] = None
             logger.info(
                 f"Session {state.session_id}: task_claimed=False "
                 f"(task closed via close_task)"
             )
             return
 
-        # All conditions met - set task_claimed
+        # Extract task_id based on tool type
+        arguments = tool_input.get("arguments", {}) or {}
+        if inner_tool_name == "update_task":
+            task_id = arguments.get("task_id")
+        elif inner_tool_name == "create_task":
+            # For create_task, the id is in the result
+            result = tool_output.get("result", {}) if isinstance(tool_output, dict) else {}
+            task_id = result.get("id") if isinstance(result, dict) else None
+        else:
+            task_id = None
+
+        # All conditions met - set task_claimed and claimed_task_id
         state.variables["task_claimed"] = True
+        state.variables["claimed_task_id"] = task_id
         logger.info(
-            f"Session {state.session_id}: task_claimed=True "
+            f"Session {state.session_id}: task_claimed=True, claimed_task_id={task_id} "
             f"(via {inner_tool_name})"
         )
 
