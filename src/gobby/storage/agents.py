@@ -374,3 +374,33 @@ class LocalAgentRunManager:
         if count > 0:
             logger.info(f"Timed out {count} stale agent runs (>{timeout_minutes}m)")
         return count
+
+    def cleanup_stale_pending_runs(self, timeout_minutes: int = 60) -> int:
+        """
+        Mark stale pending agent runs as failed.
+
+        Pending runs that never started within the timeout period are marked as errors.
+
+        Args:
+            timeout_minutes: Minutes since creation before marking as failed.
+
+        Returns:
+            Number of runs failed.
+        """
+        now = datetime.now(UTC).isoformat()
+        cursor = self.db.execute(
+            """
+            UPDATE agent_runs
+            SET status = 'error',
+                error = 'Pending run never started',
+                completed_at = ?,
+                updated_at = ?
+            WHERE status = 'pending'
+            AND datetime(created_at) < datetime('now', 'utc', ? || ' minutes')
+            """,
+            (now, now, f"-{timeout_minutes}"),
+        )
+        count = cursor.rowcount or 0
+        if count > 0:
+            logger.info(f"Failed {count} stale pending agent runs (>{timeout_minutes}m)")
+        return count
