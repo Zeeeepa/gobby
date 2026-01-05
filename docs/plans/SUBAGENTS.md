@@ -561,7 +561,7 @@ Subagents automatically have `start_agent` blocked unless workflow explicitly al
 |---|----------|----------|-----------|
 | 1 | **Worktree auto-creation** | Yes - auto-create if doesn't exist | Reduces friction for parallel development |
 | 2 | **Provider override hierarchy** | CLI > MCP args (if allowed) > workflow > config | Flexibility for ad-hoc use, control for strict workflows |
-| 3 | **CLI selection for terminal mode** | Always configurable via `cli` param | Provider and CLI are independent (e.g., use gemini CLI with litellm provider) |
+| 3 | **CLI selection for terminal mode** | Always configurable via `cli` param | Terminal mode uses native CLIs; in-process mode uses SDK providers |
 | 4 | **Default agent depth** | max_depth=1 (no nesting by default) | Prevent recursive spawning; workflows can opt-in |
 | 5 | **Completion mechanism** | Explicit `complete()` tool call | Structured output, workflow can define schema |
 | 6 | **Naming** | `start_agent` not `spawn_agent` | Matches CLI `gobby agent start` |
