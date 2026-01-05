@@ -787,6 +787,16 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_tool_metrics_daily_server ON tool_metrics_daily(server_name);
         """,
     ),
+    (
+        33,
+        "Add agent_depth and spawned_by_agent_id columns to sessions table",
+        """
+        ALTER TABLE sessions ADD COLUMN agent_depth INTEGER DEFAULT 0;
+        ALTER TABLE sessions ADD COLUMN spawned_by_agent_id TEXT;
+        CREATE INDEX IF NOT EXISTS idx_sessions_agent_depth ON sessions(agent_depth);
+        CREATE INDEX IF NOT EXISTS idx_sessions_spawned_by ON sessions(spawned_by_agent_id);
+        """,
+    ),
 ]
 
 

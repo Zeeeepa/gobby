@@ -33,6 +33,8 @@ class Session:
     parent_session_id: str | None
     created_at: str
     updated_at: str
+    agent_depth: int = 0  # 0 = human-initiated, 1+ = agent-spawned
+    spawned_by_agent_id: str | None = None  # ID of agent that spawned this session
 
     @classmethod
     def from_row(cls, row: Any) -> Session:
@@ -53,6 +55,8 @@ class Session:
             parent_session_id=row["parent_session_id"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+            agent_depth=row["agent_depth"] or 0,
+            spawned_by_agent_id=row["spawned_by_agent_id"],
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -71,6 +75,8 @@ class Session:
             "compact_markdown": self.compact_markdown,
             "git_branch": self.git_branch,
             "parent_session_id": self.parent_session_id,
+            "agent_depth": self.agent_depth,
+            "spawned_by_agent_id": self.spawned_by_agent_id,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -93,6 +99,8 @@ class LocalSessionManager:
         jsonl_path: str | None = None,
         git_branch: str | None = None,
         parent_session_id: str | None = None,
+        agent_depth: int = 0,
+        spawned_by_agent_id: str | None = None,
     ) -> Session:
         """
         Register a new session or return existing one.
@@ -110,6 +118,8 @@ class LocalSessionManager:
             jsonl_path: Path to transcript file
             git_branch: Git branch name
             parent_session_id: Parent session for handoff
+            agent_depth: Nesting depth (0 = human-initiated, 1+ = agent-spawned)
+            spawned_by_agent_id: ID of the agent that spawned this session
 
         Returns:
             Session instance
@@ -150,9 +160,10 @@ class LocalSessionManager:
             INSERT INTO sessions (
                 id, external_id, machine_id, source, project_id, title,
                 jsonl_path, git_branch, parent_session_id,
+                agent_depth, spawned_by_agent_id,
                 status, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
             """,
             (
                 session_id,
@@ -164,6 +175,8 @@ class LocalSessionManager:
                 jsonl_path,
                 git_branch,
                 parent_session_id,
+                agent_depth,
+                spawned_by_agent_id,
                 now,
                 now,
             ),

@@ -43,6 +43,8 @@ def mock_db():
             summary_path TEXT,
             summary_markdown TEXT,
             compact_markdown TEXT,
+            agent_depth INTEGER DEFAULT 0,
+            spawned_by_agent_id TEXT,
             UNIQUE(external_id, machine_id, source)
         );
     """)

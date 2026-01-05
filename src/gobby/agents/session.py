@@ -155,6 +155,10 @@ class ChildSessionManager:
         if not can_spawn:
             raise ValueError(reason)
 
+        # Calculate child's agent depth (parent depth + 1)
+        parent_depth = self.get_session_depth(config.parent_session_id)
+        child_depth = parent_depth + 1
+
         # Generate a unique external_id for the child
         external_id = f"agent-{uuid.uuid4().hex[:12]}"
 
@@ -175,6 +179,8 @@ class ChildSessionManager:
             title=title,
             git_branch=config.git_branch,
             parent_session_id=config.parent_session_id,
+            agent_depth=child_depth,
+            spawned_by_agent_id=config.agent_id,
         )
 
         self.logger.info(
