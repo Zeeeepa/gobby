@@ -244,16 +244,25 @@ class AgentRunner:
                 if workflow_definition.steps:
                     initial_step = workflow_definition.steps[0].name
 
+                # Build initial variables with agent depth information
+                initial_variables = dict(workflow_definition.variables)
+                initial_variables["agent_depth"] = child_session.agent_depth
+                initial_variables["max_agent_depth"] = self._child_session_manager.max_agent_depth
+                initial_variables["can_spawn"] = (
+                    child_session.agent_depth < self._child_session_manager.max_agent_depth
+                )
+                initial_variables["parent_session_id"] = config.parent_session_id
+
                 initial_state = WorkflowState(
                     session_id=child_session.id,
                     workflow_name=config.workflow_name,
                     step=initial_step,
-                    variables=dict(workflow_definition.variables),  # Copy initial variables
+                    variables=initial_variables,
                 )
                 self._workflow_state_manager.save_state(initial_state)
                 self.logger.info(
                     f"Initialized workflow state for child session {child_session.id} "
-                    f"(step={initial_step})"
+                    f"(step={initial_step}, agent_depth={child_session.agent_depth})"
                 )
             else:
                 self.logger.warning(
