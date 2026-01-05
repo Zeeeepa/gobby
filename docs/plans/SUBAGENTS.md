@@ -43,36 +43,37 @@ Delegate routine tasks to cheaper models while the orchestrator uses a more capa
 
 ```bash
 # Start an agent (human-initiated)
-uv run gobby agent start \
+uv run gobby agents start \
   --workflow workflow.yaml \
   --task gt-abc123 | next \
   --timeout 120 \
   --prompt "Implement the feature" \
   --session-context summary_markdown \
-  --interactive \
+  --mode terminal \                    # in_process, terminal, embedded, headless
+  --terminal auto \                    # auto, ghostty, iterm, gnome-terminal, etc.
   --provider claude \
   --cli claude
 
 # List running agents
-uv run gobby agent list
+uv run gobby agents list
 
 # Get agent status/result
-uv run gobby agent status <agent-id>
+uv run gobby agents status <agent-id>
 
 # Cancel an agent
-uv run gobby agent cancel <agent-id>
+uv run gobby agents cancel <agent-id>
 
 # Worktree management
-uv run gobby worktree create [--task TASK_ID] [--branch NAME] [--base BRANCH]
-uv run gobby worktree list [--status STATUS] [--project PROJECT]
-uv run gobby worktree show WORKTREE_ID
-uv run gobby worktree delete WORKTREE_ID [--force]
-uv run gobby worktree spawn WORKTREE_ID [--prompt "..."] [--terminal ghostty|iterm]
-uv run gobby worktree claim WORKTREE_ID
-uv run gobby worktree release WORKTREE_ID
-uv run gobby worktree sync WORKTREE_ID
-uv run gobby worktree stale [--hours N]
-uv run gobby worktree cleanup [--hours N] [--dry-run]
+uv run gobby worktrees create [--task TASK_ID] [--branch NAME] [--base BRANCH]
+uv run gobby worktrees list [--status STATUS] [--project PROJECT]
+uv run gobby worktrees show WORKTREE_ID
+uv run gobby worktrees delete WORKTREE_ID [--force]
+uv run gobby worktrees spawn WORKTREE_ID [--prompt "..."] [--mode terminal] [--terminal auto]
+uv run gobby worktrees claim WORKTREE_ID
+uv run gobby worktrees release WORKTREE_ID
+uv run gobby worktrees sync WORKTREE_ID
+uv run gobby worktrees stale [--hours N]
+uv run gobby worktrees cleanup [--hours N] [--dry-run]
 ```
 
 ---
@@ -89,7 +90,8 @@ start_agent(
     timeout=120,  # 0 = infinite
     prompt="Review auth changes",
     session_context="summary_markdown",  # or session_id, transcript:10, file:path
-    interactive=False,
+    mode="in_process",  # in_process, terminal, embedded, headless
+    terminal="auto",  # auto, ghostty, iterm, gnome-terminal, etc.
     provider=None,  # use workflow default
     cli=None,
     worktree_id=None,  # use existing worktree
@@ -105,10 +107,20 @@ start_agent(
 | `timeout` | float | Seconds (0 = infinite) |
 | `prompt` | string | The prompt to give the agent |
 | `session_context` | string | How to pass context (see below) |
-| `interactive` | bool | Terminal mode vs in-process |
+| `mode` | string | Execution mode (see below) |
+| `terminal` | string | Terminal for terminal/embedded modes |
 | `provider` | string | Override: claude, gemini, codex, litellm |
 | `model` | string | Override model ID |
 | `worktree_id` | string | Use existing worktree (terminal mode) |
+
+#### Execution Modes
+
+| Mode | Description | Daemon | Output |
+|------|-------------|--------|--------|
+| `in_process` | Run via SDK in daemon process | Blocks | Returns result |
+| `terminal` | Spawn external terminal window | Non-blocking | Session handoff |
+| `embedded` | Return PTY for UI attachment | Non-blocking | PTY handle |
+| `headless` | Daemon captures output, no UI | Non-blocking | Session transcript |
 
 #### Session Context Options
 
@@ -168,13 +180,23 @@ def create_worktree(
 def spawn_agent_in_worktree(
     worktree_id: str,
     prompt: str | None = None,
-    terminal: str = "ghostty",  # ghostty, iterm, terminal
+    mode: str = "terminal",  # terminal, embedded, headless
+    terminal: str = "auto",  # auto, ghostty, iterm, kitty, gnome-terminal, etc.
     workflow: str | None = None,
 ) -> dict:
     """
-    Launch a new Claude Code agent in the specified worktree.
+    Launch a new agent in the specified worktree.
 
-    Opens a new terminal window with Claude Code started in the worktree directory.
+    Modes:
+    - terminal: Opens external terminal window (Ghostty, iTerm, etc.)
+    - embedded: Returns PTY handle for UI attachment (xterm.js)
+    - headless: Daemon captures output, no terminal visible
+
+    Terminal selection is cross-platform:
+    - macOS: ghostty, iterm, terminal.app, kitty, alacritty
+    - Linux: ghostty, gnome-terminal, konsole, kitty, alacritty
+    - Windows: windows-terminal, cmd, alacritty
+
     Agent session is linked to the worktree for tracking.
     """
 ```
@@ -230,7 +252,7 @@ sequenceDiagram
     participant CLI as CLI (claude/gemini)
     participant Hooks as Hook System
 
-    Parent->>Daemon: start_agent(workflow, interactive=true, task_id)
+    Parent->>Daemon: start_agent(workflow, mode=terminal, task_id)
     Daemon->>Daemon: Create child session (depth=1)
     Daemon->>Daemon: Store workflow in session metadata
 
@@ -478,7 +500,7 @@ exit_conditions:
 4. Run agent loop with workflow tool filtering via tool_handler
 5. On `complete()` call or timeout, return AgentResult
 
-### Terminal (`--interactive`)
+### Terminal Mode (`--mode terminal`)
 
 1. Create child session linked to parent
 2. Set workflow in session metadata
@@ -516,7 +538,11 @@ llm_providers:
 worktrees:
   enabled: true
   base_path: ".worktrees"             # Relative to project root
-  default_terminal: "ghostty"         # ghostty, iterm, terminal
+  default_mode: "terminal"            # in_process, terminal, embedded, headless
+  default_terminal: "auto"            # auto-detects based on platform:
+                                      #   macOS: ghostty > iterm > kitty > terminal.app
+                                      #   Linux: ghostty > kitty > gnome-terminal > alacritty
+                                      #   Windows: windows-terminal > alacritty > cmd
   stale_threshold_hours: 24
   auto_cleanup: false                 # Auto-delete stale worktrees
   max_concurrent: 12                  # Max parallel worktrees
@@ -537,7 +563,7 @@ settings:
 
 ### Override Hierarchy
 
-1. CLI args (`uv run gobby agent start --provider`) - highest priority
+1. CLI args (`uv run gobby agents start --provider`) - highest priority
 2. MCP tool args (if `allow_provider_override: true` in workflow)
 3. Workflow settings
 4. config.yaml defaults - lowest priority
@@ -602,40 +628,40 @@ Subagents automatically have `start_agent` blocked unless workflow explicitly al
 
 > **Status**: Implemented and tested. Do not regenerate tasks for this phase.
 
-- [x] **AGENT-1**: Create `src/gobby/llm/executor.py` with `AgentExecutor` ABC
-- [x] **AGENT-2**: Create `ClaudeExecutor` by refactoring from `ClaudeLLMProvider.generate_with_mcp_tools()`
-- [x] **AGENT-3**: Create `src/gobby/agents/__init__.py` module
-- [x] **AGENT-4**: Create `src/gobby/agents/session.py` for child session creation
-- [x] **AGENT-5**: Add `agent_depth`, `spawned_by_agent_id` columns to sessions table (migration)
-- [x] **AGENT-6**: Create `agent_runs` table (migration)
-- [x] **AGENT-7**: Create `src/gobby/storage/agents.py` for agent_runs CRUD
-- [x] **AGENT-8**: Create `src/gobby/agents/runner.py` with `AgentRunner` class
-- [x] **AGENT-9**: Create `src/gobby/mcp_proxy/tools/agents.py` with MCP tool definitions
-- [x] **AGENT-10**: Register gobby-agents in `InternalRegistryManager`
-- [x] **AGENT-11**: Implement `start_agent` MCP tool (in-process mode)
-- [x] **AGENT-12**: Implement `complete` MCP tool
-- [x] **AGENT-13**: Implement `list_agents` MCP tool
-- [x] **AGENT-14**: Implement `get_agent_result` MCP tool
-- [x] **AGENT-15**: Implement `cancel_agent` MCP tool
+- [x] Create `src/gobby/llm/executor.py` with `AgentExecutor` ABC
+- [x] Create `ClaudeExecutor` by refactoring from `ClaudeLLMProvider.generate_with_mcp_tools()`
+- [x] Create `src/gobby/agents/__init__.py` module
+- [x] Create `src/gobby/agents/session.py` for child session creation
+- [x] Add `agent_depth`, `spawned_by_agent_id` columns to sessions table (migration)
+- [x] Create `agent_runs` table (migration)
+- [x] Create `src/gobby/storage/agents.py` for agent_runs CRUD
+- [x] Create `src/gobby/agents/runner.py` with `AgentRunner` class
+- [x] Create `src/gobby/mcp_proxy/tools/agents.py` with MCP tool definitions
+- [x] Register gobby-agents in `InternalRegistryManager`
+- [x] Implement `start_agent` MCP tool (in-process mode)
+- [x] Implement `complete` MCP tool
+- [x] Implement `list_agents` MCP tool
+- [x] Implement `get_agent_result` MCP tool
+- [x] Implement `cancel_agent` MCP tool
 
 ### Phase 2: Workflow Integration ✅ COMPLETED
 
 > **Status**: Implemented and tested. Do not regenerate tasks for this phase.
 
-- [x] **AGENT-16**: Load workflow definition for subagent
-- [x] **AGENT-17**: Initialize workflow state for child session
-- [x] **AGENT-18**: Implement tool_handler with workflow filtering
-- [x] **AGENT-19**: Handle `complete` tool as workflow exit condition
-- [x] **AGENT-20**: Integrate agent depth checking in workflow engine
+- [x] Load workflow definition for subagent
+- [x] Initialize workflow state for child session
+- [x] Implement tool_handler with workflow filtering
+- [x] Handle `complete` tool as workflow exit condition
+- [x] Integrate agent depth checking in workflow engine
 
 ### Phase 3: Multi-Provider Support
 
 Create additional AgentExecutor implementations for provider diversity.
 
-- [ ] **AGENT-21**: Create `GeminiExecutor` using Gemini function calling
-- [ ] **AGENT-22**: Create `LiteLLMExecutor` using OpenAI-compatible API
-- [ ] **AGENT-23**: Create `CodexExecutor` (if Codex supports tool use)
-- [ ] **AGENT-24**: Implement provider resolution (workflow → config → default)
+- [ ] Create `GeminiExecutor` using Gemini function calling
+- [ ] Create `LiteLLMExecutor` using OpenAI-compatible API
+- [ ] Create `CodexExecutor` (if Codex supports tool use)
+- [ ] Implement provider resolution (workflow → config → default)
 
 ### Phase 4: Worktree Management
 
@@ -658,11 +684,38 @@ Daemon-managed worktree registry with agent assignment, status tracking, and coo
 
 #### Phase 4.3: Agent Spawning in Worktrees
 
-- [ ] Create `src/gobby/worktrees/spawn.py` with agent spawning logic
-- [ ] Implement Ghostty terminal spawning
-- [ ] Implement iTerm terminal spawning
-- [ ] Implement generic Terminal.app spawning
-- [ ] Pass initial prompt via environment or file
+Agent spawning supports three execution modes and cross-platform terminals:
+
+**Execution Modes:**
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `terminal` | Spawn external terminal window | CLI users, full terminal features |
+| `embedded` | Return PTY handle for UI attachment | Web UI with xterm.js |
+| `headless` | Daemon captures output, no terminal | Background agents, CI/CD |
+
+**Cross-Platform Terminal Support:**
+| Terminal | macOS | Linux | Windows |
+|----------|-------|-------|---------|
+| ghostty | `open -na ghostty --args -e` | `ghostty -e` | ❌ |
+| iterm | AppleScript | ❌ | ❌ |
+| terminal.app | AppleScript | ❌ | ❌ |
+| gnome-terminal | ❌ | `gnome-terminal --` | ❌ |
+| konsole | ❌ | `konsole -e` | ❌ |
+| kitty | `open -na kitty --args` | `kitty -e` | ❌ |
+| alacritty | `open -na alacritty --args -e` | `alacritty -e` | `alacritty -e` |
+| windows-terminal | ❌ | ❌ | `wt.exe -d path` |
+| cmd | ❌ | ❌ | `start cmd /k` |
+
+**Implementation Tasks:**
+- [ ] Create `src/gobby/agents/spawn.py` with `TerminalSpawner` class
+- [ ] Implement `SpawnMode` enum (terminal, embedded, headless)
+- [ ] Implement macOS spawners (Ghostty, iTerm, Terminal.app, kitty)
+- [ ] Implement Linux spawners (Ghostty, gnome-terminal, konsole, kitty, alacritty)
+- [ ] Implement Windows spawners (Windows Terminal, cmd, alacritty)
+- [ ] Implement `auto` terminal detection (find first available)
+- [ ] Implement embedded mode PTY creation via `pty.openpty()` or node-pty bridge
+- [ ] Implement headless mode with output capture to session transcript
+- [ ] Pass initial prompt via environment variable or temp file
 - [ ] Register spawned session with daemon
 
 #### Phase 4.4: MCP Tools (gobby-worktrees)
@@ -682,7 +735,7 @@ Daemon-managed worktree registry with agent assignment, status tracking, and coo
 
 #### Phase 4.5: Terminal Mode Integration
 
-- [ ] Update `start_agent` to support `interactive=True` with worktrees
+- [ ] Update `start_agent` to support `mode=terminal` with worktrees
 - [ ] Store workflow in session metadata for hook pickup
 - [ ] Capture result from session handoff
 - [ ] Link worktree status to agent run status
@@ -693,25 +746,25 @@ Add CLI command groups for agents and worktrees.
 
 #### Phase 5.1: Agent CLI
 
-- [ ] Add `gobby agent` command group to cli.py
-- [ ] Implement `gobby agent start`
-- [ ] Implement `gobby agent list`
-- [ ] Implement `gobby agent status`
-- [ ] Implement `gobby agent cancel`
+- [ ] Add `gobby agents` command group to cli.py
+- [ ] Implement `gobby agents start`
+- [ ] Implement `gobby agents list`
+- [ ] Implement `gobby agents status`
+- [ ] Implement `gobby agents cancel`
 
 #### Phase 5.2: Worktree CLI
 
-- [ ] Add `gobby worktree` command group to cli.py
-- [ ] Implement `gobby worktree create`
-- [ ] Implement `gobby worktree list`
-- [ ] Implement `gobby worktree show`
-- [ ] Implement `gobby worktree delete`
-- [ ] Implement `gobby worktree spawn`
-- [ ] Implement `gobby worktree claim`
-- [ ] Implement `gobby worktree release`
-- [ ] Implement `gobby worktree sync`
-- [ ] Implement `gobby worktree stale`
-- [ ] Implement `gobby worktree cleanup`
+- [ ] Add `gobby worktrees` command group to cli.py
+- [ ] Implement `gobby worktrees create`
+- [ ] Implement `gobby worktrees list`
+- [ ] Implement `gobby worktrees show`
+- [ ] Implement `gobby worktrees delete`
+- [ ] Implement `gobby worktrees spawn`
+- [ ] Implement `gobby worktrees claim`
+- [ ] Implement `gobby worktrees release`
+- [ ] Implement `gobby worktrees sync`
+- [ ] Implement `gobby worktrees stale`
+- [ ] Implement `gobby worktrees cleanup`
 
 ### Phase 6: State Management
 
@@ -753,7 +806,7 @@ Add CLI command groups for agents and worktrees.
 | 3 | **CLI selection for terminal mode** | Always configurable via `cli` param | Terminal mode uses native CLIs; in-process mode uses SDK providers |
 | 4 | **Default agent depth** | max_depth=1 (no nesting by default) | Prevent recursive spawning; workflows can opt-in |
 | 5 | **Completion mechanism** | Explicit `complete()` tool call | Structured output, workflow can define schema |
-| 6 | **Naming** | `start_agent` not `spawn_agent` | Matches CLI `gobby agent start` |
+| 6 | **Naming** | `start_agent` not `spawn_agent` | Matches CLI `gobby agents start` |
 | 7 | **State persistence** | SQLite for all state (agents + worktrees) | Consistent with Gobby architecture, daemon-level coordination |
 | 8 | **Tool availability in subagents** | `complete` always, `start_agent` blocked by default | Safety first, opt-in for orchestration workflows |
 | 9 | **Worktree storage** | SQLite `worktrees` table | Centralized registry, consistent with other managers |
