@@ -123,7 +123,7 @@ class TranscriptAnalyzer:
         context.todo_state = self._extract_todowrite(relevant_turns)
 
         # 4. Recent Activity Summary (Last 5 calls)
-        # We can re-use the parser's logic or just grab the last few tool uses
+        # Extract meaningful details from recent tool uses
         recent_tools = []
         count = 0
         for turn in reversed(turns):
@@ -134,8 +134,8 @@ class TranscriptAnalyzer:
             if isinstance(content, list):
                 for block in content:
                     if isinstance(block, dict) and block.get("type") == "tool_use":
-                        tool_name = block.get("name")
-                        recent_tools.append(f"Called {tool_name}")
+                        description = self._format_tool_description(block)
+                        recent_tools.append(description)
                         count += 1
                         if count >= 5:
                             break
@@ -206,6 +206,82 @@ class TranscriptAnalyzer:
                         "timestamp": datetime.now().isoformat(),  # Approx time
                     }
                 )
+
+    def _format_tool_description(self, block: dict[str, Any]) -> str:
+        """
+        Format a tool use block into a human-readable description.
+
+        Extracts meaningful details instead of just showing the tool name.
+
+        Args:
+            block: Tool use block with 'name' and 'input' keys
+
+        Returns:
+            Human-readable description of what the tool call did
+        """
+        tool_name = block.get("name", "unknown")
+        tool_input = block.get("input", {})
+
+        # MCP tool calls - show server.tool
+        if tool_name in ("mcp__gobby__call_tool", "mcp_call_tool"):
+            server = tool_input.get("server_name", "unknown")
+            tool = tool_input.get("tool_name", "unknown")
+            return f"Called {server}.{tool}"
+
+        # Bash - show the command (truncated)
+        if tool_name == "Bash":
+            command = tool_input.get("command", "")
+            # Truncate long commands
+            if len(command) > 60:
+                command = command[:57] + "..."
+            return f"Ran: {command}"
+
+        # Edit/Write - show the file path
+        if tool_name in ("Edit", "Write"):
+            path = tool_input.get("file_path", "")
+            if path:
+                return f"{tool_name}: {path}"
+            return f"Called {tool_name}"
+
+        # Read - show the file path
+        if tool_name == "Read":
+            path = tool_input.get("file_path", "")
+            if path:
+                return f"Read: {path}"
+            return "Called Read"
+
+        # Glob - show the pattern
+        if tool_name == "Glob":
+            pattern = tool_input.get("pattern", "")
+            if pattern:
+                return f"Glob: {pattern}"
+            return "Called Glob"
+
+        # Grep - show the pattern
+        if tool_name == "Grep":
+            pattern = tool_input.get("pattern", "")
+            if pattern:
+                # Truncate long patterns
+                if len(pattern) > 40:
+                    pattern = pattern[:37] + "..."
+                return f"Grep: {pattern}"
+            return "Called Grep"
+
+        # TodoWrite - show count
+        if tool_name == "TodoWrite":
+            todos = tool_input.get("todos", [])
+            return f"TodoWrite: {len(todos)} items"
+
+        # Task tool - show subagent type
+        if tool_name == "Task":
+            subagent = tool_input.get("subagent_type", "")
+            desc = tool_input.get("description", "")
+            if subagent:
+                return f"Task ({subagent}): {desc}" if desc else f"Task ({subagent})"
+            return f"Task: {desc}" if desc else "Called Task"
+
+        # Default - just show the tool name
+        return f"Called {tool_name}"
 
     def _extract_todowrite(self, turns: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """

@@ -3,8 +3,10 @@ Tests for TranscriptAnalyzer in gobby.sessions.analyzer.
 """
 
 from datetime import datetime
+
 import pytest
-from gobby.sessions.analyzer import TranscriptAnalyzer, HandoffContext
+
+from gobby.sessions.analyzer import HandoffContext, TranscriptAnalyzer
 
 
 @pytest.fixture
@@ -96,14 +98,12 @@ def test_extract_handoff_context_no_task(sample_turns):
 def test_extract_handoff_context_recent_activity(sample_turns):
     analyzer = TranscriptAnalyzer()
     ctx = analyzer.extract_handoff_context(sample_turns)
-    # Check that recent tools are captured
+    # Check that recent tools are captured with detailed descriptions
     # The fixture has mcp_call_tool, Write, Bash (reverse order: Bash, Write, mcp_call_tool)
     assert len(ctx.recent_activity) > 0
-    assert (
-        "Called Bash" in ctx.recent_activity[0]
-        or "Called Write" in ctx.recent_activity[0]
-        or "Called Bash" in ctx.recent_activity[1]
-    )
+    # New format shows details: "Ran: <cmd>", "Write: <path>", "Called <server>.<tool>"
+    activity_str = " ".join(ctx.recent_activity)
+    assert "Ran:" in activity_str or "Write:" in activity_str
 
 
 def test_extract_handoff_context_max_turns():
@@ -557,3 +557,125 @@ def test_alternative_file_path_keys():
     assert "/a.py" in ctx.files_modified
     assert "/b.py" in ctx.files_modified
     assert "/c.py" in ctx.files_modified
+
+
+class TestFormatToolDescription:
+    """Tests for _format_tool_description method."""
+
+    def test_mcp_call_tool(self):
+        """Test MCP tool calls show server.tool format."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp__gobby__call_tool",
+            "input": {"server_name": "gobby-tasks", "tool_name": "create_task"},
+        }
+        assert analyzer._format_tool_description(block) == "Called gobby-tasks.create_task"
+
+    def test_mcp_call_tool_alternative_name(self):
+        """Test alternative MCP tool name format."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp_call_tool",
+            "input": {"server_name": "context7", "tool_name": "get_docs"},
+        }
+        assert analyzer._format_tool_description(block) == "Called context7.get_docs"
+
+    def test_bash_command(self):
+        """Test Bash commands show the actual command."""
+        analyzer = TranscriptAnalyzer()
+        block = {"name": "Bash", "input": {"command": "git status"}}
+        assert analyzer._format_tool_description(block) == "Ran: git status"
+
+    def test_bash_long_command_truncated(self):
+        """Test long Bash commands are truncated."""
+        analyzer = TranscriptAnalyzer()
+        long_cmd = "git log --oneline --graph --all --decorate | head -50 && git status"
+        block = {"name": "Bash", "input": {"command": long_cmd}}
+        result = analyzer._format_tool_description(block)
+        assert result.startswith("Ran: ")
+        assert result.endswith("...")
+        assert len(result) <= 65  # "Ran: " + 57 chars + "..."
+
+    def test_edit_with_path(self):
+        """Test Edit shows file path."""
+        analyzer = TranscriptAnalyzer()
+        block = {"name": "Edit", "input": {"file_path": "/src/main.py"}}
+        assert analyzer._format_tool_description(block) == "Edit: /src/main.py"
+
+    def test_write_with_path(self):
+        """Test Write shows file path."""
+        analyzer = TranscriptAnalyzer()
+        block = {"name": "Write", "input": {"file_path": "/new_file.py"}}
+        assert analyzer._format_tool_description(block) == "Write: /new_file.py"
+
+    def test_read_with_path(self):
+        """Test Read shows file path."""
+        analyzer = TranscriptAnalyzer()
+        block = {"name": "Read", "input": {"file_path": "/config.yaml"}}
+        assert analyzer._format_tool_description(block) == "Read: /config.yaml"
+
+    def test_glob_with_pattern(self):
+        """Test Glob shows pattern."""
+        analyzer = TranscriptAnalyzer()
+        block = {"name": "Glob", "input": {"pattern": "**/*.py"}}
+        assert analyzer._format_tool_description(block) == "Glob: **/*.py"
+
+    def test_grep_with_pattern(self):
+        """Test Grep shows pattern."""
+        analyzer = TranscriptAnalyzer()
+        block = {"name": "Grep", "input": {"pattern": "def test_"}}
+        assert analyzer._format_tool_description(block) == "Grep: def test_"
+
+    def test_grep_long_pattern_truncated(self):
+        """Test long Grep patterns are truncated."""
+        analyzer = TranscriptAnalyzer()
+        long_pattern = "some_very_long_pattern_that_exceeds_the_limit_for_display"
+        block = {"name": "Grep", "input": {"pattern": long_pattern}}
+        result = analyzer._format_tool_description(block)
+        assert result.startswith("Grep: ")
+        assert result.endswith("...")
+        assert len(result) <= 47  # "Grep: " + 37 chars + "..."
+
+    def test_todowrite_shows_count(self):
+        """Test TodoWrite shows item count."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "TodoWrite",
+            "input": {"todos": [{"content": "a"}, {"content": "b"}, {"content": "c"}]},
+        }
+        assert analyzer._format_tool_description(block) == "TodoWrite: 3 items"
+
+    def test_task_with_subagent(self):
+        """Test Task shows subagent type and description."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "Task",
+            "input": {"subagent_type": "Explore", "description": "Find auth code"},
+        }
+        assert analyzer._format_tool_description(block) == "Task (Explore): Find auth code"
+
+    def test_task_subagent_only(self):
+        """Test Task with only subagent type."""
+        analyzer = TranscriptAnalyzer()
+        block = {"name": "Task", "input": {"subagent_type": "Plan"}}
+        assert analyzer._format_tool_description(block) == "Task (Plan)"
+
+    def test_unknown_tool_fallback(self):
+        """Test unknown tools fall back to 'Called <name>'."""
+        analyzer = TranscriptAnalyzer()
+        block = {"name": "SomeUnknownTool", "input": {}}
+        assert analyzer._format_tool_description(block) == "Called SomeUnknownTool"
+
+    def test_missing_input_graceful(self):
+        """Test graceful handling when input is missing."""
+        analyzer = TranscriptAnalyzer()
+        block = {"name": "Bash"}  # No input key
+        result = analyzer._format_tool_description(block)
+        assert result == "Ran: "  # Empty command
+
+    def test_missing_name_graceful(self):
+        """Test graceful handling when name is missing."""
+        analyzer = TranscriptAnalyzer()
+        block = {"input": {"command": "ls"}}  # No name key
+        result = analyzer._format_tool_description(block)
+        assert result == "Called unknown"
