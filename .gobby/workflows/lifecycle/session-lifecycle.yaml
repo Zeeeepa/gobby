@@ -6,9 +6,13 @@ settings:
   priority: 10  # Run first - critical for handoff before other LLM calls
 
 # Session-scoped variables
-# Set session_task to a parent task ID to enforce completion before stopping
+# Set session_task to enforce task completion before stopping:
+#   - null: No task enforcement
+#   - "gt-abc123": Single task - must complete this task and its subtasks
+#   - ["gt-abc123", "gt-def456"]: List - must complete all listed tasks
+#   - "*": Wildcard - work until no ready tasks remain in the project
 variables:
-  session_task: null  # e.g., "gt-abc123" - set to enforce task completion
+  session_task: null
 
 triggers:
   on_stop:

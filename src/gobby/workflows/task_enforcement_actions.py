@@ -105,37 +105,42 @@ async def require_commit_before_stop(
 async def require_task_complete(
     task_manager: "LocalTaskManager | None",
     session_id: str,
-    task_id: str | None,
+    task_ids: list[str] | None,
     event_data: dict[str, Any] | None = None,
     project_id: str | None = None,
     workflow_state: "WorkflowState | None" = None,
 ) -> dict[str, Any] | None:
     """
-    Block agent from stopping until a task (and its subtasks) are complete.
+    Block agent from stopping until task(s) (and their subtasks) are complete.
 
-    This action is designed for on_after_agent triggers to enforce that the
-    agent completes all subtasks under a parent task before stopping.
+    This action is designed for on_stop triggers to enforce that the
+    agent completes all subtasks under specified task(s) before stopping.
 
-    Logic:
+    Supports:
+    - Single task: ["gt-abc123"]
+    - Multiple tasks: ["gt-abc123", "gt-def456"]
+    - Wildcard mode handled by caller (passes ready tasks as list)
+
+    Logic per task:
     1. If task has incomplete subtasks and agent has no claimed task → suggest next subtask
     2. If task has incomplete subtasks and agent has claimed task → remind to finish it
     3. If all subtasks done but task not closed → remind to close the task
-    4. If task is closed → allow stop
+    4. If task is closed → move to next task in list
 
     Args:
         task_manager: LocalTaskManager for querying tasks
         session_id: Current session ID
-        task_id: The parent task ID to enforce completion on
+        task_ids: List of task IDs to enforce completion on
         event_data: Hook event data
         project_id: Optional project ID for scoping
         workflow_state: Workflow state with variables (task_claimed, etc.)
 
     Returns:
-        Dict with decision="block" and reason if task incomplete,
+        Dict with decision="block" and reason if any task incomplete,
         or None to allow the stop.
     """
-    if not task_id:
-        logger.debug("require_task_complete: No task_id specified, allowing")
+    if not task_ids:
+        logger.debug("require_task_complete: No task_ids specified, allowing")
         return None
 
     if not task_manager:
@@ -154,47 +159,68 @@ async def require_task_complete(
         )
         return None
 
+    # Check if agent has a claimed task this session
+    has_claimed_task = False
+    claimed_task_id = None
+    if workflow_state:
+        has_claimed_task = workflow_state.variables.get("task_claimed", False)
+        claimed_task_id = workflow_state.variables.get("claimed_task_id")
+
     try:
-        # Get the parent task
-        parent_task = task_manager.get_task(task_id)
-        if not parent_task:
-            logger.warning(f"require_task_complete: Task '{task_id}' not found, allowing")
+        # Collect incomplete tasks across all specified task IDs
+        all_incomplete: list[tuple[Any, list[Any]]] = []  # (parent_task, incomplete_subtasks)
+
+        for task_id in task_ids:
+            task = task_manager.get_task(task_id)
+            if not task:
+                logger.warning(f"require_task_complete: Task '{task_id}' not found, skipping")
+                continue
+
+            # If task is already closed, skip it
+            if task.status == "closed":
+                logger.debug(f"require_task_complete: Task '{task_id}' is closed, skipping")
+                continue
+
+            # Get all subtasks under this task
+            subtasks = task_manager.list_tasks(parent_task_id=task_id)
+
+            # Find incomplete subtasks
+            incomplete = [t for t in subtasks if t.status != "closed"]
+
+            # If task itself is incomplete (no subtasks or has incomplete subtasks)
+            if not subtasks or incomplete:
+                all_incomplete.append((task, incomplete))
+
+        # If all tasks are complete, allow stop
+        if not all_incomplete:
+            logger.debug("require_task_complete: All specified tasks are complete, allowing")
             return None
-
-        # If task is already closed, allow
-        if parent_task.status == "closed":
-            logger.debug(f"require_task_complete: Task '{task_id}' is closed, allowing")
-            return None
-
-        # Get all subtasks under this task
-        subtasks = task_manager.list_tasks(parent_task_id=task_id)
-
-        # Find incomplete subtasks
-        incomplete = [t for t in subtasks if t.status != "closed"]
-        in_progress = [t for t in subtasks if t.status == "in_progress"]
-
-        # Check if agent has a claimed task this session
-        has_claimed_task = False
-        claimed_task_id = None
-        if workflow_state:
-            has_claimed_task = workflow_state.variables.get("task_claimed", False)
-            claimed_task_id = workflow_state.variables.get("claimed_task_id")
 
         # Increment block count
         if workflow_state:
             workflow_state.variables["_task_block_count"] = block_count + 1
 
-        # Case 1: No incomplete subtasks, but task not closed
+        # Get the first incomplete task to report on
+        parent_task, incomplete = all_incomplete[0]
+        task_id = parent_task.id
+        remaining_tasks = len(all_incomplete)
+
+        # Build suffix for multiple tasks
+        multi_task_suffix = ""
+        if remaining_tasks > 1:
+            multi_task_suffix = f"\n\n({remaining_tasks} tasks remaining in total)"
+
+        # Case 1: No incomplete subtasks, but task not closed (leaf task or parent with all done)
         if not incomplete:
             logger.info(
-                f"require_task_complete: All subtasks done, task '{task_id}' needs closing"
+                f"require_task_complete: Task '{task_id}' needs closing"
             )
             return {
                 "decision": "block",
                 "reason": (
-                    f"All subtasks under '{parent_task.title}' are complete. "
-                    f"Close the parent task to finish:\n"
+                    f"Task '{parent_task.title}' is ready to close.\n"
                     f"close_task(task_id=\"{task_id}\")"
+                    f"{multi_task_suffix}"
                 ),
             }
 
@@ -208,13 +234,14 @@ async def require_task_complete(
                 "reason": (
                     f"'{parent_task.title}' has {len(incomplete)} incomplete subtask(s).\n\n"
                     f"Use suggest_next_task() to find the best task to work on next."
+                    f"{multi_task_suffix}"
                 ),
             }
 
         # Case 3: Has claimed task but subtasks still incomplete
         if has_claimed_task and incomplete:
             # Check if the claimed task is under this parent
-            claimed_under_parent = any(t.id == claimed_task_id for t in subtasks)
+            claimed_under_parent = any(t.id == claimed_task_id for t in incomplete)
 
             if claimed_under_parent:
                 logger.info(
@@ -227,6 +254,7 @@ async def require_task_complete(
                         f"Finish and close it before stopping:\n"
                         f"close_task(task_id=\"{claimed_task_id}\")\n\n"
                         f"'{parent_task.title}' still has {len(incomplete)} incomplete subtask(s)."
+                        f"{multi_task_suffix}"
                     ),
                 }
             else:
@@ -239,6 +267,7 @@ async def require_task_complete(
                     "reason": (
                         f"'{parent_task.title}' has {len(incomplete)} incomplete subtask(s).\n\n"
                         f"Use suggest_next_task() to find the best task to work on next."
+                        f"{multi_task_suffix}"
                     ),
                 }
 
@@ -249,11 +278,12 @@ async def require_task_complete(
             "reason": (
                 f"'{parent_task.title}' is not yet complete. "
                 f"{len(incomplete)} subtask(s) remaining."
+                f"{multi_task_suffix}"
             ),
         }
 
     except Exception as e:
-        logger.error(f"require_task_complete: Error checking task: {e}")
+        logger.error(f"require_task_complete: Error checking tasks: {e}")
         # On error, allow to avoid blocking legitimate work
         return None
 

@@ -821,24 +821,56 @@ class ActionExecutor:
     async def _handle_require_task_complete(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """Check that a task (and its subtasks) are complete before allowing stop."""
+        """Check that a task (and its subtasks) are complete before allowing stop.
+
+        Supports:
+        - Single task ID: "gt-abc123"
+        - List of task IDs: ["gt-abc123", "gt-def456"]
+        - Wildcard: "*" - work until no ready tasks remain
+        """
         current_session = context.session_manager.get(context.session_id)
         project_id = current_session.project_id if current_session else None
 
         # Get task_id from kwargs - may be a template that needs resolving
-        task_id = kwargs.get("task_id")
+        task_spec = kwargs.get("task_id")
 
         # If it's a template reference like "{{ variables.session_task }}", resolve it
-        if task_id and "{{" in str(task_id):
-            task_id = context.template_engine.render(
-                str(task_id),
+        if task_spec and "{{" in str(task_spec):
+            task_spec = context.template_engine.render(
+                str(task_spec),
                 {"variables": context.state.variables or {}},
             )
+
+        # Handle different task_spec types:
+        # - None/empty: no enforcement
+        # - "*": wildcard - fetch ready tasks
+        # - list: multiple specific tasks
+        # - string: single task ID
+        task_ids: list[str] | None = None
+
+        if not task_spec:
+            return None
+        elif task_spec == "*":
+            # Wildcard: get all ready tasks for this project
+            if self.task_manager:
+                ready_tasks = self.task_manager.list_ready_tasks(
+                    project_id=project_id,
+                    limit=100,
+                )
+                task_ids = [t.id for t in ready_tasks]
+                if not task_ids:
+                    # No ready tasks - allow stop
+                    logger.debug("require_task_complete: Wildcard mode, no ready tasks")
+                    return None
+        elif isinstance(task_spec, list):
+            task_ids = task_spec
+        else:
+            task_ids = [str(task_spec)]
 
         return await require_task_complete(
             task_manager=self.task_manager,
             session_id=context.session_id,
-            task_id=task_id,
+            task_ids=task_ids,
             event_data=context.event_data,
             project_id=project_id,
             workflow_state=context.state,
