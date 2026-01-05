@@ -325,13 +325,94 @@ class ToolMetricsManager:
 
         return cursor.rowcount
 
+    def aggregate_to_daily(self, retention_days: int = DEFAULT_RETENTION_DAYS) -> int:
+        """
+        Aggregate old metrics into daily summaries before deletion.
+
+        Rolls up metrics older than retention_days into tool_metrics_daily table,
+        preserving historical data while keeping the main table lean.
+
+        Args:
+            retention_days: Metrics older than this are aggregated (default: 7)
+
+        Returns:
+            Number of rows aggregated
+        """
+        cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+        cutoff_str = cutoff.isoformat()
+
+        # Get metrics to aggregate (group by project, server, tool, and date)
+        rows = self.db.fetchall(
+            """
+            SELECT
+                project_id,
+                server_name,
+                tool_name,
+                date(last_called_at) as metric_date,
+                SUM(call_count) as total_calls,
+                SUM(success_count) as total_success,
+                SUM(failure_count) as total_failure,
+                SUM(total_latency_ms) as total_latency
+            FROM tool_metrics
+            WHERE last_called_at < ?
+            GROUP BY project_id, server_name, tool_name, date(last_called_at)
+            """,
+            (cutoff_str,),
+        )
+
+        if not rows:
+            return 0
+
+        aggregated = 0
+        now = datetime.now(UTC).isoformat()
+
+        for row in rows:
+            total_calls = row["total_calls"]
+            avg_latency = row["total_latency"] / total_calls if total_calls > 0 else None
+
+            # Upsert into daily table
+            self.db.execute(
+                """
+                INSERT INTO tool_metrics_daily (
+                    project_id, server_name, tool_name, date,
+                    call_count, success_count, failure_count,
+                    total_latency_ms, avg_latency_ms, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(project_id, server_name, tool_name, date) DO UPDATE SET
+                    call_count = call_count + excluded.call_count,
+                    success_count = success_count + excluded.success_count,
+                    failure_count = failure_count + excluded.failure_count,
+                    total_latency_ms = total_latency_ms + excluded.total_latency_ms,
+                    avg_latency_ms = (total_latency_ms + excluded.total_latency_ms) /
+                                     (call_count + excluded.call_count)
+                """,
+                (
+                    row["project_id"],
+                    row["server_name"],
+                    row["tool_name"],
+                    row["metric_date"],
+                    total_calls,
+                    row["total_success"],
+                    row["total_failure"],
+                    row["total_latency"],
+                    avg_latency,
+                    now,
+                ),
+            )
+            aggregated += 1
+
+        if aggregated > 0:
+            logger.info(f"Metrics aggregation: rolled up {aggregated} metric groups to daily table")
+
+        return aggregated
+
     def cleanup_old_metrics(self, retention_days: int = DEFAULT_RETENTION_DAYS) -> int:
         """
-        Delete metrics older than the retention period.
+        Aggregate and delete metrics older than the retention period.
 
-        Deletes metrics where last_called_at is older than retention_days.
-        This helps keep the database size manageable while preserving
-        recent tool usage patterns.
+        First aggregates old metrics into tool_metrics_daily, then deletes
+        them from the main table. This preserves historical data while
+        keeping the main table lean.
 
         Args:
             retention_days: Number of days to retain metrics (default: 7)
@@ -339,6 +420,10 @@ class ToolMetricsManager:
         Returns:
             Number of rows deleted
         """
+        # First aggregate to daily table
+        self.aggregate_to_daily(retention_days)
+
+        # Then delete from main table
         cutoff = datetime.now(UTC) - timedelta(days=retention_days)
         cutoff_str = cutoff.isoformat()
 
@@ -356,6 +441,97 @@ class ToolMetricsManager:
                 f"Metrics cleanup: deleted {deleted} stale metrics (older than {retention_days} days)"
             )
         return deleted
+
+    def get_daily_metrics(
+        self,
+        project_id: str | None = None,
+        server_name: str | None = None,
+        tool_name: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Get aggregated daily metrics for historical analysis.
+
+        Args:
+            project_id: Filter by project ID
+            server_name: Filter by server name
+            tool_name: Filter by tool name
+            start_date: Start date (YYYY-MM-DD format)
+            end_date: End date (YYYY-MM-DD format)
+
+        Returns:
+            Dictionary with daily metrics data
+        """
+        conditions = []
+        params: list[Any] = []
+
+        if project_id:
+            conditions.append("project_id = ?")
+            params.append(project_id)
+        if server_name:
+            conditions.append("server_name = ?")
+            params.append(server_name)
+        if tool_name:
+            conditions.append("tool_name = ?")
+            params.append(tool_name)
+        if start_date:
+            conditions.append("date >= ?")
+            params.append(start_date)
+        if end_date:
+            conditions.append("date <= ?")
+            params.append(end_date)
+
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+        rows = self.db.fetchall(
+            f"""
+            SELECT * FROM tool_metrics_daily
+            WHERE {where_clause}
+            ORDER BY date DESC, call_count DESC
+            """,
+            tuple(params),
+        )
+
+        daily_data = [
+            {
+                "project_id": row["project_id"],
+                "server_name": row["server_name"],
+                "tool_name": row["tool_name"],
+                "date": row["date"],
+                "call_count": row["call_count"],
+                "success_count": row["success_count"],
+                "failure_count": row["failure_count"],
+                "total_latency_ms": row["total_latency_ms"],
+                "avg_latency_ms": row["avg_latency_ms"],
+                "success_rate": (
+                    row["success_count"] / row["call_count"]
+                    if row["call_count"] > 0
+                    else None
+                ),
+            }
+            for row in rows
+        ]
+
+        # Calculate aggregates
+        total_calls = sum(d["call_count"] for d in daily_data)
+        total_success = sum(d["success_count"] for d in daily_data)
+        total_latency = sum(d["total_latency_ms"] for d in daily_data)
+
+        return {
+            "daily": daily_data,
+            "summary": {
+                "total_days": len({d["date"] for d in daily_data}),
+                "total_calls": total_calls,
+                "total_success": total_success,
+                "overall_success_rate": (
+                    total_success / total_calls if total_calls > 0 else None
+                ),
+                "overall_avg_latency_ms": (
+                    total_latency / total_calls if total_calls > 0 else None
+                ),
+            },
+        }
 
     def get_retention_stats(self) -> dict[str, Any]:
         """

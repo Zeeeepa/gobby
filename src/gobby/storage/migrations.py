@@ -764,6 +764,29 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         ALTER TABLE tasks ADD COLUMN escalation_reason TEXT;
         """,
     ),
+    (
+        32,
+        "Create tool_metrics_daily table for aggregated historical metrics",
+        """
+        CREATE TABLE IF NOT EXISTS tool_metrics_daily (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            server_name TEXT NOT NULL,
+            tool_name TEXT NOT NULL,
+            date TEXT NOT NULL,
+            call_count INTEGER NOT NULL DEFAULT 0,
+            success_count INTEGER NOT NULL DEFAULT 0,
+            failure_count INTEGER NOT NULL DEFAULT 0,
+            total_latency_ms REAL NOT NULL DEFAULT 0,
+            avg_latency_ms REAL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(project_id, server_name, tool_name, date)
+        );
+        CREATE INDEX IF NOT EXISTS idx_tool_metrics_daily_project ON tool_metrics_daily(project_id);
+        CREATE INDEX IF NOT EXISTS idx_tool_metrics_daily_date ON tool_metrics_daily(date);
+        CREATE INDEX IF NOT EXISTS idx_tool_metrics_daily_server ON tool_metrics_daily(server_name);
+        """,
+    ),
 ]
 
 
