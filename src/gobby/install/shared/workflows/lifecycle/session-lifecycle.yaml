@@ -6,6 +6,10 @@ settings:
   priority: 10  # Run first - critical for handoff before other LLM calls
 
 triggers:
+  on_stop:
+    # Commit enforcement - block stop if task has uncommitted changes
+    - action: require_commit_before_stop
+
   on_session_start:
     # Context handoff - inject previous session summary
     - action: inject_context

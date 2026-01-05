@@ -356,6 +356,7 @@ class HookManager:
             HookEventType.AFTER_MODEL: self._handle_event_after_model,
             # Claude Code only
             HookEventType.PERMISSION_REQUEST: self._handle_event_permission_request,
+            HookEventType.STOP: self._handle_event_stop,
         }
 
         # Start background health check monitoring
@@ -1221,6 +1222,42 @@ class HookManager:
         except Exception as e:
             self.logger.error(
                 f"Failed to execute lifecycle workflows on after_agent: {e}",
+                exc_info=True,
+            )
+
+        return HookResponse(decision="allow")
+
+    def _handle_event_stop(self, event: HookEvent) -> HookResponse:
+        """
+        Handle STOP event (Claude Code stop hook).
+
+        Executes lifecycle workflow triggers for on_stop (e.g., require_commit_before_stop).
+        This fires when the agent is about to stop, giving workflows a chance to block.
+
+        Args:
+            event: HookEvent with stop data
+
+        Returns:
+            HookResponse (allow by default, or block from workflow)
+        """
+        session_id = event.metadata.get("_platform_session_id")
+        cli_source = event.source.value
+
+        self.logger.debug(f"🛑 Stop hook: session {session_id}, cli={cli_source}")
+
+        # Execute lifecycle workflow triggers for on_stop
+        try:
+            wf_response = self._workflow_handler.handle_all_lifecycles(event)
+            if wf_response.decision != "allow":
+                self.logger.info(
+                    f"Lifecycle workflow {wf_response.decision} stop: {wf_response.reason}"
+                )
+                return wf_response
+            if wf_response.context:
+                return wf_response
+        except Exception as e:
+            self.logger.error(
+                f"Failed to execute lifecycle workflows on stop: {e}",
                 exc_info=True,
             )
 

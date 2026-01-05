@@ -43,7 +43,11 @@ from gobby.workflows.summary_actions import (
     generate_summary,
     synthesize_title,
 )
-from gobby.workflows.task_enforcement_actions import require_active_task, require_task_complete
+from gobby.workflows.task_enforcement_actions import (
+    require_active_task,
+    require_commit_before_stop,
+    require_task_complete,
+)
 from gobby.workflows.templates import TemplateEngine
 from gobby.workflows.todo_actions import mark_todo_complete, write_todos
 from gobby.workflows.webhook import WebhookAction
@@ -209,6 +213,7 @@ class ActionExecutor:
         self.register("mark_loop_complete", self._handle_mark_loop_complete)
         # Task enforcement
         self.register("require_active_task", self._handle_require_active_task)
+        self.register("require_commit_before_stop", self._handle_require_commit_before_stop)
         self.register("require_task_complete", self._handle_require_task_complete)
         # Webhook
         self.register("webhook", self._handle_webhook)
@@ -797,6 +802,20 @@ class ActionExecutor:
             event_data=context.event_data,
             project_id=project_id,
             workflow_state=context.state,
+        )
+
+    async def _handle_require_commit_before_stop(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Block stop if task has uncommitted changes."""
+        # Get project path from event data (cwd from hook payload)
+        project_path = None
+        if context.event_data:
+            project_path = context.event_data.get("cwd")
+
+        return await require_commit_before_stop(
+            workflow_state=context.state,
+            project_path=project_path,
         )
 
     async def _handle_require_task_complete(

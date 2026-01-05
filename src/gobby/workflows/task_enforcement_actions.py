@@ -6,6 +6,7 @@ and enforce task completion before allowing agent to stop.
 """
 
 import logging
+import subprocess
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -14,6 +15,91 @@ if TYPE_CHECKING:
     from gobby.workflows.definitions import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+
+async def require_commit_before_stop(
+    workflow_state: "WorkflowState | None",
+    project_path: str | None = None,
+) -> dict[str, Any] | None:
+    """
+    Block stop if there's an in_progress task with uncommitted changes.
+
+    This action is designed for on_stop triggers to enforce that agents
+    commit their work and close tasks before stopping.
+
+    Args:
+        workflow_state: Workflow state with variables (claimed_task_id, etc.)
+        project_path: Path to the project directory for git status check
+
+    Returns:
+        Dict with decision="block" and reason if task has uncommitted changes,
+        or None to allow the stop.
+    """
+    if not workflow_state:
+        logger.debug("require_commit_before_stop: No workflow_state, allowing")
+        return None
+
+    claimed_task_id = workflow_state.variables.get("claimed_task_id")
+    if not claimed_task_id:
+        logger.debug("require_commit_before_stop: No claimed task, allowing")
+        return None
+
+    # Check for uncommitted changes
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=project_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        if result.returncode != 0:
+            logger.warning(
+                f"require_commit_before_stop: git status failed: {result.stderr}"
+            )
+            return None
+
+        uncommitted = result.stdout.strip()
+        if not uncommitted:
+            logger.debug("require_commit_before_stop: No uncommitted changes, allowing")
+            return None
+
+    except subprocess.TimeoutExpired:
+        logger.warning("require_commit_before_stop: git status timed out")
+        return None
+    except FileNotFoundError:
+        logger.warning("require_commit_before_stop: git not found")
+        return None
+    except Exception as e:
+        logger.error(f"require_commit_before_stop: Error running git status: {e}")
+        return None
+
+    # Track how many times we've blocked to prevent infinite loops
+    block_count = workflow_state.variables.get("_commit_block_count", 0)
+    if block_count >= 3:
+        logger.warning(
+            f"require_commit_before_stop: Reached max block count ({block_count}), allowing"
+        )
+        return None
+
+    workflow_state.variables["_commit_block_count"] = block_count + 1
+
+    # Block - agent needs to commit and close
+    logger.info(
+        f"require_commit_before_stop: Blocking stop - task '{claimed_task_id}' "
+        f"has uncommitted changes"
+    )
+
+    return {
+        "decision": "block",
+        "reason": (
+            f"Task '{claimed_task_id}' is in_progress with uncommitted changes.\n\n"
+            f"Before stopping, commit your changes and close the task:\n"
+            f"1. Commit with [{claimed_task_id}] in the message\n"
+            f"2. Close the task: close_task(task_id=\"{claimed_task_id}\", commit_sha=\"...\")"
+        ),
+    }
 
 
 async def require_task_complete(
@@ -266,7 +352,6 @@ async def require_active_task(
     # Fallback: Check for any in_progress task in the project
     # This provides helpful messaging about existing tasks but is NOT sufficient
     # for session-scoped enforcement (concurrent sessions shouldn't free-ride)
-    has_project_task = False
     project_task_hint = ""
 
     if task_manager is None:
@@ -283,7 +368,6 @@ async def require_active_task(
             )
 
             if project_tasks:
-                has_project_task = True
                 project_task_hint = (
                     f"\n\nNote: Task '{project_tasks[0].id}' ({project_tasks[0].title}) "
                     f"is in_progress but wasn't claimed by this session. "

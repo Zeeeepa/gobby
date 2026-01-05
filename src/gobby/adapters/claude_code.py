@@ -46,7 +46,7 @@ class ClaudeCodeAdapter(BaseAdapter):
         "session-start": HookEventType.SESSION_START,
         "session-end": HookEventType.SESSION_END,
         "user-prompt-submit": HookEventType.BEFORE_AGENT,
-        "stop": HookEventType.AFTER_AGENT,
+        "stop": HookEventType.STOP,
         "pre-tool-use": HookEventType.BEFORE_TOOL,
         "post-tool-use": HookEventType.AFTER_TOOL,
         "post-tool-use-failure": HookEventType.AFTER_TOOL,  # Same as AFTER_TOOL with error flag

@@ -32,6 +32,7 @@ class HookEventType(str, Enum):
     # Agent/turn lifecycle
     BEFORE_AGENT = "before_agent"
     AFTER_AGENT = "after_agent"
+    STOP = "stop"  # Agent is about to stop/exit (Claude Code only)
 
     # Tool lifecycle
     BEFORE_TOOL = "before_tool"
