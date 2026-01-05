@@ -478,12 +478,44 @@ class MCPClientProxyConfig(BaseModel):
         description="Map of tool names to specific timeouts in seconds",
     )
 
-    @field_validator("connect_timeout")
+    # Semantic search and embeddings
+    search_mode: Literal["llm", "semantic", "hybrid"] = Field(
+        default="llm",
+        description="Default search mode for tool recommendations: 'llm' (LLM-based), 'semantic' (embedding similarity), 'hybrid' (both)",
+    )
+    embedding_provider: str = Field(
+        default="openai",
+        description="Provider for embedding generation (openai, litellm)",
+    )
+    embedding_model: str = Field(
+        default="text-embedding-3-small",
+        description="Model to use for tool embedding generation",
+    )
+    min_similarity: float = Field(
+        default=0.3,
+        description="Minimum similarity threshold for semantic search results (0.0-1.0)",
+    )
+    top_k: int = Field(
+        default=10,
+        description="Default number of results to return for semantic search",
+    )
+
+    # Refresh settings
+    refresh_on_server_add: bool = Field(
+        default=True,
+        description="Automatically refresh tool embeddings when adding a new MCP server",
+    )
+    refresh_timeout: float = Field(
+        default=300.0,
+        description="Timeout in seconds for tool refresh operations (embedding generation)",
+    )
+
+    @field_validator("connect_timeout", "refresh_timeout")
     @classmethod
     def validate_connect_timeout(cls, v: float) -> float:
-        """Validate connect timeout is positive."""
+        """Validate timeout is positive."""
         if v <= 0:
-            raise ValueError("connect_timeout must be positive")
+            raise ValueError("Timeout must be positive")
         return v
 
     @field_validator("proxy_timeout", "tool_timeout")
@@ -492,6 +524,22 @@ class MCPClientProxyConfig(BaseModel):
         """Validate timeout is positive."""
         if v <= 0:
             raise ValueError("Timeout must be positive")
+        return v
+
+    @field_validator("min_similarity")
+    @classmethod
+    def validate_min_similarity(cls, v: float) -> float:
+        """Validate min_similarity is between 0 and 1."""
+        if not 0.0 <= v <= 1.0:
+            raise ValueError("min_similarity must be between 0.0 and 1.0")
+        return v
+
+    @field_validator("top_k")
+    @classmethod
+    def validate_top_k(cls, v: int) -> int:
+        """Validate top_k is positive."""
+        if v <= 0:
+            raise ValueError("top_k must be positive")
         return v
 
 
