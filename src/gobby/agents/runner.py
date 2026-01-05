@@ -17,7 +17,9 @@ from typing import TYPE_CHECKING, Any
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 from gobby.llm.executor import AgentExecutor, AgentResult, ToolResult, ToolSchema
 from gobby.storage.agents import LocalAgentRunManager
+from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.loader import WorkflowLoader
+from gobby.workflows.state_manager import WorkflowStateManager
 
 if TYPE_CHECKING:
     from gobby.storage.database import LocalDatabase
@@ -139,6 +141,7 @@ class AgentRunner:
         )
         self._run_storage = LocalAgentRunManager(db)
         self._workflow_loader = workflow_loader or WorkflowLoader()
+        self._workflow_state_manager = WorkflowStateManager(db)
         self.logger = logger
 
     def get_executor(self, provider: str) -> AgentExecutor | None:
@@ -234,6 +237,23 @@ class AgentRunner:
                 self.logger.info(
                     f"Loaded workflow '{config.workflow_name}' for agent "
                     f"(type={workflow_definition.type})"
+                )
+
+                # Initialize workflow state for child session
+                initial_step = ""
+                if workflow_definition.steps:
+                    initial_step = workflow_definition.steps[0].name
+
+                initial_state = WorkflowState(
+                    session_id=child_session.id,
+                    workflow_name=config.workflow_name,
+                    step=initial_step,
+                    variables=dict(workflow_definition.variables),  # Copy initial variables
+                )
+                self._workflow_state_manager.save_state(initial_state)
+                self.logger.info(
+                    f"Initialized workflow state for child session {child_session.id} "
+                    f"(step={initial_step})"
                 )
             else:
                 self.logger.warning(
