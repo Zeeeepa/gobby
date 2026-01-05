@@ -153,7 +153,7 @@ class AgentRunner:
         self._executors[provider] = executor
         self.logger.info(f"Registered executor for provider: {provider}")
 
-    def can_spawn(self, parent_session_id: str) -> tuple[bool, str]:
+    def can_spawn(self, parent_session_id: str) -> tuple[bool, str, int]:
         """
         Check if an agent can be spawned from the given session.
 
@@ -161,7 +161,8 @@ class AgentRunner:
             parent_session_id: The session attempting to spawn.
 
         Returns:
-            Tuple of (can_spawn, reason).
+            Tuple of (can_spawn, reason, parent_depth).
+            The parent_depth is returned to avoid redundant depth lookups.
         """
         return self._child_session_manager.can_spawn_child(parent_session_id)
 
@@ -181,8 +182,8 @@ class AgentRunner:
         Returns:
             AgentResult with execution outcome.
         """
-        # Check if we can spawn
-        can_spawn, reason = self.can_spawn(config.parent_session_id)
+        # Check if we can spawn (also get parent_depth to avoid redundant lookups)
+        can_spawn, reason, _parent_depth = self.can_spawn(config.parent_session_id)
         if not can_spawn:
             self.logger.warning(f"Cannot spawn agent: {reason}")
             return AgentResult(

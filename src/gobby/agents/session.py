@@ -111,7 +111,7 @@ class ChildSessionManager:
 
         return depth
 
-    def can_spawn_child(self, parent_session_id: str) -> tuple[bool, str]:
+    def can_spawn_child(self, parent_session_id: str) -> tuple[bool, str, int]:
         """
         Check if a session can spawn a child agent.
 
@@ -119,20 +119,21 @@ class ChildSessionManager:
             parent_session_id: The session attempting to spawn.
 
         Returns:
-            Tuple of (can_spawn, reason).
+            Tuple of (can_spawn, reason, parent_depth).
+            The parent_depth is returned to avoid redundant depth lookups.
         """
         parent = self._storage.get(parent_session_id)
         if not parent:
-            return False, f"Parent session {parent_session_id} not found"
+            return False, f"Parent session {parent_session_id} not found", 0
 
         current_depth = self.get_session_depth(parent_session_id)
         if current_depth >= self.max_agent_depth:
             return False, (
                 f"Max agent depth ({self.max_agent_depth}) exceeded. "
                 f"Current depth: {current_depth}"
-            )
+            ), current_depth
 
-        return True, "OK"
+        return True, "OK", current_depth
 
     def create_child_session(
         self,
@@ -150,13 +151,12 @@ class ChildSessionManager:
         Raises:
             ValueError: If max_agent_depth would be exceeded.
         """
-        # Check depth limit
-        can_spawn, reason = self.can_spawn_child(config.parent_session_id)
+        # Check depth limit (also returns parent_depth to avoid redundant lookup)
+        can_spawn, reason, parent_depth = self.can_spawn_child(config.parent_session_id)
         if not can_spawn:
             raise ValueError(reason)
 
         # Calculate child's agent depth (parent depth + 1)
-        parent_depth = self.get_session_depth(config.parent_session_id)
         child_depth = parent_depth + 1
 
         # Generate a unique external_id for the child
