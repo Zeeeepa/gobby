@@ -375,11 +375,17 @@ call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_i
 1. **Start of session**: Call `list_ready_tasks` or `suggest_next_task` to find work
 2. **New requests**: Create tasks with `create_task(title="...", description="...")`
 3. **Complex work**: Use `expand_task` to break into subtasks with AI, or use `parent_task_id` manually
-4. **Track progress**: Use `update_task` to change status (`open` -> `in_progress` -> `closed`)
-5. **Complete work**: After finishing a task:
+4. **Spec documents**: Use `expand_from_spec` to create tasks from markdown/PRD files - this ensures proper TDD pairs and validation criteria
+5. **Track progress**: Use `update_task` to change status (`open` -> `in_progress` -> `closed`)
+6. **Complete work**: After finishing a task:
    - Commit changes with `[task-id]` in the commit message (e.g., `[gt-abc123] feat: add feature`)
    - Close the task with `close_task(task_id="...", commit_sha="...")`
    - Never leave completed work uncommitted or tasks unclosed
+
+**IMPORTANT - Creating Tasks from Spec Documents:**
+- When asked to create tasks from a spec document (markdown, PRD, design doc, etc.), ALWAYS use `expand_from_spec`
+- Do NOT manually create individual tasks by iterating through the document
+- `expand_from_spec` ensures: TDD task pairs (test-first), validation criteria, proper dependencies
 
 **IMPORTANT - Closing Tasks with Code Changes:**
 - When closing a task that involved code changes, ALWAYS commit first, then close with `commit_sha`
@@ -405,6 +411,8 @@ call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_i
 | `list_ready_tasks` | List tasks with no unresolved blockers |
 | `list_blocked_tasks` | List blocked tasks with their blockers |
 | `expand_task` | Break task into subtasks using AI |
+| `expand_from_spec` | Create tasks from a spec file (markdown, PRD) - preferred for documents |
+| `expand_from_prompt` | Create tasks from a user prompt |
 | `suggest_next_task` | AI suggests best next task to work on |
 | `validate_task` | Validate task completion with AI |
 | `sync_tasks` | Trigger git sync (import/export) |
@@ -428,8 +436,9 @@ create_task(
     blocks: list[str] = None,      # Task IDs this task blocks
     labels: list[str] = None,
     test_strategy: str = None,
-    validation_criteria: str = None,
+    validation_criteria: str = None,  # Auto-generated if not provided (unless epic)
     session_id: str = None,
+    generate_validation: bool = None,  # Auto-generate validation criteria (default: True from config)
 )
 
 # get_task - Get task details
@@ -512,6 +521,21 @@ expand_task(
     context: str = None,
     enable_web_research: bool = False,
     enable_code_context: bool = True,
+    generate_validation: bool = None,  # Auto-generate validation criteria (default: True from config)
+)
+
+# expand_from_spec - Create tasks from a spec file (PREFERRED for documents)
+expand_from_spec(
+    spec_path: str,                # Required - path to markdown/PRD file
+    parent_task_id: str = None,
+    task_type: str = "task",
+)
+
+# expand_from_prompt - Create tasks from a user prompt
+expand_from_prompt(
+    prompt: str,                   # Required - user's task description
+    parent_task_id: str = None,
+    task_type: str = "task",
 )
 
 # validate_task - AI-powered validation

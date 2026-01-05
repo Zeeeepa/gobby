@@ -951,6 +951,15 @@ class TaskValidationConfig(BaseModel):
         default=None,
         description="Webhook URL for escalation notifications",
     )
+    # Auto-generation settings
+    auto_generate_on_create: bool = Field(
+        default=True,
+        description="Auto-generate validation criteria when creating tasks via create_task",
+    )
+    auto_generate_on_expand: bool = Field(
+        default=True,
+        description="Auto-generate validation criteria when expanding tasks via expand_task",
+    )
 
     @field_validator("max_iterations", "max_consecutive_errors", "recurring_issue_threshold")
     @classmethod

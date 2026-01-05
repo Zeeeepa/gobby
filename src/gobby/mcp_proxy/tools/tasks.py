@@ -60,10 +60,15 @@ def create_task_registry(
     Returns:
         InternalToolRegistry with all task tools registered
     """
-    # Get show_result_on_create setting from config
+    # Get config settings
     show_result_on_create = False
+    auto_generate_on_create = True
+    auto_generate_on_expand = True
     if config is not None:
         show_result_on_create = config.get_gobby_tasks_config().show_result_on_create
+        validation_config = config.get_gobby_tasks_config().validation
+        auto_generate_on_create = validation_config.auto_generate_on_create
+        auto_generate_on_expand = validation_config.auto_generate_on_expand
     registry = InternalToolRegistry(
         name="gobby-tasks",
         description="Task management - CRUD, dependencies, sync",
@@ -96,6 +101,7 @@ def create_task_registry(
         context: str | None = None,
         enable_web_research: bool = False,
         enable_code_context: bool = True,
+        generate_validation: bool | None = None,
     ) -> dict[str, Any]:
         """
         Expand a task into subtasks using tool-based expansion.
@@ -108,10 +114,16 @@ def create_task_registry(
             context: Additional context for expansion
             enable_web_research: Whether to enable web research (default: False)
             enable_code_context: Whether to enable code context gathering (default: True)
+            generate_validation: Whether to auto-generate validation_criteria for subtasks.
+                Defaults to config setting (gobby_tasks.validation.auto_generate_on_expand).
 
         Returns:
             Dictionary with subtask_ids, tool_calls count, and agent text
         """
+        # Use config default if not specified
+        should_generate_validation = (
+            generate_validation if generate_validation is not None else auto_generate_on_expand
+        )
         if not task_expander:
             raise RuntimeError("Task expansion is not enabled")
 
@@ -159,27 +171,38 @@ def create_task_registry(
                     }
                 )
 
-        # Auto-generate validation criteria for each subtask
+        # Auto-generate validation criteria for each subtask (when enabled)
         validation_generated = 0
-        if task_validator and subtask_ids:
-            for sid in subtask_ids:
-                subtask = task_manager.get_task(sid)
-                if subtask and not subtask.validation_criteria:
-                    try:
-                        criteria = await task_validator.generate_criteria(
-                            title=subtask.title,
-                            description=subtask.description,
-                        )
-                        if criteria:
-                            task_manager.update_task(sid, validation_criteria=criteria)
-                            validation_generated += 1
-                    except Exception as e:
-                        # Log but don't fail expansion if validation criteria generation fails
-                        import logging
+        validation_skipped_reason = None
+        if should_generate_validation and subtask_ids:
+            if not task_validator:
+                import logging
 
-                        logging.getLogger(__name__).warning(
-                            f"Failed to generate validation criteria for {sid}: {e}"
-                        )
+                logging.getLogger(__name__).warning(
+                    "generate_validation=True but task_validator not available. "
+                    "Enable task validation in config to auto-generate criteria."
+                )
+                validation_skipped_reason = "task_validator not configured"
+            else:
+                for sid in subtask_ids:
+                    subtask = task_manager.get_task(sid)
+                    # Skip epics - they close when all children are closed
+                    if subtask and not subtask.validation_criteria and subtask.task_type != "epic":
+                        try:
+                            criteria = await task_validator.generate_criteria(
+                                title=subtask.title,
+                                description=subtask.description,
+                            )
+                            if criteria:
+                                task_manager.update_task(sid, validation_criteria=criteria)
+                                validation_generated += 1
+                        except Exception as e:
+                            # Log but don't fail expansion if validation criteria generation fails
+                            import logging
+
+                            logging.getLogger(__name__).warning(
+                                f"Failed to generate validation criteria for {sid}: {e}"
+                            )
 
         # Update parent task validation criteria
         task_manager.update_task(
@@ -187,7 +210,7 @@ def create_task_registry(
             validation_criteria="All child tasks must be completed (status: closed).",
         )
 
-        return {
+        response = {
             "task_id": task_id,
             "subtask_ids": subtask_ids,
             "subtasks": created_subtasks,
@@ -195,6 +218,9 @@ def create_task_registry(
             "text": result.get("text", ""),
             "validation_criteria_generated": validation_generated,
         }
+        if validation_skipped_reason:
+            response["validation_skipped_reason"] = validation_skipped_reason
+        return response
 
     @registry.tool(
         name="validate_task",
@@ -1065,7 +1091,7 @@ def create_task_registry(
 
     # --- Task CRUD ---
 
-    def create_task(
+    async def create_task(
         title: str,
         description: str | None = None,
         priority: int = 2,
@@ -1076,8 +1102,28 @@ def create_task_registry(
         test_strategy: str | None = None,
         validation_criteria: str | None = None,
         session_id: str | None = None,
+        generate_validation: bool | None = None,
     ) -> dict[str, Any]:
-        """Create a new task in the current project."""
+        """Create a new task in the current project.
+
+        Args:
+            title: Task title
+            description: Detailed description
+            priority: Priority level (1=High, 2=Medium, 3=Low)
+            task_type: Task type (task, bug, feature, epic)
+            parent_task_id: Optional parent task ID
+            blocks: List of task IDs that this new task blocks
+            labels: List of labels
+            test_strategy: Testing strategy for this task
+            validation_criteria: Acceptance criteria for validating completion.
+                If not provided and generate_validation is True, criteria will be auto-generated.
+            session_id: Your session ID for tracking
+            generate_validation: Auto-generate validation criteria if not provided.
+                Defaults to config setting. Skipped for epic tasks.
+
+        Returns:
+            Created task dict with id (minimal) or full task details based on config.
+        """
         # Get current project context which is required for task creation
         ctx = get_project_context()
         if ctx and ctx.get("id"):
@@ -1104,10 +1150,38 @@ def create_task_registry(
             for blocked_id in blocks:
                 dep_manager.add_dependency(task.id, blocked_id, "blocks")
 
+        # Auto-generate validation criteria if enabled and not already provided
+        should_generate = (
+            generate_validation if generate_validation is not None else auto_generate_on_create
+        )
+        validation_generated = False
+        if (
+            should_generate
+            and not validation_criteria
+            and task_type != "epic"
+            and task_validator
+        ):
+            try:
+                criteria = await task_validator.generate_criteria(
+                    title=title,
+                    description=description,
+                )
+                if criteria:
+                    task_manager.update_task(task.id, validation_criteria=criteria)
+                    task = task_manager.get_task(task.id)  # Refresh task
+                    validation_generated = True
+            except Exception as e:
+                import logging
+
+                logging.getLogger(__name__).warning(
+                    f"Failed to auto-generate validation criteria for {task.id}: {e}"
+                )
+
         # Return minimal or full result based on config
-        if show_result_on_create:
-            return task.to_dict()
-        return {"id": task.id}
+        result = task.to_dict() if show_result_on_create else {"id": task.id}
+        if validation_generated:
+            result["validation_generated"] = True
+        return result
 
     registry.register(
         name="create_task",
@@ -1155,12 +1229,17 @@ def create_task_registry(
                 },
                 "validation_criteria": {
                     "type": "string",
-                    "description": "Acceptance criteria for validating task completion (optional). If provided, the task can be validated using validate_task.",
+                    "description": "Acceptance criteria for validating task completion (optional). If not provided and generate_validation is True, criteria will be auto-generated.",
                     "default": None,
                 },
                 "session_id": {
                     "type": "string",
                     "description": "Your session ID (from system context). Pass this to track which session created the task.",
+                    "default": None,
+                },
+                "generate_validation": {
+                    "type": "boolean",
+                    "description": "Auto-generate validation criteria if not provided. Defaults to config setting. Skipped for epic tasks.",
                     "default": None,
                 },
             },
