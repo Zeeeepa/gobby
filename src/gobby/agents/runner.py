@@ -458,6 +458,29 @@ class AgentRunner:
                         ),
                     )
 
+            # Handle 'complete' tool as workflow exit condition
+            if tool_name == "complete":
+                result_message = arguments.get("result", "Task completed")
+                self.logger.info(
+                    f"Agent called 'complete' tool - workflow exit condition met "
+                    f"(session={session_id}, step={state.step})"
+                )
+
+                # Update workflow state to indicate completion
+                state.variables["workflow_completed"] = True
+                state.variables["completion_result"] = result_message
+                self._workflow_state_manager.save_state(state)
+
+                return ToolResult(
+                    tool_name=tool_name,
+                    success=True,
+                    result={
+                        "status": "completed",
+                        "message": result_message,
+                        "step": state.step,
+                    },
+                )
+
             # Tool is allowed - pass through to base handler
             return await base_handler(tool_name, arguments)
 
