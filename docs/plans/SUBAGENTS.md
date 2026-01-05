@@ -61,11 +61,25 @@ uv run gobby agent status <agent-id>
 
 # Cancel an agent
 uv run gobby agent cancel <agent-id>
+
+# Worktree management
+uv run gobby worktree create [--task TASK_ID] [--branch NAME] [--base BRANCH]
+uv run gobby worktree list [--status STATUS] [--project PROJECT]
+uv run gobby worktree show WORKTREE_ID
+uv run gobby worktree delete WORKTREE_ID [--force]
+uv run gobby worktree spawn WORKTREE_ID [--prompt "..."] [--terminal ghostty|iterm]
+uv run gobby worktree claim WORKTREE_ID
+uv run gobby worktree release WORKTREE_ID
+uv run gobby worktree sync WORKTREE_ID
+uv run gobby worktree stale [--hours N]
+uv run gobby worktree cleanup [--hours N] [--dry-run]
 ```
 
 ---
 
-## MCP Interface (gobby-agents)
+## MCP Interface
+
+### gobby-agents
 
 ```python
 # Start agent from within a session (parent agent calling)
@@ -78,10 +92,11 @@ start_agent(
     interactive=False,
     provider=None,  # use workflow default
     cli=None,
+    worktree_id=None,  # use existing worktree
 )
 ```
 
-### Parameters
+#### Parameters
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -93,15 +108,16 @@ start_agent(
 | `interactive` | bool | Terminal mode vs in-process |
 | `provider` | string | Override: claude, gemini, codex, litellm |
 | `model` | string | Override model ID |
+| `worktree_id` | string | Use existing worktree (terminal mode) |
 
-### Session Context Options
+#### Session Context Options
 
 - `summary_markdown` - Use parent session's summary
 - `session_id:<id>` - Load context from specific session
 - `transcript:<n>` - Last N turns from parent
 - `file:<path>` - Load markdown file as context
 
-### MCP Tools
+#### MCP Tools (gobby-agents)
 
 | Tool | Description |
 |------|-------------|
@@ -110,6 +126,58 @@ start_agent(
 | `list_agents` | List running async agents |
 | `get_agent_result` | Get result from async agent |
 | `cancel_agent` | Cancel a running agent |
+
+### gobby-worktrees
+
+Daemon-managed worktree registry for parallel agent development.
+
+#### MCP Tools (gobby-worktrees)
+
+| Tool | Description |
+|------|-------------|
+| `create_worktree` | Create worktree, optionally linked to task |
+| `list_worktrees` | List all worktrees with status and owning agents |
+| `get_worktree` | Get worktree details including linked task |
+| `claim_worktree` | Claim ownership for current session |
+| `release_worktree` | Release ownership without deleting |
+| `delete_worktree` | Delete worktree and its branch |
+| `spawn_agent_in_worktree` | Launch Claude Code agent in worktree |
+| `sync_worktree_from_main` | Rebase/merge from base branch |
+| `detect_stale_worktrees` | Find inactive worktrees |
+| `cleanup_stale_worktrees` | Delete stale worktrees |
+
+```python
+@mcp.tool()
+def create_worktree(
+    task_id: str | None = None,
+    branch_name: str | None = None,  # Auto-generated from task if not provided
+    base_branch: str = "main",
+) -> dict:
+    """
+    Create a new worktree for isolated development.
+
+    If task_id provided:
+    - Branch name derived from task title (kebab-case)
+    - Worktree linked to task for tracking
+    - Task marked as in_progress
+
+    Returns worktree path and branch name.
+    """
+
+@mcp.tool()
+def spawn_agent_in_worktree(
+    worktree_id: str,
+    prompt: str | None = None,
+    terminal: str = "ghostty",  # ghostty, iterm, terminal
+    workflow: str | None = None,
+) -> dict:
+    """
+    Launch a new Claude Code agent in the specified worktree.
+
+    Opens a new terminal window with Claude Code started in the worktree directory.
+    Agent session is linked to the worktree for tracking.
+    """
+```
 
 ---
 
@@ -157,20 +225,24 @@ sequenceDiagram
 sequenceDiagram
     participant Parent as Parent Agent
     participant Daemon as Gobby Daemon
+    participant Worktrees as gobby-worktrees
     participant Terminal as Terminal (Ghostty/iTerm)
     participant CLI as CLI (claude/gemini)
     participant Hooks as Hook System
 
-    Parent->>Daemon: start_agent(workflow, interactive=true)
+    Parent->>Daemon: start_agent(workflow, interactive=true, task_id)
     Daemon->>Daemon: Create child session (depth=1)
     Daemon->>Daemon: Store workflow in session metadata
 
     alt Worktree Requested
-        Daemon->>Daemon: Create worktree
-        Daemon->>Daemon: Install dependencies
+        Daemon->>Worktrees: create_worktree(task_id)
+        Worktrees->>Worktrees: git worktree add
+        Worktrees->>Worktrees: Link to task, set status=active
+        Worktrees-->>Daemon: worktree_id, path
     end
 
-    Daemon->>Terminal: Open new window
+    Daemon->>Worktrees: spawn_agent_in_worktree(worktree_id)
+    Worktrees->>Terminal: Open new window
     Terminal->>CLI: Launch CLI in worktree
     Daemon-->>Parent: agent_id (async)
 
@@ -221,19 +293,13 @@ flowchart LR
         B[agent_runs table]
         C[sessions table]
         D[workflow_states table]
-    end
-
-    subgraph Git
-        E[.gobby/agents.jsonl]
-        F[.gobby/agent-state.json]
+        E[worktrees table]
     end
 
     A -->|On complete| B
     A -->|Child session| C
     A -->|Workflow state| D
-
-    B -->|Sync for worktrees| E
-    D -->|Per worktree| F
+    A -->|Worktree link| E
 ```
 
 ---
@@ -246,6 +312,7 @@ flowchart LR
 ┌─────────────────────────────────────────────────────────────┐
 │                      MCP Tool Call                           │
 │  start_agent | complete | list_agents | get_agent_result    │
+│  create_worktree | spawn_agent_in_worktree | ...            │
 └─────────────────────────┬───────────────────────────────────┘
                           │
                           ▼
@@ -255,6 +322,11 @@ flowchart LR
 │  │   Session   │  │   Workflow  │  │   AgentExecutor     │  │
 │  │   Manager   │  │   Engine    │  │   (per provider)    │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+│                                                              │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │                  Worktree Manager                        ││
+│  │   LocalWorktreeManager | WorktreeGitManager | Spawner   ││
+│  └─────────────────────────────────────────────────────────┘│
 └─────────────────────────┬───────────────────────────────────┘
                           │
                           ▼
@@ -264,7 +336,7 @@ flowchart LR
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### New Modules
+### Module Structure
 
 ```
 src/gobby/
@@ -274,10 +346,73 @@ src/gobby/
 │   ├── __init__.py
 │   ├── registry.py           # gobby-agents MCP tool definitions
 │   ├── runner.py             # AgentRunner - orchestrates execution
-│   ├── session.py            # Child session creation/linking
-│   └── terminal.py           # Terminal spawning (from worktree skill)
+│   └── session.py            # Child session creation/linking
+├── worktrees/
+│   ├── __init__.py
+│   ├── manager.py            # WorktreeManager - coordinates worktree lifecycle
+│   ├── git.py                # WorktreeGitManager - git operations
+│   └── spawn.py              # Terminal spawning logic
+├── storage/
+│   └── worktrees.py          # LocalWorktreeManager - SQLite CRUD
 └── mcp_proxy/tools/
-    └── agents.py             # MCP tool implementations
+    ├── agents.py             # gobby-agents MCP tool implementations
+    └── worktrees.py          # gobby-worktrees MCP tool implementations
+```
+
+### Data Models
+
+#### agent_runs table
+
+```sql
+CREATE TABLE agent_runs (
+    id TEXT PRIMARY KEY,              -- agent_id
+    parent_session_id TEXT,
+    child_session_id TEXT,
+    workflow_name TEXT,
+    provider TEXT,
+    model TEXT,
+    status TEXT,                      -- running, completed, timeout, error, cancelled
+    prompt TEXT,
+    result JSON,                      -- AgentResult on completion
+    worktree_id TEXT,                 -- Link to worktree (if terminal mode)
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    FOREIGN KEY (parent_session_id) REFERENCES sessions(session_id),
+    FOREIGN KEY (child_session_id) REFERENCES sessions(session_id),
+    FOREIGN KEY (worktree_id) REFERENCES worktrees(id)
+);
+```
+
+#### worktrees table
+
+```sql
+CREATE TABLE worktrees (
+    id TEXT PRIMARY KEY,                    -- wt-{6 chars}
+    project_id TEXT NOT NULL,
+    task_id TEXT,                           -- Optional: linked gobby-task
+    branch_name TEXT NOT NULL,
+    worktree_path TEXT NOT NULL,            -- Absolute path
+    base_branch TEXT DEFAULT 'main',
+    agent_session_id TEXT,                  -- Current owning session
+    status TEXT DEFAULT 'active',           -- active, stale, merged, abandoned
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    merged_at TEXT,
+    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (task_id) REFERENCES tasks(id),
+    FOREIGN KEY (agent_session_id) REFERENCES sessions(id)
+);
+
+CREATE INDEX idx_worktrees_project ON worktrees(project_id);
+CREATE INDEX idx_worktrees_status ON worktrees(status);
+CREATE INDEX idx_worktrees_task ON worktrees(task_id);
+```
+
+#### sessions table additions
+
+```sql
+ALTER TABLE sessions ADD COLUMN agent_depth INTEGER DEFAULT 0;
+ALTER TABLE sessions ADD COLUMN spawned_by_agent_id TEXT;
 ```
 
 ### AgentExecutor Interface
@@ -347,55 +482,11 @@ exit_conditions:
 
 1. Create child session linked to parent
 2. Set workflow in session metadata
-3. Auto-create worktree if specified and doesn't exist
-4. Spawn terminal with CLI (claude/gemini/codex)
+3. Create or claim worktree via `gobby-worktrees`
+4. Spawn terminal with CLI via `spawn_agent_in_worktree()`
 5. CLI connects via hooks, picks up workflow
 6. On session end, result captured via handoff
-
----
-
-## State Management
-
-### In-Memory
-- Running agents dict (keyed by agent_id)
-- Real-time status updates
-
-### SQLite
-
-**agent_runs table:**
-```sql
-CREATE TABLE agent_runs (
-    id TEXT PRIMARY KEY,              -- agent_id
-    parent_session_id TEXT,
-    child_session_id TEXT,
-    workflow_name TEXT,
-    provider TEXT,
-    model TEXT,
-    status TEXT,                      -- running, completed, timeout, error, cancelled
-    prompt TEXT,
-    result JSON,                      -- AgentResult on completion
-    started_at TIMESTAMP,
-    completed_at TIMESTAMP,
-    FOREIGN KEY (parent_session_id) REFERENCES sessions(session_id),
-    FOREIGN KEY (child_session_id) REFERENCES sessions(session_id)
-);
-```
-
-**sessions table additions:**
-```sql
-ALTER TABLE sessions ADD COLUMN agent_depth INTEGER DEFAULT 0;
-ALTER TABLE sessions ADD COLUMN spawned_by_agent_id TEXT;
-```
-
-### Git Sync (for worktrees)
-
-- `.gobby/agents.jsonl` in main repo - central view of all agents
-- `.gobby/agent-state.json` per worktree - current agent status
-
-```jsonl
-{"agent_id":"wt-frontend","worktree":"feature/ui","provider":"gemini","status":"running","step":"execute","updated_at":"..."}
-{"agent_id":"wt-backend","worktree":"feature/api","provider":"codex","status":"completed","result":{...},"updated_at":"..."}
-```
+7. Worktree ownership released or retained based on task status
 
 ---
 
@@ -417,6 +508,19 @@ llm_providers:
   litellm:
     enabled: true
     api_base: https://openrouter.ai/api/v1
+```
+
+### Worktree Config (~/.gobby/config.yaml)
+
+```yaml
+worktrees:
+  enabled: true
+  base_path: ".worktrees"             # Relative to project root
+  default_terminal: "ghostty"         # ghostty, iterm, terminal
+  stale_threshold_hours: 24
+  auto_cleanup: false                 # Auto-delete stale worktrees
+  max_concurrent: 12                  # Max parallel worktrees
+  branch_prefix: "agent/"             # Prefix for auto-generated branches
 ```
 
 ### Workflow-Level Provider Override
@@ -476,82 +580,167 @@ Subagents automatically have `start_agent` blocked unless workflow explicitly al
 - In-process: `asyncio.wait_for` with timeout
 - Terminal: Workflow can define `max_duration`, hooks enforce
 
+### Worktree Isolation
+
+- Each agent works in its own worktree, protecting main branch
+- Task-driven assignment ensures traceability
+- Centralized daemon coordination prevents conflicts
+- Stale worktrees detected and cleaned up automatically
+
+### Workflow Exclusions for Worktree Agents
+
+- Worktree agent sessions have `is_worktree: true` variable
+- Excluded from `require_task_complete` enforcement (main session owns parent task)
+- Can stop when their assigned subtask is complete
+- Main session tracks overall epic progress
+
 ---
 
-## Implementation Checklist
+## Implementation Phases
 
-### Phase 1: Core Infrastructure
+### Phase 1: Core Infrastructure ✅ COMPLETED
 
-- [ ] **AGENT-1**: Create `src/gobby/llm/executor.py` with `AgentExecutor` ABC
-- [ ] **AGENT-2**: Create `ClaudeExecutor` by refactoring from `ClaudeLLMProvider.generate_with_mcp_tools()`
-- [ ] **AGENT-3**: Create `src/gobby/agents/__init__.py` module
-- [ ] **AGENT-4**: Create `src/gobby/agents/session.py` for child session creation
-- [ ] **AGENT-5**: Add `agent_depth`, `spawned_by_agent_id` columns to sessions table (migration)
-- [ ] **AGENT-6**: Create `agent_runs` table (migration)
-- [ ] **AGENT-7**: Create `src/gobby/storage/agents.py` for agent_runs CRUD
-- [ ] **AGENT-8**: Create `src/gobby/agents/runner.py` with `AgentRunner` class
-- [ ] **AGENT-9**: Create `src/gobby/mcp_proxy/tools/agents.py` with MCP tool definitions
-- [ ] **AGENT-10**: Register gobby-agents in `InternalRegistryManager`
-- [ ] **AGENT-11**: Implement `start_agent` MCP tool (in-process mode)
-- [ ] **AGENT-12**: Implement `complete` MCP tool
-- [ ] **AGENT-13**: Implement `list_agents` MCP tool
-- [ ] **AGENT-14**: Implement `get_agent_result` MCP tool
-- [ ] **AGENT-15**: Implement `cancel_agent` MCP tool
+> **Status**: Implemented and tested. Do not regenerate tasks for this phase.
 
-### Phase 2: Workflow Integration
+- [x] **AGENT-1**: Create `src/gobby/llm/executor.py` with `AgentExecutor` ABC
+- [x] **AGENT-2**: Create `ClaudeExecutor` by refactoring from `ClaudeLLMProvider.generate_with_mcp_tools()`
+- [x] **AGENT-3**: Create `src/gobby/agents/__init__.py` module
+- [x] **AGENT-4**: Create `src/gobby/agents/session.py` for child session creation
+- [x] **AGENT-5**: Add `agent_depth`, `spawned_by_agent_id` columns to sessions table (migration)
+- [x] **AGENT-6**: Create `agent_runs` table (migration)
+- [x] **AGENT-7**: Create `src/gobby/storage/agents.py` for agent_runs CRUD
+- [x] **AGENT-8**: Create `src/gobby/agents/runner.py` with `AgentRunner` class
+- [x] **AGENT-9**: Create `src/gobby/mcp_proxy/tools/agents.py` with MCP tool definitions
+- [x] **AGENT-10**: Register gobby-agents in `InternalRegistryManager`
+- [x] **AGENT-11**: Implement `start_agent` MCP tool (in-process mode)
+- [x] **AGENT-12**: Implement `complete` MCP tool
+- [x] **AGENT-13**: Implement `list_agents` MCP tool
+- [x] **AGENT-14**: Implement `get_agent_result` MCP tool
+- [x] **AGENT-15**: Implement `cancel_agent` MCP tool
 
-- [ ] **AGENT-16**: Load workflow definition for subagent
-- [ ] **AGENT-17**: Initialize workflow state for child session
-- [ ] **AGENT-18**: Implement tool_handler with workflow filtering
-- [ ] **AGENT-19**: Handle `complete` tool as workflow exit condition
-- [ ] **AGENT-20**: Integrate agent depth checking in workflow engine
+### Phase 2: Workflow Integration ✅ COMPLETED
 
-### Phase 3: Multi-Provider
+> **Status**: Implemented and tested. Do not regenerate tasks for this phase.
+
+- [x] **AGENT-16**: Load workflow definition for subagent
+- [x] **AGENT-17**: Initialize workflow state for child session
+- [x] **AGENT-18**: Implement tool_handler with workflow filtering
+- [x] **AGENT-19**: Handle `complete` tool as workflow exit condition
+- [x] **AGENT-20**: Integrate agent depth checking in workflow engine
+
+### Phase 3: Multi-Provider Support
+
+Create additional AgentExecutor implementations for provider diversity.
 
 - [ ] **AGENT-21**: Create `GeminiExecutor` using Gemini function calling
 - [ ] **AGENT-22**: Create `LiteLLMExecutor` using OpenAI-compatible API
 - [ ] **AGENT-23**: Create `CodexExecutor` (if Codex supports tool use)
 - [ ] **AGENT-24**: Implement provider resolution (workflow → config → default)
 
-### Phase 4: Terminal Mode
+### Phase 4: Worktree Management
 
-- [ ] **AGENT-25**: Extract terminal spawning from worktree-manager skill
-- [ ] **AGENT-26**: Create `src/gobby/agents/terminal.py`
-- [ ] **AGENT-27**: Implement worktree auto-creation
-- [ ] **AGENT-28**: Store workflow in session metadata for hook pickup
-- [ ] **AGENT-29**: Capture result from session handoff
-- [ ] **AGENT-30**: Implement `--interactive` flag in `start_agent`
+Daemon-managed worktree registry with agent assignment, status tracking, and coordinated merging.
+
+#### Phase 4.1: Worktree Storage Layer
+
+- [ ] Create database migration for `worktrees` table
+- [ ] Create `src/gobby/storage/worktrees.py` with `LocalWorktreeManager` class
+- [ ] Implement CRUD operations (create, get, update, delete, list)
+- [ ] Implement status transitions (active → stale → merged/abandoned)
+
+#### Phase 4.2: Git Operations
+
+- [ ] Create `src/gobby/worktrees/git.py` with `WorktreeGitManager` class
+- [ ] Implement `create_worktree()` - git worktree add
+- [ ] Implement `delete_worktree()` - git worktree remove + branch delete
+- [ ] Implement `sync_from_main()` - rebase/merge from base branch
+- [ ] Implement `get_worktree_status()` - uncommitted changes, ahead/behind
+
+#### Phase 4.3: Agent Spawning in Worktrees
+
+- [ ] Create `src/gobby/worktrees/spawn.py` with agent spawning logic
+- [ ] Implement Ghostty terminal spawning
+- [ ] Implement iTerm terminal spawning
+- [ ] Implement generic Terminal.app spawning
+- [ ] Pass initial prompt via environment or file
+- [ ] Register spawned session with daemon
+
+#### Phase 4.4: MCP Tools (gobby-worktrees)
+
+- [ ] Create `src/gobby/mcp_proxy/tools/worktrees.py` with `WorktreeToolRegistry`
+- [ ] Register as `gobby-worktrees` internal server
+- [ ] Implement `create_worktree`
+- [ ] Implement `list_worktrees`
+- [ ] Implement `get_worktree`
+- [ ] Implement `claim_worktree`
+- [ ] Implement `release_worktree`
+- [ ] Implement `delete_worktree`
+- [ ] Implement `spawn_agent_in_worktree`
+- [ ] Implement `sync_worktree_from_main`
+- [ ] Implement `detect_stale_worktrees`
+- [ ] Implement `cleanup_stale_worktrees`
+
+#### Phase 4.5: Terminal Mode Integration
+
+- [ ] Update `start_agent` to support `interactive=True` with worktrees
+- [ ] Store workflow in session metadata for hook pickup
+- [ ] Capture result from session handoff
+- [ ] Link worktree status to agent run status
 
 ### Phase 5: CLI Commands
 
-- [ ] **AGENT-31**: Add `gobby agent` command group to cli.py
-- [ ] **AGENT-32**: Implement `gobby agent start`
-- [ ] **AGENT-33**: Implement `gobby agent list`
-- [ ] **AGENT-34**: Implement `gobby agent status`
-- [ ] **AGENT-35**: Implement `gobby agent cancel`
+Add CLI command groups for agents and worktrees.
 
-### Phase 6: State & Git Sync
+#### Phase 5.1: Agent CLI
 
-- [ ] **AGENT-36**: Implement in-memory running agents dict
-- [ ] **AGENT-37**: Persist completed agents to agent_runs table
-- [ ] **AGENT-38**: Implement `.gobby/agents.jsonl` sync for worktrees
-- [ ] **AGENT-39**: Implement `.gobby/agent-state.json` per worktree
+- [ ] Add `gobby agent` command group to cli.py
+- [ ] Implement `gobby agent start`
+- [ ] Implement `gobby agent list`
+- [ ] Implement `gobby agent status`
+- [ ] Implement `gobby agent cancel`
+
+#### Phase 5.2: Worktree CLI
+
+- [ ] Add `gobby worktree` command group to cli.py
+- [ ] Implement `gobby worktree create`
+- [ ] Implement `gobby worktree list`
+- [ ] Implement `gobby worktree show`
+- [ ] Implement `gobby worktree delete`
+- [ ] Implement `gobby worktree spawn`
+- [ ] Implement `gobby worktree claim`
+- [ ] Implement `gobby worktree release`
+- [ ] Implement `gobby worktree sync`
+- [ ] Implement `gobby worktree stale`
+- [ ] Implement `gobby worktree cleanup`
+
+### Phase 6: State Management
+
+- [ ] Implement in-memory running agents dict with thread safety
+- [ ] Persist completed agents to `agent_runs` table
+- [ ] Add worktree context to session handoff
+- [ ] Link worktree status to task status changes
+- [ ] Add WebSocket events for agent and worktree changes
 
 ### Phase 7: Testing
 
-- [ ] **AGENT-40**: Unit tests for AgentExecutor implementations
-- [ ] **AGENT-41**: Unit tests for AgentRunner
-- [ ] **AGENT-42**: Unit tests for child session creation
-- [ ] **AGENT-43**: Integration tests for in-process agent execution
-- [ ] **AGENT-44**: Integration tests for workflow tool filtering
-- [ ] **AGENT-45**: Integration tests for terminal mode
+- [ ] Unit tests for AgentExecutor implementations (all providers)
+- [ ] Unit tests for AgentRunner
+- [ ] Unit tests for child session creation
+- [ ] Unit tests for LocalWorktreeManager
+- [ ] Unit tests for WorktreeGitManager
+- [ ] Integration tests for in-process agent execution
+- [ ] Integration tests for workflow tool filtering
+- [ ] Integration tests for terminal mode with worktrees
+- [ ] Integration tests for worktree lifecycle
 
 ### Phase 8: Documentation
 
-- [ ] **AGENT-46**: Update CLAUDE.md with gobby-agents section
-- [ ] **AGENT-47**: Create agent workflow examples
-- [ ] **AGENT-48**: Document provider configuration
-- [ ] **AGENT-49**: Document safety guardrails
+- [ ] Update CLAUDE.md with gobby-agents section
+- [ ] Update CLAUDE.md with gobby-worktrees section
+- [ ] Create agent workflow examples
+- [ ] Document provider configuration
+- [ ] Document safety guardrails
+- [ ] Document worktree management patterns
 
 ---
 
@@ -565,8 +754,12 @@ Subagents automatically have `start_agent` blocked unless workflow explicitly al
 | 4 | **Default agent depth** | max_depth=1 (no nesting by default) | Prevent recursive spawning; workflows can opt-in |
 | 5 | **Completion mechanism** | Explicit `complete()` tool call | Structured output, workflow can define schema |
 | 6 | **Naming** | `start_agent` not `spawn_agent` | Matches CLI `gobby agent start` |
-| 7 | **State persistence** | Memory + SQLite + optional Git sync | Fast runtime access, durable history, worktree coordination |
+| 7 | **State persistence** | SQLite for all state (agents + worktrees) | Consistent with Gobby architecture, daemon-level coordination |
 | 8 | **Tool availability in subagents** | `complete` always, `start_agent` blocked by default | Safety first, opt-in for orchestration workflows |
+| 9 | **Worktree storage** | SQLite `worktrees` table | Centralized registry, consistent with other managers |
+| 10 | **Worktree ownership** | Session-based claiming | Track which agent owns which worktree |
+| 11 | **Stale detection** | Configurable threshold (default 24h) | Prevent worktree sprawl |
+| 12 | **Task-worktree linking** | Optional but encouraged | Traceability without forcing overhead |
 
 ---
 
@@ -578,3 +771,4 @@ Subagents automatically have `start_agent` blocked unless workflow explicitly al
 - **Agent templates**: Pre-configured agent definitions for common patterns
 - **Cost tracking**: Track LLM costs per agent run
 - **Visual orchestration**: UI for agent workflow visualization
+- **Intelligent merge resolution**: AI-powered conflict resolution for worktree merges (see POST_MVP_ENHANCEMENTS.md Phase 1)
