@@ -589,7 +589,12 @@ class WorkflowEngine:
             # Check 'when' condition if present
             when_condition = trigger.get("when")
             if when_condition:
-                eval_ctx = {"event": event, "workflow_state": state, "handoff": context_data}
+                eval_ctx = {
+                    "event": event,
+                    "workflow_state": state,
+                    "handoff": context_data,
+                    "variables": state.variables,
+                }
                 eval_ctx.update(context_data)
                 eval_result = self.evaluator.evaluate(when_condition, eval_ctx)
                 logger.debug(
@@ -751,8 +756,13 @@ class WorkflowEngine:
             # Check 'when' condition if present
             when_condition = trigger.get("when")
             if when_condition:
-                # Simple eval context
-                eval_ctx = {"event": event, "workflow_state": state, "handoff": context_data or {}}
+                # Simple eval context - include variables for conditions like variables.get('session_task')
+                eval_ctx = {
+                    "event": event,
+                    "workflow_state": state,
+                    "handoff": context_data or {},
+                    "variables": state.variables,
+                }
                 if context_data:
                     eval_ctx.update(context_data)
                 eval_result = self.evaluator.evaluate(when_condition, eval_ctx)
