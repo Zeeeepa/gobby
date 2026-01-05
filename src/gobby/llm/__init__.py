@@ -11,6 +11,7 @@ Usage:
 
 from gobby.llm.base import AuthMode, LLMProvider
 from gobby.llm.claude import MCPToolResult, ToolCall
+from gobby.llm.claude_executor import ClaudeExecutor
 from gobby.llm.executor import (
     AgentExecutor,
     AgentResult,
@@ -26,6 +27,7 @@ __all__ = [
     "AgentExecutor",
     "AgentResult",
     "AuthMode",
+    "ClaudeExecutor",
     "LLMProvider",
     "LLMService",
     "MCPToolResult",
