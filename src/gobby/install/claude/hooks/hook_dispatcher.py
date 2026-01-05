@@ -128,13 +128,15 @@ def main() -> int:
         return 0  # Exit 0 (success) - this is expected behavior, not an error
 
     # Setup logger for dispatcher (not HookManager)
+    # Only log to stderr in debug mode - otherwise logs pollute Claude's stderr reading
     import logging
 
     logger = logging.getLogger("gobby.hooks.dispatcher")
     if debug_mode:
         logging.basicConfig(level=logging.DEBUG)
     else:
-        logging.basicConfig(level=logging.INFO)
+        # In non-debug mode, suppress all logging to stderr
+        logging.basicConfig(level=logging.WARNING, handlers=[])
 
     try:
         # Read JSON input from stdin
@@ -256,7 +258,9 @@ def main() -> int:
             # Check for block decision - return exit code 2 to signal blocking
             # For blocking, output goes to STDERR (Claude reads stderr on exit 2)
             if result.get("continue") is False or result.get("decision") == "block":
-                print(json.dumps(result), file=sys.stderr)
+                # Output just the reason, not the full JSON
+                reason = result.get("stopReason") or result.get("reason") or "Blocked by hook"
+                print(reason, file=sys.stderr)
                 return 2
 
             # Only print output if there's something meaningful to show
