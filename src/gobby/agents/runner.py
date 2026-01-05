@@ -169,7 +169,7 @@ class AgentRunner:
     async def run(
         self,
         config: AgentConfig,
-        tool_handler: Any | None = None,
+        tool_handler: ToolHandler | None = None,
     ) -> AgentResult:
         """
         Run an agent with the given configuration.
