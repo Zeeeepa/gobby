@@ -17,10 +17,12 @@ from typing import TYPE_CHECKING, Any
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 from gobby.llm.executor import AgentExecutor, AgentResult, ToolResult, ToolSchema
 from gobby.storage.agents import LocalAgentRunManager
+from gobby.workflows.loader import WorkflowLoader
 
 if TYPE_CHECKING:
     from gobby.storage.database import LocalDatabase
     from gobby.storage.sessions import LocalSessionManager
+    from gobby.workflows.definitions import WorkflowDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +73,23 @@ class AgentConfig:
     title: str | None = None
     """Optional title for the agent session."""
 
+    project_path: str | None = None
+    """Project path for loading project-specific workflows."""
+
+
+@dataclass
+class AgentRunContext:
+    """Runtime context for an agent execution."""
+
+    workflow: WorkflowDefinition | None = None
+    """Loaded workflow definition, if workflow_name was specified."""
+
+    child_session_id: str | None = None
+    """ID of the child session created for this agent."""
+
+    agent_run_id: str | None = None
+    """ID of the agent run record."""
+
 
 class AgentRunner:
     """
@@ -99,6 +118,7 @@ class AgentRunner:
         session_storage: LocalSessionManager,
         executors: dict[str, AgentExecutor],
         max_agent_depth: int = 1,
+        workflow_loader: WorkflowLoader | None = None,
     ):
         """
         Initialize AgentRunner.
@@ -108,6 +128,7 @@ class AgentRunner:
             session_storage: Session storage manager.
             executors: Map of provider name to executor instance.
             max_agent_depth: Maximum nesting depth for agents.
+            workflow_loader: Optional WorkflowLoader for loading workflow definitions.
         """
         self.db = db
         self._session_storage = session_storage
@@ -117,6 +138,7 @@ class AgentRunner:
             max_agent_depth=max_agent_depth,
         )
         self._run_storage = LocalAgentRunManager(db)
+        self._workflow_loader = workflow_loader or WorkflowLoader()
         self.logger = logger
 
     def get_executor(self, provider: str) -> AgentExecutor | None:
@@ -200,6 +222,24 @@ class AgentRunner:
                 error=str(e),
                 turns_used=0,
             )
+
+        # Load workflow definition if specified
+        workflow_definition = None
+        if config.workflow_name:
+            workflow_definition = self._workflow_loader.load_workflow(
+                config.workflow_name,
+                project_path=config.project_path,
+            )
+            if workflow_definition:
+                self.logger.info(
+                    f"Loaded workflow '{config.workflow_name}' for agent "
+                    f"(type={workflow_definition.type})"
+                )
+            else:
+                self.logger.warning(
+                    f"Workflow '{config.workflow_name}' not found, "
+                    f"proceeding without workflow"
+                )
 
         # Create agent run record
         agent_run = self._run_storage.create(

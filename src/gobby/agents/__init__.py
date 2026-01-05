@@ -23,11 +23,12 @@ Usage:
     ))
 """
 
-from gobby.agents.runner import AgentConfig, AgentRunner
+from gobby.agents.runner import AgentConfig, AgentRunContext, AgentRunner
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 
 __all__ = [
     "AgentConfig",
+    "AgentRunContext",
     "AgentRunner",
     "ChildSessionConfig",
     "ChildSessionManager",
