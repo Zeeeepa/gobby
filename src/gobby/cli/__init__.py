@@ -7,6 +7,7 @@ import click
 from gobby.config.app import load_config
 
 from .daemon import restart, start, status, stop
+from .extensions import hooks, plugins, webhooks
 from .init import init
 from .install import install, uninstall
 from .mcp import mcp_server
@@ -47,3 +48,6 @@ cli.add_command(skills)
 cli.add_command(sessions)
 cli.add_command(mcp_proxy)
 cli.add_command(workflow)
+cli.add_command(hooks)
+cli.add_command(plugins)
+cli.add_command(webhooks)

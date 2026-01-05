@@ -1445,3 +1445,240 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     return router
+
+
+def create_plugins_router(server: "HTTPServer") -> APIRouter:
+    """
+    Create plugins management router.
+
+    Args:
+        server: HTTPServer instance for accessing state and dependencies
+
+    Returns:
+        Configured APIRouter with plugins endpoints
+    """
+    router = APIRouter(prefix="/plugins", tags=["plugins"])
+
+    @router.get("")
+    async def list_plugins(request: Request) -> dict[str, Any]:
+        """
+        List loaded plugins.
+
+        Returns:
+            List of plugins with metadata
+        """
+        config = server._config
+        if not config:
+            return {
+                "success": True,
+                "enabled": False,
+                "plugins": [],
+                "plugin_dirs": [],
+            }
+
+        plugins_config = config.hook_extensions.plugins
+
+        # Get plugin registry from hook manager
+        if not hasattr(request.app.state, "hook_manager"):
+            return {
+                "success": True,
+                "enabled": plugins_config.enabled,
+                "plugins": [],
+                "plugin_dirs": plugins_config.plugin_dirs,
+            }
+
+        hook_manager = request.app.state.hook_manager
+        if not hasattr(hook_manager, "plugin_loader") or not hook_manager.plugin_loader:
+            return {
+                "success": True,
+                "enabled": plugins_config.enabled,
+                "plugins": [],
+                "plugin_dirs": plugins_config.plugin_dirs,
+            }
+
+        plugins = hook_manager.plugin_loader.registry.list_plugins()
+
+        return {
+            "success": True,
+            "enabled": plugins_config.enabled,
+            "plugins": plugins,
+            "plugin_dirs": plugins_config.plugin_dirs,
+        }
+
+    @router.post("/reload")
+    async def reload_plugin(request: Request) -> dict[str, Any]:
+        """
+        Reload a plugin by name.
+
+        Request body:
+            {"name": "plugin-name"}
+
+        Returns:
+            Reload result
+        """
+        try:
+            body = await request.json()
+            plugin_name = body.get("name")
+
+            if not plugin_name:
+                raise HTTPException(status_code=400, detail="Plugin name required")
+
+            if not hasattr(request.app.state, "hook_manager"):
+                return {"success": False, "error": "HookManager not initialized"}
+
+            hook_manager = request.app.state.hook_manager
+            if not hasattr(hook_manager, "plugin_loader") or not hook_manager.plugin_loader:
+                return {"success": False, "error": "Plugin system not initialized"}
+
+            plugin = hook_manager.plugin_loader.reload_plugin(plugin_name)
+
+            if plugin is None:
+                return {"success": False, "error": f"Plugin not found: {plugin_name}"}
+
+            return {
+                "success": True,
+                "name": plugin.name,
+                "version": plugin.version,
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Plugin reload error: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    return router
+
+
+def create_webhooks_router(server: "HTTPServer") -> APIRouter:
+    """
+    Create webhooks management router.
+
+    Args:
+        server: HTTPServer instance for accessing state and dependencies
+
+    Returns:
+        Configured APIRouter with webhooks endpoints
+    """
+    router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+
+    @router.get("")
+    async def list_webhooks() -> dict[str, Any]:
+        """
+        List configured webhook endpoints.
+
+        Returns:
+            List of webhook endpoint configurations
+        """
+        config = server._config
+        if not config:
+            return {
+                "success": True,
+                "enabled": False,
+                "endpoints": [],
+            }
+
+        webhooks_config = config.hook_extensions.webhooks
+
+        endpoints = [
+            {
+                "name": e.name,
+                "url": e.url,
+                "events": e.events,
+                "enabled": e.enabled,
+                "can_block": e.can_block,
+                "timeout": e.timeout,
+                "retry_count": e.retry_count,
+            }
+            for e in webhooks_config.endpoints
+        ]
+
+        return {
+            "success": True,
+            "enabled": webhooks_config.enabled,
+            "endpoints": endpoints,
+        }
+
+    @router.post("/test")
+    async def test_webhook(request: Request) -> dict[str, Any]:
+        """
+        Test a webhook endpoint by sending a test event.
+
+        Request body:
+            {"name": "webhook-name", "event_type": "notification"}
+
+        Returns:
+            Test result with status code and response time
+        """
+        import httpx
+
+        try:
+            body = await request.json()
+            webhook_name = body.get("name")
+            event_type = body.get("event_type", "notification")
+
+            if not webhook_name:
+                raise HTTPException(status_code=400, detail="Webhook name required")
+
+            config = server._config
+            if not config:
+                return {"success": False, "error": "Configuration not available"}
+
+            webhooks_config = config.hook_extensions.webhooks
+            if not webhooks_config.enabled:
+                return {"success": False, "error": "Webhooks are disabled"}
+
+            # Find the webhook endpoint
+            endpoint = None
+            for e in webhooks_config.endpoints:
+                if e.name == webhook_name:
+                    endpoint = e
+                    break
+
+            if endpoint is None:
+                return {"success": False, "error": f"Webhook not found: {webhook_name}"}
+
+            if not endpoint.enabled:
+                return {"success": False, "error": f"Webhook is disabled: {webhook_name}"}
+
+            # Build test payload
+            test_payload = {
+                "event_type": event_type,
+                "test": True,
+                "timestamp": time.time(),
+                "data": {
+                    "message": f"Test event from gobby CLI for webhook '{webhook_name}'",
+                },
+            }
+
+            # Send test request
+            start_time = time.perf_counter()
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    endpoint.url,
+                    json=test_payload,
+                    headers=endpoint.headers,
+                    timeout=endpoint.timeout,
+                )
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+
+            success = 200 <= response.status_code < 300
+
+            return {
+                "success": success,
+                "status_code": response.status_code,
+                "response_time_ms": response_time_ms,
+                "error": None if success else f"HTTP {response.status_code}",
+            }
+
+        except httpx.TimeoutException:
+            return {"success": False, "error": "Request timed out"}
+        except httpx.RequestError as e:
+            return {"success": False, "error": f"Request failed: {e}"}
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Webhook test error: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
+    return router

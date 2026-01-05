@@ -416,7 +416,9 @@ class HTTPServer:
             create_code_router,
             create_hooks_router,
             create_mcp_router,
+            create_plugins_router,
             create_sessions_router,
+            create_webhooks_router,
         )
 
         # Include all routers
@@ -425,6 +427,8 @@ class HTTPServer:
         app.include_router(create_mcp_router(self))
         app.include_router(create_code_router(self))
         app.include_router(create_hooks_router(self))
+        app.include_router(create_plugins_router(self))
+        app.include_router(create_webhooks_router(self))
 
     async def _process_shutdown(self) -> None:
         """
