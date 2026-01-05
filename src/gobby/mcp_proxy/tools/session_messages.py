@@ -744,4 +744,74 @@ def create_session_messages_registry(
                     "error": f"Failed to get commits: {e!s}",
                 }
 
+        @registry.tool(
+            name="mark_loop_complete",
+            description="Mark the autonomous loop as complete, preventing session chaining.",
+        )
+        def mark_loop_complete(session_id: str | None = None) -> dict[str, Any]:
+            """
+            Mark the autonomous loop as complete for a session.
+
+            This sets stop_reason='completed' in the workflow state, which
+            signals the autonomous-loop workflow to NOT chain a new session
+            when this session ends.
+
+            Use this when:
+            - A task is fully complete and no more work is needed
+            - You want to exit the autonomous loop gracefully
+            - The user has explicitly asked to stop
+
+            Args:
+                session_id: Session ID (optional, defaults to current active session)
+
+            Returns:
+                Success status and session details
+            """
+            if session_manager is None:
+                return {"error": "Session manager not available"}
+
+            # Find session
+            if session_id:
+                session = session_manager.get(session_id)
+            else:
+                # Get most recent active session
+                sessions = session_manager.list(status="active", limit=1)
+                session = sessions[0] if sessions else None
+
+            if not session:
+                return {"error": "No session found", "session_id": session_id}
+
+            # Load and update workflow state
+            from gobby.storage.database import LocalDatabase
+            from gobby.workflows.definitions import WorkflowState
+            from gobby.workflows.state_manager import WorkflowStateManager
+
+            db = LocalDatabase()
+            state_manager = WorkflowStateManager(db)
+
+            # Get or create state for session
+            state = state_manager.get_state(session.id)
+            if not state:
+                # Create minimal state just to hold the variable
+                state = WorkflowState(
+                    session_id=session.id,
+                    workflow_name="autonomous-loop",
+                    step="active",
+                )
+
+            # Mark loop complete using the action function
+            from gobby.workflows.state_actions import mark_loop_complete as action_mark_complete
+
+            action_mark_complete(state)
+
+            # Save updated state
+            state_manager.save_state(state)
+
+            return {
+                "success": True,
+                "session_id": session.id,
+                "stop_reason": "completed",
+                "message": "Autonomous loop marked complete - session will not chain",
+            }
+
     return registry
