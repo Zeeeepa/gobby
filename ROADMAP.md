@@ -18,12 +18,7 @@ This document defines the implementation order across all Gobby planning documen
 | HOOK_EXTENSIONS | `docs/plans/completed/HOOK_EXTENSIONS.md` | WebSocket events, webhooks, plugins |
 | MCP_PROXY_IMPROVEMENTS | `docs/plans/completed/MCP_PROXY_IMPROVEMENTS.md` | Tool metrics, semantic search, self-healing |
 | MEMORY | `docs/plans/completed/MEMORY.md` | Persistent memory and skill learning |
-
-### Active Plans (Sprint 17 Gaps)
-
-| Document | Location | Focus |
-|----------|----------|-------|
-| AUTONOMOUS_HANDOFF | `docs/plans/AUTONOMOUS_HANDOFF.md` | Pre-compact context extraction, session chaining |
+| AUTONOMOUS_HANDOFF | `docs/plans/completed/AUTONOMOUS_HANDOFF.md` | Pre-compact context extraction, session chaining |
 
 ### Post-MVP Plans
 
@@ -297,7 +292,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 17: Feature Gap Coverage 🔶 IN PROGRESS                               │
+│ Sprint 17: Feature Gap Coverage ✅ COMPLETED                                  │
 │ MCP_PROXY_IMPROVEMENTS, HOOK_EXTENSIONS, MEMORY, AUTONOMOUS_HANDOFF gaps    │
 │                                                                              │
 │ Deliverable: Close feature gaps before marking plans complete               │
@@ -353,7 +348,7 @@ This document defines the implementation order across all Gobby planning documen
 
 | Sprint | Focus | Plan Reference | Dependencies | Status |
 |--------|-------|----------------|--------------|--------|
-| 17 | Feature Gap Coverage | MCP_PROXY, HOOK_EXTENSIONS, MEMORY, AUTONOMOUS_HANDOFF | None | 🔶 In Progress |
+| 17 | Feature Gap Coverage | MCP_PROXY, HOOK_EXTENSIONS, MEMORY, AUTONOMOUS_HANDOFF | None | ✅ Completed |
 
 ### Upcoming Sprints
 
