@@ -194,6 +194,9 @@ class ClaudeExecutor(AgentExecutor):
         # Build initial messages
         messages: list[anthropic.types.MessageParam] = [{"role": "user", "content": prompt}]
 
+        # Track turns in outer scope so timeout handler can access the count
+        turns_counter = [0]
+
         async def _run_loop() -> AgentResult:
             nonlocal messages
             turns_used = 0
@@ -203,6 +206,7 @@ class ClaudeExecutor(AgentExecutor):
 
             while turns_used < max_turns:
                 turns_used += 1
+                turns_counter[0] = turns_used
 
                 # Call Claude
                 try:
@@ -336,7 +340,7 @@ class ClaudeExecutor(AgentExecutor):
                 status="timeout",
                 tool_calls=tool_calls,
                 error=f"Execution timed out after {timeout}s",
-                turns_used=0,
+                turns_used=turns_counter[0],
             )
 
     async def _run_with_sdk(
@@ -440,6 +444,9 @@ class ClaudeExecutor(AgentExecutor):
             mcp_servers=mcp_servers,
         )
 
+        # Track turns in outer scope so timeout handler can access the count
+        turns_counter = [0]
+
         async def _run_query() -> AgentResult:
             result_text = ""
             turns_used = 0
@@ -451,6 +458,7 @@ class ClaudeExecutor(AgentExecutor):
                             result_text = message.result
                     elif isinstance(message, AssistantMessage):
                         turns_used += 1
+                        turns_counter[0] = turns_used
                         for block in message.content:
                             if isinstance(block, TextBlock):
                                 result_text = block.text
@@ -490,5 +498,5 @@ class ClaudeExecutor(AgentExecutor):
                 status="timeout",
                 tool_calls=tool_calls,
                 error=f"Execution timed out after {timeout}s",
-                turns_used=0,
+                turns_used=turns_counter[0],
             )

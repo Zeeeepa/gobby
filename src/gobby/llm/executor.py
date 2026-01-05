@@ -87,6 +87,9 @@ class AgentResult:
     turns_used: int = 0
     """Number of turns used during execution."""
 
+    run_id: str | None = None
+    """ID of the agent run (set by AgentRunner)."""
+
 
 # Type alias for the tool handler callback
 ToolHandler = Callable[[str, dict[str, Any]], Awaitable[ToolResult]]

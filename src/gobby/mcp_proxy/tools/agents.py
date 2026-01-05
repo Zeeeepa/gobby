@@ -122,13 +122,9 @@ def create_agents_registry(
 
         result = await runner.run(config, tool_handler=tool_handler)
 
-        # Get the run that was created
-        runs = runner.list_runs(parent_session_id, limit=1)
-        run_id = runs[0].id if runs else None
-
         return {
             "success": result.status in ("success", "partial"),
-            "run_id": run_id,
+            "run_id": result.run_id,
             "status": result.status,
             "output": result.output,
             "error": result.error,

@@ -361,6 +361,9 @@ class AgentRunner:
             else:
                 self._session_storage.update_status(child_session.id, "failed")
 
+            # Set run_id on the result so callers don't need to call list_runs()
+            result.run_id = agent_run.id
+
             return result
 
         except Exception as e:
