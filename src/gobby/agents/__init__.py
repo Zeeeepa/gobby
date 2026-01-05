@@ -20,5 +20,9 @@ Usage:
     )
 """
 
-# Exports will be added as components are implemented
-__all__: list[str] = []
+from gobby.agents.session import ChildSessionConfig, ChildSessionManager
+
+__all__ = [
+    "ChildSessionConfig",
+    "ChildSessionManager",
+]

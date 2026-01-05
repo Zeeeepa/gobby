@@ -256,6 +256,26 @@ class LocalSessionManager:
         row = self.db.fetchone(query, tuple(params))
         return Session.from_row(row) if row else None
 
+    def find_children(self, parent_session_id: str) -> list[Session]:
+        """
+        Find all child sessions of a parent.
+
+        Args:
+            parent_session_id: The parent session ID.
+
+        Returns:
+            List of child Session objects.
+        """
+        rows = self.db.fetchall(
+            """
+            SELECT * FROM sessions
+            WHERE parent_session_id = ?
+            ORDER BY created_at ASC
+            """,
+            (parent_session_id,),
+        )
+        return [Session.from_row(row) for row in rows]
+
     def update_status(self, session_id: str, status: str) -> Session | None:
         """Update session status."""
         now = datetime.now(UTC).isoformat()
