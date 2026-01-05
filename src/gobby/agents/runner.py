@@ -278,7 +278,7 @@ class AgentRunner:
             f"(child_session={child_session.id}, provider={config.provider})"
         )
 
-        # Set up tool handler
+        # Set up tool handler with workflow filtering
         async def default_tool_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
             """Default tool handler that returns not implemented."""
             return ToolResult(
@@ -287,7 +287,17 @@ class AgentRunner:
                 error=f"Tool {tool_name} not implemented",
             )
 
-        handler = tool_handler or default_tool_handler
+        base_handler = tool_handler or default_tool_handler
+
+        # Create workflow-filtered handler if workflow is active
+        if workflow_definition:
+            handler = self._create_workflow_filtered_handler(
+                base_handler=base_handler,
+                session_id=child_session.id,
+                workflow_definition=workflow_definition,
+            )
+        else:
+            handler = base_handler
 
         # Execute the agent
         try:
@@ -388,3 +398,67 @@ class AgentRunner:
 
         self.logger.info(f"Cancelled agent run {run_id}")
         return True
+
+    def _create_workflow_filtered_handler(
+        self,
+        base_handler: Any,
+        session_id: str,
+        workflow_definition: WorkflowDefinition,
+    ) -> Any:
+        """
+        Create a tool handler that enforces workflow tool restrictions.
+
+        Args:
+            base_handler: The underlying tool handler to call for allowed tools.
+            session_id: Session ID for looking up workflow state.
+            workflow_definition: The workflow definition with step restrictions.
+
+        Returns:
+            An async callable that filters tools based on workflow state.
+        """
+
+        async def filtered_handler(
+            tool_name: str, arguments: dict[str, Any]
+        ) -> ToolResult:
+            # Get current workflow state
+            state = self._workflow_state_manager.get_state(session_id)
+            if not state:
+                # No state - just pass through
+                return await base_handler(tool_name, arguments)
+
+            # Get current step
+            current_step = workflow_definition.get_step(state.step)
+            if not current_step:
+                # No step defined - pass through
+                return await base_handler(tool_name, arguments)
+
+            # Check blocked_tools first (explicit deny)
+            if tool_name in current_step.blocked_tools:
+                self.logger.warning(
+                    f"Tool '{tool_name}' blocked by workflow step '{state.step}'"
+                )
+                return ToolResult(
+                    tool_name=tool_name,
+                    success=False,
+                    error=f"Tool '{tool_name}' is blocked in workflow step '{state.step}'",
+                )
+
+            # Check allowed_tools (if not "all")
+            if current_step.allowed_tools != "all":
+                if tool_name not in current_step.allowed_tools:
+                    self.logger.warning(
+                        f"Tool '{tool_name}' not allowed in workflow step '{state.step}'"
+                    )
+                    return ToolResult(
+                        tool_name=tool_name,
+                        success=False,
+                        error=(
+                            f"Tool '{tool_name}' is not allowed in workflow step "
+                            f"'{state.step}'. Allowed tools: {current_step.allowed_tools}"
+                        ),
+                    )
+
+            # Tool is allowed - pass through to base handler
+            return await base_handler(tool_name, arguments)
+
+        return filtered_handler
