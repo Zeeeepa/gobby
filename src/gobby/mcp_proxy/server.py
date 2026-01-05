@@ -306,6 +306,219 @@ class GobbyDaemonTools:
             logger.error(f"Semantic search failed: {e}")
             return {"success": False, "error": str(e), "query": query}
 
+    # --- Hook Extensions ---
+
+    async def list_hook_handlers(self) -> dict[str, Any]:
+        """List registered hook handlers from plugins.
+
+        Returns:
+            Dict with handler information organized by event type
+        """
+        # Access plugin registry via internal_manager if available
+        if not self.internal_manager:
+            return {
+                "success": False,
+                "error": "Internal manager not available",
+            }
+
+        # Get hook_manager from app state if available (set during HTTP server startup)
+        hook_manager = getattr(self.internal_manager, "_hook_manager", None)
+        if not hook_manager:
+            return {
+                "success": True,
+                "handlers": {},
+                "message": "No hook manager available - plugins not loaded",
+            }
+
+        plugin_loader = getattr(hook_manager, "plugin_loader", None)
+        if not plugin_loader:
+            return {
+                "success": True,
+                "handlers": {},
+                "message": "Plugin system not initialized",
+            }
+
+        # Get handlers organized by event type
+        from gobby.hooks.events import HookEventType
+
+        handlers_by_event: dict[str, list[dict[str, Any]]] = {}
+
+        for event_type in HookEventType:
+            handlers = plugin_loader.registry.get_handlers(event_type)
+            if handlers:
+                handlers_by_event[event_type.value] = [
+                    {
+                        "plugin": h.plugin.name,
+                        "method": h.method.__name__,
+                        "priority": h.priority,
+                        "is_pre_handler": h.priority < 50,
+                    }
+                    for h in handlers
+                ]
+
+        return {
+            "success": True,
+            "handlers": handlers_by_event,
+            "total_handlers": sum(len(h) for h in handlers_by_event.values()),
+        }
+
+    async def test_hook_event(
+        self,
+        event_type: str,
+        source: str = "claude",
+        data: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Test a hook event by sending it through the hook system.
+
+        Args:
+            event_type: Hook event type (e.g., "session_start", "before_tool")
+            source: Source CLI to simulate (claude, gemini, codex)
+            data: Optional additional data for the event
+
+        Returns:
+            Hook execution result
+        """
+        if not self.internal_manager:
+            return {
+                "success": False,
+                "error": "Internal manager not available",
+            }
+
+        hook_manager = getattr(self.internal_manager, "_hook_manager", None)
+        if not hook_manager:
+            return {
+                "success": False,
+                "error": "No hook manager available",
+            }
+
+        # Build test event
+        from gobby.hooks.events import HookEvent, HookEventType
+
+        try:
+            hook_event_type = HookEventType(event_type)
+        except ValueError:
+            return {
+                "success": False,
+                "error": f"Invalid event type: {event_type}",
+                "valid_types": [e.value for e in HookEventType],
+            }
+
+        test_data = {
+            "session_id": "test-mcp-event",
+            "source": source,
+            **(data or {}),
+        }
+
+        event = HookEvent(
+            event_type=hook_event_type,
+            data=test_data,
+        )
+
+        # Process through hook manager
+        try:
+            result = hook_manager.process_event(event)
+            return {
+                "success": True,
+                "event_type": event_type,
+                "continue": result.get("continue", True),
+                "reason": result.get("reason"),
+                "inject_context": result.get("inject_context"),
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
+    async def list_plugins(self) -> dict[str, Any]:
+        """List loaded Python plugins.
+
+        Returns:
+            Dict with plugin information
+        """
+        if not self.internal_manager:
+            return {
+                "success": False,
+                "error": "Internal manager not available",
+            }
+
+        hook_manager = getattr(self.internal_manager, "_hook_manager", None)
+        if not hook_manager:
+            return {
+                "success": True,
+                "enabled": False,
+                "plugins": [],
+                "message": "Plugin system not initialized",
+            }
+
+        plugin_loader = getattr(hook_manager, "plugin_loader", None)
+        if not plugin_loader:
+            return {
+                "success": True,
+                "enabled": False,
+                "plugins": [],
+                "message": "No plugin loader available",
+            }
+
+        plugins = plugin_loader.registry.list_plugins()
+
+        return {
+            "success": True,
+            "enabled": plugin_loader.config.enabled,
+            "plugins": plugins,
+            "plugin_dirs": plugin_loader.config.plugin_dirs,
+        }
+
+    async def reload_plugin(self, name: str) -> dict[str, Any]:
+        """Reload a plugin by name.
+
+        Args:
+            name: Plugin name to reload
+
+        Returns:
+            Reload result
+        """
+        if not self.internal_manager:
+            return {
+                "success": False,
+                "error": "Internal manager not available",
+            }
+
+        hook_manager = getattr(self.internal_manager, "_hook_manager", None)
+        if not hook_manager:
+            return {
+                "success": False,
+                "error": "Plugin system not initialized",
+            }
+
+        plugin_loader = getattr(hook_manager, "plugin_loader", None)
+        if not plugin_loader:
+            return {
+                "success": False,
+                "error": "No plugin loader available",
+            }
+
+        try:
+            plugin = plugin_loader.reload_plugin(name)
+            if plugin is None:
+                return {
+                    "success": False,
+                    "error": f"Plugin not found or reload failed: {name}",
+                }
+
+            return {
+                "success": True,
+                "name": plugin.name,
+                "version": plugin.version,
+                "description": plugin.description,
+            }
+        except Exception as e:
+            logger.error(f"Plugin reload failed: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
 
 def create_mcp_server(tools_handler: GobbyDaemonTools) -> FastMCP:
     """Create the FastMCP server instance for the HTTP daemon."""
@@ -339,5 +552,11 @@ def create_mcp_server(tools_handler: GobbyDaemonTools) -> FastMCP:
 
     # Semantic Search
     mcp.add_tool(tools_handler.search_tools)
+
+    # Hook Extensions
+    mcp.add_tool(tools_handler.list_hook_handlers)
+    mcp.add_tool(tools_handler.test_hook_event)
+    mcp.add_tool(tools_handler.list_plugins)
+    mcp.add_tool(tools_handler.reload_plugin)
 
     return mcp
