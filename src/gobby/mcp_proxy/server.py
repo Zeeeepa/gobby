@@ -196,6 +196,62 @@ class GobbyDaemonTools:
             project_id=project_id,
         )
 
+    # --- Fallback Resolver ---
+
+    async def get_tool_alternatives(
+        self,
+        server_name: str,
+        tool_name: str,
+        error_message: str | None = None,
+        top_k: int = 5,
+    ) -> dict[str, Any]:
+        """Get alternative tool suggestions when a tool fails.
+
+        Uses semantic similarity and historical success rates to suggest
+        similar tools that might work as alternatives.
+
+        Args:
+            server_name: Server where the tool failed
+            tool_name: Name of the failed tool
+            error_message: Optional error message for context-aware matching
+            top_k: Maximum number of alternatives to return (default: 5)
+
+        Returns:
+            Dict with alternative tool suggestions and scores
+        """
+        project_id = self._mcp_manager.project_id
+        if not project_id:
+            return {
+                "success": False,
+                "error": "No project_id available. Run 'gobby init' first.",
+            }
+
+        fallback_resolver = self.tool_proxy._fallback_resolver
+        if not fallback_resolver:
+            return {
+                "success": False,
+                "error": "Fallback resolver not configured",
+            }
+
+        try:
+            suggestions = await fallback_resolver.find_alternatives_for_error(
+                server_name=server_name,
+                tool_name=tool_name,
+                error_message=error_message or "Tool call failed",
+                project_id=project_id,
+                top_k=top_k,
+            )
+
+            return {
+                "success": True,
+                "failed_tool": f"{server_name}/{tool_name}",
+                "alternatives": suggestions,
+                "count": len(suggestions),
+            }
+        except Exception as e:
+            logger.error(f"Failed to get tool alternatives: {e}")
+            return {"success": False, "error": str(e)}
+
     # --- Semantic Search ---
 
     async def search_tools(
@@ -277,6 +333,9 @@ def create_mcp_server(tools_handler: GobbyDaemonTools) -> FastMCP:
 
     # Recommendation
     mcp.add_tool(tools_handler.recommend_tools)
+
+    # Fallback Resolver
+    mcp.add_tool(tools_handler.get_tool_alternatives)
 
     # Semantic Search
     mcp.add_tool(tools_handler.search_tools)
