@@ -797,6 +797,34 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_sessions_spawned_by ON sessions(spawned_by_agent_id);
         """,
     ),
+    (
+        34,
+        "Create agent_runs table for tracking spawned agent executions",
+        """
+        CREATE TABLE IF NOT EXISTS agent_runs (
+            id TEXT PRIMARY KEY,
+            parent_session_id TEXT NOT NULL REFERENCES sessions(id),
+            child_session_id TEXT REFERENCES sessions(id),
+            workflow_name TEXT,
+            provider TEXT NOT NULL,
+            model TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            prompt TEXT NOT NULL,
+            result TEXT,
+            error TEXT,
+            tool_calls_count INTEGER DEFAULT 0,
+            turns_used INTEGER DEFAULT 0,
+            started_at TEXT,
+            completed_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_agent_runs_parent_session ON agent_runs(parent_session_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_runs_child_session ON agent_runs(child_session_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_runs_status ON agent_runs(status);
+        CREATE INDEX IF NOT EXISTS idx_agent_runs_provider ON agent_runs(provider);
+        """,
+    ),
 ]
 
 
