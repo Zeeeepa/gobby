@@ -309,12 +309,20 @@ class AgentRunner:
         else:
             handler = base_handler
 
+        # Track tool calls to preserve partial progress info on exception
+        tool_calls_made = 0
+
+        async def tracking_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
+            nonlocal tool_calls_made
+            tool_calls_made += 1
+            return await handler(tool_name, arguments)
+
         # Execute the agent
         try:
             result = await executor.run(
                 prompt=config.prompt,
                 tools=config.tools or [],
-                tool_handler=handler,
+                tool_handler=tracking_handler,
                 system_prompt=config.system_prompt,
                 model=config.model,
                 max_turns=config.max_turns,
@@ -369,13 +377,18 @@ class AgentRunner:
 
         except Exception as e:
             self.logger.error(f"Agent execution failed: {e}", exc_info=True)
-            self._run_storage.fail(agent_run.id, error=str(e))
+            self._run_storage.fail(
+                agent_run.id,
+                error=str(e),
+                tool_calls_count=tool_calls_made,
+                turns_used=tool_calls_made,
+            )
             self._session_storage.update_status(child_session.id, "failed")
             return AgentResult(
                 output="",
                 status="error",
                 error=str(e),
-                turns_used=0,
+                turns_used=tool_calls_made,
             )
 
     def get_run(self, run_id: str) -> Any | None:
