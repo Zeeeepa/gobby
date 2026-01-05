@@ -179,6 +179,31 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             except Exception as e:
                 logger.warning(f"Failed to get skill stats: {e}")
 
+        # Get plugin status
+        plugin_stats = {"enabled": False, "loaded": 0, "handlers": 0}
+        if hasattr(server, "_hook_manager") and server._hook_manager is not None:
+            try:
+                hook_manager = server._hook_manager
+                if hasattr(hook_manager, "plugin_loader") and hook_manager.plugin_loader:
+                    plugin_loader = hook_manager.plugin_loader
+                    plugin_stats["enabled"] = plugin_loader.config.enabled
+                    plugins = plugin_loader.registry.list_plugins()
+                    plugin_stats["loaded"] = len(plugins)
+                    plugin_stats["handlers"] = sum(
+                        len(p.get("handlers", [])) for p in plugins
+                    )
+                    plugin_stats["plugins"] = [
+                        {
+                            "name": p["name"],
+                            "version": p["version"],
+                            "handlers": len(p.get("handlers", [])),
+                            "actions": len(p.get("actions", [])),
+                        }
+                        for p in plugins
+                    ]
+            except Exception as e:
+                logger.warning(f"Failed to get plugin stats: {e}")
+
         # Calculate response time
         response_time_ms = (time.perf_counter() - start_time) * 1000
 
@@ -200,6 +225,7 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             "tasks": task_stats,
             "memory": memory_stats,
             "skills": skill_stats,
+            "plugins": plugin_stats,
             "response_time_ms": response_time_ms,
         }
 
