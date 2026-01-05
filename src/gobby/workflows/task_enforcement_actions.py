@@ -200,37 +200,16 @@ async def require_task_complete(
 
         # Case 2: Has incomplete subtasks, agent has no claimed task
         if not has_claimed_task:
-            # Find next ready subtask (open, not blocked)
-            ready_subtasks = [t for t in incomplete if t.status == "open"]
-            if ready_subtasks:
-                next_task = ready_subtasks[0]
-                logger.info(
-                    f"require_task_complete: No claimed task, suggesting '{next_task.id}'"
-                )
-                return {
-                    "decision": "block",
-                    "reason": (
-                        f"'{parent_task.title}' has {len(incomplete)} incomplete subtask(s). "
-                        f"Claim and work on the next one:\n"
-                        f"update_task(task_id=\"{next_task.id}\", status=\"in_progress\")\n\n"
-                        f"Next subtask: {next_task.title}"
-                    ),
-                }
-            elif in_progress:
-                # There are in-progress tasks but not claimed by this session
-                next_task = in_progress[0]
-                logger.info(
-                    f"require_task_complete: Found in_progress task '{next_task.id}' to claim"
-                )
-                return {
-                    "decision": "block",
-                    "reason": (
-                        f"'{parent_task.title}' has {len(incomplete)} incomplete subtask(s). "
-                        f"Task '{next_task.id}' is in progress - claim it:\n"
-                        f"update_task(task_id=\"{next_task.id}\", status=\"in_progress\")\n\n"
-                        f"Task: {next_task.title}"
-                    ),
-                }
+            logger.info(
+                f"require_task_complete: No claimed task, {len(incomplete)} incomplete subtasks"
+            )
+            return {
+                "decision": "block",
+                "reason": (
+                    f"'{parent_task.title}' has {len(incomplete)} incomplete subtask(s).\n\n"
+                    f"Use suggest_next_task() to find the best task to work on next."
+                ),
+            }
 
         # Case 3: Has claimed task but subtasks still incomplete
         if has_claimed_task and incomplete:
@@ -252,17 +231,14 @@ async def require_task_complete(
                 }
             else:
                 # Claimed task is not under this parent - remind about parent work
-                next_task = incomplete[0]
                 logger.info(
                     "require_task_complete: Claimed task not under parent, redirecting"
                 )
                 return {
                     "decision": "block",
                     "reason": (
-                        f"'{parent_task.title}' has {len(incomplete)} incomplete subtask(s). "
-                        f"Work on the next subtask:\n"
-                        f"update_task(task_id=\"{next_task.id}\", status=\"in_progress\")\n\n"
-                        f"Next: {next_task.title}"
+                        f"'{parent_task.title}' has {len(incomplete)} incomplete subtask(s).\n\n"
+                        f"Use suggest_next_task() to find the best task to work on next."
                     ),
                 }
 
