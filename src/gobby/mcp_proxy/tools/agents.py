@@ -87,7 +87,7 @@ def create_agents_registry(
         from gobby.agents.runner import AgentConfig
 
         # Check if spawning is allowed
-        can_spawn, reason = runner.can_spawn(parent_session_id)
+        can_spawn, reason, _parent_depth = runner.can_spawn(parent_session_id)
         if not can_spawn:
             return {
                 "success": False,
@@ -258,7 +258,7 @@ def create_agents_registry(
         Returns:
             Dict with can_spawn boolean and reason.
         """
-        can_spawn, reason = runner.can_spawn(parent_session_id)
+        can_spawn, reason, _parent_depth = runner.can_spawn(parent_session_id)
         return {
             "can_spawn": can_spawn,
             "reason": reason,
