@@ -11,14 +11,28 @@ Usage:
 
 from gobby.llm.base import AuthMode, LLMProvider
 from gobby.llm.claude import MCPToolResult, ToolCall
+from gobby.llm.executor import (
+    AgentExecutor,
+    AgentResult,
+    ToolCallRecord,
+    ToolHandler,
+    ToolResult,
+    ToolSchema,
+)
 from gobby.llm.factory import create_llm_service
 from gobby.llm.service import LLMService
 
 __all__ = [
+    "AgentExecutor",
+    "AgentResult",
     "AuthMode",
     "LLMProvider",
     "LLMService",
     "MCPToolResult",
     "ToolCall",
+    "ToolCallRecord",
+    "ToolHandler",
+    "ToolResult",
+    "ToolSchema",
     "create_llm_service",
 ]
