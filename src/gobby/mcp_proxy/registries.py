@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 
 if TYPE_CHECKING:
+    from gobby.agents.runner import AgentRunner
     from gobby.config.app import DaemonConfig
     from gobby.llm.service import LLMService
     from gobby.mcp_proxy.metrics import ToolMetricsManager
@@ -41,9 +42,10 @@ def setup_internal_registries(
     skill_sync_manager: SkillSyncManager | None = None,
     metrics_manager: ToolMetricsManager | None = None,
     llm_service: LLMService | None = None,
+    agent_runner: AgentRunner | None = None,
 ) -> InternalRegistryManager:
     """
-    Setup internal MCP registries (tasks, messages, memory, skills, metrics).
+    Setup internal MCP registries (tasks, messages, memory, skills, metrics, agents).
 
     Args:
         _config: Daemon configuration (reserved for future use)
@@ -60,6 +62,7 @@ def setup_internal_registries(
         skill_sync_manager: Skill sync manager for skill export
         metrics_manager: Tool metrics manager for metrics operations
         llm_service: LLM service for AI-powered operations
+        agent_runner: Agent runner for spawning subagents
 
     Returns:
         InternalRegistryManager containing all registries
@@ -147,6 +150,16 @@ def setup_internal_registries(
         )
         manager.add_registry(metrics_registry)
         logger.debug("Metrics registry initialized")
+
+    # Initialize agents registry if agent_runner is available
+    if agent_runner is not None:
+        from gobby.mcp_proxy.tools.agents import create_agents_registry
+
+        agents_registry = create_agents_registry(
+            runner=agent_runner,
+        )
+        manager.add_registry(agents_registry)
+        logger.debug("Agents registry initialized")
 
     logger.info(f"Internal registries initialized: {len(manager)} registries")
     return manager
