@@ -5,6 +5,7 @@ Shared utilities for task CLI commands.
 import logging
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 from wcwidth import wcswidth
@@ -14,6 +15,9 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.sync.tasks import TaskSyncManager
 from gobby.utils.project_context import get_project_context
+
+if TYPE_CHECKING:
+    pass  # LocalTaskManager already imported above
 
 logger = logging.getLogger(__name__)
 
@@ -70,10 +74,52 @@ def pad_to_width(text: str, width: int) -> str:
     return text + " " * max(0, padding)
 
 
-def compute_tree_prefixes(tasks: list[Task]) -> dict[str, str]:
-    """Compute tree-style prefixes for each task in the hierarchy.
+def collect_ancestors(
+    tasks: list[Task], task_manager: "LocalTaskManager"
+) -> tuple[list[Task], set[str]]:
+    """Collect ancestor tasks to maintain tree hierarchy.
 
-    Returns a dict mapping task_id -> prefix string (e.g., "├── ", "│   └── ").
+    When filtering tasks (e.g., --ready), we may have tasks whose parents
+    are not in the filtered list. This function fetches those ancestors
+    so the tree structure is preserved.
+
+    Args:
+        tasks: The filtered list of tasks
+        task_manager: Task manager for fetching ancestors
+
+    Returns:
+        Tuple of (combined task list with ancestors, set of original task IDs)
+    """
+    task_by_id = {t.id: t for t in tasks}
+    original_ids = set(task_by_id.keys())
+    ancestors_to_fetch: set[str] = set()
+
+    # Find all ancestors that are missing from the list
+    for task in tasks:
+        parent_id = task.parent_task_id
+        while parent_id and parent_id not in task_by_id:
+            ancestors_to_fetch.add(parent_id)
+            # We need to fetch the parent to check its parent
+            try:
+                parent = task_manager.get_task(parent_id)
+                task_by_id[parent_id] = parent
+                parent_id = parent.parent_task_id
+            except (ValueError, Exception):
+                break
+
+    # Combine original tasks with ancestors
+    combined = list(tasks)
+    for ancestor_id in ancestors_to_fetch:
+        if ancestor_id in task_by_id:
+            combined.append(task_by_id[ancestor_id])
+
+    return combined, original_ids
+
+
+def sort_tasks_for_tree(tasks: list[Task]) -> list[Task]:
+    """Sort tasks for tree display (parent before children, depth-first).
+
+    Returns a new list with tasks sorted in tree traversal order.
     """
     task_by_id = {t.id: t for t in tasks}
 
@@ -87,13 +133,67 @@ def compute_tree_prefixes(tasks: list[Task]) -> dict[str, str]:
             children_by_parent[parent_id] = []
         children_by_parent[parent_id].append(task)
 
-    prefixes: dict[str, str] = {}
+    # Sort children within each parent by priority, then title
+    for children in children_by_parent.values():
+        children.sort(key=lambda t: (t.priority, t.title))
+
+    # Build sorted list via depth-first traversal
+    sorted_tasks: list[Task] = []
+
+    def traverse(task: Task) -> None:
+        sorted_tasks.append(task)
+        for child in children_by_parent.get(task.id, []):
+            traverse(child)
+
+    for root_task in children_by_parent.get(None, []):
+        traverse(root_task)
+
+    return sorted_tasks
+
+
+def compute_tree_prefixes(
+    tasks: list[Task], primary_ids: set[str] | None = None
+) -> dict[str, tuple[str, bool]]:
+    """Compute tree-style prefixes for each task in the hierarchy.
+
+    Args:
+        tasks: List of tasks to compute prefixes for
+        primary_ids: Optional set of "primary" task IDs. Tasks not in this set
+                     are considered ancestors (shown muted). If None, all tasks
+                     are considered primary.
+
+    Returns:
+        Dict mapping task_id -> (prefix string, is_primary).
+        prefix is e.g., "├── ", "│   └── "
+        is_primary is True if task is in primary_ids (or primary_ids is None)
+    """
+    task_by_id = {t.id: t for t in tasks}
+    if primary_ids is None:
+        primary_ids = set(task_by_id.keys())
+
+    # Group children by parent
+    children_by_parent: dict[str | None, list[Task]] = {}
+    for task in tasks:
+        parent_id = task.parent_task_id
+        if parent_id and parent_id not in task_by_id:
+            parent_id = None
+        if parent_id not in children_by_parent:
+            children_by_parent[parent_id] = []
+        children_by_parent[parent_id].append(task)
+
+    # Sort children within each parent by priority, then title
+    for children in children_by_parent.values():
+        children.sort(key=lambda t: (t.priority, t.title))
+
+    prefixes: dict[str, tuple[str, bool]] = {}
 
     def compute_prefix(task: Task, ancestor_continues: list[bool]) -> None:
         """Recursively compute prefix for task and its children."""
+        is_primary = task.id in primary_ids
+
         if not task.parent_task_id or task.parent_task_id not in task_by_id:
             # Root task - no prefix
-            prefixes[task.id] = ""
+            prefixes[task.id] = ("", is_primary)
         else:
             # Build prefix from ancestor continuation markers
             prefix_parts = []
@@ -103,7 +203,7 @@ def compute_tree_prefixes(tasks: list[Task]) -> dict[str, str]:
             if ancestor_continues:
                 is_last = not ancestor_continues[-1]
                 prefix_parts.append("└── " if is_last else "├── ")
-            prefixes[task.id] = "".join(prefix_parts)
+            prefixes[task.id] = ("".join(prefix_parts), is_primary)
 
         # Process children
         children = children_by_parent.get(task.id, [])
@@ -124,19 +224,26 @@ COL_PRIORITY = 2  # Priority emoji (2 visual chars)
 COL_ID = 9  # gt-xxxxxx
 
 
-def format_task_row(task: Task, tree_prefix: str = "") -> str:
+def format_task_row(
+    task: Task, tree_prefix: str = "", is_primary: bool = True, muted: bool = False
+) -> str:
     """Format a task for list output.
 
     Args:
         task: The task to format
         tree_prefix: Tree-style prefix (e.g., "├── ", "│   └── ")
+        is_primary: If False, task is an ancestor shown for context (muted style)
+        muted: Explicit muted flag (overrides is_primary)
     """
+    show_muted = muted or not is_primary
+
     status_icon = {
         "open": "○",
         "in_progress": "●",
         "completed": "✓",
         "closed": "✓",
         "blocked": "⊗",
+        "escalated": "⚠",
     }.get(task.status, "?")
 
     priority_icon = {
@@ -150,7 +257,13 @@ def format_task_row(task: Task, tree_prefix: str = "") -> str:
     priority_col = pad_to_width(priority_icon, COL_PRIORITY)
     id_col = pad_to_width(task.id, COL_ID)
 
-    return f"{status_col} {priority_col} {id_col} {tree_prefix}{task.title}"
+    title = task.title
+    if show_muted:
+        # Use dim ANSI escape for muted ancestors
+        # \033[2m = dim, \033[0m = reset
+        title = f"\033[2m{task.title}\033[0m"
+
+    return f"{status_col} {priority_col} {id_col} {tree_prefix}{title}"
 
 
 def format_task_header() -> str:

@@ -7,11 +7,13 @@ import json
 import click
 
 from gobby.cli.tasks._utils import (
+    collect_ancestors,
     compute_tree_prefixes,
     format_task_header,
     format_task_row,
     get_task_manager,
     resolve_task_id,
+    sort_tasks_for_tree,
 )
 from gobby.utils.project_context import get_project_context
 
@@ -78,11 +80,22 @@ def list_tasks(
         click.echo(empty_msg)
         return
 
+    # For filtered views (ready/blocked), include ancestors for proper tree hierarchy
+    primary_ids: set[str] | None = None
+    display_tasks = tasks_list
+    if ready or blocked:
+        display_tasks, primary_ids = collect_ancestors(tasks_list, manager)
+
+    # Sort for proper tree display order
+    display_tasks = sort_tasks_for_tree(display_tasks)
+
     click.echo(f"Found {len(tasks_list)} {label}:")
     click.echo(format_task_header())
-    prefixes = compute_tree_prefixes(tasks_list)
-    for task in tasks_list:
-        click.echo(format_task_row(task, tree_prefix=prefixes.get(task.id, "")))
+    prefixes = compute_tree_prefixes(display_tasks, primary_ids)
+    for task in display_tasks:
+        prefix_info = prefixes.get(task.id, ("", True))
+        tree_prefix, is_primary = prefix_info
+        click.echo(format_task_row(task, tree_prefix=tree_prefix, is_primary=is_primary))
 
 
 @click.command("ready")
@@ -90,7 +103,10 @@ def list_tasks(
 @click.option("--priority", "-p", type=int, help="Filter by priority")
 @click.option("--type", "-t", "task_type", help="Filter by type")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
-def ready_tasks(limit: int, priority: int | None, task_type: str | None, json_format: bool) -> None:
+@click.option("--flat", is_flag=True, help="Flat list without tree hierarchy")
+def ready_tasks(
+    limit: int, priority: int | None, task_type: str | None, json_format: bool, flat: bool
+) -> None:
     """List tasks with no unresolved blocking dependencies."""
     manager = get_task_manager()
     tasks_list = manager.list_ready_tasks(
@@ -109,8 +125,20 @@ def ready_tasks(limit: int, priority: int | None, task_type: str | None, json_fo
 
     click.echo(f"Found {len(tasks_list)} ready tasks:")
     click.echo(format_task_header())
-    for task in tasks_list:
-        click.echo(format_task_row(task))
+
+    if flat:
+        # Simple flat list without tree structure
+        for task in tasks_list:
+            click.echo(format_task_row(task))
+    else:
+        # Include ancestors for proper tree hierarchy
+        display_tasks, primary_ids = collect_ancestors(tasks_list, manager)
+        display_tasks = sort_tasks_for_tree(display_tasks)
+        prefixes = compute_tree_prefixes(display_tasks, primary_ids)
+        for task in display_tasks:
+            prefix_info = prefixes.get(task.id, ("", True))
+            tree_prefix, is_primary = prefix_info
+            click.echo(format_task_row(task, tree_prefix=tree_prefix, is_primary=is_primary))
 
 
 @click.command("blocked")
