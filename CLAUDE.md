@@ -413,6 +413,159 @@ call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_i
 | `auto_link_commits` | Auto-detect and link commits mentioning task ID |
 | `get_task_diff` | Get combined diff for all commits linked to a task |
 
+### Tool Signatures (gobby-tasks)
+
+**IMPORTANT:** Always use `get_tool_schema` if uncertain about parameter names.
+
+```python
+# create_task - Create a new task
+create_task(
+    title: str,                    # Required
+    description: str = None,
+    priority: int = 2,             # 1=High, 2=Medium, 3=Low
+    task_type: str = "task",       # task, bug, feature, epic (NOT "type")
+    parent_task_id: str = None,
+    blocks: list[str] = None,      # Task IDs this task blocks
+    labels: list[str] = None,
+    test_strategy: str = None,
+    validation_criteria: str = None,
+    session_id: str = None,
+)
+
+# get_task - Get task details
+get_task(task_id: str)             # Required
+
+# update_task - Update task fields
+update_task(
+    task_id: str,                  # Required
+    title: str = None,
+    description: str = None,
+    status: str = None,            # open, in_progress, closed
+    priority: int = None,
+    assignee: str = None,
+    labels: list[str] = None,
+    validation_criteria: str = None,
+    parent_task_id: str = None,
+    test_strategy: str = None,
+    workflow_name: str = None,
+    verification: str = None,
+    sequence_order: int = None,
+)
+
+# close_task - Close a task
+close_task(
+    task_id: str,                  # Required
+    reason: str = "completed",     # completed, duplicate, already_implemented, wont_fix, obsolete
+    changes_summary: str = None,   # Triggers LLM validation if provided
+    skip_validation: bool = False,
+    session_id: str = None,
+    override_justification: str = None,  # Required when no_commit_needed=True
+    no_commit_needed: bool = False,      # Only for non-code tasks
+    commit_sha: str = None,        # Commit + close in one call
+)
+
+# list_tasks - List tasks with filters
+list_tasks(
+    status: str = None,
+    priority: int = None,
+    task_type: str = None,         # NOT "type"
+    assignee: str = None,
+    label: str = None,             # Single label filter (NOT "labels")
+    parent_task_id: str = None,
+    title_like: str = None,        # Fuzzy match
+    limit: int = 50,
+    all_projects: bool = False,
+)
+
+# list_ready_tasks - List tasks with no blockers
+list_ready_tasks(
+    priority: int = None,
+    task_type: str = None,
+    assignee: str = None,
+    parent_task_id: str = None,
+    limit: int = 10,
+    all_projects: bool = False,
+)
+
+# add_dependency - Create dependency between tasks
+add_dependency(
+    task_id: str,                  # The dependent task (B)
+    depends_on: str,               # The blocker task (A)
+    dep_type: str = "blocks",
+)
+
+# add_label - Add a label to a task
+add_label(
+    task_id: str,                  # Required
+    label: str,                    # Required (NOT "labels")
+)
+
+# link_commit - Link a commit to a task
+link_commit(
+    task_id: str,                  # Required
+    commit_sha: str,               # Required
+)
+
+# expand_task - AI-powered task expansion
+expand_task(
+    task_id: str,                  # Required
+    context: str = None,
+    enable_web_research: bool = False,
+    enable_code_context: bool = True,
+)
+
+# validate_task - AI-powered validation
+validate_task(
+    task_id: str,                  # Required
+    changes_summary: str = None,
+    context_files: str = None,
+)
+
+# suggest_next_task - AI-powered task suggestion
+suggest_next_task(
+    task_type: str = None,
+    prefer_subtasks: bool = None,
+)
+```
+
+### Tool Signatures (gobby-memory)
+
+```python
+# remember - Store a new memory
+remember(
+    content: str,                  # Required
+    memory_type: str = None,       # fact, preference, pattern, context
+    importance: str = None,        # 0.0-1.0 as string
+    project_id: str = None,
+    tags: str = None,              # Comma-separated
+)
+
+# recall - Retrieve memories
+recall(
+    query: str = None,
+    project_id: str = None,
+    limit: str = None,
+    min_importance: str = None,
+)
+```
+
+### Tool Signatures (gobby-skills)
+
+```python
+# create_skill - Create a skill directly
+create_skill(
+    name: str,                     # Required
+    instructions: str,             # Required
+    project_id: str = None,
+    description: str = None,
+    trigger_pattern: str = None,
+    tags: str = None,              # Comma-separated
+)
+
+# apply_skill - Apply a skill
+apply_skill(skill_id: str)         # Required
+```
+
 ### Task Progressive Disclosure
 
 List operations (`list_tasks`, `list_ready_tasks`, `list_blocked_tasks`) return **brief format** (8 fields) to minimize token usage:
