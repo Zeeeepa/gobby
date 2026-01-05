@@ -749,6 +749,225 @@ When `workflow.enabled: false`, all workflow hooks pass through (allow all tools
 
 For complete documentation, see [docs/guides/workflows.md](docs/guides/workflows.md).
 
+## Hook Extensions
+
+Gobby supports extensible hook handling through plugins, webhooks, and WebSocket broadcasting.
+
+### Supported Hook Event Types
+
+| Event | Description |
+|-------|-------------|
+| `session_start` | Fired when a new session starts |
+| `session_end` | Fired when a session ends |
+| `before_agent` | Fired before agent turn starts |
+| `after_agent` | Fired after agent turn completes |
+| `stop` | Fired when agent attempts to stop (can block) |
+| `before_tool` | Fired before a tool is executed (can block) |
+| `after_tool` | Fired after a tool completes |
+| `before_tool_selection` | Fired before tool selection (Gemini) |
+| `before_model` | Fired before model call (Gemini) |
+| `after_model` | Fired after model call (Gemini) |
+| `pre_compact` | Fired before session context is compacted |
+| `notification` | Notification event from CLI |
+
+### Python Plugins
+
+Plugins are Python modules that can handle hook events with custom logic.
+
+**Plugin Locations:**
+
+- `~/.gobby/plugins/` - Global plugins
+- `.gobby/plugins/` - Project-specific plugins
+
+**Example Plugin:**
+
+```python
+# ~/.gobby/plugins/my_plugin.py
+from gobby.hooks.plugins import GobbyPlugin, hook_handler
+from gobby.hooks.events import HookEventType
+
+class MyPlugin(GobbyPlugin):
+    name = "my-plugin"
+    version = "1.0.0"
+    description = "Custom hook handlers"
+
+    @hook_handler(HookEventType.SESSION_START)
+    def on_session_start(self, event):
+        print(f"Session started: {event.data.get('session_id')}")
+        return {"continue": True}
+
+    @hook_handler(HookEventType.BEFORE_TOOL, priority=10)
+    def on_before_tool(self, event):
+        tool_name = event.data.get("tool_name")
+        # Return continue=False to block the tool
+        return {"continue": True}
+```
+
+**CLI Commands:**
+
+```bash
+# List loaded plugins
+gobby plugins list
+
+# Reload a plugin (hot-reload during development)
+gobby plugins reload my-plugin
+```
+
+### Webhooks
+
+HTTP webhooks dispatch hook events to external services.
+
+**Configuration** (`~/.gobby/config.yaml`):
+
+```yaml
+hook_extensions:
+  webhooks:
+    enabled: true
+    timeout: 10.0
+    async_dispatch: true  # Non-blocking except for can_block endpoints
+    endpoints:
+      - name: slack-notifier
+        url: https://hooks.slack.com/services/xxx
+        events: [session_start, session_end]
+        enabled: true
+      - name: audit-logger
+        url: https://audit.example.com/hook
+        events: [before_tool, after_tool]
+        can_block: true  # Can block tool execution
+        headers:
+          Authorization: "Bearer ${AUDIT_TOKEN}"
+```
+
+**CLI Commands:**
+
+```bash
+# List configured webhooks
+gobby webhooks list
+
+# Test a webhook endpoint
+gobby webhooks test slack-notifier --event notification
+```
+
+### WebSocket Broadcasting
+
+Real-time event broadcasting to connected WebSocket clients.
+
+**Configuration** (`~/.gobby/config.yaml`):
+
+```yaml
+hook_extensions:
+  websocket:
+    enabled: true
+    broadcast_events:
+      - session-start
+      - session-end
+      - pre-tool-use
+      - post-tool-use
+    include_payload: true
+```
+
+**WebSocket Event Schema:**
+
+```json
+{
+  "type": "hook_event",
+  "event_type": "session_start",
+  "timestamp": "2025-01-04T12:00:00Z",
+  "data": {
+    "session_id": "sess-abc123",
+    "source": "claude",
+    "project_id": "proj-xyz"
+  }
+}
+```
+
+**Connect to WebSocket:**
+
+```python
+import websockets
+import json
+
+async def listen_events():
+    async with websockets.connect("ws://localhost:7778") as ws:
+        # Subscribe to specific events (optional)
+        await ws.send(json.dumps({
+            "type": "subscribe",
+            "events": ["session_start", "before_tool"]
+        }))
+
+        async for message in ws:
+            event = json.loads(message)
+            print(f"Received: {event['event_type']}")
+```
+
+### MCP Tools
+
+Hook extension tools available via the gobby MCP server:
+
+```python
+# List registered hook handlers from plugins
+call_tool(server_name="gobby", tool_name="list_hook_handlers", arguments={})
+
+# Test a hook event
+call_tool(server_name="gobby", tool_name="test_hook_event", arguments={
+    "event_type": "session_start",
+    "source": "claude",
+    "data": {"session_id": "test-123"}
+})
+
+# List loaded plugins
+call_tool(server_name="gobby", tool_name="list_plugins", arguments={})
+
+# Reload a plugin
+call_tool(server_name="gobby", tool_name="reload_plugin", arguments={
+    "name": "my-plugin"
+})
+```
+
+### Full Configuration Reference
+
+```yaml
+hook_extensions:
+  # WebSocket broadcasting
+  websocket:
+    enabled: true
+    broadcast_events: [session-start, session-end, pre-tool-use, post-tool-use]
+    include_payload: true
+
+  # HTTP webhooks
+  webhooks:
+    enabled: true
+    timeout: 10.0
+    async_dispatch: true
+    endpoints: []
+
+  # Python plugins
+  plugins:
+    enabled: false  # Disabled by default for security
+    plugin_dirs:
+      - ~/.gobby/plugins
+      - .gobby/plugins
+    auto_discover: true
+    plugins: {}  # Per-plugin config by name
+```
+
+### Monitoring
+
+Plugin status is included in `/admin/status`:
+
+```json
+{
+  "plugins": {
+    "enabled": true,
+    "loaded": 2,
+    "handlers": 5,
+    "plugins": [
+      {"name": "my-plugin", "version": "1.0.0", "handlers": 3, "actions": 1}
+    ]
+  }
+}
+```
+
 ## Testing
 
 Tests use pytest with asyncio support. Key test configuration in `pyproject.toml`:
