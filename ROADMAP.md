@@ -16,12 +16,12 @@ This document defines the implementation order across all Gobby planning documen
 | SESSION_MANAGEMENT | `docs/plans/completed/SESSION_MANAGEMENT.md` | Session CRUD tools, handoff MCP tools |
 | SKILLS | `docs/plans/completed/SKILLS.md` | Skills module decoupling (from memory) |
 | HOOK_EXTENSIONS | `docs/plans/completed/HOOK_EXTENSIONS.md` | WebSocket events, webhooks, plugins |
+| MCP_PROXY_IMPROVEMENTS | `docs/plans/completed/MCP_PROXY_IMPROVEMENTS.md` | Tool metrics, semantic search, self-healing |
 
 ### Active Plans (Sprint 17 Gaps)
 
 | Document | Location | Focus |
 |----------|----------|-------|
-| MCP_PROXY_IMPROVEMENTS | `docs/plans/MCP_PROXY_IMPROVEMENTS.md` | Tool metrics, semantic search, self-healing |
 | MEMORY | `docs/plans/MEMORY.md` | Persistent memory and skill learning |
 | AUTONOMOUS_HANDOFF | `docs/plans/AUTONOMOUS_HANDOFF.md` | Pre-compact context extraction, session chaining |
 
