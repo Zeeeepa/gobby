@@ -5,23 +5,33 @@ Exposes functionality for:
 - Storing memories (remember)
 - Retrieving memories (recall)
 - Deleting memories (forget)
+- Initializing memory from codebase (init_memory)
 
 These tools are registered with the InternalToolRegistry and accessed
 via the downstream proxy pattern (call_tool).
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.memory.manager import MemoryManager
 
+if TYPE_CHECKING:
+    from gobby.llm.service import LLMService
 
-def create_memory_registry(memory_manager: MemoryManager) -> InternalToolRegistry:
+
+def create_memory_registry(
+    memory_manager: MemoryManager,
+    llm_service: LLMService | None = None,
+) -> InternalToolRegistry:
     """
     Create a memory tool registry with all memory-related tools.
 
     Args:
         memory_manager: MemoryManager instance
+        llm_service: LLM service for AI-powered extraction (optional)
 
     Returns:
         InternalToolRegistry with memory tools registered
@@ -274,6 +284,84 @@ def create_memory_registry(memory_manager: MemoryManager) -> InternalToolRegistr
         try:
             stats = memory_manager.get_stats(project_id=project_id)
             return {"success": True, "stats": stats}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
+        name="init_memory",
+        description="Initialize memory from codebase and agent markdown files (CLAUDE.md, etc.).",
+    )
+    async def init_memory(
+        project_path: str = ".",
+        scan_codebase: bool = True,
+        import_agent_md: bool = True,
+        max_files: int = 20,
+        project_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Initialize memory from codebase and agent markdown files.
+
+        This unified operation orchestrates:
+        - extract-codebase: Scan code for patterns and conventions
+        - extract-agent-md: Import from CLAUDE.md, GEMINI.md, CODEX.md
+
+        Args:
+            project_path: Path to project directory (default: current)
+            scan_codebase: Whether to scan codebase for patterns (default: True)
+            import_agent_md: Whether to import from agent markdown files (default: True)
+            max_files: Maximum files to sample for codebase scan (default: 20)
+            project_id: Optional project ID to associate memories with
+        """
+        if not llm_service:
+            return {
+                "success": False,
+                "error": "LLM service not available. Memory init requires an LLM.",
+            }
+
+        if not scan_codebase and not import_agent_md:
+            return {
+                "success": False,
+                "error": "Nothing to do. Enable scan_codebase and/or import_agent_md.",
+            }
+
+        try:
+            from gobby.memory.extractor import MemoryExtractor
+
+            extractor = MemoryExtractor(memory_manager, llm_service)
+            total_created = 0
+            total_skipped = 0
+            all_errors: list[str] = []
+
+            # Step 1: Extract from agent markdown files
+            if import_agent_md:
+                result = await extractor.extract_from_agent_md(
+                    project_path=project_path, project_id=project_id
+                )
+                total_created += result.created
+                total_skipped += result.skipped
+                all_errors.extend(result.errors)
+
+            # Step 2: Extract from codebase
+            if scan_codebase:
+                result = await extractor.extract_from_codebase(
+                    project_path=project_path,
+                    project_id=project_id,
+                    max_files=max_files,
+                )
+                total_created += result.created
+                total_skipped += result.skipped
+                all_errors.extend(result.errors)
+
+            return {
+                "success": True,
+                "created": total_created,
+                "skipped": total_skipped,
+                "errors": all_errors[:5] if all_errors else [],
+                "operations": {
+                    "agent_md": import_agent_md,
+                    "codebase": scan_codebase,
+                },
+            }
         except Exception as e:
             return {"success": False, "error": str(e)}
 

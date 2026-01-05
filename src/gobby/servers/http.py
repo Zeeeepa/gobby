@@ -153,6 +153,7 @@ class HTTPServer:
                 local_session_manager=session_manager,
                 skill_sync_manager=skill_sync_manager,
                 metrics_manager=self.metrics_manager,
+                llm_service=self.llm_service,
             )
             registry_count = len(self._internal_manager)
             logger.debug(f"Internal registries initialized: {registry_count} registries")

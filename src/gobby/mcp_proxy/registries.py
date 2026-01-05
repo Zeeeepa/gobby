@@ -9,6 +9,7 @@ from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
+    from gobby.llm.service import LLMService
     from gobby.mcp_proxy.metrics import ToolMetricsManager
     from gobby.memory.manager import MemoryManager
     from gobby.sessions.manager import SessionManager
@@ -39,6 +40,7 @@ def setup_internal_registries(
     local_session_manager: LocalSessionManager | None = None,
     skill_sync_manager: SkillSyncManager | None = None,
     metrics_manager: ToolMetricsManager | None = None,
+    llm_service: LLMService | None = None,
 ) -> InternalRegistryManager:
     """
     Setup internal MCP registries (tasks, messages, memory, skills, metrics).
@@ -57,6 +59,7 @@ def setup_internal_registries(
         local_session_manager: Local session manager for session CRUD
         skill_sync_manager: Skill sync manager for skill export
         metrics_manager: Tool metrics manager for metrics operations
+        llm_service: LLM service for AI-powered operations
 
     Returns:
         InternalRegistryManager containing all registries
@@ -108,6 +111,7 @@ def setup_internal_registries(
 
         memory_registry = create_memory_registry(
             memory_manager=memory_manager,
+            llm_service=llm_service,
         )
         manager.add_registry(memory_registry)
         logger.debug("Memory registry initialized")
