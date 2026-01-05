@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 async def require_commit_before_stop(
     workflow_state: "WorkflowState | None",
     project_path: str | None = None,
+    task_manager: "LocalTaskManager | None" = None,
 ) -> dict[str, Any] | None:
     """
     Block stop if there's an in_progress task with uncommitted changes.
@@ -30,6 +31,7 @@ async def require_commit_before_stop(
     Args:
         workflow_state: Workflow state with variables (claimed_task_id, etc.)
         project_path: Path to the project directory for git status check
+        task_manager: LocalTaskManager to verify task status
 
     Returns:
         Dict with decision="block" and reason if task has uncommitted changes,
@@ -43,6 +45,19 @@ async def require_commit_before_stop(
     if not claimed_task_id:
         logger.debug("require_commit_before_stop: No claimed task, allowing")
         return None
+
+    # Verify the task is actually still in_progress (not just cached in workflow state)
+    if task_manager:
+        task = task_manager.get_task(claimed_task_id)
+        if not task or task.status != "in_progress":
+            # Task was changed - clear the stale workflow state
+            logger.debug(
+                f"require_commit_before_stop: Task '{claimed_task_id}' is no longer "
+                f"in_progress (status={task.status if task else 'not found'}), clearing state"
+            )
+            workflow_state.variables["claimed_task_id"] = None
+            workflow_state.variables["task_claimed"] = False
+            return None
 
     # Check for uncommitted changes
     try:

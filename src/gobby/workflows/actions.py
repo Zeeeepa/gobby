@@ -816,6 +816,7 @@ class ActionExecutor:
         return await require_commit_before_stop(
             workflow_state=context.state,
             project_path=project_path,
+            task_manager=self.task_manager,
         )
 
     async def _handle_require_task_complete(
