@@ -590,6 +590,80 @@ def import_server(
         sys.exit(1)
 
 
+@mcp_proxy.command("refresh")
+@click.option("--force", "-f", is_flag=True, help="Force full refresh, ignore cached hashes")
+@click.option("--server", "-s", help="Only refresh a specific server")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+@click.pass_context
+def refresh_tools(
+    ctx: click.Context, force: bool, server: str | None, json_format: bool
+) -> None:
+    """Refresh MCP tools - detect schema changes and re-index.
+
+    Scans all connected MCP servers for tool schema changes and regenerates
+    embeddings for new or modified tools. Unchanged tools are skipped.
+
+    Examples:
+        gobby mcp-proxy refresh
+        gobby mcp-proxy refresh --force
+        gobby mcp-proxy refresh --server context7
+    """
+    import os
+
+    client = get_daemon_client(ctx)
+    if not check_daemon_running(client):
+        sys.exit(1)
+
+    result = call_mcp_api(
+        client,
+        "/mcp/refresh",
+        method="POST",
+        json_data={
+            "cwd": os.getcwd(),
+            "force": force,
+            "server": server,
+        },
+        timeout=300.0,  # Embedding generation can be slow
+    )
+    if result is None:
+        sys.exit(1)
+
+    if json_format:
+        click.echo(json.dumps(result, indent=2))
+        return
+
+    if not result.get("success"):
+        click.echo(f"Error: {result.get('error', 'Refresh failed')}", err=True)
+        sys.exit(1)
+
+    stats = result.get("stats", {})
+
+    # Summary
+    click.echo("MCP Tools Refresh Complete")
+    click.echo(f"  Servers processed: {stats.get('servers_processed', 0)}")
+    click.echo(f"  New tools: {stats.get('tools_new', 0)}")
+    click.echo(f"  Changed tools: {stats.get('tools_changed', 0)}")
+    click.echo(f"  Unchanged tools: {stats.get('tools_unchanged', 0)}")
+    click.echo(f"  Removed tools: {stats.get('tools_removed', 0)}")
+    click.echo(f"  Embeddings generated: {stats.get('embeddings_generated', 0)}")
+
+    if force:
+        click.echo("\n(--force: all tools treated as new)")
+
+    # Per-server breakdown
+    by_server = stats.get("by_server", {})
+    if by_server:
+        click.echo("\nBy Server:")
+        for srv_name, srv_stats in by_server.items():
+            if "error" in srv_stats:
+                click.echo(f"  ✗ {srv_name}: {srv_stats['error']}")
+            else:
+                new = srv_stats.get("new", 0)
+                changed = srv_stats.get("changed", 0)
+                unchanged = srv_stats.get("unchanged", 0)
+                click.echo(f"  ● {srv_name}: {new} new, {changed} changed, {unchanged} unchanged")
+
+
 @mcp_proxy.command("status")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 @click.pass_context
