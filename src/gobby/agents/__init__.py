@@ -10,19 +10,25 @@ Components:
 - Terminal spawning: Launches agents in separate terminal windows
 
 Usage:
-    from gobby.agents import AgentRunner
+    from gobby.agents import AgentRunner, AgentConfig
 
-    runner = AgentRunner(config)
-    result = await runner.start_agent(
-        workflow="code-review.yaml",
+    runner = AgentRunner(db, session_storage, executors)
+    result = await runner.run(AgentConfig(
         prompt="Review the auth changes",
+        parent_session_id="sess-123",
+        project_id="proj-abc",
+        machine_id="machine-1",
+        source="claude",
         provider="claude",
-    )
+    ))
 """
 
+from gobby.agents.runner import AgentConfig, AgentRunner
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 
 __all__ = [
+    "AgentConfig",
+    "AgentRunner",
     "ChildSessionConfig",
     "ChildSessionManager",
 ]

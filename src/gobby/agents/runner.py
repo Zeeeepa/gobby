@@ -1,0 +1,330 @@
+"""
+Agent runner for orchestrating agent execution.
+
+The AgentRunner coordinates:
+- Creating child sessions for agents
+- Tracking agent runs in the database
+- Executing agents via LLM providers
+- Handling tool calls via the MCP proxy
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+from gobby.agents.session import ChildSessionConfig, ChildSessionManager
+from gobby.llm.executor import AgentExecutor, AgentResult, ToolResult, ToolSchema
+from gobby.storage.agents import LocalAgentRunManager
+
+if TYPE_CHECKING:
+    from gobby.storage.database import LocalDatabase
+    from gobby.storage.sessions import LocalSessionManager
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class AgentConfig:
+    """Configuration for running an agent."""
+
+    prompt: str
+    """The prompt/task for the agent to perform."""
+
+    parent_session_id: str
+    """ID of the session spawning this agent."""
+
+    project_id: str
+    """Project ID for the agent's session."""
+
+    machine_id: str
+    """Machine identifier."""
+
+    source: str
+    """CLI source (claude, gemini, codex)."""
+
+    provider: str = "claude"
+    """LLM provider to use."""
+
+    model: str | None = None
+    """Optional model override."""
+
+    workflow_name: str | None = None
+    """Optional workflow to execute."""
+
+    system_prompt: str | None = None
+    """Optional system prompt override."""
+
+    max_turns: int = 10
+    """Maximum number of turns."""
+
+    timeout: float = 120.0
+    """Execution timeout in seconds."""
+
+    tools: list[ToolSchema] | None = None
+    """Optional list of tools to provide."""
+
+    git_branch: str | None = None
+    """Git branch for the session."""
+
+    title: str | None = None
+    """Optional title for the agent session."""
+
+
+class AgentRunner:
+    """
+    Orchestrates agent execution with session and run tracking.
+
+    The runner:
+    1. Creates a child session for the agent
+    2. Records the agent run in the database
+    3. Executes the agent via the appropriate LLM provider
+    4. Updates run status based on execution result
+
+    Example:
+        >>> runner = AgentRunner(db, session_storage, executor)
+        >>> result = await runner.run(AgentConfig(
+        ...     prompt="Create a TODO list",
+        ...     parent_session_id="sess-123",
+        ...     project_id="proj-abc",
+        ...     machine_id="machine-1",
+        ...     source="claude",
+        ... ))
+    """
+
+    def __init__(
+        self,
+        db: LocalDatabase,
+        session_storage: LocalSessionManager,
+        executors: dict[str, AgentExecutor],
+        max_agent_depth: int = 1,
+    ):
+        """
+        Initialize AgentRunner.
+
+        Args:
+            db: Database connection.
+            session_storage: Session storage manager.
+            executors: Map of provider name to executor instance.
+            max_agent_depth: Maximum nesting depth for agents.
+        """
+        self.db = db
+        self._session_storage = session_storage
+        self._executors = executors
+        self._child_session_manager = ChildSessionManager(
+            session_storage,
+            max_agent_depth=max_agent_depth,
+        )
+        self._run_storage = LocalAgentRunManager(db)
+        self.logger = logger
+
+    def get_executor(self, provider: str) -> AgentExecutor | None:
+        """Get executor for a provider."""
+        return self._executors.get(provider)
+
+    def register_executor(self, provider: str, executor: AgentExecutor) -> None:
+        """Register an executor for a provider."""
+        self._executors[provider] = executor
+        self.logger.info(f"Registered executor for provider: {provider}")
+
+    def can_spawn(self, parent_session_id: str) -> tuple[bool, str]:
+        """
+        Check if an agent can be spawned from the given session.
+
+        Args:
+            parent_session_id: The session attempting to spawn.
+
+        Returns:
+            Tuple of (can_spawn, reason).
+        """
+        return self._child_session_manager.can_spawn_child(parent_session_id)
+
+    async def run(
+        self,
+        config: AgentConfig,
+        tool_handler: Any | None = None,
+    ) -> AgentResult:
+        """
+        Run an agent with the given configuration.
+
+        Args:
+            config: Agent configuration.
+            tool_handler: Optional async callable for handling tool calls.
+                If not provided, uses a default no-op handler.
+
+        Returns:
+            AgentResult with execution outcome.
+        """
+        # Check if we can spawn
+        can_spawn, reason = self.can_spawn(config.parent_session_id)
+        if not can_spawn:
+            self.logger.warning(f"Cannot spawn agent: {reason}")
+            return AgentResult(
+                output="",
+                status="error",
+                error=reason,
+                turns_used=0,
+            )
+
+        # Get executor for provider
+        executor = self.get_executor(config.provider)
+        if not executor:
+            error_msg = f"No executor registered for provider: {config.provider}"
+            self.logger.error(error_msg)
+            return AgentResult(
+                output="",
+                status="error",
+                error=error_msg,
+                turns_used=0,
+            )
+
+        # Create child session
+        try:
+            child_session = self._child_session_manager.create_child_session(
+                ChildSessionConfig(
+                    parent_session_id=config.parent_session_id,
+                    project_id=config.project_id,
+                    machine_id=config.machine_id,
+                    source=config.source,
+                    workflow_name=config.workflow_name,
+                    title=config.title,
+                    git_branch=config.git_branch,
+                )
+            )
+        except ValueError as e:
+            self.logger.error(f"Failed to create child session: {e}")
+            return AgentResult(
+                output="",
+                status="error",
+                error=str(e),
+                turns_used=0,
+            )
+
+        # Create agent run record
+        agent_run = self._run_storage.create(
+            parent_session_id=config.parent_session_id,
+            provider=config.provider,
+            prompt=config.prompt,
+            workflow_name=config.workflow_name,
+            model=config.model,
+            child_session_id=child_session.id,
+        )
+
+        # Start the run
+        self._run_storage.start(agent_run.id)
+        self.logger.info(
+            f"Starting agent run {agent_run.id} "
+            f"(child_session={child_session.id}, provider={config.provider})"
+        )
+
+        # Set up tool handler
+        async def default_tool_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
+            """Default tool handler that returns not implemented."""
+            return ToolResult(
+                tool_name=tool_name,
+                success=False,
+                error=f"Tool {tool_name} not implemented",
+            )
+
+        handler = tool_handler or default_tool_handler
+
+        # Execute the agent
+        try:
+            result = await executor.run(
+                prompt=config.prompt,
+                tools=config.tools or [],
+                tool_handler=handler,
+                system_prompt=config.system_prompt,
+                model=config.model,
+                max_turns=config.max_turns,
+                timeout=config.timeout,
+            )
+
+            # Update run based on result
+            if result.status == "success":
+                self._run_storage.complete(
+                    agent_run.id,
+                    result=result.output,
+                    tool_calls_count=len(result.tool_calls),
+                    turns_used=result.turns_used,
+                )
+                self.logger.info(
+                    f"Agent run {agent_run.id} completed successfully "
+                    f"({result.turns_used} turns, {len(result.tool_calls)} tool calls)"
+                )
+            elif result.status == "timeout":
+                self._run_storage.timeout(agent_run.id, turns_used=result.turns_used)
+                self.logger.warning(f"Agent run {agent_run.id} timed out")
+            elif result.status == "error":
+                self._run_storage.fail(
+                    agent_run.id,
+                    error=result.error or "Unknown error",
+                    tool_calls_count=len(result.tool_calls),
+                    turns_used=result.turns_used,
+                )
+                self.logger.error(f"Agent run {agent_run.id} failed: {result.error}")
+            else:
+                # Partial completion
+                self._run_storage.complete(
+                    agent_run.id,
+                    result=result.output,
+                    tool_calls_count=len(result.tool_calls),
+                    turns_used=result.turns_used,
+                )
+                self.logger.info(
+                    f"Agent run {agent_run.id} completed with status {result.status}"
+                )
+
+            # Update session status
+            if result.status in ("success", "partial"):
+                self._session_storage.update_status(child_session.id, "completed")
+            else:
+                self._session_storage.update_status(child_session.id, "failed")
+
+            return result
+
+        except Exception as e:
+            self.logger.error(f"Agent execution failed: {e}", exc_info=True)
+            self._run_storage.fail(agent_run.id, error=str(e))
+            self._session_storage.update_status(child_session.id, "failed")
+            return AgentResult(
+                output="",
+                status="error",
+                error=str(e),
+                turns_used=0,
+            )
+
+    def get_run(self, run_id: str) -> Any | None:
+        """Get an agent run by ID."""
+        return self._run_storage.get(run_id)
+
+    def list_runs(
+        self,
+        parent_session_id: str,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[Any]:
+        """List agent runs for a session."""
+        return self._run_storage.list_by_session(
+            parent_session_id,
+            status=status,  # type: ignore
+            limit=limit,
+        )
+
+    def cancel_run(self, run_id: str) -> bool:
+        """Cancel a running agent."""
+        run = self._run_storage.get(run_id)
+        if not run:
+            return False
+        if run.status != "running":
+            return False
+
+        self._run_storage.cancel(run_id)
+
+        # Also mark session as cancelled
+        if run.child_session_id:
+            self._session_storage.update_status(run.child_session_id, "cancelled")
+
+        self.logger.info(f"Cancelled agent run {run_id}")
+        return True
