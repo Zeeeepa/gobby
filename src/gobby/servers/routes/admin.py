@@ -180,7 +180,7 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
                 logger.warning(f"Failed to get skill stats: {e}")
 
         # Get plugin status
-        plugin_stats = {"enabled": False, "loaded": 0, "handlers": 0}
+        plugin_stats: dict[str, Any] = {"enabled": False, "loaded": 0, "handlers": 0}
         if hasattr(server, "_hook_manager") and server._hook_manager is not None:
             try:
                 hook_manager = server._hook_manager

@@ -171,7 +171,8 @@ class ActionExecutor:
                 return {"error": f"Schema validation failed: {error}"}
 
             # Call the actual handler
-            return await plugin_action.handler(context, **kwargs)
+            result = await plugin_action.handler(context, **kwargs)
+            return dict(result) if isinstance(result, dict) else None
 
         return validating_handler
 
@@ -911,14 +912,14 @@ class ActionExecutor:
             return {"success": False, "error": str(e)}
 
         # Build context for variable interpolation
-        interpolation_context = {}
+        interpolation_context: dict[str, Any] = {}
         if context.state.variables:
             interpolation_context["state"] = {"variables": context.state.variables}
         if context.state.artifacts:
             interpolation_context["artifacts"] = context.state.artifacts
 
         # Get secrets from config if available
-        secrets = {}
+        secrets: dict[str, str] = {}
         if self.config:
             secrets = getattr(self.config, "webhook_secrets", {})
 

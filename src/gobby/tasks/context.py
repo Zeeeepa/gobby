@@ -115,7 +115,7 @@ class ExpansionContextGatherer:
                     logger.info(
                         f"Agentic research added {len(research_result.get('relevant_files', []))} files"
                     )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     f"Research phase timed out after {research_timeout}s. "
                     f"Continuing with partial context. Consider increasing task_expansion.research_timeout."

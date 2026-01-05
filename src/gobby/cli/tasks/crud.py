@@ -409,7 +409,7 @@ def de_escalate_cmd(task_id: str, reason: str, reset_validation: bool) -> None:
         return
 
     # Build update kwargs
-    update_kwargs = {
+    update_kwargs: dict[str, str | int | None] = {
         "status": "open",
         "escalated_at": None,
         "escalation_reason": None,

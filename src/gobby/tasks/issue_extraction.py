@@ -77,7 +77,8 @@ def _extract_json(content: str) -> dict | None:
     json_block = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
     if json_block:
         try:
-            return json.loads(json_block.group(1))
+            result = json.loads(json_block.group(1))
+            return dict(result) if isinstance(result, dict) else None
         except json.JSONDecodeError:
             pass
 
@@ -85,13 +86,15 @@ def _extract_json(content: str) -> dict | None:
     json_obj = re.search(r"(\{.*\})", content, re.DOTALL)
     if json_obj:
         try:
-            return json.loads(json_obj.group(1))
+            result = json.loads(json_obj.group(1))
+            return dict(result) if isinstance(result, dict) else None
         except json.JSONDecodeError:
             pass
 
     # Try parsing the whole content as JSON
     try:
-        return json.loads(content)
+        result = json.loads(content)
+        return dict(result) if isinstance(result, dict) else None
     except json.JSONDecodeError:
         return None
 
@@ -113,6 +116,9 @@ def _parse_single_issue(issue_dict: dict) -> Issue | None:
     if not all([type_str, severity_str, title]):
         logger.debug(f"Issue missing required fields: {issue_dict}")
         return None
+
+    # Ensure title is a string
+    title = str(title)
 
     # Parse enums
     try:

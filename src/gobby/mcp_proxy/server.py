@@ -3,6 +3,7 @@ Gobby Daemon Tools MCP Server.
 """
 
 import logging
+from datetime import UTC
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -392,7 +393,9 @@ class GobbyDaemonTools:
             }
 
         # Build test event
-        from gobby.hooks.events import HookEvent, HookEventType
+        from datetime import datetime
+
+        from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 
         try:
             hook_event_type = HookEventType(event_type)
@@ -403,6 +406,12 @@ class GobbyDaemonTools:
                 "valid_types": [e.value for e in HookEventType],
             }
 
+        # Map source string to SessionSource enum
+        try:
+            session_source = SessionSource(source)
+        except ValueError:
+            session_source = SessionSource.CLAUDE  # Default to Claude
+
         test_data = {
             "session_id": "test-mcp-event",
             "source": source,
@@ -411,6 +420,9 @@ class GobbyDaemonTools:
 
         event = HookEvent(
             event_type=hook_event_type,
+            session_id="test-mcp-event",
+            source=session_source,
+            timestamp=datetime.now(UTC),
             data=test_data,
         )
 

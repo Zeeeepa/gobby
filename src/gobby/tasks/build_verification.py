@@ -5,7 +5,7 @@ Provides build/test command detection and execution before LLM validation.
 
 import logging
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType

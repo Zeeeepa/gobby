@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
-from gobby.llm.executor import AgentExecutor, AgentResult, ToolResult, ToolSchema
+from gobby.llm.executor import AgentExecutor, AgentResult, ToolHandler, ToolResult, ToolSchema
 from gobby.storage.agents import LocalAgentRunManager
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.loader import WorkflowLoader
@@ -413,10 +413,10 @@ class AgentRunner:
 
     def _create_workflow_filtered_handler(
         self,
-        base_handler: Any,
+        base_handler: ToolHandler,
         session_id: str,
         workflow_definition: WorkflowDefinition,
-    ) -> Any:
+    ) -> ToolHandler:
         """
         Create a tool handler that enforces workflow tool restrictions.
 

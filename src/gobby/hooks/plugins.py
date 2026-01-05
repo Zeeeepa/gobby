@@ -67,9 +67,9 @@ class PluginAction:
         required = self.schema.get("required", [])
 
         # Check required fields
-        for field in required:
-            if field not in kwargs:
-                return False, f"Missing required field: {field}"
+        for field_name in required:
+            if field_name not in kwargs:
+                return False, f"Missing required field: {field_name}"
 
         # Check property types if specified
         for prop_name, prop_schema in properties.items():
@@ -105,7 +105,7 @@ def _check_type(value: Any, expected_type: str) -> bool:
     if expected is None:
         return True  # Unknown type, skip validation
 
-    return isinstance(value, expected)
+    return isinstance(value, expected)  # type: ignore[arg-type]
 
 
 # =============================================================================

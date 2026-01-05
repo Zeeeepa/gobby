@@ -36,7 +36,7 @@ def link_commit(task_id: str, commit_sha: str) -> None:
             click.echo(f"Total commits: {len(updated_task.commits)}")
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
 
 @commit_cmd.command("unlink")
@@ -62,7 +62,7 @@ def unlink_commit(task_id: str, commit_sha: str) -> None:
             click.echo("No commits linked")
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
 
 @commit_cmd.command("list")

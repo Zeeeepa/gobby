@@ -7,11 +7,9 @@ for making HTTP requests from workflows.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlparse
-
 
 # Valid HTTP methods for webhook actions
 VALID_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE"})

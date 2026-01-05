@@ -121,8 +121,9 @@ def hooks_test(
     click.echo(f"  Continue: {result.get('continue', 'unknown')}")
     if result.get("reason"):
         click.echo(f"  Reason: {result.get('reason')}")
-    if result.get("inject_context"):
-        click.echo(f"  Context: {result.get('inject_context')[:100]}...")
+    inject_context = result.get("inject_context")
+    if inject_context:
+        click.echo(f"  Context: {str(inject_context)[:100]}...")
 
 
 # =============================================================================

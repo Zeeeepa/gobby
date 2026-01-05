@@ -163,7 +163,7 @@ class ValidationHistoryManager:
 
         logger.debug(f"Cleared validation history for task {task_id}")
 
-    def _row_to_iteration(self, row) -> ValidationIteration:
+    def _row_to_iteration(self, row: Any) -> ValidationIteration:
         """Convert a database row to a ValidationIteration object.
 
         Args:
@@ -349,7 +349,7 @@ class ValidationHistoryManager:
                 })
 
         # Sort by count descending
-        recurring_issues.sort(key=lambda x: x["count"], reverse=True)
+        recurring_issues.sort(key=lambda x: int(x["count"] or 0), reverse=True)
 
         return {
             "recurring_issues": recurring_issues,

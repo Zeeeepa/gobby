@@ -1467,7 +1467,7 @@ def create_plugins_router(server: "HTTPServer") -> APIRouter:
         Returns:
             List of plugins with metadata
         """
-        config = server._config
+        config = server.config
         if not config:
             return {
                 "success": True,
@@ -1570,7 +1570,7 @@ def create_webhooks_router(server: "HTTPServer") -> APIRouter:
         Returns:
             List of webhook endpoint configurations
         """
-        config = server._config
+        config = server.config
         if not config:
             return {
                 "success": True,
@@ -1620,7 +1620,7 @@ def create_webhooks_router(server: "HTTPServer") -> APIRouter:
             if not webhook_name:
                 raise HTTPException(status_code=400, detail="Webhook name required")
 
-            config = server._config
+            config = server.config
             if not config:
                 return {"success": False, "error": "Configuration not available"}
 
