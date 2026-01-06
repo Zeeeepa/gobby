@@ -41,6 +41,14 @@ GOBBY_AGENT_DEPTH = "GOBBY_AGENT_DEPTH"
 # Prevents infinite nesting
 GOBBY_MAX_AGENT_DEPTH = "GOBBY_MAX_AGENT_DEPTH"
 
+# Initial prompt for the agent (short prompts only)
+# For longer prompts, use GOBBY_PROMPT_FILE instead
+GOBBY_PROMPT = "GOBBY_PROMPT"
+
+# Path to file containing initial prompt (for long prompts)
+# Takes precedence over GOBBY_PROMPT if both are set
+GOBBY_PROMPT_FILE = "GOBBY_PROMPT_FILE"
+
 
 def get_terminal_env_vars(
     session_id: str,
@@ -50,6 +58,8 @@ def get_terminal_env_vars(
     workflow_name: str | None = None,
     agent_depth: int = 1,
     max_agent_depth: int = 3,
+    prompt: str | None = None,
+    prompt_file: str | None = None,
 ) -> dict[str, str]:
     """
     Build environment variables dict for spawning a terminal-mode agent.
@@ -62,6 +72,8 @@ def get_terminal_env_vars(
         workflow_name: Optional workflow to activate.
         agent_depth: Current nesting depth (default: 1).
         max_agent_depth: Maximum allowed depth (default: 3).
+        prompt: Optional short prompt (for inline passing).
+        prompt_file: Optional path to file containing prompt (for long prompts).
 
     Returns:
         Dict of environment variable name to value.
@@ -78,6 +90,11 @@ def get_terminal_env_vars(
     if workflow_name:
         env[GOBBY_WORKFLOW_NAME] = workflow_name
 
+    if prompt_file:
+        env[GOBBY_PROMPT_FILE] = prompt_file
+    elif prompt:
+        env[GOBBY_PROMPT] = prompt
+
     return env
 
 
@@ -90,4 +107,6 @@ ALL_TERMINAL_ENV_VARS = [
     GOBBY_PROJECT_ID,
     GOBBY_AGENT_DEPTH,
     GOBBY_MAX_AGENT_DEPTH,
+    GOBBY_PROMPT,
+    GOBBY_PROMPT_FILE,
 ]

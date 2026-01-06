@@ -7,6 +7,7 @@ import os
 import platform
 import shutil
 import subprocess
+import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -14,6 +15,10 @@ from pathlib import Path
 from typing import Any
 
 from gobby.agents.constants import get_terminal_env_vars
+
+# Maximum prompt length to pass via environment variable
+# Longer prompts will be written to a temp file
+MAX_ENV_PROMPT_LENGTH = 4096
 
 logger = logging.getLogger(__name__)
 
@@ -711,15 +716,25 @@ class TerminalSpawner:
             agent_depth: Current nesting depth
             max_agent_depth: Maximum allowed depth
             terminal: Terminal type or "auto"
-            prompt: Optional initial prompt (passed via temp file)
+            prompt: Optional initial prompt
 
         Returns:
             SpawnResult with success status
         """
-        # Build command
+        # Build command - don't pass prompt via CLI args, use env vars instead
         command = [cli]
+
+        # Handle prompt passing
+        prompt_env: str | None = None
+        prompt_file: str | None = None
+
         if prompt:
-            command.extend(["-p", prompt])
+            if len(prompt) <= MAX_ENV_PROMPT_LENGTH:
+                # Short prompt - pass via environment variable
+                prompt_env = prompt
+            else:
+                # Long prompt - write to temp file
+                prompt_file = self._write_prompt_file(prompt, session_id)
 
         # Build environment
         env = get_terminal_env_vars(
@@ -730,6 +745,8 @@ class TerminalSpawner:
             workflow_name=workflow_name,
             agent_depth=agent_depth,
             max_agent_depth=max_agent_depth,
+            prompt=prompt_env,
+            prompt_file=prompt_file,
         )
 
         # Set title
@@ -742,3 +759,55 @@ class TerminalSpawner:
             env=env,
             title=title,
         )
+
+    def _write_prompt_file(self, prompt: str, session_id: str) -> str:
+        """
+        Write prompt to a temp file for passing to spawned agent.
+
+        The file is created in the system temp directory and named
+        with the session ID for easy identification.
+
+        Args:
+            prompt: The prompt content
+            session_id: Session ID for naming the file
+
+        Returns:
+            Path to the created temp file
+        """
+        # Create temp file with session ID in name
+        temp_dir = Path(tempfile.gettempdir()) / "gobby-prompts"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        prompt_path = temp_dir / f"prompt-{session_id}.txt"
+        prompt_path.write_text(prompt, encoding="utf-8")
+
+        logger.debug(f"Wrote prompt to temp file: {prompt_path}")
+        return str(prompt_path)
+
+
+def read_prompt_from_env() -> str | None:
+    """
+    Read initial prompt from environment variables.
+
+    Checks GOBBY_PROMPT_FILE first (for long prompts),
+    then falls back to GOBBY_PROMPT (for short prompts).
+
+    Returns:
+        Prompt string or None if not set
+    """
+    from gobby.agents.constants import GOBBY_PROMPT, GOBBY_PROMPT_FILE
+
+    # Check for prompt file first
+    prompt_file = os.environ.get(GOBBY_PROMPT_FILE)
+    if prompt_file:
+        try:
+            prompt_path = Path(prompt_file)
+            if prompt_path.exists():
+                return prompt_path.read_text(encoding="utf-8")
+            else:
+                logger.warning(f"Prompt file not found: {prompt_file}")
+        except Exception as e:
+            logger.error(f"Error reading prompt file: {e}")
+
+    # Fall back to inline prompt
+    return os.environ.get(GOBBY_PROMPT)
