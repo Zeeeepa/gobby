@@ -907,6 +907,140 @@ cleanup_stale_worktrees(
 )
 ```
 
+### Worktree Management Patterns
+
+**Pattern 1: Parallel Feature Development**
+
+Spawn multiple agents working on independent features simultaneously:
+
+```python
+# Parent agent coordinates parallel work
+features = [
+    ("feature/auth", "gt-task1", "Implement authentication"),
+    ("feature/api", "gt-task2", "Implement REST API"),
+    ("feature/ui", "gt-task3", "Implement dashboard UI"),
+]
+
+for branch, task_id, prompt in features:
+    call_tool(server_name="gobby-worktrees", tool_name="spawn_agent_in_worktree", arguments={
+        "prompt": prompt,
+        "branch_name": branch,
+        "task_id": task_id,
+        "parent_session_id": current_session_id,
+        "mode": "terminal",
+        "terminal": "ghostty",
+    })
+
+# Monitor progress
+result = call_tool(server_name="gobby-worktrees", tool_name="list_worktrees", arguments={
+    "status": "active"
+})
+```
+
+**Pattern 2: Task-Isolated Development**
+
+One worktree per task ensures clean separation:
+
+```python
+# Get ready tasks
+tasks = call_tool(server_name="gobby-tasks", tool_name="list_ready_tasks", arguments={})
+
+# Create worktree for each task
+for task in tasks["tasks"]:
+    # Check if task already has a worktree
+    existing = call_tool(server_name="gobby-worktrees", tool_name="get_worktree_by_task", arguments={
+        "task_id": task["id"]
+    })
+
+    if not existing.get("worktree"):
+        call_tool(server_name="gobby-worktrees", tool_name="create_worktree", arguments={
+            "branch_name": f"task/{task['id']}",
+            "task_id": task["id"],
+        })
+```
+
+**Pattern 3: Stale Worktree Cleanup**
+
+Regular cleanup of abandoned worktrees:
+
+```python
+# First, detect stale worktrees (dry run)
+result = call_tool(server_name="gobby-worktrees", tool_name="detect_stale_worktrees", arguments={
+    "hours": 48
+})
+# Returns list of worktrees with no activity for 48+ hours
+
+# Review the list, then cleanup
+if result["stale_worktrees"]:
+    call_tool(server_name="gobby-worktrees", tool_name="cleanup_stale_worktrees", arguments={
+        "hours": 48,
+        "dry_run": False,     # Actually mark as stale
+        "delete_git": True,   # Also remove git worktrees
+    })
+```
+
+**Pattern 4: Integration Workflow**
+
+Merge completed work back to main:
+
+```python
+# 1. Sync worktree with latest main (detect conflicts early)
+call_tool(server_name="gobby-worktrees", tool_name="sync_worktree", arguments={
+    "worktree_id": "wt-xyz",
+    "strategy": "merge"       # or "rebase" for linear history
+})
+
+# 2. After work is merged to main via PR
+call_tool(server_name="gobby-worktrees", tool_name="mark_worktree_merged", arguments={
+    "worktree_id": "wt-xyz"
+})
+
+# 3. Link any commits made in worktree to the task
+call_tool(server_name="gobby-tasks", tool_name="auto_link_commits", arguments={
+    "task_id": "gt-abc123",
+    "since": "3 days ago"
+})
+
+# 4. Close the task with the merge commit
+call_tool(server_name="gobby-tasks", tool_name="close_task", arguments={
+    "task_id": "gt-abc123",
+    "commit_sha": "merge-commit-sha"
+})
+
+# 5. Delete the worktree (optional, cleanup_stale_worktrees handles this too)
+call_tool(server_name="gobby-worktrees", tool_name="delete_worktree", arguments={
+    "worktree_id": "wt-xyz"
+})
+```
+
+**Pattern 5: Worktree + Workflow Coordination**
+
+Use workflows to enforce development patterns in worktrees:
+
+```python
+# Spawn agent with TDD workflow in dedicated worktree
+call_tool(server_name="gobby-worktrees", tool_name="spawn_agent_in_worktree", arguments={
+    "prompt": "Implement user registration with proper tests",
+    "branch_name": "feature/user-registration",
+    "task_id": "gt-abc123",
+    "parent_session_id": current_session_id,
+    "workflow": "agent-tdd",    # Enforces test-first development
+    "mode": "terminal",
+    "terminal": "ghostty",
+})
+```
+
+**Configuration:**
+
+```yaml
+# ~/.gobby/config.yaml
+worktrees:
+  base_path: "../worktrees"     # Where to create worktrees (relative to project)
+  stale_threshold_hours: 48     # Hours before marking as stale
+  auto_cleanup: false           # Automatically cleanup merged worktrees
+  default_base_branch: "main"   # Default branch to base worktrees on
+```
+
 ## Task Management with gobby-tasks
 
 Use the `gobby-tasks` MCP tools for persistent task tracking (requires daemon running).
