@@ -212,21 +212,24 @@ class AgentRunner:
         """
         return self._child_session_manager.can_spawn_child(parent_session_id)
 
-    async def run(
-        self,
-        config: AgentConfig,
-        tool_handler: ToolHandler | None = None,
-    ) -> AgentResult:
+    def prepare_run(self, config: AgentConfig) -> AgentRunContext | AgentResult:
         """
-        Run an agent with the given configuration.
+        Prepare for agent execution by creating database records.
+
+        Creates:
+        - Child session linked to parent
+        - Agent run record in database
+        - Workflow state (if workflow specified)
+
+        This method can be used separately for terminal mode, where we prepare
+        the database state, then spawn a terminal process that picks up from
+        the session via hooks.
 
         Args:
             config: Agent configuration.
-            tool_handler: Optional async callable for handling tool calls.
-                If not provided, uses a default no-op handler.
 
         Returns:
-            AgentResult with execution outcome.
+            AgentRunContext on success, or AgentResult with error on failure.
         """
         # Validate required fields
         if not config.parent_session_id:
@@ -267,18 +270,6 @@ class AgentRunner:
                 turns_used=0,
             )
 
-        # Get executor for provider
-        executor = self.get_executor(config.provider)
-        if not executor:
-            error_msg = f"No executor registered for provider: {config.provider}"
-            self.logger.error(error_msg)
-            return AgentResult(
-                output="",
-                status="error",
-                error=error_msg,
-                turns_used=0,
-            )
-
         # Get effective workflow name (prefers 'workflow' over legacy 'workflow_name')
         effective_workflow = config.get_effective_workflow()
 
@@ -306,6 +297,7 @@ class AgentRunner:
 
         # Load workflow definition if specified
         workflow_definition = None
+        workflow_state = None
         if effective_workflow:
             workflow_definition = self._workflow_loader.load_workflow(
                 effective_workflow,
@@ -331,13 +323,13 @@ class AgentRunner:
                 )
                 initial_variables["parent_session_id"] = parent_session_id
 
-                initial_state = WorkflowState(
+                workflow_state = WorkflowState(
                     session_id=child_session.id,
                     workflow_name=effective_workflow,
                     step=initial_step,
                     variables=initial_variables,
                 )
-                self._workflow_state_manager.save_state(initial_state)
+                self._workflow_state_manager.save_state(workflow_state)
                 self.logger.info(
                     f"Initialized workflow state for child session {child_session.id} "
                     f"(step={initial_step}, agent_depth={child_session.agent_depth})"
@@ -357,6 +349,68 @@ class AgentRunner:
             model=config.model,
             child_session_id=child_session.id,
         )
+
+        self.logger.info(
+            f"Prepared agent run {agent_run.id} "
+            f"(child_session={child_session.id}, provider={config.provider})"
+        )
+
+        # Convert child session (internal type) to Session for storage
+        # The create_child_session returns a Session dataclass
+        session_obj = child_session
+
+        return AgentRunContext(
+            session=session_obj,
+            run=agent_run,
+            workflow_state=workflow_state,
+            workflow_config=workflow_definition,
+        )
+
+    async def execute_run(
+        self,
+        context: AgentRunContext,
+        config: AgentConfig,
+        tool_handler: ToolHandler | None = None,
+    ) -> AgentResult:
+        """
+        Execute an agent using prepared context.
+
+        This method runs the agent loop using the context created by prepare_run().
+        For in_process mode only - terminal mode uses a different execution path.
+
+        Args:
+            context: Prepared run context from prepare_run().
+            config: Agent configuration.
+            tool_handler: Optional async callable for handling tool calls.
+
+        Returns:
+            AgentResult with execution outcome.
+        """
+        # Validate context
+        if not context.session or not context.run:
+            return AgentResult(
+                output="",
+                status="error",
+                error="Invalid context: missing session or run",
+                turns_used=0,
+            )
+
+        child_session = context.session
+        agent_run = context.run
+        workflow_definition = context.workflow_config
+
+        # Get executor for provider
+        executor = self.get_executor(config.provider)
+        if not executor:
+            error_msg = f"No executor registered for provider: {config.provider}"
+            self.logger.error(error_msg)
+            self._run_storage.fail(agent_run.id, error=error_msg)
+            return AgentResult(
+                output="",
+                status="error",
+                error=error_msg,
+                turns_used=0,
+            )
 
         # Start the run
         self._run_storage.start(agent_run.id)
@@ -467,6 +521,36 @@ class AgentRunner:
                 error=str(e),
                 turns_used=tool_calls_made,
             )
+
+    async def run(
+        self,
+        config: AgentConfig,
+        tool_handler: ToolHandler | None = None,
+    ) -> AgentResult:
+        """
+        Run an agent with the given configuration.
+
+        This is the main entry point that combines prepare_run() and execute_run()
+        for in-process agent execution.
+
+        Args:
+            config: Agent configuration.
+            tool_handler: Optional async callable for handling tool calls.
+                If not provided, uses a default no-op handler.
+
+        Returns:
+            AgentResult with execution outcome.
+        """
+        # Prepare the run (create session, run record, workflow state)
+        result = self.prepare_run(config)
+
+        # If prepare_run returned an error, return it
+        if isinstance(result, AgentResult):
+            return result
+
+        # Execute the run with the prepared context
+        context = result
+        return await self.execute_run(context, config, tool_handler)
 
     def get_run(self, run_id: str) -> Any | None:
         """Get an agent run by ID."""
