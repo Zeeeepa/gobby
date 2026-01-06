@@ -19,10 +19,12 @@ if TYPE_CHECKING:
     from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.skills import LocalSkillManager
     from gobby.storage.tasks import LocalTaskManager
+    from gobby.storage.worktrees import LocalWorktreeManager
     from gobby.sync.skills import SkillSyncManager
     from gobby.sync.tasks import TaskSyncManager
     from gobby.tasks.expansion import TaskExpander
     from gobby.tasks.validation import TaskValidator
+    from gobby.worktrees.git import WorktreeGitManager
 
 logger = logging.getLogger("gobby.mcp.registries")
 
@@ -43,9 +45,12 @@ def setup_internal_registries(
     metrics_manager: ToolMetricsManager | None = None,
     llm_service: LLMService | None = None,
     agent_runner: AgentRunner | None = None,
+    worktree_storage: LocalWorktreeManager | None = None,
+    git_manager: WorktreeGitManager | None = None,
+    project_id: str | None = None,
 ) -> InternalRegistryManager:
     """
-    Setup internal MCP registries (tasks, messages, memory, skills, metrics, agents).
+    Setup internal MCP registries (tasks, messages, memory, skills, metrics, agents, worktrees).
 
     Args:
         _config: Daemon configuration (reserved for future use)
@@ -63,6 +68,9 @@ def setup_internal_registries(
         metrics_manager: Tool metrics manager for metrics operations
         llm_service: LLM service for AI-powered operations
         agent_runner: Agent runner for spawning subagents
+        worktree_storage: Worktree storage manager for worktree operations
+        git_manager: Git manager for git worktree operations
+        project_id: Default project ID for worktree operations
 
     Returns:
         InternalRegistryManager containing all registries
@@ -160,6 +168,18 @@ def setup_internal_registries(
         )
         manager.add_registry(agents_registry)
         logger.debug("Agents registry initialized")
+
+    # Initialize worktrees registry if worktree_storage is available
+    if worktree_storage is not None:
+        from gobby.mcp_proxy.tools.worktrees import create_worktrees_registry
+
+        worktrees_registry = create_worktrees_registry(
+            worktree_storage=worktree_storage,
+            git_manager=git_manager,
+            project_id=project_id,
+        )
+        manager.add_registry(worktrees_registry)
+        logger.debug("Worktrees registry initialized")
 
     logger.info(f"Internal registries initialized: {len(manager)} registries")
     return manager

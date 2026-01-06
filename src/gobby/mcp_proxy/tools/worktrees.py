@@ -1,0 +1,642 @@
+"""
+Internal MCP tools for Gobby Worktree Management.
+
+Exposes functionality for:
+- Creating git worktrees for isolated development
+- Managing worktree lifecycle (claim, release, cleanup)
+- Syncing worktrees with main branch
+- Spawning agents in worktrees
+
+These tools are registered with the InternalToolRegistry and accessed
+via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
+"""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.storage.worktrees import WorktreeStatus
+
+if TYPE_CHECKING:
+    from gobby.storage.worktrees import LocalWorktreeManager
+    from gobby.worktrees.git import WorktreeGitManager
+
+logger = logging.getLogger(__name__)
+
+
+def create_worktrees_registry(
+    worktree_storage: LocalWorktreeManager,
+    git_manager: WorktreeGitManager | None = None,
+    project_id: str | None = None,
+) -> InternalToolRegistry:
+    """
+    Create a worktree tool registry with all worktree-related tools.
+
+    Args:
+        worktree_storage: LocalWorktreeManager for database operations.
+        git_manager: WorktreeGitManager for git operations.
+        project_id: Default project ID for operations.
+
+    Returns:
+        InternalToolRegistry with all worktree tools registered.
+    """
+    registry = InternalToolRegistry(
+        name="gobby-worktrees",
+        description="Git worktree management - create, manage, and cleanup isolated development directories",
+    )
+
+    @registry.tool(
+        name="create_worktree",
+        description="Create a new git worktree for isolated development.",
+    )
+    async def create_worktree(
+        branch_name: str,
+        base_branch: str = "main",
+        task_id: str | None = None,
+        worktree_path: str | None = None,
+        create_branch: bool = True,
+    ) -> dict[str, Any]:
+        """
+        Create a new git worktree.
+
+        Args:
+            branch_name: Name for the new branch.
+            base_branch: Branch to base the worktree on (default: main).
+            task_id: Optional task ID to link to this worktree.
+            worktree_path: Optional custom path (defaults to ../{branch_name}).
+            create_branch: Whether to create a new branch (default: True).
+
+        Returns:
+            Dict with worktree ID, path, and branch info.
+        """
+        if git_manager is None:
+            return {
+                "success": False,
+                "error": "Git manager not configured. Cannot create worktree.",
+            }
+
+        if project_id is None:
+            return {
+                "success": False,
+                "error": "No project context. Run from a Gobby project directory.",
+            }
+
+        # Check if branch already exists as a worktree
+        existing = worktree_storage.get_by_branch(project_id, branch_name)
+        if existing:
+            return {
+                "success": False,
+                "error": f"Worktree already exists for branch '{branch_name}'",
+                "existing_worktree_id": existing.id,
+                "existing_path": existing.worktree_path,
+            }
+
+        # Create git worktree
+        result = git_manager.create_worktree(
+            branch_name=branch_name,
+            base_branch=base_branch,
+            worktree_path=worktree_path,
+            create_branch=create_branch,
+        )
+
+        if not result.success:
+            return {
+                "success": False,
+                "error": result.error or "Failed to create git worktree",
+            }
+
+        # Record in database
+        worktree = worktree_storage.create(
+            project_id=project_id,
+            branch_name=branch_name,
+            worktree_path=result.worktree_path or "",
+            base_branch=base_branch,
+            task_id=task_id,
+        )
+
+        return {
+            "success": True,
+            "worktree_id": worktree.id,
+            "branch_name": worktree.branch_name,
+            "worktree_path": worktree.worktree_path,
+            "base_branch": worktree.base_branch,
+            "task_id": worktree.task_id,
+            "status": worktree.status,
+        }
+
+    @registry.tool(
+        name="get_worktree",
+        description="Get details of a specific worktree.",
+    )
+    async def get_worktree(worktree_id: str) -> dict[str, Any]:
+        """
+        Get worktree details by ID.
+
+        Args:
+            worktree_id: The worktree ID.
+
+        Returns:
+            Dict with full worktree details.
+        """
+        worktree = worktree_storage.get(worktree_id)
+        if not worktree:
+            return {
+                "success": False,
+                "error": f"Worktree '{worktree_id}' not found",
+            }
+
+        # Get git status if manager available
+        git_status = None
+        if git_manager and Path(worktree.worktree_path).exists():
+            status = git_manager.get_worktree_status(worktree.worktree_path)
+            if status:
+                git_status = {
+                    "has_uncommitted_changes": status.has_uncommitted_changes,
+                    "commits_ahead": status.commits_ahead,
+                    "commits_behind": status.commits_behind,
+                    "current_branch": status.current_branch,
+                }
+
+        return {
+            "success": True,
+            "worktree": worktree.to_dict(),
+            "git_status": git_status,
+        }
+
+    @registry.tool(
+        name="list_worktrees",
+        description="List worktrees with optional filters.",
+    )
+    async def list_worktrees(
+        status: str | None = None,
+        agent_session_id: str | None = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        """
+        List worktrees with optional filters.
+
+        Args:
+            status: Filter by status (active, stale, merged, abandoned).
+            agent_session_id: Filter by owning session.
+            limit: Maximum results (default: 50).
+
+        Returns:
+            Dict with list of worktrees.
+        """
+        worktrees = worktree_storage.list(
+            project_id=project_id,
+            status=status,
+            agent_session_id=agent_session_id,
+            limit=limit,
+        )
+
+        return {
+            "success": True,
+            "worktrees": [
+                {
+                    "id": wt.id,
+                    "branch_name": wt.branch_name,
+                    "worktree_path": wt.worktree_path,
+                    "status": wt.status,
+                    "task_id": wt.task_id,
+                    "agent_session_id": wt.agent_session_id,
+                    "created_at": wt.created_at,
+                }
+                for wt in worktrees
+            ],
+            "count": len(worktrees),
+        }
+
+    @registry.tool(
+        name="claim_worktree",
+        description="Claim ownership of a worktree for an agent session.",
+    )
+    async def claim_worktree(
+        worktree_id: str,
+        session_id: str,
+    ) -> dict[str, Any]:
+        """
+        Claim a worktree for an agent session.
+
+        Args:
+            worktree_id: The worktree ID to claim.
+            session_id: The session ID claiming ownership.
+
+        Returns:
+            Dict with success status.
+        """
+        worktree = worktree_storage.get(worktree_id)
+        if not worktree:
+            return {
+                "success": False,
+                "error": f"Worktree '{worktree_id}' not found",
+            }
+
+        if worktree.agent_session_id and worktree.agent_session_id != session_id:
+            return {
+                "success": False,
+                "error": f"Worktree already claimed by session '{worktree.agent_session_id}'",
+            }
+
+        updated = worktree_storage.claim(worktree_id, session_id)
+        if not updated:
+            return {
+                "success": False,
+                "error": "Failed to claim worktree",
+            }
+
+        return {
+            "success": True,
+            "worktree_id": worktree_id,
+            "session_id": session_id,
+            "message": f"Worktree '{worktree_id}' claimed by session '{session_id}'",
+        }
+
+    @registry.tool(
+        name="release_worktree",
+        description="Release ownership of a worktree.",
+    )
+    async def release_worktree(worktree_id: str) -> dict[str, Any]:
+        """
+        Release a worktree from its current owner.
+
+        Args:
+            worktree_id: The worktree ID to release.
+
+        Returns:
+            Dict with success status.
+        """
+        worktree = worktree_storage.get(worktree_id)
+        if not worktree:
+            return {
+                "success": False,
+                "error": f"Worktree '{worktree_id}' not found",
+            }
+
+        updated = worktree_storage.release(worktree_id)
+        if not updated:
+            return {
+                "success": False,
+                "error": "Failed to release worktree",
+            }
+
+        return {
+            "success": True,
+            "worktree_id": worktree_id,
+            "message": f"Worktree '{worktree_id}' released",
+        }
+
+    @registry.tool(
+        name="delete_worktree",
+        description="Delete a worktree (both git and database record).",
+    )
+    async def delete_worktree(
+        worktree_id: str,
+        force: bool = False,
+    ) -> dict[str, Any]:
+        """
+        Delete a worktree.
+
+        Args:
+            worktree_id: The worktree ID to delete.
+            force: Force deletion even if there are uncommitted changes.
+
+        Returns:
+            Dict with success status.
+        """
+        worktree = worktree_storage.get(worktree_id)
+        if not worktree:
+            return {
+                "success": False,
+                "error": f"Worktree '{worktree_id}' not found",
+            }
+
+        # Check for uncommitted changes if not forcing
+        if git_manager and not force:
+            status = git_manager.get_worktree_status(worktree.worktree_path)
+            if status and status.has_uncommitted_changes:
+                return {
+                    "success": False,
+                    "error": "Worktree has uncommitted changes. Use force=True to delete anyway.",
+                    "uncommitted_changes": True,
+                }
+
+        # Delete git worktree
+        if git_manager:
+            result = git_manager.delete_worktree(
+                worktree.worktree_path,
+                force=force,
+            )
+            if not result.success:
+                return {
+                    "success": False,
+                    "error": result.error or "Failed to delete git worktree",
+                }
+
+        # Delete database record
+        deleted = worktree_storage.delete(worktree_id)
+        if not deleted:
+            return {
+                "success": False,
+                "error": "Failed to delete worktree record",
+            }
+
+        return {
+            "success": True,
+            "worktree_id": worktree_id,
+            "message": f"Worktree '{worktree_id}' deleted",
+        }
+
+    @registry.tool(
+        name="sync_worktree",
+        description="Sync a worktree with the main branch.",
+    )
+    async def sync_worktree(
+        worktree_id: str,
+        strategy: str = "merge",
+    ) -> dict[str, Any]:
+        """
+        Sync a worktree with the main branch.
+
+        Args:
+            worktree_id: The worktree ID to sync.
+            strategy: Sync strategy ('merge' or 'rebase').
+
+        Returns:
+            Dict with sync result.
+        """
+        if git_manager is None:
+            return {
+                "success": False,
+                "error": "Git manager not configured.",
+            }
+
+        worktree = worktree_storage.get(worktree_id)
+        if not worktree:
+            return {
+                "success": False,
+                "error": f"Worktree '{worktree_id}' not found",
+            }
+
+        result = git_manager.sync_from_main(
+            worktree.worktree_path,
+            base_branch=worktree.base_branch,
+            strategy=strategy,
+        )
+
+        if not result.success:
+            return {
+                "success": False,
+                "error": result.error or "Sync failed",
+                "has_conflicts": result.has_conflicts,
+            }
+
+        # Update last activity
+        worktree_storage.update(worktree_id)
+
+        return {
+            "success": True,
+            "worktree_id": worktree_id,
+            "message": f"Worktree synced with {worktree.base_branch} using {strategy}",
+            "commits_pulled": result.commits_pulled,
+        }
+
+    @registry.tool(
+        name="mark_worktree_merged",
+        description="Mark a worktree as merged (ready for cleanup).",
+    )
+    async def mark_worktree_merged(worktree_id: str) -> dict[str, Any]:
+        """
+        Mark a worktree as merged.
+
+        Args:
+            worktree_id: The worktree ID to mark.
+
+        Returns:
+            Dict with success status.
+        """
+        worktree = worktree_storage.get(worktree_id)
+        if not worktree:
+            return {
+                "success": False,
+                "error": f"Worktree '{worktree_id}' not found",
+            }
+
+        updated = worktree_storage.mark_merged(worktree_id)
+        if not updated:
+            return {
+                "success": False,
+                "error": "Failed to mark worktree as merged",
+            }
+
+        return {
+            "success": True,
+            "worktree_id": worktree_id,
+            "status": WorktreeStatus.MERGED.value,
+            "message": f"Worktree '{worktree_id}' marked as merged",
+        }
+
+    @registry.tool(
+        name="detect_stale_worktrees",
+        description="Find worktrees with no activity for a period.",
+    )
+    async def detect_stale_worktrees(
+        hours: int = 24,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        """
+        Find stale worktrees (no activity for N hours).
+
+        Args:
+            hours: Hours of inactivity threshold (default: 24).
+            limit: Maximum results (default: 50).
+
+        Returns:
+            Dict with list of stale worktrees.
+        """
+        if project_id is None:
+            return {
+                "success": False,
+                "error": "No project context.",
+            }
+
+        stale = worktree_storage.find_stale(
+            project_id=project_id,
+            hours=hours,
+            limit=limit,
+        )
+
+        return {
+            "success": True,
+            "stale_worktrees": [
+                {
+                    "id": wt.id,
+                    "branch_name": wt.branch_name,
+                    "worktree_path": wt.worktree_path,
+                    "updated_at": wt.updated_at,
+                    "task_id": wt.task_id,
+                }
+                for wt in stale
+            ],
+            "count": len(stale),
+            "threshold_hours": hours,
+        }
+
+    @registry.tool(
+        name="cleanup_stale_worktrees",
+        description="Mark and optionally delete stale worktrees.",
+    )
+    async def cleanup_stale_worktrees(
+        hours: int = 24,
+        dry_run: bool = True,
+        delete_git: bool = False,
+    ) -> dict[str, Any]:
+        """
+        Cleanup stale worktrees.
+
+        Args:
+            hours: Hours of inactivity threshold (default: 24).
+            dry_run: If True, only report what would be cleaned (default: True).
+            delete_git: If True, also delete git worktrees (default: False).
+
+        Returns:
+            Dict with cleanup results.
+        """
+        if project_id is None:
+            return {
+                "success": False,
+                "error": "No project context.",
+            }
+
+        # Find and mark stale worktrees
+        stale = worktree_storage.cleanup_stale(
+            project_id=project_id,
+            hours=hours,
+            dry_run=dry_run,
+        )
+
+        results = []
+        for wt in stale:
+            result = {
+                "id": wt.id,
+                "branch_name": wt.branch_name,
+                "worktree_path": wt.worktree_path,
+                "marked_abandoned": not dry_run,
+                "git_deleted": False,
+            }
+
+            # Optionally delete git worktrees
+            if delete_git and not dry_run and git_manager:
+                git_result = git_manager.delete_worktree(
+                    wt.worktree_path,
+                    force=True,
+                )
+                result["git_deleted"] = git_result.success
+                if not git_result.success:
+                    result["git_error"] = git_result.error
+
+            results.append(result)
+
+        return {
+            "success": True,
+            "dry_run": dry_run,
+            "cleaned": results,
+            "count": len(results),
+            "threshold_hours": hours,
+        }
+
+    @registry.tool(
+        name="get_worktree_stats",
+        description="Get worktree statistics for the project.",
+    )
+    async def get_worktree_stats() -> dict[str, Any]:
+        """
+        Get worktree statistics.
+
+        Returns:
+            Dict with counts by status.
+        """
+        if project_id is None:
+            return {
+                "success": False,
+                "error": "No project context.",
+            }
+
+        counts = worktree_storage.count_by_status(project_id)
+
+        return {
+            "success": True,
+            "project_id": project_id,
+            "counts": counts,
+            "total": sum(counts.values()),
+        }
+
+    @registry.tool(
+        name="get_worktree_by_task",
+        description="Get worktree linked to a specific task.",
+    )
+    async def get_worktree_by_task(task_id: str) -> dict[str, Any]:
+        """
+        Get worktree linked to a task.
+
+        Args:
+            task_id: The task ID to look up.
+
+        Returns:
+            Dict with worktree details or not found.
+        """
+        worktree = worktree_storage.get_by_task(task_id)
+        if not worktree:
+            return {
+                "success": False,
+                "error": f"No worktree linked to task '{task_id}'",
+            }
+
+        return {
+            "success": True,
+            "worktree": worktree.to_dict(),
+        }
+
+    @registry.tool(
+        name="link_task_to_worktree",
+        description="Link a task to an existing worktree.",
+    )
+    async def link_task_to_worktree(
+        worktree_id: str,
+        task_id: str,
+    ) -> dict[str, Any]:
+        """
+        Link a task to a worktree.
+
+        Args:
+            worktree_id: The worktree ID.
+            task_id: The task ID to link.
+
+        Returns:
+            Dict with success status.
+        """
+        worktree = worktree_storage.get(worktree_id)
+        if not worktree:
+            return {
+                "success": False,
+                "error": f"Worktree '{worktree_id}' not found",
+            }
+
+        updated = worktree_storage.update(worktree_id, task_id=task_id)
+        if not updated:
+            return {
+                "success": False,
+                "error": "Failed to link task to worktree",
+            }
+
+        return {
+            "success": True,
+            "worktree_id": worktree_id,
+            "task_id": task_id,
+            "message": f"Task '{task_id}' linked to worktree '{worktree_id}'",
+        }
+
+    return registry
