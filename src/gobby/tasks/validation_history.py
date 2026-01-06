@@ -106,9 +106,7 @@ class ValidationHistoryManager:
                 ),
             )
 
-        logger.debug(
-            f"Recorded validation iteration {iteration} for task {task_id}: {status}"
-        )
+        logger.debug(f"Recorded validation iteration {iteration} for task {task_id}: {status}")
 
     def get_iteration_history(self, task_id: str) -> list[ValidationIteration]:
         """Get all validation iterations for a task.
@@ -340,13 +338,15 @@ class ValidationHistoryManager:
             if len(group) >= threshold:
                 # Use the first issue as the representative
                 representative = group[0]
-                recurring_issues.append({
-                    "title": representative.title,
-                    "type": representative.issue_type.value,
-                    "severity": representative.severity.value,
-                    "location": representative.location,
-                    "count": len(group),
-                })
+                recurring_issues.append(
+                    {
+                        "title": representative.title,
+                        "type": representative.issue_type.value,
+                        "severity": representative.severity.value,
+                        "location": representative.location,
+                        "count": len(group),
+                    }
+                )
 
         # Sort by count descending
         recurring_issues.sort(key=lambda x: int(x["count"] or 0), reverse=True)

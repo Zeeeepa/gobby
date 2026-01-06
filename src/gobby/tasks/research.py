@@ -404,11 +404,13 @@ History:
                         # Look for the tool output in the next item
                         if i + 1 < len(history) and history[i + 1]["role"] == "tool":
                             result = history[i + 1]["content"]
-                            web_search_results.append({
-                                "tool": tool,
-                                "query": query,
-                                "result": result[:2000] if len(result) > 2000 else result,
-                            })
+                            web_search_results.append(
+                                {
+                                    "tool": tool,
+                                    "query": query,
+                                    "result": result[:2000] if len(result) > 2000 else result,
+                                }
+                            )
             i += 1
 
         return {

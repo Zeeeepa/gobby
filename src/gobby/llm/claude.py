@@ -425,7 +425,9 @@ class ClaudeLLMProvider(LLMProvider):
             message_count = 0
             async for message in query(prompt=prompt, options=options):
                 message_count += 1
-                self.logger.debug(f"generate_text message {message_count}: {type(message).__name__}")
+                self.logger.debug(
+                    f"generate_text message {message_count}: {type(message).__name__}"
+                )
                 if isinstance(message, AssistantMessage):
                     for block in message.content:
                         if isinstance(block, TextBlock):
@@ -435,7 +437,9 @@ class ClaudeLLMProvider(LLMProvider):
                             self.logger.debug(f"  ToolUseBlock: {block.name}")
                 elif isinstance(message, ResultMessage):
                     # ResultMessage contains the final result from the agent
-                    self.logger.debug(f"  ResultMessage: result={message.result}, type={type(message.result)}")
+                    self.logger.debug(
+                        f"  ResultMessage: result={message.result}, type={type(message.result)}"
+                    )
                     if message.result:
                         result_text = message.result
             if message_count == 0:

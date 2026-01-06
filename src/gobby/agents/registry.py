@@ -156,8 +156,7 @@ class RunningAgentRegistry:
         with self._lock:
             self._agents[agent.run_id] = agent
             self._logger.debug(
-                f"Registered running agent {agent.run_id} "
-                f"(mode={agent.mode}, pid={agent.pid})"
+                f"Registered running agent {agent.run_id} (mode={agent.mode}, pid={agent.pid})"
             )
         # Emit event outside lock
         self._emit_event(
@@ -308,9 +307,7 @@ class RunningAgentRegistry:
         """
         with self._lock:
             return sum(
-                1
-                for agent in self._agents.values()
-                if agent.parent_session_id == parent_session_id
+                1 for agent in self._agents.values() if agent.parent_session_id == parent_session_id
             )
 
     def cleanup_by_pids(self, dead_pids: set[int]) -> list[RunningAgent]:
@@ -332,9 +329,7 @@ class RunningAgentRegistry:
                 if agent.pid and agent.pid in dead_pids:
                     self._agents.pop(run_id)
                     removed.append(agent)
-                    self._logger.info(
-                        f"Cleaned up agent {run_id} with dead PID {agent.pid}"
-                    )
+                    self._logger.info(f"Cleaned up agent {run_id} with dead PID {agent.pid}")
         return removed
 
     def cleanup_stale(self, max_age_seconds: float = 3600.0) -> list[RunningAgent]:
@@ -355,9 +350,7 @@ class RunningAgentRegistry:
                 if age > max_age_seconds:
                     self._agents.pop(run_id)
                     removed.append(agent)
-                    self._logger.info(
-                        f"Cleaned up stale agent {run_id} (age={age:.0f}s)"
-                    )
+                    self._logger.info(f"Cleaned up stale agent {run_id} (age={age:.0f}s)")
         return removed
 
     def clear(self) -> int:

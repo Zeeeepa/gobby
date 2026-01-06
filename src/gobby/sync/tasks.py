@@ -189,9 +189,7 @@ class TaskSyncManager:
                         # Note: We need to respect the exact fields from JSONL
 
                         # Handle commits array (stored as JSON in SQLite)
-                        commits_json = (
-                            json.dumps(data["commits"]) if data.get("commits") else None
-                        )
+                        commits_json = json.dumps(data["commits"]) if data.get("commits") else None
 
                         # Handle validation object (extract fields)
                         validation = data.get("validation") or {}
@@ -216,7 +214,9 @@ class TaskSyncManager:
                                 data.get("project_id"),
                                 data["title"],
                                 data.get("description"),
-                                data.get("parent_id"),  # Note: JSONL uses parent_id, not parent_task_id
+                                data.get(
+                                    "parent_id"
+                                ),  # Note: JSONL uses parent_id, not parent_task_id
                                 data["status"],
                                 data.get("priority", 2),
                                 data.get("task_type", "task"),

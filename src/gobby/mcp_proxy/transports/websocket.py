@@ -105,8 +105,7 @@ class WebSocketTransportConnection(BaseTransportConnection):
         if self._session_context is not None:
             try:
                 await asyncio.wait_for(
-                    self._session_context.__aexit__(None, None, None),
-                    timeout=2.0
+                    self._session_context.__aexit__(None, None, None), timeout=2.0
                 )
             except TimeoutError:
                 logger.warning(f"Session close timed out for {self.config.name}")
@@ -122,8 +121,7 @@ class WebSocketTransportConnection(BaseTransportConnection):
         if self._transport_context is not None:
             try:
                 await asyncio.wait_for(
-                    self._transport_context.__aexit__(None, None, None),
-                    timeout=2.0
+                    self._transport_context.__aexit__(None, None, None), timeout=2.0
                 )
             except TimeoutError:
                 logger.warning(f"Transport close timed out for {self.config.name}")

@@ -70,9 +70,7 @@ async def require_commit_before_stop(
         )
 
         if result.returncode != 0:
-            logger.warning(
-                f"require_commit_before_stop: git status failed: {result.stderr}"
-            )
+            logger.warning(f"require_commit_before_stop: git status failed: {result.stderr}")
             return None
 
         uncommitted = result.stdout.strip()
@@ -112,7 +110,7 @@ async def require_commit_before_stop(
             f"Task '{claimed_task_id}' is in_progress with uncommitted changes.\n\n"
             f"Before stopping, commit your changes and close the task:\n"
             f"1. Commit with [{claimed_task_id}] in the message\n"
-            f"2. Close the task: close_task(task_id=\"{claimed_task_id}\", commit_sha=\"...\")"
+            f'2. Close the task: close_task(task_id="{claimed_task_id}", commit_sha="...")'
         ),
     }
 
@@ -227,14 +225,12 @@ async def require_task_complete(
 
         # Case 1: No incomplete subtasks, but task not closed (leaf task or parent with all done)
         if not incomplete:
-            logger.info(
-                f"require_task_complete: Task '{task_id}' needs closing"
-            )
+            logger.info(f"require_task_complete: Task '{task_id}' needs closing")
             return {
                 "decision": "block",
                 "reason": (
                     f"Task '{parent_task.title}' is ready to close.\n"
-                    f"close_task(task_id=\"{task_id}\")"
+                    f'close_task(task_id="{task_id}")'
                     f"{multi_task_suffix}"
                 ),
             }
@@ -267,16 +263,14 @@ async def require_task_complete(
                     "reason": (
                         f"Your current task is not yet complete. "
                         f"Finish and close it before stopping:\n"
-                        f"close_task(task_id=\"{claimed_task_id}\")\n\n"
+                        f'close_task(task_id="{claimed_task_id}")\n\n'
                         f"'{parent_task.title}' still has {len(incomplete)} incomplete subtask(s)."
                         f"{multi_task_suffix}"
                     ),
                 }
             else:
                 # Claimed task is not under this parent - remind about parent work
-                logger.info(
-                    "require_task_complete: Claimed task not under parent, redirecting"
-                )
+                logger.info("require_task_complete: Claimed task not under parent, redirecting")
                 return {
                     "decision": "block",
                     "reason": (
@@ -365,9 +359,7 @@ async def require_active_task(
     # Session-scoped check: task_claimed variable (set by AFTER_TOOL detection)
     # This is the primary enforcement - each session must explicitly claim a task
     if workflow_state and workflow_state.variables.get("task_claimed"):
-        logger.debug(
-            f"require_active_task: task_claimed=True in session {session_id}, allowing"
-        )
+        logger.debug(f"require_active_task: task_claimed=True in session {session_id}, allowing")
         return None
 
     # Fallback: Check for any in_progress task in the project
@@ -392,7 +384,7 @@ async def require_active_task(
                 project_task_hint = (
                     f"\n\nNote: Task '{project_tasks[0].id}' ({project_tasks[0].title}) "
                     f"is in_progress but wasn't claimed by this session. "
-                    f"Use `update_task(task_id=\"{project_tasks[0].id}\", status=\"in_progress\")` "
+                    f'Use `update_task(task_id="{project_tasks[0].id}", status="in_progress")` '
                     f"to claim it for this session."
                 )
                 logger.debug(
@@ -443,8 +435,8 @@ async def require_active_task(
         "inject_context": (
             f"**Task Required**: The `{tool_name}` tool is blocked until you claim a task for this session.\n\n"
             f"Each session must explicitly create or claim a task before modifying files:\n"
-            f"1. **Create a new task**: `create_task(title=\"...\", description=\"...\")`\n"
-            f"2. **Claim an existing task**: `update_task(task_id=\"...\", status=\"in_progress\")`\n\n"
+            f'1. **Create a new task**: `create_task(title="...", description="...")`\n'
+            f'2. **Claim an existing task**: `update_task(task_id="...", status="in_progress")`\n\n'
             f"Use `list_ready_tasks()` to see available tasks."
             f"{project_task_hint}"
         ),

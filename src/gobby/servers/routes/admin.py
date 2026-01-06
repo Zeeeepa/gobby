@@ -189,9 +189,7 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
                     plugin_stats["enabled"] = plugin_loader.config.enabled
                     plugins = plugin_loader.registry.list_plugins()
                     plugin_stats["loaded"] = len(plugins)
-                    plugin_stats["handlers"] = sum(
-                        len(p.get("handlers", [])) for p in plugins
-                    )
+                    plugin_stats["handlers"] = sum(len(p.get("handlers", [])) for p in plugins)
                     plugin_stats["plugins"] = [
                         {
                             "name": p["name"],

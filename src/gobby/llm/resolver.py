@@ -66,8 +66,7 @@ class ProviderNotConfiguredError(ProviderError):
         self.provider = provider
         self.available = available
         super().__init__(
-            f"Provider '{provider}' is not configured. "
-            f"Available providers: {available}"
+            f"Provider '{provider}' is not configured. Available providers: {available}"
         )
 
 
@@ -216,9 +215,7 @@ def resolve_provider(
             else:
                 provider = enabled[0]
 
-            logger.debug(
-                f"Resolved provider '{provider}' from config (enabled: {enabled})"
-            )
+            logger.debug(f"Resolved provider '{provider}' from config (enabled: {enabled})")
             return ResolvedProvider(provider=provider, source="config")
 
     # 4. Hardcoded default
@@ -237,9 +234,7 @@ def resolve_provider(
     return ResolvedProvider(provider=DEFAULT_PROVIDER, source="default")
 
 
-def _validate_provider_configured(
-    provider: str, llm_providers: "LLMProvidersConfig"
-) -> None:
+def _validate_provider_configured(provider: str, llm_providers: "LLMProvidersConfig") -> None:
     """
     Validate that a provider is configured in llm_providers.
 
@@ -450,8 +445,7 @@ class ExecutorRegistry:
         # Cache and return
         self._executors[cache_key] = executor
         logger.info(
-            f"Created executor for provider '{resolved.provider}' "
-            f"(source={resolved.source})"
+            f"Created executor for provider '{resolved.provider}' (source={resolved.source})"
         )
         return executor
 

@@ -128,10 +128,14 @@ class ChildSessionManager:
 
         current_depth = self.get_session_depth(parent_session_id)
         if current_depth >= self.max_agent_depth:
-            return False, (
-                f"Max agent depth ({self.max_agent_depth}) exceeded. "
-                f"Current depth: {current_depth}"
-            ), current_depth
+            return (
+                False,
+                (
+                    f"Max agent depth ({self.max_agent_depth}) exceeded. "
+                    f"Current depth: {current_depth}"
+                ),
+                current_depth,
+            )
 
         return True, "OK", current_depth
 

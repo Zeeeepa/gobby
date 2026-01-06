@@ -595,9 +595,7 @@ def import_server(
 @click.option("--server", "-s", help="Only refresh a specific server")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 @click.pass_context
-def refresh_tools(
-    ctx: click.Context, force: bool, server: str | None, json_format: bool
-) -> None:
+def refresh_tools(ctx: click.Context, force: bool, server: str | None, json_format: bool) -> None:
     """Refresh MCP tools - detect schema changes and re-index.
 
     Scans all connected MCP servers for tool schema changes and regenerates

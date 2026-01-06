@@ -894,7 +894,9 @@ def get_variable(
             if variables:
                 click.echo(f"Variables for session {session_id[:12]}...:\n")
                 for var_name, var_value in sorted(variables.items()):
-                    value_display = repr(var_value) if isinstance(var_value, str) else str(var_value)
+                    value_display = (
+                        repr(var_value) if isinstance(var_value, str) else str(var_value)
+                    )
                     click.echo(f"  {var_name} = {value_display}")
             else:
                 click.echo(f"No variables set for session {session_id[:12]}...")

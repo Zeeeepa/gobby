@@ -277,9 +277,7 @@ class ContextResolver:
             with open(full_path, encoding="utf-8") as f:
                 return f.read()
         except UnicodeDecodeError:
-            raise ContextResolutionError(
-                f"File is not valid UTF-8 (binary): {file_path}"
-            ) from None
+            raise ContextResolutionError(f"File is not valid UTF-8 (binary): {file_path}") from None
         except PermissionError:
             raise ContextResolutionError(f"Permission denied: {file_path}") from None
         except Exception as e:
@@ -319,9 +317,7 @@ DEFAULT_CONTEXT_TEMPLATE = """## Context from Parent Session
 {{ prompt }}"""
 
 
-def format_injected_prompt(
-    context: str, prompt: str, template: str | None = None
-) -> str:
+def format_injected_prompt(context: str, prompt: str, template: str | None = None) -> str:
     """
     Format the injected prompt with context prepended.
 

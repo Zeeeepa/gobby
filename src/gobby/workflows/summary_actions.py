@@ -147,9 +147,7 @@ async def generate_summary(
     # Validate mode parameter
     valid_modes = {"clear", "compact"}
     if mode not in valid_modes:
-        raise ValueError(
-            f"Invalid mode '{mode}'. Must be one of: {', '.join(sorted(valid_modes))}"
-        )
+        raise ValueError(f"Invalid mode '{mode}'. Must be one of: {', '.join(sorted(valid_modes))}")
 
     if not llm_service or not transcript_processor:
         logger.warning("generate_summary: Missing LLM service or transcript processor")

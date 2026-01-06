@@ -116,10 +116,7 @@ class StdioTransportConnection(BaseTransportConnection):
         session_ctx = self._session_context
         if session_ctx is not None:
             try:
-                await asyncio.wait_for(
-                    session_ctx.__aexit__(None, None, None),
-                    timeout=2.0
-                )
+                await asyncio.wait_for(session_ctx.__aexit__(None, None, None), timeout=2.0)
             except TimeoutError:
                 logger.warning(f"Session close timed out for {self.config.name}")
             except RuntimeError as e:
@@ -134,10 +131,7 @@ class StdioTransportConnection(BaseTransportConnection):
         transport_ctx = self._transport_context
         if transport_ctx is not None:
             try:
-                await asyncio.wait_for(
-                    transport_ctx.__aexit__(None, None, None),
-                    timeout=2.0
-                )
+                await asyncio.wait_for(transport_ctx.__aexit__(None, None, None), timeout=2.0)
             except TimeoutError:
                 logger.warning(f"Transport close timed out for {self.config.name}")
             except RuntimeError as e:

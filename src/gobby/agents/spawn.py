@@ -229,14 +229,14 @@ class ITermSpawner(TerminalSpawnerBase):
             if env:
                 env_exports = " ".join(f'export {k}="{v}";' for k, v in env.items())
 
-            script = f'''
+            script = f"""
             tell application "iTerm"
                 create window with default profile
                 tell current session of current window
                     write text "cd {cwd} && {env_exports} {cmd_str}"
                 end tell
             end tell
-            '''
+            """
 
             process = subprocess.Popen(
                 ["osascript", "-e", script],
@@ -283,12 +283,12 @@ class TerminalAppSpawner(TerminalSpawnerBase):
             if env:
                 env_exports = " ".join(f'export {k}="{v}";' for k, v in env.items())
 
-            script = f'''
+            script = f"""
             tell application "Terminal"
                 do script "cd {cwd} && {env_exports} {cmd_str}"
                 activate
             end tell
-            '''
+            """
 
             process = subprocess.Popen(
                 ["osascript", "-e", script],
@@ -534,7 +534,7 @@ class WindowsTerminalSpawner(TerminalSpawnerBase):
             process = subprocess.Popen(
                 args,
                 env=spawn_env,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,  # type: ignore[attr-defined]
             )
 
             return SpawnResult(
@@ -583,7 +583,7 @@ class CmdSpawner(TerminalSpawnerBase):
             process = subprocess.Popen(
                 args,
                 env=spawn_env,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,  # type: ignore[attr-defined]
             )
 
             return SpawnResult(
@@ -632,7 +632,7 @@ class TerminalSpawner:
         CmdSpawner,
     ]
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize with platform-specific terminal preferences."""
         self._spawners: dict[TerminalType, TerminalSpawnerBase] = {}
         self._register_spawners()
@@ -657,9 +657,7 @@ class TerminalSpawner:
     def get_available_terminals(self) -> list[TerminalType]:
         """Get list of available terminals on this system."""
         return [
-            term_type
-            for term_type, spawner in self._spawners.items()
-            if spawner.is_available()
+            term_type for term_type, spawner in self._spawners.items() if spawner.is_available()
         ]
 
     def get_preferred_terminal(self) -> TerminalType | None:
@@ -674,7 +672,7 @@ class TerminalSpawner:
             preferences = self.LINUX_PREFERENCE
 
         for spawner_cls in preferences:
-            spawner = spawner_cls()
+            spawner = spawner_cls()  # type: ignore[abstract]
             if spawner.is_available():
                 return spawner.terminal_type
 

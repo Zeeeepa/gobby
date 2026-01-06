@@ -34,7 +34,7 @@ def get_daemon_url() -> str:
     from gobby.config.app import load_config
 
     config = load_config()
-    return f"http://{config.daemon_host}:{config.daemon_port}"
+    return f"http://localhost:{config.daemon_port}"
 
 
 @click.group()
@@ -115,7 +115,7 @@ def list_worktrees(
     """List worktrees."""
     manager = get_worktree_manager()
 
-    worktrees_list = manager.list(status=status, project_id=project_id)
+    worktrees_list = manager.list_worktrees(status=status, project_id=project_id)
 
     if json_format:
         click.echo(json.dumps([w.to_dict() for w in worktrees_list], indent=2, default=str))
@@ -148,7 +148,7 @@ def show_worktree(worktree_id: str, json_format: bool) -> None:
     worktree = manager.get(worktree_id)
     if not worktree:
         # Try prefix match
-        all_worktrees = manager.list()
+        all_worktrees = manager.list_worktrees()
         matches = [w for w in all_worktrees if w.id.startswith(worktree_id)]
         if len(matches) == 1:
             worktree = matches[0]
@@ -166,7 +166,7 @@ def show_worktree(worktree_id: str, json_format: bool) -> None:
     click.echo(f"Worktree: {worktree.id}")
     click.echo(f"Status: {worktree.status}")
     click.echo(f"Branch: {worktree.branch_name}")
-    click.echo(f"Path: {worktree.path}")
+    click.echo(f"Path: {worktree.worktree_path}")
     click.echo(f"Base Branch: {worktree.base_branch}")
     if worktree.project_id:
         click.echo(f"Project: {worktree.project_id}")
@@ -303,7 +303,9 @@ def release_worktree(worktree_id: str) -> None:
 
 @worktrees.command("sync")
 @click.argument("worktree_id")
-@click.option("--source", "-s", "source_branch", help="Source branch to sync from (default: base branch)")
+@click.option(
+    "--source", "-s", "source_branch", help="Source branch to sync from (default: base branch)"
+)
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def sync_worktree(worktree_id: str, source_branch: str | None, json_format: bool) -> None:
     """Sync worktree with its base branch."""
@@ -381,7 +383,9 @@ def detect_stale(days: int, json_format: bool) -> None:
 
     click.echo(f"Found {len(stale)} stale worktree(s) (inactive > {days} days):\n")
     for wt in stale:
-        click.echo(f"  {wt['id']}: {wt['branch_name']} (last updated: {wt.get('updated_at', 'unknown')})")
+        click.echo(
+            f"  {wt['id']}: {wt['branch_name']} (last updated: {wt.get('updated_at', 'unknown')})"
+        )
 
 
 @worktrees.command("cleanup")

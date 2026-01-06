@@ -32,9 +32,7 @@ def hooks_list(ctx: click.Context, json_format: bool) -> None:
     """List supported hook event types."""
     from gobby.hooks.events import HookEventType
 
-    hook_types = [
-        {"name": e.value, "description": _get_hook_description(e)} for e in HookEventType
-    ]
+    hook_types = [{"name": e.value, "description": _get_hook_description(e)} for e in HookEventType]
 
     if json_format:
         click.echo(json.dumps(hook_types, indent=2))
@@ -80,9 +78,7 @@ def _get_hook_description(event_type: HookEventType) -> str:
 )
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 @click.pass_context
-def hooks_test(
-    ctx: click.Context, hook_type: str, source: str, json_format: bool
-) -> None:
+def hooks_test(ctx: click.Context, hook_type: str, source: str, json_format: bool) -> None:
     """Test a hook by sending a test event to the daemon.
 
     HOOK_TYPE is the event type to test (e.g., session-start, before-tool).
@@ -293,9 +289,7 @@ def webhooks_list(ctx: click.Context, json_format: bool) -> None:
 )
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 @click.pass_context
-def webhooks_test(
-    ctx: click.Context, webhook_name: str, event: str, json_format: bool
-) -> None:
+def webhooks_test(ctx: click.Context, webhook_name: str, event: str, json_format: bool) -> None:
     """Test a webhook endpoint by sending a test event.
 
     WEBHOOK_NAME is the name of the webhook endpoint to test.

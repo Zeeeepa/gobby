@@ -419,8 +419,7 @@ class AgentRunner:
                 )
             else:
                 self.logger.warning(
-                    f"Workflow '{effective_workflow}' not found, "
-                    f"proceeding without workflow"
+                    f"Workflow '{effective_workflow}' not found, proceeding without workflow"
                 )
 
         # Create agent run record
@@ -604,9 +603,7 @@ class AgentRunner:
                     tool_calls_count=len(result.tool_calls),
                     turns_used=result.turns_used,
                 )
-                self.logger.info(
-                    f"Agent run {agent_run.id} completed with status {result.status}"
-                )
+                self.logger.info(f"Agent run {agent_run.id} completed with status {result.status}")
 
             # Update session status
             if result.status in ("success", "partial"):
@@ -898,9 +895,7 @@ class AgentRunner:
             An async callable that filters tools based on workflow state.
         """
 
-        async def filtered_handler(
-            tool_name: str, arguments: dict[str, Any]
-        ) -> ToolResult:
+        async def filtered_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
             # Get current workflow state
             state = self._workflow_state_manager.get_state(session_id)
             if not state:
@@ -915,9 +910,7 @@ class AgentRunner:
 
             # Check blocked_tools first (explicit deny)
             if tool_name in current_step.blocked_tools:
-                self.logger.warning(
-                    f"Tool '{tool_name}' blocked by workflow step '{state.step}'"
-                )
+                self.logger.warning(f"Tool '{tool_name}' blocked by workflow step '{state.step}'")
                 return ToolResult(
                     tool_name=tool_name,
                     success=False,

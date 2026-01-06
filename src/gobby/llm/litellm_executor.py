@@ -84,8 +84,7 @@ class LiteLLMExecutor(AgentExecutor):
 
         except ImportError as e:
             raise ImportError(
-                "litellm package not found. "
-                "Please install with `pip install litellm`."
+                "litellm package not found. Please install with `pip install litellm`."
             ) from e
 
     @property
@@ -93,9 +92,7 @@ class LiteLLMExecutor(AgentExecutor):
         """Return the provider name."""
         return "litellm"
 
-    def _convert_tools_to_openai_format(
-        self, tools: list[ToolSchema]
-    ) -> list[dict[str, Any]]:
+    def _convert_tools_to_openai_format(self, tools: list[ToolSchema]) -> list[dict[str, Any]]:
         """Convert ToolSchema list to OpenAI function calling format."""
         openai_tools = []
         for tool in tools:
@@ -173,9 +170,7 @@ class LiteLLMExecutor(AgentExecutor):
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
             else:
-                messages.append(
-                    {"role": "system", "content": "You are a helpful assistant."}
-                )
+                messages.append({"role": "system", "content": "You are a helpful assistant."})
             messages.append({"role": "user", "content": prompt})
 
             while turns_used < max_turns:
@@ -253,11 +248,7 @@ class LiteLLMExecutor(AgentExecutor):
 
                         # Format result for LiteLLM
                         if result.success:
-                            content = (
-                                json.dumps(result.result)
-                                if result.result
-                                else "Success"
-                            )
+                            content = json.dumps(result.result) if result.result else "Success"
                         else:
                             content = f"Error: {result.error}"
 

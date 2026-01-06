@@ -244,8 +244,12 @@ def embedding_stats(ctx: click.Context, project_id: str | None) -> None:
 @memory.command("init")
 @click.option("--path", "-p", "project_path", default=".", help="Project path to scan")
 @click.option("--scan/--no-scan", default=True, help="Scan codebase for patterns")
-@click.option("--import-claude-md/--no-import-claude-md", "import_md", default=True,
-              help="Import from CLAUDE.md/GEMINI.md/CODEX.md")
+@click.option(
+    "--import-claude-md/--no-import-claude-md",
+    "import_md",
+    default=True,
+    help="Import from CLAUDE.md/GEMINI.md/CODEX.md",
+)
 @click.option("--max-files", "-n", default=20, help="Maximum files to sample for codebase scan")
 @click.option("--project", "project_id", help="Project ID for memories")
 @click.pass_context
@@ -276,6 +280,7 @@ def init_memory(
     llm_service = None
     try:
         from gobby.llm.service import LLMService
+
         llm_service = LLMService(config)
     except Exception as e:
         click.echo(f"Warning: LLM service not available: {e}", err=True)

@@ -165,9 +165,7 @@ class ActionExecutor:
             # Validate input against schema
             is_valid, error = plugin_action.validate_input(kwargs)
             if not is_valid:
-                logger.warning(
-                    f"Plugin action '{plugin_action.name}' validation failed: {error}"
-                )
+                logger.warning(f"Plugin action '{plugin_action.name}' validation failed: {error}")
                 return {"error": f"Schema validation failed: {error}"}
 
             # Call the actual handler
@@ -878,9 +876,7 @@ class ActionExecutor:
             workflow_state=context.state,
         )
 
-    async def _handle_webhook(
-        self, context: ActionContext, **kwargs: Any
-    ) -> dict[str, Any] | None:
+    async def _handle_webhook(self, context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
         """Execute a webhook HTTP request.
 
         Args (via kwargs):
@@ -965,7 +961,9 @@ class ActionExecutor:
 
         # Log outcome
         if result.success:
-            logger.info(f"Webhook {webhook_action.method} {webhook_action.url} succeeded: {result.status_code}")
+            logger.info(
+                f"Webhook {webhook_action.method} {webhook_action.url} succeeded: {result.status_code}"
+            )
         else:
             logger.warning(
                 f"Webhook {webhook_action.method} {webhook_action.url} failed: "

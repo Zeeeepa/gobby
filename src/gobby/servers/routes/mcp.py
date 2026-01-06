@@ -1049,9 +1049,7 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
 
             schema_hash_manager = SchemaHashManager(db=server._mcp_db_manager.db)
             semantic_search = (
-                server._tools_handler._semantic_search
-                if server._tools_handler
-                else None
+                server._tools_handler._semantic_search if server._tools_handler else None
             )
 
             stats: dict[str, Any] = {
@@ -1190,9 +1188,7 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
                                 )
                                 server_stats["embeddings"] += 1
                             except Exception as e:
-                                logger.warning(
-                                    f"Failed to embed {server_name}/{tool['name']}: {e}"
-                                )
+                                logger.warning(f"Failed to embed {server_name}/{tool['name']}: {e}")
 
                     stats["by_server"][server_name] = server_stats
                     stats["servers_processed"] += 1

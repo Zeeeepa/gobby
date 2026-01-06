@@ -1212,12 +1212,7 @@ def create_task_registry(
             generate_validation if generate_validation is not None else auto_generate_on_create
         )
         validation_generated = False
-        if (
-            should_generate
-            and not validation_criteria
-            and task_type != "epic"
-            and task_validator
-        ):
+        if should_generate and not validation_criteria and task_type != "epic" and task_validator:
             try:
                 criteria = await task_validator.generate_criteria(
                     title=title,
@@ -1664,15 +1659,12 @@ def create_task_registry(
         try:
             db = LocalDatabase()
             worktree_manager = LocalWorktreeManager(db)
-            worktrees = worktree_manager.list(task_id=task_id)
-            for wt in worktrees:
+            wt = worktree_manager.get_by_task(task_id)
+            if wt:
                 if reason in ("wont_fix", "obsolete"):
-                    # Task won't be completed - abandon the worktree
                     worktree_manager.mark_abandoned(wt.id)
                 elif reason == "completed":
-                    # Task completed - mark worktree as merged (work is done)
                     worktree_manager.mark_merged(wt.id)
-                # For other reasons (duplicate, already_implemented), leave as-is
         except Exception:
             pass  # Best-effort worktree update, don't fail the close
 
@@ -1749,10 +1741,12 @@ def create_task_registry(
 
                 db = LocalDatabase()
                 worktree_manager = LocalWorktreeManager(db)
-                worktrees = worktree_manager.list(task_id=task_id)
-                for wt in worktrees:
-                    if wt.status in (WorktreeStatus.MERGED.value, WorktreeStatus.ABANDONED.value):
-                        worktree_manager.update(wt.id, status=WorktreeStatus.ACTIVE.value)
+                wt = worktree_manager.get_by_task(task_id)
+                if wt and wt.status in (
+                    WorktreeStatus.MERGED.value,
+                    WorktreeStatus.ABANDONED.value,
+                ):
+                    worktree_manager.update(wt.id, status=WorktreeStatus.ACTIVE.value)
             except Exception:
                 pass  # Best-effort worktree update
 

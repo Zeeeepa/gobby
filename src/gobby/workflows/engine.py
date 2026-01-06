@@ -94,7 +94,9 @@ class WorkflowEngine:
         # 3. Load definition
         # Skip if this is a lifecycle-only state (used for task_claimed tracking)
         if state.workflow_name == "__lifecycle__":
-            logger.debug(f"Skipping stepped workflow handling for lifecycle state in session {session_id}")
+            logger.debug(
+                f"Skipping stepped workflow handling for lifecycle state in session {session_id}"
+            )
             return HookResponse(decision="allow")
 
         workflow = self.loader.load_workflow(state.workflow_name)
@@ -984,8 +986,7 @@ class WorkflowEngine:
             state.variables["task_claimed"] = False
             state.variables["claimed_task_id"] = None
             logger.info(
-                f"Session {state.session_id}: task_claimed=False "
-                f"(task closed via close_task)"
+                f"Session {state.session_id}: task_claimed=False (task closed via close_task)"
             )
             return
 
@@ -1016,8 +1017,6 @@ class WorkflowEngine:
             if task_id and session_task_mgr:
                 try:
                     session_task_mgr.link_task(state.session_id, task_id, "worked_on")
-                    logger.info(
-                        f"Auto-linked task {task_id} to session {state.session_id}"
-                    )
+                    logger.info(f"Auto-linked task {task_id} to session {state.session_id}")
                 except Exception as e:
                     logger.warning(f"Failed to auto-link task {task_id}: {e}")

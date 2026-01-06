@@ -149,9 +149,7 @@ class LocalWorktreeManager:
 
     def get_by_path(self, worktree_path: str) -> Worktree | None:
         """Get worktree by path."""
-        row = self.db.fetchone(
-            "SELECT * FROM worktrees WHERE worktree_path = ?", (worktree_path,)
-        )
+        row = self.db.fetchone("SELECT * FROM worktrees WHERE worktree_path = ?", (worktree_path,))
         return Worktree.from_row(row) if row else None
 
     def get_by_branch(self, project_id: str, branch_name: str) -> Worktree | None:
@@ -164,12 +162,10 @@ class LocalWorktreeManager:
 
     def get_by_task(self, task_id: str) -> Worktree | None:
         """Get worktree linked to a task."""
-        row = self.db.fetchone(
-            "SELECT * FROM worktrees WHERE task_id = ?", (task_id,)
-        )
+        row = self.db.fetchone("SELECT * FROM worktrees WHERE task_id = ?", (task_id,))
         return Worktree.from_row(row) if row else None
 
-    def list(
+    def list_worktrees(
         self,
         project_id: str | None = None,
         status: str | None = None,
@@ -252,9 +248,7 @@ class LocalWorktreeManager:
         Returns:
             True if deleted, False if not found
         """
-        cursor = self.db.execute(
-            "DELETE FROM worktrees WHERE id = ?", (worktree_id,)
-        )
+        cursor = self.db.execute("DELETE FROM worktrees WHERE id = ?", (worktree_id,))
         return cursor.rowcount > 0
 
     # Status transition methods

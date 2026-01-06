@@ -75,22 +75,25 @@ class EscalationSummary:
         ]
 
         if self.feedback:
-            lines.extend([
-                "## Feedback",
-                "",
-                self.feedback,
-                "",
-            ])
+            lines.extend(
+                [
+                    "## Feedback",
+                    "",
+                    self.feedback,
+                    "",
+                ]
+            )
 
         if self.recurring_issues:
-            lines.extend([
-                "## Recurring Issues",
-                "",
-            ])
+            lines.extend(
+                [
+                    "## Recurring Issues",
+                    "",
+                ]
+            )
             for issue in self.recurring_issues:
                 lines.append(
-                    f"- **{issue.get('title', 'Unknown')}** "
-                    f"(seen {issue.get('count', 0)} times)"
+                    f"- **{issue.get('title', 'Unknown')}** (seen {issue.get('count', 0)} times)"
                 )
             lines.append("")
 

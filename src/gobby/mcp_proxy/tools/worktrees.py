@@ -189,7 +189,7 @@ def create_worktrees_registry(
         Returns:
             Dict with list of worktrees.
         """
-        worktrees = worktree_storage.list(
+        worktrees = worktree_storage.list_worktrees(
             project_id=project_id,
             status=status,
             agent_session_id=agent_session_id,

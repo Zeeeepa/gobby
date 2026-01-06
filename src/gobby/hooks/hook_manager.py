@@ -1168,7 +1168,9 @@ class HookManager:
 
             # Skip if already completed
             if agent_run.status in ("success", "error", "timeout", "cancelled"):
-                self.logger.debug(f"Agent run {agent_run_id} already in terminal state: {agent_run.status}")
+                self.logger.debug(
+                    f"Agent run {agent_run_id} already in terminal state: {agent_run.status}"
+                )
                 return
 
             # Use summary as result if available
@@ -1216,7 +1218,7 @@ class HookManager:
         """
         try:
             # Find worktrees owned by this session
-            worktrees = self._worktree_manager.list(agent_session_id=session_id)
+            worktrees = self._worktree_manager.list_worktrees(agent_session_id=session_id)
 
             for worktree in worktrees:
                 try:
@@ -1224,9 +1226,7 @@ class HookManager:
                     self._worktree_manager.release(worktree.id)
                     self.logger.debug(f"Released worktree {worktree.id} from session {session_id}")
                 except Exception as e:
-                    self.logger.warning(
-                        f"Failed to release worktree {worktree.id}: {e}"
-                    )
+                    self.logger.warning(f"Failed to release worktree {worktree.id}: {e}")
 
             if worktrees:
                 self.logger.info(

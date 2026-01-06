@@ -277,7 +277,7 @@ def extract_handoff_context(
 
             db = LocalDatabase()
             worktree_manager = LocalWorktreeManager(db)
-            worktrees = worktree_manager.list(agent_session_id=session_id, limit=1)
+            worktrees = worktree_manager.list_worktrees(agent_session_id=session_id, limit=1)
             if worktrees:
                 wt = worktrees[0]
                 handoff_ctx.active_worktree = {

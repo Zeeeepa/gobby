@@ -126,9 +126,7 @@ def get_multi_commit_diff(
     Returns:
         Combined diff string, or None if not available
     """
-    result = run_git_command(
-        ["git", "diff", f"HEAD~{commit_count}..HEAD"], cwd=cwd, timeout=30
-    )
+    result = run_git_command(["git", "diff", f"HEAD~{commit_count}..HEAD"], cwd=cwd, timeout=30)
     if result is None or result.returncode != 0 or not result.stdout.strip():
         return None
 
@@ -182,29 +180,31 @@ def extract_file_patterns_from_text(text: str) -> list[str]:
     patterns: set[str] = set()
 
     # Match explicit file paths like src/foo/bar.py or ./tests/test_x.py
-    file_path_re = re.compile(r'[./]?[\w\-]+(?:/[\w\-]+)*\.\w+')
+    file_path_re = re.compile(r"[./]?[\w\-]+(?:/[\w\-]+)*\.\w+")
     for match in file_path_re.findall(text):
         # Skip URLs and common false positives
         if not match.startswith("http") and not match.startswith("www."):
             patterns.add(match.lstrip("./"))
 
     # Match module references like gobby.tasks.validation
-    module_re = re.compile(r'\b(gobby(?:\.\w+)+)\b')
+    module_re = re.compile(r"\b(gobby(?:\.\w+)+)\b")
     for match in module_re.findall(text):
         # Convert module path to file path
         file_path = "src/" + match.replace(".", "/") + ".py"
         patterns.add(file_path)
 
     # Extract test file hints from test_ prefixed words
-    test_re = re.compile(r'\btest_(\w+)\b')
+    test_re = re.compile(r"\btest_(\w+)\b")
     for match in test_re.findall(text):
         patterns.add(f"tests/**/test_{match}*.py")
 
     # Extract class/function names and look for their definitions
-    class_re = re.compile(r'\b([A-Z][a-zA-Z0-9]+(?:Manager|Validator|Plugin|Handler|Service))\b')
+    class_re = re.compile(r"\b([A-Z][a-zA-Z0-9]+(?:Manager|Validator|Plugin|Handler|Service))\b")
     for match in class_re.findall(text):
         # These could be in any .py file, add as grep pattern hint
-        patterns.add(f"**/{''.join(c if c.islower() else '_' + c.lower() for c in match).lstrip('_')}*.py")
+        patterns.add(
+            f"**/{''.join(c if c.islower() else '_' + c.lower() for c in match).lstrip('_')}*.py"
+        )
 
     return list(patterns)
 
@@ -235,7 +235,7 @@ def find_matching_files(
         if "*" in pattern:
             try:
                 matches = list(base.glob(pattern))
-                for match in matches[:max_files - len(found)]:
+                for match in matches[: max_files - len(found)]:
                     if match.is_file() and match not in found:
                         found.append(match)
             except Exception as e:
@@ -322,13 +322,13 @@ def get_validation_context_smart(
     # Strategy 1: Current uncommitted changes
     staged = run_git_command(["git", "diff", "--cached"], cwd=cwd)
     if staged and staged.stdout.strip():
-        content = staged.stdout[:remaining_chars // 2]
+        content = staged.stdout[: remaining_chars // 2]
         context_parts.append(f"=== STAGED CHANGES ===\n{content}")
         remaining_chars -= len(content)
 
     unstaged = run_git_command(["git", "diff"], cwd=cwd)
     if unstaged and unstaged.stdout.strip():
-        content = unstaged.stdout[:remaining_chars // 2]
+        content = unstaged.stdout[: remaining_chars // 2]
         context_parts.append(f"=== UNSTAGED CHANGES ===\n{content}")
         remaining_chars -= len(content)
 

@@ -177,9 +177,7 @@ class EnhancedTaskValidator:
 
                 # Check for recurring issues after recording
                 if self.history_manager.has_recurring_issues(task_id):
-                    logger.info(
-                        f"Recurring issues detected for task {task_id}, escalating"
-                    )
+                    logger.info(f"Recurring issues detected for task {task_id}, escalating")
                     return ValidationResult(
                         valid=False,
                         iterations=iteration,
@@ -216,8 +214,7 @@ class EnhancedTaskValidator:
 
         # Max iterations exceeded
         logger.info(
-            f"Max iterations ({self.max_iterations}) exceeded for task {task_id}, "
-            f"escalating"
+            f"Max iterations ({self.max_iterations}) exceeded for task {task_id}, escalating"
         )
         return ValidationResult(
             valid=False,

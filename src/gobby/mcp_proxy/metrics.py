@@ -505,9 +505,7 @@ class ToolMetricsManager:
                 "total_latency_ms": row["total_latency_ms"],
                 "avg_latency_ms": row["avg_latency_ms"],
                 "success_rate": (
-                    row["success_count"] / row["call_count"]
-                    if row["call_count"] > 0
-                    else None
+                    row["success_count"] / row["call_count"] if row["call_count"] > 0 else None
                 ),
             }
             for row in rows
@@ -524,9 +522,7 @@ class ToolMetricsManager:
                 "total_days": len({d["date"] for d in daily_data}),
                 "total_calls": total_calls,
                 "total_success": total_success,
-                "overall_success_rate": (
-                    total_success / total_calls if total_calls > 0 else None
-                ),
+                "overall_success_rate": (total_success / total_calls if total_calls > 0 else None),
                 "overall_avg_latency_ms": (
                     total_latency / total_calls if total_calls > 0 else None
                 ),

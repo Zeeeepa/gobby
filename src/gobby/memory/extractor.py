@@ -20,16 +20,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Directories to skip when analyzing source files and directory structure
-SKIP_DIRS = frozenset({
-    "node_modules",
-    ".git",
-    "__pycache__",
-    ".venv",
-    "venv",
-    "dist",
-    "build",
-    ".next",
-})
+SKIP_DIRS = frozenset(
+    {
+        "node_modules",
+        ".git",
+        "__pycache__",
+        ".venv",
+        "venv",
+        "dist",
+        "build",
+        ".next",
+    }
+)
 
 
 @dataclass

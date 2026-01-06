@@ -178,9 +178,7 @@ def install_claude(project_path: Path) -> dict[str, Any]:
 
     # Write merged settings back using atomic write
     try:
-        fd, temp_path = tempfile.mkstemp(
-            dir=str(claude_path), suffix=".tmp", prefix="settings_"
-        )
+        fd, temp_path = tempfile.mkstemp(dir=str(claude_path), suffix=".tmp", prefix="settings_")
         try:
             with os.fdopen(fd, "w") as f:
                 json.dump(existing_settings, f, indent=2)

@@ -108,9 +108,7 @@ class GeminiExecutor(AgentExecutor):
         """Return the provider name."""
         return "gemini"
 
-    def _convert_tools_to_gemini_format(
-        self, tools: list[ToolSchema]
-    ) -> list[dict[str, Any]]:
+    def _convert_tools_to_gemini_format(self, tools: list[ToolSchema]) -> list[dict[str, Any]]:
         """Convert ToolSchema list to Gemini function declarations format."""
         function_declarations = []
         for tool in tools:
@@ -268,7 +266,11 @@ class GeminiExecutor(AgentExecutor):
                         # Format result for Gemini
                         if result.success:
                             # Use 'is not None' to preserve legitimate falsy values like 0, False, {}
-                            response_data = result.result if result.result is not None else {"status": "success"}
+                            response_data = (
+                                result.result
+                                if result.result is not None
+                                else {"status": "success"}
+                            )
                         else:
                             response_data = {"error": result.error}
 

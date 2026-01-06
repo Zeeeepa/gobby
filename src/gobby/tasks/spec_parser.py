@@ -139,9 +139,7 @@ class MarkdownStructureParser:
 
         return headings
 
-    def _calculate_line_ends(
-        self, headings: list[HeadingNode], total_lines: int
-    ) -> None:
+    def _calculate_line_ends(self, headings: list[HeadingNode], total_lines: int) -> None:
         """Calculate the line_end for each heading.
 
         Each heading's section ends at the line before the next heading
@@ -163,9 +161,7 @@ class MarkdownStructureParser:
 
             heading.line_end = end_line
 
-    def _extract_content(
-        self, headings: list[HeadingNode], lines: list[str]
-    ) -> None:
+    def _extract_content(self, headings: list[HeadingNode], lines: list[str]) -> None:
         """Extract the content for each heading section.
 
         Content is the text between the heading line and the next heading.
@@ -236,9 +232,7 @@ class MarkdownStructureParser:
 
         return root_nodes
 
-    def get_sections_at_level(
-        self, tree: list[HeadingNode], level: int
-    ) -> list[HeadingNode]:
+    def get_sections_at_level(self, tree: list[HeadingNode], level: int) -> list[HeadingNode]:
         """Get all sections at a specific heading level.
 
         Args:
@@ -982,9 +976,7 @@ class TaskHierarchyBuilder:
         else:
             # No checkboxes - fall back to LLM expansion
             if task_expander and heading.content.strip():
-                logger.info(
-                    f"No checkboxes under '{heading.text}', using LLM expansion"
-                )
+                logger.info(f"No checkboxes under '{heading.text}', using LLM expansion")
                 try:
                     result = await task_expander.expand_task(
                         task_id=task.id,
@@ -1013,13 +1005,10 @@ class TaskHierarchyBuilder:
 
                     if result.get("error"):
                         logger.warning(
-                            f"LLM expansion failed for '{heading.text}': "
-                            f"{result.get('error')}"
+                            f"LLM expansion failed for '{heading.text}': {result.get('error')}"
                         )
                 except Exception as e:
-                    logger.warning(
-                        f"LLM fallback failed for '{heading.text}': {e}"
-                    )
+                    logger.warning(f"LLM fallback failed for '{heading.text}': {e}")
             else:
                 # No expander available, still process children (as epics/tasks)
                 for child in heading.children:

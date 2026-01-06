@@ -603,8 +603,7 @@ class WebSocketServer:
         for websocket in list(self.clients.keys()):
             try:
                 await asyncio.wait_for(
-                    websocket.close(code=1001, reason="Server shutting down"),
-                    timeout=2.0
+                    websocket.close(code=1001, reason="Server shutting down"), timeout=2.0
                 )
             except TimeoutError:
                 logger.warning("Client connection close timed out")

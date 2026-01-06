@@ -29,7 +29,7 @@ def get_daemon_url() -> str:
     from gobby.config.app import load_config
 
     config = load_config()
-    return f"http://{config.daemon_host}:{config.daemon_port}"
+    return f"http://localhost:{config.daemon_port}"
 
 
 @click.group()
@@ -225,9 +225,7 @@ def list_agents(
         prompt = run.prompt[:40] + "..." if len(run.prompt) > 40 else run.prompt
         prompt = prompt.replace("\n", " ")
 
-        click.echo(
-            f"{status_icon} {run.id[:12]}  {run.status:<10} {run.provider:<8} {prompt}"
-        )
+        click.echo(f"{status_icon} {run.id[:12]}  {run.status:<10} {run.provider:<8} {prompt}")
 
 
 @agents.command("show")
@@ -414,8 +412,8 @@ def agent_stats(session_id: str | None) -> None:
             click.echo(f"  Timeout: {row['timeout']}")
             click.echo(f"  Cancelled: {row['cancelled']}")
 
-            if row['total'] > 0:
-                success_rate = (row['success'] / row['total']) * 100
+            if row["total"] > 0:
+                success_rate = (row["success"] / row["total"]) * 100
                 click.echo(f"\n  Success Rate: {success_rate:.1f}%")
         else:
             click.echo("No agent runs found.")
