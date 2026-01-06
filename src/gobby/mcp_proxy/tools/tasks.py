@@ -28,6 +28,9 @@ from gobby.mcp_proxy.tools.task_expansion import (
 from gobby.mcp_proxy.tools.task_readiness import (
     create_readiness_registry,
 )
+from gobby.mcp_proxy.tools.task_sync import (
+    create_sync_registry,
+)
 from gobby.mcp_proxy.tools.task_validation import (
     create_validation_registry,
 )
@@ -52,7 +55,7 @@ from gobby.tasks.validation_history import ValidationHistoryManager
 from gobby.utils.project_context import get_project_context
 from gobby.utils.project_init import initialize_project
 
-__all__ = ["create_task_registry", "create_dependency_registry", "create_expansion_registry", "create_readiness_registry", "create_validation_registry"]
+__all__ = ["create_task_registry", "create_dependency_registry", "create_expansion_registry", "create_readiness_registry", "create_sync_registry", "create_validation_registry"]
 
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
@@ -2440,6 +2443,17 @@ def create_task_registry(
         task_manager=task_manager,
     )
     for tool_name, tool in readiness_registry._tools.items():
+        registry._tools[tool_name] = tool
+
+    # Merge sync tools from extracted module (Strangler Fig pattern)
+    sync_registry = create_sync_registry(
+        sync_manager=sync_manager,
+        task_manager=task_manager,
+        project_manager=project_manager,
+        auto_link_commits_fn=auto_link_commits_fn,
+        get_task_diff_fn=get_task_diff,
+    )
+    for tool_name, tool in sync_registry._tools.items():
         registry._tools[tool_name] = tool
 
     return registry
