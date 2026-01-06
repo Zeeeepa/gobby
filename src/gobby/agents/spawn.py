@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from gobby.agents.constants import get_terminal_env_vars
+from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 
 # Maximum prompt length to pass via environment variable
 # Longer prompts will be written to a temp file
@@ -783,6 +784,131 @@ class TerminalSpawner:
 
         logger.debug(f"Wrote prompt to temp file: {prompt_path}")
         return str(prompt_path)
+
+
+@dataclass
+class PreparedSpawn:
+    """Configuration for a prepared terminal spawn."""
+
+    session_id: str
+    """The pre-created child session ID."""
+
+    agent_run_id: str
+    """The agent run record ID."""
+
+    parent_session_id: str
+    """The parent session ID."""
+
+    project_id: str
+    """The project ID."""
+
+    workflow_name: str | None
+    """Workflow to activate (if any)."""
+
+    agent_depth: int
+    """Current agent depth."""
+
+    env_vars: dict[str, str]
+    """Environment variables to set."""
+
+
+def prepare_terminal_spawn(
+    session_manager: ChildSessionManager,
+    parent_session_id: str,
+    project_id: str,
+    machine_id: str,
+    source: str = "claude",
+    agent_id: str | None = None,
+    workflow_name: str | None = None,
+    title: str | None = None,
+    git_branch: str | None = None,
+    prompt: str | None = None,
+    max_agent_depth: int = 3,
+) -> PreparedSpawn:
+    """
+    Prepare a terminal spawn by creating the child session.
+
+    This should be called before spawning a terminal to:
+    1. Create the child session in the database
+    2. Generate the agent run ID
+    3. Build the environment variables
+
+    Args:
+        session_manager: ChildSessionManager for session creation
+        parent_session_id: Parent session ID
+        project_id: Project ID
+        machine_id: Machine ID
+        source: CLI source (claude, gemini, codex)
+        agent_id: Optional agent ID
+        workflow_name: Optional workflow to activate
+        title: Optional session title
+        git_branch: Optional git branch
+        prompt: Optional initial prompt
+        max_agent_depth: Maximum agent depth
+
+    Returns:
+        PreparedSpawn with all necessary spawn configuration
+
+    Raises:
+        ValueError: If max agent depth exceeded
+    """
+    import uuid
+
+    # Create child session config
+    config = ChildSessionConfig(
+        parent_session_id=parent_session_id,
+        project_id=project_id,
+        machine_id=machine_id,
+        source=source,
+        agent_id=agent_id,
+        workflow_name=workflow_name,
+        title=title,
+        git_branch=git_branch,
+    )
+
+    # Create the child session
+    child_session = session_manager.create_child_session(config)
+
+    # Generate agent run ID
+    agent_run_id = f"run-{uuid.uuid4().hex[:12]}"
+
+    # Handle prompt - decide env var vs file
+    prompt_env: str | None = None
+    prompt_file: str | None = None
+
+    if prompt:
+        if len(prompt) <= MAX_ENV_PROMPT_LENGTH:
+            prompt_env = prompt
+        else:
+            # Write to temp file
+            temp_dir = Path(tempfile.gettempdir()) / "gobby-prompts"
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            prompt_path = temp_dir / f"prompt-{child_session.id}.txt"
+            prompt_path.write_text(prompt, encoding="utf-8")
+            prompt_file = str(prompt_path)
+
+    # Build environment variables
+    env_vars = get_terminal_env_vars(
+        session_id=child_session.id,
+        parent_session_id=parent_session_id,
+        agent_run_id=agent_run_id,
+        project_id=project_id,
+        workflow_name=workflow_name,
+        agent_depth=child_session.agent_depth,
+        max_agent_depth=max_agent_depth,
+        prompt=prompt_env,
+        prompt_file=prompt_file,
+    )
+
+    return PreparedSpawn(
+        session_id=child_session.id,
+        agent_run_id=agent_run_id,
+        parent_session_id=parent_session_id,
+        project_id=project_id,
+        workflow_name=workflow_name,
+        agent_depth=child_session.agent_depth,
+        env_vars=env_vars,
+    )
 
 
 def read_prompt_from_env() -> str | None:
