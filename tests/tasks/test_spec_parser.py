@@ -206,6 +206,64 @@ Content."""
         assert result[0].text == "**Bold** Section"
         assert result[0].children[0].text == "_Italic_ Subsection"
 
+    def test_parse_skips_headings_in_fenced_code_blocks(self, parser):
+        """Headings inside fenced code blocks should be ignored."""
+        text = """## Real Section
+
+Some content.
+
+```markdown
+## Fake Heading in Code
+
+### Another Fake
+```
+
+### Real Subsection
+
+More content."""
+        result = parser.parse(text)
+
+        # Should only find 1 top-level heading with 1 child
+        assert len(result) == 1
+        assert result[0].text == "Real Section"
+        assert len(result[0].children) == 1
+        assert result[0].children[0].text == "Real Subsection"
+
+    def test_parse_skips_headings_in_tilde_code_blocks(self, parser):
+        """Headings inside ~~~ code blocks should also be ignored."""
+        text = """## Section One
+
+~~~python
+## This is a comment, not a heading
+def foo():
+    pass
+~~~
+
+## Section Two"""
+        result = parser.parse(text)
+
+        # Should find 2 top-level headings
+        assert len(result) == 2
+        assert result[0].text == "Section One"
+        assert result[1].text == "Section Two"
+
+    def test_parse_nested_code_blocks_handled_correctly(self, parser):
+        """Mixed fence types are tracked correctly."""
+        text = """## Before
+
+```yaml
+context_template: |
+  ## Heading in YAML
+  Some text
+```
+
+## After"""
+        result = parser.parse(text)
+
+        assert len(result) == 2
+        assert result[0].text == "Before"
+        assert result[1].text == "After"
+
 
 class TestGetSectionsAtLevel:
     """Tests for MarkdownStructureParser.get_sections_at_level()."""
@@ -872,6 +930,45 @@ class TestCheckboxExtractorEdgeCases:
         assert len(result.items[0].children) == 2  # Root 1 has 2 children
         assert len(result.items[1].children) == 1  # Root 2 has 1 child
 
+    def test_skips_checkboxes_in_fenced_code_blocks(self):
+        """Checkboxes inside fenced code blocks should be ignored."""
+        content = """
+## Real Section
+- [ ] Real task 1
+
+```markdown
+- [ ] Fake task in code
+- [x] Another fake
+```
+
+- [ ] Real task 2
+"""
+        extractor = CheckboxExtractor(track_headings=True)
+        result = extractor.extract(content)
+
+        assert result.total_count == 2
+        assert result.items[0].text == "Real task 1"
+        assert result.items[1].text == "Real task 2"
+
+    def test_skips_headings_in_fenced_code_blocks(self):
+        """Headings inside fenced code blocks should not affect parent_heading tracking."""
+        content = """
+## Real Section
+
+```yaml
+## Fake Section in YAML
+- [ ] Fake checkbox
+```
+
+- [ ] Task under real section
+"""
+        extractor = CheckboxExtractor(track_headings=True)
+        result = extractor.extract(content)
+
+        assert result.total_count == 1
+        assert result.items[0].text == "Task under real section"
+        assert result.items[0].parent_heading == "Real Section"
+
 
 # =============================================================================
 # Task Hierarchy Builder Tests
@@ -881,11 +978,19 @@ class TestCheckboxExtractorEdgeCases:
 class MockTask:
     """Mock task object for testing."""
 
-    def __init__(self, id: str, title: str, task_type: str, parent_task_id: str | None = None):
+    def __init__(
+        self,
+        id: str,
+        title: str,
+        task_type: str,
+        parent_task_id: str | None = None,
+        status: str = "open",
+    ):
         self.id = id
         self.title = title
         self.task_type = task_type
         self.parent_task_id = parent_task_id
+        self.status = status
 
 
 class MockTaskManager:
@@ -920,6 +1025,13 @@ class MockTaskManager:
     def update_task(self, task_id: str, **kwargs) -> None:
         """Record a task update."""
         self.updates.append({"task_id": task_id, **kwargs})
+
+    def get_task(self, task_id: str) -> MockTask | None:
+        """Get a task by ID."""
+        for task in self.tasks:
+            if task.id == task_id:
+                return task
+        return None
 
 
 @pytest.fixture

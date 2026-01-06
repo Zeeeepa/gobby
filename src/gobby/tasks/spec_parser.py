@@ -88,8 +88,13 @@ class MarkdownStructureParser:
         # Build the tree structure
         return self._build_tree(headings)
 
+    # Pattern to detect fenced code block markers (``` or ~~~)
+    FENCE_PATTERN = re.compile(r"^(`{3,}|~{3,})")
+
     def _extract_headings(self, lines: list[str]) -> list[HeadingNode]:
         """Extract all headings from the lines.
+
+        Skips headings that appear inside fenced code blocks (``` or ~~~).
 
         Args:
             lines: List of lines from the markdown text
@@ -98,8 +103,28 @@ class MarkdownStructureParser:
             Flat list of HeadingNode objects in document order
         """
         headings: list[HeadingNode] = []
+        in_code_block = False
+        fence_marker: str | None = None  # Track the specific fence character
 
         for i, line in enumerate(lines):
+            # Check for fenced code block markers
+            fence_match = self.FENCE_PATTERN.match(line)
+            if fence_match:
+                marker = fence_match.group(1)[0]  # Get ` or ~
+                if not in_code_block:
+                    # Starting a code block
+                    in_code_block = True
+                    fence_marker = marker
+                elif marker == fence_marker:
+                    # Ending the code block (must match same fence type)
+                    in_code_block = False
+                    fence_marker = None
+                continue
+
+            # Skip headings inside code blocks
+            if in_code_block:
+                continue
+
             match = self.HEADING_PATTERN.match(line)
             if match:
                 level = len(match.group(1))
@@ -296,6 +321,9 @@ CHECKBOX_PATTERN = re.compile(r"^(\s*)[-*]\s+\[([ xX])\]\s+(.+)$")
 # Regex pattern for markdown headings (to track parent context)
 HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+)$")
 
+# Regex pattern for fenced code block markers (``` or ~~~)
+FENCE_PATTERN = re.compile(r"^(`{3,}|~{3,})")
+
 
 @dataclass
 class ExtractedCheckboxes:
@@ -391,6 +419,8 @@ class CheckboxExtractor:
         """
         Extract checkbox items from lines.
 
+        Skips content inside fenced code blocks (``` or ~~~).
+
         Args:
             lines: List of markdown lines
 
@@ -399,8 +429,26 @@ class CheckboxExtractor:
         """
         items: list[CheckboxItem] = []
         current_heading: str | None = None
+        in_code_block = False
+        fence_marker: str | None = None
 
         for line_num, line in enumerate(lines):
+            # Check for fenced code block markers
+            fence_match = FENCE_PATTERN.match(line)
+            if fence_match:
+                marker = fence_match.group(1)[0]  # Get ` or ~
+                if not in_code_block:
+                    in_code_block = True
+                    fence_marker = marker
+                elif marker == fence_marker:
+                    in_code_block = False
+                    fence_marker = None
+                continue
+
+            # Skip content inside code blocks
+            if in_code_block:
+                continue
+
             # Track headings for context
             if self.track_headings:
                 heading_match = HEADING_PATTERN.match(line)
