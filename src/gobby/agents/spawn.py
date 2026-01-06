@@ -346,10 +346,10 @@ class ITermSpawner(TerminalSpawnerBase):
                     create window with default profile command "{script_path}"
                 else
                     -- iTerm just launched, use the default window
-                    -- Wait for shell to be ready, then run command
+                    -- Wait for shell to be ready, then exec script (replaces shell so it closes when done)
                     delay 0.5
                     tell current session of current window
-                        write text "{script_path}"
+                        write text "exec {script_path}"
                     end tell
                 end if
             end tell
