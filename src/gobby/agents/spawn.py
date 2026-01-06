@@ -345,17 +345,14 @@ class ITermSpawner(TerminalSpawnerBase):
             # Check if iTerm is running BEFORE telling it to do anything
             # If not running, iTerm auto-creates a default window on launch
             # If running, we need to create a new window
+            # Always create a new window to avoid interference with existing sessions
             script = f'''
-            set iTermWasRunning to application "iTerm" is running
             tell application "iTerm"
                 activate
-                if iTermWasRunning then
-                    set targetWindow to (create window with default profile)
-                else
-                    -- iTerm just launched and created default window, wait for it
-                    delay 0.3
-                    set targetWindow to current window
-                end if
+                -- Always create a new window to avoid double-write issues with default sessions
+                set targetWindow to (create window with default profile)
+                -- Wait for the session to be ready (shell fully initialized)
+                delay 1
                 tell current session of targetWindow
                     write text "{safe_shell_command}"
                 end tell
