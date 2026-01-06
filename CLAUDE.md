@@ -349,12 +349,112 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title"
 
 **Available internal servers:**
 
+- `gobby-agents` - Subagent spawning with context injection
 - `gobby-tasks` - Task CRUD, dependencies, ready work detection, git sync
 - `gobby-memory` - Memory CRUD, recall, forget, list, stats
 - `gobby-skills` - Skill CRUD, learning, matching, apply, export
 - `gobby-workflows` - Workflow activation, step transitions, **session variables**
 - `gobby-sessions` - Session lookup, messages, handoff context, pickup
 - `gobby-metrics` - Tool metrics and usage statistics
+
+## Agent Spawning with gobby-agents
+
+Use the `gobby-agents` MCP tools to spawn subagents with context injection.
+
+### Agent Tools
+
+| Tool | Description |
+|------|-------------|
+| `start_agent` | Spawn a subagent with a prompt and optional context |
+| `get_agent_result` | Get the result of a completed agent run |
+| `list_agents` | List agent runs for a session |
+| `cancel_agent` | Cancel a running agent |
+| `can_spawn_agent` | Check if agent spawning is allowed from a session |
+
+### start_agent Parameters
+
+```python
+# Spawn a subagent
+call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
+    "prompt": "Implement the feature",
+    "session_context": "summary_markdown",  # Context source
+    "parent_session_id": "sess-abc123",
+})
+```
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `prompt` | str | required | Task for the agent |
+| `session_context` | str | "summary_markdown" | Context source (see below) |
+| `workflow` | str | None | Workflow name to execute |
+| `task` | str | None | Task ID or 'next' for auto-select |
+| `mode` | str | "in_process" | Execution mode |
+| `terminal` | str | "auto" | Terminal for terminal mode |
+| `provider` | str | "claude" | LLM provider |
+| `model` | str | None | Model override |
+| `timeout` | float | 120.0 | Execution timeout in seconds |
+| `max_turns` | int | 10 | Maximum agent turns |
+| `parent_session_id` | str | required | Parent session ID |
+
+### Context Sources
+
+The `session_context` parameter controls what context is injected into the agent's prompt:
+
+| Source | Format | Description |
+|--------|--------|-------------|
+| Summary | `summary_markdown` | Parent session's summary (default) |
+| Handoff | `compact_markdown` | Parent session's compact handoff context |
+| Specific Session | `session_id:<id>` | Summary from a specific session |
+| Transcript | `transcript:<n>` | Last N messages from parent session |
+| File | `file:<path>` | Read file content from project |
+
+**Examples:**
+
+```python
+# Use parent session summary (default)
+call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
+    "prompt": "Implement the feature",
+    "session_context": "summary_markdown",
+    "parent_session_id": "sess-abc123",
+})
+
+# Use compact handoff context
+call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
+    "prompt": "Continue the work",
+    "session_context": "compact_markdown",
+    "parent_session_id": "sess-abc123",
+})
+
+# Use last 10 messages as context
+call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
+    "prompt": "Review recent discussion",
+    "session_context": "transcript:10",
+    "parent_session_id": "sess-abc123",
+})
+
+# Use a file as context
+call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
+    "prompt": "Implement based on this spec",
+    "session_context": "file:docs/spec.md",
+    "parent_session_id": "sess-abc123",
+})
+```
+
+### Configuration
+
+Configure context injection in `~/.gobby/config.yaml`:
+
+```yaml
+context_injection:
+  enabled: true                           # Enable/disable context injection
+  default_source: summary_markdown        # Default context source
+  max_file_size: 51200                    # Max file size (50KB default)
+  max_content_size: 51200                 # Max content size (50KB default)
+  max_transcript_messages: 100            # Max transcript messages
+  truncation_suffix: "\n\n[truncated: {bytes} bytes remaining]"
+```
 
 ## Task Management with gobby-tasks
 
