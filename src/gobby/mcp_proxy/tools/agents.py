@@ -23,6 +23,12 @@ from gobby.agents.context import (
     ContextResolver,
     format_injected_prompt,
 )
+from gobby.agents.spawn import (
+    EmbeddedSpawner,
+    HeadlessSpawner,
+    SpawnMode,
+    TerminalSpawner,
+)
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.utils.project_context import get_project_context
 
@@ -138,11 +144,11 @@ def create_agents_registry(
         from gobby.agents.runner import AgentConfig
 
         # Validate mode
-        supported_modes = {"in_process"}
+        supported_modes = {"in_process", "terminal", "embedded", "headless"}
         if mode not in supported_modes:
             return {
                 "success": False,
-                "error": f"Mode '{mode}' not yet implemented. Supported: {supported_modes}",
+                "error": f"Invalid mode '{mode}'. Supported: {supported_modes}",
             }
 
         # Infer context from project if not provided
@@ -224,27 +230,149 @@ def create_agents_registry(
             project_path=project_path,
         )
 
-        # Create a simple tool handler that returns not implemented
-        async def tool_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
-            from gobby.llm.executor import ToolResult
+        # Handle different execution modes
+        if mode == "in_process":
+            # In-process mode: run directly via runner
+            async def tool_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
+                from gobby.llm.executor import ToolResult
 
-            return ToolResult(
-                tool_name=tool_name,
-                success=False,
-                error=f"Tool {tool_name} not available for this agent",
+                return ToolResult(
+                    tool_name=tool_name,
+                    success=False,
+                    error=f"Tool {tool_name} not available for this agent",
+                )
+
+            result = await runner.run(config, tool_handler=tool_handler)
+
+            return {
+                "success": result.status in ("success", "partial"),
+                "run_id": result.run_id,
+                "status": result.status,
+                "output": result.output,
+                "error": result.error,
+                "turns_used": result.turns_used,
+                "tool_calls_count": len(result.tool_calls),
+            }
+
+        # Terminal, embedded, or headless mode: prepare run then spawn
+        # Use prepare_run to create session and run records
+        from gobby.agents.runner import AgentResult
+
+        prepare_result = runner.prepare_run(config)
+        if isinstance(prepare_result, AgentResult):
+            # prepare_run returns AgentResult on error
+            return {
+                "success": False,
+                "error": prepare_result.error,
+            }
+
+        # Successfully prepared - we have context with session and run
+        context = prepare_result
+
+        # Determine working directory
+        cwd = project_path or "."
+
+        if mode == "terminal":
+            # Spawn in external terminal
+            spawner = TerminalSpawner()
+            spawn_result = spawner.spawn_agent(
+                cli=effective_provider,  # claude, gemini, codex
+                cwd=cwd,
+                session_id=context.session.id,
+                parent_session_id=parent_session_id,
+                agent_run_id=context.run.id,
+                project_id=project_id,
+                workflow_name=workflow,
+                agent_depth=context.session.agent_depth,
+                max_agent_depth=runner._child_session_manager.max_agent_depth,
+                terminal=terminal,
+                prompt=effective_prompt,
             )
 
-        result = await runner.run(config, tool_handler=tool_handler)
+            if not spawn_result.success:
+                return {
+                    "success": False,
+                    "error": spawn_result.error or spawn_result.message,
+                    "run_id": context.run.id,
+                    "child_session_id": context.session.id,
+                }
 
-        return {
-            "success": result.status in ("success", "partial"),
-            "run_id": result.run_id,
-            "status": result.status,
-            "output": result.output,
-            "error": result.error,
-            "turns_used": result.turns_used,
-            "tool_calls_count": len(result.tool_calls),
-        }
+            return {
+                "success": True,
+                "run_id": context.run.id,
+                "child_session_id": context.session.id,
+                "status": "pending",
+                "message": f"Agent spawned in {spawn_result.terminal_type} (PID: {spawn_result.pid})",
+                "terminal_type": spawn_result.terminal_type,
+                "pid": spawn_result.pid,
+            }
+
+        elif mode == "embedded":
+            # Spawn with PTY for UI attachment
+            spawner = EmbeddedSpawner()
+            spawn_result = spawner.spawn_agent(
+                cli=effective_provider,
+                cwd=cwd,
+                session_id=context.session.id,
+                parent_session_id=parent_session_id,
+                agent_run_id=context.run.id,
+                project_id=project_id,
+                workflow_name=workflow,
+                agent_depth=context.session.agent_depth,
+                max_agent_depth=runner._child_session_manager.max_agent_depth,
+                prompt=effective_prompt,
+            )
+
+            if not spawn_result.success:
+                return {
+                    "success": False,
+                    "error": spawn_result.error or spawn_result.message,
+                    "run_id": context.run.id,
+                    "child_session_id": context.session.id,
+                }
+
+            return {
+                "success": True,
+                "run_id": context.run.id,
+                "child_session_id": context.session.id,
+                "status": "pending",
+                "message": f"Agent spawned with PTY (PID: {spawn_result.pid})",
+                "pid": spawn_result.pid,
+                "master_fd": spawn_result.master_fd,
+            }
+
+        else:  # headless mode
+            # Spawn headless with output capture
+            spawner = HeadlessSpawner()
+            spawn_result = spawner.spawn_agent(
+                cli=effective_provider,
+                cwd=cwd,
+                session_id=context.session.id,
+                parent_session_id=parent_session_id,
+                agent_run_id=context.run.id,
+                project_id=project_id,
+                workflow_name=workflow,
+                agent_depth=context.session.agent_depth,
+                max_agent_depth=runner._child_session_manager.max_agent_depth,
+                prompt=effective_prompt,
+            )
+
+            if not spawn_result.success:
+                return {
+                    "success": False,
+                    "error": spawn_result.error or spawn_result.message,
+                    "run_id": context.run.id,
+                    "child_session_id": context.session.id,
+                }
+
+            return {
+                "success": True,
+                "run_id": context.run.id,
+                "child_session_id": context.session.id,
+                "status": "pending",
+                "message": f"Agent spawned headless (PID: {spawn_result.pid})",
+                "pid": spawn_result.pid,
+            }
 
     @registry.tool(
         name="get_agent_result",
