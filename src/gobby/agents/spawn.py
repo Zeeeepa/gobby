@@ -26,6 +26,7 @@ except ImportError:
 
 from gobby.agents.constants import get_terminal_env_vars
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
+from gobby.agents.tty_config import get_tty_config
 
 # Maximum prompt length to pass via environment variable
 # Longer prompts will be written to a temp file
@@ -290,10 +291,15 @@ class GhosttySpawner(TerminalSpawnerBase):
         return TerminalType.GHOSTTY
 
     def is_available(self) -> bool:
+        config = get_tty_config().get_terminal_config("ghostty")
+        if not config.enabled:
+            return False
         # On macOS, check for the app bundle; on other platforms check CLI
         if platform.system() == "Darwin":
-            return Path("/Applications/Ghostty.app").exists()
-        return shutil.which("ghostty") is not None
+            app_path = config.app_path or "/Applications/Ghostty.app"
+            return Path(app_path).exists()
+        command = config.command or "ghostty"
+        return shutil.which(command) is not None
 
     def spawn(
         self,
@@ -303,24 +309,32 @@ class GhosttySpawner(TerminalSpawnerBase):
         title: str | None = None,
     ) -> SpawnResult:
         try:
+            tty_config = get_tty_config().get_terminal_config("ghostty")
             # On macOS, ghostty CLI doesn't support launching the emulator directly
             # Must use 'open -na Ghostty.app --args' instead
             # Note: Ghostty requires --key=value syntax, not --key value
             if platform.system() == "Darwin":
+                app_path = tty_config.app_path or "/Applications/Ghostty.app"
+                app_name = Path(app_path).name  # e.g., "Ghostty.app"
                 # Build args for open command
                 # open -na Ghostty.app --args [ghostty-options] -e [command]
                 # Note: 'open' doesn't pass cwd, so we must use --working-directory
                 ghostty_args = [f"--working-directory={cwd}"]
                 if title:
                     ghostty_args.append(f"--title={title}")
+                # Add any extra options from config
+                ghostty_args.extend(tty_config.options)
                 ghostty_args.extend(["-e"] + command)
 
-                args = ["open", "-na", "Ghostty.app", "--args"] + ghostty_args
+                args = ["open", "-na", app_name, "--args"] + ghostty_args
             else:
                 # On Linux/other platforms, use ghostty CLI directly
-                args = ["ghostty"]
+                cli_command = tty_config.command or "ghostty"
+                args = [cli_command]
                 if title:
                     args.append(f"--title={title}")
+                # Add any extra options from config
+                args.extend(tty_config.options)
                 args.extend(["-e"] + command)
 
             # Merge environment
@@ -361,7 +375,11 @@ class ITermSpawner(TerminalSpawnerBase):
     def is_available(self) -> bool:
         if platform.system() != "Darwin":
             return False
-        return Path("/Applications/iTerm.app").exists()
+        config = get_tty_config().get_terminal_config("iterm")
+        if not config.enabled:
+            return False
+        app_path = config.app_path or "/Applications/iTerm.app"
+        return Path(app_path).exists()
 
     def spawn(
         self,
@@ -440,7 +458,11 @@ class TerminalAppSpawner(TerminalSpawnerBase):
     def is_available(self) -> bool:
         if platform.system() != "Darwin":
             return False
-        return Path("/System/Applications/Utilities/Terminal.app").exists()
+        config = get_tty_config().get_terminal_config("terminal.app")
+        if not config.enabled:
+            return False
+        app_path = config.app_path or "/System/Applications/Utilities/Terminal.app"
+        return Path(app_path).exists()
 
     def spawn(
         self,
@@ -511,7 +533,15 @@ class KittySpawner(TerminalSpawnerBase):
         return TerminalType.KITTY
 
     def is_available(self) -> bool:
-        return shutil.which("kitty") is not None
+        config = get_tty_config().get_terminal_config("kitty")
+        if not config.enabled:
+            return False
+        # On macOS, check app bundle; on other platforms check CLI
+        if platform.system() == "Darwin":
+            app_path = config.app_path or "/Applications/kitty.app"
+            return Path(app_path).exists()
+        command = config.command or "kitty"
+        return shutil.which(command) is not None
 
     def spawn(
         self,
@@ -521,17 +551,20 @@ class KittySpawner(TerminalSpawnerBase):
         title: str | None = None,
     ) -> SpawnResult:
         try:
+            tty_config = get_tty_config().get_terminal_config("kitty")
             if platform.system() == "Darwin":
                 # On macOS, --detach doesn't work properly - command doesn't execute
                 # Use direct path without --detach, subprocess handles backgrounding
-                kitty_path = "/Applications/kitty.app/Contents/MacOS/kitty"
+                app_path = tty_config.app_path or "/Applications/kitty.app"
+                kitty_path = f"{app_path}/Contents/MacOS/kitty"
                 args = [kitty_path, "--directory", str(cwd)]
             else:
                 # On Linux, --detach works correctly
-                args = ["kitty", "--detach", "--directory", str(cwd)]
+                cli_command = tty_config.command or "kitty"
+                args = [cli_command, "--detach", "--directory", str(cwd)]
 
-            # Disable close confirmation prompt for agent windows
-            args.extend(["-o", "confirm_os_window_close=0"])
+            # Add extra options from config (includes confirm_os_window_close=0 by default)
+            args.extend(tty_config.options)
 
             if title:
                 args.extend(["--title", title])
@@ -573,7 +606,11 @@ class AlacrittySpawner(TerminalSpawnerBase):
         return TerminalType.ALACRITTY
 
     def is_available(self) -> bool:
-        return shutil.which("alacritty") is not None
+        config = get_tty_config().get_terminal_config("alacritty")
+        if not config.enabled:
+            return False
+        command = config.command or "alacritty"
+        return shutil.which(command) is not None
 
     def spawn(
         self,
@@ -583,7 +620,11 @@ class AlacrittySpawner(TerminalSpawnerBase):
         title: str | None = None,
     ) -> SpawnResult:
         try:
-            args = ["alacritty", "--working-directory", str(cwd)]
+            tty_config = get_tty_config().get_terminal_config("alacritty")
+            cli_command = tty_config.command or "alacritty"
+            args = [cli_command, "--working-directory", str(cwd)]
+            # Add extra options from config
+            args.extend(tty_config.options)
             if title:
                 args.extend(["--title", title])
             args.extend(["-e"] + command)
@@ -621,7 +662,11 @@ class GnomeTerminalSpawner(TerminalSpawnerBase):
         return TerminalType.GNOME_TERMINAL
 
     def is_available(self) -> bool:
-        return shutil.which("gnome-terminal") is not None
+        config = get_tty_config().get_terminal_config("gnome-terminal")
+        if not config.enabled:
+            return False
+        command = config.command or "gnome-terminal"
+        return shutil.which(command) is not None
 
     def spawn(
         self,
@@ -631,7 +676,11 @@ class GnomeTerminalSpawner(TerminalSpawnerBase):
         title: str | None = None,
     ) -> SpawnResult:
         try:
-            args = ["gnome-terminal", f"--working-directory={cwd}"]
+            tty_config = get_tty_config().get_terminal_config("gnome-terminal")
+            cli_command = tty_config.command or "gnome-terminal"
+            args = [cli_command, f"--working-directory={cwd}"]
+            # Add extra options from config
+            args.extend(tty_config.options)
             if title:
                 args.extend(["--title", title])
             args.extend(["--", *command])
@@ -669,7 +718,11 @@ class KonsoleSpawner(TerminalSpawnerBase):
         return TerminalType.KONSOLE
 
     def is_available(self) -> bool:
-        return shutil.which("konsole") is not None
+        config = get_tty_config().get_terminal_config("konsole")
+        if not config.enabled:
+            return False
+        command = config.command or "konsole"
+        return shutil.which(command) is not None
 
     def spawn(
         self,
@@ -679,7 +732,11 @@ class KonsoleSpawner(TerminalSpawnerBase):
         title: str | None = None,
     ) -> SpawnResult:
         try:
-            args = ["konsole", "--workdir", str(cwd)]
+            tty_config = get_tty_config().get_terminal_config("konsole")
+            cli_command = tty_config.command or "konsole"
+            args = [cli_command, "--workdir", str(cwd)]
+            # Add extra options from config
+            args.extend(tty_config.options)
             if title:
                 args.extend(["-p", f"tabtitle={title}"])
             args.extend(["-e", *command])
@@ -719,7 +776,11 @@ class WindowsTerminalSpawner(TerminalSpawnerBase):
     def is_available(self) -> bool:
         if platform.system() != "Windows":
             return False
-        return shutil.which("wt") is not None
+        config = get_tty_config().get_terminal_config("windows-terminal")
+        if not config.enabled:
+            return False
+        command = config.command or "wt"
+        return shutil.which(command) is not None
 
     def spawn(
         self,
@@ -729,7 +790,11 @@ class WindowsTerminalSpawner(TerminalSpawnerBase):
         title: str | None = None,
     ) -> SpawnResult:
         try:
-            args = ["wt", "-d", str(cwd)]
+            tty_config = get_tty_config().get_terminal_config("windows-terminal")
+            cli_command = tty_config.command or "wt"
+            args = [cli_command, "-d", str(cwd)]
+            # Add extra options from config
+            args.extend(tty_config.options)
             if title:
                 args.extend(["--title", title])
             args.extend(["--", *command])
@@ -767,7 +832,10 @@ class CmdSpawner(TerminalSpawnerBase):
         return TerminalType.CMD
 
     def is_available(self) -> bool:
-        return platform.system() == "Windows"
+        if platform.system() != "Windows":
+            return False
+        config = get_tty_config().get_terminal_config("cmd")
+        return config.enabled
 
     def spawn(
         self,
@@ -824,31 +892,22 @@ class TerminalSpawner:
     Main terminal spawner that auto-detects and uses available terminals.
 
     Provides a unified interface for spawning terminal processes across
-    different platforms and terminal emulators.
+    different platforms and terminal emulators. Terminal preferences and
+    configurations are loaded from ~/.gobby/tty_config.yaml.
     """
 
-    # Terminal preference order by platform
-    MACOS_PREFERENCE = [
-        GhosttySpawner,
-        ITermSpawner,
-        KittySpawner,
-        AlacrittySpawner,
-        TerminalAppSpawner,
-    ]
-
-    LINUX_PREFERENCE = [
-        GhosttySpawner,
-        KittySpawner,
-        GnomeTerminalSpawner,
-        KonsoleSpawner,
-        AlacrittySpawner,
-    ]
-
-    WINDOWS_PREFERENCE = [
-        WindowsTerminalSpawner,
-        AlacrittySpawner,
-        CmdSpawner,
-    ]
+    # Map terminal names to spawner classes
+    SPAWNER_CLASSES: dict[str, type[TerminalSpawnerBase]] = {
+        "ghostty": GhosttySpawner,
+        "iterm": ITermSpawner,
+        "terminal.app": TerminalAppSpawner,
+        "kitty": KittySpawner,
+        "alacritty": AlacrittySpawner,
+        "gnome-terminal": GnomeTerminalSpawner,
+        "konsole": KonsoleSpawner,
+        "windows-terminal": WindowsTerminalSpawner,
+        "cmd": CmdSpawner,
+    }
 
     def __init__(self) -> None:
         """Initialize with platform-specific terminal preferences."""
@@ -879,18 +938,15 @@ class TerminalSpawner:
         ]
 
     def get_preferred_terminal(self) -> TerminalType | None:
-        """Get the preferred available terminal for this platform."""
-        system = platform.system()
+        """Get the preferred available terminal for this platform based on config."""
+        config = get_tty_config()
+        preferences = config.get_preferences()
 
-        if system == "Darwin":
-            preferences = self.MACOS_PREFERENCE
-        elif system == "Windows":
-            preferences = self.WINDOWS_PREFERENCE
-        else:
-            preferences = self.LINUX_PREFERENCE
-
-        for spawner_cls in preferences:
-            spawner = spawner_cls()  # type: ignore[abstract]
+        for terminal_name in preferences:
+            spawner_cls = self.SPAWNER_CLASSES.get(terminal_name)
+            if spawner_cls is None:
+                continue
+            spawner = spawner_cls()
             if spawner.is_available():
                 return spawner.terminal_type
 
