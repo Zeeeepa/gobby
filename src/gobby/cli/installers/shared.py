@@ -191,9 +191,10 @@ def configure_mcp_server_json(settings_path: Path, server_name: str = "gobby") -
         existing_settings["mcpServers"] = {}
 
     # Add gobby MCP server config
+    # Use 'uv run gobby' since most users won't have gobby installed globally
     existing_settings["mcpServers"][server_name] = {
-        "command": "gobby",
-        "args": ["mcp-server"],
+        "command": "uv",
+        "args": ["run", "gobby", "mcp-server"],
     }
 
     # Write updated settings
@@ -326,10 +327,11 @@ def configure_mcp_server_toml(config_path: Path, server_name: str = "gobby") -> 
             return result
 
     # Add MCP server config
+    # Use 'uv run gobby' since most users won't have gobby installed globally
     mcp_config = f'''
 [mcp_servers.{server_name}]
-command = "gobby"
-args = ["mcp-server"]
+command = "uv"
+args = ["run", "gobby", "mcp-server"]
 '''
     updated = (existing.rstrip() + "\n" if existing.strip() else "") + mcp_config
 

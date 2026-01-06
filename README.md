@@ -99,8 +99,8 @@ Add to `.mcp.json` (project) or `~/.claude.json` (global):
 {
   "mcpServers": {
     "gobby": {
-      "command": "gobby",
-      "args": ["mcp-server"]
+      "command": "uv",
+      "args": ["run", "gobby", "mcp-server"]
     }
   }
 }
@@ -114,8 +114,8 @@ Add to `.gemini/settings.json` (project) or `~/.gemini/settings.json` (global):
 {
   "mcpServers": {
     "gobby": {
-      "command": "gobby",
-      "args": ["mcp-server"]
+      "command": "uv",
+      "args": ["run", "gobby", "mcp-server"]
     }
   }
 }
@@ -127,8 +127,8 @@ Add to `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.gobby]
-command = "gobby"
-args = ["mcp-server"]
+command = "uv"
+args = ["run", "gobby", "mcp-server"]
 ```
 
 ## CLI Commands
