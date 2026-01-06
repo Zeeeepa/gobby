@@ -42,6 +42,7 @@ from gobby.sessions.manager import SessionManager
 from gobby.sessions.summary import SummaryFileGenerator
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.skills import SkillLearner
+from gobby.storage.agents import LocalAgentRunManager
 from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import LocalMemoryManager
 from gobby.storage.session_messages import LocalSessionMessageManager
@@ -49,6 +50,7 @@ from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.skills import LocalSkillManager
 from gobby.storage.tasks import LocalTaskManager
+from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.tasks.commits import auto_link_commits
 from gobby.utils.daemon_client import DaemonClient
 from gobby.workflows.engine import WorkflowEngine
@@ -177,6 +179,10 @@ class HookManager:
         self._skill_storage = LocalSkillManager(self._database)
         self._message_manager = LocalSessionMessageManager(self._database)
         self._task_manager = LocalTaskManager(self._database)
+
+        # Initialize Agent Run and Worktree managers (for terminal mode result capture)
+        self._agent_run_manager = LocalAgentRunManager(self._database)
+        self._worktree_manager = LocalWorktreeManager(self._database)
 
         # Use config or defaults
         memory_config = (
@@ -1083,6 +1089,15 @@ class HookManager:
             except Exception as e:
                 self.logger.warning(f"Failed to auto-link session commits: {e}")
 
+        # Complete agent run if this is a terminal-mode agent session
+        if session_id:
+            try:
+                session = self._session_storage.get(session_id)
+                if session and session.agent_run_id:
+                    self._complete_agent_run(session)
+            except Exception as e:
+                self.logger.warning(f"Failed to complete agent run: {e}")
+
         # FAILOVER: Generate independent session summary file
         # This acts as a flight recorder, independent of workflow success/failure
         self.logger.debug("Executing failover session summary generation")
@@ -1115,6 +1130,99 @@ class HookManager:
                 self.logger.warning(f"Failed to unregister session from message processor: {e}")
 
         return HookResponse(decision="allow")
+
+    def _complete_agent_run(self, session: Any) -> None:
+        """
+        Complete an agent run when its terminal-mode session ends.
+
+        Updates the agent run status based on session outcome and releases
+        any worktrees associated with the session.
+
+        Args:
+            session: Session object with agent_run_id
+        """
+        from gobby.storage.sessions import Session
+
+        if not isinstance(session, Session) or not session.agent_run_id:
+            return
+
+        agent_run_id = session.agent_run_id
+        self.logger.debug(f"Completing agent run {agent_run_id} for session {session.id}")
+
+        try:
+            agent_run = self._agent_run_manager.get(agent_run_id)
+            if not agent_run:
+                self.logger.warning(f"Agent run {agent_run_id} not found")
+                return
+
+            # Skip if already completed
+            if agent_run.status in ("success", "error", "timeout", "cancelled"):
+                self.logger.debug(f"Agent run {agent_run_id} already in terminal state: {agent_run.status}")
+                return
+
+            # Use summary as result if available
+            # Note: Session statuses (active, paused, expired, handoff_ready, closed)
+            # don't indicate errors directly, so we treat completion as success
+            result = session.summary_markdown or session.compact_markdown or ""
+
+            # Note: Message counts would require async access to get_messages,
+            # and we're in a sync context. The result/summary is the important part.
+            turns_used = 0
+            tool_calls_count = 0
+
+            # Mark as success (terminal sessions ending normally are successful)
+            # Note: We don't have explicit error signals from terminal mode,
+            # so any session that completes is considered successful
+            self._agent_run_manager.complete(
+                run_id=agent_run_id,
+                result=result,
+                tool_calls_count=tool_calls_count,
+                turns_used=turns_used,
+            )
+            self.logger.info(
+                f"✅ Completed agent run {agent_run_id} "
+                f"(turns={turns_used}, tools={tool_calls_count})"
+            )
+
+        except Exception as e:
+            self.logger.error(f"Failed to complete agent run {agent_run_id}: {e}")
+
+        # Release any worktrees associated with this session
+        try:
+            self._release_session_worktrees(session.id)
+        except Exception as e:
+            self.logger.warning(f"Failed to release worktrees for session {session.id}: {e}")
+
+    def _release_session_worktrees(self, session_id: str) -> None:
+        """
+        Release all worktrees claimed by a session.
+
+        When a session ends, any worktrees it claimed should be released
+        so they can be reused by other sessions.
+
+        Args:
+            session_id: The session ID whose worktrees to release
+        """
+        try:
+            # Find worktrees owned by this session
+            worktrees = self._worktree_manager.list(agent_session_id=session_id)
+
+            for worktree in worktrees:
+                try:
+                    # Release the worktree (sets agent_session_id to NULL)
+                    self._worktree_manager.release(worktree.id)
+                    self.logger.debug(f"Released worktree {worktree.id} from session {session_id}")
+                except Exception as e:
+                    self.logger.warning(
+                        f"Failed to release worktree {worktree.id}: {e}"
+                    )
+
+            if worktrees:
+                self.logger.info(
+                    f"🔓 Released {len(worktrees)} worktree(s) from session {session_id}"
+                )
+        except Exception as e:
+            self.logger.warning(f"Failed to list worktrees for session {session_id}: {e}")
 
     def _handle_event_before_agent(self, event: HookEvent) -> HookResponse:
         """
