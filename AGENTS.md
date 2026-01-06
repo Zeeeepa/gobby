@@ -71,8 +71,8 @@ Use `get_tool_schema` to look up parameter details for any tool.
 **Before editing files (Edit/Write), you MUST have a task with `status: in_progress`.** The hook blocks file modifications without an active task.
 
 ```python
-# 1. Create task
-call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title": "My task"})
+# 1. Create task (task_type: task, bug, feature, epic)
+call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title": "My task", "task_type": "feature"})
 
 # 2. Set to in_progress BEFORE editing
 call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_id": "gt-xxx", "status": "in_progress"})

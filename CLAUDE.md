@@ -71,8 +71,8 @@ Use `get_tool_schema` to look up parameter details for any tool.
 **Before editing files (Edit/Write), you MUST have a task with `status: in_progress`.** The hook blocks file modifications without an active task.
 
 ```python
-# 1. Create task
-call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title": "My task"})
+# 1. Create task (task_type: task, bug, feature, epic)
+call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title": "My task", "task_type": "feature"})
 
 # 2. Set to in_progress BEFORE editing
 call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_id": "gt-xxx", "status": "in_progress"})
@@ -81,7 +81,7 @@ call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_i
 ### Task Workflow
 
 1. **Start of session**: `list_ready_tasks` or `suggest_next_task`
-2. **New work**: `create_task(title, description)`
+2. **New work**: `create_task(title, description, task_type`
 3. **Complex work**: `expand_task` or `expand_from_spec` for subtasks
 4. **Track progress**: `update_task(status="in_progress")`
 5. **Complete work**: Commit with `[task-id]` in message, then `close_task(commit_sha="...")`
@@ -100,6 +100,7 @@ When creating tasks from a spec/PRD/design doc, use `expand_from_spec(spec_path)
 ### Commit Linking
 
 Include task ID in commit messages for auto-linking:
+
 - `[gt-abc123] feat: add feature` (recommended)
 - `gt-abc123: fix bug`
 
