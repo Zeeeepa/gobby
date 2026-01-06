@@ -395,13 +395,19 @@ class LocalWorktreeManager:
             dry_run: If True, just return candidates without updating
 
         Returns:
-            List of worktrees marked/to be marked as abandoned
+            List of worktrees marked/to be marked as abandoned.
+            When dry_run is False, returns refreshed worktrees with updated status.
         """
         stale = self.find_stale(project_id, hours)
 
         if not dry_run:
+            updated: list[Worktree] = []
             for worktree in stale:
-                self.mark_abandoned(worktree.id)
+                # mark_abandoned returns the updated Worktree
+                result = self.mark_abandoned(worktree.id)
+                if result is not None:
+                    updated.append(result)
+            return updated
 
         return stale
 

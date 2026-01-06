@@ -171,7 +171,7 @@ call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
 
 **Memory** (`gobby-memory`): `remember`, `recall`, `forget` - persistent facts across sessions
 
-**Skills** (`gobby-skills`): `create_skill`, `apply_skill`, `match_skills` - reusable instructions
+**Skills** (`gobby-skills`): `create_skill`, `match_skills` - reusable instruction templates
 
 ## Hook Events
 

@@ -1,5 +1,5 @@
 # Terminal spawner configuration for Gobby
-# See: https://github.com/GobbyAI/gobby/docs/terminal-config.md
+# See: https://github.com/GobbyAI/gobby/blob/main/docs/terminal-config.md
 
 # Terminal preference order by platform (first available is used)
 preferences:

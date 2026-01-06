@@ -9,7 +9,6 @@ import os
 import platform
 import shlex
 import shutil
-import stat
 import subprocess
 import tempfile
 from abc import ABC, abstractmethod
@@ -74,9 +73,21 @@ def _create_prompt_file(prompt: str, session_id: str) -> str:
     # Create the prompt file path
     prompt_path = temp_dir / f"prompt-{session_id}.txt"
 
-    # Write with secure permissions - create file then set permissions
-    prompt_path.write_text(prompt, encoding="utf-8")
-    prompt_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    # Write with secure permissions atomically - create with mode 0o600 from the start
+    # This avoids the TOCTOU window between write_text and chmod
+    fd = os.open(str(prompt_path), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(prompt)
+            f.flush()
+            os.fsync(f.fileno())
+    except Exception:
+        # fd is closed by fdopen, but if fdopen fails we need to close it
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+        raise
 
     # Track for cleanup
     _prompt_files_to_cleanup.add(prompt_path)

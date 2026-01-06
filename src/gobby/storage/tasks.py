@@ -580,16 +580,17 @@ class LocalTaskManager:
             if cursor.rowcount == 0:
                 raise ValueError(f"Task {task_id} not found")
 
-            # Update any associated worktrees to merged status
-            try:
-                conn.execute(
-                    """UPDATE worktrees SET status = 'merged', updated_at = ?
-                    WHERE task_id = ? AND status = 'active'""",
-                    (now, task_id),
-                )
-            except Exception as wt_err:
-                # Worktree update is best-effort, don't fail task close
-                logger.debug(f"Failed to update worktree status for task {task_id}: {wt_err}")
+        # Update any associated worktrees to merged status (outside transaction)
+        # This is best-effort and should not roll back the task close
+        try:
+            self.db.execute(
+                """UPDATE worktrees SET status = 'merged', updated_at = ?
+                WHERE task_id = ? AND status = 'active'""",
+                (now, task_id),
+            )
+        except Exception as wt_err:
+            # Worktree update is best-effort, don't fail task close
+            logger.debug(f"Failed to update worktree status for task {task_id}: {wt_err}")
 
         self._notify_listeners()
         return self.get_task(task_id)
@@ -634,16 +635,17 @@ class LocalTaskManager:
                 (new_description if reason else task.description, now, task_id),
             )
 
-            # Reactivate any merged or abandoned worktrees for this task
-            try:
-                conn.execute(
-                    """UPDATE worktrees SET status = 'active', updated_at = ?
-                    WHERE task_id = ? AND status IN ('merged', 'abandoned')""",
-                    (now, task_id),
-                )
-            except Exception as wt_err:
-                # Worktree update is best-effort, don't fail task reopen
-                logger.debug(f"Failed to reactivate worktree for task {task_id}: {wt_err}")
+        # Reactivate any merged or abandoned worktrees for this task (outside transaction)
+        # This is best-effort and should not roll back the task reopen
+        try:
+            self.db.execute(
+                """UPDATE worktrees SET status = 'active', updated_at = ?
+                WHERE task_id = ? AND status IN ('merged', 'abandoned')""",
+                (now, task_id),
+            )
+        except Exception as wt_err:
+            # Worktree update is best-effort, don't fail task reopen
+            logger.debug(f"Failed to reactivate worktree for task {task_id}: {wt_err}")
 
         self._notify_listeners()
         return self.get_task(task_id)
