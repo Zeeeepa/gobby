@@ -333,12 +333,24 @@ class ITermSpawner(TerminalSpawnerBase):
             script_path.write_text(script_content)
             script_path.chmod(0o755)
 
-            # Use 'create window with default profile command' with the script path
-            # This avoids all escaping issues with complex shell commands
+            # Check if iTerm was running before we launch it
+            # If running: create new window with command
+            # If not running: use the default window that gets auto-created
             applescript = f'''
+            set iTermWasRunning to application "iTerm" is running
             tell application "iTerm"
                 activate
-                create window with default profile command "{script_path}"
+                if iTermWasRunning then
+                    -- iTerm already running, create a new window
+                    create window with default profile command "{script_path}"
+                else
+                    -- iTerm just launched, use the default window
+                    -- Wait for shell to be ready, then run command
+                    delay 0.5
+                    tell current session of current window
+                        write text "{script_path}"
+                    end tell
+                end if
             end tell
             '''
 
