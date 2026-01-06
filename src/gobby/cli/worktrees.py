@@ -62,11 +62,14 @@ def create_worktree(
 
         gobby worktrees create bugfix/fix-123 --base develop --task gt-abc123
     """
+    import os
+
     daemon_url = get_daemon_url()
 
     arguments = {
         "branch_name": branch_name,
         "base_branch": base_branch,
+        "project_path": os.getcwd(),
     }
     if task_id:
         arguments["task_id"] = task_id
@@ -174,9 +177,12 @@ def show_worktree(worktree_id: str, json_format: bool) -> None:
 @worktrees.command("delete")
 @click.argument("worktree_id")
 @click.option("--force", is_flag=True, help="Force delete even if active")
-@click.confirmation_option(prompt="Are you sure you want to delete this worktree?")
-def delete_worktree(worktree_id: str, force: bool) -> None:
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+def delete_worktree(worktree_id: str, force: bool, yes: bool) -> None:
     """Delete a worktree."""
+    if not yes:
+        click.confirm("Are you sure you want to delete this worktree?", abort=True)
+
     daemon_url = get_daemon_url()
 
     try:
@@ -429,12 +435,14 @@ def cleanup_worktrees(days: int, dry_run: bool, yes: bool) -> None:
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def worktree_stats(json_format: bool) -> None:
     """Show worktree statistics."""
+    import os
+
     daemon_url = get_daemon_url()
 
     try:
         response = httpx.post(
             f"{daemon_url}/mcp/gobby-worktrees/tools/get_worktree_stats",
-            json={},
+            json={"project_path": os.getcwd()},
             timeout=10.0,
         )
         response.raise_for_status()

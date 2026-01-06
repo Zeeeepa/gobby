@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.worktrees import WorktreeStatus
+from gobby.utils.project_context import get_project_context
+from gobby.worktrees.git import WorktreeGitManager
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
@@ -26,6 +28,57 @@ if TYPE_CHECKING:
     from gobby.worktrees.git import WorktreeGitManager
 
 logger = logging.getLogger(__name__)
+
+# Cache for WorktreeGitManager instances per repo path
+_git_manager_cache: dict[str, WorktreeGitManager] = {}
+
+
+def _resolve_project_context(
+    project_path: str | None,
+    default_git_manager: WorktreeGitManager | None,
+    default_project_id: str | None,
+) -> tuple[WorktreeGitManager | None, str | None, str | None]:
+    """
+    Resolve project context from project_path or fall back to defaults.
+
+    Args:
+        project_path: Path to project directory (cwd from caller).
+        default_git_manager: Registry-level git manager (may be None).
+        default_project_id: Registry-level project ID (may be None).
+
+    Returns:
+        Tuple of (git_manager, project_id, error_message).
+        If error_message is not None, the other values should not be used.
+    """
+    if project_path:
+        # Resolve from provided path
+        path = Path(project_path)
+        if not path.exists():
+            return None, None, f"Project path does not exist: {project_path}"
+
+        project_ctx = get_project_context(path)
+        if not project_ctx:
+            return None, None, f"No .gobby/project.json found in {project_path}"
+
+        resolved_project_id = project_ctx.get("id")
+        resolved_path = project_ctx.get("project_path", str(path))
+
+        # Get or create git manager for this path
+        if resolved_path not in _git_manager_cache:
+            try:
+                _git_manager_cache[resolved_path] = WorktreeGitManager(resolved_path)
+            except ValueError as e:
+                return None, None, f"Invalid git repository: {e}"
+
+        return _git_manager_cache[resolved_path], resolved_project_id, None
+
+    # Fall back to defaults
+    if default_git_manager is None:
+        return None, None, "No project_path provided and no default git manager configured."
+    if default_project_id is None:
+        return None, None, "No project_path provided and no default project ID configured."
+
+    return default_git_manager, default_project_id, None
 
 
 def create_worktrees_registry(
@@ -61,6 +114,7 @@ def create_worktrees_registry(
         task_id: str | None = None,
         worktree_path: str | None = None,
         create_branch: bool = True,
+        project_path: str | None = None,
     ) -> dict[str, Any]:
         """
         Create a new git worktree.
@@ -71,24 +125,20 @@ def create_worktrees_registry(
             task_id: Optional task ID to link to this worktree.
             worktree_path: Optional custom path (defaults to ../{branch_name}).
             create_branch: Whether to create a new branch (default: True).
+            project_path: Path to project directory (pass cwd from CLI).
 
         Returns:
             Dict with worktree ID, path, and branch info.
         """
-        if git_manager is None:
-            return {
-                "success": False,
-                "error": "Git manager not configured. Cannot create worktree.",
-            }
-
-        if project_id is None:
-            return {
-                "success": False,
-                "error": "No project context. Run from a Gobby project directory.",
-            }
+        # Resolve project context
+        resolved_git_mgr, resolved_project_id, error = _resolve_project_context(
+            project_path, git_manager, project_id
+        )
+        if error:
+            return {"success": False, "error": error}
 
         # Check if branch already exists as a worktree
-        existing = worktree_storage.get_by_branch(project_id, branch_name)
+        existing = worktree_storage.get_by_branch(resolved_project_id, branch_name)
         if existing:
             return {
                 "success": False,
@@ -100,10 +150,10 @@ def create_worktrees_registry(
         # Generate default worktree path if not provided
         if worktree_path is None:
             # Default to sibling directory named after branch
-            worktree_path = str(Path(git_manager.repo_path).parent / branch_name)
+            worktree_path = str(Path(resolved_git_mgr.repo_path).parent / branch_name)
 
         # Create git worktree
-        result = git_manager.create_worktree(
+        result = resolved_git_mgr.create_worktree(
             worktree_path=worktree_path,
             branch_name=branch_name,
             base_branch=base_branch,
@@ -118,7 +168,7 @@ def create_worktrees_registry(
 
         # Record in database
         worktree = worktree_storage.create(
-            project_id=project_id,
+            project_id=resolved_project_id,
             branch_name=branch_name,
             worktree_path=worktree_path,
             base_branch=base_branch,
@@ -567,24 +617,28 @@ def create_worktrees_registry(
         name="get_worktree_stats",
         description="Get worktree statistics for the project.",
     )
-    async def get_worktree_stats() -> dict[str, Any]:
+    async def get_worktree_stats(project_path: str | None = None) -> dict[str, Any]:
         """
         Get worktree statistics.
+
+        Args:
+            project_path: Path to project directory (pass cwd from CLI).
 
         Returns:
             Dict with counts by status.
         """
-        if project_id is None:
-            return {
-                "success": False,
-                "error": "No project context.",
-            }
+        # Resolve project context (git_manager not needed for stats)
+        _, resolved_project_id, error = _resolve_project_context(
+            project_path, git_manager, project_id
+        )
+        if error:
+            return {"success": False, "error": error}
 
-        counts = worktree_storage.count_by_status(project_id)
+        counts = worktree_storage.count_by_status(resolved_project_id)
 
         return {
             "success": True,
-            "project_id": project_id,
+            "project_id": resolved_project_id,
             "counts": counts,
             "total": sum(counts.values()),
         }
