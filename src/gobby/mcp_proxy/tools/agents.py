@@ -293,6 +293,40 @@ def create_agents_registry(
                         error=str(e),
                     )
 
+            # Load available tools for the agent
+            from gobby.llm.executor import ToolSchema
+
+            tool_schemas: list[ToolSchema] = []
+            tool_proxy = tool_proxy_getter() if tool_proxy_getter else None
+            if tool_proxy:
+                # Get internal servers that have tools
+                internal_servers = ["gobby-tasks", "gobby-memory", "gobby-sessions"]
+                for srv in internal_servers:
+                    try:
+                        tools_result = await tool_proxy.list_tools(srv)
+                        if tools_result.get("success"):
+                            for tool_brief in tools_result.get("tools", []):
+                                # Get full schema for each tool
+                                schema_result = await tool_proxy.get_tool_schema(
+                                    srv, tool_brief["name"]
+                                )
+                                if schema_result.get("success"):
+                                    tool_data = schema_result.get("tool", {})
+                                    tool_schemas.append(
+                                        ToolSchema(
+                                            name=tool_brief["name"],
+                                            description=tool_brief.get("brief", ""),
+                                            input_schema=tool_data.get("inputSchema", {}),
+                                            server_name=srv,
+                                        )
+                                    )
+                    except Exception as e:
+                        logger.debug(f"Could not load tools from {srv}: {e}")
+
+            # Set tools on config
+            config.tools = tool_schemas
+            logger.info(f"Loaded {len(tool_schemas)} tools for in-process agent")
+
             result = await runner.run(config, tool_handler=tool_handler)
 
             return {

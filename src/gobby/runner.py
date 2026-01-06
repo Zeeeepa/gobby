@@ -189,9 +189,10 @@ class GobbyRunner:
         try:
             # Pre-initialize common executors
             executors = {}
-            for provider in ["claude", "gemini"]:
+            for provider in ["claude", "gemini", "litellm"]:
                 try:
                     executors[provider] = self.executor_registry.get(provider=provider)
+                    logger.info(f"Pre-initialized {provider} executor")
                 except Exception as e:
                     logger.debug(f"Could not pre-initialize {provider} executor: {e}")
 
