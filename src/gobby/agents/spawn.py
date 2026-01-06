@@ -944,8 +944,8 @@ class TerminalSpawner:
             prompt_file=prompt_file,
         )
 
-        # Set title
-        title = f"Gobby Agent: {cli} (depth={agent_depth})"
+        # Set title (avoid colons/parentheses which Ghostty interprets as config syntax)
+        title = f"gobby-{cli}-d{agent_depth}"
 
         return self.spawn(
             command=command,
