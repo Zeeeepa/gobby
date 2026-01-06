@@ -7,6 +7,8 @@ from gobby.agents.constants import (
     GOBBY_MAX_AGENT_DEPTH,
     GOBBY_PARENT_SESSION_ID,
     GOBBY_PROJECT_ID,
+    GOBBY_PROMPT,
+    GOBBY_PROMPT_FILE,
     GOBBY_SESSION_ID,
     GOBBY_WORKFLOW_NAME,
     get_terminal_env_vars,
@@ -46,6 +48,8 @@ class TestEnvironmentVariableConstants:
             GOBBY_PROJECT_ID,
             GOBBY_AGENT_DEPTH,
             GOBBY_MAX_AGENT_DEPTH,
+            GOBBY_PROMPT,
+            GOBBY_PROMPT_FILE,
         }
         assert set(ALL_TERMINAL_ENV_VARS) == expected
 
