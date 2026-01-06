@@ -93,14 +93,14 @@ After starting the daemon, configure your AI CLI to connect to Gobby's MCP serve
 
 ### Claude Code
 
-Add to `.claude/settings.json` (project) or `~/.claude/settings.json` (global):
+Add to `.mcp.json` (project) or `~/.claude/settings.json` (global):
 
 ```json
 {
   "mcpServers": {
     "gobby": {
-      "url": "http://localhost:8765/mcp",
-      "transport": "http"
+      "command": "gobby",
+      "args": ["mcp-server"]
     }
   }
 }
@@ -114,7 +114,8 @@ Add to `.gemini/settings.json` (project) or `~/.gemini/settings.json` (global):
 {
   "mcpServers": {
     "gobby": {
-      "uri": "http://localhost:8765/mcp"
+      "command": "gobby",
+      "args": ["mcp-server"]
     }
   }
 }
@@ -126,7 +127,8 @@ Add to `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.gobby]
-url = "http://localhost:8765/mcp"
+command = "gobby"
+args = ["mcp-server"]
 ```
 
 ## CLI Commands
