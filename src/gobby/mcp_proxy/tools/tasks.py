@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.storage.database import LocalDatabase
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.task_dependencies import TaskDependencyManager
@@ -1657,8 +1656,7 @@ def create_task_registry(
 
         # Update worktree status based on closure reason
         try:
-            db = LocalDatabase()
-            worktree_manager = LocalWorktreeManager(db)
+            worktree_manager = LocalWorktreeManager(task_manager.db)
             wt = worktree_manager.get_by_task(task_id)
             if wt:
                 if reason in ("wont_fix", "obsolete"):

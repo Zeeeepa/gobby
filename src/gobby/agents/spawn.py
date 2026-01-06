@@ -178,10 +178,9 @@ class GhosttySpawner(TerminalSpawnerBase):
         title: str | None = None,
     ) -> SpawnResult:
         try:
-            # Build ghostty command with properly quoted command string
-            # shlex.join safely quotes arguments with spaces/special characters
-            cmd_str = shlex.join(command)
-            args = ["ghostty", "-e", cmd_str]
+            # Build ghostty command with command arguments passed as separate elements
+            # Ghostty's -e flag expects separate arguments, not a quoted shell string
+            args = ["ghostty", "-e"] + command
             if title:
                 args.extend(["--title", title])
 

@@ -394,15 +394,15 @@ def detect_stale(days: int, json_format: bool) -> None:
 @worktrees.command("cleanup")
 @click.option("--days", "-d", default=7, help="Days of inactivity to consider stale")
 @click.option("--dry-run", is_flag=True, help="Show what would be cleaned up")
-@click.confirmation_option(prompt="Are you sure you want to cleanup stale worktrees?")
-def cleanup_worktrees(days: int, dry_run: bool) -> None:
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+def cleanup_worktrees(days: int, dry_run: bool, yes: bool) -> None:
     """Clean up stale worktrees."""
     daemon_url = get_daemon_url()
     # Convert days to hours for MCP tool
     hours = days * 24
 
     if dry_run:
-        # Just detect stale
+        # Just detect stale - no confirmation needed
         try:
             response = httpx.post(
                 f"{daemon_url}/mcp/call_tool",
@@ -422,6 +422,10 @@ def cleanup_worktrees(days: int, dry_run: bool) -> None:
         except Exception as e:
             click.echo(f"Error: {e}", err=True)
         return
+
+    # Confirm before actual cleanup unless --yes is provided
+    if not yes:
+        click.confirm("Are you sure you want to cleanup stale worktrees?", abort=True)
 
     try:
         response = httpx.post(

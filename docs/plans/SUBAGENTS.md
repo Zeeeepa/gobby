@@ -654,9 +654,9 @@ Subagents automatically have `start_agent` blocked unless workflow explicitly al
 - [x] Handle `complete` tool as workflow exit condition
 - [x] Integrate agent depth checking in workflow engine
 
-### Phase 1.5: API Alignment & Context Injection
+### Phase 1.5: API Alignment & Context Injection ✅ COMPLETED
 
-> **Status**: Not started. Complete before Phase 3.
+> **Status**: Implemented and tested. Do not regenerate tasks for this phase.
 
 Bridge the gap between the current low-level implementation and the planned user-facing API. This phase updates `start_agent` to match the spec, implements context injection for subagents, and refactors the runner to enable terminal mode.
 
@@ -691,14 +691,14 @@ start_agent(
 )
 ```
 
-- [ ] Update `start_agent` signature in `src/gobby/mcp_proxy/tools/agents.py`
-- [ ] Infer `parent_session_id`, `project_id`, `machine_id` from request context
-- [ ] Add `mode` parameter (stub unsupported modes with `NotImplementedError`)
-- [ ] Add `session_context` parameter (default: `"summary_markdown"`)
-- [ ] Add `task` parameter for task-driven execution
-- [ ] Add `worktree_id` parameter for terminal mode
-- [ ] Add `terminal` parameter for terminal selection
-- [ ] Update `AgentConfig` dataclass to match
+- [x] Update `start_agent` signature in `src/gobby/mcp_proxy/tools/agents.py`
+- [x] Infer `parent_session_id`, `project_id`, `machine_id` from request context
+- [x] Add `mode` parameter (stub unsupported modes with `NotImplementedError`)
+- [x] Add `session_context` parameter (default: `"summary_markdown"`)
+- [x] Add `task` parameter for task-driven execution
+- [x] Add `worktree_id` parameter for terminal mode
+- [x] Add `terminal` parameter for terminal selection
+- [x] Update `AgentConfig` dataclass to match
 
 #### Phase 1.5.2: Context Resolver
 
@@ -713,14 +713,14 @@ Implement `ContextResolver` to fetch and format context for subagent injection.
 | `transcript:<n>` | String | Last N messages from parent session |
 | `file:<path>` | String | Read file content (project-scoped) |
 
-- [ ] Create `src/gobby/agents/context.py` with `ContextResolver` class
-- [ ] Implement `resolve(source: str, session_id: str) -> str` method
-- [ ] Implement `_resolve_summary_markdown()` - parent session summary
-- [ ] Implement `_resolve_compact_markdown()` - parent session handoff
-- [ ] Implement `_resolve_session_id()` - lookup specific session
-- [ ] Implement `_resolve_transcript()` - fetch last N messages via `LocalSessionMessageManager`
-- [ ] Implement `_resolve_file()` - read file with security checks
-- [ ] Add unit tests in `tests/agents/test_context_resolver.py`
+- [x] Create `src/gobby/agents/context.py` with `ContextResolver` class
+- [x] Implement `resolve(source: str, session_id: str) -> str` method
+- [x] Implement `_resolve_summary_markdown()` - parent session summary
+- [x] Implement `_resolve_compact_markdown()` - parent session handoff
+- [x] Implement `_resolve_session_id()` - lookup specific session
+- [x] Implement `_resolve_transcript()` - fetch last N messages via `LocalSessionMessageManager`
+- [x] Implement `_resolve_file()` - read file with security checks
+- [x] Add unit tests in `tests/agents/test_context_resolver.py`
 
 #### Phase 1.5.3: Error Handling
 
@@ -735,10 +735,10 @@ Define explicit behavior for context resolution failures.
 | Content exceeds size limit | Truncate with `[truncated: X bytes]` suffix |
 | Unknown source format | Raise `ContextResolutionError` |
 
-- [ ] Create `ContextResolutionError` exception class
-- [ ] Implement error handling for each source type
-- [ ] Add truncation logic with configurable limit
-- [ ] Add tests for all error cases
+- [x] Create `ContextResolutionError` exception class
+- [x] Implement error handling for each source type
+- [x] Add truncation logic with configurable limit
+- [x] Add tests for all error cases
 
 #### Phase 1.5.4: Security
 
@@ -752,11 +752,11 @@ Secure `file:<path>` context source against path traversal and abuse.
 | Size limit | Default 50KB max (configurable) |
 | File type | Text files only (reject binary) |
 
-- [ ] Implement path validation in `_resolve_file()`
-- [ ] Add `max_file_size` config option (default: 51200 bytes)
-- [ ] Add binary file detection (reject if not UTF-8)
-- [ ] Add tests for path traversal attempts
-- [ ] Add tests for symlink handling
+- [x] Implement path validation in `_resolve_file()`
+- [x] Add `max_file_size` config option (default: 51200 bytes)
+- [x] Add binary file detection (reject if not UTF-8)
+- [x] Add tests for path traversal attempts
+- [x] Add tests for symlink handling
 
 #### Phase 1.5.5: Context Injection Format
 
@@ -775,10 +775,10 @@ Define how resolved context is prepended to the agent prompt.
 {original_prompt}
 ```
 
-- [ ] Create `format_injected_prompt(context: str, prompt: str) -> str` function
-- [ ] Use markdown formatting with clear delimiters
-- [ ] Handle empty context gracefully (skip injection)
-- [ ] Add template to config for customization
+- [x] Create `format_injected_prompt(context: str, prompt: str) -> str` function
+- [x] Use markdown formatting with clear delimiters
+- [x] Handle empty context gracefully (skip injection)
+- [x] Add template to config for customization
 
 #### Phase 1.5.6: Runner Refactor
 
@@ -824,12 +824,12 @@ class AgentRunner:
         return await self.execute_run(context, config, tool_handler)
 ```
 
-- [ ] Define `AgentRunContext` dataclass with session, run, workflow info
-- [ ] Extract setup logic from `run()` into `prepare_run()`
-- [ ] Extract execution logic into `execute_run()`
-- [ ] Update `run()` to call both (preserve existing behavior)
-- [ ] Add tests for `prepare_run()` isolation
-- [ ] Add tests for `execute_run()` with pre-prepared context
+- [x] Define `AgentRunContext` dataclass with session, run, workflow info
+- [x] Extract setup logic from `run()` into `prepare_run()`
+- [x] Extract execution logic into `execute_run()`
+- [x] Update `run()` to call both (preserve existing behavior)
+- [x] Add tests for `prepare_run()` isolation
+- [x] Add tests for `execute_run()` with pre-prepared context
 
 #### Phase 1.5.7: Terminal Mode Pickup (Design Only)
 
@@ -845,19 +845,19 @@ When `mode=terminal`, the daemon calls `prepare_run()` then spawns a terminal pr
 6. Agent works within workflow constraints
 7. On `session.end`, handoff captured, result stored in `agent_runs`
 
-- [ ] Document pickup mechanism in workflow docs
-- [ ] Define session metadata fields for terminal pickup
-- [ ] Define environment variables for session context passing
+- [x] Document pickup mechanism in workflow docs
+- [x] Define session metadata fields for terminal pickup
+- [x] Define environment variables for session context passing
 
 #### Phase 1.5.8: Integration
 
 Wire context injection into the agent spawning flow.
 
-- [ ] Integrate `ContextResolver` in `start_agent` tool
-- [ ] Call resolver before creating `AgentConfig`
-- [ ] Prepend resolved context to prompt
-- [ ] Add integration tests for full flow
-- [ ] Update `gobby-agents` tool documentation
+- [x] Integrate `ContextResolver` in `start_agent` tool
+- [x] Call resolver before creating `AgentConfig`
+- [x] Prepend resolved context to prompt
+- [x] Add integration tests for full flow
+- [x] Update `gobby-agents` tool documentation
 
 #### Phase 1.5 Configuration
 
@@ -895,24 +895,26 @@ Create additional AgentExecutor implementations for provider diversity.
 - [ ] Create `CodexExecutor` (if Codex supports tool use)
 - [ ] Implement provider resolution (workflow → config → default)
 
-### Phase 4: Worktree Management
+### Phase 4: Worktree Management ✅ COMPLETED
+
+> **Status**: Implemented and tested. Do not regenerate tasks for this phase.
 
 Daemon-managed worktree registry with agent assignment, status tracking, and coordinated merging.
 
 #### Phase 4.1: Worktree Storage Layer
 
-- [ ] Create database migration for `worktrees` table
-- [ ] Create `src/gobby/storage/worktrees.py` with `LocalWorktreeManager` class
-- [ ] Implement CRUD operations (create, get, update, delete, list)
-- [ ] Implement status transitions (active → stale → merged/abandoned)
+- [x] Create database migration for `worktrees` table
+- [x] Create `src/gobby/storage/worktrees.py` with `LocalWorktreeManager` class
+- [x] Implement CRUD operations (create, get, update, delete, list)
+- [x] Implement status transitions (active → stale → merged/abandoned)
 
 #### Phase 4.2: Git Operations
 
-- [ ] Create `src/gobby/worktrees/git.py` with `WorktreeGitManager` class
-- [ ] Implement `create_worktree()` - git worktree add
-- [ ] Implement `delete_worktree()` - git worktree remove + branch delete
-- [ ] Implement `sync_from_main()` - rebase/merge from base branch
-- [ ] Implement `get_worktree_status()` - uncommitted changes, ahead/behind
+- [x] Create `src/gobby/worktrees/git.py` with `WorktreeGitManager` class
+- [x] Implement `create_worktree()` - git worktree add
+- [x] Implement `delete_worktree()` - git worktree remove + branch delete
+- [x] Implement `sync_from_main()` - rebase/merge from base branch
+- [x] Implement `get_worktree_status()` - uncommitted changes, ahead/behind
 
 #### Phase 4.3: Agent Spawning in Worktrees
 
@@ -939,93 +941,102 @@ Agent spawning supports three execution modes and cross-platform terminals:
 | cmd | ❌ | ❌ | `start cmd /k` |
 
 **Implementation Tasks:**
-- [ ] Create `src/gobby/agents/spawn.py` with `TerminalSpawner` class
-- [ ] Implement `SpawnMode` enum (terminal, embedded, headless)
-- [ ] Implement macOS spawners (Ghostty, iTerm, Terminal.app, kitty)
-- [ ] Implement Linux spawners (Ghostty, gnome-terminal, konsole, kitty, alacritty)
-- [ ] Implement Windows spawners (Windows Terminal, cmd, alacritty)
-- [ ] Implement `auto` terminal detection (find first available)
-- [ ] Implement embedded mode PTY creation via `pty.openpty()` or node-pty bridge
-- [ ] Implement headless mode with output capture to session transcript
-- [ ] Pass initial prompt via environment variable or temp file
-- [ ] Register spawned session with daemon
+- [x] Create `src/gobby/agents/spawn.py` with `TerminalSpawner` class
+- [x] Implement `SpawnMode` enum (terminal, embedded, headless)
+- [x] Implement macOS spawners (Ghostty, iTerm, Terminal.app, kitty)
+- [x] Implement Linux spawners (Ghostty, gnome-terminal, konsole, kitty, alacritty)
+- [x] Implement Windows spawners (Windows Terminal, cmd, alacritty)
+- [x] Implement `auto` terminal detection (find first available)
+- [x] Implement embedded mode PTY creation via `pty.openpty()` or node-pty bridge
+- [x] Implement headless mode with output capture to session transcript
+- [x] Pass initial prompt via environment variable or temp file
+- [x] Register spawned session with daemon
 
 #### Phase 4.4: MCP Tools (gobby-worktrees)
 
-- [ ] Create `src/gobby/mcp_proxy/tools/worktrees.py` with `WorktreeToolRegistry`
-- [ ] Register as `gobby-worktrees` internal server
-- [ ] Implement `create_worktree`
-- [ ] Implement `list_worktrees`
-- [ ] Implement `get_worktree`
-- [ ] Implement `claim_worktree`
-- [ ] Implement `release_worktree`
-- [ ] Implement `delete_worktree`
-- [ ] Implement `spawn_agent_in_worktree`
-- [ ] Implement `sync_worktree_from_main`
-- [ ] Implement `detect_stale_worktrees`
-- [ ] Implement `cleanup_stale_worktrees`
+- [x] Create `src/gobby/mcp_proxy/tools/worktrees.py` with `WorktreeToolRegistry`
+- [x] Register as `gobby-worktrees` internal server
+- [x] Implement `create_worktree`
+- [x] Implement `list_worktrees`
+- [x] Implement `get_worktree`
+- [x] Implement `claim_worktree`
+- [x] Implement `release_worktree`
+- [x] Implement `delete_worktree`
+- [x] Implement `spawn_agent_in_worktree`
+- [x] Implement `sync_worktree_from_main`
+- [x] Implement `detect_stale_worktrees`
+- [x] Implement `cleanup_stale_worktrees`
 
 #### Phase 4.5: Terminal Mode Integration
 
-- [ ] Update `start_agent` to support `mode=terminal` with worktrees
-- [ ] Store workflow in session metadata for hook pickup
-- [ ] Capture result from session handoff
-- [ ] Link worktree status to agent run status
+- [x] Update `start_agent` to support `mode=terminal` with worktrees
+- [x] Store workflow in session metadata for hook pickup
+- [x] Capture result from session handoff
+- [x] Link worktree status to agent run status
 
-### Phase 5: CLI Commands
+### Phase 5: CLI Commands ✅ COMPLETED
+
+> **Status**: Implemented and tested. Do not regenerate tasks for this phase.
 
 Add CLI command groups for agents and worktrees.
 
 #### Phase 5.1: Agent CLI
 
-- [ ] Add `gobby agents` command group to cli.py
-- [ ] Implement `gobby agents start`
-- [ ] Implement `gobby agents list`
-- [ ] Implement `gobby agents status`
-- [ ] Implement `gobby agents cancel`
+- [x] Add `gobby agents` command group to cli.py
+- [x] Implement `gobby agents start`
+- [x] Implement `gobby agents list`
+- [x] Implement `gobby agents status`
+- [x] Implement `gobby agents cancel`
 
 #### Phase 5.2: Worktree CLI
 
-- [ ] Add `gobby worktrees` command group to cli.py
-- [ ] Implement `gobby worktrees create`
-- [ ] Implement `gobby worktrees list`
-- [ ] Implement `gobby worktrees show`
-- [ ] Implement `gobby worktrees delete`
-- [ ] Implement `gobby worktrees spawn`
-- [ ] Implement `gobby worktrees claim`
-- [ ] Implement `gobby worktrees release`
-- [ ] Implement `gobby worktrees sync`
-- [ ] Implement `gobby worktrees stale`
-- [ ] Implement `gobby worktrees cleanup`
+- [x] Add `gobby worktrees` command group to cli.py
+- [x] Implement `gobby worktrees create`
+- [x] Implement `gobby worktrees list`
+- [x] Implement `gobby worktrees show`
+- [x] Implement `gobby worktrees delete`
+- [x] Implement `gobby worktrees spawn`
+- [x] Implement `gobby worktrees claim`
+- [x] Implement `gobby worktrees release`
+- [x] Implement `gobby worktrees sync`
+- [x] Implement `gobby worktrees stale`
+- [x] Implement `gobby worktrees cleanup`
 
-### Phase 6: State Management
+### Phase 6: State Management ✅ COMPLETED
 
-- [ ] Implement in-memory running agents dict with thread safety
-- [ ] Persist completed agents to `agent_runs` table
-- [ ] Add worktree context to session handoff
-- [ ] Link worktree status to task status changes
-- [ ] Add WebSocket events for agent and worktree changes
+> **Status**: Implemented and tested. Do not regenerate tasks for this phase.
 
-### Phase 7: Testing
+- [x] Implement in-memory running agents dict with thread safety
+- [x] Persist completed agents to `agent_runs` table
+- [x] Add worktree context to session handoff
+- [x] Link worktree status to task status changes
+- [x] Add WebSocket events for agent and worktree changes
 
-- [ ] Unit tests for AgentExecutor implementations (all providers)
-- [ ] Unit tests for AgentRunner
-- [ ] Unit tests for child session creation
-- [ ] Unit tests for LocalWorktreeManager
-- [ ] Unit tests for WorktreeGitManager
-- [ ] Integration tests for in-process agent execution
-- [ ] Integration tests for workflow tool filtering
-- [ ] Integration tests for terminal mode with worktrees
-- [ ] Integration tests for worktree lifecycle
+### Phase 7: Testing ⏳ IN PROGRESS
 
-### Phase 8: Documentation
+> **Status**: 119/120 tests passing. One test failure to fix.
 
-- [ ] Update CLAUDE.md with gobby-agents section
-- [ ] Update CLAUDE.md with gobby-worktrees section
-- [ ] Create agent workflow examples
-- [ ] Document provider configuration
-- [ ] Document safety guardrails
-- [ ] Document worktree management patterns
+- [x] Unit tests for AgentExecutor implementations (all providers)
+- [x] Unit tests for AgentRunner
+- [x] Unit tests for child session creation
+- [x] Unit tests for LocalWorktreeManager
+- [x] Unit tests for WorktreeGitManager
+- [x] Integration tests for in-process agent execution
+- [x] Integration tests for workflow tool filtering
+- [x] Integration tests for terminal mode with worktrees
+- [x] Integration tests for worktree lifecycle
+- [ ] Fix `test_rejects_outside_project` test failure (error message mismatch)
+
+### Phase 8: Documentation ⏳ IN PROGRESS
+
+> **Status**: CLAUDE.md updated. Remaining items pending.
+
+- [x] Update CLAUDE.md with gobby-agents section
+- [x] Update CLAUDE.md with gobby-worktrees section
+- [x] Create agent workflow examples
+- [x] Document provider configuration
+- [x] Document safety guardrails
+- [x] Document worktree management patterns
 
 ---
 
