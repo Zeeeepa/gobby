@@ -221,6 +221,8 @@ def extract_handoff_context(
     session_manager: Any,
     session_id: str,
     config: Any | None = None,
+    db: Any | None = None,
+    worktree_manager: Any | None = None,
 ) -> dict[str, Any] | None:
     """Extract handoff context from transcript and save to session.compact_markdown.
 
@@ -228,6 +230,8 @@ def extract_handoff_context(
         session_manager: The session manager instance
         session_id: Current session ID
         config: Optional config with compact_handoff settings
+        db: Optional LocalDatabase instance for dependency injection
+        worktree_manager: Optional LocalWorktreeManager instance for dependency injection
 
     Returns:
         Dict with extraction result or error
@@ -272,12 +276,16 @@ def extract_handoff_context(
 
         # Enrich with worktree context if session is in a worktree
         try:
-            from gobby.storage.database import LocalDatabase
-            from gobby.storage.worktrees import LocalWorktreeManager
+            # Use injected dependencies if provided, otherwise create fallbacks
+            wt_manager = worktree_manager
+            if wt_manager is None:
+                from gobby.storage.database import LocalDatabase
+                from gobby.storage.worktrees import LocalWorktreeManager
 
-            db = LocalDatabase()
-            worktree_manager = LocalWorktreeManager(db)
-            worktrees = worktree_manager.list_worktrees(agent_session_id=session_id, limit=1)
+                wt_db = db if db is not None else LocalDatabase()
+                wt_manager = LocalWorktreeManager(wt_db)
+
+            worktrees = wt_manager.list_worktrees(agent_session_id=session_id, limit=1)
             if worktrees:
                 wt = worktrees[0]
                 handoff_ctx.active_worktree = {

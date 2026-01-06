@@ -31,12 +31,15 @@ def temp_db():
 
 
 @pytest.fixture
-def project(temp_db):
-    """Create a test project."""
+def project(temp_db, tmp_path):
+    """Create a test project with a valid temporary repo path."""
     project_manager = LocalProjectManager(temp_db)
+    # Use pytest's tmp_path fixture for cross-platform temp directory
+    repo_path = tmp_path / "test-repo"
+    repo_path.mkdir(parents=True, exist_ok=True)
     return project_manager.create(
         name="test-project",
-        repo_path="/tmp/test-repo",
+        repo_path=str(repo_path),
     )
 
 

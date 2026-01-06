@@ -178,10 +178,10 @@ class GeminiExecutor(AgentExecutor):
             # Create the model with tools
             gemini_tools = self._convert_tools_to_gemini_format(tools)
 
-            # Create tool config
-            tool_config: dict[str, Any] | None = None
+            # Create Tool instance (SDK expects Tool objects, not plain dicts)
+            tool_instance = None
             if gemini_tools:
-                tool_config = {"function_declarations": gemini_tools}
+                tool_instance = genai.protos.Tool(function_declarations=gemini_tools)
 
             # Create model with system instruction
             generation_config = {
@@ -193,7 +193,7 @@ class GeminiExecutor(AgentExecutor):
                 model_name=effective_model,
                 system_instruction=system_prompt or "You are a helpful assistant.",
                 generation_config=generation_config,
-                tools=[tool_config] if tool_config else None,
+                tools=[tool_instance] if tool_instance else None,
             )
 
             # Start chat

@@ -830,7 +830,7 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         "Add terminal pickup metadata fields to sessions table",
         """
         ALTER TABLE sessions ADD COLUMN workflow_name TEXT;
-        ALTER TABLE sessions ADD COLUMN agent_run_id TEXT REFERENCES agent_runs(id);
+        ALTER TABLE sessions ADD COLUMN agent_run_id TEXT REFERENCES agent_runs(id) ON DELETE SET NULL;
         ALTER TABLE sessions ADD COLUMN context_injected INTEGER DEFAULT 0;
         ALTER TABLE sessions ADD COLUMN original_prompt TEXT;
         CREATE INDEX IF NOT EXISTS idx_sessions_workflow ON sessions(workflow_name);
