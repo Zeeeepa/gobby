@@ -34,6 +34,40 @@ MAX_ENV_PROMPT_LENGTH = 4096
 logger = logging.getLogger(__name__)
 
 
+def build_cli_command(
+    cli: str,
+    prompt: str | None = None,
+    session_id: str | None = None,
+) -> list[str]:
+    """
+    Build the CLI command with proper prompt passing for each CLI type.
+
+    Each CLI has different syntax for passing prompts:
+    - claude: claude [prompt] --session-id <uuid>
+    - gemini: gemini [query..]
+    - codex: codex [PROMPT]
+
+    Args:
+        cli: CLI name (claude, gemini, codex)
+        prompt: Optional prompt to pass
+        session_id: Optional session ID (used by Claude CLI)
+
+    Returns:
+        Command list for subprocess execution
+    """
+    command = [cli]
+
+    # For Claude CLI, we can pass the pre-created session ID
+    if cli == "claude" and session_id:
+        command.extend(["--session-id", session_id])
+
+    # All three CLIs accept prompt as positional argument
+    if prompt:
+        command.append(prompt)
+
+    return command
+
+
 class SpawnMode(str, Enum):
     """Agent execution mode."""
 
@@ -833,19 +867,17 @@ class TerminalSpawner:
         Returns:
             SpawnResult with success status
         """
-        # Build command - don't pass prompt via CLI args, use env vars instead
-        command = [cli]
+        # Build command with prompt as CLI argument
+        command = build_cli_command(cli, prompt=prompt, session_id=session_id)
 
-        # Handle prompt passing
+        # Handle prompt for environment variables (backup for hooks/context)
         prompt_env: str | None = None
         prompt_file: str | None = None
 
         if prompt:
             if len(prompt) <= MAX_ENV_PROMPT_LENGTH:
-                # Short prompt - pass via environment variable
                 prompt_env = prompt
             else:
-                # Long prompt - write to temp file
                 prompt_file = self._write_prompt_file(prompt, session_id)
 
         # Build environment
@@ -1202,9 +1234,10 @@ class EmbeddedSpawner:
         Returns:
             EmbeddedPTYResult with PTY info
         """
-        command = [cli]
+        # Build command with prompt as CLI argument
+        command = build_cli_command(cli, prompt=prompt, session_id=session_id)
 
-        # Handle prompt
+        # Handle prompt for environment variables (backup for hooks/context)
         prompt_env: str | None = None
         prompt_file: str | None = None
 
@@ -1388,9 +1421,10 @@ class HeadlessSpawner:
         Returns:
             HeadlessResult with process handle
         """
-        command = [cli]
+        # Build command with prompt as CLI argument
+        command = build_cli_command(cli, prompt=prompt, session_id=session_id)
 
-        # Handle prompt
+        # Handle prompt for environment variables (backup for hooks/context)
         prompt_env: str | None = None
         prompt_file: str | None = None
 
