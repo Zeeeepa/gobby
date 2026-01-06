@@ -108,21 +108,3 @@ class SkillLearner:
         except Exception as e:
             logger.error(f"Error learning skills from session {session.id}: {e}")
             return []
-
-    async def record_usage(self, skill_id: str, success: bool = True) -> None:
-        """
-        Record that a skill was used.
-
-        Args:
-            skill_id: The ID of the skill used.
-            success: Whether the skill application was successful.
-        """
-        try:
-            # Increment usage count
-            self.storage.increment_usage(skill_id)
-
-            if not success:
-                logger.debug(f"Recorded failed usage for skill {skill_id}")
-
-        except Exception as e:
-            logger.error(f"Error recording usage for skill {skill_id}: {e}")

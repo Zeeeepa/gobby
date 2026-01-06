@@ -96,8 +96,3 @@ async def test_learn_from_session_success(
     assert skills[0] == created_skill
     mock_storage.create_skill.assert_called_once()
     assert mock_storage.create_skill.call_args.kwargs["project_id"] == "project_1"
-
-
-async def test_record_usage(skill_learner, mock_storage):
-    await skill_learner.record_usage("sk-123")
-    mock_storage.increment_usage.assert_called_with("sk-123")

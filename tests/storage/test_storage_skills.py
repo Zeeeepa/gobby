@@ -101,29 +101,9 @@ def test_listeners_notified(skill_manager):
     skill_manager.update_skill(skill.id, instructions="updated")
     assert full_call_count == 2
 
-    # Increment usage
-    skill_manager.increment_usage(skill.id)
-    assert full_call_count == 3
-
     # Delete
     skill_manager.delete_skill(skill.id)
-    assert full_call_count == 4
-
-
-def test_increment_usage(skill_manager):
-    """Test incrementing usage count."""
-    skill = skill_manager.create_skill(name="usage", instructions="...")
-    assert skill.usage_count == 0
-
-    assert skill_manager.increment_usage(skill.id)
-
-    updated = skill_manager.get_skill(skill.id)
-    assert updated.usage_count == 1
-
-
-def test_increment_usage_nonexistent(skill_manager):
-    """Test incrementing usage for nonexistent skill."""
-    assert not skill_manager.increment_usage("nonexistent")
+    assert full_call_count == 3
 
 
 def test_malformed_tags(skill_manager, temp_db):

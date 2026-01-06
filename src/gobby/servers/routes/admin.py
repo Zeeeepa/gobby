@@ -171,11 +171,10 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
                 logger.warning(f"Failed to get memory stats: {e}")
 
         # Get skill statistics using efficient count query
-        skill_stats = {"count": 0, "total_uses": 0}
+        skill_stats = {"count": 0}
         if server.skill_learner is not None:
             try:
-                # Use get_usage_stats for efficient aggregation
-                skill_stats = server.skill_learner.storage.get_usage_stats()
+                skill_stats["count"] = server.skill_learner.storage.count_skills()
             except Exception as e:
                 logger.warning(f"Failed to get skill stats: {e}")
 

@@ -8,7 +8,6 @@ Exposes functionality for:
 - Deleting skills (delete_skill)
 - Creating skills (create_skill)
 - Updating skills (update_skill)
-- Applying skills (apply_skill)
 - Exporting skills (export_skills)
 
 Skills are exported to .claude/skills/<name>/ in Claude Code native format,
@@ -49,7 +48,7 @@ def create_skills_registry(
     """
     registry = InternalToolRegistry(
         name="gobby-skills",
-        description="Skill management - learn, list, get, delete, create, update, apply, export",
+        description="Skill management - learn, list, get, delete, create, update, export",
     )
 
     @registry.tool(
@@ -266,42 +265,6 @@ def create_skills_registry(
                 tags=tags,
             )
             return {"success": True, "skill": skill.to_dict()}
-        except ValueError as e:
-            return {"success": False, "error": str(e)}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    @registry.tool(
-        name="apply_skill",
-        description="Apply a skill - returns its instructions and marks it as used.",
-    )
-    def apply_skill(skill_id: str) -> dict[str, Any]:
-        """
-        Apply a skill to the current context.
-
-        Returns the skill's instructions and increments its usage count.
-
-        Args:
-            skill_id: The skill ID to apply
-        """
-        try:
-            skill = storage.get_skill(skill_id)
-            if not skill:
-                return {"success": False, "error": f"Skill {skill_id} not found"}
-
-            # Increment usage count
-            storage.increment_usage(skill_id)
-
-            return {
-                "success": True,
-                "skill": {
-                    "id": skill.id,
-                    "name": skill.name,
-                    "instructions": skill.instructions,
-                    "description": skill.description,
-                },
-                "message": f"Applied skill '{skill.name}'. Follow the instructions above.",
-            }
         except ValueError as e:
             return {"success": False, "error": str(e)}
         except Exception as e:

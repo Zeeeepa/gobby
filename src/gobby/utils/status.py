@@ -82,7 +82,6 @@ def fetch_rich_status(http_port: int, timeout: float = 2.0) -> dict[str, Any]:
         skills = data.get("skills", {})
         if skills and skills.get("count", 0) > 0:
             status_kwargs["skills_count"] = skills.get("count", 0)
-            status_kwargs["skills_total_uses"] = skills.get("total_uses", 0)
 
     except (httpx.ConnectError, httpx.TimeoutException):
         # Daemon not responding - return empty
@@ -123,7 +122,6 @@ def format_status_message(
     memories_count: int | None = None,
     memories_avg_importance: float | None = None,
     skills_count: int | None = None,
-    skills_total_uses: int | None = None,
     **kwargs: Any,
 ) -> str:
     """
@@ -153,7 +151,6 @@ def format_status_message(
         memories_count: Total number of memories
         memories_avg_importance: Average memory importance
         skills_count: Number of skills
-        skills_total_uses: Total skill usage count
 
     Returns:
         Formatted status message string
@@ -250,10 +247,7 @@ def format_status_message(
                 mem_str += f" (avg importance: {memories_avg_importance:.2f})"
             parts.append(mem_str)
         if skills_count is not None:
-            skill_str = f"Skills: {skills_count}"
-            if skills_total_uses is not None:
-                skill_str += f" ({skills_total_uses} total uses)"
-            parts.append(skill_str)
+            parts.append(f"Skills: {skills_count}")
         for part in parts:
             lines.append(f"  {part}")
         lines.append("")

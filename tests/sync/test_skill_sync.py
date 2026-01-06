@@ -24,8 +24,6 @@ def mock_skill_manager():
                 description="test skill",
                 trigger_pattern="test",
                 source_session_id=None,
-                usage_count=0,
-                success_rate=None,
                 tags=["tag1"],
             )
         ]
@@ -122,7 +120,6 @@ Step-by-step instructions here
                 "id": "sk-abc123",
                 "trigger_pattern": "do something|help",
                 "tags": ["helper", "test"],
-                "usage_count": 5,
             }
         )
     )

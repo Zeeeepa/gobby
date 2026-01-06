@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from gobby.utils.status import fetch_rich_status, format_status_message
+
 import httpx
+import pytest
+
+from gobby.utils.status import fetch_rich_status, format_status_message
 
 
 class TestStatusUtils:
@@ -98,7 +100,6 @@ class TestStatusUtils:
             memories_count=10,
             memories_avg_importance=0.5,
             skills_count=5,
-            skills_total_uses=20,
             sessions_paused=1,
             sessions_handoff_ready=1,
         )
@@ -109,6 +110,6 @@ class TestStatusUtils:
         assert "Blocked: 4" in msg
         assert "Memory & Skills:" in msg
         assert "Memories: 10 (avg importance: 0.50)" in msg
-        assert "Skills: 5 (20 total uses)" in msg
+        assert "Skills: 5" in msg
         assert "Paused: 1" in msg
         assert "Handoff Ready: 1" in msg

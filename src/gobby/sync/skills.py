@@ -213,7 +213,6 @@ class SkillSyncManager:
                     "id": skill.id,
                     "trigger_pattern": skill.trigger_pattern or "",
                     "tags": skill.tags or [],
-                    "usage_count": skill.usage_count,
                 }
                 with open(meta_file, "w") as f:
                     json.dump(meta, f, indent=2)

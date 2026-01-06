@@ -219,12 +219,11 @@ class TestFormatStatusMessage:
             memories_count=50,
             memories_avg_importance=0.65,
             skills_count=10,
-            skills_total_uses=100
         )
 
         assert "Memory & Skills:" in result
         assert "Memories: 50 (avg importance: 0.65)" in result
-        assert "Skills: 10 (100 total uses)" in result
+        assert "Skills: 10" in result
 
     def test_process_metrics(self):
         """Test process metrics (memory, CPU)."""

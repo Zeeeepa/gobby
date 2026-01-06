@@ -236,7 +236,6 @@ def get(ctx: click.Context, skill_id: str) -> None:
     click.echo(f"Trigger Pattern: {skill.trigger_pattern}")
     click.echo("Instructions:")
     click.echo(skill.instructions)
-    click.echo("Usage Count: " + str(skill.usage_count))
     if skill.tags:
         click.echo(f"Tags: {', '.join(skill.tags)}")
 
@@ -336,36 +335,6 @@ def update(
 
 
 @skills.command()
-@click.argument("skill_id")
-@click.pass_context
-def apply(ctx: click.Context, skill_id: str) -> None:
-    """Apply a skill - shows instructions and marks as used."""
-    storage = get_skill_storage(ctx)
-
-    try:
-        skill = storage.get_skill(skill_id)
-    except ValueError:
-        click.echo(f"Skill not found: {skill_id}", err=True)
-        return
-
-    if not skill:
-        click.echo(f"Skill not found: {skill_id}", err=True)
-        return
-
-    # Increment usage
-    storage.increment_usage(skill_id)
-
-    click.echo(f"=== Applying Skill: {skill.name} ===")
-    if skill.description:
-        click.echo(f"Description: {skill.description}")
-    click.echo("")
-    click.echo("Instructions:")
-    click.echo(skill.instructions)
-    click.echo("")
-    click.echo(f"(Usage count: {skill.usage_count + 1})")
-
-
-@skills.command()
 @click.option("--output", "-o", type=click.Path(), help="Output directory (default: .gobby)")
 @click.option(
     "--format",
@@ -458,7 +427,6 @@ def export(ctx: click.Context, output: str | None, fmt: str) -> None:
                     "id": skill.id,
                     "trigger_pattern": skill.trigger_pattern or "",
                     "tags": skill.tags or [],
-                    "usage_count": skill.usage_count,
                 }
                 with open(meta_file, "w") as f:
                     json.dump(meta, f, indent=2)

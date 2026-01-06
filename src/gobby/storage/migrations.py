@@ -405,8 +405,6 @@ MIGRATIONS: list[tuple[int, str, str]] = [
             trigger_pattern TEXT,
             instructions TEXT NOT NULL,
             source_session_id TEXT REFERENCES sessions(id),
-            usage_count INTEGER DEFAULT 0,
-            success_rate REAL,
             tags TEXT,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
