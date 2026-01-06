@@ -28,6 +28,7 @@ from gobby.utils.project_context import get_project_context
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
+    from gobby.config.app import ContextInjectionConfig
     from gobby.llm.executor import ToolResult
     from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
@@ -39,6 +40,7 @@ def create_agents_registry(
     runner: AgentRunner,
     session_manager: LocalSessionManager | None = None,
     message_manager: LocalSessionMessageManager | None = None,
+    context_config: ContextInjectionConfig | None = None,
     get_session_context: Any | None = None,
 ) -> InternalToolRegistry:
     """
@@ -48,6 +50,7 @@ def create_agents_registry(
         runner: AgentRunner instance for executing agents.
         session_manager: Session manager for context resolution.
         message_manager: Message manager for transcript resolution.
+        context_config: Context injection configuration.
         get_session_context: Optional callable returning current session context.
 
     Returns:
@@ -60,12 +63,26 @@ def create_agents_registry(
 
     # Create context resolver if managers are provided
     context_resolver: ContextResolver | None = None
+    context_enabled = True  # Default enabled
     if session_manager and message_manager:
-        context_resolver = ContextResolver(
-            session_manager=session_manager,
-            message_manager=message_manager,
-            project_path=None,  # Will be set per-request based on project context
-        )
+        # Use config values if provided, otherwise use defaults
+        if context_config:
+            context_enabled = context_config.enabled
+            context_resolver = ContextResolver(
+                session_manager=session_manager,
+                message_manager=message_manager,
+                project_path=None,  # Will be set per-request
+                max_file_size=context_config.max_file_size,
+                max_content_size=context_config.max_content_size,
+                max_transcript_messages=context_config.max_transcript_messages,
+                truncation_suffix=context_config.truncation_suffix,
+            )
+        else:
+            context_resolver = ContextResolver(
+                session_manager=session_manager,
+                message_manager=message_manager,
+                project_path=None,  # Will be set per-request
+            )
 
     @registry.tool(
         name="start_agent",
@@ -162,7 +179,7 @@ def create_agents_registry(
 
         # Resolve context and inject into prompt
         effective_prompt = prompt
-        if context_resolver and session_context:
+        if context_resolver and context_enabled and session_context:
             try:
                 # Update resolver's project path for file resolution
                 context_resolver._project_path = Path(project_path) if project_path else None

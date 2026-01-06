@@ -159,6 +159,48 @@ class CompactHandoffConfig(BaseModel):
     )
 
 
+class ContextInjectionConfig(BaseModel):
+    """Context injection configuration for subagent spawning.
+
+    Controls how context is resolved and injected into subagent prompts.
+    """
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable context injection for subagents",
+    )
+    default_source: str = Field(
+        default="summary_markdown",
+        description="Default context source when not specified. "
+        "Options: summary_markdown, compact_markdown, session_id:<id>, "
+        "transcript:<n>, file:<path>",
+    )
+    max_file_size: int = Field(
+        default=51200,
+        description="Maximum file size in bytes for file: source (default: 50KB)",
+    )
+    max_content_size: int = Field(
+        default=51200,
+        description="Maximum content size in bytes for all sources (default: 50KB)",
+    )
+    max_transcript_messages: int = Field(
+        default=100,
+        description="Maximum number of messages for transcript: source",
+    )
+    truncation_suffix: str = Field(
+        default="\n\n[truncated: {bytes} bytes remaining]",
+        description="Suffix template appended when content is truncated",
+    )
+
+    @field_validator("max_file_size", "max_content_size", "max_transcript_messages")
+    @classmethod
+    def validate_positive(cls, v: int) -> int:
+        """Validate value is positive."""
+        if v <= 0:
+            raise ValueError("Value must be positive")
+        return v
+
+
 class SessionSummaryConfig(BaseModel):
     """Session summary generation configuration."""
 
@@ -1404,6 +1446,10 @@ class DaemonConfig(BaseModel):
     compact_handoff: CompactHandoffConfig = Field(
         default_factory=CompactHandoffConfig,
         description="Compact handoff context configuration",
+    )
+    context_injection: ContextInjectionConfig = Field(
+        default_factory=ContextInjectionConfig,
+        description="Context injection configuration for subagent spawning",
     )
     mcp_client_proxy: MCPClientProxyConfig = Field(
         default_factory=MCPClientProxyConfig,
