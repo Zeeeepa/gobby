@@ -1049,7 +1049,9 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
 
             schema_hash_manager = SchemaHashManager(db=server._mcp_db_manager.db)
             semantic_search = (
-                server._tools_handler._semantic_search if server._tools_handler else None
+                getattr(server._tools_handler, "_semantic_search", None)
+                if server._tools_handler
+                else None
             )
 
             stats: dict[str, Any] = {

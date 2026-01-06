@@ -1706,14 +1706,15 @@ def create_task_registry(
             except Exception:
                 pass  # Best-effort linking, don't fail the close
 
-        # Update worktree status based on closure reason
+        # Update worktree status based on closure reason (case-insensitive)
         try:
+            reason_normalized = reason.lower()
             worktree_manager = LocalWorktreeManager(task_manager.db)
             wt = worktree_manager.get_by_task(task_id)
             if wt:
-                if reason in ("wont_fix", "obsolete"):
+                if reason_normalized in ("wont_fix", "obsolete", "duplicate", "already_implemented"):
                     worktree_manager.mark_abandoned(wt.id)
-                elif reason == "completed":
+                elif reason_normalized == "completed":
                     worktree_manager.mark_merged(wt.id)
         except Exception:
             pass  # Best-effort worktree update, don't fail the close

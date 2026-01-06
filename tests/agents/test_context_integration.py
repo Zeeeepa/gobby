@@ -64,6 +64,7 @@ def context_config():
     )
 
 
+@pytest.mark.integration
 class TestContextResolverIntegration:
     """Integration tests for ContextResolver with all source types."""
 
@@ -139,6 +140,7 @@ class TestContextResolverIntegration:
         mock_session_manager.get.assert_called_with("sess-target")
 
 
+@pytest.mark.integration
 class TestFormatInjectedPromptIntegration:
     """Integration tests for prompt injection formatting."""
 
@@ -162,6 +164,7 @@ class TestFormatInjectedPromptIntegration:
         assert "Context" not in result
 
 
+@pytest.mark.integration
 class TestAgentsRegistryContextIntegration:
     """Integration tests for context injection in agents registry."""
 
@@ -208,6 +211,7 @@ class TestAgentsRegistryContextIntegration:
         assert registry.name == "gobby-agents"
 
 
+@pytest.mark.integration
 class TestErrorHandling:
     """Tests for error handling in context injection flow."""
 

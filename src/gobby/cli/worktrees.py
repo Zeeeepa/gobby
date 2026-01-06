@@ -85,6 +85,9 @@ def create_worktree(
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
         return
+    except httpx.HTTPStatusError as e:
+        click.echo(f"HTTP Error {e.response.status_code}: {e.response.text}", err=True)
+        return
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         return
@@ -196,6 +199,9 @@ def delete_worktree(worktree_id: str, force: bool, yes: bool) -> None:
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
         return
+    except httpx.HTTPStatusError as e:
+        click.echo(f"HTTP Error {e.response.status_code}: {e.response.text}", err=True)
+        return
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         return
@@ -248,6 +254,9 @@ def spawn_in_worktree(
         result = response.json()
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
+        return
+    except httpx.HTTPStatusError as e:
+        click.echo(f"HTTP Error {e.response.status_code}: {e.response.text}", err=True)
         return
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
@@ -321,6 +330,9 @@ def sync_worktree(worktree_id: str, source_branch: str | None, json_format: bool
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
         return
+    except httpx.HTTPStatusError as e:
+        click.echo(f"HTTP Error {e.response.status_code}: {e.response.text}", err=True)
+        return
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         return
@@ -356,6 +368,9 @@ def detect_stale(days: int, json_format: bool) -> None:
         result = response.json()
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
+        return
+    except httpx.HTTPStatusError as e:
+        click.echo(f"HTTP Error {e.response.status_code}: {e.response.text}", err=True)
         return
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
@@ -420,6 +435,9 @@ def cleanup_worktrees(days: int, dry_run: bool, yes: bool) -> None:
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
         return
+    except httpx.HTTPStatusError as e:
+        click.echo(f"HTTP Error {e.response.status_code}: {e.response.text}", err=True)
+        return
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         return
@@ -449,6 +467,9 @@ def worktree_stats(json_format: bool) -> None:
         result = response.json()
     except httpx.ConnectError:
         click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
+        return
+    except httpx.HTTPStatusError as e:
+        click.echo(f"HTTP Error {e.response.status_code}: {e.response.text}", err=True)
         return
     except Exception as e:
         click.echo(f"Error: {e}", err=True)

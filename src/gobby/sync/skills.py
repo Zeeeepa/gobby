@@ -325,21 +325,26 @@ class SkillSyncManager:
                 description = skill.description or f"Skill: {skill.name}"
                 prompt = skill.instructions or ""
 
-                # Write TOML manually (simple format, no extra dependency needed)
-                # Escape quotes and backslashes in strings for basic strings
-                def escape_toml_string(s: str) -> str:
+                # Write TOML using triple-double-quoted multiline basic strings
+                # This allows backslashes for regex patterns while properly escaping
+                def escape_toml_basic_string(s: str) -> str:
+                    """Escape for TOML basic string (double-quoted)."""
                     return s.replace("\\", "\\\\").replace('"', '\\"')
 
-                # Use literal multi-line strings (''') for prompt to avoid escape issues
-                # Literal strings don't interpret backslashes, so regex patterns work
-                # Only need to escape triple single quotes within the content
-                safe_prompt = prompt.replace("'''", "'''\"'''\"'''")
+                def escape_toml_multiline_basic(s: str) -> str:
+                    """Escape for TOML multiline basic string (triple double-quoted).
 
-                # Use basic string for description, literal string for prompt
-                toml_content = f'description = "{escape_toml_string(description)}"\n\n'
-                toml_content += "prompt = '''\n"
-                toml_content += safe_prompt
-                toml_content += "\n'''\n"
+                    Only need to escape backslashes and triple double quotes.
+                    """
+                    result = s.replace("\\", "\\\\")
+                    result = result.replace('"""', '\\"\\"\\"')
+                    return result
+
+                # Use basic string for description, multiline basic string for prompt
+                toml_content = f'description = "{escape_toml_basic_string(description)}"\n\n'
+                toml_content += 'prompt = """\n'
+                toml_content += escape_toml_multiline_basic(prompt)
+                toml_content += '\n"""\n'
 
                 command_file = commands_dir / f"{safe_name}.toml"
                 with open(command_file, "w", encoding="utf-8") as f:

@@ -349,6 +349,9 @@ args = ["run", "gobby", "mcp-server"]
 def remove_mcp_server_toml(config_path: Path, server_name: str = "gobby") -> dict[str, Any]:
     """Remove Gobby MCP server from a TOML config file.
 
+    Uses tomllib (stdlib) for reading and tomli_w for writing to properly
+    handle TOML syntax including multi-line strings.
+
     Args:
         config_path: Path to the config.toml file
         server_name: Name of the MCP server entry to remove
@@ -356,7 +359,9 @@ def remove_mcp_server_toml(config_path: Path, server_name: str = "gobby") -> dic
     Returns:
         Dict with 'success', 'removed', 'backup_path', and 'error' keys
     """
-    import re
+    import tomllib
+
+    import tomli_w
 
     result: dict[str, Any] = {
         "success": False,
@@ -369,20 +374,21 @@ def remove_mcp_server_toml(config_path: Path, server_name: str = "gobby") -> dic
         result["success"] = True
         return result
 
+    # Read existing TOML file
     try:
-        existing = config_path.read_text(encoding="utf-8")
+        existing_text = config_path.read_text(encoding="utf-8")
+        with open(config_path, "rb") as f:
+            config = tomllib.load(f)
+    except tomllib.TOMLDecodeError as e:
+        result["error"] = f"Failed to parse TOML {config_path}: {e}"
+        return result
     except OSError as e:
         result["error"] = f"Failed to read {config_path}: {e}"
         return result
 
-    # Check if server exists - match the section and its contents
-    pattern = re.compile(
-        rf"^\s*\[mcp_servers\.{re.escape(server_name)}\]\s*\n"
-        rf"(?:(?!\[)[^\n]*\n)*",
-        re.MULTILINE,
-    )
-
-    if not pattern.search(existing):
+    # Check if server exists in mcp_servers section
+    mcp_servers = config.get("mcp_servers", {})
+    if server_name not in mcp_servers:
         result["success"] = True
         return result
 
@@ -390,20 +396,25 @@ def remove_mcp_server_toml(config_path: Path, server_name: str = "gobby") -> dic
     timestamp = int(time.time())
     backup_path = config_path.with_suffix(f".toml.{timestamp}.backup")
     try:
-        backup_path.write_text(existing, encoding="utf-8")
+        backup_path.write_text(existing_text, encoding="utf-8")
         result["backup_path"] = str(backup_path)
     except OSError as e:
         result["error"] = f"Failed to create backup: {e}"
         return result
 
-    # Remove the section
-    updated = pattern.sub("", existing)
+    # Remove the server from config
+    del mcp_servers[server_name]
 
-    # Clean up multiple blank lines
-    updated = re.sub(r"\n{3,}", "\n\n", updated)
+    # Clean up empty mcp_servers section
+    if not mcp_servers:
+        del config["mcp_servers"]
+    else:
+        config["mcp_servers"] = mcp_servers
 
+    # Write updated config using tomli_w
     try:
-        config_path.write_text(updated, encoding="utf-8")
+        with open(config_path, "wb") as f:
+            tomli_w.dump(config, f, multiline_strings=True)
     except OSError as e:
         result["error"] = f"Failed to write {config_path}: {e}"
         return result

@@ -84,7 +84,7 @@ steps:
 
     rules:
       - name: limit_parallel_agents
-        when: "count_running_agents() > max_parallel_agents"
+        when: "count_running_agents() >= max_parallel_agents"
         action: block
         message: "Maximum {{ max_parallel_agents }} parallel agents allowed"
 
@@ -96,7 +96,9 @@ steps:
     description: Review agent results and integrate
     allowed_tools: all
     blocked_tools:
-      - mcp__gobby__call_tool  # Don't spawn more agents in review
+      # Block only agent-spawning tools; allow gobby-tasks/worktrees/memory
+      - gobby-agents:start_agent
+      - gobby-agents:stop_agent
 
     on_enter:
       - action: inject_context
