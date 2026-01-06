@@ -1012,9 +1012,9 @@ Add CLI command groups for agents and worktrees.
 - [x] Link worktree status to task status changes
 - [x] Add WebSocket events for agent and worktree changes
 
-### Phase 7: Testing ⏳ IN PROGRESS
+### Phase 7: Testing ✅ COMPLETED
 
-> **Status**: 119/120 tests passing. One test failure to fix.
+> **Status**: 120/120 tests passing. All tests implemented.
 
 - [x] Unit tests for AgentExecutor implementations (all providers)
 - [x] Unit tests for AgentRunner
@@ -1025,7 +1025,7 @@ Add CLI command groups for agents and worktrees.
 - [x] Integration tests for workflow tool filtering
 - [x] Integration tests for terminal mode with worktrees
 - [x] Integration tests for worktree lifecycle
-- [ ] Fix `test_rejects_outside_project` test failure (error message mismatch)
+- [x] Fix `test_rejects_outside_project` test failure (error message mismatch)
 
 ### Phase 8: Documentation ⏳ IN PROGRESS
 

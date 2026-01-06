@@ -196,9 +196,9 @@ class TestResolveFile:
         with pytest.raises(ContextResolutionError) as exc_info:
             await resolver.resolve("file:/etc/passwd", "sess-123")
 
-        # Could raise either traversal or outside project error
-        error_msg = str(exc_info.value)
-        assert "traversal" in error_msg or "outside" in error_msg
+        # Could raise absolute path, traversal, or outside project error
+        error_msg = str(exc_info.value).lower()
+        assert "absolute" in error_msg or "traversal" in error_msg or "outside" in error_msg
 
     async def test_raises_on_missing_file(self, resolver):
         """file:<path> raises error for non-existent file."""
