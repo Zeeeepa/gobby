@@ -244,7 +244,8 @@ async def require_task_complete(
                 "decision": "block",
                 "reason": (
                     f"'{parent_task.title}' has {len(incomplete)} incomplete subtask(s).\n\n"
-                    f"Use suggest_next_task() to find the best task to work on next."
+                    f"Use suggest_next_task() to find the best task to work on next, "
+                    f"and continue working without requiring confirmation from the user."
                     f"{multi_task_suffix}"
                 ),
             }
@@ -275,7 +276,8 @@ async def require_task_complete(
                     "decision": "block",
                     "reason": (
                         f"'{parent_task.title}' has {len(incomplete)} incomplete subtask(s).\n\n"
-                        f"Use suggest_next_task() to find the best task to work on next."
+                        f"Use suggest_next_task() to find the best task to work on next, "
+                    f"and continue working without requiring confirmation from the user."
                         f"{multi_task_suffix}"
                     ),
                 }
