@@ -390,13 +390,15 @@ call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
 | `session_context` | str | "summary_markdown" | Context source (see below) |
 | `workflow` | str | None | Workflow name to execute |
 | `task` | str | None | Task ID or 'next' for auto-select |
-| `mode` | str | "in_process" | Execution mode |
-| `terminal` | str | "auto" | Terminal for terminal mode |
-| `provider` | str | "claude" | LLM provider |
+| `mode` | str | "in_process" | Execution mode: `in_process`, `terminal`, `embedded`, `headless` |
+| `terminal` | str | "auto" | Terminal for terminal/embedded modes |
+| `provider` | str | None | LLM provider (claude, gemini, codex, litellm). Defaults to claude |
 | `model` | str | None | Model override |
+| `worktree_id` | str | None | Existing worktree ID to use for terminal mode |
 | `timeout` | float | 120.0 | Execution timeout in seconds |
 | `max_turns` | int | 10 | Maximum agent turns |
-| `parent_session_id` | str | required | Parent session ID |
+| `parent_session_id` | str | inferred | Parent session ID (usually inferred from context) |
+| `project_id` | str | inferred | Project ID (usually inferred from context) |
 
 ### Context Sources
 
@@ -455,6 +457,17 @@ context_injection:
   max_transcript_messages: 100            # Max transcript messages
   truncation_suffix: "\n\n[truncated: {bytes} bytes remaining]"
 ```
+
+### Execution Modes
+
+The `mode` parameter controls how the agent is executed:
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `in_process` | Runs in the same process using AgentExecutor | Default for quick tasks, synchronized execution |
+| `terminal` | Spawns a new terminal window (Ghostty, iTerm, etc.) | Long-running tasks, parallel work, interactive debugging |
+| `embedded` | Embedded in current terminal (split/tab) | Work alongside current session |
+| `headless` | No UI, runs in background | Automated tasks, CI/CD, batch processing |
 
 ### Terminal Mode Pickup Mechanism
 
@@ -516,6 +529,9 @@ When spawning a terminal process, these environment variables are set:
 | `GOBBY_WORKFLOW_NAME` | Workflow to activate |
 | `GOBBY_AGENT_RUN_ID` | Agent run ID for status updates |
 | `GOBBY_AGENT_DEPTH` | Current agent depth |
+| `GOBBY_MAX_AGENT_DEPTH` | Maximum allowed nesting depth |
+| `GOBBY_PROMPT` | Short prompt text (if < 4KB) |
+| `GOBBY_PROMPT_FILE` | Path to prompt file (for longer prompts) |
 
 **Hook Activation Sequence:**
 
