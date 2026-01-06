@@ -278,6 +278,23 @@ class InternalRegistryManager:
         """
         return list(self._registries.values())
 
+    def find_tool_server(self, tool_name: str) -> str | None:
+        """
+        Find which internal server owns a tool.
+
+        Searches all internal registries to find a tool by name.
+
+        Args:
+            tool_name: Name of the tool to find
+
+        Returns:
+            Server name if found, None otherwise
+        """
+        for registry in self._registries.values():
+            if tool_name in registry._tools:
+                return registry.name
+        return None
+
     def __len__(self) -> int:
         """Return number of registries."""
         return len(self._registries)

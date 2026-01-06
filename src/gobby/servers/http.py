@@ -138,6 +138,14 @@ class HTTPServer:
             if config and hasattr(config, "websocket") and config.websocket:
                 ws_port = config.websocket.port
 
+            # Create a lazy getter for tool_proxy that will be available after
+            # GobbyDaemonTools is created. This allows in-process agents to route
+            # tool calls through the MCP proxy.
+            def tool_proxy_getter() -> Any:
+                if self._tools_handler is not None:
+                    return self._tools_handler.tool_proxy
+                return None
+
             # Setup internal registries (gobby-tasks, gobby-memory, gobby-skills, etc.)
             self._internal_manager = setup_internal_registries(
                 _config=config,
@@ -154,6 +162,7 @@ class HTTPServer:
                 skill_sync_manager=skill_sync_manager,
                 metrics_manager=self.metrics_manager,
                 llm_service=self.llm_service,
+                tool_proxy_getter=tool_proxy_getter,
             )
             registry_count = len(self._internal_manager)
             logger.debug(f"Internal registries initialized: {registry_count} registries")

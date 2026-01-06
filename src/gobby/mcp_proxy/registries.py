@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from gobby.mcp_proxy.tools.internal import InternalRegistryManager
@@ -12,6 +13,7 @@ if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
     from gobby.llm.service import LLMService
     from gobby.mcp_proxy.metrics import ToolMetricsManager
+    from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
     from gobby.memory.manager import MemoryManager
     from gobby.sessions.manager import SessionManager
     from gobby.skills import SkillLearner
@@ -48,6 +50,7 @@ def setup_internal_registries(
     worktree_storage: LocalWorktreeManager | None = None,
     git_manager: WorktreeGitManager | None = None,
     project_id: str | None = None,
+    tool_proxy_getter: Callable[[], ToolProxyService | None] | None = None,
 ) -> InternalRegistryManager:
     """
     Setup internal MCP registries (tasks, messages, memory, skills, metrics, agents, worktrees).
@@ -71,6 +74,8 @@ def setup_internal_registries(
         worktree_storage: Worktree storage manager for worktree operations
         git_manager: Git manager for git worktree operations
         project_id: Default project ID for worktree operations
+        tool_proxy_getter: Callable that returns ToolProxyService for routing
+            tool calls in in-process agents. Called lazily during agent execution.
 
     Returns:
         InternalRegistryManager containing all registries
@@ -165,6 +170,7 @@ def setup_internal_registries(
 
         agents_registry = create_agents_registry(
             runner=agent_runner,
+            tool_proxy_getter=tool_proxy_getter,
         )
         manager.add_registry(agents_registry)
         logger.debug("Agents registry initialized")

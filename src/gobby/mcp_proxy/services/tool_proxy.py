@@ -189,3 +189,64 @@ class ToolProxyService:
             return await self._mcp_manager.get_tool_input_schema(server_name, tool_name)
         except Exception as e:
             raise MCPError(f"Failed to get schema for {tool_name} on {server_name}: {e}") from e
+
+    def find_tool_server(self, tool_name: str) -> str | None:
+        """
+        Find which server owns a tool by searching all available servers.
+
+        Searches internal registries first (faster), then external server configs.
+
+        Args:
+            tool_name: Name of the tool to find
+
+        Returns:
+            Server name if found, None otherwise
+        """
+        # Search internal registries first (fast, in-memory lookup)
+        if self._internal_manager:
+            server = self._internal_manager.find_tool_server(tool_name)
+            if server:
+                return server
+
+        # Search external server configs (cached tool metadata)
+        for server_name, config in self._mcp_manager._configs.items():
+            if config.tools:
+                for tool in config.tools:
+                    tool_name_in_config = (
+                        tool.get("name") if isinstance(tool, dict) else getattr(tool, "name", None)
+                    )
+                    if tool_name_in_config == tool_name:
+                        return server_name
+
+        return None
+
+    async def call_tool_by_name(
+        self,
+        tool_name: str,
+        arguments: dict[str, Any] | None = None,
+    ) -> Any:
+        """
+        Call a tool by name, automatically resolving the server.
+
+        Searches all available servers to find which one owns the tool,
+        then routes the call appropriately.
+
+        Args:
+            tool_name: Name of the tool to call
+            arguments: Tool arguments
+
+        Returns:
+            Tool execution result, or error dict if tool not found
+        """
+        server_name = self.find_tool_server(tool_name)
+
+        if server_name is None:
+            logger.warning(f"Tool '{tool_name}' not found on any server")
+            return {
+                "success": False,
+                "error": f"Tool '{tool_name}' not found on any available server",
+                "tool_name": tool_name,
+            }
+
+        logger.debug(f"Routing tool '{tool_name}' to server '{server_name}'")
+        return await self.call_tool(server_name, tool_name, arguments)

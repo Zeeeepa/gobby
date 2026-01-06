@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import socket
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -40,6 +41,7 @@ if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
     from gobby.config.app import ContextInjectionConfig
     from gobby.llm.executor import ToolResult
+    from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
     from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
 
@@ -53,6 +55,7 @@ def create_agents_registry(
     context_config: ContextInjectionConfig | None = None,
     get_session_context: Any | None = None,
     running_registry: RunningAgentRegistry | None = None,
+    tool_proxy_getter: Callable[[], ToolProxyService | None] | None = None,
 ) -> InternalToolRegistry:
     """
     Create an agent tool registry with all agent-related tools.
@@ -64,6 +67,9 @@ def create_agents_registry(
         context_config: Context injection configuration.
         get_session_context: Optional callable returning current session context.
         running_registry: Optional in-memory registry for running agents.
+        tool_proxy_getter: Optional callable that returns ToolProxyService for
+            routing tool calls in in-process agents. If not provided, tool calls
+            will fail with "tool not available".
 
     Returns:
         InternalToolRegistry with all agent tools registered.
@@ -248,11 +254,40 @@ def create_agents_registry(
             async def tool_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
                 from gobby.llm.executor import ToolResult
 
-                return ToolResult(
-                    tool_name=tool_name,
-                    success=False,
-                    error=f"Tool {tool_name} not available for this agent",
-                )
+                # Get tool proxy for routing calls
+                tool_proxy = tool_proxy_getter() if tool_proxy_getter else None
+                if tool_proxy is None:
+                    return ToolResult(
+                        tool_name=tool_name,
+                        success=False,
+                        error=f"Tool proxy not configured - cannot route tool {tool_name}",
+                    )
+
+                # Route the tool call through the MCP proxy
+                try:
+                    result = await tool_proxy.call_tool_by_name(tool_name, arguments)
+
+                    # Handle error response format from call_tool_by_name
+                    if isinstance(result, dict) and result.get("success") is False:
+                        return ToolResult(
+                            tool_name=tool_name,
+                            success=False,
+                            error=result.get("error", f"Tool {tool_name} failed"),
+                        )
+
+                    # Successful tool call
+                    return ToolResult(
+                        tool_name=tool_name,
+                        success=True,
+                        result=result,
+                    )
+                except Exception as e:
+                    logger.warning(f"Tool call failed for {tool_name}: {e}")
+                    return ToolResult(
+                        tool_name=tool_name,
+                        success=False,
+                        error=str(e),
+                    )
 
             result = await runner.run(config, tool_handler=tool_handler)
 
