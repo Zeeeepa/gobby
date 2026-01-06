@@ -599,3 +599,382 @@ class TestSkillConfig:
         assert config.enabled is True
         assert config.provider == "claude"
         assert config.model == "claude-haiku-4-5"
+
+
+# ==============================================================================
+# Additional tests for config module decomposition coverage (gt-dfa0d7)
+# These tests verify all config classes can be instantiated correctly
+# ==============================================================================
+
+from gobby.config.app import (
+    CompactHandoffConfig,
+    ContextInjectionConfig,
+    GobbyTasksConfig,
+    MemorySyncConfig,
+    MetricsConfig,
+    PluginItemConfig,
+    PluginsConfig,
+    SkillSyncConfig,
+    ToolSummarizerConfig,
+    WebhookEndpointConfig,
+    WebhooksConfig,
+)
+
+
+class TestCompactHandoffConfig:
+    """Tests for CompactHandoffConfig."""
+
+    def test_default_values(self):
+        """Test default compact handoff config."""
+        config = CompactHandoffConfig()
+        assert config.enabled is True
+        assert config.prompt is None  # Deprecated
+
+    def test_custom_values(self):
+        """Test custom compact handoff config."""
+        config = CompactHandoffConfig(enabled=False)
+        assert config.enabled is False
+
+
+class TestContextInjectionConfig:
+    """Tests for ContextInjectionConfig."""
+
+    def test_default_values(self):
+        """Test default context injection config."""
+        config = ContextInjectionConfig()
+        assert config.enabled is True
+        assert config.default_source == "summary_markdown"
+        assert config.max_file_size == 51200
+        assert config.max_content_size == 51200
+        assert config.max_transcript_messages == 100
+
+    def test_positive_validation(self):
+        """Test positive value validation."""
+        with pytest.raises(ValidationError):
+            ContextInjectionConfig(max_file_size=0)
+        with pytest.raises(ValidationError):
+            ContextInjectionConfig(max_content_size=-1)
+        with pytest.raises(ValidationError):
+            ContextInjectionConfig(max_transcript_messages=0)
+
+
+class TestToolSummarizerConfig:
+    """Tests for ToolSummarizerConfig."""
+
+    def test_default_values(self):
+        """Test default tool summarizer config."""
+        config = ToolSummarizerConfig()
+        assert config.enabled is True
+        assert config.provider == "claude"
+        assert config.model == "claude-haiku-4-5"
+        assert "180 characters" in config.prompt
+
+
+class TestGobbyTasksConfig:
+    """Tests for GobbyTasksConfig."""
+
+    def test_default_values(self):
+        """Test default gobby tasks config."""
+        config = GobbyTasksConfig()
+        assert config.enabled is True
+        assert config.show_result_on_create is False
+        assert isinstance(config.expansion, TaskExpansionConfig)
+        assert isinstance(config.validation, TaskValidationConfig)
+
+    def test_nested_configs(self):
+        """Test nested expansion and validation configs."""
+        config = GobbyTasksConfig(
+            expansion=TaskExpansionConfig(enabled=False),
+            validation=TaskValidationConfig(enabled=False),
+        )
+        assert config.expansion.enabled is False
+        assert config.validation.enabled is False
+
+
+class TestWebhookEndpointConfig:
+    """Tests for WebhookEndpointConfig."""
+
+    def test_required_fields(self):
+        """Test required fields."""
+        config = WebhookEndpointConfig(name="test", url="https://example.com")
+        assert config.name == "test"
+        assert config.url == "https://example.com"
+        assert config.timeout == 10.0
+        assert config.retry_count == 3
+        assert config.retry_delay == 1.0
+        assert config.can_block is False
+        assert config.enabled is True
+
+    def test_custom_values(self):
+        """Test custom webhook config."""
+        config = WebhookEndpointConfig(
+            name="custom",
+            url="https://api.example.com/hook",
+            events=["session-start", "session-end"],
+            timeout=30.0,
+            retry_count=5,
+            can_block=True,
+        )
+        assert len(config.events) == 2
+        assert config.timeout == 30.0
+        assert config.retry_count == 5
+        assert config.can_block is True
+
+
+class TestWebhooksConfig:
+    """Tests for WebhooksConfig."""
+
+    def test_default_values(self):
+        """Test default webhooks config."""
+        config = WebhooksConfig()
+        assert config.enabled is True
+        assert config.endpoints == []
+        assert config.default_timeout == 10.0
+        assert config.async_dispatch is True
+
+    def test_with_endpoints(self):
+        """Test webhooks config with endpoints."""
+        config = WebhooksConfig(
+            endpoints=[
+                WebhookEndpointConfig(name="test1", url="https://a.com"),
+                WebhookEndpointConfig(name="test2", url="https://b.com"),
+            ]
+        )
+        assert len(config.endpoints) == 2
+
+
+class TestPluginItemConfig:
+    """Tests for PluginItemConfig."""
+
+    def test_default_values(self):
+        """Test default plugin item config."""
+        config = PluginItemConfig()
+        assert config.enabled is True
+        assert config.config == {}
+
+    def test_with_custom_config(self):
+        """Test plugin item with custom config."""
+        config = PluginItemConfig(
+            enabled=False,
+            config={"key": "value", "nested": {"a": 1}},
+        )
+        assert config.enabled is False
+        assert config.config["key"] == "value"
+        assert config.config["nested"]["a"] == 1
+
+
+class TestPluginsConfig:
+    """Tests for PluginsConfig."""
+
+    def test_default_values(self):
+        """Test default plugins config."""
+        config = PluginsConfig()
+        assert config.enabled is False  # Disabled by default for security
+        assert "~/.gobby/plugins" in config.plugin_dirs
+        assert ".gobby/plugins" in config.plugin_dirs
+        assert config.auto_discover is True
+        assert config.plugins == {}
+
+    def test_with_plugin_configs(self):
+        """Test plugins config with individual plugins."""
+        config = PluginsConfig(
+            enabled=True,
+            plugins={
+                "my-plugin": PluginItemConfig(config={"debug": True}),
+                "other-plugin": PluginItemConfig(enabled=False),
+            },
+        )
+        assert config.enabled is True
+        assert len(config.plugins) == 2
+        assert config.plugins["my-plugin"].config["debug"] is True
+        assert config.plugins["other-plugin"].enabled is False
+
+
+class TestMemorySyncConfig:
+    """Tests for MemorySyncConfig."""
+
+    def test_default_values(self):
+        """Test default memory sync config."""
+        config = MemorySyncConfig()
+        assert config.enabled is True
+        assert config.stealth is False
+        assert config.export_debounce == 5.0
+
+    def test_stealth_mode(self):
+        """Test stealth mode config."""
+        config = MemorySyncConfig(stealth=True)
+        assert config.stealth is True
+
+    def test_debounce_validation(self):
+        """Test export debounce validation."""
+        with pytest.raises(ValidationError):
+            MemorySyncConfig(export_debounce=-1.0)
+
+
+class TestSkillSyncConfig:
+    """Tests for SkillSyncConfig."""
+
+    def test_default_values(self):
+        """Test default skill sync config."""
+        config = SkillSyncConfig()
+        assert config.enabled is True
+        assert config.stealth is False
+        assert config.export_debounce == 5.0
+
+    def test_debounce_validation(self):
+        """Test export debounce validation."""
+        with pytest.raises(ValidationError):
+            SkillSyncConfig(export_debounce=-1.0)
+
+
+class TestMetricsConfig:
+    """Tests for MetricsConfig."""
+
+    def test_default_values(self):
+        """Test default metrics config."""
+        config = MetricsConfig()
+        assert config.list_limit == 10000
+
+    def test_list_limit_validation(self):
+        """Test list_limit must be non-negative."""
+        config = MetricsConfig(list_limit=0)  # 0 is valid (unbounded)
+        assert config.list_limit == 0
+
+        with pytest.raises(ValidationError):
+            MetricsConfig(list_limit=-1)
+
+
+# ==============================================================================
+# Cross-module reference tests (ensure DaemonConfig wires everything correctly)
+# ==============================================================================
+
+
+class TestDaemonConfigComposition:
+    """Tests for DaemonConfig composition with sub-configs."""
+
+    def test_all_sub_configs_accessible(self):
+        """Test all sub-configs are accessible from DaemonConfig."""
+        config = DaemonConfig()
+
+        # Network/server
+        assert isinstance(config.websocket, WebSocketSettings)
+        assert isinstance(config.logging, LoggingSettings)
+
+        # Session
+        assert isinstance(config.compact_handoff, CompactHandoffConfig)
+        assert isinstance(config.context_injection, ContextInjectionConfig)
+        assert isinstance(config.session_summary, SessionSummaryConfig)
+        assert isinstance(config.session_lifecycle, SessionLifecycleConfig)
+        assert isinstance(config.message_tracking, MessageTrackingConfig)
+
+        # MCP
+        assert isinstance(config.mcp_client_proxy, MCPClientProxyConfig)
+        assert isinstance(config.import_mcp_server, ImportMCPServerConfig)
+        assert isinstance(config.tool_summarizer, ToolSummarizerConfig)
+
+        # Tasks
+        assert isinstance(config.gobby_tasks, GobbyTasksConfig)
+        assert isinstance(config.gobby_tasks.expansion, TaskExpansionConfig)
+        assert isinstance(config.gobby_tasks.validation, TaskValidationConfig)
+
+        # LLM
+        assert isinstance(config.llm_providers, LLMProvidersConfig)
+        assert isinstance(config.title_synthesis, TitleSynthesisConfig)
+        assert isinstance(config.code_execution, CodeExecutionConfig)
+        assert isinstance(config.recommend_tools, RecommendToolsConfig)
+
+        # Hooks
+        assert isinstance(config.hook_extensions, HookExtensionsConfig)
+        assert isinstance(config.hook_extensions.websocket, WebSocketBroadcastConfig)
+        assert isinstance(config.hook_extensions.webhooks, WebhooksConfig)
+        assert isinstance(config.hook_extensions.plugins, PluginsConfig)
+
+        # Workflow
+        assert isinstance(config.workflow, WorkflowConfig)
+        assert isinstance(config.metrics, MetricsConfig)
+
+        # Memory & Skills
+        assert isinstance(config.memory, MemoryConfig)
+        assert isinstance(config.memory_sync, MemorySyncConfig)
+        assert isinstance(config.skill_sync, SkillSyncConfig)
+        assert isinstance(config.skills, SkillConfig)
+
+    def test_getters_return_correct_configs(self):
+        """Test all getter methods return correct configs."""
+        config = DaemonConfig()
+
+        assert config.get_code_execution_config() is config.code_execution
+        assert config.get_recommend_tools_config() is config.recommend_tools
+        assert config.get_tool_summarizer_config() is config.tool_summarizer
+        assert config.get_import_mcp_server_config() is config.import_mcp_server
+        assert config.get_mcp_client_proxy_config() is config.mcp_client_proxy
+        assert config.get_memory_config() is config.memory
+        assert config.get_memory_sync_config() is config.memory_sync
+        assert config.get_skill_sync_config() is config.skill_sync
+        assert config.get_skills_config() is config.skills
+        assert config.get_gobby_tasks_config() is config.gobby_tasks
+        assert config.get_metrics_config() is config.metrics
+
+    def test_yaml_round_trip(self, temp_dir: Path):
+        """Test config survives YAML serialization round-trip."""
+        config = DaemonConfig(
+            daemon_port=9000,
+            logging=LoggingSettings(level="debug"),
+            memory=MemoryConfig(injection_limit=20),
+        )
+
+        # Save
+        config_file = temp_dir / "roundtrip.yaml"
+        save_config(config, str(config_file))
+
+        # Load
+        loaded = load_config(config_file=str(config_file))
+
+        assert loaded.daemon_port == 9000
+        assert loaded.logging.level == "debug"
+        assert loaded.memory.injection_limit == 20
+
+
+class TestAllConfigClassesInstantiate:
+    """Verify all 31 config classes can be instantiated with defaults."""
+
+    def test_all_classes_instantiate(self):
+        """Test all config classes instantiate without error."""
+        # This test ensures the baseline works before extraction
+        configs = [
+            WebSocketSettings(),
+            LoggingSettings(),
+            CompactHandoffConfig(),
+            ContextInjectionConfig(),
+            SessionSummaryConfig(),
+            CodeExecutionConfig(),
+            ToolSummarizerConfig(),
+            RecommendToolsConfig(),
+            ImportMCPServerConfig(),
+            MCPClientProxyConfig(),
+            GobbyTasksConfig(),
+            LLMProviderConfig(models="test-model"),  # Required field
+            LLMProvidersConfig(),
+            TitleSynthesisConfig(),
+            WebSocketBroadcastConfig(),
+            WebhookEndpointConfig(name="test", url="https://test.com"),  # Required
+            WebhooksConfig(),
+            PluginItemConfig(),
+            PluginsConfig(),
+            HookExtensionsConfig(),
+            TaskExpansionConfig(),
+            TaskValidationConfig(),
+            WorkflowConfig(),
+            MessageTrackingConfig(),
+            SessionLifecycleConfig(),
+            MetricsConfig(),
+            MemoryConfig(),
+            MemorySyncConfig(),
+            SkillSyncConfig(),
+            SkillConfig(),
+            DaemonConfig(),
+        ]
+
+        assert len(configs) == 31
+        for config in configs:
+            assert config is not None
