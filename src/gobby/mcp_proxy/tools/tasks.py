@@ -16,6 +16,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+
+# Re-export validation tools from extracted module (Strangler Fig pattern)
+# This allows gradual migration - callers can import from either location
+from gobby.mcp_proxy.tools.task_validation import (
+    create_validation_registry,
+)
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.task_dependencies import TaskDependencyManager
@@ -36,6 +42,8 @@ from gobby.tasks.validation import TaskValidator
 from gobby.tasks.validation_history import ValidationHistoryManager
 from gobby.utils.project_context import get_project_context
 from gobby.utils.project_init import initialize_project
+
+__all__ = ["create_task_registry", "create_validation_registry"]
 
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig

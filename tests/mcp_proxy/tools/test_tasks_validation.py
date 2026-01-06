@@ -28,7 +28,7 @@ import pytest
 # Import from NEW module location - will fail until extraction is complete
 # This is intentional for TDD red phase
 try:
-    from gobby.mcp_proxy.tools.tasks_validation import (
+    from gobby.mcp_proxy.tools.task_validation import (
         create_validation_registry,
     )
 
@@ -68,7 +68,7 @@ def validation_registry(mock_task_manager, mock_task_validator):
     if not IMPORT_SUCCEEDED:
         pytest.skip("Module not extracted yet")
 
-    with patch("gobby.mcp_proxy.tools.tasks_validation.ValidationHistoryManager"):
+    with patch("gobby.mcp_proxy.tools.task_validation.ValidationHistoryManager"):
         registry = create_validation_registry(
             task_manager=mock_task_manager,
             task_validator=mock_task_validator,
