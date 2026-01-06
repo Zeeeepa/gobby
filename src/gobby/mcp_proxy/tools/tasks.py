@@ -26,6 +26,11 @@ from gobby.sync.tasks import TaskSyncManager
 from gobby.tasks.commits import auto_link_commits as auto_link_commits_fn
 from gobby.tasks.commits import get_task_diff
 from gobby.tasks.expansion import TaskExpander
+from gobby.tasks.spec_parser import (
+    CheckboxExtractor,
+    MarkdownStructureParser,
+    TaskHierarchyBuilder,
+)
 from gobby.tasks.validation import TaskValidator
 from gobby.tasks.validation_history import ValidationHistoryManager
 from gobby.utils.project_context import get_project_context
@@ -796,24 +801,28 @@ def create_task_registry(
         spec_path: str,
         parent_task_id: str | None = None,
         task_type: str = "task",
+        mode: Literal["auto", "structured", "llm"] = "auto",
     ) -> dict[str, Any]:
         """
         Parse a specification file and create tasks from it.
 
-        Reads the file, creates a parent task from the title/summary, then
-        expands it into subtasks using tool-based expansion.
+        Supports three modes for parsing:
+        - auto: Detect structure (headings/checkboxes) and use structured if found
+        - structured: Parse headings/checkboxes directly, error if no structure
+        - llm: Use LLM to interpret entire spec (original behavior)
+
+        For structured/auto modes with hybrid specs (some sections with checkboxes,
+        some without), sections without checkboxes fall back to LLM expansion.
 
         Args:
             spec_path: Path to the specification file (markdown, requirements, etc.)
             parent_task_id: Optional parent task to nest created tasks under
             task_type: Type for created tasks (default: "task")
+            mode: Parsing mode - "auto", "structured", or "llm" (default: "auto")
 
         Returns:
-            Dictionary with parent task and created subtasks
+            Dictionary with parent task, created subtasks, and mode used
         """
-        if not task_expander:
-            raise RuntimeError("Task expansion is not enabled")
-
         # Read the spec file
         path = Path(spec_path).expanduser().resolve()
         if not path.exists():
@@ -846,6 +855,25 @@ def create_task_registry(
                 title = line[:80] + ("..." if len(line) > 80 else "")
                 break
 
+        # Detect structure for auto mode
+        heading_parser = MarkdownStructureParser()
+        checkbox_extractor = CheckboxExtractor(track_headings=True, build_hierarchy=True)
+
+        headings = heading_parser.parse(spec_content)
+        checkboxes = checkbox_extractor.extract(spec_content)
+
+        has_structure = bool(headings) or checkboxes.total_count > 0
+        effective_mode = mode
+
+        if mode == "auto":
+            effective_mode = "structured" if has_structure else "llm"
+
+        if effective_mode == "structured" and not has_structure:
+            return {
+                "error": "No structure found in spec (no headings or checkboxes). "
+                "Use mode='llm' to interpret with AI, or add markdown structure.",
+            }
+
         # Create a parent task for the spec
         spec_task = task_manager.create_task(
             project_id=project_id,
@@ -855,25 +883,57 @@ def create_task_registry(
             task_type="epic",  # Specs typically become epics
         )
 
-        # Expand the spec task into subtasks
-        result = await task_expander.expand_task(
-            task_id=spec_task.id,
-            title=spec_task.title,
-            description=spec_content,
-            context="Parse this specification and create actionable tasks. "
-            "Each task should be specific and implementable.",
-            enable_web_research=False,
-            enable_code_context=False,
-        )
+        subtask_ids: list[str] = []
 
-        if "error" in result:
-            return {
-                "error": result["error"],
-                "parent_task": spec_task.to_dict(),
-                "subtask_ids": [],
-            }
+        if effective_mode == "structured":
+            # Use structured parsing with optional LLM fallback
+            builder = TaskHierarchyBuilder(
+                task_manager=task_manager,
+                project_id=project_id,
+                parent_task_id=spec_task.id,
+            )
 
-        subtask_ids = result.get("subtask_ids", [])
+            # Use fallback method if task_expander available (for hybrid specs)
+            if headings:
+                result = await builder.build_from_headings_with_fallback(
+                    headings=headings,
+                    checkboxes=checkboxes if checkboxes.total_count > 0 else None,
+                    task_expander=task_expander,
+                )
+                subtask_ids = result.task_ids
+            elif checkboxes.total_count > 0:
+                # Only checkboxes, no headings
+                result = builder.build_from_checkboxes(checkboxes)
+                subtask_ids = result.task_ids
+
+        else:
+            # LLM mode - original behavior
+            if not task_expander:
+                return {
+                    "error": "Task expansion is not enabled. "
+                    "Use mode='structured' for structured specs.",
+                    "parent_task": spec_task.to_dict(),
+                }
+
+            result = await task_expander.expand_task(
+                task_id=spec_task.id,
+                title=spec_task.title,
+                description=spec_content,
+                context="Parse this specification and create actionable tasks. "
+                "Each task should be specific and implementable.",
+                enable_web_research=False,
+                enable_code_context=False,
+            )
+
+            if "error" in result:
+                return {
+                    "error": result["error"],
+                    "parent_task": spec_task.to_dict(),
+                    "subtask_ids": [],
+                    "mode_used": effective_mode,
+                }
+
+            subtask_ids = result.get("subtask_ids", [])
 
         # Wire parent → subtask dependencies
         for subtask_id in subtask_ids:
@@ -896,6 +956,8 @@ def create_task_registry(
             "tasks_created": len(subtask_ids),
             "subtask_ids": subtask_ids,
             "subtasks": subtasks,
+            "mode_used": effective_mode,
+            "has_structure": has_structure,
         }
 
     @registry.tool(
