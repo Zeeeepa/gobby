@@ -674,6 +674,93 @@ call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
 })
 ```
 
+### Agent Safety Guardrails
+
+Gobby implements multiple safety mechanisms to prevent runaway agents and ensure controlled execution.
+
+**Agent Depth Limiting:**
+
+Prevents infinite nesting of agents spawning agents. Each session tracks its depth:
+- **Depth 0**: Human-initiated session (can spawn agents)
+- **Depth 1+**: Agent-spawned session (limited by `max_agent_depth`)
+
+```python
+# Check if current session can spawn before starting agent
+result = call_tool(server_name="gobby-agents", tool_name="can_spawn_agent", arguments={
+    "parent_session_id": "sess-abc123"
+})
+# Returns: {"can_spawn": true, "reason": "OK"}
+# Or: {"can_spawn": false, "reason": "Max agent depth (3) exceeded. Current depth: 3"}
+```
+
+**Execution Limits:**
+
+| Limit | Default | Description |
+|-------|---------|-------------|
+| `max_agent_depth` | 3 | Maximum nesting depth for agent spawning |
+| `max_turns` | 10 | Maximum number of agent turns (prompt → response cycles) |
+| `timeout` | 120.0s | Execution timeout for in-process agents |
+
+**Configuration:**
+
+```yaml
+# ~/.gobby/config.yaml
+agent_runner:
+  max_agent_depth: 3    # How deep agents can nest
+  default_timeout: 120  # Default timeout in seconds
+  default_max_turns: 10 # Default max turns
+```
+
+**Workflow Tool Restrictions:**
+
+When a workflow is active, tools are filtered per step:
+
+```yaml
+# Example workflow step with restrictions
+steps:
+  - name: plan
+    allowed_tools:
+      - Read
+      - Glob
+      - Grep
+      - WebSearch
+    blocked_tools:
+      - Edit
+      - Write
+      - Bash   # No file modifications during planning
+```
+
+Blocked tools are hidden from `list_tools()` responses, preventing the agent from using them.
+
+**Task-Based File Edit Guard:**
+
+When the task workflow hook is enabled, file edits (Edit/Write tools) require an active task with `status: in_progress`. This ensures:
+- All changes are tracked against a task
+- Work is organized and reviewable
+- Commits can be linked to tasks
+
+```python
+# This will be blocked if no task is in_progress:
+# Edit/Write tool calls → Hook blocks with: "No task claimed. Create a task first."
+
+# To enable editing, first claim a task:
+call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={
+    "task_id": "gt-abc123",
+    "status": "in_progress"
+})
+# Now Edit/Write tools will work
+```
+
+**Safety Checks Before Spawning:**
+
+Before spawning an agent, the system validates:
+1. Parent session exists
+2. Current depth < max_agent_depth
+3. Provider is configured and available
+4. Workflow (if specified) exists
+
+If any check fails, `start_agent` returns an error with details.
+
 ## Worktree Management with gobby-worktrees
 
 Use the `gobby-worktrees` MCP tools to manage git worktrees for isolated parallel development.
