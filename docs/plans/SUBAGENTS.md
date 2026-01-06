@@ -654,6 +654,238 @@ Subagents automatically have `start_agent` blocked unless workflow explicitly al
 - [x] Handle `complete` tool as workflow exit condition
 - [x] Integrate agent depth checking in workflow engine
 
+### Phase 1.5: API Alignment & Context Injection
+
+> **Status**: Not started. Complete before Phase 3.
+
+Bridge the gap between the current low-level implementation and the planned user-facing API. This phase updates `start_agent` to match the spec, implements context injection for subagents, and refactors the runner to enable terminal mode.
+
+**Why now?** Adding more providers (Phase 3) before fixing the API creates technical debt. Fix the shape first.
+
+#### Phase 1.5.1: Signature Alignment
+
+Update `start_agent` MCP tool to match the planned API from the spec.
+
+**Current signature (low-level):**
+```python
+start_agent(
+    prompt, parent_session_id, project_id, machine_id, source,
+    provider, model, workflow_name, system_prompt, max_turns, timeout, ...
+)
+```
+
+**Target signature (user-facing):**
+```python
+start_agent(
+    prompt: str,
+    workflow: str | None = None,
+    task: str | None = None,           # Task ID or "next"
+    session_context: str = "summary_markdown",
+    mode: str = "in_process",          # in_process, terminal, embedded, headless
+    terminal: str = "auto",            # For terminal/embedded modes
+    provider: str | None = None,
+    model: str | None = None,
+    worktree_id: str | None = None,
+    timeout: float = 120.0,
+    max_turns: int = 10,
+)
+```
+
+- [ ] Update `start_agent` signature in `src/gobby/mcp_proxy/tools/agents.py`
+- [ ] Infer `parent_session_id`, `project_id`, `machine_id` from request context
+- [ ] Add `mode` parameter (stub unsupported modes with `NotImplementedError`)
+- [ ] Add `session_context` parameter (default: `"summary_markdown"`)
+- [ ] Add `task` parameter for task-driven execution
+- [ ] Add `worktree_id` parameter for terminal mode
+- [ ] Add `terminal` parameter for terminal selection
+- [ ] Update `AgentConfig` dataclass to match
+
+#### Phase 1.5.2: Context Resolver
+
+Implement `ContextResolver` to fetch and format context for subagent injection.
+
+**Context Sources:**
+| Source | Format | Description |
+|--------|--------|-------------|
+| `summary_markdown` | Default | Parent session's `summary_markdown` field |
+| `compact_markdown` | String | Parent session's `compact_markdown` (handoff context) |
+| `session_id:<id>` | String | Summary from specific session by ID |
+| `transcript:<n>` | String | Last N messages from parent session |
+| `file:<path>` | String | Read file content (project-scoped) |
+
+- [ ] Create `src/gobby/agents/context.py` with `ContextResolver` class
+- [ ] Implement `resolve(source: str, session_id: str) -> str` method
+- [ ] Implement `_resolve_summary_markdown()` - parent session summary
+- [ ] Implement `_resolve_compact_markdown()` - parent session handoff
+- [ ] Implement `_resolve_session_id()` - lookup specific session
+- [ ] Implement `_resolve_transcript()` - fetch last N messages via `LocalSessionMessageManager`
+- [ ] Implement `_resolve_file()` - read file with security checks
+- [ ] Add unit tests in `tests/agents/test_context_resolver.py`
+
+#### Phase 1.5.3: Error Handling
+
+Define explicit behavior for context resolution failures.
+
+| Error Case | Behavior |
+|------------|----------|
+| `session_id:<id>` not found | Raise `ContextResolutionError` with session ID |
+| `transcript:<n>` with no messages | Return empty string (not an error) |
+| `file:<path>` not found | Raise `ContextResolutionError` with path |
+| `file:<path>` not readable | Raise `ContextResolutionError` with permission error |
+| Content exceeds size limit | Truncate with `[truncated: X bytes]` suffix |
+| Unknown source format | Raise `ContextResolutionError` |
+
+- [ ] Create `ContextResolutionError` exception class
+- [ ] Implement error handling for each source type
+- [ ] Add truncation logic with configurable limit
+- [ ] Add tests for all error cases
+
+#### Phase 1.5.4: Security
+
+Secure `file:<path>` context source against path traversal and abuse.
+
+| Check | Description |
+|-------|-------------|
+| Project scope | Path must be within project directory |
+| No traversal | Reject paths with `..` components |
+| Symlink following | Only follow symlinks that resolve within project |
+| Size limit | Default 50KB max (configurable) |
+| File type | Text files only (reject binary) |
+
+- [ ] Implement path validation in `_resolve_file()`
+- [ ] Add `max_file_size` config option (default: 51200 bytes)
+- [ ] Add binary file detection (reject if not UTF-8)
+- [ ] Add tests for path traversal attempts
+- [ ] Add tests for symlink handling
+
+#### Phase 1.5.5: Context Injection Format
+
+Define how resolved context is prepended to the agent prompt.
+
+```markdown
+## Context from Parent Session
+*Injected by Gobby subagent spawning*
+
+{resolved_context}
+
+---
+
+## Task
+
+{original_prompt}
+```
+
+- [ ] Create `format_injected_prompt(context: str, prompt: str) -> str` function
+- [ ] Use markdown formatting with clear delimiters
+- [ ] Handle empty context gracefully (skip injection)
+- [ ] Add template to config for customization
+
+#### Phase 1.5.6: Runner Refactor
+
+Split `AgentRunner.run()` into `prepare_run()` + `execute_run()` to enable terminal mode.
+
+**Why this split?**
+- `prepare_run()` creates database state: child session, agent_run record, workflow state
+- `execute_run()` runs the executor loop
+- Terminal mode: calls `prepare_run()`, then spawns terminal that picks up from session via hooks
+- Without split: terminal mode would duplicate all setup logic
+
+```python
+class AgentRunner:
+    async def prepare_run(self, config: AgentConfig) -> AgentRunContext:
+        """
+        Prepare for agent execution (database setup).
+
+        Creates:
+        - Child session linked to parent
+        - Agent run record
+        - Workflow state (if workflow specified)
+
+        Returns context for execute_run() or terminal spawn.
+        """
+
+    async def execute_run(
+        self,
+        context: AgentRunContext,
+        config: AgentConfig,
+        tool_handler: ToolHandler | None = None,
+    ) -> AgentResult:
+        """
+        Execute the agent loop using prepared context.
+
+        For in_process mode only. Terminal mode uses spawn instead.
+        """
+
+    async def run(self, config: AgentConfig, ...) -> AgentResult:
+        """
+        Full run (prepare + execute). Preserves existing behavior.
+        """
+        context = await self.prepare_run(config)
+        return await self.execute_run(context, config, tool_handler)
+```
+
+- [ ] Define `AgentRunContext` dataclass with session, run, workflow info
+- [ ] Extract setup logic from `run()` into `prepare_run()`
+- [ ] Extract execution logic into `execute_run()`
+- [ ] Update `run()` to call both (preserve existing behavior)
+- [ ] Add tests for `prepare_run()` isolation
+- [ ] Add tests for `execute_run()` with pre-prepared context
+
+#### Phase 1.5.7: Terminal Mode Pickup (Design Only)
+
+> **Note**: Implementation in Phase 4.3. This documents the design.
+
+When `mode=terminal`, the daemon calls `prepare_run()` then spawns a terminal process. The spawned CLI picks up the prepared state via hooks:
+
+1. Daemon calls `prepare_run()` → creates session with `workflow_name` in metadata
+2. Daemon spawns terminal with `--session-id` or env var
+3. CLI starts, triggers `session.start` hook
+4. Hook reads session metadata, finds `workflow_name`
+5. Hook activates workflow for the session
+6. Agent works within workflow constraints
+7. On `session.end`, handoff captured, result stored in `agent_runs`
+
+- [ ] Document pickup mechanism in workflow docs
+- [ ] Define session metadata fields for terminal pickup
+- [ ] Define environment variables for session context passing
+
+#### Phase 1.5.8: Integration
+
+Wire context injection into the agent spawning flow.
+
+- [ ] Integrate `ContextResolver` in `start_agent` tool
+- [ ] Call resolver before creating `AgentConfig`
+- [ ] Prepend resolved context to prompt
+- [ ] Add integration tests for full flow
+- [ ] Update `gobby-agents` tool documentation
+
+#### Phase 1.5 Configuration
+
+```yaml
+# ~/.gobby/config.yaml
+agents:
+  context_injection:
+    enabled: true
+    default_source: "summary_markdown"
+    max_file_size: 51200           # 50KB
+    max_transcript_messages: 100
+    truncation_suffix: "\n\n[truncated: {bytes} bytes remaining]"
+
+  context_template: |
+    ## Context from Parent Session
+    *Injected by Gobby subagent spawning*
+
+    {{ context }}
+
+    ---
+
+    ## Task
+
+    {{ prompt }}
+```
+
+---
+
 ### Phase 3: Multi-Provider Support
 
 Create additional AgentExecutor implementations for provider diversity.
