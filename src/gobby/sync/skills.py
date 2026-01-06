@@ -326,18 +326,20 @@ class SkillSyncManager:
                 prompt = skill.instructions or ""
 
                 # Write TOML manually (simple format, no extra dependency needed)
-                # Escape quotes and backslashes in strings
+                # Escape quotes and backslashes in strings for basic strings
                 def escape_toml_string(s: str) -> str:
                     return s.replace("\\", "\\\\").replace('"', '\\"')
 
-                # Escape triple quotes in prompt to prevent TOML syntax errors
-                safe_prompt = prompt.replace('"""', '\\"\\"\\"')
+                # Use literal multi-line strings (''') for prompt to avoid escape issues
+                # Literal strings don't interpret backslashes, so regex patterns work
+                # Only need to escape triple single quotes within the content
+                safe_prompt = prompt.replace("'''", "'''\"'''\"'''")
 
-                # Use multi-line strings for prompt (triple quotes)
+                # Use basic string for description, literal string for prompt
                 toml_content = f'description = "{escape_toml_string(description)}"\n\n'
-                toml_content += 'prompt = """\n'
+                toml_content += "prompt = '''\n"
                 toml_content += safe_prompt
-                toml_content += '\n"""\n'
+                toml_content += "\n'''\n"
 
                 command_file = commands_dir / f"{safe_name}.toml"
                 with open(command_file, "w", encoding="utf-8") as f:
