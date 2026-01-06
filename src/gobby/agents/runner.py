@@ -12,10 +12,10 @@ from __future__ import annotations
 
 import logging
 import threading
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from gobby.agents.registry import RunningAgent
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 from gobby.llm.executor import AgentExecutor, AgentResult, ToolHandler, ToolResult, ToolSchema
 from gobby.storage.agents import AgentRun, LocalAgentRunManager
@@ -142,80 +142,6 @@ class AgentRunContext:
     def run_id(self) -> str | None:
         """Get the agent run ID."""
         return self.run.id if self.run else None
-
-
-@dataclass
-class RunningAgent:
-    """
-    In-memory representation of a currently running agent.
-
-    This provides fast access to running agent state without database queries,
-    useful for:
-    - Real-time status checking
-    - WebSocket event broadcasting
-    - Preventing duplicate spawns
-    """
-
-    run_id: str
-    """The agent run ID from the database."""
-
-    parent_session_id: str | None
-    """Session that spawned this agent (None if not tracked)."""
-
-    child_session_id: str
-    """Child session created for this agent."""
-
-    provider: str
-    """LLM provider (claude, gemini, etc.)."""
-
-    prompt: str
-    """The task prompt given to the agent."""
-
-    started_at: datetime
-    """When the agent started executing."""
-
-    workflow_name: str | None = None
-    """Workflow being executed, if any."""
-
-    model: str | None = None
-    """Model override, if any."""
-
-    worktree_id: str | None = None
-    """Worktree being used, if any."""
-
-    mode: str = "in_process"
-    """Execution mode (in_process, terminal, headless)."""
-
-    turns_used: int = 0
-    """Number of turns completed so far."""
-
-    tool_calls_count: int = 0
-    """Number of tool calls made so far."""
-
-    last_activity: datetime = field(default_factory=lambda: datetime.now(UTC))
-    """Last activity timestamp for timeout detection."""
-
-    pid: int | None = None
-    """Process ID for terminal/headless mode agents."""
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for API responses."""
-        return {
-            "run_id": self.run_id,
-            "parent_session_id": self.parent_session_id,
-            "child_session_id": self.child_session_id,
-            "provider": self.provider,
-            "prompt": self.prompt[:100] + "..." if len(self.prompt) > 100 else self.prompt,
-            "started_at": self.started_at.isoformat(),
-            "workflow_name": self.workflow_name,
-            "model": self.model,
-            "worktree_id": self.worktree_id,
-            "mode": self.mode,
-            "turns_used": self.turns_used,
-            "tool_calls_count": self.tool_calls_count,
-            "last_activity": self.last_activity.isoformat(),
-            "pid": self.pid,
-        }
 
 
 class AgentRunner:
@@ -728,6 +654,8 @@ class AgentRunner:
         model: str | None = None,
         worktree_id: str | None = None,
         pid: int | None = None,
+        terminal_type: str | None = None,
+        master_fd: int | None = None,
     ) -> RunningAgent:
         """
         Add an agent to the in-memory running agents dict.
@@ -739,28 +667,33 @@ class AgentRunner:
             parent_session_id: Session that spawned this agent.
             child_session_id: Child session created for this agent.
             provider: LLM provider.
-            prompt: The task prompt.
+            prompt: The task prompt (not stored, kept for API compatibility).
             mode: Execution mode.
             workflow_name: Workflow being executed.
-            model: Model override.
+            model: Model override (not stored, kept for API compatibility).
             worktree_id: Worktree being used.
             pid: Process ID for terminal/headless mode.
+            terminal_type: Terminal type for terminal mode.
+            master_fd: PTY master file descriptor for embedded mode.
 
         Returns:
             The created RunningAgent instance.
         """
+        # Note: The registry's RunningAgent uses 'session_id' for child session
+        # and doesn't store prompt/model (those are in the database AgentRun record)
+        _ = prompt  # Kept for API compatibility, stored in AgentRun
+        _ = model  # Kept for API compatibility, stored in AgentRun
         running_agent = RunningAgent(
             run_id=run_id,
-            parent_session_id=parent_session_id,
-            child_session_id=child_session_id,
-            provider=provider,
-            prompt=prompt,
-            started_at=datetime.now(UTC),
-            workflow_name=workflow_name,
-            model=model,
-            worktree_id=worktree_id,
+            session_id=child_session_id,
+            parent_session_id=parent_session_id if parent_session_id else "",
             mode=mode,
+            provider=provider,
+            workflow_name=workflow_name,
+            worktree_id=worktree_id,
             pid=pid,
+            terminal_type=terminal_type,
+            master_fd=master_fd,
         )
 
         with self._running_agents_lock:
@@ -799,22 +732,23 @@ class AgentRunner:
 
         Thread-safe operation using a lock.
 
+        Note: The registry's RunningAgent is lightweight and doesn't track
+        turns_used, tool_calls_count, or last_activity. These are tracked
+        in the database AgentRun record instead. This method verifies the
+        agent exists but doesn't modify it.
+
         Args:
             run_id: The agent run ID.
-            turns_used: Updated turns count.
-            tool_calls_count: Updated tool calls count.
+            turns_used: Updated turns count (logged but not stored in-memory).
+            tool_calls_count: Updated tool calls count (logged but not stored in-memory).
 
         Returns:
-            The updated RunningAgent, or None if not found.
+            The RunningAgent if found, None otherwise.
         """
+        _ = turns_used  # Tracked in database AgentRun record
+        _ = tool_calls_count  # Tracked in database AgentRun record
         with self._running_agents_lock:
             agent = self._running_agents.get(run_id)
-            if agent:
-                if turns_used is not None:
-                    agent.turns_used = turns_used
-                if tool_calls_count is not None:
-                    agent.tool_calls_count = tool_calls_count
-                agent.last_activity = datetime.now(UTC)
 
         return agent
 

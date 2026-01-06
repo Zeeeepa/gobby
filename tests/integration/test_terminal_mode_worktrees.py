@@ -4,15 +4,13 @@ These tests verify the terminal spawn preparation, environment variable setup,
 and integration with worktrees for agent spawning.
 """
 
-import os
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from gobby.agents.constants import (
-    ALL_TERMINAL_ENV_VARS,
     GOBBY_AGENT_DEPTH,
     GOBBY_AGENT_RUN_ID,
     GOBBY_MAX_AGENT_DEPTH,
@@ -24,10 +22,9 @@ from gobby.agents.constants import (
     GOBBY_WORKFLOW_NAME,
     get_terminal_env_vars,
 )
-from gobby.agents.session import ChildSessionConfig, ChildSessionManager
+from gobby.agents.session import ChildSessionManager
 from gobby.agents.spawn import (
     MAX_ENV_PROMPT_LENGTH,
-    EmbeddedSpawner,
     HeadlessResult,
     HeadlessSpawner,
     PreparedSpawn,
@@ -55,12 +52,14 @@ def temp_db():
 
 
 @pytest.fixture
-def project(temp_db):
+def project(temp_db, tmp_path):
     """Create a test project."""
     project_manager = LocalProjectManager(temp_db)
+    repo_path = tmp_path / "test-repo"
+    repo_path.mkdir(parents=True, exist_ok=True)
     return project_manager.create(
         name="test-project",
-        repo_path="/tmp/test-repo",
+        repo_path=str(repo_path),
     )
 
 

@@ -1,6 +1,5 @@
 """Tests for AgentRunner and AgentRunContext."""
 
-from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -538,95 +537,69 @@ class TestAgentRunnerTerminalPickupMetadata:
 
 
 class TestRunningAgent:
-    """Tests for RunningAgent dataclass."""
+    """Tests for RunningAgent dataclass (from gobby.agents.registry)."""
 
     def test_create_running_agent(self):
         """RunningAgent stores all fields correctly."""
-        now = datetime.now()
         agent = RunningAgent(
             run_id="run-123",
+            session_id="sess-child",
             parent_session_id="sess-parent",
-            child_session_id="sess-child",
-            provider="claude",
-            prompt="Test prompt",
-            started_at=now,
-            workflow_name="plan-execute",
-            model="opus",
-            worktree_id="wt-abc",
             mode="terminal",
+            provider="claude",
+            workflow_name="plan-execute",
+            worktree_id="wt-abc",
             pid=12345,
+            terminal_type="ghostty",
+            master_fd=5,
         )
 
         assert agent.run_id == "run-123"
+        assert agent.session_id == "sess-child"
         assert agent.parent_session_id == "sess-parent"
-        assert agent.child_session_id == "sess-child"
         assert agent.provider == "claude"
-        assert agent.prompt == "Test prompt"
-        assert agent.started_at == now
         assert agent.workflow_name == "plan-execute"
-        assert agent.model == "opus"
         assert agent.worktree_id == "wt-abc"
         assert agent.mode == "terminal"
         assert agent.pid == 12345
+        assert agent.terminal_type == "ghostty"
+        assert agent.master_fd == 5
 
     def test_running_agent_defaults(self):
         """RunningAgent has correct default values."""
         agent = RunningAgent(
             run_id="run-1",
+            session_id="sess-c",
             parent_session_id="sess-p",
-            child_session_id="sess-c",
-            provider="gemini",
-            prompt="Task",
-            started_at=datetime.now(),
+            mode="in_process",
         )
 
         assert agent.workflow_name is None
-        assert agent.model is None
         assert agent.worktree_id is None
-        assert agent.mode == "in_process"
-        assert agent.turns_used == 0
-        assert agent.tool_calls_count == 0
         assert agent.pid is None
+        assert agent.terminal_type is None
+        assert agent.master_fd is None
+        assert agent.provider == "claude"
+        assert agent.task is None
 
     def test_to_dict(self):
         """RunningAgent.to_dict() returns correct dict."""
-        now = datetime.now()
         agent = RunningAgent(
             run_id="run-abc",
+            session_id="sess-c",
             parent_session_id="sess-p",
-            child_session_id="sess-c",
-            provider="claude",
-            prompt="Short prompt",
-            started_at=now,
             mode="headless",
+            provider="claude",
         )
 
         result = agent.to_dict()
 
         assert result["run_id"] == "run-abc"
         assert result["parent_session_id"] == "sess-p"
-        assert result["child_session_id"] == "sess-c"
+        assert result["session_id"] == "sess-c"
         assert result["provider"] == "claude"
-        assert result["prompt"] == "Short prompt"
-        assert result["started_at"] == now.isoformat()
         assert result["mode"] == "headless"
-
-    def test_to_dict_truncates_long_prompt(self):
-        """RunningAgent.to_dict() truncates prompts over 100 chars."""
-        long_prompt = "x" * 150
-        agent = RunningAgent(
-            run_id="run-1",
-            parent_session_id="sess-p",
-            child_session_id="sess-c",
-            provider="claude",
-            prompt=long_prompt,
-            started_at=datetime.now(),
-        )
-
-        result = agent.to_dict()
-
-        assert len(result["prompt"]) == 103  # 100 + "..."
-        assert result["prompt"].endswith("...")
+        assert "started_at" in result
 
 
 class TestAgentRunnerInMemoryTracking:
@@ -669,7 +642,12 @@ class TestAgentRunnerInMemoryTracking:
         assert result is None
 
     def test_update_running_agent(self, runner):
-        """_update_running_agent updates agent state."""
+        """_update_running_agent returns agent if found.
+
+        Note: The registry's RunningAgent is lightweight and doesn't track
+        turns_used/tool_calls_count - those are tracked in the database.
+        This method just verifies the agent exists.
+        """
         runner._track_running_agent(
             run_id="run-789",
             parent_session_id="sess-p",
@@ -684,9 +662,9 @@ class TestAgentRunnerInMemoryTracking:
             tool_calls_count=10,
         )
 
+        # Should return the agent (verifying it exists)
         assert updated is not None
-        assert updated.turns_used == 5
-        assert updated.tool_calls_count == 10
+        assert updated.run_id == "run-789"
 
     def test_get_running_agent(self, runner):
         """get_running_agent returns agent by ID."""

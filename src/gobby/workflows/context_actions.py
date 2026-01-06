@@ -276,26 +276,27 @@ def extract_handoff_context(
 
         # Enrich with worktree context if session is in a worktree
         try:
-            # Use injected dependencies if provided, otherwise create fallbacks
+            # Use injected worktree_manager, or create one from injected db
             wt_manager = worktree_manager
-            if wt_manager is None:
-                from gobby.storage.database import LocalDatabase
+            if wt_manager is None and db is not None:
                 from gobby.storage.worktrees import LocalWorktreeManager
 
-                wt_db = db if db is not None else LocalDatabase()
-                wt_manager = LocalWorktreeManager(wt_db)
+                wt_manager = LocalWorktreeManager(db)
 
-            worktrees = wt_manager.list_worktrees(agent_session_id=session_id, limit=1)
-            if worktrees:
-                wt = worktrees[0]
-                handoff_ctx.active_worktree = {
-                    "id": wt.id,
-                    "branch_name": wt.branch_name,
-                    "worktree_path": wt.worktree_path,
-                    "base_branch": wt.base_branch,
-                    "task_id": wt.task_id,
-                    "status": wt.status,
-                }
+            if wt_manager is not None:
+                worktrees = wt_manager.list(agent_session_id=session_id, limit=1)
+                if worktrees:
+                    wt = worktrees[0]
+                    handoff_ctx.active_worktree = {
+                        "id": wt.id,
+                        "branch_name": wt.branch_name,
+                        "worktree_path": wt.worktree_path,
+                        "base_branch": wt.base_branch,
+                        "task_id": wt.task_id,
+                        "status": wt.status,
+                    }
+            else:
+                logger.debug("Skipping worktree enrichment: no worktree_manager or db provided")
         except Exception as wt_err:
             logger.debug(f"Failed to get worktree context: {wt_err}")
 

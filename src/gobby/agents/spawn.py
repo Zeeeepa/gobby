@@ -33,6 +33,61 @@ MAX_ENV_PROMPT_LENGTH = 4096
 
 logger = logging.getLogger(__name__)
 
+# Module-level set for tracking prompt files to clean up on exit
+# This avoids registering a new atexit handler for each prompt file
+_prompt_files_to_cleanup: set[Path] = set()
+_atexit_registered = False
+
+
+def _cleanup_all_prompt_files() -> None:
+    """Clean up all tracked prompt files on process exit."""
+    for prompt_path in list(_prompt_files_to_cleanup):
+        try:
+            if prompt_path.exists():
+                prompt_path.unlink()
+        except OSError:
+            pass
+    _prompt_files_to_cleanup.clear()
+
+
+def _create_prompt_file(prompt: str, session_id: str) -> str:
+    """
+    Create a prompt file with secure permissions.
+
+    The file is created in the system temp directory with restrictive
+    permissions (owner read/write only) and tracked for cleanup on exit.
+
+    Args:
+        prompt: The prompt content to write
+        session_id: Session ID for naming the file
+
+    Returns:
+        Path to the created temp file
+    """
+    global _atexit_registered
+
+    # Create temp directory with restrictive permissions
+    temp_dir = Path(tempfile.gettempdir()) / "gobby-prompts"
+    temp_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+
+    # Create the prompt file path
+    prompt_path = temp_dir / f"prompt-{session_id}.txt"
+
+    # Write with secure permissions - create file then set permissions
+    prompt_path.write_text(prompt, encoding="utf-8")
+    prompt_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+
+    # Track for cleanup
+    _prompt_files_to_cleanup.add(prompt_path)
+
+    # Register cleanup handler once
+    if not _atexit_registered:
+        atexit.register(_cleanup_all_prompt_files)
+        _atexit_registered = True
+
+    logger.debug(f"Created secure prompt file: {prompt_path}")
+    return str(prompt_path)
+
 
 def build_cli_command(
     cli: str,
@@ -979,10 +1034,8 @@ class TerminalSpawner:
         """
         Write prompt to a temp file for passing to spawned agent.
 
-        The file is created in the system temp directory and named
-        with the session ID for easy identification. The file has
-        restrictive permissions (owner read/write only) and is
-        registered for cleanup on process exit.
+        Delegates to the module-level _create_prompt_file helper which
+        handles secure permissions and cleanup tracking.
 
         Args:
             prompt: The prompt content
@@ -991,28 +1044,7 @@ class TerminalSpawner:
         Returns:
             Path to the created temp file
         """
-        # Create temp file with session ID in name
-        temp_dir = Path(tempfile.gettempdir()) / "gobby-prompts"
-        temp_dir.mkdir(parents=True, exist_ok=True)
-
-        prompt_path = temp_dir / f"prompt-{session_id}.txt"
-        prompt_path.write_text(prompt, encoding="utf-8")
-
-        # Set restrictive permissions (owner read/write only)
-        prompt_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
-
-        # Register for cleanup on process exit
-        def cleanup_prompt_file() -> None:
-            try:
-                if prompt_path.exists():
-                    prompt_path.unlink()
-            except OSError:
-                pass
-
-        atexit.register(cleanup_prompt_file)
-
-        logger.debug(f"Wrote prompt to temp file: {prompt_path}")
-        return str(prompt_path)
+        return _create_prompt_file(prompt, session_id)
 
 
 @dataclass
@@ -1109,12 +1141,8 @@ def prepare_terminal_spawn(
         if len(prompt) <= MAX_ENV_PROMPT_LENGTH:
             prompt_env = prompt
         else:
-            # Write to temp file
-            temp_dir = Path(tempfile.gettempdir()) / "gobby-prompts"
-            temp_dir.mkdir(parents=True, exist_ok=True)
-            prompt_path = temp_dir / f"prompt-{child_session.id}.txt"
-            prompt_path.write_text(prompt, encoding="utf-8")
-            prompt_file = str(prompt_path)
+            # Write to temp file with secure permissions
+            prompt_file = _create_prompt_file(prompt, child_session.id)
 
     # Build environment variables
     env_vars = get_terminal_env_vars(
@@ -1322,11 +1350,8 @@ class EmbeddedSpawner:
             if len(prompt) <= MAX_ENV_PROMPT_LENGTH:
                 prompt_env = prompt
             else:
-                temp_dir = Path(tempfile.gettempdir()) / "gobby-prompts"
-                temp_dir.mkdir(parents=True, exist_ok=True)
-                prompt_path = temp_dir / f"prompt-{session_id}.txt"
-                prompt_path.write_text(prompt, encoding="utf-8")
-                prompt_file = str(prompt_path)
+                # Write to temp file with secure permissions
+                prompt_file = _create_prompt_file(prompt, session_id)
 
         env = get_terminal_env_vars(
             session_id=session_id,
@@ -1515,11 +1540,8 @@ class HeadlessSpawner:
             if len(prompt) <= MAX_ENV_PROMPT_LENGTH:
                 prompt_env = prompt
             else:
-                temp_dir = Path(tempfile.gettempdir()) / "gobby-prompts"
-                temp_dir.mkdir(parents=True, exist_ok=True)
-                prompt_path = temp_dir / f"prompt-{session_id}.txt"
-                prompt_path.write_text(prompt, encoding="utf-8")
-                prompt_file = str(prompt_path)
+                # Write to temp file with secure permissions
+                prompt_file = _create_prompt_file(prompt, session_id)
 
         env = get_terminal_env_vars(
             session_id=session_id,
