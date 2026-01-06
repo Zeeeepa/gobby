@@ -200,6 +200,21 @@ class MCPClientManager:
 
         self._configs[config.name] = config
 
+        # Persist to database if manager is available
+        if self.mcp_db_manager and config.project_id:
+            self.mcp_db_manager.upsert(
+                name=config.name,
+                transport=config.transport,
+                project_id=config.project_id,
+                url=config.url,
+                command=config.command,
+                args=config.args,
+                env=config.env,
+                headers=config.headers,
+                enabled=config.enabled,
+                description=config.description,
+            )
+
         tool_schemas: list[dict[str, Any]] = []
         # Attempt connect
         if config.enabled:
@@ -230,6 +245,10 @@ class MCPClientManager:
         if name not in self._configs:
             raise ValueError(f"MCP server '{name}' not found")
 
+        # Get project_id from config if not provided
+        config = self._configs[name]
+        effective_project_id = project_id or config.project_id
+
         # Disconnect
         if name in self._connections:
             await self._connections[name].disconnect()
@@ -238,6 +257,10 @@ class MCPClientManager:
         del self._configs[name]
         if name in self.health:
             del self.health[name]
+
+        # Remove from database if manager is available
+        if self.mcp_db_manager and effective_project_id:
+            self.mcp_db_manager.remove_server(name, effective_project_id)
 
         return {"success": True, "name": name}
 
