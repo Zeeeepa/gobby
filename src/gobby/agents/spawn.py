@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import platform
+import pty
 import shutil
 import subprocess
 import tempfile
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 from gobby.agents.constants import get_terminal_env_vars
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
@@ -64,6 +66,53 @@ class SpawnResult:
     pid: int | None = None
     terminal_type: str | None = None
     error: str | None = None
+
+
+@dataclass
+class EmbeddedPTYResult:
+    """Result of spawning an embedded PTY process."""
+
+    success: bool
+    message: str
+    master_fd: int | None = None
+    """Master file descriptor for reading/writing to PTY."""
+    slave_fd: int | None = None
+    """Slave file descriptor (used by child process)."""
+    pid: int | None = None
+    """Child process PID."""
+    error: str | None = None
+
+    def close(self) -> None:
+        """Close the PTY file descriptors."""
+        if self.master_fd is not None:
+            try:
+                os.close(self.master_fd)
+            except OSError:
+                pass
+        if self.slave_fd is not None:
+            try:
+                os.close(self.slave_fd)
+            except OSError:
+                pass
+
+
+@dataclass
+class HeadlessResult:
+    """Result of spawning a headless process."""
+
+    success: bool
+    message: str
+    pid: int | None = None
+    """Child process PID."""
+    process: subprocess.Popen | None = None
+    """Subprocess handle for output capture."""
+    output_buffer: list[str] = field(default_factory=list)
+    """Captured output lines."""
+    error: str | None = None
+
+    def get_output(self) -> str:
+        """Get all captured output as a string."""
+        return "\n".join(self.output_buffer)
 
 
 class TerminalSpawnerBase(ABC):
@@ -937,3 +986,328 @@ def read_prompt_from_env() -> str | None:
 
     # Fall back to inline prompt
     return os.environ.get(GOBBY_PROMPT)
+
+
+class EmbeddedSpawner:
+    """
+    Spawner for embedded mode with PTY.
+
+    Creates a pseudo-terminal that can be attached to a UI component.
+    The master file descriptor can be used to read/write to the process.
+    """
+
+    def spawn(
+        self,
+        command: list[str],
+        cwd: str | Path,
+        env: dict[str, str] | None = None,
+    ) -> EmbeddedPTYResult:
+        """
+        Spawn a process with a PTY for embedded mode.
+
+        Args:
+            command: Command to run
+            cwd: Working directory
+            env: Environment variables to set
+
+        Returns:
+            EmbeddedPTYResult with PTY file descriptors and process info
+        """
+        if platform.system() == "Windows":
+            return EmbeddedPTYResult(
+                success=False,
+                message="Embedded PTY mode not supported on Windows",
+                error="Windows does not support Unix PTY",
+            )
+
+        try:
+            # Create pseudo-terminal
+            master_fd, slave_fd = pty.openpty()
+
+            # Merge environment
+            spawn_env = os.environ.copy()
+            if env:
+                spawn_env.update(env)
+
+            # Fork and exec
+            pid = os.fork()
+
+            if pid == 0:
+                # Child process
+                try:
+                    # Create new session
+                    os.setsid()
+
+                    # Set slave as controlling terminal
+                    os.dup2(slave_fd, 0)  # stdin
+                    os.dup2(slave_fd, 1)  # stdout
+                    os.dup2(slave_fd, 2)  # stderr
+
+                    # Close original fds
+                    os.close(master_fd)
+                    os.close(slave_fd)
+
+                    # Change to working directory
+                    os.chdir(cwd)
+
+                    # Execute command
+                    os.execvpe(command[0], command, spawn_env)
+                except Exception:
+                    os._exit(1)
+            else:
+                # Parent process - close slave fd
+                os.close(slave_fd)
+
+                return EmbeddedPTYResult(
+                    success=True,
+                    message=f"Spawned embedded PTY with PID {pid}",
+                    master_fd=master_fd,
+                    slave_fd=None,  # Closed in parent
+                    pid=pid,
+                )
+
+        except Exception as e:
+            return EmbeddedPTYResult(
+                success=False,
+                message=f"Failed to spawn embedded PTY: {e}",
+                error=str(e),
+            )
+
+    def spawn_agent(
+        self,
+        cli: str,
+        cwd: str | Path,
+        session_id: str,
+        parent_session_id: str,
+        agent_run_id: str,
+        project_id: str,
+        workflow_name: str | None = None,
+        agent_depth: int = 1,
+        max_agent_depth: int = 3,
+        prompt: str | None = None,
+    ) -> EmbeddedPTYResult:
+        """
+        Spawn a CLI agent with embedded PTY.
+
+        Args:
+            cli: CLI to run
+            cwd: Working directory
+            session_id: Pre-created child session ID
+            parent_session_id: Parent session ID
+            agent_run_id: Agent run record ID
+            project_id: Project ID
+            workflow_name: Optional workflow to activate
+            agent_depth: Current nesting depth
+            max_agent_depth: Maximum allowed depth
+            prompt: Optional initial prompt
+
+        Returns:
+            EmbeddedPTYResult with PTY info
+        """
+        command = [cli]
+
+        # Handle prompt
+        prompt_env: str | None = None
+        prompt_file: str | None = None
+
+        if prompt:
+            if len(prompt) <= MAX_ENV_PROMPT_LENGTH:
+                prompt_env = prompt
+            else:
+                temp_dir = Path(tempfile.gettempdir()) / "gobby-prompts"
+                temp_dir.mkdir(parents=True, exist_ok=True)
+                prompt_path = temp_dir / f"prompt-{session_id}.txt"
+                prompt_path.write_text(prompt, encoding="utf-8")
+                prompt_file = str(prompt_path)
+
+        env = get_terminal_env_vars(
+            session_id=session_id,
+            parent_session_id=parent_session_id,
+            agent_run_id=agent_run_id,
+            project_id=project_id,
+            workflow_name=workflow_name,
+            agent_depth=agent_depth,
+            max_agent_depth=max_agent_depth,
+            prompt=prompt_env,
+            prompt_file=prompt_file,
+        )
+
+        return self.spawn(command, cwd, env)
+
+
+class HeadlessSpawner:
+    """
+    Spawner for headless mode with output capture.
+
+    Runs the process without a visible terminal, capturing all output
+    to a buffer that can be stored in the session transcript.
+    """
+
+    def spawn(
+        self,
+        command: list[str],
+        cwd: str | Path,
+        env: dict[str, str] | None = None,
+    ) -> HeadlessResult:
+        """
+        Spawn a headless process with output capture.
+
+        Args:
+            command: Command to run
+            cwd: Working directory
+            env: Environment variables to set
+
+        Returns:
+            HeadlessResult with process handle for output capture
+        """
+        try:
+            # Merge environment
+            spawn_env = os.environ.copy()
+            if env:
+                spawn_env.update(env)
+
+            # Spawn process with captured output
+            process = subprocess.Popen(
+                command,
+                cwd=cwd,
+                env=spawn_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.PIPE,
+                text=True,
+                bufsize=1,  # Line buffered
+            )
+
+            return HeadlessResult(
+                success=True,
+                message=f"Spawned headless process with PID {process.pid}",
+                pid=process.pid,
+                process=process,
+            )
+
+        except Exception as e:
+            return HeadlessResult(
+                success=False,
+                message=f"Failed to spawn headless process: {e}",
+                error=str(e),
+            )
+
+    async def spawn_and_capture(
+        self,
+        command: list[str],
+        cwd: str | Path,
+        env: dict[str, str] | None = None,
+        timeout: float | None = None,
+        on_output: Any | None = None,
+    ) -> HeadlessResult:
+        """
+        Spawn a headless process and capture output asynchronously.
+
+        Args:
+            command: Command to run
+            cwd: Working directory
+            env: Environment variables to set
+            timeout: Optional timeout in seconds
+            on_output: Optional callback for each line of output
+
+        Returns:
+            HeadlessResult with captured output
+        """
+        result = self.spawn(command, cwd, env)
+        if not result.success or result.process is None:
+            return result
+
+        try:
+            # Read output asynchronously
+            async def read_output() -> None:
+                if result.process and result.process.stdout:
+                    while True:
+                        line = await asyncio.get_event_loop().run_in_executor(
+                            None, result.process.stdout.readline
+                        )
+                        if not line:
+                            break
+                        line = line.rstrip("\n")
+                        result.output_buffer.append(line)
+                        if on_output:
+                            on_output(line)
+
+            if timeout:
+                await asyncio.wait_for(read_output(), timeout=timeout)
+            else:
+                await read_output()
+
+            # Wait for process to complete
+            if result.process:
+                result.process.wait()
+
+        except TimeoutError:
+            if result.process:
+                result.process.terminate()
+            result.error = "Process timed out"
+
+        except Exception as e:
+            result.error = str(e)
+
+        return result
+
+    def spawn_agent(
+        self,
+        cli: str,
+        cwd: str | Path,
+        session_id: str,
+        parent_session_id: str,
+        agent_run_id: str,
+        project_id: str,
+        workflow_name: str | None = None,
+        agent_depth: int = 1,
+        max_agent_depth: int = 3,
+        prompt: str | None = None,
+    ) -> HeadlessResult:
+        """
+        Spawn a CLI agent in headless mode.
+
+        Args:
+            cli: CLI to run
+            cwd: Working directory
+            session_id: Pre-created child session ID
+            parent_session_id: Parent session ID
+            agent_run_id: Agent run record ID
+            project_id: Project ID
+            workflow_name: Optional workflow to activate
+            agent_depth: Current nesting depth
+            max_agent_depth: Maximum allowed depth
+            prompt: Optional initial prompt
+
+        Returns:
+            HeadlessResult with process handle
+        """
+        command = [cli]
+
+        # Handle prompt
+        prompt_env: str | None = None
+        prompt_file: str | None = None
+
+        if prompt:
+            if len(prompt) <= MAX_ENV_PROMPT_LENGTH:
+                prompt_env = prompt
+            else:
+                temp_dir = Path(tempfile.gettempdir()) / "gobby-prompts"
+                temp_dir.mkdir(parents=True, exist_ok=True)
+                prompt_path = temp_dir / f"prompt-{session_id}.txt"
+                prompt_path.write_text(prompt, encoding="utf-8")
+                prompt_file = str(prompt_path)
+
+        env = get_terminal_env_vars(
+            session_id=session_id,
+            parent_session_id=parent_session_id,
+            agent_run_id=agent_run_id,
+            project_id=project_id,
+            workflow_name=workflow_name,
+            agent_depth=agent_depth,
+            max_agent_depth=max_agent_depth,
+            prompt=prompt_env,
+            prompt_file=prompt_file,
+        )
+
+        return self.spawn(command, cwd, env)
