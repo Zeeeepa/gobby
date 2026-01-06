@@ -159,6 +159,11 @@ EVENT_TYPE_CLI_SUPPORT: dict[HookEventType, dict[str, str | None]] = {
         "gemini": "AfterAgent",
         "codex": "turn/completed",
     },
+    HookEventType.STOP: {
+        "claude": "Stop",
+        "gemini": None,
+        "codex": None,
+    },
     HookEventType.BEFORE_TOOL: {
         "claude": "PreToolUse",
         "gemini": "BeforeTool",

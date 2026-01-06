@@ -837,6 +837,31 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_sessions_agent_run ON sessions(agent_run_id);
         """,
     ),
+    (
+        36,
+        "Create worktrees table for git worktree management",
+        """
+        CREATE TABLE IF NOT EXISTS worktrees (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            task_id TEXT REFERENCES tasks(id) ON DELETE SET NULL,
+            branch_name TEXT NOT NULL,
+            worktree_path TEXT NOT NULL,
+            base_branch TEXT DEFAULT 'main',
+            agent_session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
+            status TEXT DEFAULT 'active',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            merged_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_worktrees_project ON worktrees(project_id);
+        CREATE INDEX IF NOT EXISTS idx_worktrees_status ON worktrees(status);
+        CREATE INDEX IF NOT EXISTS idx_worktrees_task ON worktrees(task_id);
+        CREATE INDEX IF NOT EXISTS idx_worktrees_session ON worktrees(agent_session_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_worktrees_branch ON worktrees(project_id, branch_name);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_worktrees_path ON worktrees(worktree_path);
+        """,
+    ),
 ]
 
 

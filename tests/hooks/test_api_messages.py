@@ -45,6 +45,11 @@ def mock_db():
             compact_markdown TEXT,
             agent_depth INTEGER DEFAULT 0,
             spawned_by_agent_id TEXT,
+            workflow_name TEXT,
+            agent_run_id TEXT,
+            context_injected INTEGER DEFAULT 0,
+            original_prompt TEXT,
+            transcript_processed BOOLEAN DEFAULT FALSE,
             UNIQUE(external_id, machine_id, source)
         );
     """)
