@@ -8,8 +8,10 @@ from typing import Any
 
 import uvicorn
 
+from gobby.agents.runner import AgentRunner
 from gobby.config.app import load_config
 from gobby.llm import LLMService, create_llm_service
+from gobby.llm.resolver import ExecutorRegistry
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.memory.manager import MemoryManager
 from gobby.servers.http import HTTPServer
@@ -25,6 +27,7 @@ from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.skills import LocalSkillManager
 from gobby.storage.tasks import LocalTaskManager
+from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.sync.memories import MemorySyncManager
 from gobby.sync.skills import SkillSyncManager
 from gobby.sync.tasks import TaskSyncManager
@@ -176,6 +179,32 @@ class GobbyRunner:
                 except Exception as e:
                     logger.error(f"Failed to initialize TaskValidator: {e}")
 
+        # Initialize Worktree Storage (Phase 7 - Subagents)
+        self.worktree_storage = LocalWorktreeManager(self.database)
+
+        # Initialize Agent Runner (Phase 7 - Subagents)
+        # Create executor registry for lazy executor creation
+        self.executor_registry = ExecutorRegistry(config=self.config)
+        self.agent_runner: AgentRunner | None = None
+        try:
+            # Pre-initialize common executors
+            executors = {}
+            for provider in ["claude", "gemini"]:
+                try:
+                    executors[provider] = self.executor_registry.get(provider=provider)
+                except Exception as e:
+                    logger.debug(f"Could not pre-initialize {provider} executor: {e}")
+
+            self.agent_runner = AgentRunner(
+                db=self.database,
+                session_storage=self.session_manager,
+                executors=executors,
+                max_agent_depth=3,
+            )
+            logger.debug(f"AgentRunner initialized with executors: {list(executors.keys())}")
+        except Exception as e:
+            logger.error(f"Failed to initialize AgentRunner: {e}")
+
         # Session Lifecycle Manager (background jobs for expiring and processing)
         self.lifecycle_manager = SessionLifecycleManager(
             db=self.database,
@@ -201,6 +230,8 @@ class GobbyRunner:
             task_expander=self.task_expander,
             task_validator=self.task_validator,
             metrics_manager=self.metrics_manager,
+            agent_runner=self.agent_runner,
+            worktree_storage=self.worktree_storage,
         )
 
         # Ensure message_processor property is set (redundant but explicit):

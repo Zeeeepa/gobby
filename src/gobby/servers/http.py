@@ -68,6 +68,8 @@ class HTTPServer:
         task_expander: Any | None = None,
         task_validator: Any | None = None,
         metrics_manager: Any | None = None,
+        agent_runner: Any | None = None,
+        worktree_storage: Any | None = None,
     ) -> None:
         """
         Initialize HTTP server.
@@ -110,6 +112,8 @@ class HTTPServer:
         self.task_expander = task_expander
         self.task_validator = task_validator
         self.metrics_manager = metrics_manager
+        self.agent_runner = agent_runner
+        self.worktree_storage = worktree_storage
 
         # Initialize WebSocket broadcaster
         # Note: websocket_server might be None if disabled
@@ -162,6 +166,10 @@ class HTTPServer:
                 skill_sync_manager=skill_sync_manager,
                 metrics_manager=self.metrics_manager,
                 llm_service=self.llm_service,
+                agent_runner=self.agent_runner,
+                worktree_storage=self.worktree_storage,
+                git_manager=None,  # Created per-project, not at daemon startup
+                project_id=None,  # Project-specific, not global
                 tool_proxy_getter=tool_proxy_getter,
             )
             registry_count = len(self._internal_manager)
