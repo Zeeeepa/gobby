@@ -725,6 +725,7 @@ def create_worktrees_registry(
         workflow: str | None = None,
         timeout: float = 120.0,
         max_turns: int = 10,
+        project_path: str | None = None,
     ) -> dict[str, Any]:
         """
         Create a worktree and spawn an agent to work in it.
@@ -744,6 +745,7 @@ def create_worktrees_registry(
             workflow: Workflow name to execute.
             timeout: Execution timeout in seconds (default: 120).
             max_turns: Maximum turns (default: 10).
+            project_path: Path to project directory (pass cwd from CLI).
 
         Returns:
             Dict with worktree_id, run_id, and status.
@@ -754,17 +756,12 @@ def create_worktrees_registry(
                 "error": "Agent runner not configured. Cannot spawn agent.",
             }
 
-        if git_manager is None:
-            return {
-                "success": False,
-                "error": "Git manager not configured. Cannot create worktree.",
-            }
-
-        if project_id is None:
-            return {
-                "success": False,
-                "error": "No project context. Run from a Gobby project directory.",
-            }
+        # Resolve project context
+        resolved_git_mgr, resolved_project_id, error = _resolve_project_context(
+            project_path, git_manager, project_id
+        )
+        if error:
+            return {"success": False, "error": error}
 
         if parent_session_id is None:
             return {
@@ -785,17 +782,17 @@ def create_worktrees_registry(
             }
 
         # Check if worktree already exists for this branch
-        existing = worktree_storage.get_by_branch(project_id, branch_name)
+        existing = worktree_storage.get_by_branch(resolved_project_id, branch_name)
         if existing:
             # Use existing worktree
             worktree = existing
             logger.info(f"Using existing worktree for branch '{branch_name}'")
         else:
             # Generate worktree path as sibling directory
-            worktree_path = str(Path(git_manager.repo_path).parent / branch_name)
+            worktree_path = str(Path(resolved_git_mgr.repo_path).parent / branch_name)
 
             # Create git worktree
-            result = git_manager.create_worktree(
+            result = resolved_git_mgr.create_worktree(
                 worktree_path=worktree_path,
                 branch_name=branch_name,
                 base_branch=base_branch,
@@ -810,7 +807,7 @@ def create_worktrees_registry(
 
             # Record in database
             worktree = worktree_storage.create(
-                project_id=project_id,
+                project_id=resolved_project_id,
                 branch_name=branch_name,
                 worktree_path=worktree_path,
                 base_branch=base_branch,
@@ -837,7 +834,7 @@ def create_worktrees_registry(
         config = AgentConfig(
             prompt=prompt,
             parent_session_id=parent_session_id,
-            project_id=project_id,
+            project_id=resolved_project_id,
             machine_id=machine_id,
             source=provider,
             workflow=workflow,
@@ -853,36 +850,136 @@ def create_worktrees_registry(
             project_path=worktree.worktree_path,
         )
 
-        # Stub tool handler for terminal/embedded/headless modes.
-        # For these modes, the spawned external process handles its own tools.
-        # in_process mode (which would need this handler) is blocked above.
-        # This stub exists to satisfy the agent_runner.run() signature.
-        async def tool_handler(tool_name: str, arguments: dict[str, Any]) -> Any:
-            from gobby.llm.executor import ToolResult
+        # For terminal/embedded/headless modes, use prepare_run + spawner
+        # (runner.run() is only for in_process mode)
+        from gobby.llm.executor import AgentResult
 
-            return ToolResult(
-                tool_name=tool_name,
-                success=False,
-                error=f"Tool {tool_name} not available - external process handles tools",
-            )
+        prepare_result = agent_runner.prepare_run(config)
+        if isinstance(prepare_result, AgentResult):
+            # prepare_run returns AgentResult on error
+            return {
+                "success": False,
+                "worktree_id": worktree.id,
+                "worktree_path": worktree.worktree_path,
+                "branch_name": worktree.branch_name,
+                "error": prepare_result.error,
+            }
 
-        # Run the agent
-        run_result = await agent_runner.run(config, tool_handler=tool_handler)
+        # Successfully prepared - we have context with session and run
+        context = prepare_result
+
+        if context.session is None or context.run is None:
+            return {
+                "success": False,
+                "worktree_id": worktree.id,
+                "error": "Internal error: context missing session or run after prepare_run",
+            }
+
+        child_session = context.session
+        agent_run = context.run
 
         # Claim worktree for the child session
-        if run_result.child_session_id:
-            worktree_storage.claim(worktree.id, run_result.child_session_id)
+        worktree_storage.claim(worktree.id, child_session.id)
 
-        return {
-            "success": run_result.status in ("success", "partial"),
-            "worktree_id": worktree.id,
-            "worktree_path": worktree.worktree_path,
-            "branch_name": worktree.branch_name,
-            "run_id": run_result.run_id,
-            "status": run_result.status,
-            "child_session_id": run_result.child_session_id,
-            "output": run_result.output,
-            "error": run_result.error,
-        }
+        # Spawn in terminal using TerminalSpawner
+        if mode == "terminal":
+            from gobby.agents.spawn import TerminalSpawner
+
+            terminal_spawner = TerminalSpawner()
+            terminal_result = terminal_spawner.spawn_agent(
+                cli=provider,  # claude, gemini, codex
+                cwd=worktree.worktree_path,
+                session_id=child_session.id,
+                parent_session_id=parent_session_id,
+                agent_run_id=agent_run.id,
+                project_id=resolved_project_id,
+                workflow_name=workflow,
+                agent_depth=child_session.agent_depth,
+                max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
+                terminal=terminal,
+                prompt=prompt,
+            )
+
+            if not terminal_result.success:
+                return {
+                    "success": False,
+                    "worktree_id": worktree.id,
+                    "worktree_path": worktree.worktree_path,
+                    "branch_name": worktree.branch_name,
+                    "run_id": agent_run.id,
+                    "child_session_id": child_session.id,
+                    "error": terminal_result.error or terminal_result.message,
+                }
+
+            return {
+                "success": True,
+                "worktree_id": worktree.id,
+                "worktree_path": worktree.worktree_path,
+                "branch_name": worktree.branch_name,
+                "run_id": agent_run.id,
+                "child_session_id": child_session.id,
+                "status": "pending",
+                "message": f"Agent spawned in {terminal_result.terminal_type} (PID: {terminal_result.pid})",
+                "terminal_type": terminal_result.terminal_type,
+                "pid": terminal_result.pid,
+            }
+
+        elif mode == "embedded":
+            from gobby.agents.spawn import EmbeddedSpawner
+
+            embedded_spawner = EmbeddedSpawner()
+            embedded_result = embedded_spawner.spawn_agent(
+                cli=provider,
+                cwd=worktree.worktree_path,
+                session_id=child_session.id,
+                parent_session_id=parent_session_id,
+                agent_run_id=agent_run.id,
+                project_id=resolved_project_id,
+                workflow_name=workflow,
+                agent_depth=child_session.agent_depth,
+                max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
+                terminal=terminal,
+                prompt=prompt,
+            )
+
+            return {
+                "success": embedded_result.success,
+                "worktree_id": worktree.id,
+                "worktree_path": worktree.worktree_path,
+                "branch_name": worktree.branch_name,
+                "run_id": agent_run.id,
+                "child_session_id": child_session.id,
+                "status": "pending" if embedded_result.success else "error",
+                "error": embedded_result.error if not embedded_result.success else None,
+            }
+
+        else:  # headless
+            from gobby.agents.spawn import HeadlessSpawner
+
+            headless_spawner = HeadlessSpawner()
+            headless_result = headless_spawner.spawn_agent(
+                cli=provider,
+                cwd=worktree.worktree_path,
+                session_id=child_session.id,
+                parent_session_id=parent_session_id,
+                agent_run_id=agent_run.id,
+                project_id=resolved_project_id,
+                workflow_name=workflow,
+                agent_depth=child_session.agent_depth,
+                max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
+                prompt=prompt,
+            )
+
+            return {
+                "success": headless_result.success,
+                "worktree_id": worktree.id,
+                "worktree_path": worktree.worktree_path,
+                "branch_name": worktree.branch_name,
+                "run_id": agent_run.id,
+                "child_session_id": child_session.id,
+                "status": "pending" if headless_result.success else "error",
+                "pid": headless_result.pid if headless_result.success else None,
+                "error": headless_result.error if not headless_result.success else None,
+            }
 
     return registry
