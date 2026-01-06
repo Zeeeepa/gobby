@@ -14,6 +14,8 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 from __future__ import annotations
 
 import logging
+import platform
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -31,6 +33,52 @@ logger = logging.getLogger(__name__)
 
 # Cache for WorktreeGitManager instances per repo path
 _git_manager_cache: dict[str, WorktreeGitManager] = {}
+
+
+def _get_worktree_base_dir() -> Path:
+    """
+    Get the base directory for worktrees.
+
+    Uses the system temp directory:
+    - macOS/Linux: /tmp/gobby-worktrees/
+    - Windows: %TEMP%/gobby-worktrees/
+
+    Returns:
+        Path to worktree base directory (creates if needed)
+    """
+    if platform.system() == "Windows":
+        # Windows: use %TEMP% (typically C:\\Users\\<user>\\AppData\\Local\\Temp)
+        base = Path(tempfile.gettempdir()) / "gobby-worktrees"
+    else:
+        # macOS/Linux: use /tmp for better isolation
+        base = Path("/tmp") / "gobby-worktrees"
+
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
+
+def _generate_worktree_path(branch_name: str, project_name: str | None = None) -> str:
+    """
+    Generate a worktree path in the temp directory.
+
+    Args:
+        branch_name: Branch name (used as directory name)
+        project_name: Optional project name for namespacing
+
+    Returns:
+        Full path for the worktree
+    """
+    base = _get_worktree_base_dir()
+
+    # Sanitize branch name for filesystem (replace / with -)
+    safe_branch = branch_name.replace("/", "-")
+
+    if project_name:
+        # Namespace by project: /tmp/gobby-worktrees/project-name/branch-name
+        return str(base / project_name / safe_branch)
+    else:
+        # No project namespace: /tmp/gobby-worktrees/branch-name
+        return str(base / safe_branch)
 
 
 def _resolve_project_context(
@@ -149,8 +197,9 @@ def create_worktrees_registry(
 
         # Generate default worktree path if not provided
         if worktree_path is None:
-            # Default to sibling directory named after branch
-            worktree_path = str(Path(resolved_git_mgr.repo_path).parent / branch_name)
+            # Use temp directory (e.g., /tmp/gobby-worktrees/project-name/branch-name)
+            project_name = Path(resolved_git_mgr.repo_path).name
+            worktree_path = _generate_worktree_path(branch_name, project_name)
 
         # Create git worktree
         result = resolved_git_mgr.create_worktree(
@@ -788,8 +837,9 @@ def create_worktrees_registry(
             worktree = existing
             logger.info(f"Using existing worktree for branch '{branch_name}'")
         else:
-            # Generate worktree path as sibling directory
-            worktree_path = str(Path(resolved_git_mgr.repo_path).parent / branch_name)
+            # Generate worktree path in temp directory
+            project_name = Path(resolved_git_mgr.repo_path).name
+            worktree_path = _generate_worktree_path(branch_name, project_name)
 
             # Create git worktree
             result = resolved_git_mgr.create_worktree(

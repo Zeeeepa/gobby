@@ -38,30 +38,60 @@ def build_cli_command(
     cli: str,
     prompt: str | None = None,
     session_id: str | None = None,
+    auto_approve: bool = False,
+    working_directory: str | None = None,
 ) -> list[str]:
     """
-    Build the CLI command with proper prompt passing for each CLI type.
+    Build the CLI command with proper prompt passing and permission flags.
 
-    Each CLI has different syntax for passing prompts:
-    - claude: claude [prompt] --session-id <uuid>
-    - gemini: gemini [query..]
-    - codex: codex [PROMPT]
+    Each CLI has different syntax for passing prompts and handling permissions:
+
+    Claude Code:
+    - claude --session-id <uuid> --permission-mode <mode> [prompt]
+    - Permission modes: acceptEdits, bypassPermissions, default, delegate, dontAsk, plan
+
+    Gemini CLI:
+    - gemini --approval-mode yolo [query..]
+    - Or: gemini -y [query..] (yolo shorthand)
+
+    Codex CLI:
+    - codex --full-auto -C <dir> [PROMPT]
+    - Or: codex -c 'sandbox_permissions=["disk-full-read-access"]' -a never [PROMPT]
 
     Args:
         cli: CLI name (claude, gemini, codex)
         prompt: Optional prompt to pass
         session_id: Optional session ID (used by Claude CLI)
+        auto_approve: If True, add flags to auto-approve actions/permissions
+        working_directory: Optional working directory (used by Codex -C flag)
 
     Returns:
         Command list for subprocess execution
     """
     command = [cli]
 
-    # For Claude CLI, we can pass the pre-created session ID
-    if cli == "claude" and session_id:
-        command.extend(["--session-id", session_id])
+    if cli == "claude":
+        # Claude CLI flags
+        if session_id:
+            command.extend(["--session-id", session_id])
+        if auto_approve:
+            # Use acceptEdits to auto-approve file edits while still prompting for dangerous ops
+            command.extend(["--permission-mode", "acceptEdits"])
 
-    # All three CLIs accept prompt as positional argument
+    elif cli == "gemini":
+        # Gemini CLI flags
+        if auto_approve:
+            command.extend(["--approval-mode", "yolo"])
+
+    elif cli == "codex":
+        # Codex CLI flags
+        if auto_approve:
+            # --full-auto: low-friction sandboxed automatic execution
+            command.append("--full-auto")
+        if working_directory:
+            command.extend(["-C", working_directory])
+
+    # All three CLIs accept prompt as positional argument (must come last)
     if prompt:
         command.append(prompt)
 
@@ -867,8 +897,14 @@ class TerminalSpawner:
         Returns:
             SpawnResult with success status
         """
-        # Build command with prompt as CLI argument
-        command = build_cli_command(cli, prompt=prompt, session_id=session_id)
+        # Build command with prompt as CLI argument and auto-approve for autonomous work
+        command = build_cli_command(
+            cli,
+            prompt=prompt,
+            session_id=session_id,
+            auto_approve=True,  # Subagents need to work autonomously
+            working_directory=str(cwd) if cli == "codex" else None,
+        )
 
         # Handle prompt for environment variables (backup for hooks/context)
         prompt_env: str | None = None
@@ -1234,8 +1270,14 @@ class EmbeddedSpawner:
         Returns:
             EmbeddedPTYResult with PTY info
         """
-        # Build command with prompt as CLI argument
-        command = build_cli_command(cli, prompt=prompt, session_id=session_id)
+        # Build command with prompt as CLI argument and auto-approve for autonomous work
+        command = build_cli_command(
+            cli,
+            prompt=prompt,
+            session_id=session_id,
+            auto_approve=True,  # Subagents need to work autonomously
+            working_directory=str(cwd) if cli == "codex" else None,
+        )
 
         # Handle prompt for environment variables (backup for hooks/context)
         prompt_env: str | None = None
@@ -1421,8 +1463,14 @@ class HeadlessSpawner:
         Returns:
             HeadlessResult with process handle
         """
-        # Build command with prompt as CLI argument
-        command = build_cli_command(cli, prompt=prompt, session_id=session_id)
+        # Build command with prompt as CLI argument and auto-approve for autonomous work
+        command = build_cli_command(
+            cli,
+            prompt=prompt,
+            session_id=session_id,
+            auto_approve=True,  # Subagents need to work autonomously
+            working_directory=str(cwd) if cli == "codex" else None,
+        )
 
         # Handle prompt for environment variables (backup for hooks/context)
         prompt_env: str | None = None
