@@ -342,20 +342,13 @@ class ITermSpawner(TerminalSpawnerBase):
             shell_command = f"cd {safe_cwd} && {env_exports} {cmd_str}"
             safe_shell_command = escape_applescript(shell_command)
 
-            # Check if iTerm is running BEFORE telling it to do anything
-            # If not running, iTerm auto-creates a default window on launch
-            # If running, we need to create a new window
-            # Always create a new window to avoid interference with existing sessions
+            # Use 'create window with default profile command' to execute the command
+            # directly when creating the window. This avoids timing issues with 'write text'
+            # and ensures exactly one window with one command execution.
             script = f'''
             tell application "iTerm"
                 activate
-                -- Always create a new window to avoid double-write issues with default sessions
-                set targetWindow to (create window with default profile)
-                -- Wait for the session to be ready (shell fully initialized)
-                delay 1
-                tell current session of targetWindow
-                    write text "{safe_shell_command}"
-                end tell
+                create window with default profile command "{safe_shell_command}"
             end tell
             '''
 
