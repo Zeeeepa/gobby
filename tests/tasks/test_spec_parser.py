@@ -6,11 +6,13 @@ from gobby.tasks.spec_parser import (
     CHECKBOX_PATTERN,
     CheckboxExtractor,
     CheckboxItem,
+    CreatedTask,
     ExtractedCheckboxes,
     HeadingNode,
+    HierarchyBuildResult,
     MarkdownStructureParser,
+    TaskHierarchyBuilder,
 )
-
 
 # =============================================================================
 # Heading Parser Tests
@@ -869,3 +871,445 @@ class TestCheckboxExtractorEdgeCases:
         assert len(result.items) == 2  # Two root items
         assert len(result.items[0].children) == 2  # Root 1 has 2 children
         assert len(result.items[1].children) == 1  # Root 2 has 1 child
+
+
+# =============================================================================
+# Task Hierarchy Builder Tests
+# =============================================================================
+
+
+class MockTask:
+    """Mock task object for testing."""
+
+    def __init__(self, id: str, title: str, task_type: str, parent_task_id: str | None = None):
+        self.id = id
+        self.title = title
+        self.task_type = task_type
+        self.parent_task_id = parent_task_id
+
+
+class MockTaskManager:
+    """Mock task manager for testing TaskHierarchyBuilder."""
+
+    def __init__(self):
+        self.tasks: list[MockTask] = []
+        self.task_counter = 0
+        self.updates: list[dict] = []
+
+    def create_task(
+        self,
+        title: str,
+        project_id: str,
+        task_type: str = "task",
+        parent_task_id: str | None = None,
+        description: str | None = None,
+        priority: int = 2,
+        **kwargs,
+    ) -> MockTask:
+        """Create a mock task and return it."""
+        self.task_counter += 1
+        task = MockTask(
+            id=f"gt-mock{self.task_counter}",
+            title=title,
+            task_type=task_type,
+            parent_task_id=parent_task_id,
+        )
+        self.tasks.append(task)
+        return task
+
+    def update_task(self, task_id: str, **kwargs) -> None:
+        """Record a task update."""
+        self.updates.append({"task_id": task_id, **kwargs})
+
+
+@pytest.fixture
+def mock_task_manager():
+    """Create a MockTaskManager instance."""
+    return MockTaskManager()
+
+
+@pytest.fixture
+def hierarchy_builder(mock_task_manager):
+    """Create a TaskHierarchyBuilder with mock task manager."""
+    return TaskHierarchyBuilder(
+        task_manager=mock_task_manager,
+        project_id="test-project",
+    )
+
+
+class TestCreatedTask:
+    """Tests for CreatedTask dataclass."""
+
+    def test_created_task_fields(self):
+        task = CreatedTask(
+            id="gt-123",
+            title="Test Task",
+            task_type="task",
+            status="open",
+            parent_task_id="gt-parent",
+        )
+        assert task.id == "gt-123"
+        assert task.title == "Test Task"
+        assert task.task_type == "task"
+        assert task.status == "open"
+        assert task.parent_task_id == "gt-parent"
+
+    def test_created_task_defaults(self):
+        task = CreatedTask(
+            id="gt-123",
+            title="Test Task",
+            task_type="task",
+            status="open",
+        )
+        assert task.parent_task_id is None
+
+
+class TestHierarchyBuildResult:
+    """Tests for HierarchyBuildResult dataclass."""
+
+    def test_task_ids_property(self):
+        tasks = [
+            CreatedTask("gt-1", "Task 1", "task", "open"),
+            CreatedTask("gt-2", "Task 2", "task", "open"),
+            CreatedTask("gt-3", "Task 3", "epic", "open"),
+        ]
+        result = HierarchyBuildResult(
+            tasks=tasks,
+            root_task_ids=["gt-1", "gt-3"],
+            total_count=3,
+        )
+        assert result.task_ids == ["gt-1", "gt-2", "gt-3"]
+
+
+class TestTaskHierarchyBuilderInit:
+    """Tests for TaskHierarchyBuilder initialization."""
+
+    def test_init_with_defaults(self, mock_task_manager):
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+        assert builder.project_id == "test-project"
+        assert builder.parent_task_id is None
+        assert builder.default_priority == 2
+
+    def test_init_with_parent_task(self, mock_task_manager):
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            parent_task_id="gt-parent",
+        )
+        assert builder.parent_task_id == "gt-parent"
+
+    def test_init_with_custom_priority(self, mock_task_manager):
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            default_priority=1,
+        )
+        assert builder.default_priority == 1
+
+
+class TestBuildFromHeadings:
+    """Tests for TaskHierarchyBuilder.build_from_headings()."""
+
+    def test_build_empty_headings(self, hierarchy_builder):
+        result = hierarchy_builder.build_from_headings([])
+        assert result.total_count == 0
+        assert result.root_task_ids == []
+        assert result.tasks == []
+
+    def test_build_single_h2_heading(self, hierarchy_builder, mock_task_manager):
+        headings = [
+            HeadingNode(text="Overview", level=2, line_start=1, line_end=5, content="Some content")
+        ]
+        result = hierarchy_builder.build_from_headings(headings)
+
+        assert result.total_count == 1
+        assert len(result.root_task_ids) == 1
+
+        # Verify task was created as epic (level 2-3 are epics)
+        assert mock_task_manager.tasks[0].task_type == "epic"
+        assert mock_task_manager.tasks[0].title == "Overview"
+
+    def test_build_h2_with_h3_children(self, hierarchy_builder, mock_task_manager):
+        child1 = HeadingNode(text="Task 1", level=3, line_start=5, line_end=10)
+        child2 = HeadingNode(text="Task 2", level=3, line_start=11, line_end=15)
+        parent = HeadingNode(
+            text="Phase 1",
+            level=2,
+            line_start=1,
+            line_end=15,
+            children=[child1, child2],
+        )
+
+        result = hierarchy_builder.build_from_headings([parent])
+
+        assert result.total_count == 3
+        assert len(result.root_task_ids) == 1
+
+        # Verify hierarchy - all level 2-3 are epics
+        tasks = mock_task_manager.tasks
+        assert tasks[0].title == "Phase 1"
+        assert tasks[0].task_type == "epic"
+        assert tasks[0].parent_task_id is None
+
+        assert tasks[1].title == "Task 1"
+        assert tasks[1].task_type == "epic"  # level 3 is still epic
+        assert tasks[1].parent_task_id == tasks[0].id
+
+        assert tasks[2].title == "Task 2"
+        assert tasks[2].parent_task_id == tasks[0].id
+
+    def test_build_h4_becomes_task(self, hierarchy_builder, mock_task_manager):
+        subtask = HeadingNode(text="Subtask A", level=4, line_start=5, line_end=10)
+        phase = HeadingNode(
+            text="Phase 1",
+            level=3,
+            line_start=1,
+            line_end=10,
+            children=[subtask],
+        )
+
+        result = hierarchy_builder.build_from_headings([phase])
+
+        assert result.total_count == 2
+        tasks = mock_task_manager.tasks
+
+        # Level 3 is epic
+        assert tasks[0].task_type == "epic"
+        # Level 4+ is task
+        assert tasks[1].task_type == "task"
+        assert tasks[1].parent_task_id == tasks[0].id
+
+    def test_build_multiple_root_headings(self, hierarchy_builder, mock_task_manager):
+        h1 = HeadingNode(text="Phase 1", level=2, line_start=1, line_end=5)
+        h2 = HeadingNode(text="Phase 2", level=2, line_start=6, line_end=10)
+        h3 = HeadingNode(text="Phase 3", level=2, line_start=11, line_end=15)
+
+        result = hierarchy_builder.build_from_headings([h1, h2, h3])
+
+        assert result.total_count == 3
+        assert len(result.root_task_ids) == 3
+        assert all(t.parent_task_id is None for t in mock_task_manager.tasks)
+
+    def test_build_with_parent_task_id(self, mock_task_manager):
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            parent_task_id="gt-epic-parent",
+        )
+        heading = HeadingNode(text="Child Phase", level=2, line_start=1, line_end=5)
+
+        result = builder.build_from_headings([heading])
+
+        assert result.total_count == 1
+        assert mock_task_manager.tasks[0].parent_task_id == "gt-epic-parent"
+
+    def test_build_with_checkboxes_integration(self, hierarchy_builder, mock_task_manager):
+        """Test that checkboxes are integrated under their parent headings."""
+        heading = HeadingNode(text="Implementation", level=3, line_start=1, line_end=10)
+
+        checkbox_item = CheckboxItem(
+            text="Write tests",
+            checked=False,
+            line_number=5,
+            indent_level=0,
+            raw_line="- [ ] Write tests",
+            parent_heading="Implementation",
+        )
+        checkboxes = ExtractedCheckboxes(
+            items=[checkbox_item],
+            total_count=1,
+            checked_count=0,
+        )
+
+        result = hierarchy_builder.build_from_headings([heading], checkboxes)
+
+        # Should create 2 tasks: epic for heading + task for checkbox
+        assert result.total_count == 2
+
+        tasks = mock_task_manager.tasks
+        assert tasks[0].title == "Implementation"
+        assert tasks[0].task_type == "epic"
+
+        assert tasks[1].title == "Write tests"
+        assert tasks[1].task_type == "task"
+        assert tasks[1].parent_task_id == tasks[0].id
+
+
+class TestBuildFromCheckboxes:
+    """Tests for TaskHierarchyBuilder.build_from_checkboxes()."""
+
+    def test_build_empty_checkboxes(self, hierarchy_builder):
+        checkboxes = ExtractedCheckboxes(items=[], total_count=0, checked_count=0)
+        result = hierarchy_builder.build_from_checkboxes(checkboxes)
+
+        assert result.total_count == 0
+        assert result.root_task_ids == []
+
+    def test_build_simple_checkboxes(self, hierarchy_builder, mock_task_manager):
+        items = [
+            CheckboxItem("Task 1", False, 0, 0, "- [ ] Task 1"),
+            CheckboxItem("Task 2", False, 1, 0, "- [ ] Task 2"),
+        ]
+        checkboxes = ExtractedCheckboxes(items=items, total_count=2, checked_count=0)
+
+        result = hierarchy_builder.build_from_checkboxes(checkboxes)
+
+        assert result.total_count == 2
+        assert len(result.root_task_ids) == 2
+        assert mock_task_manager.tasks[0].title == "Task 1"
+        assert mock_task_manager.tasks[1].title == "Task 2"
+
+    def test_build_checkboxes_with_heading_creates_epic(self, hierarchy_builder, mock_task_manager):
+        items = [CheckboxItem("Task 1", False, 0, 0, "- [ ] Task 1")]
+        checkboxes = ExtractedCheckboxes(items=items, total_count=1, checked_count=0)
+
+        result = hierarchy_builder.build_from_checkboxes(checkboxes, heading_text="My Epic")
+
+        assert result.total_count == 2
+        assert len(result.root_task_ids) == 1  # Only epic is root
+
+        tasks = mock_task_manager.tasks
+        assert tasks[0].title == "My Epic"
+        assert tasks[0].task_type == "epic"
+        assert tasks[1].title == "Task 1"
+        assert tasks[1].parent_task_id == tasks[0].id
+
+    def test_build_nested_checkboxes(self, hierarchy_builder, mock_task_manager):
+        child = CheckboxItem("Child Task", False, 1, 2, "  - [ ] Child Task")
+        parent_item = CheckboxItem("Parent Task", False, 0, 0, "- [ ] Parent Task", children=[child])
+        checkboxes = ExtractedCheckboxes(items=[parent_item], total_count=2, checked_count=0)
+
+        result = hierarchy_builder.build_from_checkboxes(checkboxes)
+
+        assert result.total_count == 2
+
+        tasks = mock_task_manager.tasks
+        assert tasks[0].title == "Parent Task"
+        assert tasks[1].title == "Child Task"
+        assert tasks[1].parent_task_id == tasks[0].id
+
+    def test_build_checked_checkbox_creates_closed_task(self, hierarchy_builder, mock_task_manager):
+        item = CheckboxItem("Done Task", True, 0, 0, "- [x] Done Task")
+        checkboxes = ExtractedCheckboxes(items=[item], total_count=1, checked_count=1)
+
+        result = hierarchy_builder.build_from_checkboxes(checkboxes)
+
+        assert result.total_count == 1
+        # Task should have been updated to closed status
+        assert len(mock_task_manager.updates) == 1
+        assert mock_task_manager.updates[0]["status"] == "closed"
+
+
+class TestTaskHierarchyBuilderIntegration:
+    """Integration tests combining parsers with hierarchy builder."""
+
+    def test_full_pipeline_heading_to_tasks(self, mock_task_manager):
+        """Parse markdown and build tasks in one flow."""
+        content = """## Phase 1: Setup
+
+Initialize the project.
+
+### Task 1.1: Environment
+
+Set up dev environment.
+
+### Task 1.2: Dependencies
+
+Install required packages.
+
+## Phase 2: Implementation
+
+#### Subtask 2.1
+
+First implementation step.
+"""
+        parser = MarkdownStructureParser()
+        headings = parser.parse(content)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+        result = builder.build_from_headings(headings)
+
+        # Should create: Phase 1 (epic), Task 1.1 (epic), Task 1.2 (epic), Phase 2 (epic), Subtask 2.1 (task)
+        assert result.total_count == 5
+        assert len(result.root_task_ids) == 2  # Two phases at root
+
+        # Verify types
+        task_types = [t.task_type for t in mock_task_manager.tasks]
+        assert task_types.count("epic") == 4  # All level 2-3
+        assert task_types.count("task") == 1  # Only level 4
+
+    def test_full_pipeline_checkbox_to_tasks(self, mock_task_manager):
+        """Parse checkboxes and build tasks in one flow."""
+        content = """## Implementation Tasks
+
+- [ ] Write unit tests
+  - [ ] Test parser
+  - [ ] Test builder
+- [x] Setup CI/CD
+- [ ] Deploy to staging
+"""
+        extractor = CheckboxExtractor(track_headings=True, build_hierarchy=True)
+        checkboxes = extractor.extract(content)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+        result = builder.build_from_checkboxes(checkboxes)
+
+        # Should create: Write unit tests, Test parser, Test builder, Setup CI/CD, Deploy to staging
+        assert result.total_count == 5
+        assert len(result.root_task_ids) == 3  # 3 top-level checkboxes
+
+        # Verify hierarchy: Test parser and Test builder are children of Write unit tests
+        tasks = mock_task_manager.tasks
+        parent_id = tasks[0].id
+        assert tasks[1].parent_task_id == parent_id  # Test parser
+        assert tasks[2].parent_task_id == parent_id  # Test builder
+
+        # Setup CI/CD should have status update to closed
+        assert any(u.get("status") == "closed" for u in mock_task_manager.updates)
+
+    def test_full_pipeline_headings_with_checkboxes(self, mock_task_manager):
+        """Parse headings and checkboxes together."""
+        content = """## Phase 1: Foundation
+
+### Setup Tasks
+
+- [ ] Install dependencies
+- [ ] Configure environment
+
+### Implementation
+
+- [ ] Write core logic
+- [x] Add error handling
+
+## Phase 2: Testing
+
+- [ ] Unit tests
+- [ ] Integration tests
+"""
+        # Parse both structures
+        heading_parser = MarkdownStructureParser()
+        headings = heading_parser.parse(content)
+
+        checkbox_extractor = CheckboxExtractor(track_headings=True, build_hierarchy=True)
+        checkboxes = checkbox_extractor.extract(content)
+
+        # Build hierarchy
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+        result = builder.build_from_headings(headings, checkboxes)
+
+        # Headings: Phase 1, Setup Tasks, Implementation, Phase 2 (4 epics)
+        # Checkboxes: 6 tasks under their respective headings
+        assert result.total_count == 10
+        assert len(result.root_task_ids) == 2  # Two phases

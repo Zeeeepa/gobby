@@ -5,10 +5,20 @@ Parses markdown specification documents into hierarchical structures
 for task expansion. Includes:
 - HeadingNode/MarkdownStructureParser: Parse ## through #### headings into tree
 - CheckboxItem/CheckboxExtractor: Parse markdown checkboxes with hierarchy
+- TaskHierarchyBuilder: Convert parsed structures to gobby tasks
 """
 
+from __future__ import annotations
+
+import logging
 import re
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from gobby.storage.tasks import LocalTaskManager
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -33,7 +43,7 @@ class HeadingNode:
     level: int
     line_start: int
     line_end: int = 0
-    children: list["HeadingNode"] = field(default_factory=list)
+    children: list[HeadingNode] = field(default_factory=list)
     content: str = ""
 
 
@@ -250,7 +260,7 @@ class CheckboxItem:
     indent_level: int  # Number of leading spaces (for nested checkboxes)
     raw_line: str  # Original line content
     parent_heading: str | None = None  # Text of nearest parent heading (if tracked)
-    children: list["CheckboxItem"] = field(default_factory=list)
+    children: list[CheckboxItem] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # Ensure children is a mutable list
@@ -501,4 +511,310 @@ class CheckboxExtractor:
             items=nested_items,
             total_count=total_count,
             checked_count=checked_count,
+        )
+
+
+# =============================================================================
+# Task Hierarchy Builder
+# =============================================================================
+
+
+@dataclass
+class CreatedTask:
+    """Result of creating a task from parsed structure."""
+
+    id: str
+    title: str
+    task_type: str
+    status: str
+    parent_task_id: str | None = None
+
+
+@dataclass
+class HierarchyBuildResult:
+    """Result of building task hierarchy from parsed spec."""
+
+    tasks: list[CreatedTask]
+    root_task_ids: list[str]  # Top-level task IDs (no parent in this build)
+    total_count: int
+
+    @property
+    def task_ids(self) -> list[str]:
+        """All created task IDs."""
+        return [t.id for t in self.tasks]
+
+
+class TaskHierarchyBuilder:
+    """Builds gobby tasks from parsed markdown structure.
+
+    Converts HeadingNodes and CheckboxItems into tasks with proper
+    parent-child relationships.
+
+    Mapping rules:
+    - ### Phase heading -> Epic task
+    - #### Sub-phase heading -> Task (child of epic)
+    - - [ ] Checkbox -> Leaf task under nearest heading
+    - - [x] Completed checkbox -> Leaf task (status: closed)
+
+    Example:
+        builder = TaskHierarchyBuilder(task_manager, project_id)
+        result = builder.build_from_headings(heading_tree, checkboxes)
+        print(f"Created {result.total_count} tasks")
+    """
+
+    def __init__(
+        self,
+        task_manager: LocalTaskManager,
+        project_id: str,
+        parent_task_id: str | None = None,
+        default_priority: int = 2,
+    ) -> None:
+        """Initialize the builder.
+
+        Args:
+            task_manager: LocalTaskManager instance for creating tasks
+            project_id: Project ID for created tasks
+            parent_task_id: Optional parent task ID (tasks created will be children)
+            default_priority: Default priority for created tasks (1=high, 2=medium, 3=low)
+        """
+        self.task_manager = task_manager
+        self.project_id = project_id
+        self.parent_task_id = parent_task_id
+        self.default_priority = default_priority
+
+    def build_from_headings(
+        self,
+        headings: list[HeadingNode],
+        checkboxes: ExtractedCheckboxes | None = None,
+    ) -> HierarchyBuildResult:
+        """Build task hierarchy from parsed heading tree.
+
+        Creates tasks from headings with optional checkbox integration.
+        Level 2/3 headings become epics, level 4 become tasks.
+        Checkboxes under headings become leaf tasks.
+
+        Args:
+            headings: List of HeadingNode from MarkdownStructureParser.parse()
+            checkboxes: Optional ExtractedCheckboxes to integrate under headings
+
+        Returns:
+            HierarchyBuildResult with created tasks
+        """
+        created_tasks: list[CreatedTask] = []
+        root_task_ids: list[str] = []
+
+        # Build checkbox lookup by parent heading for integration
+        checkbox_lookup: dict[str, list[CheckboxItem]] = {}
+        if checkboxes:
+            for item in checkboxes.get_flat_items():
+                if item.parent_heading:
+                    if item.parent_heading not in checkbox_lookup:
+                        checkbox_lookup[item.parent_heading] = []
+                    # Only add top-level checkboxes (depth 0) - nested ones are children
+                    if item.depth == 0:
+                        checkbox_lookup[item.parent_heading].append(item)
+
+        # Process each heading tree recursively
+        for heading in headings:
+            task_ids = self._process_heading(
+                heading=heading,
+                parent_task_id=self.parent_task_id,
+                checkbox_lookup=checkbox_lookup,
+                created_tasks=created_tasks,
+            )
+            root_task_ids.extend(task_ids)
+
+        return HierarchyBuildResult(
+            tasks=created_tasks,
+            root_task_ids=root_task_ids,
+            total_count=len(created_tasks),
+        )
+
+    def build_from_checkboxes(
+        self,
+        checkboxes: ExtractedCheckboxes,
+        heading_text: str | None = None,
+    ) -> HierarchyBuildResult:
+        """Build task hierarchy from parsed checkboxes only.
+
+        Creates tasks from checkboxes, preserving their nesting structure.
+        Useful when spec has checkboxes without structured headings.
+
+        Args:
+            checkboxes: ExtractedCheckboxes from CheckboxExtractor.extract()
+            heading_text: Optional heading text to use as epic title
+
+        Returns:
+            HierarchyBuildResult with created tasks
+        """
+        created_tasks: list[CreatedTask] = []
+        root_task_ids: list[str] = []
+
+        # Optionally create a parent epic from heading
+        epic_id = self.parent_task_id
+        if heading_text:
+            epic = self._create_task(
+                title=heading_text,
+                task_type="epic",
+                parent_task_id=self.parent_task_id,
+                description=None,
+            )
+            created_tasks.append(epic)
+            root_task_ids.append(epic.id)
+            epic_id = epic.id
+
+        # Process top-level checkboxes
+        for item in checkboxes.items:
+            task_ids = self._process_checkbox(
+                checkbox=item,
+                parent_task_id=epic_id,
+                created_tasks=created_tasks,
+            )
+            if not heading_text:
+                root_task_ids.extend(task_ids)
+
+        return HierarchyBuildResult(
+            tasks=created_tasks,
+            root_task_ids=root_task_ids,
+            total_count=len(created_tasks),
+        )
+
+    def _process_heading(
+        self,
+        heading: HeadingNode,
+        parent_task_id: str | None,
+        checkbox_lookup: dict[str, list[CheckboxItem]],
+        created_tasks: list[CreatedTask],
+    ) -> list[str]:
+        """Process a heading node and its children recursively.
+
+        Args:
+            heading: HeadingNode to process
+            parent_task_id: ID of parent task (if any)
+            checkbox_lookup: Mapping of heading text to checkboxes
+            created_tasks: List to append created tasks to
+
+        Returns:
+            List of task IDs created at this level (for root tracking)
+        """
+        created_at_level: list[str] = []
+
+        # Determine task type based on heading level
+        # Level 2-3: Epic (major sections)
+        # Level 4+: Task (implementation items)
+        task_type = "epic" if heading.level <= 3 else "task"
+
+        # Create task for this heading
+        task = self._create_task(
+            title=heading.text,
+            task_type=task_type,
+            parent_task_id=parent_task_id,
+            description=heading.content if heading.content.strip() else None,
+        )
+        created_tasks.append(task)
+        created_at_level.append(task.id)
+
+        # Process checkboxes under this heading
+        if heading.text in checkbox_lookup:
+            for checkbox in checkbox_lookup[heading.text]:
+                self._process_checkbox(
+                    checkbox=checkbox,
+                    parent_task_id=task.id,
+                    created_tasks=created_tasks,
+                )
+
+        # Process child headings
+        for child in heading.children:
+            self._process_heading(
+                heading=child,
+                parent_task_id=task.id,
+                checkbox_lookup=checkbox_lookup,
+                created_tasks=created_tasks,
+            )
+
+        return created_at_level
+
+    def _process_checkbox(
+        self,
+        checkbox: CheckboxItem,
+        parent_task_id: str | None,
+        created_tasks: list[CreatedTask],
+    ) -> list[str]:
+        """Process a checkbox item and its children recursively.
+
+        Args:
+            checkbox: CheckboxItem to process
+            parent_task_id: ID of parent task (if any)
+            created_tasks: List to append created tasks to
+
+        Returns:
+            List of task IDs created at this level
+        """
+        created_at_level: list[str] = []
+
+        # Determine status based on checkbox state
+        status = "closed" if checkbox.checked else "open"
+
+        # Create task for this checkbox
+        task = self._create_task(
+            title=checkbox.text,
+            task_type="task",
+            parent_task_id=parent_task_id,
+            description=None,
+            status=status,
+        )
+        created_tasks.append(task)
+        created_at_level.append(task.id)
+
+        # Process nested checkboxes as child tasks
+        for child in checkbox.children:
+            self._process_checkbox(
+                checkbox=child,
+                parent_task_id=task.id,
+                created_tasks=created_tasks,
+            )
+
+        return created_at_level
+
+    def _create_task(
+        self,
+        title: str,
+        task_type: str,
+        parent_task_id: str | None,
+        description: str | None,
+        status: str = "open",
+    ) -> CreatedTask:
+        """Create a task using the task manager.
+
+        Args:
+            title: Task title
+            task_type: Task type (epic, task, etc.)
+            parent_task_id: Parent task ID
+            description: Task description
+            status: Task status (default: open)
+
+        Returns:
+            CreatedTask with task details
+        """
+        task = self.task_manager.create_task(
+            title=title,
+            project_id=self.project_id,
+            task_type=task_type,
+            parent_task_id=parent_task_id,
+            description=description,
+            priority=self.default_priority,
+        )
+
+        # Update status if not default
+        if status != "open":
+            self.task_manager.update_task(task.id, status=status)
+
+        logger.debug(f"Created {task_type} task {task.id}: {title}")
+
+        return CreatedTask(
+            id=task.id,
+            title=title,
+            task_type=task_type,
+            status=status,
+            parent_task_id=parent_task_id,
         )
