@@ -379,3 +379,40 @@ class TestFormatInjectedPrompt:
         result = format_injected_prompt("Context", prompt)
 
         assert prompt in result
+
+    def test_uses_custom_template(self):
+        """Uses custom template when provided."""
+        template = "CONTEXT:\n{{ context }}\n\nTASK:\n{{ prompt }}"
+        result = format_injected_prompt("My context", "My task", template=template)
+
+        assert result == "CONTEXT:\nMy context\n\nTASK:\nMy task"
+        assert "## Context from Parent Session" not in result
+
+    def test_custom_template_with_missing_placeholder(self):
+        """Custom template without placeholders is returned as-is."""
+        template = "Static template without placeholders"
+        result = format_injected_prompt("Context", "Task", template=template)
+
+        assert result == "Static template without placeholders"
+
+    def test_custom_template_partial_placeholder(self):
+        """Custom template with only one placeholder works."""
+        template = "Just the task: {{ prompt }}"
+        result = format_injected_prompt("Context ignored", "Do something", template=template)
+
+        assert result == "Just the task: Do something"
+
+    def test_default_template_when_none(self):
+        """Default template is used when template is None."""
+        result = format_injected_prompt("Context", "Task", template=None)
+
+        assert "## Context from Parent Session" in result
+        assert "Context" in result
+        assert "Task" in result
+
+    def test_empty_context_skips_template(self):
+        """Empty context returns original prompt regardless of template."""
+        template = "Custom template"
+        result = format_injected_prompt("", "Original prompt", template=template)
+
+        assert result == "Original prompt"

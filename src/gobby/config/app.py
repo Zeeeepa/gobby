@@ -191,6 +191,12 @@ class ContextInjectionConfig(BaseModel):
         default="\n\n[truncated: {bytes} bytes remaining]",
         description="Suffix template appended when content is truncated",
     )
+    context_template: str | None = Field(
+        default=None,
+        description="Custom template for context injection. "
+        "Use {{ context }} and {{ prompt }} placeholders. "
+        "If None, uses the default template.",
+    )
 
     @field_validator("max_file_size", "max_content_size", "max_transcript_messages")
     @classmethod

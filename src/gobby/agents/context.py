@@ -306,13 +306,30 @@ class ContextResolver:
         return truncated + self._truncation_suffix.format(bytes=remaining)
 
 
-def format_injected_prompt(context: str, prompt: str) -> str:
+# Default template for context injection
+DEFAULT_CONTEXT_TEMPLATE = """## Context from Parent Session
+*Injected by Gobby subagent spawning*
+
+{{ context }}
+
+---
+
+## Task
+
+{{ prompt }}"""
+
+
+def format_injected_prompt(
+    context: str, prompt: str, template: str | None = None
+) -> str:
     """
     Format the injected prompt with context prepended.
 
     Args:
         context: Resolved context to inject.
         prompt: Original prompt for the agent.
+        template: Optional custom template with {{ context }} and {{ prompt }} placeholders.
+            If None, uses the default template.
 
     Returns:
         Formatted prompt with context, or original prompt if context is empty.
@@ -320,13 +337,21 @@ def format_injected_prompt(context: str, prompt: str) -> str:
     if not context or not context.strip():
         return prompt
 
-    return f"""## Context from Parent Session
-*Injected by Gobby subagent spawning*
+    # Use default template if none provided
+    effective_template = template or DEFAULT_CONTEXT_TEMPLATE
 
-{context}
+    # Simple string substitution for {{ context }} and {{ prompt }}
+    result = effective_template
+    result = result.replace("{{ context }}", context)
+    result = result.replace("{{ prompt }}", prompt)
 
----
+    # Also support {context} and {prompt} for Python format-style
+    # but only if {{ }} placeholders are not in the template
+    if "{{ context }}" not in effective_template and "{{ prompt }}" not in effective_template:
+        try:
+            result = effective_template.format(context=context, prompt=prompt)
+        except KeyError:
+            # If format fails due to missing placeholders, return as-is
+            pass
 
-## Task
-
-{prompt}"""
+    return result

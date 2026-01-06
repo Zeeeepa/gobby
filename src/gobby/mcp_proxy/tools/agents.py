@@ -64,10 +64,12 @@ def create_agents_registry(
     # Create context resolver if managers are provided
     context_resolver: ContextResolver | None = None
     context_enabled = True  # Default enabled
+    context_template: str | None = None  # Custom template for injection
     if session_manager and message_manager:
         # Use config values if provided, otherwise use defaults
         if context_config:
             context_enabled = context_config.enabled
+            context_template = context_config.context_template
             context_resolver = ContextResolver(
                 session_manager=session_manager,
                 message_manager=message_manager,
@@ -188,7 +190,9 @@ def create_agents_registry(
                     session_context, parent_session_id
                 )
                 if resolved_context:
-                    effective_prompt = format_injected_prompt(resolved_context, prompt)
+                    effective_prompt = format_injected_prompt(
+                        resolved_context, prompt, template=context_template
+                    )
                     logger.info(
                         f"Injected context from '{session_context}' into agent prompt "
                         f"({len(resolved_context)} chars)"
