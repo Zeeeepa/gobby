@@ -2,6 +2,7 @@
 Agent management CLI commands.
 
 Commands for managing subagent runs:
+- start: Start a new agent
 - list: List agent runs for a session
 - show: Show details for an agent run
 - status: Check status of a running agent
@@ -11,6 +12,7 @@ Commands for managing subagent runs:
 import json
 
 import click
+import httpx
 
 from gobby.storage.agents import LocalAgentRunManager
 from gobby.storage.database import LocalDatabase
@@ -22,10 +24,141 @@ def get_agent_run_manager() -> LocalAgentRunManager:
     return LocalAgentRunManager(db)
 
 
+def get_daemon_url() -> str:
+    """Get daemon URL from config."""
+    from gobby.config.app import load_config
+
+    config = load_config()
+    return f"http://{config.daemon_host}:{config.daemon_port}"
+
+
 @click.group()
 def agents() -> None:
     """Manage subagent runs."""
     pass
+
+
+@agents.command("start")
+@click.argument("prompt")
+@click.option("--session", "-s", "parent_session_id", required=True, help="Parent session ID")
+@click.option("--workflow", "-w", help="Workflow name to execute")
+@click.option("--task", "-t", help="Task ID or 'next' for auto-select")
+@click.option(
+    "--mode",
+    "-m",
+    type=click.Choice(["in_process", "terminal", "embedded", "headless"]),
+    default="terminal",
+    help="Execution mode (default: terminal)",
+)
+@click.option(
+    "--terminal",
+    type=click.Choice(["auto", "ghostty", "iterm", "kitty", "wezterm", "terminal"]),
+    default="auto",
+    help="Terminal for terminal/embedded modes",
+)
+@click.option("--provider", "-p", default="claude", help="LLM provider (claude, gemini, etc.)")
+@click.option("--model", help="Model override")
+@click.option("--timeout", default=120.0, help="Execution timeout in seconds")
+@click.option("--max-turns", default=10, help="Maximum turns")
+@click.option(
+    "--context",
+    "session_context",
+    default="summary_markdown",
+    help="Context source (summary_markdown, compact_markdown, transcript:<n>, file:<path>)",
+)
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+def start_agent_cmd(
+    prompt: str,
+    parent_session_id: str,
+    workflow: str | None,
+    task: str | None,
+    mode: str,
+    terminal: str,
+    provider: str,
+    model: str | None,
+    timeout: float,
+    max_turns: int,
+    session_context: str,
+    json_format: bool,
+) -> None:
+    """Start a new agent with the given prompt.
+
+    Examples:
+
+        gobby agents start "Implement feature X" --session sess-abc123
+
+        gobby agents start "Fix the bug" -s sess-abc123 --mode terminal
+
+        gobby agents start "Run tests" -s sess-abc123 --mode headless
+    """
+    daemon_url = get_daemon_url()
+
+    # Build arguments for the MCP tool call
+    arguments = {
+        "prompt": prompt,
+        "parent_session_id": parent_session_id,
+        "mode": mode,
+        "terminal": terminal,
+        "provider": provider,
+        "timeout": timeout,
+        "max_turns": max_turns,
+        "session_context": session_context,
+    }
+
+    if workflow:
+        arguments["workflow"] = workflow
+    if task:
+        arguments["task"] = task
+    if model:
+        arguments["model"] = model
+
+    # Call the daemon's MCP tool endpoint
+    try:
+        response = httpx.post(
+            f"{daemon_url}/mcp/call_tool",
+            json={
+                "server_name": "gobby-agents",
+                "tool_name": "start_agent",
+                "arguments": arguments,
+            },
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        result = response.json()
+    except httpx.ConnectError:
+        click.echo("Error: Cannot connect to Gobby daemon. Is it running?", err=True)
+        click.echo("Start with: gobby start", err=True)
+        return
+    except httpx.HTTPStatusError as e:
+        click.echo(f"Error: Daemon returned {e.response.status_code}", err=True)
+        click.echo(e.response.text, err=True)
+        return
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        return
+
+    if json_format:
+        click.echo(json.dumps(result, indent=2, default=str))
+        return
+
+    # Check result
+    if result.get("success"):
+        run_id = result.get("run_id", "unknown")
+        child_session_id = result.get("child_session_id", "unknown")
+        status = result.get("status", "unknown")
+
+        click.echo(f"Started agent run: {run_id}")
+        click.echo(f"  Child session: {child_session_id}")
+        click.echo(f"  Status: {status}")
+
+        if result.get("message"):
+            click.echo(f"  {result['message']}")
+
+        if mode == "in_process" and result.get("output"):
+            click.echo(f"\nOutput:\n{result['output']}")
+    else:
+        error = result.get("error", "Unknown error")
+        click.echo(f"Failed to start agent: {error}", err=True)
 
 
 @agents.command("list")
