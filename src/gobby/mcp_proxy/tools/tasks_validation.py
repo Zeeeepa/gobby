@@ -1,0 +1,483 @@
+"""
+Validation MCP tools for Gobby Task System.
+
+Extracted from tasks.py using Strangler Fig pattern.
+
+Exposes functionality for:
+- Task validation (validate_task, generate_validation_criteria)
+- Validation status (get_validation_status, reset_validation_count)
+- Validation history (get_validation_history, get_recurring_issues, clear_validation_history)
+- De-escalation (de_escalate_task)
+
+These tools are registered with the InternalToolRegistry and accessed
+via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
+"""
+
+from typing import TYPE_CHECKING, Any
+
+from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.storage.tasks import LocalTaskManager
+from gobby.tasks.validation import TaskValidator
+from gobby.tasks.validation_history import ValidationHistoryManager
+
+if TYPE_CHECKING:
+    from gobby.storage.projects import LocalProjectManager
+
+
+def create_validation_registry(
+    task_manager: LocalTaskManager,
+    task_validator: TaskValidator | None = None,
+    project_manager: "LocalProjectManager | None" = None,
+    get_project_repo_path: Any = None,
+) -> InternalToolRegistry:
+    """
+    Create a validation tool registry with all validation-related tools.
+
+    Args:
+        task_manager: LocalTaskManager instance
+        task_validator: TaskValidator instance (optional, enables LLM validation)
+        project_manager: LocalProjectManager instance (optional)
+        get_project_repo_path: Callable to get repo path from project ID (optional)
+
+    Returns:
+        InternalToolRegistry with all validation tools registered
+    """
+    registry = InternalToolRegistry(
+        name="gobby-tasks-validation",
+        description="Task validation tools - validate, criteria, history",
+    )
+
+    # Create helper managers
+    validation_history_manager = ValidationHistoryManager(task_manager.db)
+
+    @registry.tool(
+        name="validate_task",
+        description="Validate if a task is completed. Auto-gathers context from recent commits and relevant files if changes_summary not provided.",
+    )
+    async def validate_task(
+        task_id: str,
+        changes_summary: str | None = None,
+        context_files: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Validate task completion.
+
+        For parent tasks (tasks with children), validation checks if all children are closed.
+        For leaf tasks, uses LLM-based validation against criteria.
+
+        If changes_summary is not provided for leaf tasks, uses smart context gathering:
+        1. Current uncommitted changes (staged + unstaged)
+        2. Multi-commit window (last 10 commits)
+        3. File-based analysis (reads files mentioned in criteria)
+
+        Args:
+            task_id: ID of the task to validate
+            changes_summary: Summary of changes made (optional - auto-gathered if not provided)
+            context_files: List of file paths to read for context (optional)
+
+        Returns:
+            Validation result
+        """
+        task = task_manager.get_task(task_id)
+        if not task:
+            raise ValueError(f"Task not found: {task_id}")
+
+        # Check if task has children (is a parent task)
+        children = task_manager.list_tasks(parent_task_id=task_id, limit=1000)
+
+        if children:
+            # Parent task: validate based on child completion
+            open_children = [c for c in children if c.status != "closed"]
+            all_closed = len(open_children) == 0
+
+            from gobby.tasks.validation import ValidationResult
+
+            if all_closed:
+                result = ValidationResult(
+                    status="valid",
+                    feedback=f"All {len(children)} child tasks are completed.",
+                )
+            else:
+                open_titles = [f"- {c.id}: {c.title}" for c in open_children[:5]]
+                remaining = len(open_children) - 5 if len(open_children) > 5 else 0
+                feedback = f"{len(open_children)} of {len(children)} child tasks still open:\n"
+                feedback += "\n".join(open_titles)
+                if remaining > 0:
+                    feedback += f"\n... and {remaining} more"
+                result = ValidationResult(status="invalid", feedback=feedback)
+        else:
+            # Leaf task: use LLM-based validation
+            if not task_validator:
+                raise RuntimeError("Task validation is not enabled")
+
+            # Use provided changes_summary or auto-gather via smart context
+            validation_context = changes_summary
+            if not validation_context:
+                from gobby.tasks.validation import get_validation_context_smart
+
+                # Get project repo_path for git commands
+                repo_path = None
+                if get_project_repo_path and task.project_id:
+                    repo_path = get_project_repo_path(task.project_id)
+
+                smart_context = get_validation_context_smart(
+                    task_title=task.title,
+                    validation_criteria=task.validation_criteria,
+                    task_description=task.description,
+                    cwd=repo_path,
+                )
+                if smart_context:
+                    validation_context = f"Validation context:\n\n{smart_context}"
+
+            if not validation_context:
+                raise ValueError(
+                    "No changes found for validation. Either provide changes_summary "
+                    "or ensure there are uncommitted changes or recent commits."
+                )
+
+            result = await task_validator.validate_task(
+                task_id=task.id,
+                title=task.title,
+                description=task.description,
+                changes_summary=validation_context,
+                validation_criteria=task.validation_criteria,
+                context_files=context_files,
+                test_strategy=task.test_strategy,
+            )
+
+        # Update validation status
+        updates: dict[str, Any] = {
+            "validation_status": result.status,
+            "validation_feedback": result.feedback,
+        }
+
+        MAX_RETRIES = 3
+
+        if result.status == "valid":
+            # Success: Close task
+            task_manager.close_task(task.id, reason="Completed via validation")
+        elif result.status == "invalid":
+            # Failure: Increment fail count
+            current_fail_count = task.validation_fail_count or 0
+            new_fail_count = current_fail_count + 1
+            updates["validation_fail_count"] = new_fail_count
+
+            feedback_str = result.feedback or "Validation failed (no feedback provided)."
+
+            if new_fail_count < MAX_RETRIES:
+                # Create subtask to fix issues
+                fix_task = task_manager.create_task(
+                    project_id=task.project_id,
+                    title=f"Fix validation failures for {task.title}",
+                    description=f"Validation failed with feedback:\n{feedback_str}\n\nPlease fix the issues and re-validate.",
+                    parent_task_id=task.id,
+                    priority=1,  # High priority fix
+                    task_type="bug",
+                )
+                updates["validation_feedback"] = (
+                    feedback_str + f"\n\nCreated fix task: {fix_task.id}"
+                )
+            else:
+                # Exceeded retries: Mark as failed
+                updates["status"] = "failed"
+                updates["validation_feedback"] = (
+                    feedback_str + f"\n\nExceeded max retries ({MAX_RETRIES}). Marked as failed."
+                )
+
+        task_manager.update_task(task.id, **updates)
+
+        return {
+            "is_valid": result.status == "valid",
+            "feedback": result.feedback,
+            "status": result.status,
+            "fail_count": updates.get("validation_fail_count", task.validation_fail_count),
+        }
+
+    @registry.tool(
+        name="get_validation_status",
+        description="Get validation details for a task.",
+    )
+    def get_validation_status(task_id: str) -> dict[str, Any]:
+        """
+        Get validation details.
+
+        Args:
+            task_id: Task ID
+
+        Returns:
+            Validation details
+        """
+        task = task_manager.get_task(task_id)
+        if not task:
+            raise ValueError(f"Task not found: {task_id}")
+
+        return {
+            "task_id": task.id,
+            "validation_status": task.validation_status,
+            "validation_feedback": task.validation_feedback,
+            "validation_criteria": task.validation_criteria,
+            "validation_fail_count": task.validation_fail_count,
+            "use_external_validator": task.use_external_validator,
+        }
+
+    @registry.tool(
+        name="reset_validation_count",
+        description="Reset validation failure count for a task.",
+    )
+    def reset_validation_count(task_id: str) -> dict[str, Any]:
+        """
+        Reset validation failure count.
+
+        Args:
+            task_id: Task ID
+
+        Returns:
+            Updated task details
+        """
+        task = task_manager.get_task(task_id)
+        if not task:
+            raise ValueError(f"Task not found: {task_id}")
+
+        updated_task = task_manager.update_task(task_id, validation_fail_count=0)
+        return {
+            "task_id": updated_task.id,
+            "validation_fail_count": updated_task.validation_fail_count,
+            "message": "Validation failure count reset to 0",
+        }
+
+    @registry.tool(
+        name="get_validation_history",
+        description="Get full validation history for a task, including all iterations, feedback, and issues.",
+    )
+    def get_validation_history(task_id: str) -> dict[str, Any]:
+        """
+        Get validation history for a task.
+
+        Returns all validation iterations with their status, feedback, and issues.
+
+        Args:
+            task_id: Task ID
+
+        Returns:
+            Validation history with all iterations
+        """
+        task = task_manager.get_task(task_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+
+        history = validation_history_manager.get_iteration_history(task_id)
+
+        # Convert iterations to serializable format
+        history_dicts = []
+        for iteration in history:
+            iter_dict: dict[str, Any] = {
+                "iteration": iteration.iteration,
+                "status": iteration.status,
+                "feedback": iteration.feedback,
+                "issues": [i.to_dict() for i in (iteration.issues or [])],
+                "context_type": iteration.context_type,
+                "context_summary": iteration.context_summary,
+                "validator_type": iteration.validator_type,
+                "created_at": iteration.created_at,
+            }
+            history_dicts.append(iter_dict)
+
+        return {
+            "task_id": task_id,
+            "history": history_dicts,
+            "total_iterations": len(history_dicts),
+        }
+
+    @registry.tool(
+        name="get_recurring_issues",
+        description="Analyze validation history for recurring issues that keep appearing across iterations.",
+    )
+    def get_recurring_issues(
+        task_id: str,
+        threshold: int = 2,
+    ) -> dict[str, Any]:
+        """
+        Get recurring issues analysis for a task.
+
+        Finds issues that appear multiple times across validation iterations.
+
+        Args:
+            task_id: Task ID
+            threshold: Minimum occurrences to consider an issue recurring (default: 2)
+
+        Returns:
+            Recurring issues analysis with grouped issues and counts
+        """
+        task = task_manager.get_task(task_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+
+        summary = validation_history_manager.get_recurring_issue_summary(
+            task_id, threshold=threshold
+        )
+
+        has_recurring = validation_history_manager.has_recurring_issues(
+            task_id, threshold=threshold
+        )
+
+        return {
+            "task_id": task_id,
+            "recurring_issues": summary["recurring_issues"],
+            "total_iterations": summary["total_iterations"],
+            "has_recurring": has_recurring,
+        }
+
+    @registry.tool(
+        name="clear_validation_history",
+        description="Clear all validation history for a task. Use after major changes that invalidate previous feedback.",
+    )
+    def clear_validation_history(
+        task_id: str,
+        reason: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Clear validation history for a fresh start.
+
+        Removes all validation iterations and resets the fail count.
+
+        Args:
+            task_id: Task ID
+            reason: Optional reason for clearing history
+
+        Returns:
+            Confirmation of cleared history
+        """
+        task = task_manager.get_task(task_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+
+        # Get count before clearing for response
+        history = validation_history_manager.get_iteration_history(task_id)
+        iterations_count = len(history)
+
+        # Clear history
+        validation_history_manager.clear_history(task_id)
+
+        # Also reset validation fail count
+        task_manager.update_task(task_id, validation_fail_count=0)
+
+        return {
+            "task_id": task_id,
+            "cleared": True,
+            "iterations_cleared": iterations_count,
+            "reason": reason,
+        }
+
+    @registry.tool(
+        name="de_escalate_task",
+        description="Return an escalated task to open status after human intervention resolves the issue.",
+    )
+    def de_escalate_task(
+        task_id: str,
+        reason: str,
+        reset_validation: bool = False,
+    ) -> dict[str, Any]:
+        """
+        De-escalate a task back to open status.
+
+        Args:
+            task_id: Task ID
+            reason: Reason for de-escalation (required)
+            reset_validation: Also reset validation fail count (default: False)
+
+        Returns:
+            Updated task details
+        """
+        task = task_manager.get_task(task_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+
+        if task.status != "escalated":
+            return {"error": f"Task {task_id} is not escalated (current status: {task.status})"}
+
+        # Build update kwargs
+        update_kwargs: dict[str, Any] = {
+            "status": "open",
+            "escalated_at": None,
+            "escalation_reason": None,
+        }
+
+        if reset_validation:
+            update_kwargs["validation_fail_count"] = 0
+
+        updated_task = task_manager.update_task(task_id, **update_kwargs)
+
+        return {
+            "task_id": updated_task.id,
+            "status": updated_task.status,
+            "escalated_at": updated_task.escalated_at,
+            "escalation_reason": updated_task.escalation_reason,
+            "de_escalation_reason": reason,
+            "validation_reset": reset_validation,
+        }
+
+    @registry.tool(
+        name="generate_validation_criteria",
+        description="Generate validation criteria for a task using AI. Updates the task with the generated criteria.",
+    )
+    async def generate_validation_criteria(task_id: str) -> dict[str, Any]:
+        """
+        Generate validation criteria for a task using AI.
+
+        For parent tasks (tasks with children), sets criteria to "All child tasks completed".
+        For leaf tasks, uses LLM to generate criteria from title/description.
+
+        Args:
+            task_id: ID of the task to generate criteria for
+
+        Returns:
+            Generated criteria and updated task info
+        """
+        task = task_manager.get_task(task_id)
+        if not task:
+            raise ValueError(f"Task not found: {task_id}")
+
+        if task.validation_criteria:
+            return {
+                "task_id": task.id,
+                "validation_criteria": task.validation_criteria,
+                "generated": False,
+                "message": "Task already has validation criteria",
+            }
+
+        # Check if task has children (is a parent task)
+        children = task_manager.list_tasks(parent_task_id=task_id, limit=1)
+        criteria: str | None
+
+        if children:
+            # Parent task: criteria is child completion
+            criteria = "All child tasks must be completed (status: closed)."
+        else:
+            # Leaf task: use LLM to generate criteria
+            if not task_validator:
+                raise RuntimeError("Task validation is not enabled")
+
+            criteria = await task_validator.generate_criteria(
+                title=task.title,
+                description=task.description,
+            )
+
+            if not criteria:
+                return {
+                    "task_id": task.id,
+                    "validation_criteria": None,
+                    "generated": False,
+                    "error": "Failed to generate criteria",
+                }
+
+        # Update task with generated criteria
+        task_manager.update_task(task_id, validation_criteria=criteria)
+
+        return {
+            "task_id": task.id,
+            "validation_criteria": criteria,
+            "generated": True,
+            "is_parent_task": len(children) > 0,
+        }
+
+    return registry

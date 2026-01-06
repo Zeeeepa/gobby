@@ -40,7 +40,6 @@ except ImportError:
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.tasks.validation import TaskValidator, ValidationResult
 
-
 # Skip all tests if module doesn't exist yet (TDD red phase)
 pytestmark = pytest.mark.skipif(
     not IMPORT_SUCCEEDED,
@@ -69,10 +68,7 @@ def validation_registry(mock_task_manager, mock_task_validator):
     if not IMPORT_SUCCEEDED:
         pytest.skip("Module not extracted yet")
 
-    with (
-        patch("gobby.mcp_proxy.tools.tasks_validation.TaskDependencyManager"),
-        patch("gobby.mcp_proxy.tools.tasks_validation.ValidationHistoryManager"),
-    ):
+    with patch("gobby.mcp_proxy.tools.tasks_validation.ValidationHistoryManager"):
         registry = create_validation_registry(
             task_manager=mock_task_manager,
             task_validator=mock_task_validator,
@@ -382,7 +378,7 @@ class TestValidateTaskTool:
         )
 
         with patch(
-            "gobby.mcp_proxy.tools.tasks_validation.get_validation_context_smart"
+            "gobby.tasks.validation.get_validation_context_smart"
         ) as mock_context:
             mock_context.return_value = "Auto-gathered context from git"
 
