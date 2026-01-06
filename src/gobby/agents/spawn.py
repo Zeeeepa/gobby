@@ -622,7 +622,7 @@ class CmdSpawner(TerminalSpawnerBase):
             # Build the command line for start command
             # start [title] cmd /k "cd /d path && command"
             # We need to quote the inner command to prevent injection
-            inner_cmd = f'cd /d {safe_cwd} && {cmd_str}'
+            inner_cmd = f"cd /d {safe_cwd} && {cmd_str}"
 
             args = ["cmd", "/c", "start"]
             if title:

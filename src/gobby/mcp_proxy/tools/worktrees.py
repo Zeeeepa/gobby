@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.worktrees import WorktreeStatus
@@ -97,11 +97,16 @@ def create_worktrees_registry(
                 "existing_path": existing.worktree_path,
             }
 
+        # Generate default worktree path if not provided
+        if worktree_path is None:
+            # Default to sibling directory named after branch
+            worktree_path = str(Path(git_manager.repo_path).parent / branch_name)
+
         # Create git worktree
         result = git_manager.create_worktree(
+            worktree_path=worktree_path,
             branch_name=branch_name,
             base_branch=base_branch,
-            worktree_path=worktree_path,
             create_branch=create_branch,
         )
 
@@ -115,7 +120,7 @@ def create_worktrees_registry(
         worktree = worktree_storage.create(
             project_id=project_id,
             branch_name=branch_name,
-            worktree_path=result.worktree_path or "",
+            worktree_path=worktree_path,
             base_branch=base_branch,
             task_id=task_id,
         )
@@ -158,9 +163,9 @@ def create_worktrees_registry(
             if status:
                 git_status = {
                     "has_uncommitted_changes": status.has_uncommitted_changes,
-                    "commits_ahead": status.commits_ahead,
-                    "commits_behind": status.commits_behind,
-                    "current_branch": status.current_branch,
+                    "commits_ahead": status.ahead,
+                    "commits_behind": status.behind,
+                    "current_branch": status.branch,
                 }
 
         return {
@@ -384,17 +389,25 @@ def create_worktrees_registry(
                 "error": f"Worktree '{worktree_id}' not found",
             }
 
+        # Validate strategy
+        if strategy not in ("rebase", "merge"):
+            return {
+                "success": False,
+                "error": f"Invalid strategy '{strategy}'. Must be 'rebase' or 'merge'.",
+            }
+
+        strategy_literal: Literal["rebase", "merge"] = strategy  # type: ignore[assignment]
+
         result = git_manager.sync_from_main(
             worktree.worktree_path,
             base_branch=worktree.base_branch,
-            strategy=strategy,
+            strategy=strategy_literal,
         )
 
         if not result.success:
             return {
                 "success": False,
                 "error": result.error or "Sync failed",
-                "has_conflicts": result.has_conflicts,
             }
 
         # Update last activity
@@ -404,7 +417,6 @@ def create_worktrees_registry(
             "success": True,
             "worktree_id": worktree_id,
             "message": f"Worktree synced with {worktree.base_branch} using {strategy}",
-            "commits_pulled": result.commits_pulled,
         }
 
     @registry.tool(
@@ -713,8 +725,12 @@ def create_worktrees_registry(
             worktree = existing
             logger.info(f"Using existing worktree for branch '{branch_name}'")
         else:
+            # Generate worktree path as sibling directory
+            worktree_path = str(Path(git_manager.repo_path).parent / branch_name)
+
             # Create git worktree
             result = git_manager.create_worktree(
+                worktree_path=worktree_path,
                 branch_name=branch_name,
                 base_branch=base_branch,
                 create_branch=True,
@@ -730,7 +746,7 @@ def create_worktrees_registry(
             worktree = worktree_storage.create(
                 project_id=project_id,
                 branch_name=branch_name,
-                worktree_path=result.worktree_path or "",
+                worktree_path=worktree_path,
                 base_branch=base_branch,
                 task_id=task_id,
             )

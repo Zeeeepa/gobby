@@ -90,6 +90,9 @@ class AgentResult:
     run_id: str | None = None
     """ID of the agent run (set by AgentRunner)."""
 
+    child_session_id: str | None = None
+    """ID of the child session created for this agent (set by AgentRunner)."""
+
 
 # Type alias for the tool handler callback
 ToolHandler = Callable[[str, dict[str, Any]], Awaitable[ToolResult]]

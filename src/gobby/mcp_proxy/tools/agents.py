@@ -31,7 +31,6 @@ from gobby.agents.registry import (
 from gobby.agents.spawn import (
     EmbeddedSpawner,
     HeadlessSpawner,
-    SpawnMode,
     TerminalSpawner,
 )
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
@@ -269,7 +268,7 @@ def create_agents_registry(
 
         # Terminal, embedded, or headless mode: prepare run then spawn
         # Use prepare_run to create session and run records
-        from gobby.agents.runner import AgentResult
+        from gobby.llm.executor import AgentResult
 
         prepare_result = runner.prepare_run(config)
         if isinstance(prepare_result, AgentResult):
@@ -282,42 +281,60 @@ def create_agents_registry(
         # Successfully prepared - we have context with session and run
         context = prepare_result
 
+        # Validate context has required session and run (should always be set after prepare_run)
+        if context.session is None or context.run is None:
+            return {
+                "success": False,
+                "error": "Internal error: context missing session or run after prepare_run",
+            }
+
+        # Type narrowing: assign to non-optional variables
+        child_session = context.session
+        agent_run = context.run
+
         # Determine working directory
         cwd = project_path or "."
 
+        # Ensure project_id is non-None for spawn calls
+        if project_id is None:
+            return {
+                "success": False,
+                "error": "project_id is required for spawning",
+            }
+
         if mode == "terminal":
             # Spawn in external terminal
-            spawner = TerminalSpawner()
-            spawn_result = spawner.spawn_agent(
+            terminal_spawner = TerminalSpawner()
+            terminal_result = terminal_spawner.spawn_agent(
                 cli=effective_provider,  # claude, gemini, codex
                 cwd=cwd,
-                session_id=context.session.id,
+                session_id=child_session.id,
                 parent_session_id=parent_session_id,
-                agent_run_id=context.run.id,
+                agent_run_id=agent_run.id,
                 project_id=project_id,
                 workflow_name=workflow,
-                agent_depth=context.session.agent_depth,
+                agent_depth=child_session.agent_depth,
                 max_agent_depth=runner._child_session_manager.max_agent_depth,
                 terminal=terminal,
                 prompt=effective_prompt,
             )
 
-            if not spawn_result.success:
+            if not terminal_result.success:
                 return {
                     "success": False,
-                    "error": spawn_result.error or spawn_result.message,
-                    "run_id": context.run.id,
-                    "child_session_id": context.session.id,
+                    "error": terminal_result.error or terminal_result.message,
+                    "run_id": agent_run.id,
+                    "child_session_id": child_session.id,
                 }
 
             # Register in running agents registry
             running_agent = RunningAgent(
-                run_id=context.run.id,
-                session_id=context.session.id,
+                run_id=agent_run.id,
+                session_id=child_session.id,
                 parent_session_id=parent_session_id,
                 mode="terminal",
-                pid=spawn_result.pid,
-                terminal_type=spawn_result.terminal_type,
+                pid=terminal_result.pid,
+                terminal_type=terminal_result.terminal_type,
                 provider=effective_provider,
                 workflow_name=workflow,
                 worktree_id=worktree_id,
@@ -326,46 +343,46 @@ def create_agents_registry(
 
             return {
                 "success": True,
-                "run_id": context.run.id,
-                "child_session_id": context.session.id,
+                "run_id": agent_run.id,
+                "child_session_id": child_session.id,
                 "status": "pending",
-                "message": f"Agent spawned in {spawn_result.terminal_type} (PID: {spawn_result.pid})",
-                "terminal_type": spawn_result.terminal_type,
-                "pid": spawn_result.pid,
+                "message": f"Agent spawned in {terminal_result.terminal_type} (PID: {terminal_result.pid})",
+                "terminal_type": terminal_result.terminal_type,
+                "pid": terminal_result.pid,
             }
 
         elif mode == "embedded":
             # Spawn with PTY for UI attachment
-            spawner = EmbeddedSpawner()
-            spawn_result = spawner.spawn_agent(
+            embedded_spawner = EmbeddedSpawner()
+            embedded_result = embedded_spawner.spawn_agent(
                 cli=effective_provider,
                 cwd=cwd,
-                session_id=context.session.id,
+                session_id=child_session.id,
                 parent_session_id=parent_session_id,
-                agent_run_id=context.run.id,
+                agent_run_id=agent_run.id,
                 project_id=project_id,
                 workflow_name=workflow,
-                agent_depth=context.session.agent_depth,
+                agent_depth=child_session.agent_depth,
                 max_agent_depth=runner._child_session_manager.max_agent_depth,
                 prompt=effective_prompt,
             )
 
-            if not spawn_result.success:
+            if not embedded_result.success:
                 return {
                     "success": False,
-                    "error": spawn_result.error or spawn_result.message,
-                    "run_id": context.run.id,
-                    "child_session_id": context.session.id,
+                    "error": embedded_result.error or embedded_result.message,
+                    "run_id": agent_run.id,
+                    "child_session_id": child_session.id,
                 }
 
             # Register in running agents registry
             running_agent = RunningAgent(
-                run_id=context.run.id,
-                session_id=context.session.id,
+                run_id=agent_run.id,
+                session_id=child_session.id,
                 parent_session_id=parent_session_id,
                 mode="embedded",
-                pid=spawn_result.pid,
-                master_fd=spawn_result.master_fd,
+                pid=embedded_result.pid,
+                master_fd=embedded_result.master_fd,
                 provider=effective_provider,
                 workflow_name=workflow,
                 worktree_id=worktree_id,
@@ -374,45 +391,45 @@ def create_agents_registry(
 
             return {
                 "success": True,
-                "run_id": context.run.id,
-                "child_session_id": context.session.id,
+                "run_id": agent_run.id,
+                "child_session_id": child_session.id,
                 "status": "pending",
-                "message": f"Agent spawned with PTY (PID: {spawn_result.pid})",
-                "pid": spawn_result.pid,
-                "master_fd": spawn_result.master_fd,
+                "message": f"Agent spawned with PTY (PID: {embedded_result.pid})",
+                "pid": embedded_result.pid,
+                "master_fd": embedded_result.master_fd,
             }
 
         else:  # headless mode
             # Spawn headless with output capture
-            spawner = HeadlessSpawner()
-            spawn_result = spawner.spawn_agent(
+            headless_spawner = HeadlessSpawner()
+            headless_result = headless_spawner.spawn_agent(
                 cli=effective_provider,
                 cwd=cwd,
-                session_id=context.session.id,
+                session_id=child_session.id,
                 parent_session_id=parent_session_id,
-                agent_run_id=context.run.id,
+                agent_run_id=agent_run.id,
                 project_id=project_id,
                 workflow_name=workflow,
-                agent_depth=context.session.agent_depth,
+                agent_depth=child_session.agent_depth,
                 max_agent_depth=runner._child_session_manager.max_agent_depth,
                 prompt=effective_prompt,
             )
 
-            if not spawn_result.success:
+            if not headless_result.success:
                 return {
                     "success": False,
-                    "error": spawn_result.error or spawn_result.message,
-                    "run_id": context.run.id,
-                    "child_session_id": context.session.id,
+                    "error": headless_result.error or headless_result.message,
+                    "run_id": agent_run.id,
+                    "child_session_id": child_session.id,
                 }
 
             # Register in running agents registry
             running_agent = RunningAgent(
-                run_id=context.run.id,
-                session_id=context.session.id,
+                run_id=agent_run.id,
+                session_id=child_session.id,
                 parent_session_id=parent_session_id,
                 mode="headless",
-                pid=spawn_result.pid,
+                pid=headless_result.pid,
                 provider=effective_provider,
                 workflow_name=workflow,
                 worktree_id=worktree_id,
@@ -421,11 +438,11 @@ def create_agents_registry(
 
             return {
                 "success": True,
-                "run_id": context.run.id,
-                "child_session_id": context.session.id,
+                "run_id": agent_run.id,
+                "child_session_id": child_session.id,
                 "status": "pending",
-                "message": f"Agent spawned headless (PID: {spawn_result.pid})",
-                "pid": spawn_result.pid,
+                "message": f"Agent spawned headless (PID: {headless_result.pid})",
+                "pid": headless_result.pid,
             }
 
     @registry.tool(

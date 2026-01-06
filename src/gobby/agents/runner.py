@@ -619,8 +619,9 @@ class AgentRunner:
             # Remove from in-memory tracking
             self._untrack_running_agent(agent_run.id)
 
-            # Set run_id on the result so callers don't need to call list_runs()
+            # Set run_id and child_session_id on the result so callers don't need to call list_runs()
             result.run_id = agent_run.id
+            result.child_session_id = child_session.id
 
             return result
 

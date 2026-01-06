@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -102,7 +101,7 @@ class WorktreeGitManager:
                 check=check,
             )
             return result
-        except subprocess.TimeoutExpired as e:
+        except subprocess.TimeoutExpired:
             logger.error(f"Git command timed out: {' '.join(cmd)}")
             raise
         except subprocess.CalledProcessError as e:

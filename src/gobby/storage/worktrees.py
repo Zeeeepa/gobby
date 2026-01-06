@@ -212,17 +212,19 @@ class LocalWorktreeManager:
         return [Worktree.from_row(row) for row in rows]
 
     # Allowlist of valid worktree column names to prevent SQL injection
-    _VALID_UPDATE_FIELDS = frozenset({
-        "branch_name",
-        "base_branch",
-        "worktree_path",
-        "status",
-        "agent_session_id",
-        "task_id",
-        "last_activity_at",
-        "updated_at",
-        "merged_at",
-    })
+    _VALID_UPDATE_FIELDS = frozenset(
+        {
+            "branch_name",
+            "base_branch",
+            "worktree_path",
+            "status",
+            "agent_session_id",
+            "task_id",
+            "last_activity_at",
+            "updated_at",
+            "merged_at",
+        }
+    )
 
     def update(self, worktree_id: str, **fields: Any) -> Worktree | None:
         """
