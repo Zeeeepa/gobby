@@ -77,6 +77,9 @@ def build_cli_command(
         if auto_approve:
             # Skip all permission prompts for autonomous subagent operation
             command.append("--dangerously-skip-permissions")
+        if prompt:
+            # Use -p (print mode) for non-interactive execution that exits after processing
+            command.append("-p")
 
     elif cli == "gemini":
         # Gemini CLI flags
@@ -341,15 +344,18 @@ class ITermSpawner(TerminalSpawnerBase):
 
             # Check if iTerm is already running to avoid duplicate windows
             # When iTerm launches fresh, it auto-creates a default window
+            # Use activate to ensure window is ready before writing command
             script = f'''
             set iTermWasRunning to application "iTerm" is running
             tell application "iTerm"
+                activate
                 if iTermWasRunning then
                     -- iTerm already running, create a new window
                     create window with default profile
+                else
+                    -- Wait for the default window to be ready
+                    delay 0.5
                 end if
-                -- If not running, iTerm just launched and created default window
-                -- so we use that one instead of creating another
                 tell current session of current window
                     write text "{safe_shell_command}"
                 end tell
