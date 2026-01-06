@@ -3,6 +3,7 @@ CRUD commands for task management.
 """
 
 import json
+from typing import Any
 
 import click
 
@@ -327,14 +328,21 @@ def update_task(
             return
         resolved_parent_id = resolved_parent.id
 
-    task = manager.update_task(
-        resolved.id,
-        title=title,
-        status=status,
-        priority=priority,
-        assignee=assignee,
-        parent_task_id=resolved_parent_id,
-    )
+    # Only pass parameters that were explicitly provided (not None)
+    # to avoid setting NOT NULL fields to NULL
+    kwargs: dict[str, Any] = {}
+    if title is not None:
+        kwargs["title"] = title
+    if status is not None:
+        kwargs["status"] = status
+    if priority is not None:
+        kwargs["priority"] = priority
+    if assignee is not None:
+        kwargs["assignee"] = assignee
+    if resolved_parent_id is not None:
+        kwargs["parent_task_id"] = resolved_parent_id
+
+    task = manager.update_task(resolved.id, **kwargs)
     click.echo(f"Updated task {task.id[:8]}")
 
 
