@@ -418,13 +418,16 @@ class TestHookManagerShutdown:
         """Test that shutdown stops health check monitoring."""
         manager = hook_manager_with_mocks
 
-        # Should have a timer running
-        assert manager._health_check_timer is not None or manager._is_shutdown
+        # Should have a health monitor with timer running or already shutdown
+        assert (
+            manager._health_monitor._health_check_timer is not None
+            or manager._health_monitor._is_shutdown
+        )
 
         manager.shutdown()
 
-        # Should be marked as shutdown
-        assert manager._is_shutdown is True
+        # Should be marked as shutdown in the health monitor
+        assert manager._health_monitor._is_shutdown is True
 
 
 class TestHookManagerGetEventHandler:
@@ -460,11 +463,11 @@ class TestHookManagerCachedDaemonStatus:
         """Test getting cached daemon status."""
         manager = hook_manager_with_mocks
 
-        # Set cached values
-        manager._cached_daemon_is_ready = True
-        manager._cached_daemon_message = "Ready"
-        manager._cached_daemon_status = "healthy"
-        manager._cached_daemon_error = None
+        # Set cached values on the health monitor (delegation target)
+        manager._health_monitor._cached_daemon_is_ready = True
+        manager._health_monitor._cached_daemon_message = "Ready"
+        manager._health_monitor._cached_daemon_status = "healthy"
+        manager._health_monitor._cached_daemon_error = None
 
         is_ready, message, status, error = manager._get_cached_daemon_status()
 

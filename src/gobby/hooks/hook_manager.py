@@ -36,6 +36,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from gobby.agents.registry import get_running_agent_registry
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
+from gobby.hooks.health_monitor import HealthMonitor
 from gobby.hooks.plugins import PluginLoader, run_plugin_handlers
 from gobby.hooks.webhooks import WebhookDispatcher
 from gobby.memory.manager import MemoryManager
@@ -334,15 +335,12 @@ class HookManager:
         # Lock for session lookups to prevent race conditions (double firing)
         self._lookup_lock = threading.Lock()
 
-        # Daemon health check monitoring
-        self._cached_daemon_is_ready: bool = False
-        self._cached_daemon_message: str | None = None
-        self._cached_daemon_status: str = "not_running"
-        self._cached_daemon_error: str | None = None
-        self._health_check_interval = health_check_interval
-        self._health_check_timer: threading.Timer | None = None
-        self._health_check_lock = threading.Lock()
-        self._is_shutdown: bool = False  # Guard to prevent timer reschedule after shutdown
+        # Daemon health check monitoring (delegated to HealthMonitor)
+        self._health_monitor = HealthMonitor(
+            daemon_client=self._daemon_client,
+            health_check_interval=health_check_interval,
+            logger=self.logger,
+        )
 
         # Event handler map for unified HookEvent handling
         # Maps HookEventType enum values to handler methods
@@ -449,44 +447,7 @@ class HookManager:
 
     def _start_health_check_monitoring(self) -> None:
         """Start background daemon health check monitoring."""
-        with self._health_check_lock:
-            if self._health_check_timer is not None:
-                return  # Already running
-
-            def health_check_loop() -> None:
-                """Background health check loop."""
-                try:
-                    # Update daemon status cache
-                    # check_status() returns tuple: (is_ready, message, status, error)
-                    is_ready, message, status, error = self._daemon_client.check_status()
-                    with self._health_check_lock:
-                        self._cached_daemon_is_ready = is_ready
-                        self._cached_daemon_message = message
-                        self._cached_daemon_status = status
-                        self._cached_daemon_error = error
-                except Exception as e:
-                    # Daemon not responding is expected when stopped, log at debug level
-                    # but preserve stack trace for unexpected errors
-                    self.logger.debug(f"Health check failed: {e}", exc_info=True)
-                    with self._health_check_lock:
-                        self._cached_daemon_is_ready = False
-                        self._cached_daemon_status = "not_running"
-                        self._cached_daemon_error = str(e)
-                finally:
-                    # Schedule next check only if not shutting down
-                    with self._health_check_lock:
-                        if not self._is_shutdown:
-                            self._health_check_timer = threading.Timer(
-                                self._health_check_interval,
-                                health_check_loop,
-                            )
-                            self._health_check_timer.daemon = True
-                            self._health_check_timer.start()
-
-            # Start first check
-            self._health_check_timer = threading.Timer(0, health_check_loop)
-            self._health_check_timer.daemon = True
-            self._health_check_timer.start()
+        self._health_monitor.start()
 
     def _get_cached_daemon_status(self) -> tuple[bool, str | None, str, str | None]:
         """
@@ -495,13 +456,7 @@ class HookManager:
         Returns:
             Tuple of (is_ready, message, status, error)
         """
-        with self._health_check_lock:
-            return (
-                self._cached_daemon_is_ready,
-                self._cached_daemon_message,
-                self._cached_daemon_status,
-                self._cached_daemon_error,
-            )
+        return self._health_monitor.get_cached_status()
 
     def handle(self, event: HookEvent) -> HookResponse:
         """
@@ -829,12 +784,8 @@ class HookManager:
         """
         self.logger.debug("HookManager shutting down")
 
-        # Stop health check monitoring
-        with self._health_check_lock:
-            self._is_shutdown = True  # Prevent new timer from being scheduled
-            if self._health_check_timer is not None:
-                self._health_check_timer.cancel()
-                self._health_check_timer = None
+        # Stop health check monitoring (delegated to HealthMonitor)
+        self._health_monitor.stop()
 
         # Close webhook dispatcher HTTP client
         try:
