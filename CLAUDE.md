@@ -350,6 +350,7 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title"
 **Available internal servers:**
 
 - `gobby-agents` - Subagent spawning with context injection
+- `gobby-worktrees` - Git worktree creation, lifecycle, and agent spawning
 - `gobby-tasks` - Task CRUD, dependencies, ready work detection, git sync
 - `gobby-memory` - Memory CRUD, recall, forget, list, stats
 - `gobby-skills` - Skill CRUD, learning, matching, apply, export
@@ -582,6 +583,152 @@ agent_runner:
     default_terminal: auto        # auto, ghostty, iterm, kitty, wezterm
     inherit_environment: true     # Pass parent environment to terminal
     working_directory: project    # project (cwd) or home
+```
+
+## Worktree Management with gobby-worktrees
+
+Use the `gobby-worktrees` MCP tools to manage git worktrees for isolated parallel development.
+
+### Worktree Tools
+
+| Tool | Description |
+|------|-------------|
+| `create_worktree` | Create a new git worktree for isolated development |
+| `get_worktree` | Get details of a specific worktree |
+| `list_worktrees` | List worktrees with optional filters |
+| `claim_worktree` | Claim ownership of a worktree for a session |
+| `release_worktree` | Release ownership of a worktree |
+| `delete_worktree` | Delete a worktree (git and database) |
+| `sync_worktree` | Sync a worktree with the main branch |
+| `mark_worktree_merged` | Mark a worktree as merged (ready for cleanup) |
+| `detect_stale_worktrees` | Find worktrees with no recent activity |
+| `cleanup_stale_worktrees` | Mark/delete stale worktrees |
+| `get_worktree_stats` | Get worktree statistics for the project |
+| `get_worktree_by_task` | Get worktree linked to a specific task |
+| `link_task_to_worktree` | Link a task to an existing worktree |
+| `spawn_agent_in_worktree` | Create worktree and spawn agent in it |
+
+### Worktree Status Lifecycle
+
+| Status | Description |
+|--------|-------------|
+| `active` | Worktree is in use (default for new worktrees) |
+| `stale` | No activity for configured period |
+| `merged` | Work has been merged to main branch |
+| `abandoned` | Marked for cleanup |
+
+### Common Workflows
+
+**Create worktree for a task:**
+
+```python
+# Create an isolated worktree for feature work
+call_tool(server_name="gobby-worktrees", tool_name="create_worktree", arguments={
+    "branch_name": "feature/add-auth",
+    "base_branch": "main",
+    "task_id": "gt-abc123",
+})
+# Returns: {"worktree_id": "wt-xyz", "worktree_path": "/path/to/worktree", ...}
+```
+
+**Spawn agent in worktree (one-step):**
+
+```python
+# Create worktree AND spawn agent in single call
+call_tool(server_name="gobby-worktrees", tool_name="spawn_agent_in_worktree", arguments={
+    "prompt": "Implement user authentication",
+    "branch_name": "feature/add-auth",
+    "task_id": "gt-abc123",
+    "parent_session_id": "sess-parent",
+    "mode": "terminal",
+    "terminal": "ghostty",
+})
+```
+
+**Claim/release for coordination:**
+
+```python
+# Claim before working
+call_tool(server_name="gobby-worktrees", tool_name="claim_worktree", arguments={
+    "worktree_id": "wt-xyz",
+    "session_id": "sess-123",
+})
+
+# Release when done
+call_tool(server_name="gobby-worktrees", tool_name="release_worktree", arguments={
+    "worktree_id": "wt-xyz",
+})
+```
+
+**Sync with main and cleanup:**
+
+```python
+# Sync worktree with main branch
+call_tool(server_name="gobby-worktrees", tool_name="sync_worktree", arguments={
+    "worktree_id": "wt-xyz",
+    "strategy": "merge",  # or "rebase"
+})
+
+# Mark as merged when work is complete
+call_tool(server_name="gobby-worktrees", tool_name="mark_worktree_merged", arguments={
+    "worktree_id": "wt-xyz",
+})
+
+# Clean up stale worktrees
+call_tool(server_name="gobby-worktrees", tool_name="cleanup_stale_worktrees", arguments={
+    "hours": 24,
+    "dry_run": False,
+    "delete_git": True,
+})
+```
+
+### Tool Signatures (gobby-worktrees)
+
+```python
+# create_worktree - Create a new git worktree
+create_worktree(
+    branch_name: str,              # Required - name for the new branch
+    base_branch: str = "main",     # Branch to base worktree on
+    task_id: str = None,           # Task ID to link
+    worktree_path: str = None,     # Custom path (defaults to ../{branch_name})
+    create_branch: bool = True,    # Create new branch
+)
+
+# spawn_agent_in_worktree - Create worktree and spawn agent
+spawn_agent_in_worktree(
+    prompt: str,                   # Required - task for the agent
+    branch_name: str,              # Required - name for the branch
+    base_branch: str = "main",
+    task_id: str = None,
+    parent_session_id: str = None, # Required for agent spawning
+    mode: str = "terminal",        # terminal, embedded, headless, in_process
+    terminal: str = "auto",
+    provider: str = "claude",
+    model: str = None,
+    workflow: str = None,
+    timeout: float = 120.0,
+    max_turns: int = 10,
+)
+
+# list_worktrees - List with filters
+list_worktrees(
+    status: str = None,            # active, stale, merged, abandoned
+    agent_session_id: str = None,  # Filter by owning session
+    limit: int = 50,
+)
+
+# sync_worktree - Sync with main branch
+sync_worktree(
+    worktree_id: str,              # Required
+    strategy: str = "merge",       # merge or rebase
+)
+
+# cleanup_stale_worktrees - Cleanup stale worktrees
+cleanup_stale_worktrees(
+    hours: int = 24,               # Inactivity threshold
+    dry_run: bool = True,          # Only report, don't modify
+    delete_git: bool = False,      # Also delete git worktrees
+)
 ```
 
 ## Task Management with gobby-tasks
