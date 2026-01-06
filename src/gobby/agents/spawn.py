@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import atexit
 import logging
 import os
 import platform
 import shlex
 import shutil
+import stat
 import subprocess
 import tempfile
 from abc import ABC, abstractmethod
@@ -876,7 +878,9 @@ class TerminalSpawner:
         Write prompt to a temp file for passing to spawned agent.
 
         The file is created in the system temp directory and named
-        with the session ID for easy identification.
+        with the session ID for easy identification. The file has
+        restrictive permissions (owner read/write only) and is
+        registered for cleanup on process exit.
 
         Args:
             prompt: The prompt content
@@ -891,6 +895,19 @@ class TerminalSpawner:
 
         prompt_path = temp_dir / f"prompt-{session_id}.txt"
         prompt_path.write_text(prompt, encoding="utf-8")
+
+        # Set restrictive permissions (owner read/write only)
+        prompt_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+
+        # Register for cleanup on process exit
+        def cleanup_prompt_file() -> None:
+            try:
+                if prompt_path.exists():
+                    prompt_path.unlink()
+            except OSError:
+                pass
+
+        atexit.register(cleanup_prompt_file)
 
         logger.debug(f"Wrote prompt to temp file: {prompt_path}")
         return str(prompt_path)

@@ -5,19 +5,20 @@ but mocked LLM executors.
 """
 
 import tempfile
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from gobby.agents.runner import AgentConfig, AgentRunContext, AgentRunner
-from gobby.llm.executor import AgentResult, ToolCallRecord, ToolResult, ToolSchema
-from gobby.storage.agents import AgentRun
+from gobby.llm.executor import AgentResult, ToolCallRecord, ToolResult
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 from gobby.storage.projects import LocalProjectManager
-from gobby.storage.sessions import LocalSessionManager, Session
+from gobby.storage.sessions import LocalSessionManager
+
+# Mark all tests in this module as integration tests
+pytestmark = [pytest.mark.integration, pytest.mark.slow]
 
 
 @pytest.fixture

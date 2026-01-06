@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
@@ -192,7 +192,7 @@ class RunningAgent:
     tool_calls_count: int = 0
     """Number of tool calls made so far."""
 
-    last_activity: datetime = field(default_factory=datetime.now)
+    last_activity: datetime = field(default_factory=lambda: datetime.now(UTC))
     """Last activity timestamp for timeout detection."""
 
     pid: int | None = None
@@ -755,7 +755,7 @@ class AgentRunner:
             child_session_id=child_session_id,
             provider=provider,
             prompt=prompt,
-            started_at=datetime.now(),
+            started_at=datetime.now(UTC),
             workflow_name=workflow_name,
             model=model,
             worktree_id=worktree_id,
@@ -814,7 +814,7 @@ class AgentRunner:
                     agent.turns_used = turns_used
                 if tool_calls_count is not None:
                     agent.tool_calls_count = tool_calls_count
-                agent.last_activity = datetime.now()
+                agent.last_activity = datetime.now(UTC)
 
         return agent
 

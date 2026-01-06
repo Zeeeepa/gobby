@@ -664,7 +664,7 @@ def create_worktrees_registry(
         base_branch: str = "main",
         task_id: str | None = None,
         parent_session_id: str | None = None,
-        mode: str = "terminal",
+        mode: str = "terminal",  # Note: in_process mode is not supported
         terminal: str = "auto",
         provider: str = "claude",
         model: str | None = None,
@@ -683,7 +683,7 @@ def create_worktrees_registry(
             base_branch: Branch to base the worktree on (default: main).
             task_id: Optional task ID to link to this worktree.
             parent_session_id: Parent session ID for context.
-            mode: Execution mode (terminal, embedded, headless, in_process).
+            mode: Execution mode (terminal, embedded, headless). Note: in_process is not supported.
             terminal: Terminal for terminal/embedded modes (auto, ghostty, etc.).
             provider: LLM provider (claude, gemini, etc.).
             model: Optional model override.
@@ -716,6 +716,18 @@ def create_worktrees_registry(
             return {
                 "success": False,
                 "error": "parent_session_id is required for agent spawning.",
+            }
+
+        # in_process mode requires a real tool handler which isn't available
+        # in this context. Only terminal/embedded/headless modes are supported.
+        if mode == "in_process":
+            return {
+                "success": False,
+                "error": (
+                    "in_process mode is not supported for spawn_agent_in_worktree. "
+                    "Use mode='terminal', 'embedded', or 'headless' instead. "
+                    "in_process mode requires tool handler configuration not available in this context."
+                ),
             }
 
         # Check if worktree already exists for this branch
@@ -787,19 +799,17 @@ def create_worktrees_registry(
             project_path=worktree.worktree_path,
         )
 
-        # TODO: This is a temporary stub tool handler that always fails.
-        # To enable real tool execution, either:
-        # 1. Accept a proper tool_handler parameter in spawn_agent_in_worktree and pass it through
-        # 2. Construct a handler from the project's tool registry (e.g., InternalToolRegistry)
-        # 3. Use the MCP proxy to route tool calls to downstream servers
-        # The handler should be wired up when integrating with the daemon's tool infrastructure.
+        # Stub tool handler for terminal/embedded/headless modes.
+        # For these modes, the spawned external process handles its own tools.
+        # in_process mode (which would need this handler) is blocked above.
+        # This stub exists to satisfy the agent_runner.run() signature.
         async def tool_handler(tool_name: str, arguments: dict[str, Any]) -> Any:
             from gobby.llm.executor import ToolResult
 
             return ToolResult(
                 tool_name=tool_name,
                 success=False,
-                error=f"Tool {tool_name} not available for this agent",
+                error=f"Tool {tool_name} not available - external process handles tools",
             )
 
         # Run the agent

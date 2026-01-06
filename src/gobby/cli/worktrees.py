@@ -95,10 +95,9 @@ def create_worktree(
         return
 
     if result.get("success"):
-        worktree = result.get("worktree", {})
-        click.echo(f"Created worktree: {worktree.get('id')}")
-        click.echo(f"  Path: {worktree.get('path')}")
-        click.echo(f"  Branch: {worktree.get('branch_name')}")
+        click.echo(f"Created worktree: {result.get('worktree_id', 'unknown')}")
+        click.echo(f"  Path: {result.get('worktree_path', 'unknown')}")
+        click.echo(f"  Branch: {result.get('branch_name', 'unknown')}")
     else:
         click.echo(f"Failed to create worktree: {result.get('error')}", err=True)
 
@@ -444,7 +443,7 @@ def cleanup_worktrees(days: int, dry_run: bool) -> None:
         return
 
     if result.get("success"):
-        cleaned = result.get("cleaned_count", 0)
+        cleaned = result.get("count", 0)
         click.echo(f"Cleaned up {cleaned} stale worktree(s)")
     else:
         click.echo(f"Failed to cleanup worktrees: {result.get('error')}", err=True)
@@ -479,11 +478,12 @@ def worktree_stats(json_format: bool) -> None:
         click.echo(json.dumps(result, indent=2, default=str))
         return
 
-    stats = result.get("stats", {})
+    counts = result.get("counts", {})
+    total = result.get("total", 0)
     click.echo("Worktree Statistics:")
-    click.echo(f"  Total: {stats.get('total', 0)}")
-    click.echo(f"  Active: {stats.get('active', 0)}")
-    click.echo(f"  Stale: {stats.get('stale', 0)}")
-    click.echo(f"  Merged: {stats.get('merged', 0)}")
-    click.echo(f"  Abandoned: {stats.get('abandoned', 0)}")
-    click.echo(f"  With Sessions: {stats.get('with_sessions', 0)}")
+    click.echo(f"  Total: {total}")
+    click.echo(f"  Active: {counts.get('active', 0)}")
+    click.echo(f"  Stale: {counts.get('stale', 0)}")
+    click.echo(f"  Merged: {counts.get('merged', 0)}")
+    click.echo(f"  Abandoned: {counts.get('abandoned', 0)}")
+    click.echo(f"  With Sessions: {counts.get('with_sessions', 0)}")
