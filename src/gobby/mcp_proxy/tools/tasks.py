@@ -17,8 +17,11 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 
-# Re-export validation tools from extracted module (Strangler Fig pattern)
+# Re-export tools from extracted modules (Strangler Fig pattern)
 # This allows gradual migration - callers can import from either location
+from gobby.mcp_proxy.tools.task_expansion import (
+    create_expansion_registry,
+)
 from gobby.mcp_proxy.tools.task_validation import (
     create_validation_registry,
 )
@@ -43,7 +46,7 @@ from gobby.tasks.validation_history import ValidationHistoryManager
 from gobby.utils.project_context import get_project_context
 from gobby.utils.project_init import initialize_project
 
-__all__ = ["create_task_registry", "create_validation_registry"]
+__all__ = ["create_task_registry", "create_expansion_registry", "create_validation_registry"]
 
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
@@ -2406,6 +2409,16 @@ def create_task_registry(
         get_project_repo_path=get_project_repo_path,
     )
     for tool_name, tool in validation_registry._tools.items():
+        registry._tools[tool_name] = tool
+
+    # Merge expansion tools from extracted module (Strangler Fig pattern)
+    expansion_registry = create_expansion_registry(
+        task_manager=task_manager,
+        task_expander=task_expander,
+        task_validator=task_validator,
+        auto_generate_on_expand=auto_generate_on_expand,
+    )
+    for tool_name, tool in expansion_registry._tools.items():
         registry._tools[tool_name] = tool
 
     return registry
