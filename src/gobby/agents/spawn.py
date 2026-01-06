@@ -459,7 +459,15 @@ class KittySpawner(TerminalSpawnerBase):
         title: str | None = None,
     ) -> SpawnResult:
         try:
-            args = ["kitty", "--detach", "--directory", str(cwd)]
+            if platform.system() == "Darwin":
+                # On macOS, --detach doesn't work properly - command doesn't execute
+                # Use direct path without --detach, subprocess handles backgrounding
+                kitty_path = "/Applications/kitty.app/Contents/MacOS/kitty"
+                args = [kitty_path, "--directory", str(cwd)]
+            else:
+                # On Linux, --detach works correctly
+                args = ["kitty", "--detach", "--directory", str(cwd)]
+
             if title:
                 args.extend(["--title", title])
             # Add end-of-options separator before the user command
