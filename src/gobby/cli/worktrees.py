@@ -73,12 +73,8 @@ def create_worktree(
 
     try:
         response = httpx.post(
-            f"{daemon_url}/mcp/call_tool",
-            json={
-                "server_name": "gobby-worktrees",
-                "tool_name": "create_worktree",
-                "arguments": arguments,
-            },
+            f"{daemon_url}/mcp/gobby-worktrees/tools/create_worktree",
+            json=arguments,
             timeout=60.0,
         )
         response.raise_for_status()
@@ -166,13 +162,13 @@ def show_worktree(worktree_id: str, json_format: bool) -> None:
     click.echo(f"  Status: {worktree.status}")
     click.echo(f"  Branch: {worktree.branch_name}")
     click.echo(f"  Path: {worktree.worktree_path}")
-    click.echo(f"Base Branch: {worktree.base_branch}")
+    click.echo(f"  Base Branch: {worktree.base_branch}")
     if worktree.project_id:
-        click.echo(f"Project: {worktree.project_id}")
+        click.echo(f"  Project: {worktree.project_id}")
     if worktree.agent_session_id:
-        click.echo(f"Session: {worktree.agent_session_id}")
-    click.echo(f"Created: {worktree.created_at}")
-    click.echo(f"Updated: {worktree.updated_at}")
+        click.echo(f"  Session: {worktree.agent_session_id}")
+    click.echo(f"  Created: {worktree.created_at}")
+    click.echo(f"  Updated: {worktree.updated_at}")
 
 
 @worktrees.command("delete")
@@ -185,12 +181,8 @@ def delete_worktree(worktree_id: str, force: bool) -> None:
 
     try:
         response = httpx.post(
-            f"{daemon_url}/mcp/call_tool",
-            json={
-                "server_name": "gobby-worktrees",
-                "tool_name": "delete_worktree",
-                "arguments": {"worktree_id": worktree_id, "force": force},
-            },
+            f"{daemon_url}/mcp/gobby-worktrees/tools/delete_worktree",
+            json={"worktree_id": worktree_id, "force": force},
             timeout=30.0,
         )
         response.raise_for_status()
@@ -242,12 +234,8 @@ def spawn_in_worktree(
 
     try:
         response = httpx.post(
-            f"{daemon_url}/mcp/call_tool",
-            json={
-                "server_name": "gobby-worktrees",
-                "tool_name": "spawn_agent_in_worktree",
-                "arguments": arguments,
-            },
+            f"{daemon_url}/mcp/gobby-worktrees/tools/spawn_agent_in_worktree",
+            json=arguments,
             timeout=30.0,
         )
         response.raise_for_status()
@@ -318,12 +306,8 @@ def sync_worktree(worktree_id: str, source_branch: str | None, json_format: bool
 
     try:
         response = httpx.post(
-            f"{daemon_url}/mcp/call_tool",
-            json={
-                "server_name": "gobby-worktrees",
-                "tool_name": "sync_worktree",
-                "arguments": arguments,
-            },
+            f"{daemon_url}/mcp/gobby-worktrees/tools/sync_worktree",
+            json=arguments,
             timeout=60.0,
         )
         response.raise_for_status()
@@ -358,12 +342,8 @@ def detect_stale(days: int, json_format: bool) -> None:
 
     try:
         response = httpx.post(
-            f"{daemon_url}/mcp/call_tool",
-            json={
-                "server_name": "gobby-worktrees",
-                "tool_name": "detect_stale_worktrees",
-                "arguments": {"hours": hours},
-            },
+            f"{daemon_url}/mcp/gobby-worktrees/tools/detect_stale_worktrees",
+            json={"hours": hours},
             timeout=30.0,
         )
         response.raise_for_status()
@@ -405,12 +385,8 @@ def cleanup_worktrees(days: int, dry_run: bool, yes: bool) -> None:
         # Just detect stale - no confirmation needed
         try:
             response = httpx.post(
-                f"{daemon_url}/mcp/call_tool",
-                json={
-                    "server_name": "gobby-worktrees",
-                    "tool_name": "detect_stale_worktrees",
-                    "arguments": {"hours": hours},
-                },
+                f"{daemon_url}/mcp/gobby-worktrees/tools/detect_stale_worktrees",
+                json={"hours": hours},
                 timeout=30.0,
             )
             response.raise_for_status()
@@ -429,12 +405,8 @@ def cleanup_worktrees(days: int, dry_run: bool, yes: bool) -> None:
 
     try:
         response = httpx.post(
-            f"{daemon_url}/mcp/call_tool",
-            json={
-                "server_name": "gobby-worktrees",
-                "tool_name": "cleanup_stale_worktrees",
-                "arguments": {"hours": hours},
-            },
+            f"{daemon_url}/mcp/gobby-worktrees/tools/cleanup_stale_worktrees",
+            json={"hours": hours, "dry_run": False},
             timeout=120.0,
         )
         response.raise_for_status()
@@ -461,12 +433,8 @@ def worktree_stats(json_format: bool) -> None:
 
     try:
         response = httpx.post(
-            f"{daemon_url}/mcp/call_tool",
-            json={
-                "server_name": "gobby-worktrees",
-                "tool_name": "get_worktree_stats",
-                "arguments": {},
-            },
+            f"{daemon_url}/mcp/gobby-worktrees/tools/get_worktree_stats",
+            json={},
             timeout=10.0,
         )
         response.raise_for_status()

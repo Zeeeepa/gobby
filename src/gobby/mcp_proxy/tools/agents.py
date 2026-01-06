@@ -167,8 +167,8 @@ def create_agents_registry(
             }
 
         # Infer context from project if not provided
+        ctx = get_project_context()
         if project_id is None:
-            ctx = get_project_context()
             if ctx:
                 project_id = ctx.get("id")
                 project_path = ctx.get("project_path")
@@ -178,7 +178,11 @@ def create_agents_registry(
                     "error": "No project context found. Run from a Gobby project directory.",
                 }
         else:
-            project_path = None
+            # project_id was provided - try to get project_path from context if it matches
+            if ctx and ctx.get("id") == project_id:
+                project_path = ctx.get("project_path")
+            else:
+                project_path = None
 
         # Infer machine_id from hostname if not provided
         if machine_id is None:

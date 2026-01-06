@@ -119,6 +119,7 @@ class RunningAgentRegistry:
         self._lock = threading.RLock()
         self._logger = logger
         self._event_callbacks: list[EventCallback] = []
+        self._event_callbacks_lock = threading.Lock()
 
     def add_event_callback(self, callback: EventCallback) -> None:
         """
@@ -129,7 +130,8 @@ class RunningAgentRegistry:
         Args:
             callback: Function that receives (event_type, run_id, data)
         """
-        self._event_callbacks.append(callback)
+        with self._event_callbacks_lock:
+            self._event_callbacks.append(callback)
 
     def _emit_event(self, event_type: str, run_id: str, data: dict[str, Any]) -> None:
         """
@@ -140,7 +142,10 @@ class RunningAgentRegistry:
             run_id: Agent run ID
             data: Additional event data
         """
-        for callback in self._event_callbacks:
+        # Take a snapshot of callbacks under lock, then iterate outside lock
+        with self._event_callbacks_lock:
+            callbacks = list(self._event_callbacks)
+        for callback in callbacks:
             try:
                 callback(event_type, run_id, data)
             except Exception as e:
