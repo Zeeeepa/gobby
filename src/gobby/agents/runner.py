@@ -16,15 +16,15 @@ from typing import TYPE_CHECKING, Any
 
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 from gobby.llm.executor import AgentExecutor, AgentResult, ToolHandler, ToolResult, ToolSchema
-from gobby.storage.agents import LocalAgentRunManager
-from gobby.workflows.definitions import WorkflowState
+from gobby.storage.agents import AgentRun, LocalAgentRunManager
+from gobby.storage.sessions import Session
+from gobby.workflows.definitions import WorkflowDefinition, WorkflowState
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
 if TYPE_CHECKING:
     from gobby.storage.database import LocalDatabase
     from gobby.storage.sessions import LocalSessionManager
-    from gobby.workflows.definitions import WorkflowDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -108,16 +108,35 @@ class AgentConfig:
 
 @dataclass
 class AgentRunContext:
-    """Runtime context for an agent execution."""
+    """
+    Runtime context for an agent execution.
 
-    workflow: WorkflowDefinition | None = None
+    Contains all the objects needed to execute an agent, created during
+    the prepare phase and used during execution.
+    """
+
+    session: Session | None = None
+    """Child session object created for this agent."""
+
+    run: AgentRun | None = None
+    """Agent run record from the database."""
+
+    workflow_state: WorkflowState | None = None
+    """Workflow state for the child session, if workflow specified."""
+
+    workflow_config: WorkflowDefinition | None = None
     """Loaded workflow definition, if workflow_name was specified."""
 
-    child_session_id: str | None = None
-    """ID of the child session created for this agent."""
+    # Convenience accessors for IDs
+    @property
+    def session_id(self) -> str | None:
+        """Get the child session ID."""
+        return self.session.id if self.session else None
 
-    agent_run_id: str | None = None
-    """ID of the agent run record."""
+    @property
+    def run_id(self) -> str | None:
+        """Get the agent run ID."""
+        return self.run.id if self.run else None
 
 
 class AgentRunner:
