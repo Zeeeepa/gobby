@@ -14,7 +14,12 @@ from typing import Any
 
 from gobby.cli.utils import get_install_dir
 
-from .shared import install_cli_content, install_shared_content
+from .shared import (
+    configure_mcp_server_toml,
+    install_cli_content,
+    install_shared_content,
+    remove_mcp_server_toml,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +38,8 @@ def install_codex_notify() -> dict[str, Any]:
         "workflows_installed": [],
         "commands_installed": [],
         "config_updated": False,
+        "mcp_configured": False,
+        "mcp_already_configured": False,
         "error": None,
     }
 
@@ -95,6 +102,15 @@ def install_codex_notify() -> dict[str, Any]:
             codex_config_path.write_text(updated, encoding="utf-8")
             result["config_updated"] = True
 
+        # Configure MCP server in global config (~/.codex/config.toml)
+        mcp_result = configure_mcp_server_toml(codex_config_path)
+        if mcp_result["success"]:
+            result["mcp_configured"] = mcp_result.get("added", False)
+            result["mcp_already_configured"] = mcp_result.get("already_configured", False)
+        else:
+            # MCP config failure is non-fatal, just log it
+            logger.warning(f"Failed to configure MCP server: {mcp_result['error']}")
+
         result["success"] = True
         return result
 
@@ -114,6 +130,7 @@ def uninstall_codex_notify() -> dict[str, Any]:
         "success": False,
         "files_removed": files_removed,
         "config_updated": False,
+        "mcp_removed": False,
         "error": None,
     }
 
@@ -153,6 +170,11 @@ def uninstall_codex_notify() -> dict[str, Any]:
 
                     codex_config_path.write_text(updated, encoding="utf-8")
                     result["config_updated"] = True
+
+        # Remove MCP server from config
+        mcp_result = remove_mcp_server_toml(codex_config_path)
+        if mcp_result["success"]:
+            result["mcp_removed"] = mcp_result.get("removed", False)
 
         result["success"] = True
         return result

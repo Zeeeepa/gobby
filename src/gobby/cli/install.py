@@ -244,6 +244,10 @@ def install(
                 )
                 for plugin in result["plugins_installed"]:
                     click.echo(f"  - {plugin}")
+            if result.get("mcp_configured"):
+                click.echo("Configured MCP server: ~/.claude/settings.json")
+            elif result.get("mcp_already_configured"):
+                click.echo("MCP server already configured: ~/.claude/settings.json")
             click.echo(f"Configuration: {project_path / '.claude' / 'settings.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
@@ -280,6 +284,10 @@ def install(
                 )
                 for plugin in result["plugins_installed"]:
                     click.echo(f"  - {plugin}")
+            if result.get("mcp_configured"):
+                click.echo("Configured MCP server: ~/.gemini/settings.json")
+            elif result.get("mcp_already_configured"):
+                click.echo("MCP server already configured: ~/.gemini/settings.json")
             click.echo(f"Configuration: {project_path / '.gemini' / 'settings.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
@@ -327,6 +335,10 @@ def install(
                     )
                     for plugin in result["plugins_installed"]:
                         click.echo(f"  - {plugin}")
+                if result.get("mcp_configured"):
+                    click.echo("Configured MCP server: ~/.codex/config.toml")
+                elif result.get("mcp_already_configured"):
+                    click.echo("MCP server already configured: ~/.codex/config.toml")
             else:
                 click.echo(f"Failed: {result['error']}", err=True)
         click.echo("")
@@ -387,6 +399,10 @@ def install(
                 )
                 for plugin in result["plugins_installed"]:
                     click.echo(f"  - {plugin}")
+            if result.get("mcp_configured"):
+                click.echo("Configured MCP server: ~/.antigravity/settings.json")
+            elif result.get("mcp_already_configured"):
+                click.echo("MCP server already configured: ~/.antigravity/settings.json")
             click.echo(f"Configuration: {project_path / '.antigravity' / 'settings.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)

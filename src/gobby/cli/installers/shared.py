@@ -5,11 +5,17 @@ This module handles installing shared skills, workflows, and plugins
 that are used across all CLI integrations (Claude, Gemini, Codex, etc.).
 """
 
+import json
+import logging
 import shutil
+import time
 from pathlib import Path
 from shutil import copy2, copytree
+from typing import Any
 
 from gobby.cli.utils import get_install_dir
+
+logger = logging.getLogger(__name__)
 
 
 def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list[str]]:
@@ -124,3 +130,282 @@ def install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]
                     installed["commands"].append(item.name)
 
     return installed
+
+
+def configure_mcp_server_json(settings_path: Path, server_name: str = "gobby") -> dict[str, Any]:
+    """Add Gobby MCP server to a JSON settings file (Claude, Gemini, Antigravity).
+
+    Merges the gobby MCP server config into the existing mcpServers section,
+    preserving all other servers. Creates a timestamped backup before modifying.
+
+    Args:
+        settings_path: Path to the settings.json file (e.g., ~/.claude/settings.json)
+        server_name: Name for the MCP server entry (default: "gobby")
+
+    Returns:
+        Dict with 'success', 'added', 'backup_path', and 'error' keys
+    """
+    result: dict[str, Any] = {
+        "success": False,
+        "added": False,
+        "already_configured": False,
+        "backup_path": None,
+        "error": None,
+    }
+
+    # Ensure parent directory exists
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Load existing settings or create empty
+    existing_settings: dict[str, Any] = {}
+    if settings_path.exists():
+        try:
+            with open(settings_path) as f:
+                existing_settings = json.load(f)
+        except json.JSONDecodeError as e:
+            result["error"] = f"Failed to parse {settings_path}: {e}"
+            return result
+        except OSError as e:
+            result["error"] = f"Failed to read {settings_path}: {e}"
+            return result
+
+    # Check if already configured
+    if "mcpServers" in existing_settings and server_name in existing_settings["mcpServers"]:
+        result["success"] = True
+        result["already_configured"] = True
+        return result
+
+    # Create backup if file exists
+    if settings_path.exists():
+        timestamp = int(time.time())
+        backup_path = settings_path.parent / f"{settings_path.name}.{timestamp}.backup"
+        try:
+            copy2(settings_path, backup_path)
+            result["backup_path"] = str(backup_path)
+        except OSError as e:
+            result["error"] = f"Failed to create backup: {e}"
+            return result
+
+    # Ensure mcpServers section exists
+    if "mcpServers" not in existing_settings:
+        existing_settings["mcpServers"] = {}
+
+    # Add gobby MCP server config
+    existing_settings["mcpServers"][server_name] = {
+        "command": "gobby",
+        "args": ["mcp-server"],
+    }
+
+    # Write updated settings
+    try:
+        with open(settings_path, "w") as f:
+            json.dump(existing_settings, f, indent=2)
+    except OSError as e:
+        result["error"] = f"Failed to write {settings_path}: {e}"
+        return result
+
+    result["success"] = True
+    result["added"] = True
+    return result
+
+
+def remove_mcp_server_json(settings_path: Path, server_name: str = "gobby") -> dict[str, Any]:
+    """Remove Gobby MCP server from a JSON settings file.
+
+    Args:
+        settings_path: Path to the settings.json file
+        server_name: Name of the MCP server entry to remove
+
+    Returns:
+        Dict with 'success', 'removed', 'backup_path', and 'error' keys
+    """
+    result: dict[str, Any] = {
+        "success": False,
+        "removed": False,
+        "backup_path": None,
+        "error": None,
+    }
+
+    if not settings_path.exists():
+        result["success"] = True
+        return result
+
+    try:
+        with open(settings_path) as f:
+            settings = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        result["error"] = f"Failed to read {settings_path}: {e}"
+        return result
+
+    # Check if server exists
+    if "mcpServers" not in settings or server_name not in settings["mcpServers"]:
+        result["success"] = True
+        return result
+
+    # Create backup
+    timestamp = int(time.time())
+    backup_path = settings_path.parent / f"{settings_path.name}.{timestamp}.backup"
+    try:
+        copy2(settings_path, backup_path)
+        result["backup_path"] = str(backup_path)
+    except OSError as e:
+        result["error"] = f"Failed to create backup: {e}"
+        return result
+
+    # Remove the server
+    del settings["mcpServers"][server_name]
+
+    # Clean up empty mcpServers section
+    if not settings["mcpServers"]:
+        del settings["mcpServers"]
+
+    # Write updated settings
+    try:
+        with open(settings_path, "w") as f:
+            json.dump(settings, f, indent=2)
+    except OSError as e:
+        result["error"] = f"Failed to write {settings_path}: {e}"
+        return result
+
+    result["success"] = True
+    result["removed"] = True
+    return result
+
+
+def configure_mcp_server_toml(config_path: Path, server_name: str = "gobby") -> dict[str, Any]:
+    """Add Gobby MCP server to a TOML config file (Codex).
+
+    Adds [mcp_servers.gobby] section with command and args.
+    Creates a timestamped backup before modifying.
+
+    Args:
+        config_path: Path to the config.toml file (e.g., ~/.codex/config.toml)
+        server_name: Name for the MCP server entry (default: "gobby")
+
+    Returns:
+        Dict with 'success', 'added', 'backup_path', and 'error' keys
+    """
+    import re
+
+    result: dict[str, Any] = {
+        "success": False,
+        "added": False,
+        "already_configured": False,
+        "backup_path": None,
+        "error": None,
+    }
+
+    # Ensure parent directory exists
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Read existing config
+    existing = ""
+    if config_path.exists():
+        try:
+            existing = config_path.read_text(encoding="utf-8")
+        except OSError as e:
+            result["error"] = f"Failed to read {config_path}: {e}"
+            return result
+
+    # Check if already configured
+    pattern = re.compile(rf"^\s*\[mcp_servers\.{re.escape(server_name)}\]", re.MULTILINE)
+    if pattern.search(existing):
+        result["success"] = True
+        result["already_configured"] = True
+        return result
+
+    # Create backup if file exists
+    if config_path.exists():
+        timestamp = int(time.time())
+        backup_path = config_path.with_suffix(f".toml.{timestamp}.backup")
+        try:
+            backup_path.write_text(existing, encoding="utf-8")
+            result["backup_path"] = str(backup_path)
+        except OSError as e:
+            result["error"] = f"Failed to create backup: {e}"
+            return result
+
+    # Add MCP server config
+    mcp_config = f'''
+[mcp_servers.{server_name}]
+command = "gobby"
+args = ["mcp-server"]
+'''
+    updated = (existing.rstrip() + "\n" if existing.strip() else "") + mcp_config
+
+    try:
+        config_path.write_text(updated, encoding="utf-8")
+    except OSError as e:
+        result["error"] = f"Failed to write {config_path}: {e}"
+        return result
+
+    result["success"] = True
+    result["added"] = True
+    return result
+
+
+def remove_mcp_server_toml(config_path: Path, server_name: str = "gobby") -> dict[str, Any]:
+    """Remove Gobby MCP server from a TOML config file.
+
+    Args:
+        config_path: Path to the config.toml file
+        server_name: Name of the MCP server entry to remove
+
+    Returns:
+        Dict with 'success', 'removed', 'backup_path', and 'error' keys
+    """
+    import re
+
+    result: dict[str, Any] = {
+        "success": False,
+        "removed": False,
+        "backup_path": None,
+        "error": None,
+    }
+
+    if not config_path.exists():
+        result["success"] = True
+        return result
+
+    try:
+        existing = config_path.read_text(encoding="utf-8")
+    except OSError as e:
+        result["error"] = f"Failed to read {config_path}: {e}"
+        return result
+
+    # Check if server exists - match the section and its contents
+    pattern = re.compile(
+        rf"^\s*\[mcp_servers\.{re.escape(server_name)}\]\s*\n"
+        rf"(?:(?!\[)[^\n]*\n)*",
+        re.MULTILINE,
+    )
+
+    if not pattern.search(existing):
+        result["success"] = True
+        return result
+
+    # Create backup
+    timestamp = int(time.time())
+    backup_path = config_path.with_suffix(f".toml.{timestamp}.backup")
+    try:
+        backup_path.write_text(existing, encoding="utf-8")
+        result["backup_path"] = str(backup_path)
+    except OSError as e:
+        result["error"] = f"Failed to create backup: {e}"
+        return result
+
+    # Remove the section
+    updated = pattern.sub("", existing)
+
+    # Clean up multiple blank lines
+    updated = re.sub(r"\n{3,}", "\n\n", updated)
+
+    try:
+        config_path.write_text(updated, encoding="utf-8")
+    except OSError as e:
+        result["error"] = f"Failed to write {config_path}: {e}"
+        return result
+
+    result["success"] = True
+    result["removed"] = True
+    return result

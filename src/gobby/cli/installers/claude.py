@@ -17,7 +17,12 @@ from typing import Any
 
 from gobby.cli.utils import get_install_dir
 
-from .shared import install_cli_content, install_shared_content
+from .shared import (
+    configure_mcp_server_json,
+    install_cli_content,
+    install_shared_content,
+    remove_mcp_server_json,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +43,8 @@ def install_claude(project_path: Path) -> dict[str, Any]:
         "skills_installed": [],
         "workflows_installed": [],
         "commands_installed": [],
+        "mcp_configured": False,
+        "mcp_already_configured": False,
         "error": None,
     }
 
@@ -203,6 +210,16 @@ def install_claude(project_path: Path) -> dict[str, Any]:
         result["error"] = f"Failed to write settings.json: {e}"
         return result
 
+    # Configure MCP server in global settings (~/.claude/settings.json)
+    global_settings = Path.home() / ".claude" / "settings.json"
+    mcp_result = configure_mcp_server_json(global_settings)
+    if mcp_result["success"]:
+        result["mcp_configured"] = mcp_result.get("added", False)
+        result["mcp_already_configured"] = mcp_result.get("already_configured", False)
+    else:
+        # MCP config failure is non-fatal, just log it
+        logger.warning(f"Failed to configure MCP server: {mcp_result['error']}")
+
     result["success"] = True
     return result
 
@@ -224,6 +241,7 @@ def uninstall_claude(project_path: Path) -> dict[str, Any]:
         "hooks_removed": hooks_removed,
         "files_removed": files_removed,
         "skills_removed": skills_removed,
+        "mcp_removed": False,
         "error": None,
     }
 
@@ -339,6 +357,12 @@ def uninstall_claude(project_path: Path) -> dict[str, Any]:
                 if target_skill_dir.exists():
                     shutil.rmtree(target_skill_dir)
                     skills_removed.append(skill_dir.name)
+
+    # Remove MCP server from global settings (~/.claude/settings.json)
+    global_settings = Path.home() / ".claude" / "settings.json"
+    mcp_result = remove_mcp_server_json(global_settings)
+    if mcp_result["success"]:
+        result["mcp_removed"] = mcp_result.get("removed", False)
 
     result["success"] = True
     return result
