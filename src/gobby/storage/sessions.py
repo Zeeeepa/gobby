@@ -35,6 +35,11 @@ class Session:
     updated_at: str
     agent_depth: int = 0  # 0 = human-initiated, 1+ = agent-spawned
     spawned_by_agent_id: str | None = None  # ID of agent that spawned this session
+    # Terminal pickup metadata fields
+    workflow_name: str | None = None  # Workflow to activate on terminal pickup
+    agent_run_id: str | None = None  # Link back to agent run record
+    context_injected: bool = False  # Whether context was injected into prompt
+    original_prompt: str | None = None  # Original prompt for terminal mode
 
     @classmethod
     def from_row(cls, row: Any) -> Session:
@@ -57,6 +62,10 @@ class Session:
             updated_at=row["updated_at"],
             agent_depth=row["agent_depth"] or 0,
             spawned_by_agent_id=row["spawned_by_agent_id"],
+            workflow_name=row["workflow_name"],
+            agent_run_id=row["agent_run_id"],
+            context_injected=bool(row["context_injected"]),
+            original_prompt=row["original_prompt"],
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -77,6 +86,10 @@ class Session:
             "parent_session_id": self.parent_session_id,
             "agent_depth": self.agent_depth,
             "spawned_by_agent_id": self.spawned_by_agent_id,
+            "workflow_name": self.workflow_name,
+            "agent_run_id": self.agent_run_id,
+            "context_injected": self.context_injected,
+            "original_prompt": self.original_prompt,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -559,4 +572,58 @@ class LocalSessionManager:
             "UPDATE sessions SET transcript_processed = FALSE, updated_at = ? WHERE id = ?",
             (now, session_id),
         )
+        return self.get(session_id)
+
+    def update_terminal_pickup_metadata(
+        self,
+        session_id: str,
+        workflow_name: str | None = None,
+        agent_run_id: str | None = None,
+        context_injected: bool | None = None,
+        original_prompt: str | None = None,
+    ) -> Session | None:
+        """
+        Update terminal pickup metadata for a session.
+
+        These fields are used when a terminal-mode agent picks up its
+        prepared state via hooks on session start.
+
+        Args:
+            session_id: Session ID to update.
+            workflow_name: Workflow to activate on terminal pickup.
+            agent_run_id: Link back to the agent run record.
+            context_injected: Whether context was injected into prompt.
+            original_prompt: Original prompt for the agent.
+
+        Returns:
+            Updated session or None if not found.
+        """
+        now = datetime.now(UTC).isoformat()
+
+        # Build dynamic update with only provided fields
+        updates = []
+        params: list[Any] = []
+
+        if workflow_name is not None:
+            updates.append("workflow_name = ?")
+            params.append(workflow_name)
+        if agent_run_id is not None:
+            updates.append("agent_run_id = ?")
+            params.append(agent_run_id)
+        if context_injected is not None:
+            updates.append("context_injected = ?")
+            params.append(1 if context_injected else 0)
+        if original_prompt is not None:
+            updates.append("original_prompt = ?")
+            params.append(original_prompt)
+
+        if not updates:
+            return self.get(session_id)
+
+        updates.append("updated_at = ?")
+        params.append(now)
+        params.append(session_id)
+
+        sql = f"UPDATE sessions SET {', '.join(updates)} WHERE id = ?"
+        self.db.execute(sql, tuple(params))
         return self.get(session_id)

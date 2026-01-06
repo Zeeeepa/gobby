@@ -350,6 +350,16 @@ class AgentRunner:
             child_session_id=child_session.id,
         )
 
+        # Set terminal pickup metadata on child session for terminal mode
+        # This allows terminal-spawned agents to pick up their state via hooks
+        self._session_storage.update_terminal_pickup_metadata(
+            session_id=child_session.id,
+            workflow_name=effective_workflow,
+            agent_run_id=agent_run.id,
+            context_injected=False,  # Will be set to True when context is injected
+            original_prompt=config.prompt,
+        )
+
         self.logger.info(
             f"Prepared agent run {agent_run.id} "
             f"(child_session={child_session.id}, provider={config.provider})"

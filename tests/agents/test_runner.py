@@ -411,3 +411,126 @@ class TestAgentRunnerRun:
         result = await runner.run(config)
 
         assert result.run_id == "run-abc"
+
+
+class TestAgentRunnerTerminalPickupMetadata:
+    """Tests for terminal pickup metadata in prepare_run."""
+
+    def test_prepare_run_sets_terminal_pickup_metadata(self, runner, mock_session_storage):
+        """prepare_run calls update_terminal_pickup_metadata with correct values."""
+        # Mock can_spawn to allow spawning
+        runner._child_session_manager.can_spawn_child = MagicMock(
+            return_value=(True, "OK", 0)
+        )
+
+        # Mock the child session manager to return a session
+        child_session = MagicMock()
+        child_session.id = "sess-child"
+        child_session.agent_depth = 1
+        runner._child_session_manager.create_child_session = MagicMock(
+            return_value=child_session
+        )
+
+        # Mock the run storage
+        agent_run = MagicMock()
+        agent_run.id = "run-123"
+        runner._run_storage.create = MagicMock(return_value=agent_run)
+
+        # Mock the session storage's update method
+        mock_session_storage.update_terminal_pickup_metadata = MagicMock()
+
+        config = AgentConfig(
+            prompt="Test prompt for agent",
+            parent_session_id="sess-parent",
+            project_id="proj-123",
+            machine_id="machine-1",
+            workflow="plan-execute",
+        )
+
+        result = runner.prepare_run(config)
+
+        # Verify prepare_run succeeded
+        assert isinstance(result, AgentRunContext)
+
+        # Verify update_terminal_pickup_metadata was called with correct values
+        mock_session_storage.update_terminal_pickup_metadata.assert_called_once_with(
+            session_id="sess-child",
+            workflow_name="plan-execute",
+            agent_run_id="run-123",
+            context_injected=False,
+            original_prompt="Test prompt for agent",
+        )
+
+    def test_prepare_run_sets_metadata_without_workflow(self, runner, mock_session_storage):
+        """prepare_run sets metadata even when no workflow specified."""
+        runner._child_session_manager.can_spawn_child = MagicMock(
+            return_value=(True, "OK", 0)
+        )
+
+        child_session = MagicMock()
+        child_session.id = "sess-child"
+        child_session.agent_depth = 1
+        runner._child_session_manager.create_child_session = MagicMock(
+            return_value=child_session
+        )
+
+        agent_run = MagicMock()
+        agent_run.id = "run-456"
+        runner._run_storage.create = MagicMock(return_value=agent_run)
+
+        mock_session_storage.update_terminal_pickup_metadata = MagicMock()
+
+        config = AgentConfig(
+            prompt="Simple task",
+            parent_session_id="sess-parent",
+            project_id="proj-123",
+            machine_id="machine-1",
+            # No workflow specified
+        )
+
+        runner.prepare_run(config)
+
+        mock_session_storage.update_terminal_pickup_metadata.assert_called_once_with(
+            session_id="sess-child",
+            workflow_name=None,
+            agent_run_id="run-456",
+            context_injected=False,
+            original_prompt="Simple task",
+        )
+
+    def test_prepare_run_uses_legacy_workflow_name(self, runner, mock_session_storage):
+        """prepare_run uses legacy workflow_name if workflow not specified."""
+        runner._child_session_manager.can_spawn_child = MagicMock(
+            return_value=(True, "OK", 0)
+        )
+
+        child_session = MagicMock()
+        child_session.id = "sess-child"
+        child_session.agent_depth = 1
+        runner._child_session_manager.create_child_session = MagicMock(
+            return_value=child_session
+        )
+
+        agent_run = MagicMock()
+        agent_run.id = "run-789"
+        runner._run_storage.create = MagicMock(return_value=agent_run)
+
+        mock_session_storage.update_terminal_pickup_metadata = MagicMock()
+
+        config = AgentConfig(
+            prompt="Legacy workflow task",
+            parent_session_id="sess-parent",
+            project_id="proj-123",
+            machine_id="machine-1",
+            workflow_name="legacy-workflow",  # Using legacy field
+        )
+
+        runner.prepare_run(config)
+
+        mock_session_storage.update_terminal_pickup_metadata.assert_called_once_with(
+            session_id="sess-child",
+            workflow_name="legacy-workflow",
+            agent_run_id="run-789",
+            context_injected=False,
+            original_prompt="Legacy workflow task",
+        )

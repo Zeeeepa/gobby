@@ -825,6 +825,18 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_agent_runs_provider ON agent_runs(provider);
         """,
     ),
+    (
+        35,
+        "Add terminal pickup metadata fields to sessions table",
+        """
+        ALTER TABLE sessions ADD COLUMN workflow_name TEXT;
+        ALTER TABLE sessions ADD COLUMN agent_run_id TEXT REFERENCES agent_runs(id);
+        ALTER TABLE sessions ADD COLUMN context_injected INTEGER DEFAULT 0;
+        ALTER TABLE sessions ADD COLUMN original_prompt TEXT;
+        CREATE INDEX IF NOT EXISTS idx_sessions_workflow ON sessions(workflow_name);
+        CREATE INDEX IF NOT EXISTS idx_sessions_agent_run ON sessions(agent_run_id);
+        """,
+    ),
 ]
 
 
