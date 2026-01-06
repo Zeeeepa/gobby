@@ -165,7 +165,7 @@ class LocalWorktreeManager:
         row = self.db.fetchone("SELECT * FROM worktrees WHERE task_id = ?", (task_id,))
         return Worktree.from_row(row) if row else None
 
-    def list(
+    def list_worktrees(
         self,
         project_id: str | None = None,
         status: str | None = None,

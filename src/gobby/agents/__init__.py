@@ -23,7 +23,8 @@ Usage:
     ))
 """
 
-from gobby.agents.runner import AgentConfig, AgentRunContext, AgentRunner, RunningAgent
+from gobby.agents.registry import RunningAgent
+from gobby.agents.runner import AgentConfig, AgentRunContext, AgentRunner
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
 
 __all__ = [

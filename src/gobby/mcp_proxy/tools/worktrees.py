@@ -186,6 +186,10 @@ def create_worktrees_registry(
         if error:
             return {"success": False, "error": error}
 
+        # Type narrowing: if no error, these are guaranteed non-None
+        assert resolved_git_mgr is not None
+        assert resolved_project_id is not None
+
         # Check if branch already exists as a worktree
         existing = worktree_storage.get_by_branch(resolved_project_id, branch_name)
         if existing:
@@ -684,6 +688,9 @@ def create_worktrees_registry(
         if error:
             return {"success": False, "error": error}
 
+        # Type narrowing: if no error, resolved_project_id is guaranteed non-None
+        assert resolved_project_id is not None
+
         counts = worktree_storage.count_by_status(resolved_project_id)
 
         return {
@@ -812,6 +819,10 @@ def create_worktrees_registry(
         )
         if error:
             return {"success": False, "error": error}
+
+        # Type narrowing: if no error, these are guaranteed non-None
+        assert resolved_git_mgr is not None
+        assert resolved_project_id is not None
 
         if parent_session_id is None:
             return {
@@ -989,7 +1000,6 @@ def create_worktrees_registry(
                 workflow_name=workflow,
                 agent_depth=child_session.agent_depth,
                 max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
-                terminal=terminal,
                 prompt=prompt,
             )
 
