@@ -760,15 +760,19 @@ def create_worktrees_registry(
                 "worktree_id": worktree.id,
             }
 
-        # Import AgentConfig
+        # Import AgentConfig and get machine_id
         from gobby.agents.runner import AgentConfig
+        from gobby.utils.machine_id import get_machine_id
+
+        # Auto-detect machine_id if not provided
+        machine_id = get_machine_id()
 
         # Create agent config with worktree
         config = AgentConfig(
             prompt=prompt,
             parent_session_id=parent_session_id,
             project_id=project_id,
-            machine_id=None,  # Will be auto-detected
+            machine_id=machine_id,
             source=provider,
             workflow=workflow,
             task=task_id,

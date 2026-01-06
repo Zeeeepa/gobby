@@ -143,7 +143,13 @@ class WorktreeGitManager:
             if create_branch:
                 # Create worktree with new branch based on base_branch
                 # First, fetch to ensure we have latest refs
-                self._run_git(["fetch", "origin", base_branch], timeout=60)
+                fetch_result = self._run_git(["fetch", "origin", base_branch], timeout=60)
+                if fetch_result.returncode != 0:
+                    return GitOperationResult(
+                        success=False,
+                        message=f"Failed to fetch origin/{base_branch}: {fetch_result.stderr}",
+                        error=fetch_result.stderr,
+                    )
 
                 # Create worktree with new branch
                 result = self._run_git(

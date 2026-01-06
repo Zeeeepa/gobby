@@ -1739,8 +1739,7 @@ def create_task_registry(
             try:
                 from gobby.storage.worktrees import WorktreeStatus
 
-                db = LocalDatabase()
-                worktree_manager = LocalWorktreeManager(db)
+                worktree_manager = LocalWorktreeManager(task_manager.db)
                 wt = worktree_manager.get_by_task(task_id)
                 if wt and wt.status in (
                     WorktreeStatus.MERGED.value,
