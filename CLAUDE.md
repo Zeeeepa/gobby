@@ -585,6 +585,95 @@ agent_runner:
     working_directory: project    # project (cwd) or home
 ```
 
+### LLM Provider Configuration
+
+Configure which LLM providers are available for agent execution.
+
+**Supported Providers:**
+
+| Provider | Description | Auth Modes |
+|----------|-------------|------------|
+| `claude` | Anthropic Claude models (default) | `api_key`, `subscription` |
+| `gemini` | Google Gemini models | `api_key`, `adc` |
+| `litellm` | 100+ providers via unified API | Environment variables |
+
+**Provider Resolution:**
+
+When spawning an agent, the provider is resolved in this order:
+1. Explicit `provider` parameter in `start_agent`
+2. Workflow variable `agent_provider` (if workflow is active)
+3. Config default (`llm_providers.default_provider`)
+4. Hardcoded fallback: `claude`
+
+**Configuration:**
+
+```yaml
+# ~/.gobby/config.yaml
+llm_providers:
+  default_provider: claude        # Default provider for agents
+
+  claude:
+    models: "claude-sonnet-4-20250514,claude-opus-4-20250514"
+    auth_mode: subscription       # subscription (Pro/Team) or api_key
+
+  gemini:
+    models: "gemini-2.0-flash,gemini-1.5-pro"
+    auth_mode: api_key            # api_key or adc (Application Default Credentials)
+
+  litellm:
+    models: "gpt-4o-mini,mistral/mistral-large-latest"
+    # Uses environment variables for API keys
+
+  # API keys (used for api_key auth modes)
+  api_keys:
+    ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+    GEMINI_API_KEY: "${GEMINI_API_KEY}"
+    OPENAI_API_KEY: "${OPENAI_API_KEY}"
+```
+
+**Authentication Modes:**
+
+| Mode | Provider | Description |
+|------|----------|-------------|
+| `subscription` | Claude | Uses Claude Code CLI with Pro/Team subscription (no API key needed) |
+| `api_key` | Claude, Gemini | Uses API key from config or environment variable |
+| `adc` | Gemini | Uses Google Application Default Credentials (`gcloud auth application-default login`) |
+
+**Environment Variables:**
+
+| Variable | Provider | Description |
+|----------|----------|-------------|
+| `ANTHROPIC_API_KEY` | Claude | API key for Anthropic (api_key mode) |
+| `GEMINI_API_KEY` | Gemini | API key for Google Gemini |
+| `OPENAI_API_KEY` | LiteLLM | API key for OpenAI models via LiteLLM |
+| `MISTRAL_API_KEY` | LiteLLM | API key for Mistral models via LiteLLM |
+
+**Example: Spawn Agent with Specific Provider:**
+
+```python
+# Use Claude (default)
+call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
+    "prompt": "Implement the feature",
+    "parent_session_id": "sess-abc123",
+})
+
+# Use Gemini explicitly
+call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
+    "prompt": "Implement the feature",
+    "provider": "gemini",
+    "model": "gemini-2.0-flash",
+    "parent_session_id": "sess-abc123",
+})
+
+# Use LiteLLM with OpenAI model
+call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
+    "prompt": "Implement the feature",
+    "provider": "litellm",
+    "model": "gpt-4o-mini",
+    "parent_session_id": "sess-abc123",
+})
+```
+
 ## Worktree Management with gobby-worktrees
 
 Use the `gobby-worktrees` MCP tools to manage git worktrees for isolated parallel development.
