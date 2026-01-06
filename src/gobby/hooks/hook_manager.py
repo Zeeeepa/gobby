@@ -38,6 +38,7 @@ from gobby.agents.registry import get_running_agent_registry
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.hooks.health_monitor import HealthMonitor
 from gobby.hooks.plugins import PluginLoader, run_plugin_handlers
+from gobby.hooks.session_coordinator import SessionCoordinator
 from gobby.hooks.webhooks import WebhookDispatcher
 from gobby.memory.manager import MemoryManager
 from gobby.sessions.manager import SessionManager
@@ -317,23 +318,14 @@ class HookManager:
             config=self._config,
         )
 
-        # Session registration tracking (to avoid noisy logs)
-        # Tracks which sessions have been registered with daemon
-        self._registered_sessions: set[str] = set()
-        self._registered_sessions_lock = threading.Lock()
-
-        # Session title synthesis tracking
-        # Tracks which sessions have had titles synthesized
-        self._title_synthesized_sessions: set[str] = set()
-        self._title_synthesized_lock = threading.Lock()
-
-        # Agent message cache (session_id -> (message, timestamp))
-        # Used to pass agent responses from stop hook to post-tool-use hook
-        self._agent_message_cache: dict[str, tuple[str, float]] = {}
-        self._cache_lock = threading.Lock()
-
-        # Lock for session lookups to prevent race conditions (double firing)
-        self._lookup_lock = threading.Lock()
+        # Session coordination (delegated to SessionCoordinator)
+        self._session_coordinator = SessionCoordinator(
+            session_storage=self._session_storage,
+            message_processor=self._message_processor,
+            agent_run_manager=self._agent_run_manager,
+            worktree_manager=self._worktree_manager,
+            logger=self.logger,
+        )
 
         # Daemon health check monitoring (delegated to HealthMonitor)
         self._health_monitor = HealthMonitor(
@@ -416,34 +408,7 @@ class HookManager:
         Called during HookManager initialization to restore message processing
         for sessions that were active before a daemon restart.
         """
-        if not self._message_processor:
-            return
-
-        try:
-            # Query active sessions from storage
-            active_sessions = self._session_storage.list(status="active", limit=100)
-            registered_count = 0
-
-            for session in active_sessions:
-                jsonl_path = getattr(session, "jsonl_path", None)
-                if jsonl_path:
-                    try:
-                        # Determine source from session (default to claude)
-                        source = getattr(session, "source", "claude") or "claude"
-                        self._message_processor.register_session(
-                            session.id, jsonl_path, source=source
-                        )
-                        registered_count += 1
-                    except Exception as e:
-                        self.logger.warning(f"Failed to re-register session {session.id}: {e}")
-
-            if registered_count > 0:
-                self.logger.info(
-                    f"Re-registered {registered_count} active sessions with message processor"
-                )
-
-        except Exception as e:
-            self.logger.warning(f"Failed to re-register active sessions: {e}")
+        self._session_coordinator.reregister_active_sessions()
 
     def _start_health_check_monitoring(self) -> None:
         """Start background daemon health check monitoring."""
@@ -496,7 +461,7 @@ class HookManager:
 
             # If not in mapping and not session-start, try to query database
             if not platform_session_id and event.event_type != HookEventType.SESSION_START:
-                with self._lookup_lock:
+                with self._session_coordinator.get_lookup_lock():
                     # Double check in case another thread finished lookup
                     platform_session_id = self._session_manager.get_session_id(external_id)
 
@@ -919,8 +884,7 @@ class HookManager:
         # Step 3: Track registered session
         if transcript_path:
             try:
-                with self._registered_sessions_lock:
-                    self._registered_sessions.add(external_id)
+                self._session_coordinator.register_session(external_id)
             except Exception as e:
                 self.logger.error(f"Failed to setup session tracking: {e}", exc_info=True)
 
@@ -1094,68 +1058,7 @@ class HookManager:
         Args:
             session: Session object with agent_run_id
         """
-        from gobby.storage.sessions import Session
-
-        if not isinstance(session, Session) or not session.agent_run_id:
-            return
-
-        agent_run_id = session.agent_run_id
-        self.logger.debug(f"Completing agent run {agent_run_id} for session {session.id}")
-
-        # Remove from in-memory running agents registry
-        try:
-            running_registry = get_running_agent_registry()
-            removed = running_registry.remove(agent_run_id)
-            if removed:
-                self.logger.debug(f"Unregistered running agent {agent_run_id} from registry")
-        except Exception as e:
-            self.logger.warning(f"Failed to unregister agent from running registry: {e}")
-
-        try:
-            agent_run = self._agent_run_manager.get(agent_run_id)
-            if not agent_run:
-                self.logger.warning(f"Agent run {agent_run_id} not found")
-                return
-
-            # Skip if already completed
-            if agent_run.status in ("success", "error", "timeout", "cancelled"):
-                self.logger.debug(
-                    f"Agent run {agent_run_id} already in terminal state: {agent_run.status}"
-                )
-                return
-
-            # Use summary as result if available
-            # Note: Session statuses (active, paused, expired, handoff_ready, closed)
-            # don't indicate errors directly, so we treat completion as success
-            result = session.summary_markdown or session.compact_markdown or ""
-
-            # Note: Message counts would require async access to get_messages,
-            # and we're in a sync context. The result/summary is the important part.
-            turns_used = 0
-            tool_calls_count = 0
-
-            # Mark as success (terminal sessions ending normally are successful)
-            # Note: We don't have explicit error signals from terminal mode,
-            # so any session that completes is considered successful
-            self._agent_run_manager.complete(
-                run_id=agent_run_id,
-                result=result,
-                tool_calls_count=tool_calls_count,
-                turns_used=turns_used,
-            )
-            self.logger.info(
-                f"✅ Completed agent run {agent_run_id} "
-                f"(turns={turns_used}, tools={tool_calls_count})"
-            )
-
-        except Exception as e:
-            self.logger.error(f"Failed to complete agent run {agent_run_id}: {e}")
-
-        # Release any worktrees associated with this session
-        try:
-            self._release_session_worktrees(session.id)
-        except Exception as e:
-            self.logger.warning(f"Failed to release worktrees for session {session.id}: {e}")
+        self._session_coordinator.complete_agent_run(session)
 
     def _release_session_worktrees(self, session_id: str) -> None:
         """
@@ -1167,24 +1070,7 @@ class HookManager:
         Args:
             session_id: The session ID whose worktrees to release
         """
-        try:
-            # Find worktrees owned by this session
-            worktrees = self._worktree_manager.list_worktrees(agent_session_id=session_id)
-
-            for worktree in worktrees:
-                try:
-                    # Release the worktree (sets agent_session_id to NULL)
-                    self._worktree_manager.release(worktree.id)
-                    self.logger.debug(f"Released worktree {worktree.id} from session {session_id}")
-                except Exception as e:
-                    self.logger.warning(f"Failed to release worktree {worktree.id}: {e}")
-
-            if worktrees:
-                self.logger.info(
-                    f"🔓 Released {len(worktrees)} worktree(s) from session {session_id}"
-                )
-        except Exception as e:
-            self.logger.warning(f"Failed to list worktrees for session {session_id}: {e}")
+        self._session_coordinator.release_session_worktrees(session_id)
 
     def _handle_event_before_agent(self, event: HookEvent) -> HookResponse:
         """
