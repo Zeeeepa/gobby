@@ -217,6 +217,7 @@ class ContextResolver:
         Security checks:
         - Path must be within project directory
         - No path traversal (..)
+        - No absolute paths
         - Symlinks must resolve within project
         - File must be valid UTF-8 (no binary)
         - File size must be within limit
@@ -233,8 +234,15 @@ class ContextResolver:
         if not self._project_path:
             raise ContextResolutionError("No project path configured for file resolution")
 
-        # Reject path traversal attempts
-        if ".." in file_path:
+        # Parse the path and check for security issues
+        parsed_path = Path(file_path)
+
+        # Reject absolute paths
+        if parsed_path.is_absolute():
+            raise ContextResolutionError(f"Absolute paths not allowed: {file_path}")
+
+        # Reject path traversal attempts by checking path components
+        if ".." in parsed_path.parts:
             raise ContextResolutionError(f"Path traversal not allowed: {file_path}")
 
         # Resolve the full path

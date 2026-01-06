@@ -547,21 +547,17 @@ class AgentRunner:
 
         # Track tool calls to preserve partial progress info on exception
         # Note: Each tool call within a turn counts separately. The executor's
-        # run() method handles turns, but we track tool calls for monitoring.
+        # run() method handles turns - we only track tool calls for monitoring.
         tool_calls_made = 0
-        turns_made = 0
 
         async def tracking_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
-            nonlocal tool_calls_made, turns_made
+            nonlocal tool_calls_made
             tool_calls_made += 1
-            # Increment turns_made - each tool call represents activity within a turn
-            # The actual turn count is managed by the executor, but we track progress here
-            turns_made += 1
             # Update in-memory state for real-time monitoring
+            # Note: turns_used is tracked by the executor, not per tool call
             self._update_running_agent(
                 agent_run.id,
                 tool_calls_count=tool_calls_made,
-                turns_used=turns_made,
             )
             return await handler(tool_name, arguments)
 
@@ -627,11 +623,13 @@ class AgentRunner:
 
         except Exception as e:
             self.logger.error(f"Agent execution failed: {e}", exc_info=True)
+            # On exception, we don't know the actual turns used by the executor,
+            # so we pass 0. tool_calls_made is the count we tracked.
             self._run_storage.fail(
                 agent_run.id,
                 error=str(e),
                 tool_calls_count=tool_calls_made,
-                turns_used=tool_calls_made,
+                turns_used=0,
             )
             self._session_storage.update_status(child_session.id, "failed")
             # Remove from in-memory tracking
@@ -640,7 +638,7 @@ class AgentRunner:
                 output="",
                 status="error",
                 error=str(e),
-                turns_used=tool_calls_made,
+                turns_used=0,
             )
 
     async def run(

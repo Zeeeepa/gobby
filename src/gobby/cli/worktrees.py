@@ -210,30 +210,30 @@ def delete_worktree(worktree_id: str, force: bool) -> None:
 
 
 @worktrees.command("spawn")
-@click.argument("worktree_id")
+@click.argument("branch_name")
 @click.argument("prompt")
 @click.option("--session", "-s", "parent_session_id", required=True, help="Parent session ID")
 @click.option("--workflow", "-w", help="Workflow name to execute")
 @click.option("--terminal", default="auto", help="Terminal to spawn in")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def spawn_in_worktree(
-    worktree_id: str,
+    branch_name: str,
     prompt: str,
     parent_session_id: str,
     workflow: str | None,
     terminal: str,
     json_format: bool,
 ) -> None:
-    """Spawn an agent in a worktree.
+    """Spawn an agent in a worktree (creates worktree if needed).
 
     Examples:
 
-        gobby worktrees spawn wt-abc123 "Implement feature" -s sess-123
+        gobby worktrees spawn feature/my-feature "Implement feature" -s sess-123
     """
     daemon_url = get_daemon_url()
 
     arguments = {
-        "worktree_id": worktree_id,
+        "branch_name": branch_name,
         "prompt": prompt,
         "parent_session_id": parent_session_id,
         "terminal": terminal,
@@ -265,7 +265,9 @@ def spawn_in_worktree(
         return
 
     if result.get("success"):
-        click.echo(f"Spawned agent in worktree {worktree_id}")
+        click.echo(f"Spawned agent in worktree for branch '{branch_name}'")
+        if result.get("worktree_id"):
+            click.echo(f"  Worktree ID: {result['worktree_id']}")
         if result.get("run_id"):
             click.echo(f"  Run ID: {result['run_id']}")
         if result.get("message"):
@@ -352,6 +354,8 @@ def sync_worktree(worktree_id: str, source_branch: str | None, json_format: bool
 def detect_stale(days: int, json_format: bool) -> None:
     """Detect stale worktrees."""
     daemon_url = get_daemon_url()
+    # Convert days to hours for MCP tool
+    hours = days * 24
 
     try:
         response = httpx.post(
@@ -359,7 +363,7 @@ def detect_stale(days: int, json_format: bool) -> None:
             json={
                 "server_name": "gobby-worktrees",
                 "tool_name": "detect_stale_worktrees",
-                "arguments": {"days_inactive": days},
+                "arguments": {"hours": hours},
             },
             timeout=30.0,
         )
@@ -395,6 +399,8 @@ def detect_stale(days: int, json_format: bool) -> None:
 def cleanup_worktrees(days: int, dry_run: bool) -> None:
     """Clean up stale worktrees."""
     daemon_url = get_daemon_url()
+    # Convert days to hours for MCP tool
+    hours = days * 24
 
     if dry_run:
         # Just detect stale
@@ -404,7 +410,7 @@ def cleanup_worktrees(days: int, dry_run: bool) -> None:
                 json={
                     "server_name": "gobby-worktrees",
                     "tool_name": "detect_stale_worktrees",
-                    "arguments": {"days_inactive": days},
+                    "arguments": {"hours": hours},
                 },
                 timeout=30.0,
             )
@@ -424,7 +430,7 @@ def cleanup_worktrees(days: int, dry_run: bool) -> None:
             json={
                 "server_name": "gobby-worktrees",
                 "tool_name": "cleanup_stale_worktrees",
-                "arguments": {"days_inactive": days},
+                "arguments": {"hours": hours},
             },
             timeout=120.0,
         )

@@ -6,7 +6,6 @@ import asyncio
 import logging
 import os
 import platform
-import pty
 import shlex
 import shutil
 import subprocess
@@ -16,6 +15,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any
+
+# pty is only available on Unix-like systems
+try:
+    import pty
+except ImportError:
+    pty = None  # type: ignore[assignment]
 
 from gobby.agents.constants import get_terminal_env_vars
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
@@ -1069,7 +1074,7 @@ class EmbeddedSpawner:
         Returns:
             EmbeddedPTYResult with PTY file descriptors and process info
         """
-        if platform.system() == "Windows":
+        if platform.system() == "Windows" or pty is None:
             return EmbeddedPTYResult(
                 success=False,
                 message="Embedded PTY mode not supported on Windows",
@@ -1277,8 +1282,9 @@ class HeadlessSpawner:
             # Read output asynchronously
             async def read_output() -> None:
                 if result.process and result.process.stdout:
+                    loop = asyncio.get_running_loop()
                     while True:
-                        line = await asyncio.get_event_loop().run_in_executor(
+                        line = await loop.run_in_executor(
                             None, result.process.stdout.readline
                         )
                         if not line:
@@ -1293,13 +1299,20 @@ class HeadlessSpawner:
             else:
                 await read_output()
 
-            # Wait for process to complete
+            # Wait for process to complete without blocking the event loop
             if result.process:
-                result.process.wait()
+                loop = asyncio.get_running_loop()
+                await loop.run_in_executor(None, result.process.wait)
 
         except TimeoutError:
             if result.process:
                 result.process.terminate()
+                # Also wait for termination to complete (non-blocking)
+                try:
+                    loop = asyncio.get_running_loop()
+                    await loop.run_in_executor(None, result.process.wait)
+                except Exception:
+                    pass
             result.error = "Process timed out"
 
         except Exception as e:

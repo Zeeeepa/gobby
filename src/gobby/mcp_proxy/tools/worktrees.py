@@ -783,7 +783,12 @@ def create_worktrees_registry(
             project_path=worktree.worktree_path,
         )
 
-        # Create a placeholder tool handler
+        # TODO: This is a temporary stub tool handler that always fails.
+        # To enable real tool execution, either:
+        # 1. Accept a proper tool_handler parameter in spawn_agent_in_worktree and pass it through
+        # 2. Construct a handler from the project's tool registry (e.g., InternalToolRegistry)
+        # 3. Use the MCP proxy to route tool calls to downstream servers
+        # The handler should be wired up when integrating with the daemon's tool infrastructure.
         async def tool_handler(tool_name: str, arguments: dict[str, Any]) -> Any:
             from gobby.llm.executor import ToolResult
 
