@@ -45,6 +45,49 @@ SKIP_REASONS: frozenset[str] = frozenset(
     {"duplicate", "already_implemented", "wont_fix", "obsolete"}
 )
 
+# Patterns that suggest a task is about manual testing/verification
+_MANUAL_TEST_PATTERNS: tuple[str, ...] = (
+    "verify that",
+    "verify the",
+    "check that",
+    "check the",
+    "functional test",
+    "functional testing",
+    "smoke test",
+    "sanity test",
+    "sanity check",
+    "manual test",
+    "manually verify",
+    "manually test",
+    "manually check",
+    "run and check",
+    "run and verify",
+    "test that the",
+    "confirm that",
+    "ensure that",
+    "validate that",
+    "run each command",
+    "run the command",
+    "verify output",
+    "check output",
+    "verify functionality",
+    "test functionality",
+)
+
+
+def _infer_test_strategy(title: str, description: str | None) -> str | None:
+    """
+    Infer test_strategy from task title/description patterns.
+
+    Returns 'manual' if the task appears to be about manual verification/testing,
+    None otherwise (let the user/LLM decide).
+    """
+    text = f"{title} {description or ''}".lower()
+    for pattern in _MANUAL_TEST_PATTERNS:
+        if pattern in text:
+            return "manual"
+    return None
+
 
 def create_task_registry(
     task_manager: LocalTaskManager,
@@ -1189,6 +1232,11 @@ def create_task_registry(
             init_result = initialize_project()
             project_id = init_result.project_id
 
+        # Auto-infer test_strategy if not provided
+        effective_test_strategy = test_strategy
+        if effective_test_strategy is None:
+            effective_test_strategy = _infer_test_strategy(title, description)
+
         task = task_manager.create_task(
             project_id=project_id,
             title=title,
@@ -1197,7 +1245,7 @@ def create_task_registry(
             task_type=task_type,
             parent_task_id=parent_task_id,
             labels=labels,
-            test_strategy=test_strategy,
+            test_strategy=effective_test_strategy,
             validation_criteria=validation_criteria,
             created_in_session_id=session_id,
         )
@@ -1276,7 +1324,8 @@ def create_task_registry(
                 },
                 "test_strategy": {
                     "type": "string",
-                    "description": "Testing strategy for this task (optional)",
+                    "description": "Testing strategy: 'manual' (verify by running/inspecting, no automated tests required), 'automated' (requires unit/integration tests), or 'none' (no testing needed). Auto-inferred as 'manual' for verification/functional testing tasks if not specified.",
+                    "enum": ["manual", "automated", "none"],
                     "default": None,
                 },
                 "validation_criteria": {
@@ -1419,7 +1468,8 @@ def create_task_registry(
                 },
                 "test_strategy": {
                     "type": "string",
-                    "description": "Testing approach for the task",
+                    "description": "Testing strategy: 'manual' (verify by running/inspecting, no automated tests required), 'automated' (requires unit/integration tests), or 'none' (no testing needed).",
+                    "enum": ["manual", "automated", "none"],
                     "default": None,
                 },
                 "workflow_name": {
