@@ -47,8 +47,8 @@ def build_cli_command(
     Each CLI has different syntax for passing prompts and handling permissions:
 
     Claude Code:
-    - claude --session-id <uuid> --permission-mode <mode> [prompt]
-    - Permission modes: acceptEdits, bypassPermissions, default, delegate, dontAsk, plan
+    - claude --session-id <uuid> --dangerously-skip-permissions [prompt]
+    - Use --dangerously-skip-permissions for autonomous subagent operation
 
     Gemini CLI:
     - gemini --approval-mode yolo [query..]
@@ -75,8 +75,8 @@ def build_cli_command(
         if session_id:
             command.extend(["--session-id", session_id])
         if auto_approve:
-            # Use acceptEdits to auto-approve file edits while still prompting for dangerous ops
-            command.extend(["--permission-mode", "acceptEdits"])
+            # Skip all permission prompts for autonomous subagent operation
+            command.append("--dangerously-skip-permissions")
 
     elif cli == "gemini":
         # Gemini CLI flags
