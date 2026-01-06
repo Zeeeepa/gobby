@@ -13,19 +13,32 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 
 from __future__ import annotations
 
+import logging
 import socket
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from gobby.agents.context import (
+    ContextResolutionError,
+    ContextResolver,
+    format_injected_prompt,
+)
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.utils.project_context import get_project_context
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
     from gobby.llm.executor import ToolResult
+    from gobby.storage.session_messages import LocalSessionMessageManager
+    from gobby.storage.sessions import LocalSessionManager
+
+logger = logging.getLogger(__name__)
 
 
 def create_agents_registry(
     runner: AgentRunner,
+    session_manager: LocalSessionManager | None = None,
+    message_manager: LocalSessionMessageManager | None = None,
     get_session_context: Any | None = None,
 ) -> InternalToolRegistry:
     """
@@ -33,6 +46,8 @@ def create_agents_registry(
 
     Args:
         runner: AgentRunner instance for executing agents.
+        session_manager: Session manager for context resolution.
+        message_manager: Message manager for transcript resolution.
         get_session_context: Optional callable returning current session context.
 
     Returns:
@@ -42,6 +57,15 @@ def create_agents_registry(
         name="gobby-agents",
         description="Agent spawning - start, monitor, and manage subagents",
     )
+
+    # Create context resolver if managers are provided
+    context_resolver: ContextResolver | None = None
+    if session_manager and message_manager:
+        context_resolver = ContextResolver(
+            session_manager=session_manager,
+            message_manager=message_manager,
+            project_path=None,  # Will be set per-request based on project context
+        )
 
     @registry.tool(
         name="start_agent",
@@ -136,11 +160,32 @@ def create_agents_registry(
                 "error": reason,
             }
 
+        # Resolve context and inject into prompt
+        effective_prompt = prompt
+        if context_resolver and session_context:
+            try:
+                # Update resolver's project path for file resolution
+                context_resolver._project_path = Path(project_path) if project_path else None
+
+                resolved_context = await context_resolver.resolve(
+                    session_context, parent_session_id
+                )
+                if resolved_context:
+                    effective_prompt = format_injected_prompt(resolved_context, prompt)
+                    logger.info(
+                        f"Injected context from '{session_context}' into agent prompt "
+                        f"({len(resolved_context)} chars)"
+                    )
+            except ContextResolutionError as e:
+                logger.warning(f"Context resolution failed: {e}")
+                # Continue with original prompt - context injection is best-effort
+                pass
+
         # Use provided provider or default
         effective_provider = provider or "claude"
 
         config = AgentConfig(
-            prompt=prompt,
+            prompt=effective_prompt,
             parent_session_id=parent_session_id,
             project_id=project_id,
             machine_id=machine_id,
