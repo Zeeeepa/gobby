@@ -456,6 +456,118 @@ context_injection:
   truncation_suffix: "\n\n[truncated: {bytes} bytes remaining]"
 ```
 
+### Terminal Mode Pickup Mechanism
+
+When agents are spawned in `terminal` mode (instead of `in_process`), they run in a separate terminal window (e.g., Ghostty, iTerm). The subagent CLI instance picks up its prepared state via the hook system.
+
+**Architecture Overview:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Parent Session                                                  │
+│   1. prepare_run() creates:                                     │
+│      - Child session with workflow_name                         │
+│      - Workflow state with initial variables                    │
+│      - Agent run record                                         │
+│   2. Spawns terminal process with env vars                      │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ Terminal Process (Ghostty/iTerm)                                │
+│   Environment variables:                                        │
+│     GOBBY_SESSION_ID=sess-child123                              │
+│     GOBBY_PARENT_SESSION_ID=sess-parent456                      │
+│     GOBBY_PROJECT_ID=proj-abc                                   │
+│     GOBBY_WORKFLOW_NAME=plan-execute                            │
+│     GOBBY_AGENT_RUN_ID=run-xyz                                  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ CLI Starts (claude, gemini, codex)                              │
+│   1. session.start hook fires                                   │
+│   2. Hook reads env vars, looks up session metadata             │
+│   3. Workflow activated from workflow_name field                │
+│   4. Context injected from parent session                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Session Metadata Fields:**
+
+The child session stores these metadata fields for terminal pickup:
+
+| Field | Description |
+|-------|-------------|
+| `workflow_name` | Workflow to activate on session start |
+| `parent_session_id` | Parent session for context resolution |
+| `agent_depth` | Current nesting depth (for spawn limit checks) |
+| `agent_run_id` | Link back to the agent run record |
+
+**Environment Variables:**
+
+When spawning a terminal process, these environment variables are set:
+
+| Variable | Description |
+|----------|-------------|
+| `GOBBY_SESSION_ID` | Pre-created child session ID |
+| `GOBBY_PARENT_SESSION_ID` | Parent session for context lookup |
+| `GOBBY_PROJECT_ID` | Project ID for the session |
+| `GOBBY_WORKFLOW_NAME` | Workflow to activate |
+| `GOBBY_AGENT_RUN_ID` | Agent run ID for status updates |
+| `GOBBY_AGENT_DEPTH` | Current agent depth |
+
+**Hook Activation Sequence:**
+
+1. **Terminal Spawns CLI**: The terminal process starts Claude Code (or other CLI)
+2. **session.start Hook Fires**: Gobby hook dispatcher receives the event
+3. **Environment Check**: Hook checks for `GOBBY_SESSION_ID` environment variable
+4. **Session Lookup**: If found, loads session metadata from database
+5. **Workflow Activation**: If `workflow_name` is set, activates the workflow
+6. **Context Injection**: Resolves context from parent session, injects into prompt
+
+**Initial Workflow Variables:**
+
+When a workflow is activated for a terminal agent, these variables are pre-set:
+
+```yaml
+agent_depth: 1                    # Current nesting level
+max_agent_depth: 3                # Configured maximum
+can_spawn: true                   # Whether this agent can spawn children
+parent_session_id: "sess-123"    # Parent session reference
+```
+
+**Example Terminal Mode Flow:**
+
+```python
+# 1. Parent agent prepares the run (creates session, workflow state)
+call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
+    "prompt": "Implement the API endpoints",
+    "session_context": "summary_markdown",
+    "workflow": "plan-execute",
+    "mode": "terminal",              # Terminal mode
+    "terminal": "ghostty",           # Target terminal
+    "parent_session_id": "sess-parent",
+})
+
+# 2. Gobby spawns terminal with pre-set environment
+# 3. CLI starts and hooks pick up prepared state
+# 4. Workflow "plan-execute" is automatically activated
+# 5. Context from parent session is injected
+```
+
+**Configuration:**
+
+```yaml
+# ~/.gobby/config.yaml
+agent_runner:
+  max_agent_depth: 3              # Maximum nesting depth
+  terminal_mode:
+    default_terminal: auto        # auto, ghostty, iterm, kitty, wezterm
+    inherit_environment: true     # Pass parent environment to terminal
+    working_directory: project    # project (cwd) or home
+```
+
 ## Task Management with gobby-tasks
 
 Use the `gobby-tasks` MCP tools for persistent task tracking (requires daemon running).
