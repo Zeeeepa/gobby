@@ -944,7 +944,7 @@ class TaskValidationConfig(BaseModel):
         description="Custom prompt template for task validation (use {title}, {criteria_text}, {changes_section} placeholders)",
     )
     criteria_system_prompt: str = Field(
-        default="You are a senior QA engineer writing acceptance criteria for development tasks. Generate specific, objectively verifiable criteria using markdown checkboxes. Avoid vague terms. Include concrete values, file paths, and testable behaviors.",
+        default="You are a QA engineer writing acceptance criteria. CRITICAL: Only include requirements explicitly stated in the task. Do NOT invent specific values, thresholds, timeouts, or edge cases that aren't mentioned. Vague tasks get vague criteria. Use markdown checkboxes.",
         description="System prompt for generating validation criteria",
     )
     criteria_prompt: str | None = Field(

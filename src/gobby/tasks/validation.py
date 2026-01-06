@@ -595,36 +595,39 @@ class TaskValidator:
                 description=description or "(no description)",
             )
         else:
-            prompt = f"""Generate validation criteria for the following task.
+            prompt = f"""Generate validation criteria for this task.
 
 Task: {title}
 Description: {description or "(no description)"}
 
-Requirements for good criteria:
-1. **Objectively verifiable** - Can be checked with a yes/no answer
-2. **Specific** - Include concrete values, file paths, or behaviors (no vague terms like "appropriate" or "reasonable")
-3. **Actionable** - Each criterion maps to something that can be tested or inspected
-4. **Complete** - Cover the full scope of the task including edge cases and error handling
-5. **Structured** - Use markdown checkboxes for easy tracking
+CRITICAL RULES - You MUST follow these:
+1. **Only stated requirements** - Include ONLY requirements explicitly written in the title or description
+2. **No invented values** - Do NOT invent specific numbers, timeouts, thresholds, or limits unless they appear in the task
+3. **No invented edge cases** - Do NOT add edge cases, error scenarios, or boundary conditions beyond what's described
+4. **Proportional detail** - Vague tasks get vague criteria; detailed tasks get detailed criteria
+5. **When in doubt, leave it out** - If something isn't mentioned, don't include it
 
-Format your response as:
-# <Task Title Summary>
+For vague requirements like "fix X" or "add Y", use criteria like:
+- "X no longer produces the reported error/warning"
+- "Y functionality works as expected"
+- "Existing tests continue to pass"
+- "No regressions introduced"
 
+DO NOT generate criteria like:
+- "timeout defaults to 30 seconds" (unless 30 seconds is in the task description)
+- "handles edge case Z" (unless Z is mentioned in the task)
+- "logs with format X" (unless that format is specified)
+
+Format as markdown checkboxes:
 ## Deliverable
-- [ ] Primary output (file, class, function, etc.)
+- [ ] What the task explicitly asks for
 
 ## Functional Requirements
-- [ ] Specific behavior 1
-- [ ] Specific behavior 2
-
-## Edge Cases / Error Handling
-- [ ] How errors are handled
-- [ ] Boundary conditions
+- [ ] Only requirements stated in the description
 
 ## Verification
-- [ ] How to verify completion (tests pass, command works, etc.)
-
-Use concrete examples: "timeout defaults to 30 seconds" not "timeout has a reasonable default".
+- [ ] Tests pass (if applicable)
+- [ ] No regressions
 """
 
         try:
