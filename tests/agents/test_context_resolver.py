@@ -243,6 +243,94 @@ class TestResolveFile:
         assert "No project path configured" in str(exc_info.value)
 
 
+class TestContentTruncation:
+    """Tests for content truncation across all source types."""
+
+    async def test_truncates_long_summary_markdown(
+        self, mock_session_manager, mock_message_manager, temp_project
+    ):
+        """summary_markdown is truncated when over limit."""
+        resolver = ContextResolver(
+            session_manager=mock_session_manager,
+            message_manager=mock_message_manager,
+            project_path=temp_project,
+            max_content_size=100,
+        )
+
+        mock_session = MagicMock()
+        mock_session.summary_markdown = "A" * 200
+        mock_session_manager.get.return_value = mock_session
+
+        result = await resolver.resolve("summary_markdown", "sess-123")
+
+        assert len(result) < 200
+        assert "truncated" in result
+        assert "100 bytes remaining" in result
+
+    async def test_truncates_long_compact_markdown(
+        self, mock_session_manager, mock_message_manager, temp_project
+    ):
+        """compact_markdown is truncated when over limit."""
+        resolver = ContextResolver(
+            session_manager=mock_session_manager,
+            message_manager=mock_message_manager,
+            project_path=temp_project,
+            max_content_size=100,
+        )
+
+        mock_session = MagicMock()
+        mock_session.compact_markdown = "B" * 200
+        mock_session_manager.get.return_value = mock_session
+
+        result = await resolver.resolve("compact_markdown", "sess-123")
+
+        assert len(result) < 200
+        assert "truncated" in result
+
+    async def test_truncates_long_transcript(
+        self, mock_session_manager, mock_message_manager, temp_project
+    ):
+        """transcript is truncated when over limit."""
+        resolver = ContextResolver(
+            session_manager=mock_session_manager,
+            message_manager=mock_message_manager,
+            project_path=temp_project,
+            max_content_size=100,
+        )
+
+        mock_message_manager.get_messages = AsyncMock(
+            return_value=[
+                {"role": "user", "content": "C" * 100},
+                {"role": "assistant", "content": "D" * 100},
+            ]
+        )
+
+        result = await resolver.resolve("transcript:10", "sess-123")
+
+        assert len(result) < 250
+        assert "truncated" in result
+
+    async def test_no_truncation_under_limit(
+        self, mock_session_manager, mock_message_manager, temp_project
+    ):
+        """Content under limit is not truncated."""
+        resolver = ContextResolver(
+            session_manager=mock_session_manager,
+            message_manager=mock_message_manager,
+            project_path=temp_project,
+            max_content_size=1000,
+        )
+
+        mock_session = MagicMock()
+        mock_session.summary_markdown = "Small content"
+        mock_session_manager.get.return_value = mock_session
+
+        result = await resolver.resolve("summary_markdown", "sess-123")
+
+        assert result == "Small content"
+        assert "truncated" not in result
+
+
 class TestUnknownSource:
     """Tests for unknown source formats."""
 

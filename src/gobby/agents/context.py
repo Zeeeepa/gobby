@@ -58,6 +58,7 @@ class ContextResolver:
         message_manager: LocalSessionMessageManager,
         project_path: str | Path | None = None,
         max_file_size: int = 51200,  # 50KB default
+        max_content_size: int = 51200,  # 50KB default for all content types
         max_transcript_messages: int = 100,
         truncation_suffix: str = "\n\n[truncated: {bytes} bytes remaining]",
     ):
@@ -69,6 +70,7 @@ class ContextResolver:
             message_manager: Message storage manager for transcript lookups.
             project_path: Project root path for file security checks.
             max_file_size: Maximum file size in bytes (default: 50KB).
+            max_content_size: Maximum content size for all sources (default: 50KB).
             max_transcript_messages: Maximum transcript messages to fetch.
             truncation_suffix: Suffix template when content is truncated.
         """
@@ -76,6 +78,7 @@ class ContextResolver:
         self._message_manager = message_manager
         self._project_path = Path(project_path) if project_path else None
         self._max_file_size = max_file_size
+        self._max_content_size = max_content_size
         self._max_transcript_messages = max_transcript_messages
         self._truncation_suffix = truncation_suffix
 
@@ -88,33 +91,40 @@ class ContextResolver:
             session_id: Parent session ID for context lookups.
 
         Returns:
-            Resolved context string.
+            Resolved context string, truncated if exceeding max_content_size.
 
         Raises:
             ContextResolutionError: If resolution fails.
         """
+        content: str = ""
+
         # Handle simple source types
         if source == "summary_markdown":
-            return self._resolve_summary_markdown(session_id)
+            content = self._resolve_summary_markdown(session_id)
 
-        if source == "compact_markdown":
-            return self._resolve_compact_markdown(session_id)
+        elif source == "compact_markdown":
+            content = self._resolve_compact_markdown(session_id)
 
         # Handle parameterized source types
-        if match := self.SESSION_ID_PATTERN.match(source):
+        elif match := self.SESSION_ID_PATTERN.match(source):
             target_session_id = match.group(1)
-            return self._resolve_session_id(target_session_id)
+            content = self._resolve_session_id(target_session_id)
 
-        if match := self.TRANSCRIPT_PATTERN.match(source):
+        elif match := self.TRANSCRIPT_PATTERN.match(source):
             count = int(match.group(1))
-            return await self._resolve_transcript(session_id, count)
+            content = await self._resolve_transcript(session_id, count)
 
-        if match := self.FILE_PATTERN.match(source):
+        elif match := self.FILE_PATTERN.match(source):
             file_path = match.group(1)
+            # File resolution has its own truncation logic
             return self._resolve_file(file_path)
 
-        # Unknown source format
-        raise ContextResolutionError(f"Unknown context source format: {source}")
+        else:
+            # Unknown source format
+            raise ContextResolutionError(f"Unknown context source format: {source}")
+
+        # Apply truncation to all non-file sources
+        return self._truncate_content(content, self._max_content_size)
 
     def _resolve_summary_markdown(self, session_id: str) -> str:
         """
