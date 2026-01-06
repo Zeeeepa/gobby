@@ -342,21 +342,13 @@ class ITermSpawner(TerminalSpawnerBase):
             shell_command = f"cd {safe_cwd} && {env_exports} {cmd_str}"
             safe_shell_command = escape_applescript(shell_command)
 
-            # Check if iTerm is already running to avoid duplicate windows
-            # When iTerm launches fresh, it auto-creates a default window
-            # Use activate to ensure window is ready before writing command
+            # Always create a new window and explicitly reference it
+            # This avoids race conditions with existing sessions
             script = f'''
-            set iTermWasRunning to application "iTerm" is running
             tell application "iTerm"
                 activate
-                if iTermWasRunning then
-                    -- iTerm already running, create a new window
-                    create window with default profile
-                else
-                    -- Wait for the default window to be ready
-                    delay 0.5
-                end if
-                tell current session of current window
+                set newWindow to (create window with default profile)
+                tell current session of newWindow
                     write text "{safe_shell_command}"
                 end tell
             end tell
