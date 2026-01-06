@@ -244,9 +244,11 @@ class GhosttySpawner(TerminalSpawnerBase):
         try:
             # Build ghostty command with command arguments passed as separate elements
             # Ghostty's -e flag expects separate arguments, not a quoted shell string
-            args = ["ghostty", "-e"] + command
+            # Note: --title must come BEFORE -e, otherwise it gets passed to the command
+            args = ["ghostty"]
             if title:
                 args.extend(["--title", title])
+            args.extend(["-e"] + command)
 
             # Merge environment
             spawn_env = os.environ.copy()
