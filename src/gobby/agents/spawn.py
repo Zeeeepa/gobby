@@ -247,12 +247,13 @@ class GhosttySpawner(TerminalSpawnerBase):
         try:
             # On macOS, ghostty CLI doesn't support launching the emulator directly
             # Must use 'open -na Ghostty.app --args' instead
+            # Note: Ghostty requires --key=value syntax, not --key value
             if platform.system() == "Darwin":
                 # Build args for open command
                 # open -na Ghostty.app --args [ghostty-options] -e [command]
                 ghostty_args = []
                 if title:
-                    ghostty_args.extend(["--title", title])
+                    ghostty_args.append(f"--title={title}")
                 ghostty_args.extend(["-e"] + command)
 
                 args = ["open", "-na", "Ghostty.app", "--args"] + ghostty_args
@@ -260,7 +261,7 @@ class GhosttySpawner(TerminalSpawnerBase):
                 # On Linux/other platforms, use ghostty CLI directly
                 args = ["ghostty"]
                 if title:
-                    args.extend(["--title", title])
+                    args.append(f"--title={title}")
                 args.extend(["-e"] + command)
 
             # Merge environment
