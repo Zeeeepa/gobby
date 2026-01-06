@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,8 +21,10 @@ def mock_hook_manager():
         manager._session_manager = MockSessionManager.return_value
         manager._session_task_manager = MockSessionTaskManager.return_value
 
-        # Mock cached daemon status
-        manager._cached_daemon_is_ready = True
+        # Mock cached daemon status via HealthMonitor
+        manager._health_monitor.get_cached_status = MagicMock(
+            return_value=(True, None, "running", None)
+        )
 
         return manager
 
@@ -54,16 +56,17 @@ def test_hook_event_task_id(mock_hook_manager):
         event_type=HookEventType.BEFORE_AGENT,
         session_id=external_id,
         source=SessionSource.CLAUDE,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         data={"prompt": "Hello"},
     )
 
     # Execute handler
     # We need to mock the specific handler to avoid side effects
     mock_handler = MagicMock(return_value=HookResponse(decision="allow"))
-    mock_hook_manager._event_handler_map[HookEventType.BEFORE_AGENT] = mock_handler
-
-    mock_hook_manager.handle(event)
+    with patch.object(
+        mock_hook_manager._event_handlers, "get_handler", return_value=mock_handler
+    ):
+        mock_hook_manager.handle(event)
 
     # Verify task_id was populated on the event object
     assert event.task_id == task_id
@@ -99,14 +102,14 @@ def test_session_start_context_injection(mock_hook_manager):
         event_type=HookEventType.SESSION_START,
         session_id=external_id,
         source=SessionSource.CLAUDE,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         data={"cwd": "/tmp"},
         task_id=task_id,
         metadata={"_task_title": task_title},
     )
 
-    # Execute real handler for session start
-    response = mock_hook_manager._handle_event_session_start(event)
+    # Execute real handler for session start (now on _event_handlers)
+    response = mock_hook_manager._event_handlers.handle_session_start(event)
 
     # Verify context injection
     assert response.metadata["task_id"] == task_id

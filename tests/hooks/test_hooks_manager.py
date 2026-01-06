@@ -108,17 +108,18 @@ class TestHookManagerInit:
         manager = hook_manager_with_mocks
         assert manager.daemon_url == "http://localhost:8765"
 
-    def test_init_creates_event_handler_map(self, hook_manager_with_mocks: HookManager):
-        """Test that event handler map is created."""
+    def test_init_creates_event_handlers(self, hook_manager_with_mocks: HookManager):
+        """Test that event handlers are created."""
         manager = hook_manager_with_mocks
+        handler_map = manager._event_handlers.get_handler_map()
 
         # Check key event types have handlers
-        assert HookEventType.SESSION_START in manager._event_handler_map
-        assert HookEventType.SESSION_END in manager._event_handler_map
-        assert HookEventType.BEFORE_AGENT in manager._event_handler_map
-        assert HookEventType.AFTER_AGENT in manager._event_handler_map
-        assert HookEventType.BEFORE_TOOL in manager._event_handler_map
-        assert HookEventType.AFTER_TOOL in manager._event_handler_map
+        assert HookEventType.SESSION_START in handler_map
+        assert HookEventType.SESSION_END in handler_map
+        assert HookEventType.BEFORE_AGENT in handler_map
+        assert HookEventType.AFTER_AGENT in handler_map
+        assert HookEventType.BEFORE_TOOL in handler_map
+        assert HookEventType.AFTER_TOOL in handler_map
 
 
 class TestHookManagerHandle:
@@ -141,14 +142,17 @@ class TestHookManagerHandle:
         sample_session_start_event: HookEvent,
     ):
         """Test handling when daemon is not ready."""
+        from unittest.mock import patch
+
         manager = hook_manager_with_mocks
 
-        # Simulate daemon not ready
-        manager._cached_daemon_is_ready = False
-        manager._cached_daemon_status = "not_running"
-        manager._cached_daemon_error = "Connection refused"
-
-        response = manager.handle(sample_session_start_event)
+        # Simulate daemon not ready by mocking HealthMonitor's get_cached_status
+        with patch.object(
+            manager._health_monitor,
+            "get_cached_status",
+            return_value=(False, None, "not_running", "Connection refused"),
+        ):
+            response = manager.handle(sample_session_start_event)
 
         # Should fail open
         assert response.decision == "allow"
@@ -157,10 +161,9 @@ class TestHookManagerHandle:
 
     def test_handle_unknown_event_type(self, hook_manager_with_mocks: HookManager):
         """Test handling unknown event type fails open."""
-        manager = hook_manager_with_mocks
+        from unittest.mock import patch
 
-        # Remove a handler to simulate unknown event
-        del manager._event_handler_map[HookEventType.NOTIFICATION]
+        manager = hook_manager_with_mocks
 
         event = HookEvent(
             event_type=HookEventType.NOTIFICATION,
@@ -170,7 +173,9 @@ class TestHookManagerHandle:
             data={},
         )
 
-        response = manager.handle(event)
+        # Mock the event handlers to return None for any event type
+        with patch.object(manager._event_handlers, "get_handler", return_value=None):
+            response = manager.handle(event)
 
         # Should fail open
         assert response.decision == "allow"
@@ -191,16 +196,18 @@ class TestHookManagerSessionStart:
         assert response.metadata.get("session_id") is not None
         assert response.metadata.get("external_id") == "test-external-id-123"
 
-    def test_session_start_returns_context(
+    def test_session_start_returns_response(
         self,
         hook_manager_with_mocks: HookManager,
         sample_session_start_event: HookEvent,
     ):
-        """Test that session start returns context."""
+        """Test that session start returns a valid response with system_message."""
         response = hook_manager_with_mocks.handle(sample_session_start_event)
 
-        assert response.context is not None
-        assert "Session registered" in response.context
+        assert response.decision == "allow"
+        # Response should include session ID in system_message
+        assert response.system_message is not None
+        assert "Session ID:" in response.system_message
 
     def test_session_resume_no_handoff_message(
         self,
@@ -231,15 +238,11 @@ class TestHookManagerSessionStart:
         # Should be allowed
         assert response.decision == "allow"
 
-        # Should have session registered in context
-        assert response.context is not None
-        assert "Session registered" in response.context
-
         # Should have basic session info but NOT "Context restored" message
         # Parent finding only runs on source='clear'
         assert response.system_message is not None
         assert "Session ID:" in response.system_message
-        assert "Context restored" not in response.system_message
+        assert "Context restored" not in (response.system_message or "")
 
 
 class TestHookManagerSessionEnd:
@@ -317,7 +320,7 @@ class TestHookManagerSessionEnd:
                 hook_manager_with_mocks._session_storage, "get", return_value=mock_session
             ),
             patch(
-                "gobby.hooks.hook_manager.auto_link_commits", return_value=mock_result
+                "gobby.tasks.commits.auto_link_commits", return_value=mock_result
             ) as mock_auto_link,
         ):
             end_event = HookEvent(
@@ -441,7 +444,8 @@ class TestHookManagerGetEventHandler:
 
     def test_get_handler_for_all_event_types(self, hook_manager_with_mocks: HookManager):
         """Test that all event types in map have handlers."""
-        for event_type in hook_manager_with_mocks._event_handler_map:
+        handler_map = hook_manager_with_mocks._event_handlers.get_handler_map()
+        for event_type in handler_map:
             handler = hook_manager_with_mocks._get_event_handler(event_type)
             assert handler is not None
 

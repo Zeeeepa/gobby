@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from gobby.sessions.manager import SessionManager
     from gobby.sessions.summary import SummaryFileGenerator
     from gobby.storage.session_messages import LocalSessionMessageManager
+    from gobby.storage.session_tasks import SessionTaskManager
     from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.tasks import LocalTaskManager
     from gobby.workflows.hooks import WorkflowHookHandler
@@ -40,10 +41,14 @@ class EventHandlers:
         session_manager: "SessionManager | None" = None,
         workflow_handler: "WorkflowHookHandler | None" = None,
         session_storage: "LocalSessionManager | None" = None,
+        session_task_manager: "SessionTaskManager | None" = None,
         message_processor: Any | None = None,
         summary_file_generator: "SummaryFileGenerator | None" = None,
         task_manager: "LocalTaskManager | None" = None,
         session_coordinator: "SessionCoordinator | None" = None,
+        message_manager: "LocalSessionMessageManager | None" = None,
+        get_machine_id: Callable[[], str] | None = None,
+        resolve_project_id: Callable[[str | None, str | None], str] | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         """
@@ -53,19 +58,27 @@ class EventHandlers:
             session_manager: SessionManager for session operations
             workflow_handler: WorkflowHookHandler for lifecycle workflows
             session_storage: LocalSessionManager for session storage
+            session_task_manager: SessionTaskManager for session-task links
             message_processor: SessionMessageProcessor for message handling
             summary_file_generator: SummaryFileGenerator for summaries
             task_manager: LocalTaskManager for task operations
             session_coordinator: SessionCoordinator for session tracking
+            message_manager: LocalSessionMessageManager for messages
+            get_machine_id: Function to get machine ID
+            resolve_project_id: Function to resolve project ID from cwd
             logger: Optional logger instance
         """
         self._session_manager = session_manager
         self._workflow_handler = workflow_handler
         self._session_storage = session_storage
+        self._session_task_manager = session_task_manager
         self._message_processor = message_processor
         self._summary_file_generator = summary_file_generator
         self._task_manager = task_manager
         self._session_coordinator = session_coordinator
+        self._message_manager = message_manager
+        self._get_machine_id = get_machine_id or (lambda: "unknown-machine")
+        self._resolve_project_id = resolve_project_id or (lambda p, c: p or "")
         self.logger = logger or logging.getLogger(__name__)
 
         # Build handler map
@@ -118,48 +131,201 @@ class EventHandlers:
     # ==================== SESSION HANDLERS ====================
 
     def handle_session_start(self, event: HookEvent) -> HookResponse:
-        """Handle SESSION_START event."""
-        session_id = event.session_id
-        self.logger.debug(f"SESSION_START: {session_id}")
+        """
+        Handle SESSION_START event.
 
-        context = ""
+        Register session and execute session-handoff workflow.
+        """
+        external_id = event.session_id
+        input_data = event.data
+        transcript_path = input_data.get("transcript_path")
+        cli_source = event.source.value
+        cwd = input_data.get("cwd")
+        session_source = input_data.get("source", "startup")
 
-        # Register session if session_manager available
-        if self._session_manager:
+        # Resolve project_id (auto-creates if needed)
+        project_id = self._resolve_project_id(input_data.get("project_id"), cwd)
+        machine_id = event.machine_id or self._get_machine_id()
+
+        self.logger.debug(
+            f"SESSION_START: cli={cli_source}, project={project_id}, source={session_source}"
+        )
+
+        # Step 1: Find parent session if this is a handoff (source='clear' only)
+        parent_session_id = None
+        if session_source == "clear" and self._session_storage:
             try:
-                self._session_manager.register_session(
-                    external_id=session_id,
-                    source=event.source.value if hasattr(event.source, "value") else str(event.source),
+                parent = self._session_storage.find_parent(
+                    machine_id=machine_id,
+                    project_id=project_id,
+                    source=cli_source,
+                    status="handoff_ready",
+                )
+                if parent:
+                    parent_session_id = parent.id
+                    self.logger.debug(f"Found parent session: {parent_session_id}")
+            except Exception as e:
+                self.logger.warning(f"Error finding parent session: {e}")
+
+        # Step 2: Register new session with parent if found
+        session_id = None
+        if self._session_manager:
+            session_id = self._session_manager.register_session(
+                external_id=external_id,
+                machine_id=machine_id,
+                project_id=project_id,
+                parent_session_id=parent_session_id,
+                jsonl_path=transcript_path,
+                source=cli_source,
+                project_path=cwd,
+            )
+
+        # Step 2b: Mark parent session as expired after successful handoff
+        if parent_session_id and self._session_manager:
+            try:
+                self._session_manager.mark_session_expired(parent_session_id)
+                self.logger.debug(f"Marked parent session {parent_session_id} as expired")
+            except Exception as e:
+                self.logger.warning(f"Failed to mark parent session as expired: {e}")
+
+        # Step 3: Track registered session
+        if transcript_path and self._session_coordinator:
+            try:
+                self._session_coordinator.register_session(external_id)
+            except Exception as e:
+                self.logger.error(f"Failed to setup session tracking: {e}", exc_info=True)
+
+        # Step 4: Update event metadata with the newly registered session_id
+        event.metadata["_platform_session_id"] = session_id
+
+        # Step 5: Register with Message Processor
+        if self._message_processor and transcript_path and session_id:
+            try:
+                self._message_processor.register_session(
+                    session_id, transcript_path, source=cli_source
                 )
             except Exception as e:
-                self.logger.warning(f"Failed to register session: {e}")
+                self.logger.warning(f"Failed to register session with message processor: {e}")
 
-        # Execute workflows if handler available
+        # Step 6: Execute lifecycle workflows
+        context_parts = [""]
+        wf_response = HookResponse(decision="allow", context="")
         if self._workflow_handler:
             try:
                 wf_response = self._workflow_handler.handle_all_lifecycles(event)
                 if wf_response.context:
-                    context = wf_response.context
-                if wf_response.decision != "allow":
-                    return wf_response
+                    context_parts.append(wf_response.context)
             except Exception as e:
                 self.logger.warning(f"Workflow error: {e}")
 
-        return HookResponse(decision="allow", context=context)
+        if parent_session_id:
+            context_parts.append(f"Parent session: {parent_session_id}")
+
+        # Build system message
+        system_message = f"Session ID: {session_id}\nProject ID: {project_id}"
+        if parent_session_id:
+            system_message += f"\nParent ID: {parent_session_id}"
+        if wf_response.system_message:
+            system_message += f"\n\n{wf_response.system_message}"
+
+        # Inject active task context if available
+        if event.task_id:
+            task_title = event.metadata.get("_task_title", "Unknown Task")
+            context_parts.append("\n## Active Task Context\n")
+            context_parts.append(f"You are working on task: {task_title} ({event.task_id})")
+
+        return HookResponse(
+            decision="allow",
+            context="\n".join(context_parts) if context_parts else None,
+            system_message=system_message,
+            metadata={
+                "session_id": session_id,
+                "machine_id": machine_id,
+                "external_id": external_id,
+                "task_id": event.task_id,
+            },
+        )
 
     def handle_session_end(self, event: HookEvent) -> HookResponse:
         """Handle SESSION_END event."""
-        session_id = event.metadata.get("_platform_session_id", event.session_id)
-        self.logger.debug(f"SESSION_END: {session_id}")
+        from gobby.tasks.commits import auto_link_commits
 
-        # Execute workflows if handler available
+        external_id = event.session_id
+        session_id = event.metadata.get("_platform_session_id")
+
+        if session_id:
+            self.logger.debug(f"SESSION_END: session {session_id}")
+        else:
+            self.logger.warning(f"SESSION_END: session_id not found for external_id={external_id}")
+
+        # If not in mapping, query database
+        if not session_id and external_id and self._session_manager:
+            self.logger.debug(f"external_id {external_id} not in mapping, querying database")
+            machine_id = event.machine_id or self._get_machine_id()
+            session_id = self._session_manager.lookup_session_id(
+                external_id, source=event.source.value, machine_id=machine_id
+            )
+
+        # Ensure session_id is available in event metadata for workflow actions
+        if session_id and not event.metadata.get("_platform_session_id"):
+            event.metadata["_platform_session_id"] = session_id
+
+        # Execute lifecycle workflow triggers
         if self._workflow_handler:
             try:
-                wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                if wf_response.decision != "allow":
-                    return wf_response
+                self._workflow_handler.handle_all_lifecycles(event)
             except Exception as e:
-                self.logger.warning(f"Workflow error: {e}")
+                self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
+
+        # Auto-link commits made during this session to tasks
+        if session_id and self._session_storage and self._task_manager:
+            try:
+                session = self._session_storage.get(session_id)
+                if session:
+                    cwd = event.data.get("cwd")
+                    link_result = auto_link_commits(
+                        task_manager=self._task_manager,
+                        since=session.created_at,
+                        cwd=cwd,
+                    )
+                    if link_result.total_linked > 0:
+                        self.logger.info(
+                            f"Auto-linked {link_result.total_linked} commits to tasks: "
+                            f"{list(link_result.linked_tasks.keys())}"
+                        )
+            except Exception as e:
+                self.logger.warning(f"Failed to auto-link session commits: {e}")
+
+        # Complete agent run if this is a terminal-mode agent session
+        if session_id and self._session_storage and self._session_coordinator:
+            try:
+                session = self._session_storage.get(session_id)
+                if session and session.agent_run_id:
+                    self._session_coordinator.complete_agent_run(session)
+            except Exception as e:
+                self.logger.warning(f"Failed to complete agent run: {e}")
+
+        # Generate independent session summary file
+        if self._summary_file_generator:
+            try:
+                summary_input = {
+                    "session_id": external_id,
+                    "transcript_path": event.data.get("transcript_path"),
+                }
+                self._summary_file_generator.generate_session_summary(
+                    session_id=session_id or external_id,
+                    input_data=summary_input,
+                )
+            except Exception as e:
+                self.logger.error(f"Failed to generate failover summary: {e}")
+
+        # Unregister from message processor
+        if self._message_processor and (session_id or external_id):
+            try:
+                target_id = session_id or external_id
+                self._message_processor.unregister_session(target_id)
+            except Exception as e:
+                self.logger.warning(f"Failed to unregister session from message processor: {e}")
 
         return HookResponse(decision="allow")
 
@@ -167,37 +333,72 @@ class EventHandlers:
 
     def handle_before_agent(self, event: HookEvent) -> HookResponse:
         """Handle BEFORE_AGENT event (user prompt submit)."""
-        session_id = event.metadata.get("_platform_session_id", event.session_id)
-        self.logger.debug(f"BEFORE_AGENT: {session_id}")
+        input_data = event.data
+        prompt = input_data.get("prompt", "")
+        transcript_path = input_data.get("transcript_path")
+        session_id = event.metadata.get("_platform_session_id")
 
-        context = ""
+        context_parts = []
 
-        # Execute workflows if handler available
+        if session_id:
+            self.logger.debug(f"BEFORE_AGENT: session {session_id}")
+            self.logger.debug(f"   Prompt: {prompt[:100]}...")
+
+            # Update status to active (unless /clear or /exit)
+            prompt_lower = prompt.strip().lower()
+            if prompt_lower not in ("/clear", "/exit") and self._session_manager:
+                try:
+                    self._session_manager.update_session_status(session_id, "active")
+                    if self._session_storage:
+                        self._session_storage.reset_transcript_processed(session_id)
+                except Exception as e:
+                    self.logger.warning(f"Failed to update session status: {e}")
+
+            # Handle /clear command - lifecycle workflows handle handoff
+            if prompt_lower in ("/clear", "/exit") and transcript_path:
+                self.logger.debug(f"Detected {prompt_lower} - lifecycle workflows handle handoff")
+
+        # Execute lifecycle workflow triggers
         if self._workflow_handler:
             try:
                 wf_response = self._workflow_handler.handle_all_lifecycles(event)
                 if wf_response.context:
-                    context = wf_response.context
+                    context_parts.append(wf_response.context)
                 if wf_response.decision != "allow":
                     return wf_response
             except Exception as e:
-                self.logger.warning(f"Workflow error: {e}")
+                self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
 
-        return HookResponse(decision="allow", context=context)
+        return HookResponse(
+            decision="allow",
+            context="\n\n".join(context_parts) if context_parts else None,
+        )
 
     def handle_after_agent(self, event: HookEvent) -> HookResponse:
         """Handle AFTER_AGENT event."""
-        session_id = event.metadata.get("_platform_session_id", event.session_id)
-        self.logger.debug(f"AFTER_AGENT: {session_id}")
+        session_id = event.metadata.get("_platform_session_id")
+        cli_source = event.source.value
 
-        # Execute workflows if handler available
+        if session_id:
+            self.logger.debug(f"AFTER_AGENT: session {session_id}, cli={cli_source}")
+            if self._session_manager:
+                try:
+                    self._session_manager.update_session_status(session_id, "paused")
+                except Exception as e:
+                    self.logger.warning(f"Failed to update session status: {e}")
+        else:
+            self.logger.debug(f"AFTER_AGENT: cli={cli_source}")
+
+        # Execute lifecycle workflow triggers
         if self._workflow_handler:
             try:
                 wf_response = self._workflow_handler.handle_all_lifecycles(event)
                 if wf_response.decision != "allow":
                     return wf_response
+                if wf_response.context:
+                    return wf_response
             except Exception as e:
-                self.logger.warning(f"Workflow error: {e}")
+                self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
 
         return HookResponse(decision="allow")
 
@@ -205,51 +406,83 @@ class EventHandlers:
 
     def handle_before_tool(self, event: HookEvent) -> HookResponse:
         """Handle BEFORE_TOOL event."""
-        tool_name = event.data.get("tool_name", "unknown")
-        self.logger.debug(f"BEFORE_TOOL: {tool_name}")
+        input_data = event.data
+        tool_name = input_data.get("tool_name", "unknown")
+        session_id = event.metadata.get("_platform_session_id")
 
-        # Execute workflows if handler available
+        if session_id:
+            self.logger.debug(f"BEFORE_TOOL: {tool_name}, session {session_id}")
+        else:
+            self.logger.debug(f"BEFORE_TOOL: {tool_name}")
+
+        context_parts = []
+
+        # Execute lifecycle workflow triggers
         if self._workflow_handler:
             try:
                 wf_response = self._workflow_handler.handle_all_lifecycles(event)
+                if wf_response.context:
+                    context_parts.append(wf_response.context)
                 if wf_response.decision != "allow":
                     return wf_response
             except Exception as e:
-                self.logger.warning(f"Workflow error: {e}")
+                self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
 
-        return HookResponse(decision="allow")
+        return HookResponse(
+            decision="allow",
+            context="\n\n".join(context_parts) if context_parts else None,
+        )
 
     def handle_after_tool(self, event: HookEvent) -> HookResponse:
         """Handle AFTER_TOOL event."""
-        tool_name = event.data.get("tool_name", "unknown")
-        self.logger.debug(f"AFTER_TOOL: {tool_name}")
+        input_data = event.data
+        tool_name = input_data.get("tool_name", "unknown")
+        session_id = event.metadata.get("_platform_session_id")
+        is_failure = event.metadata.get("is_failure", False)
 
-        # Execute workflows if handler available
+        status = "FAIL" if is_failure else "OK"
+        if session_id:
+            self.logger.debug(f"AFTER_TOOL [{status}]: {tool_name}, session {session_id}")
+        else:
+            self.logger.debug(f"AFTER_TOOL [{status}]: {tool_name}")
+
+        context_parts = []
+
+        # Execute lifecycle workflow triggers
         if self._workflow_handler:
             try:
                 wf_response = self._workflow_handler.handle_all_lifecycles(event)
+                if wf_response.context:
+                    context_parts.append(wf_response.context)
                 if wf_response.decision != "allow":
                     return wf_response
             except Exception as e:
-                self.logger.warning(f"Workflow error: {e}")
+                self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
 
-        return HookResponse(decision="allow")
+        return HookResponse(
+            decision="allow",
+            context="\n\n".join(context_parts) if context_parts else None,
+        )
 
     # ==================== STOP HANDLER ====================
 
     def handle_stop(self, event: HookEvent) -> HookResponse:
         """Handle STOP event (Claude Code only)."""
-        session_id = event.metadata.get("_platform_session_id", event.session_id)
-        self.logger.debug(f"STOP: {session_id}")
+        session_id = event.metadata.get("_platform_session_id")
+        cli_source = event.source.value
 
-        # Execute workflows if handler available
+        self.logger.debug(f"STOP: session {session_id}, cli={cli_source}")
+
+        # Execute lifecycle workflow triggers for on_stop
         if self._workflow_handler:
             try:
                 wf_response = self._workflow_handler.handle_all_lifecycles(event)
                 if wf_response.decision != "allow":
                     return wf_response
+                if wf_response.context:
+                    return wf_response
             except Exception as e:
-                self.logger.warning(f"Workflow error: {e}")
+                self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
 
         return HookResponse(decision="allow")
 
@@ -257,17 +490,23 @@ class EventHandlers:
 
     def handle_pre_compact(self, event: HookEvent) -> HookResponse:
         """Handle PRE_COMPACT event."""
-        session_id = event.metadata.get("_platform_session_id", event.session_id)
-        self.logger.debug(f"PRE_COMPACT: {session_id}")
+        trigger = event.data.get("trigger", "auto")
+        session_id = event.metadata.get("_platform_session_id")
 
-        # Execute workflows if handler available
+        if session_id:
+            self.logger.debug(f"PRE_COMPACT ({trigger}): session {session_id}")
+            # Mark session as handoff_ready so it can be found as parent after compact
+            if self._session_manager:
+                self._session_manager.update_session_status(session_id, "handoff_ready")
+        else:
+            self.logger.debug(f"PRE_COMPACT ({trigger})")
+
+        # Execute lifecycle workflows
         if self._workflow_handler:
             try:
-                wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                if wf_response.decision != "allow":
-                    return wf_response
+                return self._workflow_handler.handle_all_lifecycles(event)
             except Exception as e:
-                self.logger.warning(f"Workflow error: {e}")
+                self.logger.error(f"Failed to execute lifecycle workflows: {e}", exc_info=True)
 
         return HookResponse(decision="allow")
 
@@ -275,33 +514,28 @@ class EventHandlers:
 
     def handle_subagent_start(self, event: HookEvent) -> HookResponse:
         """Handle SUBAGENT_START event."""
-        subagent_id = event.data.get("subagent_id", "unknown")
-        self.logger.debug(f"SUBAGENT_START: {subagent_id}")
+        input_data = event.data
+        session_id = event.metadata.get("_platform_session_id")
+        agent_id = input_data.get("agent_id")
+        subagent_id = input_data.get("subagent_id")
 
-        # Execute workflows if handler available
-        if self._workflow_handler:
-            try:
-                wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                if wf_response.decision != "allow":
-                    return wf_response
-            except Exception as e:
-                self.logger.warning(f"Workflow error: {e}")
+        log_msg = f"SUBAGENT_START: session {session_id}" if session_id else "SUBAGENT_START"
+        if agent_id:
+            log_msg += f", agent_id={agent_id}"
+        if subagent_id:
+            log_msg += f", subagent_id={subagent_id}"
+        self.logger.debug(log_msg)
 
         return HookResponse(decision="allow")
 
     def handle_subagent_stop(self, event: HookEvent) -> HookResponse:
         """Handle SUBAGENT_STOP event."""
-        subagent_id = event.data.get("subagent_id", "unknown")
-        self.logger.debug(f"SUBAGENT_STOP: {subagent_id}")
+        session_id = event.metadata.get("_platform_session_id")
 
-        # Execute workflows if handler available
-        if self._workflow_handler:
-            try:
-                wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                if wf_response.decision != "allow":
-                    return wf_response
-            except Exception as e:
-                self.logger.warning(f"Workflow error: {e}")
+        if session_id:
+            self.logger.debug(f"SUBAGENT_STOP: session {session_id}")
+        else:
+            self.logger.debug("SUBAGENT_STOP")
 
         return HookResponse(decision="allow")
 
@@ -309,17 +543,24 @@ class EventHandlers:
 
     def handle_notification(self, event: HookEvent) -> HookResponse:
         """Handle NOTIFICATION event."""
-        message = event.data.get("message", "")
-        self.logger.debug(f"NOTIFICATION: {message[:50]}...")
+        input_data = event.data
+        notification_type = (
+            input_data.get("notification_type")
+            or input_data.get("notificationType")
+            or input_data.get("type")
+            or "general"
+        )
+        session_id = event.metadata.get("_platform_session_id")
 
-        # Execute workflows if handler available
-        if self._workflow_handler:
-            try:
-                wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                if wf_response.decision != "allow":
-                    return wf_response
-            except Exception as e:
-                self.logger.warning(f"Workflow error: {e}")
+        if session_id:
+            self.logger.debug(f"NOTIFICATION ({notification_type}): session {session_id}")
+            if self._session_manager:
+                try:
+                    self._session_manager.update_session_status(session_id, "paused")
+                except Exception as e:
+                    self.logger.warning(f"Failed to update session status: {e}")
+        else:
+            self.logger.debug(f"NOTIFICATION ({notification_type})")
 
         return HookResponse(decision="allow")
 
@@ -327,17 +568,14 @@ class EventHandlers:
 
     def handle_permission_request(self, event: HookEvent) -> HookResponse:
         """Handle PERMISSION_REQUEST event (Claude Code only)."""
-        permission = event.data.get("permission", "unknown")
-        self.logger.debug(f"PERMISSION_REQUEST: {permission}")
+        input_data = event.data
+        session_id = event.metadata.get("_platform_session_id")
+        permission_type = input_data.get("permission_type", "unknown")
 
-        # Execute workflows if handler available
-        if self._workflow_handler:
-            try:
-                wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                if wf_response.decision != "allow":
-                    return wf_response
-            except Exception as e:
-                self.logger.warning(f"Workflow error: {e}")
+        if session_id:
+            self.logger.debug(f"PERMISSION_REQUEST ({permission_type}): session {session_id}")
+        else:
+            self.logger.debug(f"PERMISSION_REQUEST ({permission_type})")
 
         return HookResponse(decision="allow")
 
@@ -345,46 +583,34 @@ class EventHandlers:
 
     def handle_before_tool_selection(self, event: HookEvent) -> HookResponse:
         """Handle BEFORE_TOOL_SELECTION event (Gemini only)."""
-        self.logger.debug("BEFORE_TOOL_SELECTION")
+        session_id = event.metadata.get("_platform_session_id")
 
-        # Execute workflows if handler available
-        if self._workflow_handler:
-            try:
-                wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                if wf_response.decision != "allow":
-                    return wf_response
-            except Exception as e:
-                self.logger.warning(f"Workflow error: {e}")
+        if session_id:
+            self.logger.debug(f"BEFORE_TOOL_SELECTION: session {session_id}")
+        else:
+            self.logger.debug("BEFORE_TOOL_SELECTION")
 
         return HookResponse(decision="allow")
 
     def handle_before_model(self, event: HookEvent) -> HookResponse:
         """Handle BEFORE_MODEL event (Gemini only)."""
-        self.logger.debug("BEFORE_MODEL")
+        session_id = event.metadata.get("_platform_session_id")
 
-        # Execute workflows if handler available
-        if self._workflow_handler:
-            try:
-                wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                if wf_response.decision != "allow":
-                    return wf_response
-            except Exception as e:
-                self.logger.warning(f"Workflow error: {e}")
+        if session_id:
+            self.logger.debug(f"BEFORE_MODEL: session {session_id}")
+        else:
+            self.logger.debug("BEFORE_MODEL")
 
         return HookResponse(decision="allow")
 
     def handle_after_model(self, event: HookEvent) -> HookResponse:
         """Handle AFTER_MODEL event (Gemini only)."""
-        self.logger.debug("AFTER_MODEL")
+        session_id = event.metadata.get("_platform_session_id")
 
-        # Execute workflows if handler available
-        if self._workflow_handler:
-            try:
-                wf_response = self._workflow_handler.handle_all_lifecycles(event)
-                if wf_response.decision != "allow":
-                    return wf_response
-            except Exception as e:
-                self.logger.warning(f"Workflow error: {e}")
+        if session_id:
+            self.logger.debug(f"AFTER_MODEL: session {session_id}")
+        else:
+            self.logger.debug("AFTER_MODEL")
 
         return HookResponse(decision="allow")
 
