@@ -165,18 +165,12 @@ def create_task_registry(
                 # Ignore cycle errors or duplicate deps
                 pass
 
-        # Fetch created subtasks for the response
+        # Fetch created subtasks for the response (brief format for token efficiency)
         created_subtasks = []
         for sid in subtask_ids:
             subtask = task_manager.get_task(sid)
             if subtask:
-                created_subtasks.append(
-                    {
-                        "id": subtask.id,
-                        "title": subtask.title,
-                        "status": subtask.status,
-                    }
-                )
+                created_subtasks.append({"id": subtask.id, "title": subtask.title})
 
         # Auto-generate validation criteria for each subtask (when enabled)
         validation_generated = 0
@@ -217,14 +211,14 @@ def create_task_registry(
             validation_criteria="All child tasks must be completed (status: closed).",
         )
 
-        response = {
+        # Return concise response (use get_task for full details)
+        response: dict[str, Any] = {
             "task_id": task_id,
-            "subtask_ids": subtask_ids,
-            "subtasks": created_subtasks,
-            "tool_calls": result.get("tool_calls", 0),
-            "text": result.get("text", ""),
-            "validation_criteria_generated": validation_generated,
+            "tasks_created": len(subtask_ids),
+            "subtasks": created_subtasks,  # Brief: [{id, title}, ...]
         }
+        if validation_generated > 0:
+            response["validation_criteria_generated"] = validation_generated
         if validation_skipped_reason:
             response["validation_skipped_reason"] = validation_skipped_reason
         return response
@@ -769,12 +763,12 @@ def create_task_registry(
                     enable_web_research=enable_web_research,
                     enable_code_context=True,
                 )
-                subtask_ids = result.get("subtask_ids", [])
+                tasks_created = result.get("tasks_created", 0)
                 results.append(
                     {
                         "task_id": task.id,
                         "title": task.title,
-                        "subtasks_created": len(subtask_ids),
+                        "subtasks_created": tasks_created,
                         "status": "success" if not result.get("error") else "error",
                         "error": result.get("error"),
                     }
@@ -914,7 +908,7 @@ def create_task_registry(
                 return {
                     "error": "Task expansion is not enabled. "
                     "Use mode='structured' for structured specs.",
-                    "parent_task": spec_task.to_dict(),
+                    "parent_task_id": spec_task.id,
                 }
 
             llm_result = await task_expander.expand_task(
@@ -930,8 +924,7 @@ def create_task_registry(
             if "error" in llm_result:
                 return {
                     "error": llm_result["error"],
-                    "parent_task": spec_task.to_dict(),
-                    "subtask_ids": [],
+                    "parent_task_id": spec_task.id,
                     "mode_used": effective_mode,
                 }
 
@@ -946,20 +939,20 @@ def create_task_registry(
             except ValueError:
                 pass
 
-        # Fetch created subtasks
+        # Fetch created subtasks (brief format for token efficiency)
         subtasks = []
         for sid in subtask_ids:
             subtask = task_manager.get_task(sid)
             if subtask:
-                subtasks.append(subtask.to_dict())
+                subtasks.append({"id": subtask.id, "title": subtask.title})
 
+        # Return concise response (use get_task for full details)
         return {
-            "parent_task": spec_task.to_dict(),
+            "parent_task_id": spec_task.id,
+            "parent_task_title": spec_task.title,
             "tasks_created": len(subtask_ids),
-            "subtask_ids": subtask_ids,
-            "subtasks": subtasks,
+            "subtasks": subtasks,  # Brief: [{id, title}, ...]
             "mode_used": effective_mode,
-            "has_structure": has_structure,
         }
 
     @registry.tool(
@@ -1038,8 +1031,7 @@ def create_task_registry(
         if "error" in result:
             return {
                 "error": result["error"],
-                "parent_task": prompt_task.to_dict(),
-                "subtask_ids": [],
+                "parent_task_id": prompt_task.id,
             }
 
         subtask_ids = result.get("subtask_ids", [])
@@ -1053,18 +1045,19 @@ def create_task_registry(
             except ValueError:
                 pass
 
-        # Fetch created subtasks
+        # Fetch created subtasks (brief format for token efficiency)
         subtasks = []
         for sid in subtask_ids:
             subtask = task_manager.get_task(sid)
             if subtask:
-                subtasks.append(subtask.to_dict())
+                subtasks.append({"id": subtask.id, "title": subtask.title})
 
+        # Return concise response (use get_task for full details)
         return {
-            "parent_task": prompt_task.to_dict(),
+            "parent_task_id": prompt_task.id,
+            "parent_task_title": prompt_task.title,
             "tasks_created": len(subtask_ids),
-            "subtask_ids": subtask_ids,
-            "subtasks": subtasks,
+            "subtasks": subtasks,  # Brief: [{id, title}, ...]
         }
 
     @registry.tool(

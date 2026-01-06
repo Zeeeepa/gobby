@@ -259,9 +259,11 @@ async def test_expand_task_integration(mock_task_manager, mock_sync_manager):
 
         mock_expander.expand_task.assert_called_once()
         assert result["task_id"] == "t1"
-        assert result["subtask_ids"] == ["sub1", "sub2"]
-        assert result["tool_calls"] == 2
+        assert result["tasks_created"] == 2
         assert len(result["subtasks"]) == 2
+        # Subtasks are brief format: [{id, title}, ...]
+        assert result["subtasks"][0] == {"id": "sub1", "title": "Subtask 1"}
+        assert result["subtasks"][1] == {"id": "sub2", "title": "Subtask 2"}
 
         # Verify parent -> subtask dependencies are wired
         mock_dep_instance.add_dependency.assert_any_call(
