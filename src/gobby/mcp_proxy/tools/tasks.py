@@ -312,6 +312,7 @@ def create_task_registry(
                 changes_summary=validation_context,
                 validation_criteria=task.validation_criteria,
                 context_files=context_files,
+                test_strategy=task.test_strategy,
             )
 
         # Update validation status
@@ -1616,6 +1617,7 @@ def create_task_registry(
                         description=task.description,
                         changes_summary=validation_context,
                         validation_criteria=task.validation_criteria,
+                        test_strategy=task.test_strategy,
                     )
                     # Store validation result regardless of pass/fail
                     task_manager.update_task(
