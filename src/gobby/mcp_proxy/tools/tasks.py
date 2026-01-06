@@ -16,6 +16,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.mcp_proxy.tools.task_dependencies import (
+    create_dependency_registry,
+)
 
 # Re-export tools from extracted modules (Strangler Fig pattern)
 # This allows gradual migration - callers can import from either location
@@ -46,7 +49,7 @@ from gobby.tasks.validation_history import ValidationHistoryManager
 from gobby.utils.project_context import get_project_context
 from gobby.utils.project_init import initialize_project
 
-__all__ = ["create_task_registry", "create_expansion_registry", "create_validation_registry"]
+__all__ = ["create_task_registry", "create_dependency_registry", "create_expansion_registry", "create_validation_registry"]
 
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
@@ -2419,6 +2422,14 @@ def create_task_registry(
         auto_generate_on_expand=auto_generate_on_expand,
     )
     for tool_name, tool in expansion_registry._tools.items():
+        registry._tools[tool_name] = tool
+
+    # Merge dependency tools from extracted module (Strangler Fig pattern)
+    dependency_registry = create_dependency_registry(
+        task_manager=task_manager,
+        dep_manager=dep_manager,
+    )
+    for tool_name, tool in dependency_registry._tools.items():
         registry._tools[tool_name] = tool
 
     return registry
