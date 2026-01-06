@@ -51,7 +51,8 @@ def _get_worktree_base_dir() -> Path:
         base = Path(tempfile.gettempdir()) / "gobby-worktrees"
     else:
         # macOS/Linux: use /tmp for better isolation
-        base = Path("/tmp") / "gobby-worktrees"
+        # Resolve symlink on macOS (/tmp -> /private/tmp) for consistent paths
+        base = Path("/tmp").resolve() / "gobby-worktrees"
 
     base.mkdir(parents=True, exist_ok=True)
     return base
