@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from gobby.storage.tasks import LocalTaskManager
+    from gobby.tasks.expansion import TaskExpander
 
 logger = logging.getLogger(__name__)
 
@@ -818,3 +819,196 @@ class TaskHierarchyBuilder:
             status=status,
             parent_task_id=parent_task_id,
         )
+
+    async def build_from_headings_with_fallback(
+        self,
+        headings: list[HeadingNode],
+        checkboxes: ExtractedCheckboxes | None,
+        task_expander: TaskExpander | None = None,
+    ) -> HierarchyBuildResult:
+        """Build task hierarchy with LLM fallback for underspecified sections.
+
+        For headings WITH checkboxes: uses checkboxes directly as tasks (no LLM).
+        For headings WITHOUT checkboxes: falls back to LLM expansion on that section.
+
+        This enables hybrid specs where some phases are detailed and others
+        need LLM decomposition.
+
+        Args:
+            headings: List of HeadingNode from MarkdownStructureParser.parse()
+            checkboxes: ExtractedCheckboxes to integrate under headings
+            task_expander: Optional TaskExpander for LLM fallback. If None,
+                          sections without checkboxes are created as single tasks.
+
+        Returns:
+            HierarchyBuildResult with created tasks
+        """
+        # Import here to avoid circular dependency
+        from gobby.tasks.expansion import TaskExpander  # noqa: F811
+
+        created_tasks: list[CreatedTask] = []
+        root_task_ids: list[str] = []
+
+        # Build checkbox lookup by parent heading
+        checkbox_lookup: dict[str, list[CheckboxItem]] = {}
+        if checkboxes:
+            for item in checkboxes.get_flat_items():
+                if item.parent_heading:
+                    if item.parent_heading not in checkbox_lookup:
+                        checkbox_lookup[item.parent_heading] = []
+                    if item.depth == 0:
+                        checkbox_lookup[item.parent_heading].append(item)
+
+        # Process each heading tree with fallback logic
+        for heading in headings:
+            task_ids = await self._process_heading_with_fallback(
+                heading=heading,
+                parent_task_id=self.parent_task_id,
+                checkbox_lookup=checkbox_lookup,
+                created_tasks=created_tasks,
+                task_expander=task_expander,
+            )
+            root_task_ids.extend(task_ids)
+
+        return HierarchyBuildResult(
+            tasks=created_tasks,
+            root_task_ids=root_task_ids,
+            total_count=len(created_tasks),
+        )
+
+    async def _process_heading_with_fallback(
+        self,
+        heading: HeadingNode,
+        parent_task_id: str | None,
+        checkbox_lookup: dict[str, list[CheckboxItem]],
+        created_tasks: list[CreatedTask],
+        task_expander: TaskExpander | None,
+    ) -> list[str]:
+        """Process a heading with LLM fallback for sections without checkboxes.
+
+        Args:
+            heading: HeadingNode to process
+            parent_task_id: ID of parent task (if any)
+            checkbox_lookup: Mapping of heading text to checkboxes
+            created_tasks: List to append created tasks to
+            task_expander: Optional TaskExpander for LLM fallback
+
+        Returns:
+            List of task IDs created at this level
+        """
+        created_at_level: list[str] = []
+
+        # Determine if this heading (or its children) have checkboxes
+        has_checkboxes = self._heading_has_checkboxes(heading, checkbox_lookup)
+
+        # Determine task type based on heading level
+        task_type = "epic" if heading.level <= 3 else "task"
+
+        # Create task for this heading
+        task = self._create_task(
+            title=heading.text,
+            task_type=task_type,
+            parent_task_id=parent_task_id,
+            description=heading.content if heading.content.strip() else None,
+        )
+        created_tasks.append(task)
+        created_at_level.append(task.id)
+
+        # Process based on checkbox presence
+        if has_checkboxes:
+            # Use checkboxes directly under this heading
+            if heading.text in checkbox_lookup:
+                for checkbox in checkbox_lookup[heading.text]:
+                    self._process_checkbox(
+                        checkbox=checkbox,
+                        parent_task_id=task.id,
+                        created_tasks=created_tasks,
+                    )
+
+            # Process child headings recursively
+            for child in heading.children:
+                await self._process_heading_with_fallback(
+                    heading=child,
+                    parent_task_id=task.id,
+                    checkbox_lookup=checkbox_lookup,
+                    created_tasks=created_tasks,
+                    task_expander=task_expander,
+                )
+        else:
+            # No checkboxes - fall back to LLM expansion
+            if task_expander and heading.content.strip():
+                logger.info(
+                    f"No checkboxes under '{heading.text}', using LLM expansion"
+                )
+                try:
+                    result = await task_expander.expand_task(
+                        task_id=task.id,
+                        title=heading.text,
+                        description=heading.content,
+                        context="Expand this section into actionable tasks. "
+                        "This is from a specification document.",
+                        enable_web_research=False,
+                        enable_code_context=False,
+                    )
+
+                    # Track created subtasks
+                    subtask_ids = result.get("subtask_ids", [])
+                    for subtask_id in subtask_ids:
+                        subtask = self.task_manager.get_task(subtask_id)
+                        if subtask:
+                            created_tasks.append(
+                                CreatedTask(
+                                    id=subtask.id,
+                                    title=subtask.title,
+                                    task_type=subtask.task_type,
+                                    status=subtask.status,
+                                    parent_task_id=task.id,
+                                )
+                            )
+
+                    if result.get("error"):
+                        logger.warning(
+                            f"LLM expansion failed for '{heading.text}': "
+                            f"{result.get('error')}"
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"LLM fallback failed for '{heading.text}': {e}"
+                    )
+            else:
+                # No expander available, still process children (as epics/tasks)
+                for child in heading.children:
+                    await self._process_heading_with_fallback(
+                        heading=child,
+                        parent_task_id=task.id,
+                        checkbox_lookup=checkbox_lookup,
+                        created_tasks=created_tasks,
+                        task_expander=task_expander,
+                    )
+
+        return created_at_level
+
+    def _heading_has_checkboxes(
+        self,
+        heading: HeadingNode,
+        checkbox_lookup: dict[str, list[CheckboxItem]],
+    ) -> bool:
+        """Check if a heading or any of its children have checkboxes.
+
+        Args:
+            heading: HeadingNode to check
+            checkbox_lookup: Mapping of heading text to checkboxes
+
+        Returns:
+            True if heading or any descendant has checkboxes
+        """
+        # Direct checkboxes under this heading
+        if heading.text in checkbox_lookup and checkbox_lookup[heading.text]:
+            return True
+
+        # Check children recursively
+        for child in heading.children:
+            if self._heading_has_checkboxes(child, checkbox_lookup):
+                return True
+
+        return False

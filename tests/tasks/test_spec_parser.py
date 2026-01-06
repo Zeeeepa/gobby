@@ -1313,3 +1313,281 @@ First implementation step.
         # Checkboxes: 6 tasks under their respective headings
         assert result.total_count == 10
         assert len(result.root_task_ids) == 2  # Two phases
+
+
+# =============================================================================
+# LLM Fallback Tests
+# =============================================================================
+
+
+class MockTaskExpander:
+    """Mock TaskExpander for testing LLM fallback."""
+
+    def __init__(self, mock_task_manager: MockTaskManager):
+        self.mock_task_manager = mock_task_manager
+        self.expand_calls: list[dict] = []
+
+    async def expand_task(
+        self,
+        task_id: str,
+        title: str,
+        description: str | None = None,
+        context: str | None = None,
+        enable_web_research: bool = False,
+        enable_code_context: bool = True,
+    ) -> dict:
+        """Mock expand_task that creates predictable subtasks."""
+        self.expand_calls.append({
+            "task_id": task_id,
+            "title": title,
+            "description": description,
+            "context": context,
+        })
+
+        # Create 2 subtasks for each expansion
+        subtask_ids = []
+        for i in range(2):
+            task = self.mock_task_manager.create_task(
+                title=f"Subtask {i+1} for {title}",
+                project_id="test-project",
+                task_type="task",
+                parent_task_id=task_id,
+            )
+            subtask_ids.append(task.id)
+
+        return {
+            "subtask_ids": subtask_ids,
+            "subtask_count": len(subtask_ids),
+        }
+
+
+@pytest.fixture
+def mock_task_expander(mock_task_manager):
+    """Create a MockTaskExpander instance."""
+    return MockTaskExpander(mock_task_manager)
+
+
+class TestBuildFromHeadingsWithFallback:
+    """Tests for TaskHierarchyBuilder.build_from_headings_with_fallback()."""
+
+    @pytest.mark.asyncio
+    async def test_sections_with_checkboxes_no_llm(self, mock_task_manager, mock_task_expander):
+        """Sections with checkboxes should NOT call LLM expansion."""
+        content = """## Phase 1: Setup
+
+### Tasks
+
+- [ ] Install deps
+- [ ] Configure
+"""
+        heading_parser = MarkdownStructureParser()
+        headings = heading_parser.parse(content)
+
+        checkbox_extractor = CheckboxExtractor(track_headings=True, build_hierarchy=True)
+        checkboxes = checkbox_extractor.extract(content)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        result = await builder.build_from_headings_with_fallback(
+            headings, checkboxes, task_expander=mock_task_expander
+        )
+
+        # Should create heading tasks + checkbox tasks, NO LLM calls
+        assert len(mock_task_expander.expand_calls) == 0
+        # Phase 1 (epic) + Tasks (epic) + 2 checkbox tasks
+        assert result.total_count == 4
+
+    @pytest.mark.asyncio
+    async def test_sections_without_checkboxes_uses_llm(self, mock_task_manager, mock_task_expander):
+        """Sections without checkboxes should trigger LLM expansion."""
+        content = """## Phase 1: Design
+
+This phase involves designing the architecture.
+We need to consider scalability and maintainability.
+"""
+        heading_parser = MarkdownStructureParser()
+        headings = heading_parser.parse(content)
+
+        # No checkboxes
+        checkboxes = None
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        result = await builder.build_from_headings_with_fallback(
+            headings, checkboxes, task_expander=mock_task_expander
+        )
+
+        # Should call LLM expansion for the heading
+        assert len(mock_task_expander.expand_calls) == 1
+        assert mock_task_expander.expand_calls[0]["title"] == "Phase 1: Design"
+
+        # Should have the heading task + 2 LLM-created subtasks
+        assert result.total_count == 3
+
+    @pytest.mark.asyncio
+    async def test_mixed_sections_hybrid_approach(self, mock_task_manager, mock_task_expander):
+        """Mixed spec: checkboxes for some sections, LLM for others."""
+        content = """## Phase 1: Implementation
+
+### Explicit Tasks
+
+- [ ] Write unit tests
+- [ ] Write integration tests
+
+### Underspecified Tasks
+
+This section needs decomposition by LLM.
+It has vague requirements.
+
+## Phase 2: Review
+
+Review the implementation.
+Get feedback from stakeholders.
+"""
+        heading_parser = MarkdownStructureParser()
+        headings = heading_parser.parse(content)
+
+        checkbox_extractor = CheckboxExtractor(track_headings=True, build_hierarchy=True)
+        checkboxes = checkbox_extractor.extract(content)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        result = await builder.build_from_headings_with_fallback(
+            headings, checkboxes, task_expander=mock_task_expander
+        )
+
+        # LLM should be called for "Underspecified Tasks" and "Phase 2: Review"
+        assert len(mock_task_expander.expand_calls) == 2
+        expanded_titles = [call["title"] for call in mock_task_expander.expand_calls]
+        assert "Underspecified Tasks" in expanded_titles
+        assert "Phase 2: Review" in expanded_titles
+
+        # "Explicit Tasks" should NOT trigger LLM (has checkboxes)
+        assert "Explicit Tasks" not in expanded_titles
+
+    @pytest.mark.asyncio
+    async def test_no_expander_creates_tasks_without_llm(self, mock_task_manager):
+        """Without task_expander, sections without checkboxes become simple tasks."""
+        content = """## Phase 1: Design
+
+Design the system architecture.
+"""
+        heading_parser = MarkdownStructureParser()
+        headings = heading_parser.parse(content)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        # No task_expander provided
+        result = await builder.build_from_headings_with_fallback(
+            headings, checkboxes=None, task_expander=None
+        )
+
+        # Should create just the heading task, no subtasks
+        assert result.total_count == 1
+        assert mock_task_manager.tasks[0].title == "Phase 1: Design"
+
+    @pytest.mark.asyncio
+    async def test_nested_checkboxes_prevent_llm_for_parent(
+        self, mock_task_manager, mock_task_expander
+    ):
+        """Parent headings with checkboxes in children should not trigger LLM."""
+        content = """## Phase 1
+
+### Child Section
+
+- [ ] Task 1
+- [ ] Task 2
+"""
+        heading_parser = MarkdownStructureParser()
+        headings = heading_parser.parse(content)
+
+        checkbox_extractor = CheckboxExtractor(track_headings=True, build_hierarchy=True)
+        checkboxes = checkbox_extractor.extract(content)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        result = await builder.build_from_headings_with_fallback(
+            headings, checkboxes, task_expander=mock_task_expander
+        )
+
+        # Phase 1 has checkboxes in child, so NO LLM expansion
+        assert len(mock_task_expander.expand_calls) == 0
+
+
+class TestHeadingHasCheckboxes:
+    """Tests for TaskHierarchyBuilder._heading_has_checkboxes()."""
+
+    def test_direct_checkboxes(self, mock_task_manager):
+        """Heading with direct checkboxes returns True."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        heading = HeadingNode(text="Tasks", level=3, line_start=1, line_end=5)
+        checkbox_lookup = {
+            "Tasks": [CheckboxItem("Task 1", False, 2, 0, "- [ ] Task 1")]
+        }
+
+        assert builder._heading_has_checkboxes(heading, checkbox_lookup) is True
+
+    def test_no_checkboxes(self, mock_task_manager):
+        """Heading without checkboxes returns False."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        heading = HeadingNode(text="Design", level=3, line_start=1, line_end=5)
+        checkbox_lookup = {}
+
+        assert builder._heading_has_checkboxes(heading, checkbox_lookup) is False
+
+    def test_checkboxes_in_children(self, mock_task_manager):
+        """Heading with checkboxes in children returns True."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        child = HeadingNode(text="Child Tasks", level=4, line_start=5, line_end=10)
+        parent = HeadingNode(
+            text="Parent",
+            level=3,
+            line_start=1,
+            line_end=10,
+            children=[child],
+        )
+
+        checkbox_lookup = {
+            "Child Tasks": [CheckboxItem("Task 1", False, 6, 0, "- [ ] Task 1")]
+        }
+
+        assert builder._heading_has_checkboxes(parent, checkbox_lookup) is True
+
+    def test_empty_checkbox_list(self, mock_task_manager):
+        """Heading with empty checkbox list returns False."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        heading = HeadingNode(text="Tasks", level=3, line_start=1, line_end=5)
+        checkbox_lookup = {"Tasks": []}  # Empty list
+
+        assert builder._heading_has_checkboxes(heading, checkbox_lookup) is False
