@@ -115,12 +115,8 @@ def start_agent_cmd(
     # Call the daemon's MCP tool endpoint
     try:
         response = httpx.post(
-            f"{daemon_url}/mcp/call_tool",
-            json={
-                "server_name": "gobby-agents",
-                "tool_name": "start_agent",
-                "arguments": arguments,
-            },
+            f"{daemon_url}/mcp/gobby-agents/tools/start_agent",
+            json=arguments,
             timeout=30.0,
         )
         response.raise_for_status()
