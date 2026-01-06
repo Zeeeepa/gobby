@@ -114,7 +114,7 @@ def list_tools(ctx: click.Context, server: str | None, json_format: bool) -> Non
     endpoint = "/mcp/tools"
     if server:
         encoded_server = urllib.parse.quote(server)
-        endpoint = f"/mcp/tools?server={encoded_server}"
+        endpoint = f"/mcp/tools?server_filter={encoded_server}"
 
     result = call_mcp_api(client, endpoint, method="GET")
     if result is None:
