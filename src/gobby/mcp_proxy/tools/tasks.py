@@ -25,6 +25,9 @@ from gobby.mcp_proxy.tools.task_dependencies import (
 from gobby.mcp_proxy.tools.task_expansion import (
     create_expansion_registry,
 )
+from gobby.mcp_proxy.tools.task_readiness import (
+    create_readiness_registry,
+)
 from gobby.mcp_proxy.tools.task_validation import (
     create_validation_registry,
 )
@@ -49,7 +52,7 @@ from gobby.tasks.validation_history import ValidationHistoryManager
 from gobby.utils.project_context import get_project_context
 from gobby.utils.project_init import initialize_project
 
-__all__ = ["create_task_registry", "create_dependency_registry", "create_expansion_registry", "create_validation_registry"]
+__all__ = ["create_task_registry", "create_dependency_registry", "create_expansion_registry", "create_readiness_registry", "create_validation_registry"]
 
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
@@ -2430,6 +2433,13 @@ def create_task_registry(
         dep_manager=dep_manager,
     )
     for tool_name, tool in dependency_registry._tools.items():
+        registry._tools[tool_name] = tool
+
+    # Merge readiness tools from extracted module (Strangler Fig pattern)
+    readiness_registry = create_readiness_registry(
+        task_manager=task_manager,
+    )
+    for tool_name, tool in readiness_registry._tools.items():
         registry._tools[tool_name] = tool
 
     return registry
