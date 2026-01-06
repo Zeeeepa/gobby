@@ -23,6 +23,11 @@ from gobby.agents.context import (
     ContextResolver,
     format_injected_prompt,
 )
+from gobby.agents.registry import (
+    RunningAgent,
+    RunningAgentRegistry,
+    get_running_agent_registry,
+)
 from gobby.agents.spawn import (
     EmbeddedSpawner,
     HeadlessSpawner,
@@ -48,6 +53,7 @@ def create_agents_registry(
     message_manager: LocalSessionMessageManager | None = None,
     context_config: ContextInjectionConfig | None = None,
     get_session_context: Any | None = None,
+    running_registry: RunningAgentRegistry | None = None,
 ) -> InternalToolRegistry:
     """
     Create an agent tool registry with all agent-related tools.
@@ -58,6 +64,7 @@ def create_agents_registry(
         message_manager: Message manager for transcript resolution.
         context_config: Context injection configuration.
         get_session_context: Optional callable returning current session context.
+        running_registry: Optional in-memory registry for running agents.
 
     Returns:
         InternalToolRegistry with all agent tools registered.
@@ -66,6 +73,9 @@ def create_agents_registry(
         name="gobby-agents",
         description="Agent spawning - start, monitor, and manage subagents",
     )
+
+    # Use provided registry or global singleton
+    agent_registry = running_registry or get_running_agent_registry()
 
     # Create context resolver if managers are provided
     context_resolver: ContextResolver | None = None
@@ -297,6 +307,20 @@ def create_agents_registry(
                     "child_session_id": context.session.id,
                 }
 
+            # Register in running agents registry
+            running_agent = RunningAgent(
+                run_id=context.run.id,
+                session_id=context.session.id,
+                parent_session_id=parent_session_id,
+                mode="terminal",
+                pid=spawn_result.pid,
+                terminal_type=spawn_result.terminal_type,
+                provider=effective_provider,
+                workflow_name=workflow,
+                worktree_id=worktree_id,
+            )
+            agent_registry.add(running_agent)
+
             return {
                 "success": True,
                 "run_id": context.run.id,
@@ -331,6 +355,20 @@ def create_agents_registry(
                     "child_session_id": context.session.id,
                 }
 
+            # Register in running agents registry
+            running_agent = RunningAgent(
+                run_id=context.run.id,
+                session_id=context.session.id,
+                parent_session_id=parent_session_id,
+                mode="embedded",
+                pid=spawn_result.pid,
+                master_fd=spawn_result.master_fd,
+                provider=effective_provider,
+                workflow_name=workflow,
+                worktree_id=worktree_id,
+            )
+            agent_registry.add(running_agent)
+
             return {
                 "success": True,
                 "run_id": context.run.id,
@@ -364,6 +402,19 @@ def create_agents_registry(
                     "run_id": context.run.id,
                     "child_session_id": context.session.id,
                 }
+
+            # Register in running agents registry
+            running_agent = RunningAgent(
+                run_id=context.run.id,
+                session_id=context.session.id,
+                parent_session_id=parent_session_id,
+                mode="headless",
+                pid=spawn_result.pid,
+                provider=effective_provider,
+                workflow_name=workflow,
+                worktree_id=worktree_id,
+            )
+            agent_registry.add(running_agent)
 
             return {
                 "success": True,
@@ -467,6 +518,8 @@ def create_agents_registry(
         """
         success = runner.cancel_run(run_id)
         if success:
+            # Also remove from running agents registry
+            agent_registry.remove(run_id)
             return {
                 "success": True,
                 "message": f"Agent run {run_id} cancelled",
@@ -504,6 +557,124 @@ def create_agents_registry(
         return {
             "can_spawn": can_spawn,
             "reason": reason,
+        }
+
+    @registry.tool(
+        name="list_running_agents",
+        description="List all currently running agents (in-memory process state).",
+    )
+    async def list_running_agents(
+        parent_session_id: str | None = None,
+        mode: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        List all currently running agents.
+
+        This returns in-memory process state for agents that are actively running,
+        including PIDs and process handles not stored in the database.
+
+        Args:
+            parent_session_id: Optional filter by parent session.
+            mode: Optional filter by execution mode (terminal, embedded, headless).
+
+        Returns:
+            Dict with list of running agents.
+        """
+        if parent_session_id:
+            agents = agent_registry.list_by_parent(parent_session_id)
+        elif mode:
+            agents = agent_registry.list_by_mode(mode)
+        else:
+            agents = agent_registry.list_all()
+
+        return {
+            "success": True,
+            "agents": [agent.to_dict() for agent in agents],
+            "count": len(agents),
+        }
+
+    @registry.tool(
+        name="get_running_agent",
+        description="Get in-memory process state for a running agent.",
+    )
+    async def get_running_agent(run_id: str) -> dict[str, Any]:
+        """
+        Get the in-memory state for a running agent.
+
+        This returns process information like PID and PTY fd that aren't
+        stored in the database.
+
+        Args:
+            run_id: The agent run ID.
+
+        Returns:
+            Dict with running agent details.
+        """
+        agent = agent_registry.get(run_id)
+        if not agent:
+            return {
+                "success": False,
+                "error": f"No running agent found with ID {run_id}",
+            }
+
+        return {
+            "success": True,
+            "agent": agent.to_dict(),
+        }
+
+    @registry.tool(
+        name="unregister_agent",
+        description="Remove an agent from the in-memory running registry (internal use).",
+    )
+    async def unregister_agent(run_id: str) -> dict[str, Any]:
+        """
+        Remove an agent from the running registry.
+
+        This is typically called automatically when a session ends,
+        but can be called manually for cleanup.
+
+        Args:
+            run_id: The agent run ID to unregister.
+
+        Returns:
+            Dict with success status.
+        """
+        removed = agent_registry.remove(run_id)
+        if removed:
+            return {
+                "success": True,
+                "message": f"Unregistered agent {run_id}",
+            }
+        else:
+            return {
+                "success": False,
+                "error": f"No running agent found with ID {run_id}",
+            }
+
+    @registry.tool(
+        name="running_agent_stats",
+        description="Get statistics about running agents.",
+    )
+    async def running_agent_stats() -> dict[str, Any]:
+        """
+        Get statistics about running agents.
+
+        Returns:
+            Dict with counts by mode and parent.
+        """
+        all_agents = agent_registry.list_all()
+        by_mode: dict[str, int] = {}
+        by_parent: dict[str, int] = {}
+
+        for agent in all_agents:
+            by_mode[agent.mode] = by_mode.get(agent.mode, 0) + 1
+            by_parent[agent.parent_session_id] = by_parent.get(agent.parent_session_id, 0) + 1
+
+        return {
+            "success": True,
+            "total": len(all_agents),
+            "by_mode": by_mode,
+            "by_parent_count": len(by_parent),
         }
 
     return registry

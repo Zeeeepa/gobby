@@ -16,12 +16,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.storage.database import LocalDatabase
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.task_dependencies import TaskDependencyManager
 from gobby.storage.tasks import (
     LocalTaskManager,
 )
+from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.sync.tasks import TaskSyncManager
 from gobby.tasks.commits import auto_link_commits as auto_link_commits_fn
 from gobby.tasks.commits import get_task_diff
@@ -1665,6 +1667,22 @@ def create_task_registry(
             except Exception:
                 pass  # Best-effort linking, don't fail the close
 
+        # Update worktree status based on closure reason
+        try:
+            db = LocalDatabase()
+            worktree_manager = LocalWorktreeManager(db)
+            worktrees = worktree_manager.list(task_id=task_id)
+            for wt in worktrees:
+                if reason in ("wont_fix", "obsolete"):
+                    # Task won't be completed - abandon the worktree
+                    worktree_manager.mark_abandoned(wt.id)
+                elif reason == "completed":
+                    # Task completed - mark worktree as merged (work is done)
+                    worktree_manager.mark_merged(wt.id)
+                # For other reasons (duplicate, already_implemented), leave as-is
+        except Exception:
+            pass  # Best-effort worktree update, don't fail the close
+
         response: dict[str, Any] = closed_task.to_dict()
         response["validated"] = not should_skip
         if no_commit_needed:
@@ -1731,6 +1749,20 @@ def create_task_registry(
         """
         try:
             task = task_manager.reopen_task(task_id, reason=reason)
+
+            # Reactivate any associated worktrees that were marked merged/abandoned
+            try:
+                from gobby.storage.worktrees import WorktreeStatus
+
+                db = LocalDatabase()
+                worktree_manager = LocalWorktreeManager(db)
+                worktrees = worktree_manager.list(task_id=task_id)
+                for wt in worktrees:
+                    if wt.status in (WorktreeStatus.MERGED.value, WorktreeStatus.ABANDONED.value):
+                        worktree_manager.update(wt.id, status=WorktreeStatus.ACTIVE.value)
+            except Exception:
+                pass  # Best-effort worktree update
+
             return task.to_dict()
         except ValueError as e:
             return {"error": str(e)}

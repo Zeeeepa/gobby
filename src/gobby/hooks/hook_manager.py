@@ -34,6 +34,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from gobby.agents.registry import get_running_agent_registry
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.hooks.plugins import PluginLoader, run_plugin_handlers
 from gobby.hooks.webhooks import WebhookDispatcher
@@ -1135,8 +1136,9 @@ class HookManager:
         """
         Complete an agent run when its terminal-mode session ends.
 
-        Updates the agent run status based on session outcome and releases
-        any worktrees associated with the session.
+        Updates the agent run status based on session outcome, removes the
+        agent from the in-memory running registry, and releases any worktrees
+        associated with the session.
 
         Args:
             session: Session object with agent_run_id
@@ -1148,6 +1150,15 @@ class HookManager:
 
         agent_run_id = session.agent_run_id
         self.logger.debug(f"Completing agent run {agent_run_id} for session {session.id}")
+
+        # Remove from in-memory running agents registry
+        try:
+            running_registry = get_running_agent_registry()
+            removed = running_registry.remove(agent_run_id)
+            if removed:
+                self.logger.debug(f"Unregistered running agent {agent_run_id} from registry")
+        except Exception as e:
+            self.logger.warning(f"Failed to unregister agent from running registry: {e}")
 
         try:
             agent_run = self._agent_run_manager.get(agent_run_id)

@@ -227,6 +227,39 @@ class GobbyRunner:
             if self.message_processor:
                 self.message_processor.websocket_server = self.websocket_server
 
+            # Register agent event callback for WebSocket broadcasting
+            self._setup_agent_event_broadcasting()
+
+    def _setup_agent_event_broadcasting(self) -> None:
+        """Set up WebSocket broadcasting for agent lifecycle events."""
+        from gobby.agents.registry import get_running_agent_registry
+
+        if not self.websocket_server:
+            return
+
+        registry = get_running_agent_registry()
+
+        def broadcast_agent_event(event_type: str, run_id: str, data: dict[str, Any]) -> None:
+            """Broadcast agent events via WebSocket (non-blocking)."""
+            if not self.websocket_server:
+                return
+
+            # Create async task to broadcast
+            asyncio.create_task(
+                self.websocket_server.broadcast_agent_event(
+                    event=event_type,
+                    run_id=run_id,
+                    parent_session_id=data.get("parent_session_id", ""),
+                    session_id=data.get("session_id"),
+                    mode=data.get("mode"),
+                    provider=data.get("provider"),
+                    pid=data.get("pid"),
+                )
+            )
+
+        registry.add_event_callback(broadcast_agent_event)
+        logger.debug("Agent event broadcasting enabled")
+
     async def _metrics_cleanup_loop(self) -> None:
         """Background loop for periodic metrics cleanup (every 24 hours)."""
         interval_seconds = 24 * 60 * 60  # 24 hours
