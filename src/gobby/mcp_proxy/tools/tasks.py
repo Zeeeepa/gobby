@@ -2395,4 +2395,17 @@ def create_task_registry(
         func=get_task_diff_tool,
     )
 
+    # Merge validation tools from extracted module (Strangler Fig pattern)
+    # This ensures backwards compatibility - all validation tools remain
+    # accessible via the main task registry while implementation lives
+    # in the task_validation module
+    validation_registry = create_validation_registry(
+        task_manager=task_manager,
+        task_validator=task_validator,
+        project_manager=project_manager,
+        get_project_repo_path=get_project_repo_path,
+    )
+    for tool_name, tool in validation_registry._tools.items():
+        registry._tools[tool_name] = tool
+
     return registry
