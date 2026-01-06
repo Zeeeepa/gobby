@@ -18,6 +18,7 @@ from .sessions import sessions
 from .skills import skills
 from .tasks import tasks
 from .workflows import workflow
+from .worktrees import worktrees
 
 
 @click.group()
@@ -48,6 +49,7 @@ cli.add_command(memory)
 cli.add_command(skills)
 cli.add_command(sessions)
 cli.add_command(agents)
+cli.add_command(worktrees)
 cli.add_command(mcp_proxy)
 cli.add_command(workflow)
 cli.add_command(hooks)
