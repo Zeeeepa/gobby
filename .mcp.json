@@ -1,8 +1,9 @@
 {
   "mcpServers": {
     "gobby": {
-      "type": "http",
-      "url": "http://localhost:8765/mcp"
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "gobby", "mcp-server"]
     }
   }
 }
