@@ -380,6 +380,9 @@ class KittySpawner(TerminalSpawnerBase):
             args = ["kitty", "--detach", "--directory", str(cwd)]
             if title:
                 args.extend(["--title", title])
+            # Add end-of-options separator before the user command
+            # This ensures command arguments starting with '-' are not interpreted as Kitty options
+            args.append("--")
             args.extend(command)
 
             spawn_env = os.environ.copy()
@@ -619,15 +622,12 @@ class CmdSpawner(TerminalSpawnerBase):
         title: str | None = None,
     ) -> SpawnResult:
         try:
-            # Use subprocess.list2cmdline to properly escape command for Windows
-            cmd_str = subprocess.list2cmdline(command)
-            # Quote the cwd path for Windows command line
-            safe_cwd = subprocess.list2cmdline([str(cwd)])
-
-            # Build the command line for start command
-            # start [title] cmd /k "cd /d path && command"
-            # We need to quote the inner command to prevent injection
-            inner_cmd = f"cd /d {safe_cwd} && {cmd_str}"
+            # Build the inner command as a list and convert safely with list2cmdline
+            # This properly escapes all arguments to prevent command injection
+            cd_cmd = ["cd", "/d", str(cwd)]
+            # Build full command list: cd /d path && original_command
+            # list2cmdline handles proper escaping for Windows
+            inner_cmd = subprocess.list2cmdline(cd_cmd) + " && " + subprocess.list2cmdline(command)
 
             args = ["cmd", "/c", "start"]
             if title:
@@ -1081,6 +1081,9 @@ class EmbeddedSpawner:
                 error="Windows does not support Unix PTY",
             )
 
+        master_fd: int | None = None
+        slave_fd: int | None = None
+
         try:
             # Create pseudo-terminal
             master_fd, slave_fd = pty.openpty()
@@ -1096,6 +1099,9 @@ class EmbeddedSpawner:
             if pid == 0:
                 # Child process
                 try:
+                    # Close master fd in child - not needed
+                    os.close(master_fd)
+
                     # Create new session
                     os.setsid()
 
@@ -1104,8 +1110,7 @@ class EmbeddedSpawner:
                     os.dup2(slave_fd, 1)  # stdout
                     os.dup2(slave_fd, 2)  # stderr
 
-                    # Close original fds
-                    os.close(master_fd)
+                    # Close original slave fd after duplication
                     os.close(slave_fd)
 
                     # Change to working directory
@@ -1114,10 +1119,15 @@ class EmbeddedSpawner:
                     # Execute command
                     os.execvpe(command[0], command, spawn_env)
                 except Exception:
+                    # Ensure we exit on any failure
                     os._exit(1)
+
+                # Should never reach here, but just in case
+                os._exit(1)
             else:
-                # Parent process - close slave fd
+                # Parent process - close slave fd (child has its own copy)
                 os.close(slave_fd)
+                slave_fd = None  # Mark as closed
 
                 return EmbeddedPTYResult(
                     success=True,
@@ -1128,6 +1138,17 @@ class EmbeddedSpawner:
                 )
 
         except Exception as e:
+            # Clean up file descriptors on any error
+            if master_fd is not None:
+                try:
+                    os.close(master_fd)
+                except OSError:
+                    pass
+            if slave_fd is not None:
+                try:
+                    os.close(slave_fd)
+                except OSError:
+                    pass
             return EmbeddedPTYResult(
                 success=False,
                 message=f"Failed to spawn embedded PTY: {e}",

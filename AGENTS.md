@@ -1,116 +1,95 @@
-## Task Tracking with Gobby
+# AGENTS.md
 
-**IMPORTANT**: This project uses **Gobby's native task system** for ALL task tracking. Do NOT use markdown TODOs, task lists, or other tracking methods.
+This file provides guidance to AI Agents (Claude Code, Gemini, Codex, etc.) when working with this repository.
 
-### Why Gobby Tasks?
+## Project Overview
 
-- Dependency-aware: Track blockers and relationships between tasks
-- Git-friendly: Auto-syncs to `.gobby/tasks.jsonl` for version control
-- Agent-optimized: MCP tools + JSON output + ready work detection
-- Session-aware: Tasks link to sessions where discovered/worked
-- Multi-CLI support: Works with Claude Code, Gemini CLI, and Codex
+Gobby is a local daemon that unifies Claude Code, Gemini CLI, and Codex through a hook interface for session tracking, and provides an MCP proxy with progressive tool discovery for efficient access to downstream servers.
 
-### Quick Start (MCP Tools)
-
-**Check for ready work:**
-
-```python
-mcp__gobby__call_tool(
-    server_name="gobby-tasks",
-    tool_name="list_ready_tasks",
-    arguments={"limit": 10}
-)
-```
-
-**Create new tasks:**
-
-```python
-mcp__gobby__call_tool(
-    server_name="gobby-tasks",
-    tool_name="create_task",
-    arguments={
-        "title": "Fix authentication bug",
-        "priority": 1,
-        "task_type": "bug"
-    }
-)
-```
-
-**Claim and update:**
-
-```python
-mcp__gobby__call_tool(
-    server_name="gobby-tasks",
-    tool_name="update_task",
-    arguments={"task_id": "gt-abc123", "status": "in_progress"}
-)
-```
-
-**Complete work:**
-
-```python
-mcp__gobby__call_tool(
-    server_name="gobby-tasks",
-    tool_name="close_task",
-    arguments={"task_id": "gt-abc123", "reason": "completed"}
-)
-```
-
-### CLI Commands
+## Development Commands
 
 ```bash
-# List ready work (open tasks with no blocking dependencies)
-gobby tasks list --ready
-
-# Create task
-gobby tasks create "Fix bug" -p 1 -t bug
-
-# Update task
-gobby tasks update gt-abc123 --status in_progress
-
-# Close task
-gobby tasks close gt-abc123 --reason "Fixed"
-
-# Sync with git
-gobby tasks sync
+uv sync                          # Install dependencies (Python 3.11+)
+uv run gobby start --verbose     # Run daemon
+uv run gobby stop                # Stop daemon
+uv run gobby status              # Check status
+uv run gobby install             # Install hooks to project
+uv run pytest                    # Run tests
+uv run ruff check src/ && uv run ruff format src/  # Lint/format
+uv run mypy src/                 # Type check
 ```
 
-### Task Types
+## Architecture
 
-- `bug` - Something broken
-- `feature` - New functionality
-- `task` - Work item (tests, docs, refactoring)
-- `epic` - Large feature with subtasks
-- `chore` - Maintenance (dependencies, tooling)
+### Core Components
 
-### Priorities
+- `src/cli.py` - Click CLI commands
+- `src/runner.py` - Main daemon process
+- `src/servers/http.py` - FastAPI HTTP server
+- `src/mcp_proxy/server.py` - MCP proxy tools
+- `src/mcp_proxy/manager.py` - MCPClientManager for downstream servers
+- `src/hooks/hook_manager.py` - Central hook coordinator
+- `src/sessions/manager.py` - Session tracking
+- `src/storage/` - SQLite storage (database.py, sessions.py, tasks.py, etc.)
+- `src/config/app.py` - YAML config (`~/.gobby/config.yaml`)
 
-- `1` - High (major features, important bugs)
-- `2` - Medium (default)
-- `3` - Low (polish, optimization)
+### Key File Locations
 
-### Workflow for AI Agents
+- Config: `~/.gobby/config.yaml`
+- Database: `~/.gobby/gobby.db`
+- Logs: `~/.gobby/logs/`
+- Project config: `.gobby/project.json`
+- Task sync: `.gobby/tasks.jsonl`
 
-1. **Check ready work**: `list_ready_tasks` shows unblocked tasks
-2. **Claim your task**: `update_task` with `status="in_progress"`
-3. **Work on it**: Implement, test, document
-4. **Discover new work?** Create linked task with `add_dependency`
-5. **Complete**: `close_task` with reason
-6. **Commit together**: Include `.gobby/tasks.jsonl` with code changes
+## MCP Tool Discovery
 
-### Auto-Sync
+Use progressive disclosure to minimize tokens:
 
-Gobby tasks automatically sync:
+1. `list_tools(server="...")` - Brief metadata only
+2. `get_tool_schema(server_name, tool_name)` - Full schema when needed
+3. `call_tool(server_name, tool_name, arguments)` - Execute
 
-- Exports to `.gobby/tasks.jsonl` after changes (5s debounce)
-- Imports from JSONL on daemon start
-- Use `gobby tasks sync` to manually trigger
+### Internal Servers (gobby-*)
+
+| Server | Purpose |
+|--------|---------|
+| `gobby-tasks` | Task CRUD, dependencies, ready work, validation |
+| `gobby-agents` | Subagent spawning with context injection |
+| `gobby-worktrees` | Git worktree management |
+| `gobby-memory` | Persistent memory across sessions |
+| `gobby-skills` | Reusable instruction templates |
+| `gobby-workflows` | Workflow activation, session variables |
+| `gobby-sessions` | Session lookup, handoff context |
+| `gobby-metrics` | Tool metrics and statistics |
+
+Use `get_tool_schema` to look up parameter details for any tool.
+
+## Task Management (gobby-tasks)
+
+### CRITICAL: Workflow Requirement
+
+**Before editing files (Edit/Write), you MUST have a task with `status: in_progress`.** The hook blocks file modifications without an active task.
+
+```python
+# 1. Create task
+call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title": "My task"})
+
+# 2. Set to in_progress BEFORE editing
+call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_id": "gt-xxx", "status": "in_progress"})
+```
+
+### Task Workflow
+
+1. **Start of session**: `list_ready_tasks` or `suggest_next_task`
+2. **New work**: `create_task(title, description)`
+3. **Complex work**: `expand_task` or `expand_from_spec` for subtasks
+4. **Track progress**: `update_task(status="in_progress")`
+5. **Complete work**: Commit with `[task-id]` in message, then `close_task(commit_sha="...")`
 
 ### Available MCP Tools
 
-All accessed via `call_tool(server_name="gobby-tasks", ...)`:
-
 **Task CRUD:**
+
 | Tool | Description |
 |------|-------------|
 | `create_task` | Create a new task |
@@ -123,6 +102,7 @@ All accessed via `call_tool(server_name="gobby-tasks", ...)`:
 | `remove_label` | Remove a label from a task |
 
 **Dependencies:**
+
 | Tool | Description |
 |------|-------------|
 | `add_dependency` | Add dependency between tasks |
@@ -133,6 +113,7 @@ All accessed via `call_tool(server_name="gobby-tasks", ...)`:
 | `list_blocked_tasks` | List blocked tasks |
 
 **Session & Sync:**
+
 | Tool | Description |
 |------|-------------|
 | `link_task_to_session` | Associate task with session |
@@ -142,6 +123,7 @@ All accessed via `call_tool(server_name="gobby-tasks", ...)`:
 | `get_sync_status` | Get sync status |
 
 **LLM Expansion:**
+
 | Tool | Description |
 |------|-------------|
 | `expand_task` | Break task into subtasks with AI |
@@ -151,54 +133,152 @@ All accessed via `call_tool(server_name="gobby-tasks", ...)`:
 | `suggest_next_task` | AI suggests next task to work on |
 
 **Validation:**
+
 | Tool | Description |
 |------|-------------|
 | `validate_task` | Validate task completion |
 | `get_validation_status` | Get validation details |
 | `reset_validation_count` | Reset failure count for retry |
 
+### Task Metadata
+
+**Task Types:**
+
+- `bug` - Something broken
+- `feature` - New functionality
+- `task` - Work item (tests, docs, refactoring)
+- `epic` - Large feature with subtasks
+- `chore` - Maintenance (dependencies, tooling)
+
+**Priorities:**
+
+- `1` - High (major features, important bugs)
+- `2` - Medium (default)
+- `3` - Low (polish, optimization)
+
+### IMPORTANT: Closing Tasks
+
+- **Always commit first**, then close with `commit_sha`
+- If `close_task` errors about missing commits, commit the changes
+- `no_commit_needed=true` is ONLY for non-code tasks (research, planning)
+- Never fabricate `override_justification`
+
+### Spec Documents
+
+When creating tasks from a spec/PRD/design doc, use `expand_from_spec(spec_path)` - do NOT manually iterate. It ensures TDD pairs and proper dependencies.
+
+### Commit Linking
+
+Include task ID in commit messages for auto-linking:
+
+- `[gt-abc123] feat: add feature` (recommended)
+- `gt-abc123: fix bug`
+
+## Session Handoff
+
+On `/compact`, Gobby extracts continuation context (git state, tool calls, todo state) and injects it on next session start. Look for `## Continuation Context` blocks.
+
+For CLIs without hooks, use `gobby-sessions.pickup()` to restore context.
+
+## Agent Spawning (gobby-agents)
+
+Spawn subagents with context injection:
+
+```python
+call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
+    "prompt": "Implement the feature",
+    "mode": "terminal",  # or in_process, embedded, headless
+    "workflow": "plan-execute",
+    "parent_session_id": "sess-abc",
+    "session_context": "summary_markdown" # default
+})
+```
+
+**Context sources** (`session_context` param):
+
+- `summary_markdown`: Parent session's summary (default)
+- `compact_markdown`: Handoff context
+- `transcript:N`: Last N messages from transcript
+- `file:path`: Content of a file in the project
+
+**Safety**: Agent depth limited (default 3), tools filtered per workflow step.
+
+## Worktree Management (gobby-worktrees)
+
+Create isolated git worktrees for parallel development:
+
+```python
+# Create worktree + spawn agent in one call
+call_tool(server_name="gobby-worktrees", tool_name="spawn_agent_in_worktree", arguments={
+    "prompt": "Implement auth",
+    "branch_name": "feature/auth",
+    "task_id": "gt-abc123",
+    "mode": "terminal",
+})
+```
+
+Statuses: `active` → `stale` → `merged` → `abandoned`
+
+## Workflows
+
+Step-based workflows enforce tool restrictions:
+
+```bash
+uv run gobby workflow list       # Available workflows
+uv run gobby workflow set NAME   # Activate workflow
+uv run gobby workflow status     # Current state
+```
+
+Built-in: `plan-execute`, `test-driven`, `plan-act-reflect`
+
+When active, `list_tools()` returns only allowed tools for current step.
+
+### Session Variables
+
+```python
+# Link session to parent task (enforced by stop hook)
+call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
+    "name": "session_task",
+    "value": "gt-abc123"
+})
+```
+
+## Memory & Skills
+
+**Memory** (`gobby-memory`): `remember`, `recall`, `forget` - persistent facts across sessions
+
+**Skills** (`gobby-skills`): `create_skill`, `apply_skill`, `match_skills` - reusable instructions
+
+## Hook Events
+
+| Event | Description |
+|-------|-------------|
+| `session_start/end` | Session lifecycle |
+| `before_tool/after_tool` | Tool execution (can block) |
+| `stop` | Agent stop (can block) |
+| `pre_compact` | Before context compaction |
+
+Plugins: `~/.gobby/plugins/` or `.gobby/plugins/`
+
+## Planning & Documentation
+
 ### Managing AI-Generated Planning Documents
 
-AI assistants often create planning and design documents during development:
+AI assistants often create planning and design documents (PLAN.md, IMPLEMENTATION.md, etc.).
 
-- PLAN.md, IMPLEMENTATION.md, ARCHITECTURE.md
-- DESIGN.md, CODEBASE_SUMMARY.md, INTEGRATION_PLAN.md
-- TESTING_GUIDE.md, TECHNICAL_DESIGN.md, and similar files
-
-**Best Practice: Use a dedicated directory for these ephemeral files**
-
-**Recommended approach:**
+**Best Practice: Use a dedicated directory**
 
 - Create a `history/` directory in the project root
 - Store ALL AI-generated planning/design docs in `history/`
-- Keep the repository root clean and focused on permanent project files
+- Keep the repository root clean
 - Only access `history/` when explicitly asked to review past planning
 
-**Example .gitignore entry (optional):**
+## Testing
 
+```bash
+uv run pytest                    # All tests
+uv run pytest tests/file.py -v   # Single file
+uv run pytest -m "not slow"      # Skip slow tests
 ```
-# AI planning documents (ephemeral)
-history/
-```
 
-**Benefits:**
-
-- Clean repository root
-- Clear separation between ephemeral and permanent documentation
-- Easy to exclude from version control if desired
-- Preserves planning history for archeological research
-- Reduces noise when browsing the project
-
-### Important Rules
-
-- Use gobby tasks for ALL task tracking
-- Use MCP tools (`gobby-tasks`) for programmatic access
-- Check `list_ready_tasks` before asking "what should I work on?"
-- Store AI planning docs in `history/` directory
-- Do NOT create markdown TODO lists
-- Do NOT use external issue trackers
-- Do NOT duplicate tracking systems
-- Do NOT clutter repo root with planning documents
-- ALWAYS use `uv run` for python commands (never `python` or `pytest` directly)
-
-For more details, see [README.md](README.md) and [MCP_TOOLS.md](MCP_TOOLS.md).
+Coverage threshold: 80%. Markers: `slow`, `integration`, `e2e`

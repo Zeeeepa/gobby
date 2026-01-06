@@ -159,8 +159,8 @@ class RunningAgent:
     run_id: str
     """The agent run ID from the database."""
 
-    parent_session_id: str
-    """Session that spawned this agent."""
+    parent_session_id: str | None
+    """Session that spawned this agent (None if not tracked)."""
 
     child_session_id: str
     """Child session created for this agent."""
@@ -512,9 +512,11 @@ class AgentRunner:
         )
 
         # Track in memory for real-time status
+        # Note: parent_session_id is guaranteed non-None here because execute_run
+        # is only called after prepare_run validates it
         self._track_running_agent(
             run_id=agent_run.id,
-            parent_session_id=config.parent_session_id or "",
+            parent_session_id=config.parent_session_id,
             child_session_id=child_session.id,
             provider=config.provider,
             prompt=config.prompt,
@@ -717,7 +719,7 @@ class AgentRunner:
     def _track_running_agent(
         self,
         run_id: str,
-        parent_session_id: str,
+        parent_session_id: str | None,
         child_session_id: str,
         provider: str,
         prompt: str,
