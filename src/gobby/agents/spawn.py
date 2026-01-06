@@ -325,6 +325,7 @@ class ITermSpawner(TerminalSpawnerBase):
                     if k.isidentifier():
                         script_content += f"export {k}={shlex.quote(v)}\n"
             script_content += shlex.join(command) + "\n"
+            script_content += "exit\n"  # Exit shell so terminal window closes
 
             # Create temp script file
             script_dir = Path(tempfile.gettempdir()) / "gobby-scripts"
