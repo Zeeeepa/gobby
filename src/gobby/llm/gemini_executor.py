@@ -201,27 +201,24 @@ class GeminiExecutor(AgentExecutor):
             # Start chat
             chat = model_instance.start_chat()
 
-            # Initial message
-            current_message = prompt
+            # Send initial message
+            try:
+                response = await chat.send_message_async(prompt)
+            except Exception as e:
+                self.logger.error(f"Gemini API error: {e}")
+                return AgentResult(
+                    output="",
+                    status="error",
+                    tool_calls=tool_calls,
+                    error=f"Gemini API error: {e}",
+                    turns_used=0,
+                )
 
             while turns_used < max_turns:
                 turns_used += 1
                 turns_counter[0] = turns_used
 
-                try:
-                    # Send message to Gemini
-                    response = await chat.send_message_async(current_message)
-                except Exception as e:
-                    self.logger.error(f"Gemini API error: {e}")
-                    return AgentResult(
-                        output="",
-                        status="error",
-                        tool_calls=tool_calls,
-                        error=f"Gemini API error: {e}",
-                        turns_used=turns_used,
-                    )
-
-                # Process response
+                # Extract function calls and text from response
                 function_calls: list[dict[str, Any]] = []
 
                 for candidate in response.candidates:
@@ -270,7 +267,8 @@ class GeminiExecutor(AgentExecutor):
 
                         # Format result for Gemini
                         if result.success:
-                            response_data = result.result if result.result else {"status": "success"}
+                            # Use 'is not None' to preserve legitimate falsy values like 0, False, {}
+                            response_data = result.result if result.result is not None else {"status": "success"}
                         else:
                             response_data = {"error": result.error}
 
@@ -303,37 +301,8 @@ class GeminiExecutor(AgentExecutor):
                 # Send function responses back to Gemini
                 try:
                     response = await chat.send_message_async(function_responses)
-
-                    # Extract text from response
-                    for candidate in response.candidates:
-                        for part in candidate.content.parts:
-                            if hasattr(part, "text") and part.text:
-                                final_output = part.text
-                            # Check if there are more function calls
-                            if hasattr(part, "function_call") and part.function_call:
-                                # There are more function calls, continue the loop
-                                # We'll handle them in the next iteration
-                                break
-
-                    # Check if response has more function calls
-                    has_more_calls = any(
-                        hasattr(part, "function_call") and part.function_call
-                        for candidate in response.candidates
-                        for part in candidate.content.parts
-                    )
-
-                    if not has_more_calls:
-                        return AgentResult(
-                            output=final_output,
-                            status="success",
-                            tool_calls=tool_calls,
-                            turns_used=turns_used,
-                        )
-
-                    # Continue with the response (will be processed in next iteration)
-                    # The chat history already contains the function response
-                    current_message = ""  # Empty message to continue
-
+                    # Response will be processed in the next iteration of the while loop
+                    # which extracts function calls and text directly from the response object
                 except Exception as e:
                     self.logger.error(f"Error sending function response: {e}")
                     return AgentResult(

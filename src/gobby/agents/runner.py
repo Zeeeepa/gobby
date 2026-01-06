@@ -103,6 +103,9 @@ class AgentConfig:
     project_path: str | None = None
     """Project path for loading project-specific workflows."""
 
+    context_injected: bool = False
+    """Whether context was successfully injected into the prompt."""
+
     def get_effective_workflow(self) -> str | None:
         """Get the workflow name, preferring 'workflow' over legacy 'workflow_name'."""
         return self.workflow or self.workflow_name
@@ -436,7 +439,7 @@ class AgentRunner:
             session_id=child_session.id,
             workflow_name=effective_workflow,
             agent_run_id=agent_run.id,
-            context_injected=False,  # Will be set to True when context is injected
+            context_injected=config.context_injected,
             original_prompt=config.prompt,
         )
 

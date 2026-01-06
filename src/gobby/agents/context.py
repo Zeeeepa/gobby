@@ -350,8 +350,9 @@ def format_injected_prompt(
     if "{{ context }}" not in effective_template and "{{ prompt }}" not in effective_template:
         try:
             result = effective_template.format(context=context, prompt=prompt)
-        except KeyError:
-            # If format fails due to missing placeholders, return as-is
+        except (KeyError, IndexError):
+            # If format fails due to missing placeholders or positional braces like {0},
+            # return as-is
             pass
 
     return result

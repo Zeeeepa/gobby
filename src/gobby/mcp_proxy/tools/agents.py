@@ -197,6 +197,7 @@ def create_agents_registry(
 
         # Resolve context and inject into prompt
         effective_prompt = prompt
+        context_was_injected = False
         if context_resolver and context_enabled and session_context:
             try:
                 # Update resolver's project path for file resolution
@@ -209,6 +210,7 @@ def create_agents_registry(
                     effective_prompt = format_injected_prompt(
                         resolved_context, prompt, template=context_template
                     )
+                    context_was_injected = True
                     logger.info(
                         f"Injected context from '{session_context}' into agent prompt "
                         f"({len(resolved_context)} chars)"
@@ -238,6 +240,7 @@ def create_agents_registry(
             max_turns=max_turns,
             timeout=timeout,
             project_path=project_path,
+            context_injected=context_was_injected,
         )
 
         # Handle different execution modes
