@@ -6,6 +6,7 @@ import click
 
 from gobby.config.app import load_config
 
+from .agents import agents
 from .daemon import restart, start, status, stop
 from .extensions import hooks, plugins, webhooks
 from .init import init
@@ -46,6 +47,7 @@ cli.add_command(tasks)
 cli.add_command(memory)
 cli.add_command(skills)
 cli.add_command(sessions)
+cli.add_command(agents)
 cli.add_command(mcp_proxy)
 cli.add_command(workflow)
 cli.add_command(hooks)
