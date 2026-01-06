@@ -634,11 +634,11 @@ class LocalTaskManager:
                 (new_description if reason else task.description, now, task_id),
             )
 
-            # Reactivate any merged worktrees for this task
+            # Reactivate any merged or abandoned worktrees for this task
             try:
                 conn.execute(
                     """UPDATE worktrees SET status = 'active', updated_at = ?
-                    WHERE task_id = ? AND status = 'merged'""",
+                    WHERE task_id = ? AND status IN ('merged', 'abandoned')""",
                     (now, task_id),
                 )
             except Exception as wt_err:

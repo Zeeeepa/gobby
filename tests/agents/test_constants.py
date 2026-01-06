@@ -27,6 +27,8 @@ class TestEnvironmentVariableConstants:
         assert isinstance(GOBBY_PROJECT_ID, str)
         assert isinstance(GOBBY_AGENT_DEPTH, str)
         assert isinstance(GOBBY_MAX_AGENT_DEPTH, str)
+        assert isinstance(GOBBY_PROMPT, str)
+        assert isinstance(GOBBY_PROMPT_FILE, str)
 
     def test_constants_are_uppercase(self):
         """All constants follow ENV_VAR naming convention."""

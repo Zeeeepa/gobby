@@ -248,7 +248,8 @@ class LiteLLMExecutor(AgentExecutor):
 
                         # Format result for LiteLLM
                         if result.success:
-                            content = json.dumps(result.result) if result.result else "Success"
+                            # Use explicit None check to handle valid falsy values (0, False, "", {}, etc.)
+                            content = json.dumps(result.result) if result.result is not None else "Success"
                         else:
                             content = f"Error: {result.error}"
 

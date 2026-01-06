@@ -245,8 +245,17 @@ class GobbyRunner:
             if not self.websocket_server:
                 return
 
-            # Create async task to broadcast
-            asyncio.create_task(
+            def _log_broadcast_exception(task: asyncio.Task[None]) -> None:
+                """Log exceptions from broadcast task to avoid silent failures."""
+                try:
+                    task.result()
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to broadcast agent event {event_type}: {e}")
+
+            # Create async task to broadcast and attach exception callback
+            task = asyncio.create_task(
                 self.websocket_server.broadcast_agent_event(
                     event=event_type,
                     run_id=run_id,
@@ -257,6 +266,7 @@ class GobbyRunner:
                     pid=data.get("pid"),
                 )
             )
+            task.add_done_callback(_log_broadcast_exception)
 
         registry.add_event_callback(broadcast_agent_event)
         logger.debug("Agent event broadcasting enabled")

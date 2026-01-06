@@ -140,7 +140,7 @@ class TestWorktreeCreation:
             worktree_path="/tmp/worktrees/three",
         )
 
-        assert worktree1.id != worktree2.id != worktree3.id
+        assert len({worktree1.id, worktree2.id, worktree3.id}) == 3
 
         # All should be retrievable
         all_worktrees = worktree_manager.list(project_id=project.id)

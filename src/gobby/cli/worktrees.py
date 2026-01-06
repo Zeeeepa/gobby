@@ -164,9 +164,9 @@ def show_worktree(worktree_id: str, json_format: bool) -> None:
         return
 
     click.echo(f"Worktree: {worktree.id}")
-    click.echo(f"Status: {worktree.status}")
-    click.echo(f"Branch: {worktree.branch_name}")
-    click.echo(f"Path: {worktree.worktree_path}")
+    click.echo(f"  Status: {worktree.status}")
+    click.echo(f"  Branch: {worktree.branch_name}")
+    click.echo(f"  Path: {worktree.worktree_path}")
     click.echo(f"Base Branch: {worktree.base_branch}")
     if worktree.project_id:
         click.echo(f"Project: {worktree.project_id}")

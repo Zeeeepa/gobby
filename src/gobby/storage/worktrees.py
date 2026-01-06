@@ -211,19 +211,40 @@ class LocalWorktreeManager:
         )
         return [Worktree.from_row(row) for row in rows]
 
+    # Allowlist of valid worktree column names to prevent SQL injection
+    _VALID_UPDATE_FIELDS = frozenset({
+        "branch_name",
+        "base_branch",
+        "worktree_path",
+        "status",
+        "agent_session_id",
+        "task_id",
+        "last_activity_at",
+        "updated_at",
+        "merged_at",
+    })
+
     def update(self, worktree_id: str, **fields: Any) -> Worktree | None:
         """
         Update worktree fields.
 
         Args:
             worktree_id: Worktree ID to update
-            **fields: Fields to update
+            **fields: Fields to update (must be valid column names)
 
         Returns:
             Updated Worktree or None if not found
+
+        Raises:
+            ValueError: If any field name is not in the allowlist
         """
         if not fields:
             return self.get(worktree_id)
+
+        # Validate field names against allowlist to prevent SQL injection
+        invalid_fields = set(fields.keys()) - self._VALID_UPDATE_FIELDS
+        if invalid_fields:
+            raise ValueError(f"Invalid field names: {invalid_fields}")
 
         # Add updated_at timestamp
         fields["updated_at"] = datetime.now(UTC).isoformat()

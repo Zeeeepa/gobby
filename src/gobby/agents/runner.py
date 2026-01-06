@@ -546,12 +546,17 @@ class AgentRunner:
             handler = base_handler
 
         # Track tool calls to preserve partial progress info on exception
+        # Note: Each tool call within a turn counts separately. The executor's
+        # run() method handles turns, but we track tool calls for monitoring.
         tool_calls_made = 0
         turns_made = 0
 
         async def tracking_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
             nonlocal tool_calls_made, turns_made
             tool_calls_made += 1
+            # Increment turns_made - each tool call represents activity within a turn
+            # The actual turn count is managed by the executor, but we track progress here
+            turns_made += 1
             # Update in-memory state for real-time monitoring
             self._update_running_agent(
                 agent_run.id,

@@ -330,6 +330,19 @@ class RunningAgentRegistry:
                     self._agents.pop(run_id)
                     removed.append(agent)
                     self._logger.info(f"Cleaned up agent {run_id} with dead PID {agent.pid}")
+        # Emit events outside lock for each removed agent
+        for agent in removed:
+            self._emit_event(
+                "agent_completed",
+                agent.run_id,
+                {
+                    "session_id": agent.session_id,
+                    "parent_session_id": agent.parent_session_id,
+                    "mode": agent.mode,
+                    "provider": agent.provider,
+                    "cleanup_reason": "dead_pid",
+                },
+            )
         return removed
 
     def cleanup_stale(self, max_age_seconds: float = 3600.0) -> list[RunningAgent]:
@@ -351,6 +364,19 @@ class RunningAgentRegistry:
                     self._agents.pop(run_id)
                     removed.append(agent)
                     self._logger.info(f"Cleaned up stale agent {run_id} (age={age:.0f}s)")
+        # Emit events outside lock for each removed agent
+        for agent in removed:
+            self._emit_event(
+                "agent_timeout",
+                agent.run_id,
+                {
+                    "session_id": agent.session_id,
+                    "parent_session_id": agent.parent_session_id,
+                    "mode": agent.mode,
+                    "provider": agent.provider,
+                    "cleanup_reason": "stale",
+                },
+            )
         return removed
 
     def clear(self) -> int:

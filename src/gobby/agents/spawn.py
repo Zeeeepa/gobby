@@ -7,6 +7,7 @@ import logging
 import os
 import platform
 import pty
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -14,7 +15,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any
 
 from gobby.agents.constants import get_terminal_env_vars
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
@@ -170,8 +171,10 @@ class GhosttySpawner(TerminalSpawnerBase):
         title: str | None = None,
     ) -> SpawnResult:
         try:
-            # Build ghostty command
-            args = ["ghostty", "-e", " ".join(command)]
+            # Build ghostty command with properly quoted command string
+            # shlex.join safely quotes arguments with spaces/special characters
+            cmd_str = shlex.join(command)
+            args = ["ghostty", "-e", cmd_str]
             if title:
                 args.extend(["--title", title])
 
@@ -223,20 +226,40 @@ class ITermSpawner(TerminalSpawnerBase):
         title: str | None = None,
     ) -> SpawnResult:
         try:
-            # Build AppleScript for iTerm
-            cmd_str = " ".join(command)
+            # Build AppleScript for iTerm with proper escaping
+            # Shell-quote the command to prevent injection
+            cmd_str = shlex.join(command)
+
+            # Shell-quote environment variable assignments
             env_exports = ""
             if env:
-                env_exports = " ".join(f'export {k}="{v}";' for k, v in env.items())
+                # Quote both keys and values to prevent injection
+                exports = []
+                for k, v in env.items():
+                    # Validate key is a valid shell variable name
+                    if k.isidentifier():
+                        exports.append(f"export {k}={shlex.quote(v)};")
+                env_exports = " ".join(exports)
 
-            script = f"""
+            # Quote cwd for shell
+            safe_cwd = shlex.quote(str(cwd))
+
+            # Escape special characters for AppleScript string
+            # AppleScript uses backslash escaping for quotes and backslashes
+            def escape_applescript(s: str) -> str:
+                return s.replace("\\", "\\\\").replace('"', '\\"')
+
+            shell_command = f"cd {safe_cwd} && {env_exports} {cmd_str}"
+            safe_shell_command = escape_applescript(shell_command)
+
+            script = f'''
             tell application "iTerm"
                 create window with default profile
                 tell current session of current window
-                    write text "cd {cwd} && {env_exports} {cmd_str}"
+                    write text "{safe_shell_command}"
                 end tell
             end tell
-            """
+            '''
 
             process = subprocess.Popen(
                 ["osascript", "-e", script],
@@ -278,17 +301,38 @@ class TerminalAppSpawner(TerminalSpawnerBase):
         title: str | None = None,
     ) -> SpawnResult:
         try:
-            cmd_str = " ".join(command)
+            # Build AppleScript for Terminal.app with proper escaping
+            # Shell-quote the command to prevent injection
+            cmd_str = shlex.join(command)
+
+            # Shell-quote environment variable assignments
             env_exports = ""
             if env:
-                env_exports = " ".join(f'export {k}="{v}";' for k, v in env.items())
+                # Quote both keys and values to prevent injection
+                exports = []
+                for k, v in env.items():
+                    # Validate key is a valid shell variable name
+                    if k.isidentifier():
+                        exports.append(f"export {k}={shlex.quote(v)};")
+                env_exports = " ".join(exports)
 
-            script = f"""
+            # Quote cwd for shell
+            safe_cwd = shlex.quote(str(cwd))
+
+            # Escape special characters for AppleScript string
+            # AppleScript uses backslash escaping for quotes and backslashes
+            def escape_applescript(s: str) -> str:
+                return s.replace("\\", "\\\\").replace('"', '\\"')
+
+            shell_command = f"cd {safe_cwd} && {env_exports} {cmd_str}"
+            safe_shell_command = escape_applescript(shell_command)
+
+            script = f'''
             tell application "Terminal"
-                do script "cd {cwd} && {env_exports} {cmd_str}"
+                do script "{safe_shell_command}"
                 activate
             end tell
-            """
+            '''
 
             process = subprocess.Popen(
                 ["osascript", "-e", script],
@@ -570,11 +614,25 @@ class CmdSpawner(TerminalSpawnerBase):
         title: str | None = None,
     ) -> SpawnResult:
         try:
-            cmd_str = " ".join(command)
+            # Use subprocess.list2cmdline to properly escape command for Windows
+            cmd_str = subprocess.list2cmdline(command)
+            # Quote the cwd path for Windows command line
+            safe_cwd = subprocess.list2cmdline([str(cwd)])
+
+            # Build the command line for start command
+            # start [title] cmd /k "cd /d path && command"
+            # We need to quote the inner command to prevent injection
+            inner_cmd = f'cd /d {safe_cwd} && {cmd_str}'
+
             args = ["cmd", "/c", "start"]
             if title:
-                args.append(title)
-            args.extend(["cmd", "/k", f"cd /d {cwd} && {cmd_str}"])
+                # Title must be quoted if it contains spaces
+                args.append(subprocess.list2cmdline([title]))
+            # Use empty title if none provided (required for start command when path is quoted)
+            else:
+                args.append('""')
+            # Pass the inner command as a single argument to cmd /k
+            args.extend(["cmd", "/k", inner_cmd])
 
             spawn_env = os.environ.copy()
             if env:
