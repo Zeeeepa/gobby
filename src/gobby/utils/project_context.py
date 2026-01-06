@@ -45,8 +45,15 @@ def get_project_context(cwd: Path | None = None) -> dict[str, Any] | None:
         cwd: Current working directory to start search from.
 
     Returns:
-        Dictionary containing project data (id, name, etc.) and 'project_path',
+        Dictionary containing project data (id, name, verification, etc.) and 'project_path',
         or None if not found.
+
+        The returned dict may include:
+        - id: Project ID
+        - name: Project name
+        - created_at: Creation timestamp
+        - project_path: Path to project root
+        - verification: Optional dict with unit_tests, type_check, lint, integration, custom
     """
     root = find_project_root(cwd)
     if not root:

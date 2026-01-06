@@ -1562,6 +1562,10 @@ class DaemonConfig(BaseModel):
         default_factory=MetricsConfig,
         description="Metrics and status endpoint configuration",
     )
+    verification_defaults: ProjectVerificationConfig = Field(
+        default_factory=ProjectVerificationConfig,
+        description="Default verification commands for projects without auto-detected config",
+    )
 
     def get_code_execution_config(self) -> CodeExecutionConfig:
         """Get code execution configuration."""
@@ -1606,6 +1610,10 @@ class DaemonConfig(BaseModel):
     def get_metrics_config(self) -> MetricsConfig:
         """Get metrics configuration."""
         return self.metrics
+
+    def get_verification_defaults(self) -> ProjectVerificationConfig:
+        """Get default verification commands configuration."""
+        return self.verification_defaults
 
     @field_validator("daemon_port")
     @classmethod
