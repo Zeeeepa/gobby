@@ -210,8 +210,9 @@ def install_claude(project_path: Path) -> dict[str, Any]:
         result["error"] = f"Failed to write settings.json: {e}"
         return result
 
-    # Configure MCP server in global settings (~/.claude/settings.json)
-    global_settings = Path.home() / ".claude" / "settings.json"
+    # Configure MCP server in global settings (~/.claude.json)
+    # Note: Claude Code uses ~/.claude.json for user-scoped MCP servers
+    global_settings = Path.home() / ".claude.json"
     mcp_result = configure_mcp_server_json(global_settings)
     if mcp_result["success"]:
         result["mcp_configured"] = mcp_result.get("added", False)
@@ -358,8 +359,8 @@ def uninstall_claude(project_path: Path) -> dict[str, Any]:
                     shutil.rmtree(target_skill_dir)
                     skills_removed.append(skill_dir.name)
 
-    # Remove MCP server from global settings (~/.claude/settings.json)
-    global_settings = Path.home() / ".claude" / "settings.json"
+    # Remove MCP server from global settings (~/.claude.json)
+    global_settings = Path.home() / ".claude.json"
     mcp_result = remove_mcp_server_json(global_settings)
     if mcp_result["success"]:
         result["mcp_removed"] = mcp_result.get("removed", False)

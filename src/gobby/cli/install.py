@@ -245,9 +245,9 @@ def install(
                 for plugin in result["plugins_installed"]:
                     click.echo(f"  - {plugin}")
             if result.get("mcp_configured"):
-                click.echo("Configured MCP server: ~/.claude/settings.json")
+                click.echo("Configured MCP server: ~/.claude.json")
             elif result.get("mcp_already_configured"):
-                click.echo("MCP server already configured: ~/.claude/settings.json")
+                click.echo("MCP server already configured: ~/.claude.json")
             click.echo(f"Configuration: {project_path / '.claude' / 'settings.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)

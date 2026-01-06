@@ -93,7 +93,7 @@ After starting the daemon, configure your AI CLI to connect to Gobby's MCP serve
 
 ### Claude Code
 
-Add to `.mcp.json` (project) or `~/.claude/settings.json` (global):
+Add to `.mcp.json` (project) or `~/.claude.json` (global):
 
 ```json
 {
