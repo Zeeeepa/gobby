@@ -316,44 +316,34 @@ class ITermSpawner(TerminalSpawnerBase):
         title: str | None = None,
     ) -> SpawnResult:
         try:
-            # Build AppleScript for iTerm with proper escaping
-            # Shell-quote the command to prevent injection
-            cmd_str = shlex.join(command)
-
-            # Shell-quote environment variable assignments
-            env_exports = ""
+            # Write command to a temp script to avoid escaping issues
+            # This is the most reliable way to pass complex commands to iTerm
+            script_content = "#!/bin/bash\n"
+            script_content += f"cd {shlex.quote(str(cwd))}\n"
             if env:
-                # Quote both keys and values to prevent injection
-                exports = []
                 for k, v in env.items():
-                    # Validate key is a valid shell variable name
                     if k.isidentifier():
-                        exports.append(f"export {k}={shlex.quote(v)};")
-                env_exports = " ".join(exports)
+                        script_content += f"export {k}={shlex.quote(v)}\n"
+            script_content += shlex.join(command) + "\n"
 
-            # Quote cwd for shell
-            safe_cwd = shlex.quote(str(cwd))
+            # Create temp script file
+            script_dir = Path(tempfile.gettempdir()) / "gobby-scripts"
+            script_dir.mkdir(parents=True, exist_ok=True)
+            script_path = script_dir / f"iterm-{os.getpid()}-{id(command)}.sh"
+            script_path.write_text(script_content)
+            script_path.chmod(0o755)
 
-            # Escape special characters for AppleScript string
-            # AppleScript uses backslash escaping for quotes and backslashes
-            def escape_applescript(s: str) -> str:
-                return s.replace("\\", "\\\\").replace('"', '\\"')
-
-            shell_command = f"cd {safe_cwd} && {env_exports} {cmd_str}"
-            safe_shell_command = escape_applescript(shell_command)
-
-            # Use 'create window with default profile command' to execute the command
-            # directly when creating the window. This avoids timing issues with 'write text'
-            # and ensures exactly one window with one command execution.
-            script = f'''
+            # Use 'create window with default profile command' with the script path
+            # This avoids all escaping issues with complex shell commands
+            applescript = f'''
             tell application "iTerm"
                 activate
-                create window with default profile command "{safe_shell_command}"
+                create window with default profile command "{script_path}"
             end tell
             '''
 
             process = subprocess.Popen(
-                ["osascript", "-e", script],
+                ["osascript", "-e", applescript],
                 start_new_session=True,
             )
 
