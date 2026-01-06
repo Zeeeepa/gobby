@@ -1187,9 +1187,13 @@ class MemoryConfig(BaseModel):
         default=True,
         description="Use semantic (embedding-based) search for memory recall",
     )
+    embedding_provider: str = Field(
+        default="openai",
+        description="Provider for embedding generation (openai, litellm)",
+    )
     embedding_model: str = Field(
         default="text-embedding-3-small",
-        description="OpenAI embedding model for semantic search",
+        description="Model to use for memory embedding generation",
     )
     auto_embed: bool = Field(
         default=True,
