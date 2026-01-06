@@ -1,10 +1,11 @@
 """Tests for AgentRunner and AgentRunContext."""
 
+from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from gobby.agents.runner import AgentConfig, AgentRunContext, AgentRunner
+from gobby.agents.runner import AgentConfig, AgentRunContext, AgentRunner, RunningAgent
 from gobby.llm.executor import AgentResult
 
 
@@ -534,3 +535,249 @@ class TestAgentRunnerTerminalPickupMetadata:
             context_injected=False,
             original_prompt="Legacy workflow task",
         )
+
+
+class TestRunningAgent:
+    """Tests for RunningAgent dataclass."""
+
+    def test_create_running_agent(self):
+        """RunningAgent stores all fields correctly."""
+        now = datetime.now()
+        agent = RunningAgent(
+            run_id="run-123",
+            parent_session_id="sess-parent",
+            child_session_id="sess-child",
+            provider="claude",
+            prompt="Test prompt",
+            started_at=now,
+            workflow_name="plan-execute",
+            model="opus",
+            worktree_id="wt-abc",
+            mode="terminal",
+            pid=12345,
+        )
+
+        assert agent.run_id == "run-123"
+        assert agent.parent_session_id == "sess-parent"
+        assert agent.child_session_id == "sess-child"
+        assert agent.provider == "claude"
+        assert agent.prompt == "Test prompt"
+        assert agent.started_at == now
+        assert agent.workflow_name == "plan-execute"
+        assert agent.model == "opus"
+        assert agent.worktree_id == "wt-abc"
+        assert agent.mode == "terminal"
+        assert agent.pid == 12345
+
+    def test_running_agent_defaults(self):
+        """RunningAgent has correct default values."""
+        agent = RunningAgent(
+            run_id="run-1",
+            parent_session_id="sess-p",
+            child_session_id="sess-c",
+            provider="gemini",
+            prompt="Task",
+            started_at=datetime.now(),
+        )
+
+        assert agent.workflow_name is None
+        assert agent.model is None
+        assert agent.worktree_id is None
+        assert agent.mode == "in_process"
+        assert agent.turns_used == 0
+        assert agent.tool_calls_count == 0
+        assert agent.pid is None
+
+    def test_to_dict(self):
+        """RunningAgent.to_dict() returns correct dict."""
+        now = datetime.now()
+        agent = RunningAgent(
+            run_id="run-abc",
+            parent_session_id="sess-p",
+            child_session_id="sess-c",
+            provider="claude",
+            prompt="Short prompt",
+            started_at=now,
+            mode="headless",
+        )
+
+        result = agent.to_dict()
+
+        assert result["run_id"] == "run-abc"
+        assert result["parent_session_id"] == "sess-p"
+        assert result["child_session_id"] == "sess-c"
+        assert result["provider"] == "claude"
+        assert result["prompt"] == "Short prompt"
+        assert result["started_at"] == now.isoformat()
+        assert result["mode"] == "headless"
+
+    def test_to_dict_truncates_long_prompt(self):
+        """RunningAgent.to_dict() truncates prompts over 100 chars."""
+        long_prompt = "x" * 150
+        agent = RunningAgent(
+            run_id="run-1",
+            parent_session_id="sess-p",
+            child_session_id="sess-c",
+            provider="claude",
+            prompt=long_prompt,
+            started_at=datetime.now(),
+        )
+
+        result = agent.to_dict()
+
+        assert len(result["prompt"]) == 103  # 100 + "..."
+        assert result["prompt"].endswith("...")
+
+
+class TestAgentRunnerInMemoryTracking:
+    """Tests for AgentRunner in-memory running agents tracking."""
+
+    def test_track_running_agent(self, runner):
+        """_track_running_agent adds agent to dict."""
+        agent = runner._track_running_agent(
+            run_id="run-123",
+            parent_session_id="sess-parent",
+            child_session_id="sess-child",
+            provider="claude",
+            prompt="Test task",
+        )
+
+        assert agent.run_id == "run-123"
+        assert "run-123" in runner._running_agents
+        assert runner._running_agents["run-123"] is agent
+
+    def test_untrack_running_agent(self, runner):
+        """_untrack_running_agent removes agent from dict."""
+        runner._track_running_agent(
+            run_id="run-456",
+            parent_session_id="sess-p",
+            child_session_id="sess-c",
+            provider="claude",
+            prompt="Task",
+        )
+
+        removed = runner._untrack_running_agent("run-456")
+
+        assert removed is not None
+        assert removed.run_id == "run-456"
+        assert "run-456" not in runner._running_agents
+
+    def test_untrack_nonexistent_returns_none(self, runner):
+        """_untrack_running_agent returns None for missing agent."""
+        result = runner._untrack_running_agent("nonexistent-run")
+
+        assert result is None
+
+    def test_update_running_agent(self, runner):
+        """_update_running_agent updates agent state."""
+        runner._track_running_agent(
+            run_id="run-789",
+            parent_session_id="sess-p",
+            child_session_id="sess-c",
+            provider="claude",
+            prompt="Task",
+        )
+
+        updated = runner._update_running_agent(
+            "run-789",
+            turns_used=5,
+            tool_calls_count=10,
+        )
+
+        assert updated is not None
+        assert updated.turns_used == 5
+        assert updated.tool_calls_count == 10
+
+    def test_get_running_agent(self, runner):
+        """get_running_agent returns agent by ID."""
+        runner._track_running_agent(
+            run_id="run-get",
+            parent_session_id="sess-p",
+            child_session_id="sess-c",
+            provider="claude",
+            prompt="Task",
+        )
+
+        agent = runner.get_running_agent("run-get")
+
+        assert agent is not None
+        assert agent.run_id == "run-get"
+
+    def test_get_running_agent_not_found(self, runner):
+        """get_running_agent returns None for missing agent."""
+        agent = runner.get_running_agent("missing")
+
+        assert agent is None
+
+    def test_get_running_agents(self, runner):
+        """get_running_agents returns all agents."""
+        runner._track_running_agent(
+            run_id="run-1",
+            parent_session_id="sess-p1",
+            child_session_id="sess-c1",
+            provider="claude",
+            prompt="Task 1",
+        )
+        runner._track_running_agent(
+            run_id="run-2",
+            parent_session_id="sess-p2",
+            child_session_id="sess-c2",
+            provider="gemini",
+            prompt="Task 2",
+        )
+
+        agents = runner.get_running_agents()
+
+        assert len(agents) == 2
+        run_ids = {a.run_id for a in agents}
+        assert run_ids == {"run-1", "run-2"}
+
+    def test_get_running_agents_filter_by_parent(self, runner):
+        """get_running_agents filters by parent_session_id."""
+        runner._track_running_agent(
+            run_id="run-a",
+            parent_session_id="parent-1",
+            child_session_id="child-a",
+            provider="claude",
+            prompt="Task A",
+        )
+        runner._track_running_agent(
+            run_id="run-b",
+            parent_session_id="parent-2",
+            child_session_id="child-b",
+            provider="claude",
+            prompt="Task B",
+        )
+
+        agents = runner.get_running_agents(parent_session_id="parent-1")
+
+        assert len(agents) == 1
+        assert agents[0].run_id == "run-a"
+
+    def test_get_running_agents_count(self, runner):
+        """get_running_agents_count returns correct count."""
+        assert runner.get_running_agents_count() == 0
+
+        runner._track_running_agent(
+            run_id="run-1",
+            parent_session_id="sess-p",
+            child_session_id="sess-c",
+            provider="claude",
+            prompt="Task",
+        )
+
+        assert runner.get_running_agents_count() == 1
+
+    def test_is_agent_running(self, runner):
+        """is_agent_running returns correct boolean."""
+        assert runner.is_agent_running("run-check") is False
+
+        runner._track_running_agent(
+            run_id="run-check",
+            parent_session_id="sess-p",
+            child_session_id="sess-c",
+            provider="claude",
+            prompt="Task",
+        )
+
+        assert runner.is_agent_running("run-check") is True
