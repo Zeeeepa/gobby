@@ -1,0 +1,40 @@
+# Terminal spawner configuration for Gobby
+# See: https://github.com/GobbyAI/gobby/docs/terminal-config.md
+
+# Terminal preference order by platform (first available is used)
+preferences:
+  macos:
+    - ghostty
+    - iterm
+    - kitty
+    - alacritty
+    - terminal.app
+  linux:
+    - ghostty
+    - kitty
+    - gnome-terminal
+    - konsole
+    - alacritty
+  windows:
+    - windows-terminal
+    - alacritty
+    - cmd
+
+# Terminal-specific configurations (overrides defaults)
+# Uncomment and modify as needed:
+#
+# terminals:
+#   ghostty:
+#     app_path: /Applications/Ghostty.app  # macOS app bundle path
+#     command: ghostty                      # CLI command (Linux/other)
+#     enabled: true                         # Set to false to skip this terminal
+#
+#   kitty:
+#     app_path: /Applications/kitty.app
+#     command: kitty
+#     options:                              # Extra command-line options
+#       - "-o"
+#       - "confirm_os_window_close=0"
+#
+#   iterm:
+#     app_path: /Applications/iTerm.app
