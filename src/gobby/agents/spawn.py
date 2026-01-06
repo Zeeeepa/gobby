@@ -251,7 +251,8 @@ class GhosttySpawner(TerminalSpawnerBase):
             if platform.system() == "Darwin":
                 # Build args for open command
                 # open -na Ghostty.app --args [ghostty-options] -e [command]
-                ghostty_args = []
+                # Note: 'open' doesn't pass cwd, so we must use --working-directory
+                ghostty_args = [f"--working-directory={cwd}"]
                 if title:
                     ghostty_args.append(f"--title={title}")
                 ghostty_args.extend(["-e"] + command)
