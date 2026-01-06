@@ -6,7 +6,7 @@
           {
             "name": "gobby-session-start",
             "type": "command",
-            "command": "/opt/homebrew/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=SessionStart",
+            "command": "/Users/josh/.local/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=SessionStart",
             "timeout": 30000
           }
         ]
@@ -18,7 +18,7 @@
           {
             "name": "gobby-session-end",
             "type": "command",
-            "command": "/opt/homebrew/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=SessionEnd",
+            "command": "/Users/josh/.local/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=SessionEnd",
             "timeout": 30000
           }
         ]
@@ -30,7 +30,7 @@
           {
             "name": "gobby-before-agent",
             "type": "command",
-            "command": "/opt/homebrew/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=BeforeAgent",
+            "command": "/Users/josh/.local/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=BeforeAgent",
             "timeout": 30000
           }
         ]
@@ -42,7 +42,7 @@
           {
             "name": "gobby-after-agent",
             "type": "command",
-            "command": "/opt/homebrew/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=AfterAgent",
+            "command": "/Users/josh/.local/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=AfterAgent",
             "timeout": 30000
           }
         ]
@@ -55,7 +55,7 @@
           {
             "name": "gobby-before-tool",
             "type": "command",
-            "command": "/opt/homebrew/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=BeforeTool",
+            "command": "/Users/josh/.local/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=BeforeTool",
             "timeout": 30000
           }
         ]
@@ -68,7 +68,7 @@
           {
             "name": "gobby-after-tool",
             "type": "command",
-            "command": "/opt/homebrew/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=AfterTool",
+            "command": "/Users/josh/.local/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=AfterTool",
             "timeout": 30000
           }
         ]
@@ -80,7 +80,7 @@
           {
             "name": "gobby-before-tool-selection",
             "type": "command",
-            "command": "/opt/homebrew/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=BeforeToolSelection",
+            "command": "/Users/josh/.local/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=BeforeToolSelection",
             "timeout": 30000
           }
         ]
@@ -92,7 +92,7 @@
           {
             "name": "gobby-before-model",
             "type": "command",
-            "command": "/opt/homebrew/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=BeforeModel",
+            "command": "/Users/josh/.local/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=BeforeModel",
             "timeout": 30000
           }
         ]
@@ -104,7 +104,7 @@
           {
             "name": "gobby-after-model",
             "type": "command",
-            "command": "/opt/homebrew/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=AfterModel",
+            "command": "/Users/josh/.local/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=AfterModel",
             "timeout": 30000
           }
         ]
@@ -116,7 +116,7 @@
           {
             "name": "gobby-pre-compress",
             "type": "command",
-            "command": "/opt/homebrew/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=PreCompress",
+            "command": "/Users/josh/.local/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=PreCompress",
             "timeout": 30000
           }
         ]
@@ -128,7 +128,7 @@
           {
             "name": "gobby-notification",
             "type": "command",
-            "command": "/opt/homebrew/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=Notification",
+            "command": "/Users/josh/.local/bin/uv run python \"/Users/josh/Projects/gobby/.gemini/hooks/hook_dispatcher.py\" --type=Notification",
             "timeout": 30000
           }
         ]

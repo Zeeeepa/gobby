@@ -138,9 +138,9 @@ def install_antigravity(project_path: Path) -> dict[str, Any]:
     with open(settings_file, "w") as f:
         json.dump(existing_settings, f, indent=2)
 
-    # Configure MCP server in global settings (~/.antigravity/settings.json)
-    global_settings = Path.home() / ".antigravity" / "settings.json"
-    mcp_result = configure_mcp_server_json(global_settings)
+    # Configure MCP server in Antigravity's MCP config (~/.gemini/antigravity/mcp_config.json)
+    mcp_config = Path.home() / ".gemini" / "antigravity" / "mcp_config.json"
+    mcp_result = configure_mcp_server_json(mcp_config)
     if mcp_result["success"]:
         result["mcp_configured"] = mcp_result.get("added", False)
         result["mcp_already_configured"] = mcp_result.get("already_configured", False)

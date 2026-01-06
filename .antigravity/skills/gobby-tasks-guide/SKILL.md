@@ -230,6 +230,17 @@ mcp__gobby__call_tool(
 )
 ```
 
+**Note:** List operations return brief format (8 fields: id, title, status, priority, type, parent_task_id, created_at, updated_at). Use `get_task` for full details:
+
+```python
+# Get full task details including description, validation criteria, etc.
+mcp__gobby__call_tool(
+    server_name="gobby-tasks",
+    tool_name="get_task",
+    arguments={"task_id": "gt-abc123"}
+)
+```
+
 ### Viewing Blocked Tasks
 
 ```python
@@ -325,6 +336,64 @@ mcp__gobby__call_tool(
         "task_id": "gt-abc123",
         "session_id": "session-xyz",
         "action": "worked_on"  # worked_on, discovered, mentioned, closed
+    }
+)
+```
+
+---
+
+## Part 6: LLM Expansion & Validation
+
+### Expansion Tools
+
+| Tool | Purpose |
+|------|---------|
+| `expand_task` | Break task into subtasks using AI |
+| `analyze_complexity` | Get complexity score for a task |
+| `expand_all` | Expand all unexpanded tasks |
+| `expand_from_spec` | Create tasks from PRD/spec |
+| `suggest_next_task` | AI suggests best next task |
+
+### Expanding a Task
+
+```python
+mcp__gobby__call_tool(
+    server_name="gobby-tasks",
+    tool_name="expand_task",
+    arguments={
+        "task_id": "gt-abc123",
+        "enable_code_context": True
+    }
+)
+```
+
+### Getting Task Suggestions
+
+```python
+mcp__gobby__call_tool(
+    server_name="gobby-tasks",
+    tool_name="suggest_next_task",
+    arguments={}
+)
+```
+
+### Validation Tools
+
+| Tool | Purpose |
+|------|---------|
+| `validate_task` | Validate task completion with AI |
+| `get_validation_status` | Get validation details |
+| `reset_validation_count` | Reset failure count for retry |
+
+### Validating Completion
+
+```python
+mcp__gobby__call_tool(
+    server_name="gobby-tasks",
+    tool_name="validate_task",
+    arguments={
+        "task_id": "gt-abc123",
+        "changes_summary": "Added login form with validation"
     }
 )
 ```

@@ -400,9 +400,9 @@ def install(
                 for plugin in result["plugins_installed"]:
                     click.echo(f"  - {plugin}")
             if result.get("mcp_configured"):
-                click.echo("Configured MCP server: ~/.antigravity/settings.json")
+                click.echo("Configured MCP server: ~/.gemini/antigravity/mcp_config.json")
             elif result.get("mcp_already_configured"):
-                click.echo("MCP server already configured: ~/.antigravity/settings.json")
+                click.echo("MCP server already configured: ~/.gemini/antigravity/mcp_config.json")
             click.echo(f"Configuration: {project_path / '.antigravity' / 'settings.json'}")
         else:
             click.echo(f"Failed: {result['error']}", err=True)
