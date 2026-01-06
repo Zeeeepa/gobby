@@ -339,9 +339,17 @@ class ITermSpawner(TerminalSpawnerBase):
             shell_command = f"cd {safe_cwd} && {env_exports} {cmd_str}"
             safe_shell_command = escape_applescript(shell_command)
 
+            # Check if iTerm is already running to avoid duplicate windows
+            # When iTerm launches fresh, it auto-creates a default window
             script = f'''
+            set iTermWasRunning to application "iTerm" is running
             tell application "iTerm"
-                create window with default profile
+                if iTermWasRunning then
+                    -- iTerm already running, create a new window
+                    create window with default profile
+                end if
+                -- If not running, iTerm just launched and created default window
+                -- so we use that one instead of creating another
                 tell current session of current window
                     write text "{safe_shell_command}"
                 end tell
@@ -467,6 +475,9 @@ class KittySpawner(TerminalSpawnerBase):
             else:
                 # On Linux, --detach works correctly
                 args = ["kitty", "--detach", "--directory", str(cwd)]
+
+            # Disable close confirmation prompt for agent windows
+            args.extend(["-o", "confirm_os_window_close=0"])
 
             if title:
                 args.extend(["--title", title])
