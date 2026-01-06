@@ -843,9 +843,6 @@ class TaskHierarchyBuilder:
         Returns:
             HierarchyBuildResult with created tasks
         """
-        # Import here to avoid circular dependency
-        from gobby.tasks.expansion import TaskExpander  # noqa: F811
-
         created_tasks: list[CreatedTask] = []
         root_task_ids: list[str] = []
 

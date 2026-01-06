@@ -895,16 +895,16 @@ def create_task_registry(
 
             # Use fallback method if task_expander available (for hybrid specs)
             if headings:
-                result = await builder.build_from_headings_with_fallback(
+                hierarchy_result = await builder.build_from_headings_with_fallback(
                     headings=headings,
                     checkboxes=checkboxes if checkboxes.total_count > 0 else None,
                     task_expander=task_expander,
                 )
-                subtask_ids = result.task_ids
+                subtask_ids = hierarchy_result.task_ids
             elif checkboxes.total_count > 0:
                 # Only checkboxes, no headings
-                result = builder.build_from_checkboxes(checkboxes)
-                subtask_ids = result.task_ids
+                hierarchy_result = builder.build_from_checkboxes(checkboxes)
+                subtask_ids = hierarchy_result.task_ids
 
         else:
             # LLM mode - original behavior
@@ -915,7 +915,7 @@ def create_task_registry(
                     "parent_task": spec_task.to_dict(),
                 }
 
-            result = await task_expander.expand_task(
+            llm_result = await task_expander.expand_task(
                 task_id=spec_task.id,
                 title=spec_task.title,
                 description=spec_content,
@@ -925,15 +925,15 @@ def create_task_registry(
                 enable_code_context=False,
             )
 
-            if "error" in result:
+            if "error" in llm_result:
                 return {
-                    "error": result["error"],
+                    "error": llm_result["error"],
                     "parent_task": spec_task.to_dict(),
                     "subtask_ids": [],
                     "mode_used": effective_mode,
                 }
 
-            subtask_ids = result.get("subtask_ids", [])
+            subtask_ids = llm_result.get("subtask_ids", [])
 
         # Wire parent → subtask dependencies
         for subtask_id in subtask_ids:

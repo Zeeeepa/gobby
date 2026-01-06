@@ -215,6 +215,7 @@ __marimo__/
 !.gobby/tasks.jsonl
 !.gobby/tasks_meta.json
 !.gobby/workflows/
+!.gobby/skills/
 .agent/
 .agentvibes/
 .bmad/
