@@ -11,7 +11,9 @@ The AgentRunner coordinates:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, field
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from gobby.agents.session import ChildSessionConfig, ChildSessionManager
@@ -139,6 +141,80 @@ class AgentRunContext:
         return self.run.id if self.run else None
 
 
+@dataclass
+class RunningAgent:
+    """
+    In-memory representation of a currently running agent.
+
+    This provides fast access to running agent state without database queries,
+    useful for:
+    - Real-time status checking
+    - WebSocket event broadcasting
+    - Preventing duplicate spawns
+    """
+
+    run_id: str
+    """The agent run ID from the database."""
+
+    parent_session_id: str
+    """Session that spawned this agent."""
+
+    child_session_id: str
+    """Child session created for this agent."""
+
+    provider: str
+    """LLM provider (claude, gemini, etc.)."""
+
+    prompt: str
+    """The task prompt given to the agent."""
+
+    started_at: datetime
+    """When the agent started executing."""
+
+    workflow_name: str | None = None
+    """Workflow being executed, if any."""
+
+    model: str | None = None
+    """Model override, if any."""
+
+    worktree_id: str | None = None
+    """Worktree being used, if any."""
+
+    mode: str = "in_process"
+    """Execution mode (in_process, terminal, headless)."""
+
+    turns_used: int = 0
+    """Number of turns completed so far."""
+
+    tool_calls_count: int = 0
+    """Number of tool calls made so far."""
+
+    last_activity: datetime = field(default_factory=datetime.now)
+    """Last activity timestamp for timeout detection."""
+
+    pid: int | None = None
+    """Process ID for terminal/headless mode agents."""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for API responses."""
+        return {
+            "run_id": self.run_id,
+            "parent_session_id": self.parent_session_id,
+            "child_session_id": self.child_session_id,
+            "provider": self.provider,
+            "prompt": self.prompt[:100] + "..." if len(self.prompt) > 100 else self.prompt,
+            "started_at": self.started_at.isoformat(),
+            "workflow_name": self.workflow_name,
+            "model": self.model,
+            "worktree_id": self.worktree_id,
+            "mode": self.mode,
+            "turns_used": self.turns_used,
+            "tool_calls_count": self.tool_calls_count,
+            "last_activity": self.last_activity.isoformat(),
+            "pid": self.pid,
+        }
+
+
 class AgentRunner:
     """
     Orchestrates agent execution with session and run tracking.
@@ -189,6 +265,10 @@ class AgentRunner:
         self._workflow_loader = workflow_loader or WorkflowLoader()
         self._workflow_state_manager = WorkflowStateManager(db)
         self.logger = logger
+
+        # Thread-safe in-memory tracking of running agents
+        self._running_agents: dict[str, RunningAgent] = {}
+        self._running_agents_lock = threading.Lock()
 
     def get_executor(self, provider: str) -> AgentExecutor | None:
         """Get executor for a provider."""
@@ -429,6 +509,19 @@ class AgentRunner:
             f"(child_session={child_session.id}, provider={config.provider})"
         )
 
+        # Track in memory for real-time status
+        self._track_running_agent(
+            run_id=agent_run.id,
+            parent_session_id=config.parent_session_id or "",
+            child_session_id=child_session.id,
+            provider=config.provider,
+            prompt=config.prompt,
+            mode=config.mode,
+            workflow_name=config.get_effective_workflow(),
+            model=config.model,
+            worktree_id=config.worktree_id,
+        )
+
         # Set up tool handler with workflow filtering
         async def default_tool_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
             """Default tool handler that returns not implemented."""
@@ -452,10 +545,17 @@ class AgentRunner:
 
         # Track tool calls to preserve partial progress info on exception
         tool_calls_made = 0
+        turns_made = 0
 
         async def tracking_handler(tool_name: str, arguments: dict[str, Any]) -> ToolResult:
-            nonlocal tool_calls_made
+            nonlocal tool_calls_made, turns_made
             tool_calls_made += 1
+            # Update in-memory state for real-time monitoring
+            self._update_running_agent(
+                agent_run.id,
+                tool_calls_count=tool_calls_made,
+                turns_used=turns_made,
+            )
             return await handler(tool_name, arguments)
 
         # Execute the agent
@@ -511,6 +611,9 @@ class AgentRunner:
             else:
                 self._session_storage.update_status(child_session.id, "failed")
 
+            # Remove from in-memory tracking
+            self._untrack_running_agent(agent_run.id)
+
             # Set run_id on the result so callers don't need to call list_runs()
             result.run_id = agent_run.id
 
@@ -525,6 +628,8 @@ class AgentRunner:
                 turns_used=tool_calls_made,
             )
             self._session_storage.update_status(child_session.id, "failed")
+            # Remove from in-memory tracking
+            self._untrack_running_agent(agent_run.id)
             return AgentResult(
                 output="",
                 status="error",
@@ -594,7 +699,183 @@ class AgentRunner:
             self._session_storage.update_status(run.child_session_id, "cancelled")
 
         self.logger.info(f"Cancelled agent run {run_id}")
+
+        # Remove from in-memory tracking
+        with self._running_agents_lock:
+            self._running_agents.pop(run_id, None)
+
         return True
+
+    # -------------------------------------------------------------------------
+    # In-memory Running Agents Management
+    # -------------------------------------------------------------------------
+
+    def _track_running_agent(
+        self,
+        run_id: str,
+        parent_session_id: str,
+        child_session_id: str,
+        provider: str,
+        prompt: str,
+        mode: str = "in_process",
+        workflow_name: str | None = None,
+        model: str | None = None,
+        worktree_id: str | None = None,
+        pid: int | None = None,
+    ) -> RunningAgent:
+        """
+        Add an agent to the in-memory running agents dict.
+
+        Thread-safe operation using a lock.
+
+        Args:
+            run_id: The agent run ID.
+            parent_session_id: Session that spawned this agent.
+            child_session_id: Child session created for this agent.
+            provider: LLM provider.
+            prompt: The task prompt.
+            mode: Execution mode.
+            workflow_name: Workflow being executed.
+            model: Model override.
+            worktree_id: Worktree being used.
+            pid: Process ID for terminal/headless mode.
+
+        Returns:
+            The created RunningAgent instance.
+        """
+        running_agent = RunningAgent(
+            run_id=run_id,
+            parent_session_id=parent_session_id,
+            child_session_id=child_session_id,
+            provider=provider,
+            prompt=prompt,
+            started_at=datetime.now(),
+            workflow_name=workflow_name,
+            model=model,
+            worktree_id=worktree_id,
+            mode=mode,
+            pid=pid,
+        )
+
+        with self._running_agents_lock:
+            self._running_agents[run_id] = running_agent
+
+        self.logger.debug(f"Tracking running agent {run_id} (mode={mode})")
+        return running_agent
+
+    def _untrack_running_agent(self, run_id: str) -> RunningAgent | None:
+        """
+        Remove an agent from the in-memory running agents dict.
+
+        Thread-safe operation using a lock.
+
+        Args:
+            run_id: The agent run ID to remove.
+
+        Returns:
+            The removed RunningAgent, or None if not found.
+        """
+        with self._running_agents_lock:
+            agent = self._running_agents.pop(run_id, None)
+
+        if agent:
+            self.logger.debug(f"Untracked running agent {run_id}")
+        return agent
+
+    def _update_running_agent(
+        self,
+        run_id: str,
+        turns_used: int | None = None,
+        tool_calls_count: int | None = None,
+    ) -> RunningAgent | None:
+        """
+        Update in-memory state for a running agent.
+
+        Thread-safe operation using a lock.
+
+        Args:
+            run_id: The agent run ID.
+            turns_used: Updated turns count.
+            tool_calls_count: Updated tool calls count.
+
+        Returns:
+            The updated RunningAgent, or None if not found.
+        """
+        with self._running_agents_lock:
+            agent = self._running_agents.get(run_id)
+            if agent:
+                if turns_used is not None:
+                    agent.turns_used = turns_used
+                if tool_calls_count is not None:
+                    agent.tool_calls_count = tool_calls_count
+                agent.last_activity = datetime.now()
+
+        return agent
+
+    def get_running_agent(self, run_id: str) -> RunningAgent | None:
+        """
+        Get a running agent by ID.
+
+        Thread-safe operation using a lock.
+
+        Args:
+            run_id: The agent run ID.
+
+        Returns:
+            The RunningAgent if found and running, None otherwise.
+        """
+        with self._running_agents_lock:
+            return self._running_agents.get(run_id)
+
+    def get_running_agents(
+        self,
+        parent_session_id: str | None = None,
+    ) -> list[RunningAgent]:
+        """
+        Get all running agents, optionally filtered by parent session.
+
+        Thread-safe operation using a lock.
+
+        Args:
+            parent_session_id: Optional filter by parent session.
+
+        Returns:
+            List of running agents.
+        """
+        with self._running_agents_lock:
+            agents = list(self._running_agents.values())
+
+        if parent_session_id:
+            agents = [a for a in agents if a.parent_session_id == parent_session_id]
+
+        return agents
+
+    def get_running_agents_count(self) -> int:
+        """
+        Get count of running agents.
+
+        Thread-safe operation using a lock.
+
+        Returns:
+            Number of running agents.
+        """
+        with self._running_agents_lock:
+            return len(self._running_agents)
+
+    def is_agent_running(self, run_id: str) -> bool:
+        """
+        Check if an agent is currently running.
+
+        Thread-safe operation using a lock.
+
+        Args:
+            run_id: The agent run ID.
+
+        Returns:
+            True if the agent is in the running dict.
+        """
+        with self._running_agents_lock:
+            return run_id in self._running_agents
 
     def _create_workflow_filtered_handler(
         self,

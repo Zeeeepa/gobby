@@ -504,6 +504,61 @@ class WebSocketServer:
 
         await self.broadcast(message)
 
+    async def broadcast_agent_event(
+        self,
+        event: str,
+        run_id: str,
+        parent_session_id: str,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Broadcast agent event to all clients.
+
+        Used for agent lifecycle events like started, completed, cancelled.
+
+        Args:
+            event: Event type (agent_started, agent_completed, agent_failed, agent_cancelled)
+            run_id: Agent run ID
+            parent_session_id: Parent session that spawned the agent
+            **kwargs: Additional event data (provider, status, etc.)
+        """
+        message = {
+            "type": "agent_event",
+            "event": event,
+            "run_id": run_id,
+            "parent_session_id": parent_session_id,
+            "timestamp": datetime.now(UTC).isoformat(),
+            **kwargs,
+        }
+
+        await self.broadcast(message)
+
+    async def broadcast_worktree_event(
+        self,
+        event: str,
+        worktree_id: str,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Broadcast worktree event to all clients.
+
+        Used for worktree lifecycle events like created, claimed, released, merged.
+
+        Args:
+            event: Event type (worktree_created, worktree_claimed, worktree_released, worktree_merged)
+            worktree_id: Worktree ID
+            **kwargs: Additional event data (branch_name, task_id, session_id, etc.)
+        """
+        message = {
+            "type": "worktree_event",
+            "event": event,
+            "worktree_id": worktree_id,
+            "timestamp": datetime.now(UTC).isoformat(),
+            **kwargs,
+        }
+
+        await self.broadcast(message)
+
     async def start(self) -> None:
         """
         Start WebSocket server.

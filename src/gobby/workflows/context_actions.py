@@ -270,6 +270,27 @@ def extract_handoff_context(
         if real_commits:
             handoff_ctx.git_commits = real_commits
 
+        # Enrich with worktree context if session is in a worktree
+        try:
+            from gobby.storage.database import LocalDatabase
+            from gobby.storage.worktrees import LocalWorktreeManager
+
+            db = LocalDatabase()
+            worktree_manager = LocalWorktreeManager(db)
+            worktrees = worktree_manager.list(agent_session_id=session_id, limit=1)
+            if worktrees:
+                wt = worktrees[0]
+                handoff_ctx.active_worktree = {
+                    "id": wt.id,
+                    "branch_name": wt.branch_name,
+                    "worktree_path": wt.worktree_path,
+                    "base_branch": wt.base_branch,
+                    "task_id": wt.task_id,
+                    "status": wt.status,
+                }
+        except Exception as wt_err:
+            logger.debug(f"Failed to get worktree context: {wt_err}")
+
         # Format as markdown (like /clear stores formatted summary)
         markdown = format_handoff_as_markdown(handoff_ctx)
 
@@ -307,6 +328,17 @@ def format_handoff_as_markdown(ctx: Any, prompt_template: str | None = None) -> 
             f"**{task.get('title', 'Untitled')}** ({task.get('id', 'unknown')})\n"
             f"Status: {task.get('status', 'unknown')}"
         )
+
+    # Worktree context section
+    if ctx.active_worktree:
+        wt = ctx.active_worktree
+        lines = ["### Worktree Context"]
+        lines.append(f"- **Branch**: `{wt.get('branch_name', 'unknown')}`")
+        lines.append(f"- **Path**: `{wt.get('worktree_path', 'unknown')}`")
+        lines.append(f"- **Base**: `{wt.get('base_branch', 'main')}`")
+        if wt.get("task_id"):
+            lines.append(f"- **Task**: {wt.get('task_id')}")
+        sections.append("\n".join(lines))
 
     # Todo state section
     if ctx.todo_state:
