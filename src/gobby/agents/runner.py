@@ -36,35 +36,58 @@ class AgentConfig:
     prompt: str
     """The prompt/task for the agent to perform."""
 
-    parent_session_id: str
-    """ID of the session spawning this agent."""
+    # Required context - can be inferred from get_project_context() or passed explicitly
+    parent_session_id: str | None = None
+    """ID of the session spawning this agent. Inferred from context if not provided."""
 
-    project_id: str
-    """Project ID for the agent's session."""
+    project_id: str | None = None
+    """Project ID for the agent's session. Inferred from context if not provided."""
 
-    machine_id: str
-    """Machine identifier."""
+    machine_id: str | None = None
+    """Machine identifier. Defaults to hostname if not provided."""
 
-    source: str
+    source: str = "claude"
     """CLI source (claude, gemini, codex)."""
 
+    # New spec-aligned parameters
+    workflow: str | None = None
+    """Workflow name or path to execute."""
+
+    task: str | None = None
+    """Task ID or 'next' for auto-select."""
+
+    session_context: str = "summary_markdown"
+    """Context source: summary_markdown, compact_markdown, session_id:<id>, transcript:<n>, file:<path>."""
+
+    mode: str = "in_process"
+    """Execution mode: in_process, terminal, embedded, headless."""
+
+    terminal: str = "auto"
+    """Terminal for terminal/embedded modes: auto, ghostty, iterm, etc."""
+
+    worktree_id: str | None = None
+    """Existing worktree to use for terminal mode."""
+
+    # Provider settings
     provider: str = "claude"
     """LLM provider to use."""
 
     model: str | None = None
     """Optional model override."""
 
-    workflow_name: str | None = None
-    """Optional workflow to execute."""
-
-    system_prompt: str | None = None
-    """Optional system prompt override."""
-
+    # Execution limits
     max_turns: int = 10
     """Maximum number of turns."""
 
     timeout: float = 120.0
     """Execution timeout in seconds."""
+
+    # Legacy/internal fields (kept for compatibility)
+    workflow_name: str | None = None
+    """Deprecated: use 'workflow' instead. Kept for backward compatibility."""
+
+    system_prompt: str | None = None
+    """Optional system prompt override."""
 
     tools: list[ToolSchema] | None = None
     """Optional list of tools to provide."""
@@ -77,6 +100,10 @@ class AgentConfig:
 
     project_path: str | None = None
     """Project path for loading project-specific workflows."""
+
+    def get_effective_workflow(self) -> str | None:
+        """Get the workflow name, preferring 'workflow' over legacy 'workflow_name'."""
+        return self.workflow or self.workflow_name
 
 
 @dataclass
@@ -182,8 +209,36 @@ class AgentRunner:
         Returns:
             AgentResult with execution outcome.
         """
+        # Validate required fields
+        if not config.parent_session_id:
+            return AgentResult(
+                output="",
+                status="error",
+                error="parent_session_id is required",
+                turns_used=0,
+            )
+        if not config.project_id:
+            return AgentResult(
+                output="",
+                status="error",
+                error="project_id is required",
+                turns_used=0,
+            )
+        if not config.machine_id:
+            return AgentResult(
+                output="",
+                status="error",
+                error="machine_id is required",
+                turns_used=0,
+            )
+
+        # Type narrowing for mypy - these are guaranteed non-None after validation above
+        parent_session_id: str = config.parent_session_id
+        project_id: str = config.project_id
+        machine_id: str = config.machine_id
+
         # Check if we can spawn (also get parent_depth to avoid redundant lookups)
-        can_spawn, reason, _parent_depth = self.can_spawn(config.parent_session_id)
+        can_spawn, reason, _parent_depth = self.can_spawn(parent_session_id)
         if not can_spawn:
             self.logger.warning(f"Cannot spawn agent: {reason}")
             return AgentResult(
@@ -205,15 +260,18 @@ class AgentRunner:
                 turns_used=0,
             )
 
+        # Get effective workflow name (prefers 'workflow' over legacy 'workflow_name')
+        effective_workflow = config.get_effective_workflow()
+
         # Create child session
         try:
             child_session = self._child_session_manager.create_child_session(
                 ChildSessionConfig(
-                    parent_session_id=config.parent_session_id,
-                    project_id=config.project_id,
-                    machine_id=config.machine_id,
+                    parent_session_id=parent_session_id,
+                    project_id=project_id,
+                    machine_id=machine_id,
                     source=config.source,
-                    workflow_name=config.workflow_name,
+                    workflow_name=effective_workflow,
                     title=config.title,
                     git_branch=config.git_branch,
                 )
@@ -229,14 +287,14 @@ class AgentRunner:
 
         # Load workflow definition if specified
         workflow_definition = None
-        if config.workflow_name:
+        if effective_workflow:
             workflow_definition = self._workflow_loader.load_workflow(
-                config.workflow_name,
+                effective_workflow,
                 project_path=config.project_path,
             )
             if workflow_definition:
                 self.logger.info(
-                    f"Loaded workflow '{config.workflow_name}' for agent "
+                    f"Loaded workflow '{effective_workflow}' for agent "
                     f"(type={workflow_definition.type})"
                 )
 
@@ -252,11 +310,11 @@ class AgentRunner:
                 initial_variables["can_spawn"] = (
                     child_session.agent_depth < self._child_session_manager.max_agent_depth
                 )
-                initial_variables["parent_session_id"] = config.parent_session_id
+                initial_variables["parent_session_id"] = parent_session_id
 
                 initial_state = WorkflowState(
                     session_id=child_session.id,
-                    workflow_name=config.workflow_name,
+                    workflow_name=effective_workflow,
                     step=initial_step,
                     variables=initial_variables,
                 )
@@ -267,16 +325,16 @@ class AgentRunner:
                 )
             else:
                 self.logger.warning(
-                    f"Workflow '{config.workflow_name}' not found, "
+                    f"Workflow '{effective_workflow}' not found, "
                     f"proceeding without workflow"
                 )
 
         # Create agent run record
         agent_run = self._run_storage.create(
-            parent_session_id=config.parent_session_id,
+            parent_session_id=parent_session_id,
             provider=config.provider,
             prompt=config.prompt,
-            workflow_name=config.workflow_name,
+            workflow_name=effective_workflow,
             model=config.model,
             child_session_id=child_session.id,
         )

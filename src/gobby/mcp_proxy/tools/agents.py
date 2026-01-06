@@ -13,9 +13,11 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 
 from __future__ import annotations
 
+import socket
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.utils.project_context import get_project_context
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
@@ -44,47 +46,87 @@ def create_agents_registry(
     @registry.tool(
         name="start_agent",
         description=(
-            "Spawn a subagent to execute a task. Returns immediately with run ID. "
+            "Spawn a subagent to execute a task. Infers context from current project/session. "
             "Use get_agent_result to poll for completion."
         ),
     )
     async def start_agent(
         prompt: str,
-        parent_session_id: str,
-        project_id: str,
-        machine_id: str,
-        source: str = "claude",
-        provider: str = "claude",
+        workflow: str | None = None,
+        task: str | None = None,
+        session_context: str = "summary_markdown",
+        mode: str = "in_process",
+        terminal: str = "auto",
+        provider: str | None = None,
         model: str | None = None,
-        workflow_name: str | None = None,
-        system_prompt: str | None = None,
-        max_turns: int = 10,
+        worktree_id: str | None = None,
         timeout: float = 120.0,
-        title: str | None = None,
-        git_branch: str | None = None,
+        max_turns: int = 10,
+        # Optional explicit context (usually inferred)
+        parent_session_id: str | None = None,
+        project_id: str | None = None,
+        machine_id: str | None = None,
+        source: str = "claude",
     ) -> dict[str, Any]:
         """
         Start a new agent to execute a task.
 
         Args:
             prompt: The task/prompt for the agent.
-            parent_session_id: ID of the session spawning this agent.
-            project_id: Project ID for the agent's session.
-            machine_id: Machine identifier.
-            source: CLI source (claude, gemini, codex).
-            provider: LLM provider (claude, gemini, etc.).
+            workflow: Workflow name or path to execute.
+            task: Task ID or 'next' for auto-select.
+            session_context: Context source (summary_markdown, compact_markdown,
+                           session_id:<id>, transcript:<n>, file:<path>).
+            mode: Execution mode (in_process, terminal, embedded, headless).
+            terminal: Terminal for terminal/embedded modes (auto, ghostty, iterm, etc.).
+            provider: LLM provider (claude, gemini, etc.). Defaults to claude.
             model: Optional model override.
-            workflow_name: Optional workflow to execute.
-            system_prompt: Optional system prompt override.
-            max_turns: Maximum turns (default: 10).
+            worktree_id: Existing worktree to use for terminal mode.
             timeout: Execution timeout in seconds (default: 120).
-            title: Optional title for the agent session.
-            git_branch: Git branch for the session.
+            max_turns: Maximum turns (default: 10).
+            parent_session_id: Explicit parent session ID (usually inferred).
+            project_id: Explicit project ID (usually inferred from context).
+            machine_id: Explicit machine ID (usually inferred from hostname).
+            source: CLI source (claude, gemini, codex).
 
         Returns:
             Dict with run_id, child_session_id, status.
         """
         from gobby.agents.runner import AgentConfig
+
+        # Validate mode
+        supported_modes = {"in_process"}
+        if mode not in supported_modes:
+            return {
+                "success": False,
+                "error": f"Mode '{mode}' not yet implemented. Supported: {supported_modes}",
+            }
+
+        # Infer context from project if not provided
+        if project_id is None:
+            ctx = get_project_context()
+            if ctx:
+                project_id = ctx.get("id")
+                project_path = ctx.get("project_path")
+            else:
+                return {
+                    "success": False,
+                    "error": "No project context found. Run from a Gobby project directory.",
+                }
+        else:
+            project_path = None
+
+        # Infer machine_id from hostname if not provided
+        if machine_id is None:
+            machine_id = socket.gethostname()
+
+        # Parent session is required for depth checking
+        if parent_session_id is None:
+            # TODO: In future, could look up current active session for project
+            return {
+                "success": False,
+                "error": "parent_session_id is required (session context inference not yet implemented)",
+            }
 
         # Check if spawning is allowed
         can_spawn, reason, _parent_depth = runner.can_spawn(parent_session_id)
@@ -94,20 +136,26 @@ def create_agents_registry(
                 "error": reason,
             }
 
+        # Use provided provider or default
+        effective_provider = provider or "claude"
+
         config = AgentConfig(
             prompt=prompt,
             parent_session_id=parent_session_id,
             project_id=project_id,
             machine_id=machine_id,
             source=source,
-            provider=provider,
+            workflow=workflow,
+            task=task,
+            session_context=session_context,
+            mode=mode,
+            terminal=terminal,
+            worktree_id=worktree_id,
+            provider=effective_provider,
             model=model,
-            workflow_name=workflow_name,
-            system_prompt=system_prompt,
             max_turns=max_turns,
             timeout=timeout,
-            title=title,
-            git_branch=git_branch,
+            project_path=project_path,
         )
 
         # Create a simple tool handler that returns not implemented

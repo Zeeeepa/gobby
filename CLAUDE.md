@@ -352,6 +352,9 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title"
 - `gobby-tasks` - Task CRUD, dependencies, ready work detection, git sync
 - `gobby-memory` - Memory CRUD, recall, forget, list, stats
 - `gobby-skills` - Skill CRUD, learning, matching, apply, export
+- `gobby-workflows` - Workflow activation, step transitions, **session variables**
+- `gobby-sessions` - Session lookup, messages, handoff context, pickup
+- `gobby-metrics` - Tool metrics and usage statistics
 
 ## Task Management with gobby-tasks
 
@@ -820,6 +823,66 @@ call_tool(server_name="gobby-skills", tool_name="create_skill", arguments={
 })
 call_tool(server_name="gobby-skills", tool_name="apply_skill", arguments={"skill_id": "sk-abc123"})
 ```
+
+## Session Variables with gobby-workflows
+
+Use `gobby-workflows` to set and get session-scoped variables. These persist for the session but are not saved to YAML.
+
+### session_task Variable
+
+The `session_task` variable links the current session to a parent task. This is used by stop hooks to enforce task completion.
+
+```python
+# Set session_task to link session to a parent epic/task
+call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
+    "name": "session_task",
+    "value": "gt-abc123"
+})
+
+# Get current session_task
+call_tool(server_name="gobby-workflows", tool_name="get_variable", arguments={
+    "name": "session_task"
+})
+
+# Get all session variables
+call_tool(server_name="gobby-workflows", tool_name="get_variable", arguments={})
+```
+
+### Tool Signatures (gobby-workflows)
+
+```python
+# set_variable - Set a session variable
+set_variable(
+    name: str,                     # Required - variable name
+    value: str,                    # Required - variable value
+    session_id: str = None,        # Optional - defaults to current session
+)
+
+# get_variable - Get session variable(s)
+get_variable(
+    name: str = None,              # Optional - omit to get all variables
+    session_id: str = None,        # Optional - defaults to current session
+)
+
+# activate_workflow - Activate a step-based workflow
+activate_workflow(
+    workflow_name: str,            # Required - name of workflow to activate
+    session_id: str = None,
+)
+
+# get_workflow_status - Get current workflow state
+get_workflow_status(
+    session_id: str = None,
+)
+```
+
+### Common Session Variables
+
+| Variable | Purpose |
+|----------|---------|
+| `session_task` | Parent task ID for stop hook enforcement |
+| `task_claimed` | Whether a task has been claimed for editing |
+| `claimed_task_id` | ID of the currently claimed task |
 
 ## Workflow Engine
 
