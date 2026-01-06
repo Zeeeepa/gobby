@@ -34,3 +34,15 @@ def init(ctx: click.Context, name: str | None, github_url: str | None) -> None:
         click.echo(f"Initialized project '{result.project_name}' in {cwd}")
         click.echo(f"  Project ID: {result.project_id}")
         click.echo(f"  Config: {cwd / '.gobby' / 'project.json'}")
+
+        # Show detected verification commands
+        if result.verification:
+            verification_dict = result.verification.to_dict()
+            if verification_dict:
+                click.echo("  Detected verification commands:")
+                for key, value in verification_dict.items():
+                    if key != "custom":
+                        click.echo(f"    {key}: {value}")
+                    elif value:  # custom dict
+                        for custom_name, custom_cmd in value.items():
+                            click.echo(f"    {custom_name}: {custom_cmd}")

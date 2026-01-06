@@ -1152,6 +1152,35 @@ class MetricsConfig(BaseModel):
         return v
 
 
+class ProjectVerificationConfig(BaseModel):
+    """Project verification commands configuration.
+
+    Stores project-specific commands for running tests, type checking, linting, etc.
+    Used by task expansion to generate precise validation criteria with actual commands.
+    """
+
+    unit_tests: str | None = Field(
+        default=None,
+        description="Command to run unit tests (e.g., 'uv run pytest tests/ -v')",
+    )
+    type_check: str | None = Field(
+        default=None,
+        description="Command to run type checking (e.g., 'uv run mypy src/')",
+    )
+    lint: str | None = Field(
+        default=None,
+        description="Command to run linting (e.g., 'uv run ruff check src/')",
+    )
+    integration: str | None = Field(
+        default=None,
+        description="Command to run integration tests",
+    )
+    custom: dict[str, str] = Field(
+        default_factory=dict,
+        description="Custom verification commands (name -> command)",
+    )
+
+
 class MemoryConfig(BaseModel):
     """Memory system configuration."""
 

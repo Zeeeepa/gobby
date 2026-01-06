@@ -2,10 +2,15 @@
 Utilities for resolving project context.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from gobby.config.app import ProjectVerificationConfig
 
 logger = logging.getLogger(__name__)
 
@@ -83,3 +88,30 @@ def get_project_mcp_config_path(project_name: str) -> Path:
         Path to .mcp.json.
     """
     return get_project_mcp_dir(project_name) / ".mcp.json"
+
+
+def get_verification_config(cwd: Path | None = None) -> ProjectVerificationConfig | None:
+    """
+    Get project verification configuration from .gobby/project.json.
+
+    Args:
+        cwd: Current working directory to start search from.
+
+    Returns:
+        ProjectVerificationConfig if verification section exists, None otherwise.
+    """
+    from gobby.config.app import ProjectVerificationConfig
+
+    context = get_project_context(cwd)
+    if not context:
+        return None
+
+    verification_data = context.get("verification")
+    if not verification_data:
+        return None
+
+    try:
+        return ProjectVerificationConfig(**verification_data)
+    except Exception as e:
+        logger.warning(f"Failed to parse verification config: {e}")
+        return None
