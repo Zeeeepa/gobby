@@ -11,7 +11,8 @@ Classes:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 
@@ -38,15 +39,15 @@ class EventHandlers:
 
     def __init__(
         self,
-        session_manager: "SessionManager | None" = None,
-        workflow_handler: "WorkflowHookHandler | None" = None,
-        session_storage: "LocalSessionManager | None" = None,
-        session_task_manager: "SessionTaskManager | None" = None,
+        session_manager: SessionManager | None = None,
+        workflow_handler: WorkflowHookHandler | None = None,
+        session_storage: LocalSessionManager | None = None,
+        session_task_manager: SessionTaskManager | None = None,
         message_processor: Any | None = None,
-        summary_file_generator: "SummaryFileGenerator | None" = None,
-        task_manager: "LocalTaskManager | None" = None,
-        session_coordinator: "SessionCoordinator | None" = None,
-        message_manager: "LocalSessionMessageManager | None" = None,
+        summary_file_generator: SummaryFileGenerator | None = None,
+        task_manager: LocalTaskManager | None = None,
+        session_coordinator: SessionCoordinator | None = None,
+        message_manager: LocalSessionMessageManager | None = None,
         get_machine_id: Callable[[], str] | None = None,
         resolve_project_id: Callable[[str | None, str | None], str] | None = None,
         logger: logging.Logger | None = None,
@@ -150,6 +151,83 @@ class EventHandlers:
         self.logger.debug(
             f"SESSION_START: cli={cli_source}, project={project_id}, source={session_source}"
         )
+
+        # Step 0: Check if this is a pre-created session (terminal mode agent)
+        # When we spawn an agent in terminal mode, we pass --session-id <internal_id>
+        # to Claude, so external_id here might actually be our internal session ID
+        existing_session = None
+        if self._session_storage:
+            try:
+                # Try to find by internal ID first (terminal mode case)
+                existing_session = self._session_storage.get(external_id)
+                if existing_session:
+                    self.logger.info(
+                        f"Found pre-created session {external_id}, updating instead of creating"
+                    )
+                    # Update the session with actual runtime info
+                    self._session_storage.update(
+                        session_id=existing_session.id,
+                        jsonl_path=transcript_path,
+                        status="active",
+                    )
+                    # Return early with the pre-created session's context
+                    session_id = existing_session.id
+                    parent_session_id = existing_session.parent_session_id
+
+                    # Track registered session
+                    if transcript_path and self._session_coordinator:
+                        try:
+                            self._session_coordinator.register_session(external_id)
+                        except Exception as e:
+                            self.logger.error(f"Failed to setup session tracking: {e}")
+
+                    # Update event metadata
+                    event.metadata["_platform_session_id"] = session_id
+
+                    # Register with Message Processor
+                    if self._message_processor and transcript_path:
+                        try:
+                            self._message_processor.register_session(
+                                session_id, transcript_path, source=cli_source
+                            )
+                        except Exception as e:
+                            self.logger.warning(f"Failed to register with message processor: {e}")
+
+                    # Execute lifecycle workflows
+                    context_parts = [""]
+                    wf_response = HookResponse(decision="allow", context="")
+                    if self._workflow_handler:
+                        try:
+                            wf_response = self._workflow_handler.handle_all_lifecycles(event)
+                            if wf_response.context:
+                                context_parts.append(wf_response.context)
+                        except Exception as e:
+                            self.logger.warning(f"Workflow error: {e}")
+
+                    # Build system message
+                    system_message = f"Session ID: {session_id}\nProject ID: {existing_session.project_id}"
+                    if parent_session_id:
+                        system_message += f"\nParent ID: {parent_session_id}"
+                        context_parts.append(f"Parent session: {parent_session_id}")
+                    if existing_session.agent_depth > 0:
+                        system_message += f"\nAgent depth: {existing_session.agent_depth}"
+                    if wf_response.system_message:
+                        system_message += f"\n\n{wf_response.system_message}"
+
+                    return HookResponse(
+                        decision="allow",
+                        context="\n".join(context_parts) if context_parts else None,
+                        system_message=system_message,
+                        metadata={
+                            "session_id": session_id,
+                            "machine_id": machine_id,
+                            "external_id": external_id,
+                            "task_id": event.task_id,
+                            "is_pre_created": True,
+                        },
+                    )
+            except Exception as e:
+                self.logger.debug(f"No pre-created session found: {e}")
 
         # Step 1: Find parent session if this is a handoff (source='clear' only)
         parent_session_id = None

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import platform
+import shutil
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -875,6 +876,22 @@ def create_worktrees_registry(
                 base_branch=base_branch,
                 task_id=task_id,
             )
+
+        # Copy .gobby/project.json to worktree for project identification
+        # This ensures worktree sessions use the same project_id as parent
+        main_gobby_dir = Path(resolved_git_mgr.repo_path) / ".gobby"
+        main_project_json = main_gobby_dir / "project.json"
+        worktree_gobby_dir = Path(worktree.worktree_path) / ".gobby"
+
+        if main_project_json.exists():
+            try:
+                worktree_gobby_dir.mkdir(parents=True, exist_ok=True)
+                worktree_project_json = worktree_gobby_dir / "project.json"
+                if not worktree_project_json.exists():
+                    shutil.copy2(main_project_json, worktree_project_json)
+                    logger.info(f"Copied project.json to worktree: {worktree_project_json}")
+            except Exception as e:
+                logger.warning(f"Failed to copy project.json to worktree: {e}")
 
         # Check spawn depth limit
         can_spawn, reason, _depth = agent_runner.can_spawn(parent_session_id)

@@ -163,7 +163,7 @@ class ChildSessionManager:
         # Calculate child's agent depth (parent depth + 1)
         child_depth = parent_depth + 1
 
-        # Generate a unique external_id for the child
+        # Generate a placeholder external_id (will be updated to match internal id)
         external_id = f"agent-{uuid.uuid4().hex[:12]}"
 
         # Create title if not provided
@@ -186,6 +186,17 @@ class ChildSessionManager:
             agent_depth=child_depth,
             spawned_by_agent_id=config.agent_id,
         )
+
+        # Update external_id to match internal id for terminal mode lookup
+        # When we spawn an agent with --session-id <internal_id>, the session_start
+        # hook receives that id as external_id. By making external_id = id, the
+        # hook can find this pre-created session by querying for id = external_id.
+        child_id = child.id
+        self._storage.update(session_id=child_id, external_id=child_id)
+        # Re-fetch to get updated external_id
+        child = self._storage.get(child_id)
+        if child is None:
+            raise RuntimeError(f"Failed to fetch child session {child_id} after creation")
 
         self.logger.info(
             f"Created child session {child.id} "
