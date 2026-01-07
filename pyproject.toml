@@ -101,9 +101,19 @@ exclude = ["build"]
 module = "tests.*"
 disallow_untyped_defs = false
 
+[tool.bandit]
+targets = ["src"]
+exclude_dirs = ["tests", ".venv", "build"]
+# Skip these checks:
+# B101: assert used (fine in non-production code paths)
+# B104: hardcoded_bind_all_interfaces (intentional for local daemon)
+skips = ["B101", "B104"]
+
 [dependency-groups]
 dev = [
+    "bandit>=1.8.0",
     "mypy>=1.8.0",
+    "pip-audit>=2.7.0",
     "pre-commit>=4.0.0",
     "pytest>=8.4.2",
     "pytest-asyncio>=1.2.0",
