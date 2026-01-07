@@ -10,6 +10,8 @@ import pytest
 from gobby.agents.spawn import (
     EmbeddedPTYResult,
     EmbeddedSpawner,
+    HeadlessResult,
+    HeadlessSpawner,
     PowerShellSpawner,
     SpawnResult,
     TerminalSpawner,
@@ -771,3 +773,233 @@ class TestEmbeddedSpawnerMocked:
 
         assert result.success is False
         assert result.error is not None
+
+
+class TestHeadlessResult:
+    """Tests for HeadlessResult dataclass."""
+
+    def test_success_result_fields(self):
+        """Success result has correct fields."""
+        result = HeadlessResult(
+            success=True,
+            message="Spawned headless",
+            pid=12345,
+            process=None,
+            output_buffer=["line1", "line2"],
+        )
+        assert result.success is True
+        assert result.pid == 12345
+        assert result.output_buffer == ["line1", "line2"]
+        assert result.error is None
+
+    def test_get_output_joins_lines(self):
+        """get_output() joins buffer with newlines."""
+        result = HeadlessResult(
+            success=True,
+            message="Test",
+            output_buffer=["first", "second", "third"],
+        )
+        assert result.get_output() == "first\nsecond\nthird"
+
+    def test_get_output_empty_buffer(self):
+        """get_output() returns empty string for empty buffer."""
+        result = HeadlessResult(success=True, message="Test")
+        assert result.get_output() == ""
+
+
+class TestHeadlessSpawnerSync:
+    """Tests for HeadlessSpawner synchronous methods."""
+
+    def test_spawn_simple_command(self):
+        """spawn() runs command and captures output."""
+        spawner = HeadlessSpawner()
+        result = spawner.spawn(["echo", "hello"], cwd="/tmp")
+
+        assert result.success is True
+        assert result.pid is not None
+        assert result.process is not None
+
+        # Read output
+        stdout, _ = result.process.communicate()
+        assert "hello" in stdout
+
+    def test_spawn_with_env_vars(self):
+        """spawn() passes environment variables."""
+        spawner = HeadlessSpawner()
+        result = spawner.spawn(
+            ["printenv", "HEADLESS_TEST_VAR"],
+            cwd="/tmp",
+            env={"HEADLESS_TEST_VAR": "headless_value"},
+        )
+
+        assert result.success is True
+        stdout, _ = result.process.communicate()
+        assert "headless_value" in stdout
+
+    def test_spawn_nonexistent_command(self):
+        """spawn() fails gracefully for non-existent command."""
+        spawner = HeadlessSpawner()
+        result = spawner.spawn(["nonexistent_xyz_12345"], cwd="/tmp")
+
+        assert result.success is False
+        assert result.error is not None
+
+
+@pytest.mark.asyncio
+class TestHeadlessSpawnerAsync:
+    """Async tests for HeadlessSpawner.spawn_and_capture()."""
+
+    async def test_basic_output_capture(self):
+        """spawn_and_capture() captures command output."""
+        spawner = HeadlessSpawner()
+        result = await spawner.spawn_and_capture(
+            command=["echo", "async hello"],
+            cwd="/tmp",
+        )
+
+        assert result.success is True
+        assert "async hello" in result.output_buffer or "async hello" in result.get_output()
+
+    async def test_multi_line_output(self):
+        """spawn_and_capture() captures multiple lines."""
+        spawner = HeadlessSpawner()
+        result = await spawner.spawn_and_capture(
+            command=["sh", "-c", "echo line1; echo line2; echo line3"],
+            cwd="/tmp",
+        )
+
+        assert result.success is True
+        output = result.get_output()
+        assert "line1" in output
+        assert "line2" in output
+        assert "line3" in output
+
+    async def test_callback_invocation(self):
+        """spawn_and_capture() invokes callback for each line."""
+        spawner = HeadlessSpawner()
+        captured_lines: list[str] = []
+
+        def on_output(line: str) -> None:
+            captured_lines.append(line)
+
+        result = await spawner.spawn_and_capture(
+            command=["sh", "-c", "echo one; echo two; echo three"],
+            cwd="/tmp",
+            on_output=on_output,
+        )
+
+        assert result.success is True
+        # Callback should have been called for each line
+        assert len(captured_lines) >= 3
+        assert "one" in captured_lines
+        assert "two" in captured_lines
+        assert "three" in captured_lines
+
+    async def test_timeout_terminates_process(self):
+        """spawn_and_capture() terminates process on timeout."""
+        spawner = HeadlessSpawner()
+        result = await spawner.spawn_and_capture(
+            command=["sleep", "60"],  # Would take 60 seconds
+            cwd="/tmp",
+            timeout=0.5,  # Timeout after 0.5 seconds
+        )
+
+        # Should timeout
+        assert result.error == "Process timed out"
+        # Process should be terminated
+        if result.process:
+            assert result.process.poll() is not None  # Process has exited
+
+    async def test_timeout_with_output(self):
+        """spawn_and_capture() captures output before timeout."""
+        spawner = HeadlessSpawner()
+        result = await spawner.spawn_and_capture(
+            command=["sh", "-c", "echo before_timeout; sleep 60"],
+            cwd="/tmp",
+            timeout=1.0,
+        )
+
+        # Should timeout but have captured output
+        assert result.error == "Process timed out"
+        assert "before_timeout" in result.get_output()
+
+    async def test_env_vars_in_async(self):
+        """spawn_and_capture() passes environment variables."""
+        spawner = HeadlessSpawner()
+        result = await spawner.spawn_and_capture(
+            command=["printenv", "ASYNC_TEST_VAR"],
+            cwd="/tmp",
+            env={"ASYNC_TEST_VAR": "async_value"},
+        )
+
+        assert result.success is True
+        assert "async_value" in result.get_output()
+
+    async def test_large_output_handling(self):
+        """spawn_and_capture() handles large output."""
+        spawner = HeadlessSpawner()
+        # Generate 1000 lines of output
+        result = await spawner.spawn_and_capture(
+            command=["sh", "-c", "for i in $(seq 1 1000); do echo line_$i; done"],
+            cwd="/tmp",
+        )
+
+        assert result.success is True
+        # Should have captured all 1000 lines
+        assert len(result.output_buffer) == 1000
+        assert "line_1" in result.output_buffer
+        assert "line_1000" in result.output_buffer
+
+    async def test_error_handling_nonexistent_command(self):
+        """spawn_and_capture() handles command not found."""
+        spawner = HeadlessSpawner()
+        result = await spawner.spawn_and_capture(
+            command=["nonexistent_command_xyz_async"],
+            cwd="/tmp",
+        )
+
+        assert result.success is False
+        assert result.error is not None
+
+    async def test_working_directory(self):
+        """spawn_and_capture() uses correct working directory."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            spawner = HeadlessSpawner()
+            result = await spawner.spawn_and_capture(
+                command=["pwd"],
+                cwd=tmpdir,
+            )
+
+            assert result.success is True
+            output = result.get_output()
+            # tmpdir may be a symlink, check contains or basename
+            assert tmpdir in output or os.path.basename(tmpdir) in output
+
+    async def test_exit_code_captured(self):
+        """spawn_and_capture() waits for process completion."""
+        spawner = HeadlessSpawner()
+        result = await spawner.spawn_and_capture(
+            command=["sh", "-c", "exit 42"],
+            cwd="/tmp",
+        )
+
+        assert result.success is True  # spawn succeeded
+        # Process should have exited
+        if result.process:
+            assert result.process.returncode == 42
+
+    async def test_stderr_merged_with_stdout(self):
+        """spawn_and_capture() captures stderr in output."""
+        spawner = HeadlessSpawner()
+        result = await spawner.spawn_and_capture(
+            command=["sh", "-c", "echo stdout_msg; echo stderr_msg >&2"],
+            cwd="/tmp",
+        )
+
+        assert result.success is True
+        output = result.get_output()
+        # Both stdout and stderr should be in output (stderr is merged)
+        assert "stdout_msg" in output
+        assert "stderr_msg" in output
