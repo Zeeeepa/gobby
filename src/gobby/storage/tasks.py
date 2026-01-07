@@ -41,7 +41,7 @@ class Task:
     id: str
     project_id: str
     title: str
-    status: Literal["open", "in_progress", "closed", "failed", "escalated"]
+    status: Literal["open", "in_progress", "closed", "failed", "escalated", "needs_decomposition"]
     priority: int
     task_type: str  # bug, feature, task, epic, chore
     created_at: str
@@ -354,6 +354,24 @@ class LocalTaskManager:
                     )
 
                 logger.debug(f"Created task {task_id} in project {project_id}")
+
+                # Auto-transition parent from needs_decomposition to open
+                if parent_task_id:
+                    parent = self.db.fetchone(
+                        "SELECT status FROM tasks WHERE id = ?",
+                        (parent_task_id,),
+                    )
+                    if parent and parent["status"] == "needs_decomposition":
+                        now = datetime.now(UTC).isoformat()
+                        conn.execute(
+                            "UPDATE tasks SET status = 'open', updated_at = ? WHERE id = ?",
+                            (now, parent_task_id),
+                        )
+                        logger.debug(
+                            f"Auto-transitioned parent task {parent_task_id} from "
+                            "needs_decomposition to open"
+                        )
+
                 self._notify_listeners()
                 return self.get_task(task_id)
 
@@ -422,6 +440,22 @@ class LocalTaskManager:
         escalation_reason: str | None | Any = UNSET,
     ) -> Task:
         """Update task fields."""
+        # Validate status transitions from needs_decomposition
+        if status is not UNSET and status in ("in_progress", "closed"):
+            current_task = self.get_task(task_id)
+            if current_task.status == "needs_decomposition":
+                # Check if task has subtasks (required to transition out of needs_decomposition)
+                children = self.db.fetchone(
+                    "SELECT COUNT(*) as count FROM tasks WHERE parent_task_id = ?",
+                    (task_id,),
+                )
+                has_children = children and children["count"] > 0
+                if not has_children:
+                    raise ValueError(
+                        f"Cannot transition task {task_id} from 'needs_decomposition' to '{status}'. "
+                        "Task must be decomposed into subtasks first."
+                    )
+
         updates = []
         params: list[Any] = []
 
