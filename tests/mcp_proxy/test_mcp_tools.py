@@ -161,8 +161,8 @@ async def test_list_ready_tasks(mock_task_manager, mock_sync_manager):
     mock_t1.to_brief.return_value = {"id": "t1"}
     mock_task_manager.list_ready_tasks.return_value = [mock_t1]
 
-    # Mock get_project_context for project filtering
-    with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+    # Mock get_project_context for project filtering (in task_readiness module)
+    with patch("gobby.mcp_proxy.tools.task_readiness.get_project_context") as mock_ctx:
         mock_ctx.return_value = {"id": "test-project-id"}
 
         result = await registry.call("list_ready_tasks", {"limit": 5})
@@ -188,8 +188,8 @@ async def test_list_ready_tasks_all_projects(mock_task_manager, mock_sync_manage
     mock_t1.to_brief.return_value = {"id": "t1"}
     mock_task_manager.list_ready_tasks.return_value = [mock_t1]
 
-    # Mock get_project_context
-    with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
+    # Mock get_project_context (in task_readiness module)
+    with patch("gobby.mcp_proxy.tools.task_readiness.get_project_context") as mock_ctx:
         mock_ctx.return_value = {"id": "test-project-id"}
 
         result = await registry.call("list_ready_tasks", {"limit": 5, "all_projects": True})
@@ -231,8 +231,8 @@ async def test_expand_task_integration(mock_task_manager, mock_sync_manager):
         }
     )
 
-    # Mock dependency manager
-    with patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager") as MockDepManager:
+    # Mock dependency manager (in task_expansion module where expand_task is defined)
+    with patch("gobby.mcp_proxy.tools.task_expansion.TaskDependencyManager") as MockDepManager:
         mock_dep_instance = MockDepManager.return_value
 
         registry = create_task_registry(
@@ -426,16 +426,15 @@ async def test_unlink_commit_tool(mock_task_manager, mock_sync_manager):
 @pytest.mark.asyncio
 async def test_get_task_diff_tool(mock_task_manager, mock_sync_manager):
     """Test get_task_diff tool execution."""
-    registry = create_task_registry(mock_task_manager, mock_sync_manager)
+    from gobby.tasks.commits import TaskDiffResult
 
     mock_task = MagicMock()
     mock_task.id = "t1"
     mock_task.commits = ["abc123"]
     mock_task_manager.get_task.return_value = mock_task
 
+    # Patch before creating registry since functions are captured at creation time
     with patch("gobby.mcp_proxy.tools.tasks.get_task_diff") as mock_diff:
-        from gobby.tasks.commits import TaskDiffResult
-
         mock_diff.return_value = TaskDiffResult(
             diff="diff content",
             commits=["abc123"],
@@ -443,6 +442,7 @@ async def test_get_task_diff_tool(mock_task_manager, mock_sync_manager):
             file_count=2,
         )
 
+        registry = create_task_registry(mock_task_manager, mock_sync_manager)
         result = await registry.call(
             "get_task_diff",
             {"task_id": "t1", "include_uncommitted": False},
@@ -456,17 +456,17 @@ async def test_get_task_diff_tool(mock_task_manager, mock_sync_manager):
 @pytest.mark.asyncio
 async def test_auto_link_commits_tool(mock_task_manager, mock_sync_manager):
     """Test auto_link_commits tool execution."""
-    registry = create_task_registry(mock_task_manager, mock_sync_manager)
+    from gobby.tasks.commits import AutoLinkResult
 
+    # Patch before creating registry since functions are captured at creation time
     with patch("gobby.mcp_proxy.tools.tasks.auto_link_commits_fn") as mock_auto_link:
-        from gobby.tasks.commits import AutoLinkResult
-
         mock_auto_link.return_value = AutoLinkResult(
             linked_tasks={"t1": ["abc123", "def456"]},
             total_linked=2,
             skipped=0,
         )
 
+        registry = create_task_registry(mock_task_manager, mock_sync_manager)
         result = await registry.call(
             "auto_link_commits",
             {"since": "1 week ago"},

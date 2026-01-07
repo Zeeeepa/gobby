@@ -38,6 +38,7 @@ def mock_config():
     config = MagicMock()
     config.enabled = True
     config.max_subtasks = 10
+    config.timeout = 60  # Numeric timeout in seconds
     config.codebase_research_enabled = True  # Enabled globally
     config.web_research_enabled = True  # Enabled globally
     return config

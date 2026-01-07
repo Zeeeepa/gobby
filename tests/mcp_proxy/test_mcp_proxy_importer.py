@@ -169,16 +169,28 @@ Here is the config:
         assert result is None
 
     def test_prefers_valid_server_config(self, importer):
-        """Test prefers JSON that looks like server config."""
+        """Test extracts first JSON that looks like server config."""
+        # When text contains only server config JSON, it should be extracted
+        text = """
+{"name": "real-server", "transport": "http"}
+"""
+        result = importer._extract_json(text)
+
+        # Should find the server config
+        assert result is not None
+        assert result.get("name") == "real-server"
+
+    def test_rejects_non_server_config_json(self, importer):
+        """Test returns None when first JSON doesn't look like server config."""
+        # When first JSON lacks name/transport, extraction returns None
         text = """
 {"unrelated": "data"}
 {"name": "real-server", "transport": "http"}
 """
         result = importer._extract_json(text)
 
-        # Should find the one with name/transport
-        assert result is not None
-        assert result.get("name") == "real-server"
+        # First JSON found lacks name/transport, so returns None
+        assert result is None
 
 
 class TestFindMissingSecrets:

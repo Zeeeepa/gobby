@@ -264,12 +264,21 @@ class TestWorktreeGitManagerCreateWorktree:
     def test_create_handles_git_failure(self, mock_run, manager, tmp_path):
         """Create handles git command failure."""
         worktree_path = tmp_path / "worktrees" / "feature-test"
-        mock_run.return_value = subprocess.CompletedProcess(
-            args=["git", "worktree", "add"],
-            returncode=128,
-            stdout="",
-            stderr="fatal: branch already exists",
-        )
+        # First call is fetch (succeeds), second call is worktree add (fails)
+        mock_run.side_effect = [
+            subprocess.CompletedProcess(
+                args=["git", "fetch"],
+                returncode=0,
+                stdout="",
+                stderr="",
+            ),
+            subprocess.CompletedProcess(
+                args=["git", "worktree", "add"],
+                returncode=128,
+                stdout="",
+                stderr="fatal: branch already exists",
+            ),
+        ]
 
         result = manager.create_worktree(worktree_path, "feature/test")
 

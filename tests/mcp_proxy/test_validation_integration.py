@@ -901,7 +901,11 @@ async def test_close_task_uses_commit_diff_when_commits_linked(
 async def test_close_task_falls_back_to_smart_context_when_no_commits(
     mock_task_manager, mock_task_validator
 ):
-    """Test that close_task falls back to smart context when no commits linked."""
+    """Test that close_task falls back to smart context when no commits linked.
+
+    Note: Tasks without commits require no_commit_needed=True to proceed past
+    the commit check. Once past that check, validation uses smart context.
+    """
     task = Task(
         id="t1",
         title="Task without commits",
@@ -942,7 +946,15 @@ async def test_close_task_falls_back_to_smart_context_when_no_commits(
             task_validator=mock_task_validator,
         )
 
-        result = await registry.call("close_task", {"task_id": "t1"})
+        # Must provide no_commit_needed=True with justification to close without commits
+        result = await registry.call(
+            "close_task",
+            {
+                "task_id": "t1",
+                "no_commit_needed": True,
+                "override_justification": "Research task - no code changes",
+            },
+        )
 
         # Should NOT have called get_task_diff (no commits)
         mock_diff.assert_not_called()

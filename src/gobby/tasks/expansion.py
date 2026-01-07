@@ -181,10 +181,10 @@ class TaskExpander:
             # Get provider and generate text response
             provider = self.llm_service.get_provider(self.config.provider)
 
-            # TDD mode applies to children being created, not to the parent task type.
-            # The TDD prompt instructs the LLM to apply TDD only to coding tasks,
-            # so it's safe to enable even when expanding an epic.
-            tdd_mode = self.config.tdd_mode
+            # Disable TDD mode for epics - epics are container tasks whose
+            # closing condition is "all children closed", not test verification.
+            # For non-epics, use the config setting.
+            tdd_mode = self.config.tdd_mode and task_obj.task_type != "epic"
 
             response = await provider.generate_text(
                 prompt=prompt,

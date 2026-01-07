@@ -744,6 +744,10 @@ class FakeMCPManager:
         self.project_id = "test-project"
         self.mcp_db_manager = None
 
+    def has_server(self, server_name: str) -> bool:
+        """Check if a server is configured."""
+        return server_name in self.connections
+
 
 class TestMCPEndpointsWithManager:
     """Tests for MCP endpoints with mock manager."""

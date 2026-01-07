@@ -426,8 +426,11 @@ class MemoryExtractor:
             memory_config = self.memory_manager.config
             provider, model, _ = self.llm_service.get_provider_for_feature(memory_config)
 
-            # Build prompt
-            prompt = prompt_template.format(content=content)
+            # Build prompt - support both {content} and {summary} placeholders
+            try:
+                prompt = prompt_template.format(content=content, summary=content)
+            except KeyError:
+                prompt = prompt_template.format(content=content)
 
             # Call LLM
             response = await provider.generate_text(prompt=prompt, model=model)
