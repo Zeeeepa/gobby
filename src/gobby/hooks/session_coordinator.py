@@ -39,10 +39,10 @@ class SessionCoordinator:
 
     def __init__(
         self,
-        session_storage: "LocalSessionManager | None" = None,
+        session_storage: LocalSessionManager | None = None,
         message_processor: Any | None = None,
-        agent_run_manager: "LocalAgentRunManager | None" = None,
-        worktree_manager: "LocalWorktreeManager | None" = None,
+        agent_run_manager: LocalAgentRunManager | None = None,
+        worktree_manager: LocalWorktreeManager | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         """

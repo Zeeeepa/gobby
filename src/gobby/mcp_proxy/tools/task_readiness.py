@@ -97,8 +97,8 @@ def is_descendant_of(
     if task_id == ancestor_id:
         return True  # A task is considered a descendant of itself
 
-    current_id = task_id
-    visited = set()
+    current_id: str | None = task_id
+    visited: set[str] = set()
 
     while current_id and current_id not in visited:
         visited.add(current_id)

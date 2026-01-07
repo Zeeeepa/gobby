@@ -30,7 +30,7 @@ class HealthMonitor:
 
     def __init__(
         self,
-        daemon_client: "DaemonClient",
+        daemon_client: DaemonClient,
         health_check_interval: float = 10.0,
         logger: logging.Logger | None = None,
     ) -> None:

@@ -171,7 +171,7 @@ class EventHandlers:
                         status="active",
                     )
                     # Return early with the pre-created session's context
-                    session_id = existing_session.id
+                    session_id: str | None = existing_session.id
                     parent_session_id = existing_session.parent_session_id
 
                     # Track registered session

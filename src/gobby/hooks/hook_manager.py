@@ -29,7 +29,6 @@ Example:
 
 import asyncio
 import logging
-import threading
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast

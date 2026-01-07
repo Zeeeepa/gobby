@@ -363,6 +363,63 @@ class LocalSessionManager:
         )
         return self.get(session_id)
 
+    def update(
+        self,
+        session_id: str,
+        *,
+        external_id: str | None = None,
+        jsonl_path: str | None = None,
+        status: str | None = None,
+        title: str | None = None,
+        git_branch: str | None = None,
+    ) -> Session | None:
+        """
+        Update multiple session fields at once.
+
+        Args:
+            session_id: Session ID to update
+            external_id: New external ID (optional)
+            jsonl_path: New transcript path (optional)
+            status: New status (optional)
+            title: New title (optional)
+            git_branch: New git branch (optional)
+
+        Returns:
+            Updated Session or None if not found
+        """
+        updates: list[str] = []
+        params: list[Any] = []
+
+        if external_id is not None:
+            updates.append("external_id = ?")
+            params.append(external_id)
+        if jsonl_path is not None:
+            updates.append("jsonl_path = ?")
+            params.append(jsonl_path)
+        if status is not None:
+            updates.append("status = ?")
+            params.append(status)
+        if title is not None:
+            updates.append("title = ?")
+            params.append(title)
+        if git_branch is not None:
+            updates.append("git_branch = ?")
+            params.append(git_branch)
+
+        if not updates:
+            return self.get(session_id)
+
+        now = datetime.now(UTC).isoformat()
+        updates.append("updated_at = ?")
+        params.append(now)
+        params.append(session_id)
+
+        self.db.execute(
+            f"UPDATE sessions SET {', '.join(updates)} WHERE id = ?",
+            tuple(params),
+        )
+        return self.get(session_id)
+
     def list(
         self,
         project_id: str | None = None,

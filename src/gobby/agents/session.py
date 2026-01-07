@@ -194,16 +194,16 @@ class ChildSessionManager:
         child_id = child.id
         self._storage.update(session_id=child_id, external_id=child_id)
         # Re-fetch to get updated external_id
-        child = self._storage.get(child_id)
-        if child is None:
+        updated_child = self._storage.get(child_id)
+        if updated_child is None:
             raise RuntimeError(f"Failed to fetch child session {child_id} after creation")
 
         self.logger.info(
-            f"Created child session {child.id} "
+            f"Created child session {updated_child.id} "
             f"(parent={config.parent_session_id}, agent={config.agent_id})"
         )
 
-        return child
+        return updated_child
 
     def get_child_sessions(self, parent_session_id: str) -> list[Session]:
         """

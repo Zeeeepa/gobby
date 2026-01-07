@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
@@ -57,6 +57,58 @@ from gobby.config.tasks import (
     TaskValidationConfig,
     WorkflowConfig,
 )
+
+# Explicit exports for mypy (re-exported symbols from submodules)
+__all__ = [
+    # From gobby.config.extensions
+    "HookExtensionsConfig",
+    "PluginItemConfig",
+    "PluginsConfig",
+    "WebhookEndpointConfig",
+    "WebhooksConfig",
+    "WebSocketBroadcastConfig",
+    # From gobby.config.features
+    "CodeExecutionConfig",
+    "ImportMCPServerConfig",
+    "MetricsConfig",
+    "ProjectVerificationConfig",
+    "RecommendToolsConfig",
+    "ToolSummarizerConfig",
+    # From gobby.config.llm_providers
+    "LLMProviderConfig",
+    "LLMProvidersConfig",
+    # From gobby.config.logging
+    "LoggingSettings",
+    # From gobby.config.persistence
+    "MemoryConfig",
+    "MemorySyncConfig",
+    "SkillConfig",
+    "SkillSyncConfig",
+    # From gobby.config.servers
+    "MCPClientProxyConfig",
+    "WebSocketSettings",
+    # From gobby.config.sessions
+    "ContextInjectionConfig",
+    "MessageTrackingConfig",
+    "SessionLifecycleConfig",
+    "SessionSummaryConfig",
+    "TitleSynthesisConfig",
+    # From gobby.config.tasks
+    "CompactHandoffConfig",
+    "GobbyTasksConfig",
+    "PatternCriteriaConfig",
+    "TaskExpansionConfig",
+    "TaskValidationConfig",
+    "WorkflowConfig",
+    # Local definitions
+    "DaemonConfig",
+    "expand_env_vars",
+    "load_yaml",
+    "apply_cli_overrides",
+    "generate_default_config",
+    "load_config",
+    "save_config",
+]
 
 # Pattern for environment variable substitution:
 # ${VAR} - simple substitution
