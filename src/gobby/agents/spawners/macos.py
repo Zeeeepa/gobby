@@ -16,6 +16,14 @@ from gobby.agents.tty_config import get_tty_config
 __all__ = ["GhosttySpawner", "ITermSpawner", "TerminalAppSpawner"]
 
 
+def escape_applescript(s: str) -> str:
+    """Escape special characters for embedding in AppleScript strings.
+
+    AppleScript uses backslash escaping for quotes and backslashes.
+    """
+    return s.replace("\\", "\\\\").replace('"', '\\"')
+
+
 class GhosttySpawner(TerminalSpawnerBase):
     """Spawner for Ghostty terminal."""
 
@@ -143,19 +151,21 @@ class ITermSpawner(TerminalSpawnerBase):
             # Check if iTerm was running before we launch it
             # If running: create new window with command
             # If not running: use the default window that gets auto-created
+            # Escape script_path to prevent AppleScript injection
+            safe_script_path = escape_applescript(str(script_path))
             applescript = f'''
             set iTermWasRunning to application "iTerm" is running
             tell application "iTerm"
                 activate
                 if iTermWasRunning then
                     -- iTerm already running, create a new window
-                    create window with default profile command "{script_path}"
+                    create window with default profile command "{safe_script_path}"
                 else
                     -- iTerm just launched, use the default window
                     -- Wait for shell to be ready, then exec script (replaces shell so it closes when done)
                     delay 0.5
                     tell current session of current window
-                        write text "exec {script_path}"
+                        write text "exec {safe_script_path}"
                     end tell
                 end if
             end tell
@@ -222,11 +232,6 @@ class TerminalAppSpawner(TerminalSpawnerBase):
 
             # Quote cwd for shell
             safe_cwd = shlex.quote(str(cwd))
-
-            # Escape special characters for AppleScript string
-            # AppleScript uses backslash escaping for quotes and backslashes
-            def escape_applescript(s: str) -> str:
-                return s.replace("\\", "\\\\").replace('"', '\\"')
 
             shell_command = f"cd {safe_cwd} && {env_exports} {cmd_str}"
             safe_shell_command = escape_applescript(shell_command)
