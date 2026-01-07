@@ -207,11 +207,13 @@ class TaskExpander:
                     "error": "No subtasks found in response",
                 }
 
-            # Create tasks with dependency wiring
+            # Create tasks with dependency wiring and precise criteria
             subtask_ids = await self._create_subtasks(
                 parent_task_id=task_id,
                 project_id=task_obj.project_id,
                 subtask_specs=subtask_specs,
+                expansion_context=expansion_ctx,
+                parent_labels=task_obj.labels or [],
             )
 
             # Save expansion context to the parent task for audit/reuse
@@ -322,16 +324,21 @@ class TaskExpander:
         parent_task_id: str,
         project_id: str,
         subtask_specs: list[SubtaskSpec],
+        expansion_context: ExpansionContext | None = None,
+        parent_labels: list[str] | None = None,
     ) -> list[str]:
         """
         Create tasks from parsed subtask specifications.
 
         Handles dependency wiring by mapping depends_on indices to task IDs.
+        Generates precise validation criteria using expansion context.
 
         Args:
             parent_task_id: ID of the parent task
             project_id: Project ID for the new tasks
             subtask_specs: List of parsed subtask specifications
+            expansion_context: Context gathered during expansion (for criteria generation)
+            parent_labels: Labels from the parent task (for pattern detection)
 
         Returns:
             List of created task IDs
@@ -347,6 +354,19 @@ class TaskExpander:
                     description += f"\n\n**Test Strategy:** {spec.test_strategy}"
                 else:
                     description = f"**Test Strategy:** {spec.test_strategy}"
+
+            # Generate precise validation criteria if context is available
+            if expansion_context:
+                precise_criteria = await self._generate_precise_criteria(
+                    spec=spec,
+                    context=expansion_context,
+                    parent_labels=parent_labels or [],
+                )
+                if precise_criteria:
+                    if description:
+                        description += f"\n\n{precise_criteria}"
+                    else:
+                        description = precise_criteria
 
             # Create the task
             task = self.task_manager.create_task(
@@ -420,3 +440,76 @@ class TaskExpander:
 
         except Exception as e:
             logger.warning(f"Failed to save expansion context for {task_id}: {e}")
+
+    async def _generate_precise_criteria(
+        self,
+        spec: SubtaskSpec,
+        context: ExpansionContext,
+        parent_labels: list[str],
+    ) -> str:
+        """
+        Generate precise validation criteria for a subtask using full expansion context.
+
+        Args:
+            spec: The subtask specification
+            context: Full expansion context with verification commands, signatures, etc.
+            parent_labels: Labels from the parent task (for pattern detection)
+
+        Returns:
+            Markdown-formatted validation criteria string
+        """
+        criteria_parts: list[str] = []
+
+        # 1. Start with pattern-specific criteria from parent labels
+        pattern_criteria = self.criteria_injector.inject_for_labels(
+            labels=parent_labels,
+            extra_placeholders=context.verification_commands,
+        )
+        if pattern_criteria:
+            criteria_parts.append(pattern_criteria)
+
+        # 2. Add base criteria from test_strategy if present
+        if spec.test_strategy:
+            # Substitute verification commands into test_strategy
+            strategy = spec.test_strategy
+            if context.verification_commands:
+                for name, cmd in context.verification_commands.items():
+                    strategy = strategy.replace(f"{{{name}}}", f"`{cmd}`")
+            criteria_parts.append(f"## Test Strategy\n\n- [ ] {strategy}")
+
+        # 3. Add file-specific criteria if relevant files are mentioned
+        if context.relevant_files and spec.description:
+            relevant_for_subtask = [
+                f for f in context.relevant_files
+                if f.lower() in (spec.title + (spec.description or "")).lower()
+            ]
+            if relevant_for_subtask:
+                file_criteria = ["## File Requirements", ""]
+                for f in relevant_for_subtask:
+                    file_criteria.append(f"- [ ] `{f}` is correctly modified/created")
+                criteria_parts.append("\n".join(file_criteria))
+
+        # 4. Add function signature criteria if applicable
+        if context.function_signatures and spec.description:
+            desc_lower = (spec.description or "").lower()
+            for _file_path, signatures in context.function_signatures.items():
+                for sig in signatures:
+                    # Check if this function is mentioned in the subtask
+                    func_name = sig.split("(")[0].split()[-1] if "(" in sig else sig.split()[-1]
+                    if func_name.lower() in desc_lower:
+                        criteria_parts.append(
+                            f"## Function Integrity\n\n"
+                            f"- [ ] `{func_name}` signature preserved or updated as intended"
+                        )
+                        break
+
+        # 5. Add verification command criteria
+        if context.verification_commands:
+            verification_criteria = ["## Verification", ""]
+            for name, cmd in context.verification_commands.items():
+                if name in ["unit_tests", "type_check", "lint"]:
+                    verification_criteria.append(f"- [ ] `{cmd}` passes")
+            if len(verification_criteria) > 2:  # Has items beyond header
+                criteria_parts.append("\n".join(verification_criteria))
+
+        return "\n\n".join(criteria_parts) if criteria_parts else ""

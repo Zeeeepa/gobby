@@ -611,6 +611,7 @@ class TaskHierarchyBuilder:
         project_id: str,
         parent_task_id: str | None = None,
         default_priority: int = 2,
+        parent_labels: list[str] | None = None,
     ) -> None:
         """Initialize the builder.
 
@@ -619,11 +620,13 @@ class TaskHierarchyBuilder:
             project_id: Project ID for created tasks
             parent_task_id: Optional parent task ID (tasks created will be children)
             default_priority: Default priority for created tasks (1=high, 2=medium, 3=low)
+            parent_labels: Optional labels from parent task (for pattern detection in LLM expansion)
         """
         self.task_manager = task_manager
         self.project_id = project_id
         self.parent_task_id = parent_task_id
         self.default_priority = default_priority
+        self.parent_labels = parent_labels or []
 
     def build_from_headings(
         self,
@@ -826,6 +829,7 @@ class TaskHierarchyBuilder:
         parent_task_id: str | None,
         description: str | None,
         status: str = "open",
+        labels: list[str] | None = None,
     ) -> CreatedTask:
         """Create a task using the task manager.
 
@@ -835,6 +839,7 @@ class TaskHierarchyBuilder:
             parent_task_id: Parent task ID
             description: Task description
             status: Task status (default: open)
+            labels: Optional labels (for pattern detection)
 
         Returns:
             CreatedTask with task details
@@ -846,6 +851,7 @@ class TaskHierarchyBuilder:
             parent_task_id=parent_task_id,
             description=description,
             priority=self.default_priority,
+            labels=labels,
         )
 
         # Update status if not default
@@ -944,11 +950,13 @@ class TaskHierarchyBuilder:
         task_type = "epic" if heading.level <= 3 else "task"
 
         # Create task for this heading
+        # Inherit parent labels for pattern detection during LLM expansion
         task = self._create_task(
             title=heading.text,
             task_type=task_type,
             parent_task_id=parent_task_id,
             description=heading.content if heading.content.strip() else None,
+            labels=self.parent_labels if not has_checkboxes else None,
         )
         created_tasks.append(task)
         created_at_level.append(task.id)
