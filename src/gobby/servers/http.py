@@ -315,6 +315,9 @@ class HTTPServer:
                 app.state.hook_manager = HookManager(**hook_manager_kwargs)
             logger.debug("HookManager initialized in daemon")
 
+            # Store server instance for dependency injection
+            app.state.server = self
+
             # Initialize CodexAdapter for session tracking
             app.state.codex_adapter = None
             if self.codex_client and CodexAdapter.is_codex_available():
@@ -442,11 +445,11 @@ class HTTPServer:
         # Include all routers
         app.include_router(create_admin_router(self))
         app.include_router(create_sessions_router(self))
-        app.include_router(create_mcp_router(self))
+        app.include_router(create_mcp_router())
         app.include_router(create_code_router(self))
         app.include_router(create_hooks_router(self))
-        app.include_router(create_plugins_router(self))
-        app.include_router(create_webhooks_router(self))
+        app.include_router(create_plugins_router())
+        app.include_router(create_webhooks_router())
 
     async def _process_shutdown(self) -> None:
         """

@@ -2,6 +2,7 @@
 MCP routes for Gobby HTTP server.
 
 Provides MCP server management, tool discovery, and tool execution endpoints.
+Uses FastAPI dependency injection via Depends() for proper testability.
 """
 
 import json
@@ -9,23 +10,27 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from gobby.mcp_proxy.services.code_execution import CodeExecutionService
+from gobby.servers.routes.dependencies import (
+    get_internal_manager,
+    get_mcp_manager,
+    get_server,
+)
 from gobby.utils.metrics import get_metrics_collector
 
 if TYPE_CHECKING:
+    from gobby.mcp_proxy.manager import MCPClientManager
+    from gobby.mcp_proxy.registry_manager import InternalToolRegistryManager
     from gobby.servers.http import HTTPServer
 
 logger = logging.getLogger(__name__)
 
 
-def create_mcp_router(server: "HTTPServer") -> APIRouter:
+def create_mcp_router() -> APIRouter:
     """
-    Create MCP router with endpoints bound to server instance.
-
-    Args:
-        server: HTTPServer instance for accessing state and dependencies
+    Create MCP router with endpoints using dependency injection.
 
     Returns:
         Configured APIRouter with MCP endpoints
@@ -34,12 +39,18 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
     metrics = get_metrics_collector()
 
     @router.get("/{server_name}/tools")
-    async def list_mcp_tools(server_name: str) -> dict[str, Any]:
+    async def list_mcp_tools(
+        server_name: str,
+        internal_manager: "InternalToolRegistryManager | None" = Depends(get_internal_manager),
+        mcp_manager: "MCPClientManager | None" = Depends(get_mcp_manager),
+    ) -> dict[str, Any]:
         """
         List available tools from an MCP server.
 
         Args:
             server_name: Name of the MCP server (e.g., "supabase", "context7")
+            internal_manager: Internal tool registry manager (injected)
+            mcp_manager: External MCP client manager (injected)
 
         Returns:
             List of available tools with their descriptions
@@ -49,8 +60,8 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
 
         try:
             # Check internal registries first (gobby-tasks, gobby-memory, etc.)
-            if server._internal_manager and server._internal_manager.is_internal(server_name):
-                registry = server._internal_manager.get_registry(server_name)
+            if internal_manager and internal_manager.is_internal(server_name):
+                registry = internal_manager.get_registry(server_name)
                 if registry:
                     tools = registry.list_tools()
                     response_time_ms = (time.perf_counter() - start_time) * 1000
@@ -65,16 +76,16 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
                     status_code=404, detail=f"Internal server '{server_name}' not found"
                 )
 
-            if server.mcp_manager is None:
+            if mcp_manager is None:
                 raise HTTPException(status_code=503, detail="MCP manager not available")
 
             # Check if server is configured
-            if not server.mcp_manager.has_server(server_name):
+            if not mcp_manager.has_server(server_name):
                 raise HTTPException(status_code=404, detail=f"Unknown MCP server: '{server_name}'")
 
             # Use ensure_connected for lazy loading - connects on-demand if not connected
             try:
-                session = await server.mcp_manager.ensure_connected(server_name)
+                session = await mcp_manager.ensure_connected(server_name)
             except KeyError as e:
                 raise HTTPException(status_code=404, detail=str(e)) from e
             except Exception as e:
@@ -141,9 +152,16 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/servers")
-    async def list_mcp_servers() -> dict[str, Any]:
+    async def list_mcp_servers(
+        internal_manager: "InternalToolRegistryManager | None" = Depends(get_internal_manager),
+        mcp_manager: "MCPClientManager | None" = Depends(get_mcp_manager),
+    ) -> dict[str, Any]:
         """
         List all configured MCP servers.
+
+        Args:
+            internal_manager: Internal tool registry manager (injected)
+            mcp_manager: External MCP client manager (injected)
 
         Returns:
             List of servers with connection status
@@ -155,8 +173,8 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             server_list = []
 
             # Add internal servers (gobby-tasks, gobby-memory, etc.)
-            if server._internal_manager:
-                for registry in server._internal_manager.get_all_registries():
+            if internal_manager:
+                for registry in internal_manager.get_all_registries():
                     server_list.append(
                         {
                             "name": registry.name,
@@ -167,10 +185,10 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
                     )
 
             # Add external MCP servers
-            if server.mcp_manager:
-                for config in server.mcp_manager.server_configs:
-                    health = server.mcp_manager.health.get(config.name)
-                    is_connected = config.name in server.mcp_manager.connections
+            if mcp_manager:
+                for config in mcp_manager.server_configs:
+                    health = mcp_manager.health.get(config.name)
+                    is_connected = config.name in mcp_manager.connections
                     server_list.append(
                         {
                             "name": config.name,
@@ -196,7 +214,9 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/tools")
-    async def list_all_mcp_tools(server_filter: str | None = None) -> dict[str, Any]:
+    async def list_all_mcp_tools(server_filter: str | None = None,
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         List tools from MCP servers.
 
@@ -283,7 +303,9 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/tools/schema")
-    async def get_tool_schema(request: Request) -> dict[str, Any]:
+    async def get_tool_schema(request: Request,
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         Get full schema for a specific tool.
 
@@ -353,7 +375,9 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/tools/call")
-    async def call_mcp_tool(request: Request) -> dict[str, Any]:
+    async def call_mcp_tool(request: Request,
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         Call an MCP tool.
 
@@ -432,7 +456,9 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=error_msg) from e
 
     @router.post("/servers")
-    async def add_mcp_server(request: Request) -> dict[str, Any]:
+    async def add_mcp_server(request: Request,
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         Add a new MCP server configuration.
 
@@ -500,7 +526,9 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/servers/import")
-    async def import_mcp_server(request: Request) -> dict[str, Any]:
+    async def import_mcp_server(request: Request,
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         Import MCP server(s) from various sources.
 
@@ -578,7 +606,9 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.delete("/servers/{name}")
-    async def remove_mcp_server(name: str) -> dict[str, Any]:
+    async def remove_mcp_server(name: str,
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         Remove an MCP server configuration.
 
@@ -609,7 +639,9 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/tools/recommend")
-    async def recommend_mcp_tools(request: Request) -> dict[str, Any]:
+    async def recommend_mcp_tools(request: Request,
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         Get AI-powered tool recommendations for a task.
 
@@ -684,7 +716,9 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/tools/search")
-    async def search_mcp_tools(request: Request) -> dict[str, Any]:
+    async def search_mcp_tools(request: Request,
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         Search for tools using semantic similarity.
 
@@ -780,7 +814,9 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/tools/embed")
-    async def embed_mcp_tools(request: Request) -> dict[str, Any]:
+    async def embed_mcp_tools(request: Request,
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         Generate embeddings for all tools in a project.
 
@@ -847,7 +883,9 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/status")
-    async def get_mcp_status() -> dict[str, Any]:
+    async def get_mcp_status(
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         Get MCP proxy status and health.
 
@@ -906,7 +944,9 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/{server_name}/tools/{tool_name}")
-    async def mcp_proxy(server_name: str, tool_name: str, request: Request) -> dict[str, Any]:
+    async def mcp_proxy(server_name: str, tool_name: str, request: Request,
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         Unified MCP proxy endpoint for calling MCP server tools.
 
@@ -1004,7 +1044,9 @@ def create_mcp_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=error_msg) from e
 
     @router.post("/refresh")
-    async def refresh_mcp_tools(request: Request) -> dict[str, Any]:
+    async def refresh_mcp_tools(request: Request,
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         Refresh MCP tools - detect schema changes and re-index as needed.
 
@@ -1236,7 +1278,9 @@ def create_code_router(server: "HTTPServer") -> APIRouter:
     metrics = get_metrics_collector()
 
     @router.post("/execute")
-    async def execute_code(request: Request) -> dict[str, Any]:
+    async def execute_code(request: Request,
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         Execute code using LLM-powered code execution.
 
@@ -1281,7 +1325,9 @@ def create_code_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/process-dataset")
-    async def process_dataset(request: Request) -> dict[str, Any]:
+    async def process_dataset(request: Request,
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         Process large datasets using LLM-powered chunked processing.
 
@@ -1445,12 +1491,9 @@ def create_hooks_router(server: "HTTPServer") -> APIRouter:
     return router
 
 
-def create_plugins_router(server: "HTTPServer") -> APIRouter:
+def create_plugins_router() -> APIRouter:
     """
-    Create plugins management router.
-
-    Args:
-        server: HTTPServer instance for accessing state and dependencies
+    Create plugins management router using dependency injection.
 
     Returns:
         Configured APIRouter with plugins endpoints
@@ -1458,7 +1501,9 @@ def create_plugins_router(server: "HTTPServer") -> APIRouter:
     router = APIRouter(prefix="/plugins", tags=["plugins"])
 
     @router.get("")
-    async def list_plugins(request: Request) -> dict[str, Any]:
+    async def list_plugins(request: Request,
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         List loaded plugins.
 
@@ -1548,12 +1593,9 @@ def create_plugins_router(server: "HTTPServer") -> APIRouter:
     return router
 
 
-def create_webhooks_router(server: "HTTPServer") -> APIRouter:
+def create_webhooks_router() -> APIRouter:
     """
-    Create webhooks management router.
-
-    Args:
-        server: HTTPServer instance for accessing state and dependencies
+    Create webhooks management router using dependency injection.
 
     Returns:
         Configured APIRouter with webhooks endpoints
@@ -1561,7 +1603,9 @@ def create_webhooks_router(server: "HTTPServer") -> APIRouter:
     router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
     @router.get("")
-    async def list_webhooks() -> dict[str, Any]:
+    async def list_webhooks(
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         List configured webhook endpoints.
 
@@ -1598,7 +1642,9 @@ def create_webhooks_router(server: "HTTPServer") -> APIRouter:
         }
 
     @router.post("/test")
-    async def test_webhook(request: Request) -> dict[str, Any]:
+    async def test_webhook(request: Request,
+        server: "HTTPServer" = Depends(get_server),
+    ) -> dict[str, Any]:
         """
         Test a webhook endpoint by sending a test event.
 
