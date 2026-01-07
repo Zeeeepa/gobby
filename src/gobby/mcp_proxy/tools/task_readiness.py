@@ -9,7 +9,8 @@ Provides tools for task readiness management:
 Extracted from tasks.py using Strangler Fig pattern for code decomposition.
 """
 
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.utils.project_context import get_project_context
