@@ -181,6 +181,13 @@ class EventHandlers:
                         except Exception as e:
                             self.logger.error(f"Failed to setup session tracking: {e}")
 
+                    # Start the agent run if this is a terminal-mode agent session
+                    if existing_session.agent_run_id and self._session_coordinator:
+                        try:
+                            self._session_coordinator.start_agent_run(existing_session.agent_run_id)
+                        except Exception as e:
+                            self.logger.warning(f"Failed to start agent run: {e}")
+
                     # Update event metadata
                     event.metadata["_platform_session_id"] = session_id
 

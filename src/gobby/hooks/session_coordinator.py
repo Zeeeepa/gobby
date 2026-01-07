@@ -251,6 +251,45 @@ class SessionCoordinator:
             self.logger.warning(f"Failed to re-register active sessions: {e}")
             return 0
 
+    def start_agent_run(self, agent_run_id: str) -> bool:
+        """
+        Mark an agent run as started when its terminal-mode session begins.
+
+        Called from handle_session_start when a pre-created session with an
+        agent_run_id is detected. This updates the status from 'pending' to
+        'running' and sets the started_at timestamp.
+
+        Args:
+            agent_run_id: The agent run ID to start
+
+        Returns:
+            True if the run was started, False otherwise
+        """
+        if not self._agent_run_manager:
+            self.logger.debug("start_agent_run: No agent_run_manager, skipping")
+            return False
+
+        try:
+            agent_run = self._agent_run_manager.get(agent_run_id)
+            if not agent_run:
+                self.logger.warning(f"Agent run {agent_run_id} not found")
+                return False
+
+            # Only start if currently pending
+            if agent_run.status != "pending":
+                self.logger.debug(
+                    f"Agent run {agent_run_id} not pending (status={agent_run.status}), skipping start"
+                )
+                return False
+
+            self._agent_run_manager.start(agent_run_id)
+            self.logger.info(f"Started agent run {agent_run_id}")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Failed to start agent run {agent_run_id}: {e}")
+            return False
+
     def complete_agent_run(self, session: Any) -> None:
         """
         Complete an agent run when its terminal-mode session ends.
