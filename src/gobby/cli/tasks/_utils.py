@@ -94,7 +94,11 @@ def get_claimed_task_ids() -> set[str]:
             try:
                 variables = json.loads(row["variables"]) if row["variables"] else {}
                 if session_task := variables.get("session_task"):
-                    claimed_ids.add(session_task)
+                    # session_task can be: string, list of strings, or "*" (wildcard)
+                    if isinstance(session_task, list):
+                        claimed_ids.update(session_task)
+                    elif session_task != "*":
+                        claimed_ids.add(session_task)
             except (json.JSONDecodeError, TypeError):
                 continue
 
