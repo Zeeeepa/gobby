@@ -1,5 +1,6 @@
 import logging
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
@@ -83,7 +84,8 @@ class WorkflowEngine:
             if duration > 1800:
                 # Force transition to reflect if not already there
                 if state.step != "reflect":
-                    workflow = self.loader.load_workflow(state.workflow_name)
+                    project_path = Path(event.cwd) if event.cwd else None
+                    workflow = self.loader.load_workflow(state.workflow_name, project_path)
                     if workflow and workflow.get_step("reflect"):
                         await self.transition_to(state, "reflect", workflow)
                         return HookResponse(
@@ -99,7 +101,8 @@ class WorkflowEngine:
             )
             return HookResponse(decision="allow")
 
-        workflow = self.loader.load_workflow(state.workflow_name)
+        project_path = Path(event.cwd) if event.cwd else None
+        workflow = self.loader.load_workflow(state.workflow_name, project_path)
         if not workflow:
             logger.error(f"Workflow '{state.workflow_name}' not found for session {session_id}")
             return HookResponse(decision="allow")
@@ -873,7 +876,7 @@ class WorkflowEngine:
             return None
 
         # Load the workflow definition
-        project_path = event.data.get("cwd") if event.data else None
+        project_path = Path(event.cwd) if event.cwd else None
         workflow = self.loader.load_workflow(state.workflow_name, project_path=project_path)
         if not workflow:
             logger.warning(f"Workflow '{state.workflow_name}' not found for premature stop check")
