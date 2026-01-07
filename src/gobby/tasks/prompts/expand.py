@@ -84,6 +84,40 @@ Use `depends_on` to specify execution order:
 4. **Testing**: Every coding subtask MUST have a test_strategy.
 5. **Completeness**: The set of subtasks must fully accomplish the parent task.
 6. **JSON Only**: Output ONLY valid JSON - no markdown, no explanation, no code blocks.
+
+## Validation Criteria Rules
+
+For each subtask, generate PRECISE validation criteria in the `test_strategy` field.
+Use the project's verification commands (provided in context) rather than hardcoded commands.
+
+### 1. Measurable
+Use exact commands from project context, not vague descriptions.
+
+| BAD (Vague) | GOOD (Measurable) |
+|-------------|-------------------|
+| "Tests pass" | "`{unit_tests}` exits with code 0" |
+| "No type errors" | "`{type_check}` reports no errors" |
+| "Linting passes" | "`{lint}` exits with code 0" |
+
+### 2. Specific
+Reference actual files and functions from the provided context.
+
+| BAD (Generic) | GOOD (Specific) |
+|---------------|-----------------|
+| "Function moved correctly" | "`ClassName` exists in `path/to/new/file.ext` with same signature" |
+| "Tests updated" | "`tests/module/test_file.ext` imports from new location" |
+| "Config added" | "`ConfigName` in `path/to/config.ext` has required fields" |
+
+### 3. Verifiable
+Include commands that can be executed to verify completion.
+
+| BAD (Unverifiable) | GOOD (Verifiable) |
+|--------------------|-------------------|
+| "No regressions" | "No test files removed: `git diff --name-only HEAD~1 | grep -v test`" |
+| "Module importable" | "Import succeeds without errors in project's runtime" |
+| "File created" | "File exists at expected path with expected exports" |
+
+**Important:** Replace `{unit_tests}`, `{type_check}`, `{lint}` with actual commands from the Project Verification Commands section in the context.
 """
 
 # TDD Mode Addition
@@ -211,6 +245,12 @@ class ExpansionPromptBuilder:
                 "\n*Note: Reference these signatures in validation criteria "
                 "to ensure functions are preserved or properly refactored.*"
             )
+
+        if context.verification_commands:
+            context_parts.append("\n**Project Verification Commands:**")
+            context_parts.append("Use these commands in validation criteria:")
+            for name, cmd in context.verification_commands.items():
+                context_parts.append(f"- `{{{name}}}` = `{cmd}`")
 
         if context.project_patterns:
             context_parts.append("\n**Project Patterns:**")

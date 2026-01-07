@@ -33,6 +33,7 @@ class ExpansionContext:
     web_research: list[dict[str, Any]] | None = None
     existing_tests: dict[str, list[str]] | None = None  # module -> [test files]
     function_signatures: dict[str, list[str]] | None = None  # file -> [signatures]
+    verification_commands: dict[str, str] | None = None  # name -> command
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -45,6 +46,7 @@ class ExpansionContext:
             "web_research": self.web_research,
             "existing_tests": self.existing_tests,
             "function_signatures": self.function_signatures,
+            "verification_commands": self.verification_commands,
             # We don't include full snippets in dict summary often, but useful for debug
             "snippet_count": len(self.file_snippets),
         }
@@ -140,6 +142,9 @@ class ExpansionContextGatherer:
         # Extract function signatures from Python files
         function_signatures = self.extract_signatures(python_files) if python_files else {}
 
+        # Get verification commands from project config
+        verification_commands = self._get_verification_commands()
+
         return ExpansionContext(
             task=task,
             related_tasks=related_tasks,
@@ -150,6 +155,7 @@ class ExpansionContextGatherer:
             web_research=web_research,
             existing_tests=existing_tests if existing_tests else None,
             function_signatures=function_signatures if function_signatures else None,
+            verification_commands=verification_commands if verification_commands else None,
         )
 
     async def _find_related_tasks(self, task: Task) -> list[Task]:
@@ -241,6 +247,40 @@ class ExpansionContextGatherer:
             patterns["tests"] = "tests/"
 
         return patterns
+
+    def _get_verification_commands(self) -> dict[str, str]:
+        """Get verification commands from project config.
+
+        Returns:
+            Dict mapping command names to their values, e.g.:
+            {
+                "unit_tests": "npm test",
+                "lint": "npm run lint",
+                "type_check": "npm run typecheck"
+            }
+        """
+        from gobby.utils.project_context import get_verification_config
+
+        commands: dict[str, str] = {}
+        config = get_verification_config()
+
+        if not config:
+            return commands
+
+        if config.unit_tests:
+            commands["unit_tests"] = config.unit_tests
+        if config.type_check:
+            commands["type_check"] = config.type_check
+        if config.lint:
+            commands["lint"] = config.lint
+        if config.integration:
+            commands["integration"] = config.integration
+
+        # Include any custom commands
+        if config.custom:
+            commands.update(config.custom)
+
+        return commands
 
     def discover_existing_tests(self, module_paths: list[str]) -> dict[str, list[str]]:
         """
