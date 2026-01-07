@@ -368,7 +368,7 @@ flowchart LR
 
 ### Module Structure
 
-```
+```text
 src/gobby/
 ├── llm/
 │   └── executor.py           # AgentExecutor ABC + per-provider implementations

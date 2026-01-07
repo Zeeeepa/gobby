@@ -145,6 +145,29 @@ def create_validation_registry(
                 test_strategy=task.test_strategy,
             )
 
+        # Record validation iteration to history
+        # Calculate iteration number based on fail count (current fail count + 1 for this attempt)
+        current_fail_count = task.validation_fail_count or 0
+        iteration_number = current_fail_count + 1
+
+        # Determine validator type and context type
+        validator_type = "parent_completion" if children else "llm"
+        context_type = "child_status" if children else "smart_context"
+        context_summary = (
+            f"{len(children)} children checked" if children else "Auto-gathered from git/files"
+        )
+
+        validation_history_manager.record_iteration(
+            task_id=task.id,
+            iteration=iteration_number,
+            status=result.status,
+            feedback=result.feedback,
+            issues=None,  # ValidationResult from validation.py doesn't have issues
+            context_type=context_type,
+            context_summary=context_summary,
+            validator_type=validator_type,
+        )
+
         # Update validation status
         updates: dict[str, Any] = {
             "validation_status": result.status,

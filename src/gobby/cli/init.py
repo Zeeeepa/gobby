@@ -44,5 +44,8 @@ def init(ctx: click.Context, name: str | None, github_url: str | None) -> None:
                     if key != "custom":
                         click.echo(f"    {key}: {value}")
                     elif value:  # custom dict
-                        for custom_name, custom_cmd in value.items():
-                            click.echo(f"    {custom_name}: {custom_cmd}")
+                        if isinstance(value, dict):
+                            for custom_name, custom_cmd in value.items():
+                                click.echo(f"    {custom_name}: {custom_cmd}")
+                        else:
+                            click.echo(f"    custom: {value}")

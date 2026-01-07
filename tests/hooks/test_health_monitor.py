@@ -26,7 +26,7 @@ import pytest
 from gobby.hooks.health_monitor import HealthMonitor
 
 if TYPE_CHECKING:
-    from gobby.utils.daemon_client import DaemonClient
+    pass
 
 
 class TestHealthMonitorInitialization:
@@ -397,17 +397,15 @@ class TestHealthMonitorIntegration:
         logger = logging.getLogger("test_health_monitor")
         logger.setLevel(logging.DEBUG)
 
-        # Capture log output
-        with patch.object(logger, "debug") as mock_debug:
+        # Patch logger.debug to verify no exceptions during health check cycle
+        with patch.object(logger, "debug"):
             monitor = HealthMonitor(
                 daemon_client=mock_client, health_check_interval=0.1, logger=logger
             )
             monitor.start()
             time.sleep(0.15)
             monitor.stop()
-
-            # Should log the failure at debug level (not error - expected when daemon stopped)
-            assert mock_debug.called or True  # Logging is optional behavior
+            # Test passes if no exceptions occurred during health check cycle
 
 
 class TestHealthMonitorEdgeCases:
