@@ -1244,3 +1244,293 @@ class TestAutoDecomposeWorkflowVariablePersistence:
             workflow_state=state2,
         )
         assert result2["auto_decomposed"] is True
+
+
+# =============================================================================
+# update_task Step Detection Tests (TDD - gt-ecaa19)
+# =============================================================================
+
+
+class TestUpdateTaskStepDetection:
+    """Tests for detecting multi-step content when updating task descriptions."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_update_detects_multi_step_content(self, task_manager):
+        """Updating description with multi-step content should be detected."""
+        # Create a simple single-step task
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Simple task",
+            description="Just a single thing to do.",
+        )
+
+        # Update with multi-step content
+        multi_step_description = """1. First step
+2. Second step
+3. Third step"""
+
+        result = task_manager.update_task_with_step_detection(
+            task.id,
+            description=multi_step_description,
+        )
+
+        # Should detect the steps
+        assert result["steps_detected"] is True
+        assert result["step_count"] >= 3
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_update_auto_decomposes_when_enabled(self, task_manager):
+        """When auto_decompose=True, updating with steps creates subtasks."""
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Task to decompose",
+        )
+
+        multi_step_description = """1. Create model
+2. Add API
+3. Build UI"""
+
+        result = task_manager.update_task_with_step_detection(
+            task.id,
+            description=multi_step_description,
+            auto_decompose=True,
+        )
+
+        assert result["auto_decomposed"] is True
+        assert "subtasks" in result
+        assert len(result["subtasks"]) == 3
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_update_sets_needs_decomposition_when_disabled(self, task_manager):
+        """When auto_decompose=False, updating with steps sets needs_decomposition."""
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Task needing manual decomposition",
+        )
+
+        multi_step_description = """1. Step one
+2. Step two
+3. Step three"""
+
+        result = task_manager.update_task_with_step_detection(
+            task.id,
+            description=multi_step_description,
+            auto_decompose=False,
+        )
+
+        assert result["auto_decomposed"] is False
+        assert result["steps_detected"] is True
+        # Task should be in needs_decomposition status
+        updated_task = task_manager.get_task(task.id)
+        assert updated_task.status == "needs_decomposition"
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_update_single_step_task_flagged_when_steps_added(self, task_manager):
+        """Original single-step task updated with steps gets flagged."""
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Originally simple task",
+            description="Do the thing.",
+        )
+        assert task.status == "open"  # Single-step task starts as open
+
+        multi_step_description = """Updated with implementation plan:
+1. Research options
+2. Implement solution
+3. Test thoroughly"""
+
+        result = task_manager.update_task_with_step_detection(
+            task.id,
+            description=multi_step_description,
+            auto_decompose=False,
+        )
+
+        assert result["steps_detected"] is True
+        updated_task = task_manager.get_task(task.id)
+        assert updated_task.status == "needs_decomposition"
+
+
+class TestUpdateTaskNoFalsePositives:
+    """Tests for avoiding false positives in step detection on update."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_update_with_context_notes_no_detection(self, task_manager):
+        """Adding context/notes shouldn't trigger step detection."""
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Task with context",
+        )
+
+        # Add context that might look like steps but isn't
+        context_description = """This task is about fixing the login bug.
+
+Context:
+- User reported the issue last week
+- It affects Chrome users
+- The error appears in the console
+
+Notes: Consider checking the session handler."""
+
+        result = task_manager.update_task_with_step_detection(
+            task.id,
+            description=context_description,
+        )
+
+        # Should NOT detect as multi-step
+        assert result["steps_detected"] is False
+        assert result.get("auto_decomposed") is False
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_update_with_reproduction_steps_no_detection(self, task_manager):
+        """'Steps to reproduce' in bug descriptions shouldn't trigger decomposition."""
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Bug fix task",
+        )
+
+        bug_description = """Login fails intermittently.
+
+Steps to reproduce:
+1. Open login page
+2. Enter credentials
+3. Click submit
+4. Observe error
+
+Expected: Login succeeds"""
+
+        result = task_manager.update_task_with_step_detection(
+            task.id,
+            description=bug_description,
+        )
+
+        # Should NOT detect as multi-step (false positive pattern)
+        assert result["steps_detected"] is False
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_update_with_plain_text_no_detection(self, task_manager):
+        """Plain text description shouldn't trigger step detection."""
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Documentation task",
+        )
+
+        plain_description = """Update the README to include installation instructions
+and add a section about contributing to the project. The documentation
+should be clear and helpful for new users."""
+
+        result = task_manager.update_task_with_step_detection(
+            task.id,
+            description=plain_description,
+        )
+
+        assert result["steps_detected"] is False
+
+
+class TestUpdateTaskStepDetectionBehaviors:
+    """Tests for different behavior options on step detection."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_update_preserves_task_id_after_decomposition(self, task_manager):
+        """Parent task should keep same ID after auto-decomposition."""
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Task to update",
+        )
+        original_id = task.id
+
+        multi_step_description = """1. First
+2. Second
+3. Third"""
+
+        result = task_manager.update_task_with_step_detection(
+            task.id,
+            description=multi_step_description,
+            auto_decompose=True,
+        )
+
+        assert result["task"]["id"] == original_id
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_update_subtasks_have_parent_reference(self, task_manager):
+        """Auto-created subtasks should reference the updated task as parent."""
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Parent task",
+        )
+
+        multi_step_description = """1. Step A
+2. Step B
+3. Step C"""
+
+        result = task_manager.update_task_with_step_detection(
+            task.id,
+            description=multi_step_description,
+            auto_decompose=True,
+        )
+
+        for subtask in result["subtasks"]:
+            full_subtask = task_manager.get_task(subtask["id"])
+            assert full_subtask.parent_task_id == task.id
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_update_respects_workflow_variable(self, task_manager, workflow_state):
+        """Update should respect auto_decompose workflow variable."""
+        workflow_state.variables["auto_decompose"] = False
+
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Task with workflow context",
+        )
+
+        multi_step_description = """1. One
+2. Two
+3. Three"""
+
+        result = task_manager.update_task_with_step_detection(
+            task.id,
+            description=multi_step_description,
+            workflow_state=workflow_state,
+            # Not explicitly setting auto_decompose - should use workflow variable
+        )
+
+        # Should respect workflow variable (False = no auto-decompose)
+        assert result["auto_decomposed"] is False
+        assert result["steps_detected"] is True
+        updated_task = task_manager.get_task(task.id)
+        assert updated_task.status == "needs_decomposition"
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_update_explicit_param_overrides_workflow(self, task_manager, workflow_state):
+        """Explicit auto_decompose parameter should override workflow variable."""
+        workflow_state.variables["auto_decompose"] = False
+
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Task with explicit override",
+        )
+
+        multi_step_description = """1. Alpha
+2. Beta
+3. Gamma"""
+
+        result = task_manager.update_task_with_step_detection(
+            task.id,
+            description=multi_step_description,
+            auto_decompose=True,  # Explicit override
+            workflow_state=workflow_state,
+        )
+
+        # Explicit param wins over workflow variable
+        assert result["auto_decomposed"] is True
+        assert "subtasks" in result
