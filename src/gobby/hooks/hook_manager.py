@@ -256,6 +256,9 @@ class HookManager:
             state_manager=self._workflow_state_manager,
             action_executor=self._action_executor,
         )
+        # Register task_manager with evaluator for task_tree_complete() condition helper
+        if self._task_manager and self._workflow_engine.evaluator:
+            self._workflow_engine.evaluator.register_task_manager(self._task_manager)
         workflow_timeout: float = 0.0  # 0 = no timeout
         workflow_enabled = True
         if self._config:

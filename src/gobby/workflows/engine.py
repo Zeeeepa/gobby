@@ -498,6 +498,17 @@ class WorkflowEngine:
                 self._detect_task_claim(event, state)
                 self.state_manager.save_state(state)
 
+        # Check for premature stop in active step workflows on STOP events
+        if event.event_type == HookEventType.STOP:
+            premature_response = await self._check_premature_stop(event, context_data)
+            if premature_response:
+                # Merge premature stop response with lifecycle response
+                if premature_response.context:
+                    all_context.append(premature_response.context)
+                if premature_response.decision != "allow":
+                    final_decision = premature_response.decision
+                    final_reason = premature_response.reason
+
         return HookResponse(
             decision=final_decision,
             reason=final_reason,
@@ -828,6 +839,103 @@ class WorkflowEngine:
             context="\n\n".join(injected_context) if injected_context else None,
             system_message=system_message,
         )
+
+    # --- Premature Stop Handling ---
+
+    async def _check_premature_stop(
+        self, event: HookEvent, context_data: dict[str, Any]
+    ) -> HookResponse | None:
+        """
+        Check if an active step workflow should handle a premature stop.
+
+        Called on STOP events to evaluate whether the workflow's exit_condition
+        is met. If not met and workflow has on_premature_stop defined, returns
+        an appropriate response.
+
+        Args:
+            event: The STOP hook event
+            context_data: Shared context data including session variables
+
+        Returns:
+            HookResponse if premature stop detected, None otherwise
+        """
+        session_id = event.metadata.get("_platform_session_id")
+        if not session_id:
+            return None
+
+        # Check if there's an active step workflow
+        state = self.state_manager.get_state(session_id)
+        if not state:
+            return None
+
+        # Skip lifecycle-only states
+        if state.workflow_name == "__lifecycle__":
+            return None
+
+        # Load the workflow definition
+        project_path = event.data.get("cwd") if event.data else None
+        workflow = self.loader.load_workflow(state.workflow_name, project_path=project_path)
+        if not workflow:
+            logger.warning(f"Workflow '{state.workflow_name}' not found for premature stop check")
+            return None
+
+        # Check if workflow has exit_condition and on_premature_stop
+        if not workflow.exit_condition:
+            return None
+
+        # Build evaluation context
+        eval_context = {
+            "workflow_state": state,
+            "state": state,
+            "variables": state.variables,
+            "current_step": state.step,
+        }
+        # Add session variables to context
+        eval_context.update(context_data)
+
+        # Evaluate the exit condition
+        exit_condition_met = self.evaluator.evaluate(workflow.exit_condition, eval_context)
+
+        if exit_condition_met:
+            logger.debug(
+                f"Workflow '{workflow.name}' exit_condition met, allowing stop"
+            )
+            return None
+
+        # Exit condition not met - check for premature stop handler
+        if not workflow.on_premature_stop:
+            logger.debug(
+                f"Workflow '{workflow.name}' exit_condition not met but no on_premature_stop defined"
+            )
+            return None
+
+        # Handle premature stop based on action type
+        handler = workflow.on_premature_stop
+        logger.info(
+            f"Premature stop detected for workflow '{workflow.name}': "
+            f"action={handler.action}, message={handler.message}"
+        )
+
+        if handler.action == "block":
+            return HookResponse(
+                decision="block",
+                reason=handler.message,
+            )
+        elif handler.action == "warn":
+            return HookResponse(
+                decision="allow",
+                context=f"⚠️ **Warning**: {handler.message}",
+            )
+        else:  # guide_continuation (default)
+            return HookResponse(
+                decision="block",
+                reason=handler.message,
+                context=(
+                    f"📋 **Task Incomplete**\n\n"
+                    f"{handler.message}\n\n"
+                    f"The workflow exit condition `{workflow.exit_condition}` is not yet satisfied."
+                ),
+            )
 
     # --- Audit Logging Helpers ---
 

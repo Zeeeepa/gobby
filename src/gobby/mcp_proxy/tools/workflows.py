@@ -636,4 +636,88 @@ def create_workflows_registry(
             "is_global": is_global,
         }
 
+    @registry.tool(
+        name="activate_autonomous_task",
+        description="Activate autonomous-task workflow with a session_task (atomic operation).",
+    )
+    def activate_autonomous_task(
+        task_id: str,
+        session_id: str | None = None,
+        project_path: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Activate the autonomous-task step workflow with a task assignment.
+
+        This is a convenience helper that atomically:
+        1. Sets the session_task variable to the given task ID
+        2. Activates the autonomous-task workflow
+
+        The workflow will keep the agent working until the task tree is complete.
+        Use this instead of manually setting variables and activating separately.
+
+        Args:
+            task_id: Task ID (e.g., "gt-abc123") or list of task IDs to work on
+            session_id: Required session ID (must be provided explicitly)
+            project_path: Optional project directory path
+
+        Returns:
+            Success status, workflow info, and current step.
+
+        Example:
+            activate_autonomous_task(task_id="gt-abc123", session_id="sess-xyz")
+        """
+        proj = Path(project_path) if project_path else None
+
+        # Require explicit session_id
+        if not session_id:
+            return {
+                "success": False,
+                "error": "session_id is required. Pass the session ID explicitly.",
+            }
+
+        # Check for existing workflow
+        existing = _state_manager.get_state(session_id)
+        if existing and existing.workflow_name != "__lifecycle__":
+            return {
+                "success": False,
+                "error": f"Session already has workflow '{existing.workflow_name}' active. Use end_workflow first.",
+            }
+
+        # Load the autonomous-task workflow
+        definition = _loader.load_workflow("autonomous-task", proj)
+        if not definition:
+            return {
+                "success": False,
+                "error": "Workflow 'autonomous-task' not found. Ensure it's installed.",
+            }
+
+        # Create state with session_task already set
+        state = WorkflowState(
+            session_id=session_id,
+            workflow_name="autonomous-task",
+            step="work",  # Start in 'work' step
+            step_entered_at=datetime.now(UTC),
+            step_action_count=0,
+            total_action_count=0,
+            artifacts={},
+            observations=[],
+            reflection_pending=False,
+            context_injected=False,
+            variables={"session_task": task_id},  # Key: set session_task
+            task_list=None,
+            current_task_index=0,
+            files_modified_this_task=0,
+        )
+
+        _state_manager.save_state(state)
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "workflow": "autonomous-task",
+            "step": "work",
+            "session_task": task_id,
+            "message": f"Autonomous task workflow activated. Work on task {task_id} until all subtasks are complete.",
+        }
+
     return registry

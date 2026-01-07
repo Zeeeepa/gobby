@@ -26,6 +26,14 @@ class WorkflowExitCondition(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class PrematureStopHandler(BaseModel):
+    """Handler for when an agent attempts to stop before task completion."""
+
+    action: Literal["guide_continuation", "block", "warn"] = "guide_continuation"
+    message: str = "Task has incomplete subtasks. Use suggest_next_task() to continue."
+    condition: str | None = None  # Optional condition to check (e.g., task_tree_complete)
+
+
 class WorkflowStep(BaseModel):
     name: str
     description: str | None = None
@@ -65,6 +73,13 @@ class WorkflowDefinition(BaseModel):
     triggers: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
 
     on_error: list[dict[str, Any]] = Field(default_factory=list)
+
+    # Handler for premature stop attempts (step workflows only)
+    # Triggered when agent tries to stop but exit_condition is not met
+    on_premature_stop: PrematureStopHandler | None = None
+
+    # Exit condition for the entire workflow (when this is true, workflow can end)
+    exit_condition: str | None = None
 
     def get_step(self, step_name: str) -> WorkflowStep | None:
         for s in self.steps:

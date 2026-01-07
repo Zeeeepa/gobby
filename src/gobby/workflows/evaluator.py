@@ -12,6 +12,68 @@ APPROVAL_KEYWORDS = {"yes", "approve", "approved", "proceed", "continue", "ok", 
 REJECTION_KEYWORDS = {"no", "reject", "rejected", "stop", "cancel", "abort", "n"}
 
 
+def task_tree_complete(task_manager: Any, task_id: str | list[str] | None) -> bool:
+    """
+    Check if a task and all its subtasks are complete (closed).
+
+    Used in workflow transition conditions like:
+        when: "task_tree_complete(variables.session_task)"
+
+    Args:
+        task_manager: LocalTaskManager instance for querying tasks
+        task_id: Single task ID, list of task IDs, or None
+
+    Returns:
+        True if all tasks and their subtasks are closed, False otherwise.
+        Returns True if task_id is None (no task to check).
+    """
+    if not task_id:
+        return True
+
+    if not task_manager:
+        logger.warning("task_tree_complete: No task_manager available")
+        return False
+
+    # Normalize to list
+    task_ids = [task_id] if isinstance(task_id, str) else task_id
+
+    for tid in task_ids:
+        # Get the task itself
+        task = task_manager.get_task(tid)
+        if not task:
+            logger.warning(f"task_tree_complete: Task '{tid}' not found")
+            return False
+
+        # Check if main task is closed
+        if task.status != "closed":
+            logger.debug(f"task_tree_complete: Task '{tid}' is not closed (status={task.status})")
+            return False
+
+        # Check all subtasks recursively
+        if not _subtasks_complete(task_manager, tid):
+            return False
+
+    return True
+
+
+def _subtasks_complete(task_manager: Any, parent_id: str) -> bool:
+    """Recursively check if all subtasks are closed."""
+    subtasks = task_manager.list_tasks(parent_task_id=parent_id)
+
+    for subtask in subtasks:
+        if subtask.status != "closed":
+            logger.debug(
+                f"_subtasks_complete: Subtask '{subtask.id}' is not closed (status={subtask.status})"
+            )
+            return False
+
+        # Recursively check subtasks of this subtask
+        if not _subtasks_complete(task_manager, subtask.id):
+            return False
+
+    return True
+
+
 @dataclass
 class ApprovalCheckResult:
     """Result of checking a user_approval condition."""
@@ -63,6 +125,19 @@ class ConditionEvaluator:
     def __init__(self) -> None:
         """Initialize the condition evaluator."""
         self._plugin_conditions: dict[str, Any] = {}
+        self._task_manager: Any = None
+
+    def register_task_manager(self, task_manager: Any) -> None:
+        """
+        Register a task manager for task-related condition helpers.
+
+        This enables the task_tree_complete() function in workflow conditions.
+
+        Args:
+            task_manager: LocalTaskManager instance
+        """
+        self._task_manager = task_manager
+        logger.debug("ConditionEvaluator: task_manager registered")
 
     def register_plugin_conditions(self, plugin_registry: Any) -> None:
         """
@@ -123,6 +198,15 @@ class ConditionEvaluator:
 
             # Add plugin conditions as callable functions
             allowed_globals.update(self._plugin_conditions)
+
+            # Add task-related helpers (bind task_manager via closure)
+            if self._task_manager:
+                allowed_globals["task_tree_complete"] = lambda task_id: task_tree_complete(
+                    self._task_manager, task_id
+                )
+            else:
+                # Provide a no-op that returns True when no task_manager
+                allowed_globals["task_tree_complete"] = lambda task_id: True
 
             return bool(eval(condition, allowed_globals, context))
         except Exception as e:
