@@ -1,8 +1,8 @@
-import sqlite3
 import pytest
+
 from gobby.storage.database import LocalDatabase
-from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.storage.migrations import run_migrations
+from gobby.storage.tasks import LocalTaskManager
 
 
 @pytest.fixture

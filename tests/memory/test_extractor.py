@@ -1,10 +1,11 @@
 """Tests for MemoryExtractor class."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from gobby.config.app import MemoryConfig
-from gobby.memory.extractor import MemoryExtractor, ExtractedMemory, ExtractionResult
+from gobby.memory.extractor import ExtractedMemory, ExtractionResult, MemoryExtractor
 from gobby.memory.manager import MemoryManager
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations

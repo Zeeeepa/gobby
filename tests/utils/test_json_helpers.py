@@ -3,7 +3,6 @@
 from enum import Enum
 
 import msgspec
-import pytest
 
 from gobby.utils.json_helpers import (
     decode_llm_response,
@@ -23,13 +22,13 @@ class TestExtractJsonFromText:
 
     def test_extracts_from_markdown_json_block(self):
         """Test extraction from ```json code block."""
-        text = '''Here's the response:
+        text = """Here's the response:
 
 ```json
 {"status": "ok", "data": [1, 2, 3]}
 ```
 
-That's all!'''
+That's all!"""
         result = extract_json_from_text(text)
         assert result is not None
         import json
@@ -39,20 +38,20 @@ That's all!'''
 
     def test_extracts_from_plain_code_block(self):
         """Test extraction from plain ``` code block."""
-        text = '''```
+        text = """```
 {"result": true}
-```'''
+```"""
         result = extract_json_from_text(text)
         assert result == '{"result": true}'
 
     def test_handles_nested_backticks_in_strings(self):
         """Test that backticks inside JSON strings don't break extraction."""
-        text = '''```json
+        text = """```json
 {
   "description": "Output like:\\n```\\nresult\\n```",
   "count": 1
 }
-```'''
+```"""
         result = extract_json_from_text(text)
         assert result is not None
         import json
@@ -93,7 +92,7 @@ That's all!'''
 
     def test_handles_json_with_preamble(self):
         """Test extraction when JSON has preamble text."""
-        text = "Here's your result: {\"status\": \"done\"} and that's it."
+        text = 'Here\'s your result: {"status": "done"} and that\'s it.'
         result = extract_json_from_text(text)
         assert result == '{"status": "done"}'
 
@@ -161,10 +160,10 @@ class TestDecodeLlmResponse:
 
     def test_decodes_from_markdown_block(self):
         """Test decoding from markdown code block."""
-        text = '''Here's the result:
+        text = """Here's the result:
 ```json
 {"status": "done", "count": 10}
-```'''
+```"""
         result = decode_llm_response(text, SimpleResult)
         assert result is not None
         assert result.status == "done"
@@ -235,9 +234,9 @@ class TestDecodeLlmResponse:
 
     def test_handles_nested_backticks(self):
         """Test decoding JSON with backticks in string values."""
-        text = '''```json
+        text = """```json
 {"title": "Add ```code``` support", "description": null}
-```'''
+```"""
         result = decode_llm_response(text, ResultWithOptional)
         assert result is not None
         assert "```" in result.title
@@ -254,10 +253,10 @@ class TestDecodeLlmResponseNested:
 
     def test_decodes_nested_list(self):
         """Test decoding struct with nested list of structs."""
-        text = '''{"subtasks": [
+        text = """{"subtasks": [
             {"status": "done", "count": 1},
             {"status": "pending", "count": 2}
-        ]}'''
+        ]}"""
         result = decode_llm_response(text, NestedResult)
         assert result is not None
         assert len(result.subtasks) == 2

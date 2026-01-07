@@ -6,21 +6,17 @@ covering event triggers, response chaining, failure handling,
 and combination with plugin actions.
 """
 
-import asyncio
-from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.hooks.plugins import HookPlugin, PluginRegistry
 from gobby.workflows.actions import ActionContext, ActionExecutor
-from gobby.workflows.definitions import WorkflowDefinition, WorkflowState
+from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.engine import WorkflowEngine
 from gobby.workflows.evaluator import ConditionEvaluator
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
-
 
 # =============================================================================
 # Mock HTTP Response Helpers

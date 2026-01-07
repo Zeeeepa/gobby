@@ -1,20 +1,20 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch, AsyncMock
+
+from gobby.config.app import TaskValidationConfig
+from gobby.llm import LLMProvider, LLMService
 from gobby.tasks.validation import (
     TaskValidator,
-    ValidationResult,
-    get_git_diff,
-    get_recent_commits,
-    get_multi_commit_diff,
-    get_commits_since,
     extract_file_patterns_from_text,
     find_matching_files,
-    read_files_content,
+    get_commits_since,
+    get_git_diff,
+    get_multi_commit_diff,
+    get_recent_commits,
     get_validation_context_smart,
+    read_files_content,
 )
-from gobby.config.app import TaskValidationConfig
-from gobby.llm import LLMService, LLMProvider
 
 
 class TestGetGitDiff:
@@ -432,7 +432,7 @@ class TestGetValidationContextSmart:
         test_file.write_text("def validate(): pass")
         mock_find.return_value = [test_file]
 
-        context = get_validation_context_smart(
+        get_validation_context_smart(
             "Check validation.py",
             validation_criteria="Ensure src/gobby/tasks/validation.py works",
         )
@@ -445,7 +445,7 @@ class TestGetValidationContextSmart:
         mock_run.return_value = MagicMock(returncode=0, stdout="")
         mock_diff.return_value = None
 
-        context = get_validation_context_smart(
+        get_validation_context_smart(
             "Task with no related files",
             max_chars=100,  # Very limited
         )
@@ -741,10 +741,9 @@ class TestTaskValidatorLLMErrors:
     @pytest.mark.asyncio
     async def test_validate_timeout_error(self, config, mock_llm):
         """Test handling of timeout during LLM call."""
-        import asyncio
 
         mock_provider = mock_llm.get_provider.return_value
-        mock_provider.generate_text.side_effect = asyncio.TimeoutError("Request timed out")
+        mock_provider.generate_text.side_effect = TimeoutError("Request timed out")
         validator = TaskValidator(config, mock_llm)
 
         result = await validator.validate_task(
@@ -777,10 +776,9 @@ class TestTaskValidatorLLMErrors:
     @pytest.mark.asyncio
     async def test_generate_criteria_llm_timeout(self, config, mock_llm):
         """Test criteria generation when LLM times out."""
-        import asyncio
 
         mock_provider = mock_llm.get_provider.return_value
-        mock_provider.generate_text.side_effect = asyncio.TimeoutError()
+        mock_provider.generate_text.side_effect = TimeoutError()
         validator = TaskValidator(config, mock_llm)
 
         result = await validator.generate_criteria("Test Task", "Description")

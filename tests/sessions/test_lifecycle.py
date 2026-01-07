@@ -156,7 +156,7 @@ class TestSessionLifecycleManager:
             f.write("content")
 
         # Permission error mock or similar
-        with patch("builtins.open", side_effect=IOError("Read error")):
+        with patch("builtins.open", side_effect=OSError("Read error")):
             with pytest.raises(IOError):
                 await manager._process_session_transcript("s1", str(jsonl_path))
 

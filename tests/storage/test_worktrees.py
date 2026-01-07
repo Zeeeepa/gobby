@@ -1,7 +1,6 @@
 """Tests for local worktree storage manager."""
 
-from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -487,9 +486,7 @@ class TestLocalWorktreeManagerUpdate:
             "merged_at": None,
         }
 
-        worktree = manager.update(
-            "wt-123456", task_id="gt-task999", agent_session_id="sess-new"
-        )
+        worktree = manager.update("wt-123456", task_id="gt-task999", agent_session_id="sess-new")
 
         assert worktree is not None
         mock_db.execute.assert_called_once()

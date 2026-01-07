@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from gobby.hooks.events import (
     EVENT_TYPE_CLI_SUPPORT,
@@ -33,7 +33,7 @@ class TestHookEvent:
 
     def test_minimal_instantiation(self):
         """Test creating event with required fields only."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         event = HookEvent(
             event_type=HookEventType.SESSION_START,
             session_id="sess-123",
@@ -55,7 +55,7 @@ class TestHookEvent:
 
     def test_full_instantiation(self):
         """Test creating event with all fields."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         event = HookEvent(
             event_type=HookEventType.BEFORE_TOOL,
             session_id="sess-456",

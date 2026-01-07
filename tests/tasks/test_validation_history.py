@@ -1,6 +1,5 @@
 """Tests for ValidationHistoryManager."""
 
-import json
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest

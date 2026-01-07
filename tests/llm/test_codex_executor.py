@@ -381,9 +381,7 @@ class TestCodexExecutorSubscriptionMode:
         """Run handles CLI errors correctly."""
         mock_process = AsyncMock()
         mock_process.returncode = 1
-        mock_process.communicate = AsyncMock(
-            return_value=(b"", b"Authentication failed")
-        )
+        mock_process.communicate = AsyncMock(return_value=(b"", b"Authentication failed"))
 
         with patch("asyncio.create_subprocess_exec", return_value=mock_process):
             result = await executor_subscription.run(
@@ -466,9 +464,7 @@ class TestCodexExecutorSubscriptionMode:
 
         assert result.status == "success"
         # Should have file_change recorded
-        file_change_calls = [
-            tc for tc in result.tool_calls if tc.tool_name == "file_change"
-        ]
+        file_change_calls = [tc for tc in result.tool_calls if tc.tool_name == "file_change"]
         assert len(file_change_calls) == 1
         assert file_change_calls[0].arguments["path"] == "/src/main.py"
 

@@ -119,9 +119,7 @@ class TestRequireActiveTask:
         assert result is None
         mock_task_manager.list_tasks.assert_not_called()
 
-    async def test_feature_disabled_allows_all(
-        self, mock_task_manager, workflow_state
-    ):
+    async def test_feature_disabled_allows_all(self, mock_task_manager, workflow_state):
         """When feature is disabled, all tools are allowed."""
         config = MagicMock()
         config.workflow.require_task_before_edit = False
@@ -137,9 +135,7 @@ class TestRequireActiveTask:
 
         assert result is None
 
-    async def test_no_workflow_state_falls_back_to_db_check(
-        self, mock_config, mock_task_manager
-    ):
+    async def test_no_workflow_state_falls_back_to_db_check(self, mock_config, mock_task_manager):
         """When workflow_state is None, falls back to DB check."""
         mock_task_manager.list_tasks.return_value = []
 
@@ -175,9 +171,7 @@ class TestRequireActiveTask:
         assert result is not None
         assert result["decision"] == "block"
 
-    async def test_no_config_allows_all(
-        self, mock_task_manager, workflow_state
-    ):
+    async def test_no_config_allows_all(self, mock_task_manager, workflow_state):
         """When config is None, all tools are allowed."""
         result = await require_active_task(
             task_manager=mock_task_manager,
@@ -210,9 +204,7 @@ class TestRequireActiveTask:
         assert "claim a task for this session" in result["inject_context"]
         assert "Each session must explicitly" in result["inject_context"]
 
-    async def test_new_session_starts_without_task_claimed(
-        self, mock_config, mock_task_manager
-    ):
+    async def test_new_session_starts_without_task_claimed(self, mock_config, mock_task_manager):
         """New sessions start without task_claimed variable (blocks protected tools).
 
         This verifies session isolation - a fresh session has no task_claimed
@@ -279,9 +271,7 @@ class TestRequireActiveTask:
         assert "see previous error" in result2["inject_context"]
         assert "Each session must explicitly" not in result2["inject_context"]
 
-    async def test_error_dedup_without_workflow_state(
-        self, mock_config, mock_task_manager
-    ):
+    async def test_error_dedup_without_workflow_state(self, mock_config, mock_task_manager):
         """Error dedup gracefully handles missing workflow_state (no dedup)."""
         mock_task_manager.list_tasks.return_value = []
 
@@ -355,9 +345,7 @@ class TestValidateSessionTaskScope:
         }
 
         # Mock is_descendant_of to return True
-        with patch(
-            "gobby.workflows.task_enforcement_actions.is_descendant_of"
-        ) as mock_descendant:
+        with patch("gobby.workflows.task_enforcement_actions.is_descendant_of") as mock_descendant:
             mock_descendant.return_value = True
 
             result = await validate_session_task_scope(
@@ -379,9 +367,7 @@ class TestValidateSessionTaskScope:
         }
 
         # Mock is_descendant_of to return False
-        with patch(
-            "gobby.workflows.task_enforcement_actions.is_descendant_of"
-        ) as mock_descendant:
+        with patch("gobby.workflows.task_enforcement_actions.is_descendant_of") as mock_descendant:
             mock_descendant.return_value = False
 
             # Mock get_task for error message
@@ -502,9 +488,7 @@ class TestValidateSessionTaskScope:
         }
 
         # Mock is_descendant_of: False for epic-1, True for epic-2
-        with patch(
-            "gobby.workflows.task_enforcement_actions.is_descendant_of"
-        ) as mock_descendant:
+        with patch("gobby.workflows.task_enforcement_actions.is_descendant_of") as mock_descendant:
             mock_descendant.side_effect = [False, True]  # Not under epic-1, but under epic-2
 
             result = await validate_session_task_scope(
@@ -530,9 +514,7 @@ class TestValidateSessionTaskScope:
             "tool_input": {"arguments": {"task_id": "unrelated-task", "status": "in_progress"}},
         }
 
-        with patch(
-            "gobby.workflows.task_enforcement_actions.is_descendant_of"
-        ) as mock_descendant:
+        with patch("gobby.workflows.task_enforcement_actions.is_descendant_of") as mock_descendant:
             mock_descendant.return_value = False  # Not under any
 
             result = await validate_session_task_scope(

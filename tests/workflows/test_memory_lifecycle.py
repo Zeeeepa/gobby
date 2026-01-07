@@ -10,7 +10,6 @@ from gobby.hooks.events import HookEvent, HookEventType, SessionSource
 from gobby.memory.manager import MemoryManager
 from gobby.storage.sessions import LocalSessionManager
 from gobby.workflows.actions import ActionExecutor
-from gobby.workflows.definitions import WorkflowDefinition
 from gobby.workflows.engine import WorkflowEngine
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
@@ -65,9 +64,7 @@ def mock_memory_manager():
 
 
 @pytest.fixture
-def action_executor_with_memory(
-    temp_db, session_manager, mock_memory_manager
-) -> ActionExecutor:
+def action_executor_with_memory(temp_db, session_manager, mock_memory_manager) -> ActionExecutor:
     """Create ActionExecutor with memory_manager wired up."""
     return ActionExecutor(
         db=temp_db,
@@ -84,9 +81,7 @@ def action_executor_with_memory(
 
 
 @pytest.fixture
-def workflow_engine_with_memory(
-    workflow_loader, action_executor_with_memory
-) -> WorkflowEngine:
+def workflow_engine_with_memory(workflow_loader, action_executor_with_memory) -> WorkflowEngine:
     """Create WorkflowEngine with memory-capable ActionExecutor."""
     state_manager = MagicMock(spec=WorkflowStateManager)
     state_manager.get_state.return_value = None
@@ -109,9 +104,7 @@ class TestMemoryLifecycleDiscovery:
         assert workflows[0].definition.type == "lifecycle"
         assert workflows[0].priority == 50
 
-    def test_memory_lifecycle_has_session_start_trigger(
-        self, workflow_loader: WorkflowLoader
-    ):
+    def test_memory_lifecycle_has_session_start_trigger(self, workflow_loader: WorkflowLoader):
         """Verify memory-lifecycle has on_session_start trigger."""
         workflow = workflow_loader.load_workflow("memory-lifecycle")
 
@@ -162,9 +155,7 @@ class TestMemoryInjectAtSessionStart:
         )
 
         # Evaluate lifecycle triggers
-        response = await workflow_engine_with_memory.evaluate_all_lifecycle_workflows(
-            event
-        )
+        await workflow_engine_with_memory.evaluate_all_lifecycle_workflows(event)
 
         # Verify memory_inject was called
         mock_memory_manager.recall.assert_called_once()
@@ -210,9 +201,7 @@ class TestMemoryInjectAtSessionStart:
         )
 
         # Evaluate lifecycle triggers
-        response = await workflow_engine_with_memory.evaluate_all_lifecycle_workflows(
-            event
-        )
+        response = await workflow_engine_with_memory.evaluate_all_lifecycle_workflows(event)
 
         # Verify response contains injected context
         assert response.context is not None
@@ -248,9 +237,7 @@ class TestMemoryInjectAtSessionStart:
             metadata={"_platform_session_id": session.id},
         )
 
-        response = await workflow_engine_with_memory.evaluate_all_lifecycle_workflows(
-            event
-        )
+        response = await workflow_engine_with_memory.evaluate_all_lifecycle_workflows(event)
 
         # Should still allow, just no context
         assert response.decision == "allow"

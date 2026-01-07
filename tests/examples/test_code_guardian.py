@@ -1,21 +1,19 @@
 """Tests for the Code Guardian example plugin."""
 
-import tempfile
-from datetime import datetime, timezone
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
-
 # Import the plugin - need to add examples to path
 import sys
+import tempfile
+from datetime import UTC, datetime
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "examples" / "plugins"))
 
 from code_guardian import CodeGuardianPlugin
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
-
 
 # =============================================================================
 # Fixtures
@@ -41,7 +39,7 @@ def write_event() -> HookEvent:
         event_type=HookEventType.BEFORE_TOOL,
         session_id="test-session",
         source=SessionSource.CLAUDE,
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         data={
             "tool_name": "Write",
             "tool_input": {
@@ -59,7 +57,7 @@ def edit_event() -> HookEvent:
         event_type=HookEventType.BEFORE_TOOL,
         session_id="test-session",
         source=SessionSource.CLAUDE,
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         data={
             "tool_name": "Edit",
             "tool_input": {
@@ -133,7 +131,7 @@ class TestPreHandler:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="test",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             data={"tool_name": "Read", "tool_input": {"file_path": "/tmp/test.py"}},
         )
 
@@ -146,7 +144,7 @@ class TestPreHandler:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="test",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             data={
                 "tool_name": "Write",
                 "tool_input": {
@@ -165,7 +163,7 @@ class TestPreHandler:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="test",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             data={
                 "tool_name": "Write",
                 "tool_input": {
@@ -189,7 +187,7 @@ class TestPreHandler:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="test",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             data={
                 "tool_name": "Write",
                 "tool_input": {
@@ -210,7 +208,7 @@ class TestPreHandler:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="test",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             data={
                 "tool_name": "Write",
                 "tool_input": {
@@ -244,7 +242,7 @@ class TestPostHandler:
             event_type=HookEventType.AFTER_TOOL,
             session_id="test",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             data={"tool_name": "Bash", "tool_input": {"command": "ls"}},
         )
 
@@ -261,7 +259,7 @@ class TestPostHandler:
                 event_type=HookEventType.AFTER_TOOL,
                 session_id="test",
                 source=SessionSource.CLAUDE,
-                timestamp=datetime.now(timezone.utc).isoformat(),
+                timestamp=datetime.now(UTC).isoformat(),
                 data={
                     "tool_name": "Edit",
                     "tool_input": {"file_path": f.name},

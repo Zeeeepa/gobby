@@ -2,10 +2,12 @@
 Tests for session-related actions in gobby.workflows.actions.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
-from gobby.workflows.actions import ActionExecutor, ActionContext
+
+import pytest
+
 from gobby.storage.sessions import LocalSessionManager
+from gobby.workflows.actions import ActionContext, ActionExecutor
 from gobby.workflows.definitions import WorkflowState
 
 

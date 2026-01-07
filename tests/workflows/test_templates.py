@@ -1,6 +1,7 @@
+
 import pytest
-from unittest.mock import MagicMock, patch
-from jinja2 import Environment, FileSystemLoader, TemplateNotFound, UndefinedError
+from jinja2 import FileSystemLoader, TemplateNotFound
+
 from gobby.workflows.templates import TemplateEngine
 
 

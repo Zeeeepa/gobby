@@ -60,7 +60,7 @@ class TestSummaryFileGeneratorInit:
             mock_load.return_value = mock_config
 
             with patch("gobby.sessions.summary.ClaudeLLMProvider") as mock_claude:
-                gen = SummaryFileGenerator(
+                SummaryFileGenerator(
                     transcript_processor=mock_transcript_processor,
                 )
 

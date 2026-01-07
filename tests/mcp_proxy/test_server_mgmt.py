@@ -1,7 +1,8 @@
 """Tests for ServerManagementService."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from gobby.mcp_proxy.services.server_mgmt import ServerManagementService
 
@@ -180,7 +181,7 @@ class TestServerManagementServiceImport:
         ), patch(
             "gobby.storage.database.LocalDatabase",
         ):
-            result = await service.import_server(
+            await service.import_server(
                 from_project="source",
                 github_url="https://github.com/test/repo",
                 query="test query",

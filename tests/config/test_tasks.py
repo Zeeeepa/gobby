@@ -1026,9 +1026,7 @@ class TestMergeWorkflowVariablesFunction:
         from gobby.config.tasks import merge_workflow_variables
 
         # Invalid value but with validation disabled
-        effective = merge_workflow_variables(
-            {"memory_injection_limit": 0}, None, validate=False
-        )
+        effective = merge_workflow_variables({"memory_injection_limit": 0}, None, validate=False)
 
         # Should pass through without validation
         assert effective["memory_injection_limit"] == 0
@@ -1185,9 +1183,7 @@ class TestBackwardCompatibilityLayer:
         old_config_values = {"tdd_mode": False}
 
         with unittest.mock.patch.object(test_logger, "warning") as mock_warning:
-            get_effective_with_deprecation_check(
-                yaml_variables, old_config_values, test_logger
-            )
+            get_effective_with_deprecation_check(yaml_variables, old_config_values, test_logger)
             mock_warning.assert_called_once()
             warning_msg = mock_warning.call_args[0][0]
             assert "deprecated" in warning_msg.lower()
@@ -1212,9 +1208,7 @@ class TestBackwardCompatibilityLayer:
                     deprecated_keys_used.append(key)
 
             if deprecated_keys_used:
-                logger.warning(
-                    f"Using deprecated config.yaml settings: {deprecated_keys_used}."
-                )
+                logger.warning(f"Using deprecated config.yaml settings: {deprecated_keys_used}.")
 
             return {**hardcoded_defaults, **old_config_values, **yaml_variables}
 
@@ -1225,7 +1219,5 @@ class TestBackwardCompatibilityLayer:
         old_config_values = {"tdd_mode": False}
 
         with unittest.mock.patch.object(test_logger, "warning") as mock_warning:
-            get_effective_with_deprecation_check(
-                yaml_variables, old_config_values, test_logger
-            )
+            get_effective_with_deprecation_check(yaml_variables, old_config_values, test_logger)
             mock_warning.assert_not_called()

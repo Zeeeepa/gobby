@@ -555,9 +555,7 @@ class TestCreateTaskAutoDecomposeDefault:
 
     @pytest.mark.slow
     @pytest.mark.integration
-    def test_auto_decomposed_subtasks_have_sequential_dependencies(
-        self, task_manager, dep_manager
-    ):
+    def test_auto_decomposed_subtasks_have_sequential_dependencies(self, task_manager, dep_manager):
         """Subtasks should have blocking dependencies (step N blocks step N+1)."""
         description = """Implementation:
 1. Create schema
@@ -842,7 +840,7 @@ class TestNeedsDecompositionStatusValidation:
         )
         task_manager.update_task(task1.id, status="needs_decomposition")
 
-        task2 = task_manager.create_task(
+        task_manager.create_task(
             project_id="test-project",
             title="Normal task",
         )
@@ -1064,9 +1062,7 @@ class TestAutoDecomposeWorkflowVariableOverride:
 
     @pytest.mark.slow
     @pytest.mark.integration
-    def test_session_variable_false_disables_auto_decomposition(
-        self, task_manager, workflow_state
-    ):
+    def test_session_variable_false_disables_auto_decomposition(self, task_manager, workflow_state):
         """Setting auto_decompose=False in workflow disables decomposition."""
         # Set workflow variable to False
         workflow_state.variables["auto_decompose"] = False
@@ -1089,9 +1085,7 @@ class TestAutoDecomposeWorkflowVariableOverride:
 
     @pytest.mark.slow
     @pytest.mark.integration
-    def test_session_variable_true_enables_auto_decomposition(
-        self, task_manager, workflow_state
-    ):
+    def test_session_variable_true_enables_auto_decomposition(self, task_manager, workflow_state):
         """Setting auto_decompose=True in workflow explicitly enables decomposition."""
         # Set workflow variable to True explicitly
         workflow_state.variables["auto_decompose"] = True
@@ -1113,9 +1107,7 @@ class TestAutoDecomposeWorkflowVariableOverride:
 
     @pytest.mark.slow
     @pytest.mark.integration
-    def test_call_parameter_overrides_session_variable(
-        self, task_manager, workflow_state
-    ):
+    def test_call_parameter_overrides_session_variable(self, task_manager, workflow_state):
         """Individual call parameter overrides session-level setting."""
         # Session says don't auto-decompose
         workflow_state.variables["auto_decompose"] = False
@@ -1974,9 +1966,7 @@ class TestAutoDecomposeWorkflowWithVariables:
 
     @pytest.mark.slow
     @pytest.mark.integration
-    def test_workflow_variable_controls_decomposition(
-        self, task_manager, workflow_state_disabled
-    ):
+    def test_workflow_variable_controls_decomposition(self, task_manager, workflow_state_disabled):
         """Workflow variable can disable auto-decomposition for session."""
         description = """Setup:
 1. Install deps

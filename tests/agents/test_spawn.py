@@ -287,9 +287,7 @@ class TestTmuxSpawner:
     @patch("shutil.which", return_value="/usr/local/bin/tmux")
     @patch("subprocess.run")
     @patch("subprocess.Popen")
-    def test_spawn_creates_detached_session(
-        self, mock_popen, mock_run, mock_which, mock_system
-    ):
+    def test_spawn_creates_detached_session(self, mock_popen, mock_run, mock_which, mock_system):
         """tmux spawner creates a detached session."""
         spawner = TmuxSpawner()
         mock_process = MagicMock()
@@ -316,9 +314,7 @@ class TestTmuxSpawner:
     @patch("shutil.which", return_value="/usr/local/bin/tmux")
     @patch("subprocess.run")
     @patch("subprocess.Popen")
-    def test_spawn_sanitizes_session_name(
-        self, mock_popen, mock_run, mock_which, mock_system
-    ):
+    def test_spawn_sanitizes_session_name(self, mock_popen, mock_run, mock_which, mock_system):
         """tmux spawner sanitizes session names."""
         spawner = TmuxSpawner()
         mock_process = MagicMock()

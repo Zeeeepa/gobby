@@ -18,11 +18,12 @@ import platform
 import shutil
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.worktrees import WorktreeStatus
 from gobby.utils.project_context import get_project_context
+from gobby.workflows.loader import WorkflowLoader
 from gobby.worktrees.git import WorktreeGitManager
 
 if TYPE_CHECKING:
@@ -160,7 +161,7 @@ def _copy_project_json_to_worktree(
 
 
 def _install_provider_hooks(
-    provider: str | None,
+    provider: Literal["claude", "gemini", "codex", "antigravity"] | None,
     worktree_path: str | Path,
 ) -> bool:
     """
@@ -585,8 +586,6 @@ def create_worktrees_registry(
                 "error": f"Invalid strategy '{strategy}'. Must be 'rebase' or 'merge'.",
             }
 
-        from typing import Literal, cast
-
         strategy_literal = cast(Literal["rebase", "merge"], strategy)
 
         result = git_manager.sync_from_main(
@@ -940,8 +939,6 @@ def create_worktrees_registry(
 
         # Validate workflow (reject lifecycle workflows)
         if workflow:
-            from gobby.workflows.loader import WorkflowLoader
-
             workflow_loader = WorkflowLoader()
             is_valid, error_msg = workflow_loader.validate_workflow_for_agent(
                 workflow, project_path=project_path

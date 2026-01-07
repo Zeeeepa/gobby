@@ -1,3 +1,4 @@
+from datetime import UTC
 from unittest.mock import MagicMock
 
 import pytest
@@ -496,12 +497,12 @@ async def test_pickup_prefix_match(mock_session_manager, full_sessions_registry)
 @pytest.mark.asyncio
 async def test_get_session_commits(mock_session_manager, full_sessions_registry):
     """Test get_session_commits tool execution."""
-    from datetime import datetime, timezone
+    from datetime import datetime
     from unittest.mock import patch
 
     mock_session = _make_mock_session("sess-abc")
-    mock_session.created_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
-    mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    mock_session.created_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC)
+    mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
     mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
     mock_session_manager.get.return_value = mock_session
 
@@ -510,7 +511,7 @@ async def test_get_session_commits(mock_session_manager, full_sessions_registry)
     mock_result.returncode = 0
     mock_result.stdout = "abc123|Fix bug|2025-01-01T11:00:00+00:00\ndef456|Add feature|2025-01-01T11:30:00+00:00"
 
-    with patch("subprocess.run", return_value=mock_result) as mock_run:
+    with patch("subprocess.run", return_value=mock_result):
         result = await full_sessions_registry.call(
             "get_session_commits", {"session_id": "sess-abc"}
         )
@@ -542,12 +543,12 @@ async def test_get_session_commits_not_found(mock_session_manager, full_sessions
 @pytest.mark.asyncio
 async def test_get_session_commits_prefix_match(mock_session_manager, full_sessions_registry):
     """Test get_session_commits supports prefix matching."""
-    from datetime import datetime, timezone
+    from datetime import datetime
     from unittest.mock import patch
 
     mock_session = _make_mock_session("sess-abc123")
-    mock_session.created_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
-    mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    mock_session.created_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC)
+    mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
     mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
 
     mock_session_manager.get.return_value = None  # Direct lookup fails
@@ -569,12 +570,12 @@ async def test_get_session_commits_prefix_match(mock_session_manager, full_sessi
 @pytest.mark.asyncio
 async def test_get_session_commits_no_commits(mock_session_manager, full_sessions_registry):
     """Test get_session_commits with no commits in timeframe."""
-    from datetime import datetime, timezone
+    from datetime import datetime
     from unittest.mock import patch
 
     mock_session = _make_mock_session("sess-abc")
-    mock_session.created_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
-    mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    mock_session.created_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC)
+    mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
     mock_session.jsonl_path = None  # No transcript path
     mock_session_manager.get.return_value = mock_session
 
@@ -595,12 +596,12 @@ async def test_get_session_commits_no_commits(mock_session_manager, full_session
 @pytest.mark.asyncio
 async def test_get_session_commits_git_error(mock_session_manager, full_sessions_registry):
     """Test get_session_commits handles git errors."""
-    from datetime import datetime, timezone
+    from datetime import datetime
     from unittest.mock import patch
 
     mock_session = _make_mock_session("sess-abc")
-    mock_session.created_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
-    mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    mock_session.created_at = datetime(2025, 1, 1, 10, 0, 0, tzinfo=UTC)
+    mock_session.updated_at = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
     mock_session.jsonl_path = "/tmp/test/transcript.jsonl"
     mock_session_manager.get.return_value = mock_session
 

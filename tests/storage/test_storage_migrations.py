@@ -1,8 +1,6 @@
 import sqlite3
 from unittest.mock import patch
 
-import pytest
-
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import (
     MIGRATIONS,

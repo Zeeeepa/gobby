@@ -8,7 +8,6 @@ RED PHASE: These tests will fail initially because task_dependencies.py
 does not exist yet. The module will be created in the green phase.
 """
 
-from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -192,9 +191,7 @@ class TestGetDependencyTree:
             "blockers": [
                 {
                     "id": "task-2",
-                    "blockers": [
-                        {"id": "task-3", "blockers": [{"id": "task-4", "blockers": []}]}
-                    ],
+                    "blockers": [{"id": "task-3", "blockers": [{"id": "task-4", "blockers": []}]}],
                 }
             ],
         }

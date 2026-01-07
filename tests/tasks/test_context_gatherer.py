@@ -87,7 +87,7 @@ async def test_find_relevant_files_in_description(mock_task_manager, sample_task
 @pytest.mark.asyncio
 async def test_gather_context_with_agentic_research(mock_task_manager, sample_task):
     from gobby.config.app import TaskExpansionConfig
-    
+
     # Mock config and service
     config = TaskExpansionConfig(
         enabled=True,
@@ -96,21 +96,21 @@ async def test_gather_context_with_agentic_research(mock_task_manager, sample_ta
         codebase_research_enabled=True
     )
     llm_service = MagicMock()
-    
+
     gatherer = ExpansionContextGatherer(mock_task_manager, llm_service, config)
-    
+
     # Mock find_related and find_relevant (base)
     # We need to mock these properly because they are called
     # But since they are async, we need async mocks
-    
+
     with patch.object(gatherer, '_find_related_tasks', return_value=[]), \
          patch.object(gatherer, '_find_relevant_files', return_value=[]), \
          patch.object(gatherer, '_read_file_snippets', return_value={}), \
          patch.object(gatherer, '_detect_project_patterns', return_value={}), \
          patch("gobby.tasks.research.TaskResearchAgent") as MockAgent:
-            
+
         mock_agent_instance =  MockAgent.return_value
-        
+
         # Simpler way to mock async return
         async def mock_run(*args, **kwargs):
             return {
@@ -118,15 +118,15 @@ async def test_gather_context_with_agentic_research(mock_task_manager, sample_ta
                 "findings": "Found it"
             }
         mock_agent_instance.run.side_effect = mock_run
-        
+
         context = await gatherer.gather_context(sample_task)
-        
+
         # Verify agent was called
         # MockAgent(config, llm_service)
         call_args = MockAgent.call_args
         assert call_args[0][0] == config
         assert call_args[0][1] == llm_service
-        
+
         # Verify results merged
         assert "agent_found.py" in context.relevant_files
         assert context.agent_findings == "Found it"

@@ -1,10 +1,10 @@
-import pytest
-import sqlite3
-import json
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
-from gobby.storage.workflow_audit import WorkflowAuditManager
+
+import pytest
+
 from gobby.storage.database import LocalDatabase
+from gobby.storage.workflow_audit import WorkflowAuditManager
 
 
 @pytest.fixture

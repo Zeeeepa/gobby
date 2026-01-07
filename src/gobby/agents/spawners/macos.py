@@ -152,7 +152,7 @@ class ITermSpawner(TerminalSpawnerBase):
             # If not running: use the default window that gets auto-created
             # Escape script_path to prevent AppleScript injection
             safe_script_path = escape_applescript(str(script_path))
-            applescript = f'''
+            applescript = f"""
             set iTermWasRunning to application "iTerm" is running
             tell application "iTerm"
                 activate
@@ -168,7 +168,7 @@ class ITermSpawner(TerminalSpawnerBase):
                     end tell
                 end if
             end tell
-            '''
+            """
 
             process = subprocess.Popen(
                 ["osascript", "-e", applescript],
@@ -235,12 +235,12 @@ class TerminalAppSpawner(TerminalSpawnerBase):
             shell_command = f"cd {safe_cwd} && {env_exports} {cmd_str}"
             safe_shell_command = escape_applescript(shell_command)
 
-            script = f'''
+            script = f"""
             tell application "Terminal"
                 do script "{safe_shell_command}"
                 activate
             end tell
-            '''
+            """
 
             process = subprocess.Popen(
                 ["osascript", "-e", script],

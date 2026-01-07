@@ -1,7 +1,8 @@
 """Tests for ToolFilterService."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from gobby.mcp_proxy.services.tool_filter import ToolFilterService
 

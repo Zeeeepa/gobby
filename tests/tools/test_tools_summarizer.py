@@ -156,7 +156,7 @@ class TestMaxDescriptionLength:
             new_callable=AsyncMock,
             return_value="Short",
         ) as mock_summarize:
-            result = await summarize_tools([tool])
+            await summarize_tools([tool])
 
             # Should be summarized
             mock_summarize.assert_called_once()

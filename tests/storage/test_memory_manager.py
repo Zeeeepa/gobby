@@ -295,7 +295,6 @@ async def test_access_tracking_updates_timestamp(memory_manager):
 @pytest.mark.asyncio
 async def test_access_tracking_debounce(db):
     """Test that rapid accesses are debounced."""
-    from datetime import UTC, datetime, timedelta
 
     # Use very short debounce for testing
     config = MemoryConfig(access_debounce_seconds=3600)  # 1 hour debounce

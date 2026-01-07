@@ -54,7 +54,7 @@ def test_list_ready_tasks_filter_by_type(task_manager):
     t2 = task_manager.create_task("p1", "Task 2", task_type="feature")
     t3 = task_manager.create_task("p1", "Task 3", task_type="bug")
 
-    from datetime import datetime, UTC
+    from datetime import UTC, datetime
     with task_manager.db.transaction() as conn:
         conn.execute(
             "INSERT INTO task_dependencies (task_id, depends_on, dep_type, created_at) VALUES (?, ?, ?, ?)",

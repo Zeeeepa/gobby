@@ -188,10 +188,12 @@ async def test_memory_extract_from_summary(
 
     # Mock LLM response - use MagicMock for sync method, AsyncMock for async generate_text
     mock_provider = MagicMock()
-    mock_provider.generate_text = AsyncMock(return_value='''[
+    mock_provider.generate_text = AsyncMock(
+        return_value="""[
         {"content": "User prefers pytest", "memory_type": "preference", "importance": 0.7},
         {"content": "Project uses Python 3.11", "memory_type": "fact", "importance": 0.6}
-    ]''')
+    ]"""
+    )
     # get_provider_for_feature is sync, so use MagicMock
     mock_llm_service = MagicMock()
     mock_llm_service.get_provider_for_feature.return_value = (mock_provider, "test-model", {})
@@ -257,10 +259,12 @@ async def test_memory_extract_skips_duplicates(
     mock_mem_services["memory_manager"].content_exists.side_effect = [True, False]
 
     mock_provider = MagicMock()
-    mock_provider.generate_text = AsyncMock(return_value='''[
+    mock_provider.generate_text = AsyncMock(
+        return_value="""[
         {"content": "Existing memory", "memory_type": "fact", "importance": 0.5},
         {"content": "New memory", "memory_type": "fact", "importance": 0.5}
-    ]''')
+    ]"""
+    )
     mock_llm_service = MagicMock()
     mock_llm_service.get_provider_for_feature.return_value = (mock_provider, "test-model", {})
     mem_action_context.llm_service = mock_llm_service
@@ -273,9 +277,7 @@ async def test_memory_extract_skips_duplicates(
 
 
 @pytest.mark.asyncio
-async def test_memory_extract_disabled(
-    mem_action_executor, mem_action_context, mock_mem_services
-):
+async def test_memory_extract_disabled(mem_action_executor, mem_action_context, mock_mem_services):
     """Test memory extraction is skipped when auto_extract is disabled."""
     mock_mem_services["memory_manager"].config.enabled = True
     mock_mem_services["memory_manager"].config.auto_extract = False

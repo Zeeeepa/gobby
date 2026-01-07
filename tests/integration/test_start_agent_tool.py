@@ -262,9 +262,7 @@ class TestStartAgentTerminalMode:
                 "gobby.mcp_proxy.tools.agents.get_project_context",
                 return_value=mock_project_context,
             ),
-            patch(
-                "gobby.mcp_proxy.tools.agents.TerminalSpawner"
-            ) as mock_spawner_class,
+            patch("gobby.mcp_proxy.tools.agents.TerminalSpawner") as mock_spawner_class,
         ):
             mock_spawner = MagicMock()
             mock_spawner.spawn_agent.return_value = mock_spawn_result
@@ -326,9 +324,7 @@ class TestStartAgentTerminalMode:
                 "gobby.mcp_proxy.tools.agents.get_project_context",
                 return_value=mock_project_context,
             ),
-            patch(
-                "gobby.mcp_proxy.tools.agents.TerminalSpawner"
-            ) as mock_spawner_class,
+            patch("gobby.mcp_proxy.tools.agents.TerminalSpawner") as mock_spawner_class,
         ):
             mock_spawner = MagicMock()
             mock_spawner.spawn_agent.return_value = mock_spawn_result
@@ -390,9 +386,7 @@ class TestStartAgentHeadlessMode:
                 "gobby.mcp_proxy.tools.agents.get_project_context",
                 return_value=mock_project_context,
             ),
-            patch(
-                "gobby.mcp_proxy.tools.agents.HeadlessSpawner"
-            ) as mock_spawner_class,
+            patch("gobby.mcp_proxy.tools.agents.HeadlessSpawner") as mock_spawner_class,
         ):
             mock_spawner = MagicMock()
             mock_spawner.spawn_agent.return_value = mock_headless_result
@@ -459,9 +453,7 @@ class TestStartAgentEmbeddedMode:
                 "gobby.mcp_proxy.tools.agents.get_project_context",
                 return_value=mock_project_context,
             ),
-            patch(
-                "gobby.mcp_proxy.tools.agents.EmbeddedSpawner"
-            ) as mock_spawner_class,
+            patch("gobby.mcp_proxy.tools.agents.EmbeddedSpawner") as mock_spawner_class,
         ):
             mock_spawner = MagicMock()
             mock_spawner.spawn_agent.return_value = mock_pty_result

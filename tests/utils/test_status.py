@@ -1,7 +1,6 @@
 from unittest.mock import MagicMock, patch
 
 import httpx
-import pytest
 
 from gobby.utils.status import fetch_rich_status, format_status_message
 

@@ -1,15 +1,15 @@
 """Tests for EnhancedTaskValidator core loop."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from gobby.tasks.enhanced_validator import (
     EnhancedTaskValidator,
-    ValidationResult,
     EscalationReason,
+    ValidationResult,
 )
-from gobby.tasks.validation_models import Issue, IssueType, IssueSeverity
+from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
 
 
 @pytest.fixture
@@ -234,7 +234,7 @@ class TestEnhancedTaskValidator:
             "issues": [],
         }
 
-        result = await validator.validate_with_retry(
+        await validator.validate_with_retry(
             "gt-test123",
             context={"diff": "file changes here"},
         )

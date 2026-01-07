@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from gobby.tasks.validation_models import Issue, IssueType, IssueSeverity
+from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
 
 
 class TestIssueType:

@@ -60,7 +60,7 @@ class TestPersistDecomposedTasks:
         assert "3" in id_mapping
 
         # All IDs should be valid task IDs
-        for original_id, task_id in id_mapping.items():
+        for _original_id, task_id in id_mapping.items():
             assert task_id.startswith("gt-")
 
     def test_persist_with_description_key(self, db, project_id):

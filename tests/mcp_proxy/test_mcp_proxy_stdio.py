@@ -1,20 +1,19 @@
 """Tests for the MCP proxy stdio module."""
 
 import signal
-import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from gobby.mcp_proxy.stdio import (
     check_daemon_http_health,
+    create_stdio_mcp_server,
     get_daemon_pid,
     is_daemon_running,
+    register_proxy_tools,
     restart_daemon_process,
     start_daemon_process,
     stop_daemon_process,
-    create_stdio_mcp_server,
-    register_proxy_tools,
 )
 
 

@@ -107,9 +107,36 @@ class TestExpandTaskTool:
 
         # Mock getting created subtasks
         created_tasks = [
-            Task(id="t1-1", title="Create user model", project_id="p1", status="open", priority=2, task_type="task", created_at="now", updated_at="now"),
-            Task(id="t1-2", title="Add login endpoint", project_id="p1", status="open", priority=2, task_type="task", created_at="now", updated_at="now"),
-            Task(id="t1-3", title="Add registration endpoint", project_id="p1", status="open", priority=2, task_type="task", created_at="now", updated_at="now"),
+            Task(
+                id="t1-1",
+                title="Create user model",
+                project_id="p1",
+                status="open",
+                priority=2,
+                task_type="task",
+                created_at="now",
+                updated_at="now",
+            ),
+            Task(
+                id="t1-2",
+                title="Add login endpoint",
+                project_id="p1",
+                status="open",
+                priority=2,
+                task_type="task",
+                created_at="now",
+                updated_at="now",
+            ),
+            Task(
+                id="t1-3",
+                title="Add registration endpoint",
+                project_id="p1",
+                status="open",
+                priority=2,
+                task_type="task",
+                created_at="now",
+                updated_at="now",
+            ),
         ]
 
         def get_task_side_effect(tid):
@@ -225,9 +252,7 @@ class TestExpandFromSpecTool:
     """Tests for expand_from_spec MCP tool."""
 
     @pytest.mark.asyncio
-    async def test_expand_from_spec_parses_markdown(
-        self, mock_task_manager, expansion_registry
-    ):
+    async def test_expand_from_spec_parses_markdown(self, mock_task_manager, expansion_registry):
         """Test expand_from_spec parses markdown spec into tasks."""
         spec_content = """# Feature: User Authentication
 
@@ -239,7 +264,10 @@ class TestExpandFromSpecTool:
         with patch("pathlib.Path.exists", return_value=True):
             with patch("pathlib.Path.is_file", return_value=True):
                 with patch("pathlib.Path.read_text", return_value=spec_content):
-                    with patch("gobby.mcp_proxy.tools.task_expansion.get_project_context", return_value={"id": "p1"}):
+                    with patch(
+                        "gobby.mcp_proxy.tools.task_expansion.get_project_context",
+                        return_value={"id": "p1"},
+                    ):
                         # Create enough tasks for the hierarchy (parent + heading + checkboxes)
                         task_counter = [0]
 
@@ -268,9 +296,7 @@ class TestExpandFromSpecTool:
                         assert "parent_task_id" in result
 
     @pytest.mark.asyncio
-    async def test_expand_from_spec_creates_hierarchy(
-        self, mock_task_manager, expansion_registry
-    ):
+    async def test_expand_from_spec_creates_hierarchy(self, mock_task_manager, expansion_registry):
         """Test expand_from_spec creates parent-child relationships."""
         spec_content = """# Epic: Authentication System
 
@@ -284,13 +310,27 @@ class TestExpandFromSpecTool:
         with patch("pathlib.Path.exists", return_value=True):
             with patch("pathlib.Path.is_file", return_value=True):
                 with patch("pathlib.Path.read_text", return_value=spec_content):
-                    with patch("gobby.mcp_proxy.tools.task_expansion.get_project_context", return_value={"id": "p1"}):
+                    with patch(
+                        "gobby.mcp_proxy.tools.task_expansion.get_project_context",
+                        return_value={"id": "p1"},
+                    ):
                         created_tasks = [
-                            Task(id=f"t{i}", title=f"Task {i}", project_id="p1", status="open", priority=2, task_type="task", created_at="now", updated_at="now")
+                            Task(
+                                id=f"t{i}",
+                                title=f"Task {i}",
+                                project_id="p1",
+                                status="open",
+                                priority=2,
+                                task_type="task",
+                                created_at="now",
+                                updated_at="now",
+                            )
                             for i in range(10)
                         ]
                         mock_task_manager.create_task.side_effect = created_tasks
-                        mock_task_manager.get_task.side_effect = lambda tid: next((t for t in created_tasks if t.id == tid), None)
+                        mock_task_manager.get_task.side_effect = lambda tid: next(
+                            (t for t in created_tasks if t.id == tid), None
+                        )
 
                         result = await expansion_registry.call(
                             "expand_from_spec",
@@ -301,9 +341,7 @@ class TestExpandFromSpecTool:
                         assert "mode_used" in result
 
     @pytest.mark.asyncio
-    async def test_expand_from_spec_file_not_found(
-        self, mock_task_manager, expansion_registry
-    ):
+    async def test_expand_from_spec_file_not_found(self, mock_task_manager, expansion_registry):
         """Test expand_from_spec with non-existent file."""
         with patch("pathlib.Path.exists", return_value=False):
             result = await expansion_registry.call(
@@ -314,21 +352,34 @@ class TestExpandFromSpecTool:
             assert "error" in result
 
     @pytest.mark.asyncio
-    async def test_expand_from_spec_with_parent_task(
-        self, mock_task_manager, expansion_registry
-    ):
+    async def test_expand_from_spec_with_parent_task(self, mock_task_manager, expansion_registry):
         """Test expand_from_spec creates tasks under specified parent."""
         spec_content = "- [ ] Subtask 1\n- [ ] Subtask 2"
         with patch("pathlib.Path.exists", return_value=True):
             with patch("pathlib.Path.is_file", return_value=True):
                 with patch("pathlib.Path.read_text", return_value=spec_content):
-                    with patch("gobby.mcp_proxy.tools.task_expansion.get_project_context", return_value={"id": "p1"}):
+                    with patch(
+                        "gobby.mcp_proxy.tools.task_expansion.get_project_context",
+                        return_value={"id": "p1"},
+                    ):
                         created_tasks = [
-                            Task(id=f"t{i}", title=f"Task {i}", project_id="p1", status="open", priority=2, task_type="task", parent_task_id="parent", created_at="now", updated_at="now")
+                            Task(
+                                id=f"t{i}",
+                                title=f"Task {i}",
+                                project_id="p1",
+                                status="open",
+                                priority=2,
+                                task_type="task",
+                                parent_task_id="parent",
+                                created_at="now",
+                                updated_at="now",
+                            )
                             for i in range(3)
                         ]
                         mock_task_manager.create_task.side_effect = created_tasks
-                        mock_task_manager.get_task.side_effect = lambda tid: next((t for t in created_tasks if t.id == tid), None)
+                        mock_task_manager.get_task.side_effect = lambda tid: next(
+                            (t for t in created_tasks if t.id == tid), None
+                        )
 
                         result = await expansion_registry.call(
                             "expand_from_spec",
@@ -361,14 +412,45 @@ class TestExpandFromPromptTool:
         }
 
         created_tasks = [
-            Task(id="parent", title="Create a REST API", project_id="p1", status="open", priority=2, task_type="task", created_at="now", updated_at="now"),
-            Task(id="t1", title="Setup database", project_id="p1", status="open", priority=2, task_type="task", created_at="now", updated_at="now"),
-            Task(id="t2", title="Create models", project_id="p1", status="open", priority=2, task_type="task", created_at="now", updated_at="now"),
+            Task(
+                id="parent",
+                title="Create a REST API",
+                project_id="p1",
+                status="open",
+                priority=2,
+                task_type="task",
+                created_at="now",
+                updated_at="now",
+            ),
+            Task(
+                id="t1",
+                title="Setup database",
+                project_id="p1",
+                status="open",
+                priority=2,
+                task_type="task",
+                created_at="now",
+                updated_at="now",
+            ),
+            Task(
+                id="t2",
+                title="Create models",
+                project_id="p1",
+                status="open",
+                priority=2,
+                task_type="task",
+                created_at="now",
+                updated_at="now",
+            ),
         ]
         mock_task_manager.create_task.return_value = created_tasks[0]
-        mock_task_manager.get_task.side_effect = lambda tid: next((t for t in created_tasks if t.id == tid), None)
+        mock_task_manager.get_task.side_effect = lambda tid: next(
+            (t for t in created_tasks if t.id == tid), None
+        )
 
-        with patch("gobby.mcp_proxy.tools.task_expansion.get_project_context", return_value={"id": "p1"}):
+        with patch(
+            "gobby.mcp_proxy.tools.task_expansion.get_project_context", return_value={"id": "p1"}
+        ):
             result = await expansion_registry.call(
                 "expand_from_prompt",
                 {
@@ -386,10 +468,19 @@ class TestExpandFromPromptTool:
         """Test expand_from_prompt uses code context."""
         mock_task_expander.expand_task.return_value = {"subtask_ids": []}
         mock_task_manager.create_task.return_value = Task(
-            id="parent", title="Add tests", project_id="p1", status="open", priority=2, task_type="task", created_at="now", updated_at="now"
+            id="parent",
+            title="Add tests",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
         )
 
-        with patch("gobby.mcp_proxy.tools.task_expansion.get_project_context", return_value={"id": "p1"}):
+        with patch(
+            "gobby.mcp_proxy.tools.task_expansion.get_project_context", return_value={"id": "p1"}
+        ):
             await expansion_registry.call(
                 "expand_from_prompt",
                 {
@@ -409,10 +500,19 @@ class TestExpandFromPromptTool:
         """Test expand_from_prompt handles empty expansion result."""
         mock_task_expander.expand_task.return_value = {"subtask_ids": []}
         mock_task_manager.create_task.return_value = Task(
-            id="parent", title="Vague request", project_id="p1", status="open", priority=2, task_type="task", created_at="now", updated_at="now"
+            id="parent",
+            title="Vague request",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
         )
 
-        with patch("gobby.mcp_proxy.tools.task_expansion.get_project_context", return_value={"id": "p1"}):
+        with patch(
+            "gobby.mcp_proxy.tools.task_expansion.get_project_context", return_value={"id": "p1"}
+        ):
             result = await expansion_registry.call(
                 "expand_from_prompt",
                 {"prompt": "Vague request"},
@@ -435,8 +535,26 @@ class TestExpandAllTool:
     ):
         """Test expand_all expands all unexpanded tasks."""
         unexpanded_tasks = [
-            Task(id="t1", title="Task 1", project_id="p1", status="open", priority=2, task_type="task", created_at="now", updated_at="now"),
-            Task(id="t2", title="Task 2", project_id="p1", status="open", priority=2, task_type="task", created_at="now", updated_at="now"),
+            Task(
+                id="t1",
+                title="Task 1",
+                project_id="p1",
+                status="open",
+                priority=2,
+                task_type="task",
+                created_at="now",
+                updated_at="now",
+            ),
+            Task(
+                id="t2",
+                title="Task 2",
+                project_id="p1",
+                status="open",
+                priority=2,
+                task_type="task",
+                created_at="now",
+                updated_at="now",
+            ),
         ]
 
         def list_tasks_side_effect(**kwargs):
@@ -445,7 +563,9 @@ class TestExpandAllTool:
             return unexpanded_tasks
 
         mock_task_manager.list_tasks.side_effect = list_tasks_side_effect
-        mock_task_manager.get_task.side_effect = lambda tid: next((t for t in unexpanded_tasks if t.id == tid), None)
+        mock_task_manager.get_task.side_effect = lambda tid: next(
+            (t for t in unexpanded_tasks if t.id == tid), None
+        )
 
         # Each task expands to 1 subtask
         mock_task_expander.expand_task.return_value = {
@@ -463,8 +583,26 @@ class TestExpandAllTool:
     ):
         """Test expand_all skips tasks that already have subtasks."""
         # Task with existing subtasks
-        parent_task = Task(id="t1", title="Already expanded", project_id="p1", status="open", priority=2, task_type="task", created_at="now", updated_at="now")
-        subtask = Task(id="t1-1", title="Existing subtask", project_id="p1", status="open", priority=2, task_type="task", created_at="now", updated_at="now")
+        parent_task = Task(
+            id="t1",
+            title="Already expanded",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        subtask = Task(
+            id="t1-1",
+            title="Existing subtask",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
 
         def list_tasks_side_effect(**kwargs):
             if kwargs.get("parent_task_id") == "t1":
@@ -514,9 +652,7 @@ class TestAnalyzeComplexityTool:
         assert "reasoning" in result
 
     @pytest.mark.asyncio
-    async def test_analyze_complexity_not_found(
-        self, mock_task_manager, expansion_registry
-    ):
+    async def test_analyze_complexity_not_found(self, mock_task_manager, expansion_registry):
         """Test analyze_complexity with non-existent task."""
         mock_task_manager.get_task.return_value = None
 
@@ -541,7 +677,16 @@ class TestAnalyzeComplexityTool:
         mock_task_manager.get_task.return_value = task
         # 4 existing subtasks
         mock_task_manager.list_tasks.return_value = [
-            Task(id=f"sub{i}", title=f"Subtask {i}", project_id="p1", status="open", priority=2, task_type="task", created_at="now", updated_at="now")
+            Task(
+                id=f"sub{i}",
+                title=f"Subtask {i}",
+                project_id="p1",
+                status="open",
+                priority=2,
+                task_type="task",
+                created_at="now",
+                updated_at="now",
+            )
             for i in range(4)
         ]
 

@@ -327,7 +327,7 @@ async def test_read_artifact(action_executor, action_context, tmp_path):
 async def test_workflow_state_persistence(
     action_executor, action_context, temp_db, session_manager, sample_project
 ):
-    from unittest.mock import patch, MagicMock, AsyncMock
+    from unittest.mock import MagicMock, patch
 
     with patch("gobby.workflows.state_manager.WorkflowStateManager") as MockManager:
         # Save
@@ -510,7 +510,7 @@ async def test_memory_extract_full_coverage(
     mock_provider.generate_text = AsyncMock(
         return_value="""
     [
-        {"content": "Valid Memory", "memory_type": "fact"}, 
+        {"content": "Valid Memory", "memory_type": "fact"},
         {"no_content": "skip"},
         {"content": "Duplicate", "memory_type": "fact"}
     ]
@@ -569,7 +569,7 @@ async def test_memory_inject_full_coverage(
     mock_services["memory_manager"].recall.return_value = [MagicMock()]
 
     # We need to patch build_memory_context since it's imported inside the function
-    with patch("gobby.memory.context.build_memory_context", return_value="") as mock_build:
+    with patch("gobby.memory.context.build_memory_context", return_value=""):
         res = await action_executor.execute("memory_inject", action_context)
         assert res["injected"] is False
 

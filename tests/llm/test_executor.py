@@ -1,6 +1,5 @@
 """Tests for base executor types and utilities."""
 
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 

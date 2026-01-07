@@ -5,8 +5,7 @@ These tests verify that plugin-defined actions can be executed within
 workflow definitions, receiving proper context and producing expected results.
 """
 
-from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

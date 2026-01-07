@@ -5,21 +5,19 @@ Tests for the example_notify plugin demonstrating workflow action patterns.
 from __future__ import annotations
 
 import json
+
+# Import the plugin class
+import sys
 import tempfile
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
-
-# Import the plugin class
-import sys
-
 sys.path.insert(
     0, str(Path(__file__).parent.parent.parent / "examples" / "plugins")
 )
-from example_notify import ExampleNotifyPlugin, HTTP_NOTIFY_SCHEMA, LOG_METRIC_SCHEMA
+from example_notify import HTTP_NOTIFY_SCHEMA, LOG_METRIC_SCHEMA, ExampleNotifyPlugin
 
 
 class TestPluginLoading:

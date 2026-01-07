@@ -261,7 +261,7 @@ class TestChildSessionManagerCreate:
             workflow_name="plan-execute",
         )
 
-        child = manager.create_child_session(config)
+        manager.create_child_session(config)
 
         # Verify register was called
         mock_storage.register.assert_called_once()

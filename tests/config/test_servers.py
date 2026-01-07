@@ -163,9 +163,7 @@ class TestMCPClientProxyConfigCustomValues:
         """Test setting tool-specific timeouts."""
         from gobby.config.servers import MCPClientProxyConfig
 
-        config = MCPClientProxyConfig(
-            tool_timeouts={"slow_tool": 120.0, "fast_tool": 5.0}
-        )
+        config = MCPClientProxyConfig(tool_timeouts={"slow_tool": 120.0, "fast_tool": 5.0})
         assert config.tool_timeouts["slow_tool"] == 120.0
         assert config.tool_timeouts["fast_tool"] == 5.0
 

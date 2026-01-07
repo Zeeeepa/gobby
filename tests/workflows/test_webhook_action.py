@@ -7,7 +7,7 @@ TDD Red Phase: These tests should FAIL initially because WebhookAction doesn't e
 import pytest
 
 # This import will fail until WebhookAction is implemented
-from gobby.workflows.webhook import WebhookAction, RetryConfig, CaptureConfig
+from gobby.workflows.webhook import CaptureConfig, RetryConfig, WebhookAction
 
 
 class TestWebhookActionParsing:

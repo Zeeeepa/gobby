@@ -415,7 +415,7 @@ async def test_validate_task_failure_creates_fix_subtask_with_correct_fields(
     )
     mock_task_manager.create_task.return_value = fix_subtask
 
-    result = await registry_with_patches.call(
+    await registry_with_patches.call(
         "validate_task", {"task_id": "t1", "changes_summary": "Done"}
     )
 
@@ -603,16 +603,12 @@ async def test_validate_task_without_changes_summary_uses_smart_context(
     mock_task_manager.get_task.return_value = task
     mock_task_manager.list_tasks.return_value = []
 
-    mock_task_validator.validate_task.return_value = ValidationResult(
-        status="valid", feedback="OK"
-    )
+    mock_task_validator.validate_task.return_value = ValidationResult(status="valid", feedback="OK")
 
     with (
         patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"),
         patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager"),
-        patch(
-            "gobby.tasks.validation.get_validation_context_smart"
-        ) as mock_smart_context,
+        patch("gobby.tasks.validation.get_validation_context_smart") as mock_smart_context,
     ):
         mock_smart_context.return_value = "Smart context from git diff"
 
@@ -657,9 +653,7 @@ async def test_validate_task_no_context_available_raises_error(
     with (
         patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"),
         patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager"),
-        patch(
-            "gobby.tasks.validation.get_validation_context_smart"
-        ) as mock_smart_context,
+        patch("gobby.tasks.validation.get_validation_context_smart") as mock_smart_context,
     ):
         # No context available
         mock_smart_context.return_value = None
@@ -705,9 +699,7 @@ async def test_generate_criteria_for_leaf_task(
         "- [ ] Login form renders\n- [ ] Password validation works"
     )
 
-    result = await registry_with_patches.call(
-        "generate_validation_criteria", {"task_id": "t1"}
-    )
+    result = await registry_with_patches.call("generate_validation_criteria", {"task_id": "t1"})
 
     assert result["generated"] is True
     assert result["is_parent_task"] is False
@@ -780,9 +772,7 @@ async def test_generate_criteria_skips_existing(
     mock_task_manager.get_task.return_value = task
     mock_task_manager.list_tasks.return_value = []
 
-    result = await registry_with_patches.call(
-        "generate_validation_criteria", {"task_id": "t1"}
-    )
+    result = await registry_with_patches.call("generate_validation_criteria", {"task_id": "t1"})
 
     assert result["generated"] is False
     assert "already has validation criteria" in result["message"]
@@ -858,9 +848,7 @@ async def test_close_task_uses_commit_diff_when_commits_linked(
     mock_task_manager.get_task.return_value = task
     mock_task_manager.list_tasks.return_value = []
 
-    mock_task_validator.validate_task.return_value = ValidationResult(
-        status="valid", feedback="OK"
-    )
+    mock_task_validator.validate_task.return_value = ValidationResult(status="valid", feedback="OK")
     mock_task_manager.close_task.return_value = task
 
     from gobby.tasks.commits import TaskDiffResult
@@ -922,18 +910,14 @@ async def test_close_task_falls_back_to_smart_context_when_no_commits(
     mock_task_manager.get_task.return_value = task
     mock_task_manager.list_tasks.return_value = []
 
-    mock_task_validator.validate_task.return_value = ValidationResult(
-        status="valid", feedback="OK"
-    )
+    mock_task_validator.validate_task.return_value = ValidationResult(status="valid", feedback="OK")
     mock_task_manager.close_task.return_value = task
 
     with (
         patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"),
         patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager"),
         patch("gobby.mcp_proxy.tools.tasks.get_task_diff") as mock_diff,
-        patch(
-            "gobby.tasks.validation.get_validation_context_smart"
-        ) as mock_smart_context,
+        patch("gobby.tasks.validation.get_validation_context_smart") as mock_smart_context,
         patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as mock_pm,
         patch("gobby.utils.git.run_git_command", return_value="abc123"),
     ):
@@ -947,7 +931,7 @@ async def test_close_task_falls_back_to_smart_context_when_no_commits(
         )
 
         # Must provide no_commit_needed=True with justification to close without commits
-        result = await registry.call(
+        await registry.call(
             "close_task",
             {
                 "task_id": "t1",
@@ -987,9 +971,7 @@ async def test_close_task_commit_diff_with_uncommitted_changes(
     mock_task_manager.get_task.return_value = task
     mock_task_manager.list_tasks.return_value = []
 
-    mock_task_validator.validate_task.return_value = ValidationResult(
-        status="valid", feedback="OK"
-    )
+    mock_task_validator.validate_task.return_value = ValidationResult(status="valid", feedback="OK")
     mock_task_manager.close_task.return_value = task
 
     from gobby.tasks.commits import TaskDiffResult
@@ -1015,7 +997,7 @@ async def test_close_task_commit_diff_with_uncommitted_changes(
             task_validator=mock_task_validator,
         )
 
-        result = await registry.call("close_task", {"task_id": "t1"})
+        await registry.call("close_task", {"task_id": "t1"})
 
         # get_task_diff should have been called with include_uncommitted=True
         mock_diff.assert_called_once()
@@ -1045,9 +1027,7 @@ async def test_close_task_commit_diff_empty_falls_back_to_smart_context(
     mock_task_manager.get_task.return_value = task
     mock_task_manager.list_tasks.return_value = []
 
-    mock_task_validator.validate_task.return_value = ValidationResult(
-        status="valid", feedback="OK"
-    )
+    mock_task_validator.validate_task.return_value = ValidationResult(status="valid", feedback="OK")
     mock_task_manager.close_task.return_value = task
 
     from gobby.tasks.commits import TaskDiffResult
@@ -1056,9 +1036,7 @@ async def test_close_task_commit_diff_empty_falls_back_to_smart_context(
         patch("gobby.mcp_proxy.tools.tasks.TaskDependencyManager"),
         patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager"),
         patch("gobby.mcp_proxy.tools.tasks.get_task_diff") as mock_diff,
-        patch(
-            "gobby.tasks.validation.get_validation_context_smart"
-        ) as mock_smart_context,
+        patch("gobby.tasks.validation.get_validation_context_smart") as mock_smart_context,
         patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as mock_pm,
         patch("gobby.utils.git.run_git_command", return_value="abc123"),
     ):
@@ -1078,7 +1056,7 @@ async def test_close_task_commit_diff_empty_falls_back_to_smart_context(
             task_validator=mock_task_validator,
         )
 
-        result = await registry.call("close_task", {"task_id": "t1"})
+        await registry.call("close_task", {"task_id": "t1"})
 
         # Should have tried get_task_diff first
         mock_diff.assert_called_once()

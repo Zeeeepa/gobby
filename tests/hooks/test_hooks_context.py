@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -63,9 +63,7 @@ def test_hook_event_task_id(mock_hook_manager):
     # Execute handler
     # We need to mock the specific handler to avoid side effects
     mock_handler = MagicMock(return_value=HookResponse(decision="allow"))
-    with patch.object(
-        mock_hook_manager._event_handlers, "get_handler", return_value=mock_handler
-    ):
+    with patch.object(mock_hook_manager._event_handlers, "get_handler", return_value=mock_handler):
         mock_hook_manager.handle(event)
 
     # Verify task_id was populated on the event object

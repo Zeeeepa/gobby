@@ -22,15 +22,11 @@ import time
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 # This import should fail initially (red phase) - module doesn't exist yet
 from gobby.hooks.session_coordinator import SessionCoordinator
 
 if TYPE_CHECKING:
-    from gobby.storage.sessions import LocalSessionManager
-    from gobby.storage.worktrees import LocalWorktreeManager
-    from gobby.storage.agents import LocalAgentRunManager
+    pass
 
 
 class TestSessionRegistrationTracking:
@@ -308,9 +304,7 @@ class TestWorktreeRelease:
 
         coordinator.release_session_worktrees("session-123")
 
-        mock_worktree_manager.list_worktrees.assert_called_once_with(
-            agent_session_id="session-123"
-        )
+        mock_worktree_manager.list_worktrees.assert_called_once_with(agent_session_id="session-123")
         assert mock_worktree_manager.release.call_count == 2
 
     def test_release_handles_empty_worktrees(self) -> None:

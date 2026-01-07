@@ -1,15 +1,16 @@
 """Tests for ClaudeLLMProvider methods: generate_summary, synthesize_title, execute_code."""
 
-import pytest
-from contextlib import contextmanager
-from unittest.mock import patch, AsyncMock
 import asyncio
+from contextlib import contextmanager
+from unittest.mock import AsyncMock, patch
+
+import pytest
 
 from gobby.config.app import (
-    DaemonConfig,
-    LLMProvidersConfig,
-    LLMProviderConfig,
     CodeExecutionConfig,
+    DaemonConfig,
+    LLMProviderConfig,
+    LLMProvidersConfig,
     SessionSummaryConfig,
     TitleSynthesisConfig,
 )

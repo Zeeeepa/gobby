@@ -6,9 +6,8 @@ parse_issues_from_response() which does not yet exist.
 Task: gt-35d11c
 """
 
-import pytest
 
-from gobby.tasks.validation_models import Issue, IssueType, IssueSeverity
+from gobby.tasks.validation_models import IssueSeverity, IssueType
 
 
 class TestParseIssuesFromResponse:

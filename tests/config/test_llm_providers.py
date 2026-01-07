@@ -218,7 +218,5 @@ class TestLLMProvidersConfigFromAppPy:
         """Test importing LLMProvidersConfig from app.py works (baseline)."""
         from gobby.config.app import LLMProviderConfig, LLMProvidersConfig
 
-        config = LLMProvidersConfig(
-            claude=LLMProviderConfig(models="claude-haiku-4-5")
-        )
+        config = LLMProvidersConfig(claude=LLMProviderConfig(models="claude-haiku-4-5"))
         assert config.get_enabled_providers() == ["claude"]

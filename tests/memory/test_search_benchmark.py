@@ -93,7 +93,7 @@ def create_mock_embedding(content: str) -> list[float]:
     topic_component = [0.0] * 8
     for topic, vec in topic_vectors.items():
         if topic in content_lower:
-            topic_component = [max(a, b) for a, b in zip(topic_component, vec)]
+            topic_component = [max(a, b) for a, b in zip(topic_component, vec, strict=False)]
 
     # Combine base and topic embeddings, pad to 1536 dimensions
     combined = base + topic_component
@@ -178,7 +178,7 @@ class TestSearchBenchmark:
         max_latency = max(latencies)
         min_latency = min(latencies)
 
-        print(f"\n=== Text Search Latency ===")
+        print("\n=== Text Search Latency ===")
         print(f"  Average: {avg_latency:.3f} ms")
         print(f"  Min: {min_latency:.3f} ms")
         print(f"  Max: {max_latency:.3f} ms")
@@ -215,12 +215,12 @@ class TestSearchBenchmark:
         max_latency = max(latencies)
         min_latency = min(latencies)
 
-        print(f"\n=== Semantic Search Latency (mocked embedding) ===")
+        print("\n=== Semantic Search Latency (mocked embedding) ===")
         print(f"  Average: {avg_latency:.3f} ms")
         print(f"  Min: {min_latency:.3f} ms")
         print(f"  Max: {max_latency:.3f} ms")
         print(f"  Queries: {len(latencies)}")
-        print(f"  Note: Real latency includes ~100-500ms API call for embedding")
+        print("  Note: Real latency includes ~100-500ms API call for embedding")
 
         # Mocked semantic search should be reasonably fast
         assert avg_latency < 500, f"Semantic search too slow: {avg_latency:.3f} ms"
@@ -267,7 +267,7 @@ class TestSearchBenchmark:
         avg_precision = statistics.mean(precision_scores)
         avg_recall = statistics.mean(recall_scores)
 
-        print(f"\n=== Text Search Accuracy ===")
+        print("\n=== Text Search Accuracy ===")
         print(f"  Average Precision: {avg_precision:.2%}")
         print(f"  Average Recall: {avg_recall:.2%}")
         print(f"  Queries tested: {len(TEST_QUERIES)}")
@@ -326,7 +326,7 @@ class TestSearchBenchmark:
         avg_precision = statistics.mean(precision_scores)
         avg_recall = statistics.mean(recall_scores)
 
-        print(f"\n=== Semantic Search Accuracy ===")
+        print("\n=== Semantic Search Accuracy ===")
         print(f"  Average Precision: {avg_precision:.2%}")
         print(f"  Average Recall: {avg_recall:.2%}")
         print(f"  Queries tested: {len(TEST_QUERIES)}")

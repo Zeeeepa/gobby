@@ -1,6 +1,5 @@
 """Tests for lazy server initialization."""
 
-import asyncio
 import time
 
 import pytest

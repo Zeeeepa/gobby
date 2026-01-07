@@ -99,7 +99,7 @@ class TestWebhookExecutorSuccessPath:
         mock_session = create_mock_session(mock_response)
 
         with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
-            result = await executor.execute(
+            await executor.execute(
                 url="https://api.example.com/events",
                 method="PUT",
                 headers={},
@@ -118,7 +118,7 @@ class TestWebhookExecutorSuccessPath:
         mock_session = create_mock_session(mock_response)
 
         with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
-            result = await executor.execute(
+            await executor.execute(
                 url="https://api.example.com/webhook",
                 method="POST",
                 headers={
@@ -234,7 +234,7 @@ class TestWebhookExecutorFailureHandling:
         mock_session.__aexit__ = AsyncMock(return_value=None)
 
         with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
-            result = await executor.execute(
+            await executor.execute(
                 url="https://api.example.com/webhook",
                 method="POST",
                 headers={},

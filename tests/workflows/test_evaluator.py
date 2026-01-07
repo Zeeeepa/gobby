@@ -7,7 +7,6 @@ from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.evaluator import (
     APPROVAL_KEYWORDS,
     REJECTION_KEYWORDS,
-    ApprovalCheckResult,
     ConditionEvaluator,
     check_approval_response,
 )

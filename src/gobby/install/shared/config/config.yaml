@@ -139,7 +139,7 @@ session_lifecycle:
   stale_session_timeout_hours: 24
   expire_check_interval_minutes: 60
   transcript_processing_interval_minutes: 5
-  transcript_processing_batch_size: 10    
+  transcript_processing_batch_size: 10
 compact_handoff:
   enabled: true
 
@@ -262,7 +262,7 @@ code_execution:
   max_turns: 5
   default_timeout: 30
   max_dataset_preview: 3
-  prompt: 
+  prompt:
     'Execute the following code and return the result.
 
     Context: {context}

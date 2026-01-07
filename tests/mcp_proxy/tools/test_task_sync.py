@@ -443,7 +443,7 @@ class TestGitIntegrationEdgeCases:
 
         link = registry.get_tool("link_commit")
         full_sha = "abc123def456789abcdef123456789abcdef1234"
-        result = link(task_id="task-1", commit_sha=full_sha)
+        link(task_id="task-1", commit_sha=full_sha)
 
         task_manager.link_commit.assert_called_with("task-1", full_sha)
 
@@ -463,7 +463,7 @@ class TestGitIntegrationEdgeCases:
         )
 
         link = registry.get_tool("link_commit")
-        result = link(task_id="task-1", commit_sha="abc123")
+        link(task_id="task-1", commit_sha="abc123")
 
         task_manager.link_commit.assert_called_with("task-1", "abc123")
 

@@ -1,4 +1,3 @@
-from unittest.mock import MagicMock
 
 from gobby.config.app import TaskExpansionConfig
 from gobby.storage.tasks import Task

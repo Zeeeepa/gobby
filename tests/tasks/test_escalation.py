@@ -1,16 +1,15 @@
 """Tests for task escalation system."""
 
-from datetime import datetime, UTC
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from gobby.tasks.enhanced_validator import EscalationReason
 from gobby.tasks.escalation import (
     EscalationManager,
     EscalationSummary,
 )
-from gobby.tasks.enhanced_validator import EscalationReason
-from gobby.tasks.validation_models import Issue, IssueType, IssueSeverity
 
 
 @pytest.fixture
@@ -310,7 +309,7 @@ class TestWebhookNotification:
         mock_task_manager.update_task.return_value = mock_task
 
         # Should not raise, escalation should still complete
-        result = await manager.escalate_async(
+        await manager.escalate_async(
             task_id="gt-test123",
             reason=EscalationReason.MAX_ITERATIONS,
         )

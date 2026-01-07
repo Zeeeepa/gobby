@@ -191,7 +191,7 @@ def create_session_messages_registry(
             name="search_messages",
             description="Search messages using Full Text Search (FTS).",
         )
-        def search_messages(
+        async def search_messages(
             query: str,
             session_id: str | None = None,
             limit: int = 20,
@@ -207,14 +207,10 @@ def create_session_messages_registry(
                 full_content: If True, returns full content. If False (default), truncates large content.
             """
             try:
-                import asyncio
-
-                results = asyncio.get_event_loop().run_until_complete(
-                    message_manager.search_messages(
-                        query_text=query,
-                        session_id=session_id,
-                        limit=limit,
-                    )
+                results = await message_manager.search_messages(
+                    query_text=query,
+                    session_id=session_id,
+                    limit=limit,
                 )
 
                 # Truncate content if not full_content

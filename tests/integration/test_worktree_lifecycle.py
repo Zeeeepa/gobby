@@ -108,9 +108,7 @@ class TestWorktreeCreation:
         assert worktree.task_id is None
         assert worktree.agent_session_id is None
 
-    def test_create_worktree_with_all_fields(
-        self, worktree_manager, project, session, task
-    ):
+    def test_create_worktree_with_all_fields(self, worktree_manager, project, session, task):
         """Create a worktree with all optional fields."""
         worktree = worktree_manager.create(
             project_id=project.id,
@@ -291,9 +289,7 @@ class TestWorktreeListing:
         worktrees = worktree_manager.list_worktrees(limit=2)
         assert len(worktrees) == 2
 
-    def test_list_combined_filters(
-        self, worktree_manager, project, session, setup_worktrees
-    ):
+    def test_list_combined_filters(self, worktree_manager, project, session, setup_worktrees):
         """List worktrees with multiple filters."""
         worktrees = worktree_manager.list_worktrees(
             project_id=project.id,
@@ -535,7 +531,7 @@ class TestStaleWorktreeDetection:
         )
 
         # Create worktrees
-        recent = wm.create(
+        wm.create(
             project_id=proj.id,
             branch_name="feature/recent",
             worktree_path="/tmp/wt/recent",
@@ -659,7 +655,7 @@ class TestWorktreeStatistics:
     def test_count_by_status_with_data(self, worktree_manager, project):
         """Count by status returns correct counts."""
         # Create worktrees with different statuses
-        wt1 = worktree_manager.create(
+        worktree_manager.create(
             project_id=project.id,
             branch_name="feature/count1",
             worktree_path="/tmp/wt/count1",

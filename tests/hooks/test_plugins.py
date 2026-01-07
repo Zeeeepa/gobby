@@ -1,8 +1,7 @@
 """Tests for the Python plugin system."""
 
 import tempfile
-from datetime import UTC, datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -13,7 +12,6 @@ from gobby.hooks.plugins import (
     HookPlugin,
     PluginLoader,
     PluginRegistry,
-    RegisteredHandler,
     hook_handler,
     run_plugin_handlers,
 )

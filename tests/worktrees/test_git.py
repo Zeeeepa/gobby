@@ -1,8 +1,7 @@
 """Tests for git worktree operations manager."""
 
 import subprocess
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -254,9 +253,7 @@ class TestWorktreeGitManagerCreateWorktree:
             stderr="",
         )
 
-        result = manager.create_worktree(
-            worktree_path, "feature/test", create_branch=False
-        )
+        result = manager.create_worktree(worktree_path, "feature/test", create_branch=False)
 
         assert result.success is True
 
@@ -356,9 +353,7 @@ class TestWorktreeGitManagerDeleteWorktree:
                 args=["git", "rev-parse"], returncode=0, stdout="abc1234\n", stderr=""
             ),
             # status --porcelain
-            subprocess.CompletedProcess(
-                args=["git", "status"], returncode=0, stdout="", stderr=""
-            ),
+            subprocess.CompletedProcess(args=["git", "status"], returncode=0, stdout="", stderr=""),
             # rev-list (ahead/behind)
             subprocess.CompletedProcess(
                 args=["git", "rev-list"], returncode=0, stdout="0\t0\n", stderr=""
@@ -420,13 +415,9 @@ class TestWorktreeGitManagerSyncFromMain:
 
         mock_run.side_effect = [
             # fetch
-            subprocess.CompletedProcess(
-                args=["git", "fetch"], returncode=0, stdout="", stderr=""
-            ),
+            subprocess.CompletedProcess(args=["git", "fetch"], returncode=0, stdout="", stderr=""),
             # rebase
-            subprocess.CompletedProcess(
-                args=["git", "rebase"], returncode=0, stdout="", stderr=""
-            ),
+            subprocess.CompletedProcess(args=["git", "rebase"], returncode=0, stdout="", stderr=""),
         ]
 
         result = manager.sync_from_main(worktree_path, strategy="rebase")
@@ -442,13 +433,9 @@ class TestWorktreeGitManagerSyncFromMain:
 
         mock_run.side_effect = [
             # fetch
-            subprocess.CompletedProcess(
-                args=["git", "fetch"], returncode=0, stdout="", stderr=""
-            ),
+            subprocess.CompletedProcess(args=["git", "fetch"], returncode=0, stdout="", stderr=""),
             # merge
-            subprocess.CompletedProcess(
-                args=["git", "merge"], returncode=0, stdout="", stderr=""
-            ),
+            subprocess.CompletedProcess(args=["git", "merge"], returncode=0, stdout="", stderr=""),
         ]
 
         result = manager.sync_from_main(worktree_path, strategy="merge")
@@ -464,9 +451,7 @@ class TestWorktreeGitManagerSyncFromMain:
 
         mock_run.side_effect = [
             # fetch
-            subprocess.CompletedProcess(
-                args=["git", "fetch"], returncode=0, stdout="", stderr=""
-            ),
+            subprocess.CompletedProcess(args=["git", "fetch"], returncode=0, stdout="", stderr=""),
             # rebase with conflict
             subprocess.CompletedProcess(
                 args=["git", "rebase"],
@@ -530,9 +515,7 @@ class TestWorktreeGitManagerGetStatus:
                 args=["git", "rev-parse"], returncode=0, stdout="abc1234\n", stderr=""
             ),
             # status --porcelain
-            subprocess.CompletedProcess(
-                args=["git", "status"], returncode=0, stdout="", stderr=""
-            ),
+            subprocess.CompletedProcess(args=["git", "status"], returncode=0, stdout="", stderr=""),
             # rev-list (ahead/behind)
             subprocess.CompletedProcess(
                 args=["git", "rev-list"], returncode=0, stdout="0\t0\n", stderr=""

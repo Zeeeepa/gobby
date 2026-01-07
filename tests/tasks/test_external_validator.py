@@ -7,7 +7,7 @@ which does not yet exist.
 Task: gt-14b076
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -65,7 +65,7 @@ class TestRunExternalValidation:
         +    return authenticate_with_oauth()
         """
 
-        result = await run_external_validation(
+        await run_external_validation(
             config=validation_config,
             llm_service=mock_llm_service,
             task=sample_task,
@@ -225,7 +225,6 @@ class TestRunExternalValidation:
         self, validation_config, mock_llm_service, sample_task
     ):
         """Test handling of timeout during external validation."""
-        import asyncio
 
         from gobby.tasks.external_validator import ExternalValidationResult, run_external_validation
 
@@ -309,7 +308,6 @@ class TestExternalValidatorToggle:
     @pytest.mark.asyncio
     async def test_use_external_validator_when_flag_enabled(self, mock_llm_service):
         """Test that external validation is used when use_external_validator is True."""
-        from gobby.tasks.enhanced_validator import EnhancedTaskValidator
 
         # This test verifies the flag is respected in the enhanced validator
         config = TaskValidationConfig(
@@ -344,7 +342,7 @@ class TestExternalValidatorToggle:
         # But we override at call time
         task = {"id": "test", "title": "Test", "validation_criteria": "Test"}
 
-        result = await run_external_validation(
+        await run_external_validation(
             config=config,
             llm_service=mock_llm_service,
             task=task,

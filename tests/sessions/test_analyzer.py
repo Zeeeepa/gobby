@@ -2,11 +2,10 @@
 Tests for TranscriptAnalyzer in gobby.sessions.analyzer.
 """
 
-from datetime import datetime
 
 import pytest
 
-from gobby.sessions.analyzer import HandoffContext, TranscriptAnalyzer
+from gobby.sessions.analyzer import TranscriptAnalyzer
 
 
 @pytest.fixture

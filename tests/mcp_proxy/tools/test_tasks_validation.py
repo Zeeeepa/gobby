@@ -201,9 +201,7 @@ class TestValidateTaskTool:
         assert "child tasks" in result["feedback"].lower()
 
     @pytest.mark.asyncio
-    async def test_validate_task_parent_open_children(
-        self, mock_task_manager, validation_registry
-    ):
+    async def test_validate_task_parent_open_children(self, mock_task_manager, validation_registry):
         """Test validate_task for parent task with open children."""
         parent_task = Task(
             id="t1",
@@ -254,9 +252,7 @@ class TestValidateTaskTool:
         mock_task_manager.get_task.return_value = None
 
         with pytest.raises(ValueError, match="not found"):
-            await validation_registry.call(
-                "validate_task", {"task_id": "nonexistent"}
-            )
+            await validation_registry.call("validate_task", {"task_id": "nonexistent"})
 
     @pytest.mark.asyncio
     async def test_validate_task_creates_fix_task_on_failure(
@@ -295,7 +291,7 @@ class TestValidateTaskTool:
         )
         mock_task_manager.create_task.return_value = fix_task
 
-        result = await validation_registry.call(
+        await validation_registry.call(
             "validate_task",
             {"task_id": "t1", "changes_summary": "Wrong implementation"},
         )
@@ -343,7 +339,7 @@ class TestValidateTaskTool:
             updated_at="now",
         )
 
-        result = await validation_registry.call(
+        await validation_registry.call(
             "validate_task",
             {"task_id": "t1", "changes_summary": "Still wrong"},
         )
@@ -377,12 +373,10 @@ class TestValidateTaskTool:
             feedback="OK",
         )
 
-        with patch(
-            "gobby.tasks.validation.get_validation_context_smart"
-        ) as mock_context:
+        with patch("gobby.tasks.validation.get_validation_context_smart") as mock_context:
             mock_context.return_value = "Auto-gathered context from git"
 
-            result = await validation_registry.call(
+            await validation_registry.call(
                 "validate_task",
                 {"task_id": "t1"},  # No changes_summary
             )
@@ -426,9 +420,7 @@ class TestGenerateValidationCriteriaTool:
             "- [ ] Invalid credentials show error message"
         )
 
-        result = await validation_registry.call(
-            "generate_validation_criteria", {"task_id": "t1"}
-        )
+        result = await validation_registry.call("generate_validation_criteria", {"task_id": "t1"})
 
         assert result["generated"] is True
         assert result["validation_criteria"] is not None
@@ -436,9 +428,7 @@ class TestGenerateValidationCriteriaTool:
         assert result["is_parent_task"] is False
 
     @pytest.mark.asyncio
-    async def test_generate_criteria_for_parent_task(
-        self, mock_task_manager, validation_registry
-    ):
+    async def test_generate_criteria_for_parent_task(self, mock_task_manager, validation_registry):
         """Test that parent tasks get 'all children closed' criteria."""
         task = Task(
             id="t1",
@@ -467,18 +457,14 @@ class TestGenerateValidationCriteriaTool:
             )
         ]
 
-        result = await validation_registry.call(
-            "generate_validation_criteria", {"task_id": "t1"}
-        )
+        result = await validation_registry.call("generate_validation_criteria", {"task_id": "t1"})
 
         assert result["generated"] is True
         assert "child tasks" in result["validation_criteria"].lower()
         assert result["is_parent_task"] is True
 
     @pytest.mark.asyncio
-    async def test_generate_criteria_already_exists(
-        self, mock_task_manager, validation_registry
-    ):
+    async def test_generate_criteria_already_exists(self, mock_task_manager, validation_registry):
         """Test that generate_validation_criteria skips if criteria already exists."""
         task = Task(
             id="t1",
@@ -493,18 +479,14 @@ class TestGenerateValidationCriteriaTool:
         )
         mock_task_manager.get_task.return_value = task
 
-        result = await validation_registry.call(
-            "generate_validation_criteria", {"task_id": "t1"}
-        )
+        result = await validation_registry.call("generate_validation_criteria", {"task_id": "t1"})
 
         assert result["generated"] is False
         assert result["validation_criteria"] == "Existing criteria"
         assert "already has" in result["message"].lower()
 
     @pytest.mark.asyncio
-    async def test_generate_criteria_not_found(
-        self, mock_task_manager, validation_registry
-    ):
+    async def test_generate_criteria_not_found(self, mock_task_manager, validation_registry):
         """Test generate_validation_criteria with non-existent task."""
         mock_task_manager.get_task.return_value = None
 
@@ -544,9 +526,7 @@ class TestGetValidationStatusTool:
         )
         mock_task_manager.get_task.return_value = task
 
-        result = await validation_registry.call(
-            "get_validation_status", {"task_id": "t1"}
-        )
+        result = await validation_registry.call("get_validation_status", {"task_id": "t1"})
 
         assert result["task_id"] == "t1"
         assert result["validation_status"] == "invalid"
@@ -556,16 +536,12 @@ class TestGetValidationStatusTool:
         assert result["use_external_validator"] is False
 
     @pytest.mark.asyncio
-    async def test_get_validation_status_not_found(
-        self, mock_task_manager, validation_registry
-    ):
+    async def test_get_validation_status_not_found(self, mock_task_manager, validation_registry):
         """Test get_validation_status with non-existent task."""
         mock_task_manager.get_task.return_value = None
 
         with pytest.raises(ValueError, match="not found"):
-            await validation_registry.call(
-                "get_validation_status", {"task_id": "nonexistent"}
-            )
+            await validation_registry.call("get_validation_status", {"task_id": "nonexistent"})
 
 
 # ============================================================================
@@ -577,9 +553,7 @@ class TestResetValidationCountTool:
     """Tests for reset_validation_count MCP tool."""
 
     @pytest.mark.asyncio
-    async def test_reset_validation_count_success(
-        self, mock_task_manager, validation_registry
-    ):
+    async def test_reset_validation_count_success(self, mock_task_manager, validation_registry):
         """Test that reset_validation_count resets to zero."""
         task = Task(
             id="t1",
@@ -607,25 +581,19 @@ class TestResetValidationCountTool:
         )
         mock_task_manager.update_task.return_value = updated_task
 
-        result = await validation_registry.call(
-            "reset_validation_count", {"task_id": "t1"}
-        )
+        result = await validation_registry.call("reset_validation_count", {"task_id": "t1"})
 
         assert result["validation_fail_count"] == 0
         assert "reset" in result["message"].lower()
         mock_task_manager.update_task.assert_called_with("t1", validation_fail_count=0)
 
     @pytest.mark.asyncio
-    async def test_reset_validation_count_not_found(
-        self, mock_task_manager, validation_registry
-    ):
+    async def test_reset_validation_count_not_found(self, mock_task_manager, validation_registry):
         """Test reset_validation_count with non-existent task."""
         mock_task_manager.get_task.return_value = None
 
         with pytest.raises(ValueError, match="not found"):
-            await validation_registry.call(
-                "reset_validation_count", {"task_id": "nonexistent"}
-            )
+            await validation_registry.call("reset_validation_count", {"task_id": "nonexistent"})
 
 
 # ============================================================================

@@ -13,7 +13,7 @@ Test categories:
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from unittest.mock import MagicMock
 
@@ -49,9 +49,7 @@ def mock_dependencies() -> dict[str, Any]:
     """Create mock dependencies for EventHandlers."""
     # Configure workflow_handler to return a proper HookResponse
     workflow_handler = MagicMock()
-    workflow_handler.handle_all_lifecycles.return_value = HookResponse(
-        decision="allow", context=""
-    )
+    workflow_handler.handle_all_lifecycles.return_value = HookResponse(decision="allow", context="")
     return {
         "session_manager": MagicMock(),
         "workflow_handler": workflow_handler,
@@ -85,9 +83,7 @@ class TestHandlerRegistration:
         handler = event_handlers.get_handler(HookEventType.SESSION_START)
         assert callable(handler)
 
-    def test_get_handler_for_unknown_returns_none(
-        self, event_handlers: EventHandlers
-    ) -> None:
+    def test_get_handler_for_unknown_returns_none(self, event_handlers: EventHandlers) -> None:
         """Test get_handler returns None for unknown event type."""
         result = event_handlers.get_handler("invalid_event")  # type: ignore
         assert result is None
@@ -237,8 +233,8 @@ class TestErrorIsolation:
         self, event_handlers: EventHandlers, mock_dependencies: dict
     ) -> None:
         """Test workflow errors are handled gracefully."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = (
-            Exception("Workflow error")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+            "Workflow error"
         )
         event = make_event(HookEventType.BEFORE_AGENT, data={"prompt": "Hello"})
         response = event_handlers.handle_before_agent(event)

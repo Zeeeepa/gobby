@@ -113,9 +113,7 @@ async def test_expand_task_creates_subtasks(
         mock_gatherer_instance = MockGatherer.return_value
         mock_gatherer_instance.gather_context = AsyncMock(return_value=mock_ctx)
 
-        expander = TaskExpander(
-            task_expansion_config, mock_llm_service, mock_task_manager
-        )
+        expander = TaskExpander(task_expansion_config, mock_llm_service, mock_task_manager)
 
         result = await expander.expand_task("t1", "Main Task")
 
@@ -168,11 +166,9 @@ async def test_expand_task_wires_dependencies(
             mock_gatherer_instance.gather_context = AsyncMock(return_value=mock_ctx)
             mock_dep_instance = MockDepManager.return_value
 
-            expander = TaskExpander(
-                task_expansion_config, mock_llm_service, mock_task_manager
-            )
+            expander = TaskExpander(task_expansion_config, mock_llm_service, mock_task_manager)
 
-            result = await expander.expand_task("t1", "Main Task")
+            await expander.expand_task("t1", "Main Task")
 
             # Verify add_dependency was called for the second task
             # Second task has depends_on: [0], so it should call add_dependency
@@ -180,7 +176,7 @@ async def test_expand_task_wires_dependencies(
             call_args = mock_dep_instance.add_dependency.call_args
             assert call_args[0][0] == "gt-sub2"  # task_id
             assert call_args[0][1] == "gt-sub1"  # blocker_id
-            assert call_args[0][2] == "blocks"   # dep_type
+            assert call_args[0][2] == "blocks"  # dep_type
 
 
 @pytest.mark.asyncio
@@ -202,9 +198,7 @@ async def test_expand_task_handles_missing_task(
             )
         )
 
-        expander = TaskExpander(
-            task_expansion_config, mock_llm_service, mock_task_manager
-        )
+        expander = TaskExpander(task_expansion_config, mock_llm_service, mock_task_manager)
 
         await expander.expand_task("t1", "Transient Task")
 
@@ -216,9 +210,7 @@ async def test_expand_task_handles_missing_task(
 
 
 @pytest.mark.asyncio
-async def test_expand_task_disabled(
-    mock_task_manager, mock_llm_service, sample_task
-):
+async def test_expand_task_disabled(mock_task_manager, mock_llm_service, sample_task):
     """Test that expand_task returns early when disabled."""
     config = TaskExpansionConfig(enabled=False)
     expander = TaskExpander(config, mock_llm_service, mock_task_manager)
@@ -236,12 +228,14 @@ class TestParseSubtasks:
     def test_parses_valid_json(self, mock_task_manager, mock_llm_service, task_expansion_config):
         expander = TaskExpander(task_expansion_config, mock_llm_service, mock_task_manager)
 
-        response = json.dumps({
-            "subtasks": [
-                {"title": "Task 1", "priority": 1},
-                {"title": "Task 2", "depends_on": [0]},
-            ]
-        })
+        response = json.dumps(
+            {
+                "subtasks": [
+                    {"title": "Task 1", "priority": 1},
+                    {"title": "Task 2", "depends_on": [0]},
+                ]
+            }
+        )
 
         specs = expander._parse_subtasks(response)
 
@@ -251,7 +245,9 @@ class TestParseSubtasks:
         assert specs[1].title == "Task 2"
         assert specs[1].depends_on == [0]
 
-    def test_parses_json_in_code_block(self, mock_task_manager, mock_llm_service, task_expansion_config):
+    def test_parses_json_in_code_block(
+        self, mock_task_manager, mock_llm_service, task_expansion_config
+    ):
         expander = TaskExpander(task_expansion_config, mock_llm_service, mock_task_manager)
 
         response = """Here's the breakdown:
@@ -271,7 +267,9 @@ That should work!"""
         assert len(specs) == 1
         assert specs[0].title == "Task 1"
 
-    def test_returns_empty_for_invalid_json(self, mock_task_manager, mock_llm_service, task_expansion_config):
+    def test_returns_empty_for_invalid_json(
+        self, mock_task_manager, mock_llm_service, task_expansion_config
+    ):
         expander = TaskExpander(task_expansion_config, mock_llm_service, mock_task_manager)
 
         response = "This is not valid JSON at all"
@@ -280,16 +278,20 @@ That should work!"""
 
         assert specs == []
 
-    def test_skips_subtasks_without_title(self, mock_task_manager, mock_llm_service, task_expansion_config):
+    def test_skips_subtasks_without_title(
+        self, mock_task_manager, mock_llm_service, task_expansion_config
+    ):
         expander = TaskExpander(task_expansion_config, mock_llm_service, mock_task_manager)
 
-        response = json.dumps({
-            "subtasks": [
-                {"title": "Valid"},
-                {"description": "Missing title"},
-                {"title": "Also valid"},
-            ]
-        })
+        response = json.dumps(
+            {
+                "subtasks": [
+                    {"title": "Valid"},
+                    {"description": "Missing title"},
+                    {"title": "Also valid"},
+                ]
+            }
+        )
 
         specs = expander._parse_subtasks(response)
 
@@ -308,7 +310,9 @@ class TestExtractJson:
         result = expander._extract_json(text)
         assert result == '{"subtasks": []}'
 
-    def test_extracts_json_from_markdown(self, mock_task_manager, mock_llm_service, task_expansion_config):
+    def test_extracts_json_from_markdown(
+        self, mock_task_manager, mock_llm_service, task_expansion_config
+    ):
         expander = TaskExpander(task_expansion_config, mock_llm_service, mock_task_manager)
 
         text = """Some text
@@ -327,7 +331,9 @@ More text"""
         result = expander._extract_json(text)
         assert result == '{"outer": {"inner": {}}}'
 
-    def test_returns_none_for_no_json(self, mock_task_manager, mock_llm_service, task_expansion_config):
+    def test_returns_none_for_no_json(
+        self, mock_task_manager, mock_llm_service, task_expansion_config
+    ):
         expander = TaskExpander(task_expansion_config, mock_llm_service, mock_task_manager)
 
         text = "No JSON here"
@@ -344,7 +350,7 @@ More text"""
         expander = TaskExpander(task_expansion_config, mock_llm_service, mock_task_manager)
 
         # JSON with backticks inside a string field
-        text = '''```json
+        text = """```json
 {
   "subtasks": [
     {
@@ -353,13 +359,14 @@ More text"""
     }
   ]
 }
-```'''
+```"""
 
         result = expander._extract_json(text)
         assert result is not None
 
         # Verify the extracted JSON is valid and contains the backticks
         import json
+
         parsed = json.loads(result)
         assert "subtasks" in parsed
         assert "```" in parsed["subtasks"][0]["description"]
@@ -377,6 +384,7 @@ More text"""
         result = expander._extract_json(text)
 
         import json
+
         parsed = json.loads(result)
         assert parsed["text"] == "Hello { world } with {braces}"
         assert parsed["nested"]["key"] == "value"
@@ -391,6 +399,7 @@ More text"""
         result = expander._extract_json(text)
 
         import json
+
         parsed = json.loads(result)
         assert parsed["message"] == 'He said "hello" to me'
         assert parsed["count"] == 1
@@ -401,7 +410,7 @@ More text"""
         """Test extraction when response has multiple code blocks, only first matters."""
         expander = TaskExpander(task_expansion_config, mock_llm_service, mock_task_manager)
 
-        text = '''Here's an example:
+        text = """Here's an example:
 ```python
 def example():
     pass
@@ -411,10 +420,11 @@ And here's the JSON:
 ```json
 {"subtasks": [{"title": "Real task"}]}
 ```
-'''
+"""
 
         result = expander._extract_json(text)
         import json
+
         parsed = json.loads(result)
         assert parsed["subtasks"][0]["title"] == "Real task"
 
@@ -491,9 +501,7 @@ class TestExpansionTimeout:
             assert result["subtask_count"] == 0
 
     @pytest.mark.asyncio
-    async def test_expansion_timeout_config_default(
-        self, mock_task_manager, mock_llm_service
-    ):
+    async def test_expansion_timeout_config_default(self, mock_task_manager, mock_llm_service):
         """Test that timeout defaults to 300 seconds."""
         config = TaskExpansionConfig(enabled=True)
 
@@ -501,9 +509,7 @@ class TestExpansionTimeout:
         assert config.research_timeout == 60.0
 
     @pytest.mark.asyncio
-    async def test_expansion_timeout_configurable(
-        self, mock_task_manager, mock_llm_service
-    ):
+    async def test_expansion_timeout_configurable(self, mock_task_manager, mock_llm_service):
         """Test that timeout can be configured."""
         config = TaskExpansionConfig(enabled=True, timeout=600.0, research_timeout=120.0)
 
@@ -515,9 +521,7 @@ class TestEpicTddMode:
     """Tests for TDD mode handling with epics."""
 
     @pytest.mark.asyncio
-    async def test_tdd_mode_disabled_for_epics(
-        self, mock_task_manager, mock_llm_service
-    ):
+    async def test_tdd_mode_disabled_for_epics(self, mock_task_manager, mock_llm_service):
         """Test that TDD mode is disabled when expanding an epic.
 
         Epics don't need TDD pairs because their closing condition is
@@ -567,9 +571,7 @@ class TestEpicTddMode:
             assert "test->implement pairs" not in system_prompt
 
     @pytest.mark.asyncio
-    async def test_tdd_mode_enabled_for_non_epics(
-        self, mock_task_manager, mock_llm_service
-    ):
+    async def test_tdd_mode_enabled_for_non_epics(self, mock_task_manager, mock_llm_service):
         """Test that TDD mode is enabled for non-epic tasks when configured."""
         # Create config with TDD mode enabled
         config = TaskExpansionConfig(enabled=True, tdd_mode=True)

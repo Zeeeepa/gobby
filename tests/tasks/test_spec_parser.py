@@ -850,12 +850,12 @@ class TestCheckboxExtractorEdgeCases:
         assert "bold" in result.items[0].text
 
     def test_checkbox_with_emoji(self):
-        content = "- [ ] Task with emoji \U0001F680"
+        content = "- [ ] Task with emoji \U0001f680"
         extractor = CheckboxExtractor()
         result = extractor.extract(content)
 
         assert result.total_count == 1
-        assert "\U0001F680" in result.items[0].text
+        assert "\U0001f680" in result.items[0].text
 
     def test_mixed_indentation_levels(self):
         content = """
@@ -1292,7 +1292,9 @@ class TestBuildFromCheckboxes:
 
     def test_build_nested_checkboxes(self, hierarchy_builder, mock_task_manager):
         child = CheckboxItem("Child Task", False, 1, 2, "  - [ ] Child Task")
-        parent_item = CheckboxItem("Parent Task", False, 0, 0, "- [ ] Parent Task", children=[child])
+        parent_item = CheckboxItem(
+            "Parent Task", False, 0, 0, "- [ ] Parent Task", children=[child]
+        )
         checkboxes = ExtractedCheckboxes(items=[parent_item], total_count=2, checked_count=0)
 
         result = hierarchy_builder.build_from_checkboxes(checkboxes)
@@ -1450,12 +1452,14 @@ class MockTaskExpander:
         enable_code_context: bool = True,
     ) -> dict:
         """Mock expand_task that creates predictable subtasks."""
-        self.expand_calls.append({
-            "task_id": task_id,
-            "title": title,
-            "description": description,
-            "context": context,
-        })
+        self.expand_calls.append(
+            {
+                "task_id": task_id,
+                "title": title,
+                "description": description,
+                "context": context,
+            }
+        )
 
         # Create 2 subtasks for each expansion
         subtask_ids = []
@@ -1514,7 +1518,9 @@ class TestBuildFromHeadingsWithFallback:
         assert result.total_count == 4
 
     @pytest.mark.asyncio
-    async def test_sections_without_checkboxes_uses_llm(self, mock_task_manager, mock_task_expander):
+    async def test_sections_without_checkboxes_uses_llm(
+        self, mock_task_manager, mock_task_expander
+    ):
         """Sections without checkboxes should trigger LLM expansion."""
         content = """## Phase 1: Design
 
@@ -1574,7 +1580,7 @@ Get feedback from stakeholders.
             project_id="test-project",
         )
 
-        result = await builder.build_from_headings_with_fallback(
+        await builder.build_from_headings_with_fallback(
             headings, checkboxes, task_expander=mock_task_expander
         )
 
@@ -1634,7 +1640,7 @@ Design the system architecture.
             project_id="test-project",
         )
 
-        result = await builder.build_from_headings_with_fallback(
+        await builder.build_from_headings_with_fallback(
             headings, checkboxes, task_expander=mock_task_expander
         )
 
@@ -1653,9 +1659,7 @@ class TestHeadingHasCheckboxes:
         )
 
         heading = HeadingNode(text="Tasks", level=3, line_start=1, line_end=5)
-        checkbox_lookup = {
-            "Tasks": [CheckboxItem("Task 1", False, 2, 0, "- [ ] Task 1")]
-        }
+        checkbox_lookup = {"Tasks": [CheckboxItem("Task 1", False, 2, 0, "- [ ] Task 1")]}
 
         assert builder._heading_has_checkboxes(heading, checkbox_lookup) is True
 
@@ -1687,9 +1691,7 @@ class TestHeadingHasCheckboxes:
             children=[child],
         )
 
-        checkbox_lookup = {
-            "Child Tasks": [CheckboxItem("Task 1", False, 6, 0, "- [ ] Task 1")]
-        }
+        checkbox_lookup = {"Child Tasks": [CheckboxItem("Task 1", False, 6, 0, "- [ ] Task 1")]}
 
         assert builder._heading_has_checkboxes(parent, checkbox_lookup) is True
 
