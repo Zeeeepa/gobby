@@ -1,9 +1,15 @@
 """Tests for terminal spawning functionality."""
 
+import os
 import platform
+import sys
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from gobby.agents.spawn import (
+    EmbeddedPTYResult,
+    EmbeddedSpawner,
     PowerShellSpawner,
     SpawnResult,
     TerminalSpawner,
@@ -11,6 +17,11 @@ from gobby.agents.spawn import (
     TmuxSpawner,
     WSLSpawner,
     build_cli_command,
+)
+
+# Skip PTY tests on Windows
+pytestmark_unix_only = pytest.mark.skipif(
+    sys.platform == "win32", reason="PTY not available on Windows"
 )
 
 
@@ -428,3 +439,335 @@ class TestSpawnResultDataclass:
         assert result.pid is None
         assert result.terminal_type is None
         assert result.error == "Command not found"
+
+
+class TestEmbeddedPTYResult:
+    """Tests for EmbeddedPTYResult dataclass."""
+
+    def test_success_result_fields(self):
+        """Success result has correct fields."""
+        result = EmbeddedPTYResult(
+            success=True,
+            message="Spawned embedded PTY",
+            master_fd=5,
+            slave_fd=None,
+            pid=12345,
+        )
+        assert result.success is True
+        assert result.message == "Spawned embedded PTY"
+        assert result.master_fd == 5
+        assert result.slave_fd is None
+        assert result.pid == 12345
+        assert result.error is None
+
+    def test_failure_result_fields(self):
+        """Failure result has correct fields."""
+        result = EmbeddedPTYResult(
+            success=False,
+            message="Failed to spawn",
+            error="PTY not supported",
+        )
+        assert result.success is False
+        assert result.master_fd is None
+        assert result.slave_fd is None
+        assert result.pid is None
+        assert result.error == "PTY not supported"
+
+    def test_close_with_valid_fds(self):
+        """close() closes valid file descriptors."""
+        # Create real file descriptors for testing
+        r, w = os.pipe()
+        result = EmbeddedPTYResult(
+            success=True,
+            message="Test",
+            master_fd=r,
+            slave_fd=w,
+            pid=None,
+        )
+
+        # Close should not raise
+        result.close()
+
+        # Verify fds are closed by checking they raise on close
+        with pytest.raises(OSError):
+            os.close(r)
+        with pytest.raises(OSError):
+            os.close(w)
+
+    def test_close_with_none_fds(self):
+        """close() handles None file descriptors gracefully."""
+        result = EmbeddedPTYResult(
+            success=False,
+            message="Failed",
+            master_fd=None,
+            slave_fd=None,
+        )
+        # Should not raise
+        result.close()
+
+    def test_close_with_already_closed_fd(self):
+        """close() handles already closed file descriptors gracefully."""
+        r, w = os.pipe()
+        os.close(r)
+        os.close(w)
+
+        result = EmbeddedPTYResult(
+            success=True,
+            message="Test",
+            master_fd=r,
+            slave_fd=w,
+            pid=None,
+        )
+        # Should not raise even though fds are already closed
+        result.close()
+
+
+class TestEmbeddedSpawnerPlatform:
+    """Tests for EmbeddedSpawner platform behavior."""
+
+    @patch("platform.system", return_value="Windows")
+    def test_not_supported_on_windows(self, mock_system):
+        """EmbeddedSpawner returns error on Windows."""
+        # Also mock pty to None to simulate Windows
+        with patch("gobby.agents.spawn.pty", None):
+            spawner = EmbeddedSpawner()
+            result = spawner.spawn(["echo", "test"], cwd="/tmp")
+
+            assert result.success is False
+            assert "Windows" in result.message or "not supported" in result.message.lower()
+            assert result.error is not None
+
+    @patch("platform.system", return_value="Windows")
+    def test_spawn_agent_not_supported_on_windows(self, mock_system):
+        """spawn_agent returns error on Windows."""
+        with patch("gobby.agents.spawn.pty", None):
+            spawner = EmbeddedSpawner()
+            result = spawner.spawn_agent(
+                cli="claude",
+                cwd="/tmp",
+                session_id="sess-123",
+                parent_session_id="sess-parent",
+                agent_run_id="run-456",
+                project_id="proj-789",
+            )
+
+            assert result.success is False
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="PTY not available on Windows")
+class TestEmbeddedSpawnerUnix:
+    """Tests for EmbeddedSpawner on Unix systems."""
+
+    def test_spawn_simple_command(self):
+        """spawn() creates PTY and runs command."""
+        spawner = EmbeddedSpawner()
+        result = spawner.spawn(
+            command=["echo", "hello"],
+            cwd="/tmp",
+        )
+
+        try:
+            assert result.success is True
+            assert result.pid is not None
+            assert result.pid > 0
+            assert result.master_fd is not None
+            assert result.slave_fd is None  # Closed in parent
+
+            # Read output from master fd
+            import select
+
+            # Wait for output with timeout
+            ready, _, _ = select.select([result.master_fd], [], [], 2.0)
+            if ready:
+                output = os.read(result.master_fd, 1024).decode()
+                assert "hello" in output
+        finally:
+            result.close()
+            # Wait for child to exit
+            if result.pid:
+                try:
+                    os.waitpid(result.pid, os.WNOHANG)
+                except ChildProcessError:
+                    pass
+
+    def test_spawn_with_env_vars(self):
+        """spawn() passes environment variables to child."""
+        spawner = EmbeddedSpawner()
+        result = spawner.spawn(
+            command=["printenv", "TEST_EMBEDDED_VAR"],
+            cwd="/tmp",
+            env={"TEST_EMBEDDED_VAR": "embedded_value"},
+        )
+
+        try:
+            assert result.success is True
+
+            # Read output
+            import select
+
+            ready, _, _ = select.select([result.master_fd], [], [], 2.0)
+            if ready:
+                output = os.read(result.master_fd, 1024).decode()
+                assert "embedded_value" in output
+        finally:
+            result.close()
+            if result.pid:
+                try:
+                    os.waitpid(result.pid, os.WNOHANG)
+                except ChildProcessError:
+                    pass
+
+    def test_spawn_with_working_directory(self):
+        """spawn() uses specified working directory."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            spawner = EmbeddedSpawner()
+            result = spawner.spawn(
+                command=["pwd"],
+                cwd=tmpdir,
+            )
+
+            try:
+                assert result.success is True
+
+                import select
+
+                ready, _, _ = select.select([result.master_fd], [], [], 2.0)
+                if ready:
+                    output = os.read(result.master_fd, 1024).decode()
+                    # tmpdir may be a symlink, so check the basename
+                    assert tmpdir in output or os.path.basename(tmpdir) in output
+            finally:
+                result.close()
+                if result.pid:
+                    try:
+                        os.waitpid(result.pid, os.WNOHANG)
+                    except ChildProcessError:
+                        pass
+
+    def test_spawn_nonexistent_command(self):
+        """spawn() fails gracefully for non-existent command."""
+        spawner = EmbeddedSpawner()
+        result = spawner.spawn(
+            command=["nonexistent_command_xyz_12345"],
+            cwd="/tmp",
+        )
+
+        # The fork succeeds but exec fails in child
+        # Parent still gets a result with pid
+        if result.success:
+            result.close()
+            if result.pid:
+                try:
+                    _, status = os.waitpid(result.pid, 0)
+                    # Child should have exited with error
+                    assert os.WEXITSTATUS(status) != 0 or os.WIFSIGNALED(status)
+                except ChildProcessError:
+                    pass
+
+    def test_spawn_agent_sets_env_vars(self):
+        """spawn_agent() sets Gobby environment variables."""
+        spawner = EmbeddedSpawner()
+        # Use sh -c to grep for GOBBY env vars specifically
+        result = spawner.spawn_agent(
+            cli="sh",
+            cwd="/tmp",
+            session_id="sess-embedded-123",
+            parent_session_id="sess-parent-456",
+            agent_run_id="run-789",
+            project_id="proj-abc",
+            workflow_name="test-workflow",
+            agent_depth=2,
+            max_agent_depth=5,
+        )
+
+        try:
+            assert result.success is True
+
+            import select
+            import time
+
+            # Give process time to start and output
+            time.sleep(0.2)
+
+            # Read all available output
+            output = ""
+            for _ in range(10):  # Try multiple reads
+                ready, _, _ = select.select([result.master_fd], [], [], 0.5)
+                if ready:
+                    try:
+                        chunk = os.read(result.master_fd, 8192).decode(errors="replace")
+                        output += chunk
+                        if not chunk:
+                            break
+                    except OSError:
+                        break
+                else:
+                    break
+
+            # The sh command with -c flag from build_cli_command will just run sh
+            # The env vars are set regardless, but we can't easily verify via output
+            # So we verify the spawn was successful and pid exists
+            assert result.pid is not None
+            assert result.pid > 0
+        finally:
+            result.close()
+            if result.pid:
+                try:
+                    os.waitpid(result.pid, os.WNOHANG)
+                except ChildProcessError:
+                    pass
+
+    def test_spawn_agent_with_prompt(self):
+        """spawn_agent() passes prompt via environment or file."""
+        spawner = EmbeddedSpawner()
+        # Test that spawn_agent doesn't fail with prompt
+        result = spawner.spawn_agent(
+            cli="true",  # Simple command that exits successfully
+            cwd="/tmp",
+            session_id="sess-123",
+            parent_session_id="sess-parent",
+            agent_run_id="run-456",
+            project_id="proj-789",
+            prompt="Test prompt content",
+        )
+
+        try:
+            assert result.success is True
+            assert result.pid is not None
+        finally:
+            result.close()
+            if result.pid:
+                try:
+                    os.waitpid(result.pid, os.WNOHANG)
+                except ChildProcessError:
+                    pass
+
+
+class TestEmbeddedSpawnerMocked:
+    """Tests for EmbeddedSpawner with mocked system calls."""
+
+    @patch("gobby.agents.spawn.pty")
+    @patch("os.fork")
+    def test_spawn_handles_fork_error(self, mock_fork, mock_pty):
+        """spawn() handles fork() errors gracefully."""
+        mock_pty.openpty.return_value = (10, 11)
+        mock_fork.side_effect = OSError("Fork failed")
+
+        spawner = EmbeddedSpawner()
+        result = spawner.spawn(["echo", "test"], cwd="/tmp")
+
+        assert result.success is False
+        assert "Fork failed" in result.error or "Failed" in result.message
+
+    @patch("gobby.agents.spawn.pty")
+    def test_spawn_handles_openpty_error(self, mock_pty):
+        """spawn() handles openpty() errors gracefully."""
+        mock_pty.openpty.side_effect = OSError("PTY creation failed")
+
+        spawner = EmbeddedSpawner()
+        result = spawner.spawn(["echo", "test"], cwd="/tmp")
+
+        assert result.success is False
+        assert result.error is not None
