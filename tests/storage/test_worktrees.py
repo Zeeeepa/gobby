@@ -345,7 +345,7 @@ class TestLocalWorktreeManagerList:
             },
         ]
 
-        worktrees = manager.list()
+        worktrees = manager.list_worktrees()
 
         assert len(worktrees) == 2
         assert worktrees[0].id == "wt-1"
@@ -355,7 +355,7 @@ class TestLocalWorktreeManagerList:
         """List filters by project_id."""
         mock_db.fetchall.return_value = []
 
-        manager.list(project_id="proj-abc")
+        manager.list_worktrees(project_id="proj-abc")
 
         call_args = mock_db.fetchall.call_args
         query = call_args[0][0]
@@ -367,7 +367,7 @@ class TestLocalWorktreeManagerList:
         """List filters by status."""
         mock_db.fetchall.return_value = []
 
-        manager.list(status="active")
+        manager.list_worktrees(status="active")
 
         call_args = mock_db.fetchall.call_args
         query = call_args[0][0]
@@ -379,7 +379,7 @@ class TestLocalWorktreeManagerList:
         """List filters by agent_session_id."""
         mock_db.fetchall.return_value = []
 
-        manager.list(agent_session_id="sess-xyz")
+        manager.list_worktrees(agent_session_id="sess-xyz")
 
         call_args = mock_db.fetchall.call_args
         query = call_args[0][0]
@@ -391,7 +391,7 @@ class TestLocalWorktreeManagerList:
         """List respects limit parameter."""
         mock_db.fetchall.return_value = []
 
-        manager.list(limit=10)
+        manager.list_worktrees(limit=10)
 
         call_args = mock_db.fetchall.call_args
         params = call_args[0][1]
@@ -401,7 +401,7 @@ class TestLocalWorktreeManagerList:
         """List combines multiple filters."""
         mock_db.fetchall.return_value = []
 
-        manager.list(project_id="proj-abc", status="active", limit=5)
+        manager.list_worktrees(project_id="proj-abc", status="active", limit=5)
 
         call_args = mock_db.fetchall.call_args
         query = call_args[0][0]

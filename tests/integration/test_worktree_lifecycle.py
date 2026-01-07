@@ -146,7 +146,7 @@ class TestWorktreeCreation:
         assert len({worktree1.id, worktree2.id, worktree3.id}) == 3
 
         # All should be retrievable
-        all_worktrees = worktree_manager.list(project_id=project.id)
+        all_worktrees = worktree_manager.list_worktrees(project_id=project.id)
         assert len(all_worktrees) == 3
 
 
@@ -257,12 +257,12 @@ class TestWorktreeListing:
 
     def test_list_all(self, worktree_manager, setup_worktrees):
         """List all worktrees without filters."""
-        worktrees = worktree_manager.list()
+        worktrees = worktree_manager.list_worktrees()
         assert len(worktrees) == 3
 
     def test_list_by_project(self, worktree_manager, project, setup_worktrees):
         """List worktrees filtered by project."""
-        worktrees = worktree_manager.list(project_id=project.id)
+        worktrees = worktree_manager.list_worktrees(project_id=project.id)
         assert len(worktrees) == 2
         for wt in worktrees:
             assert wt.project_id == project.id
@@ -273,8 +273,8 @@ class TestWorktreeListing:
         wt = setup_worktrees["worktrees"][0]
         worktree_manager.mark_stale(wt.id)
 
-        active = worktree_manager.list(status=WorktreeStatus.ACTIVE.value)
-        stale = worktree_manager.list(status=WorktreeStatus.STALE.value)
+        active = worktree_manager.list_worktrees(status=WorktreeStatus.ACTIVE.value)
+        stale = worktree_manager.list_worktrees(status=WorktreeStatus.STALE.value)
 
         assert len(active) == 2
         assert len(stale) == 1
@@ -282,20 +282,20 @@ class TestWorktreeListing:
 
     def test_list_by_session(self, worktree_manager, session, setup_worktrees):
         """List worktrees filtered by agent session."""
-        worktrees = worktree_manager.list(agent_session_id=session.id)
+        worktrees = worktree_manager.list_worktrees(agent_session_id=session.id)
         assert len(worktrees) == 1
         assert worktrees[0].agent_session_id == session.id
 
     def test_list_with_limit(self, worktree_manager, setup_worktrees):
         """List worktrees with limit."""
-        worktrees = worktree_manager.list(limit=2)
+        worktrees = worktree_manager.list_worktrees(limit=2)
         assert len(worktrees) == 2
 
     def test_list_combined_filters(
         self, worktree_manager, project, session, setup_worktrees
     ):
         """List worktrees with multiple filters."""
-        worktrees = worktree_manager.list(
+        worktrees = worktree_manager.list_worktrees(
             project_id=project.id,
             status=WorktreeStatus.ACTIVE.value,
             agent_session_id=session.id,
