@@ -38,6 +38,7 @@ class LLMProvidersConfig(BaseModel):
     Example YAML:
     ```yaml
     llm_providers:
+      json_strict: true  # Strict JSON validation for LLM responses (default)
       claude:
         models: claude-haiku-4-5,claude-sonnet-4-5,claude-opus-4-5
       codex:
@@ -55,6 +56,13 @@ class LLMProvidersConfig(BaseModel):
     ```
     """
 
+    json_strict: bool = Field(
+        default=True,
+        description="Strict JSON validation for LLM responses. "
+        "When True (default), type mismatches raise errors. "
+        "When False, allows coercion (e.g., '5' -> 5). "
+        "Can be overridden per-workflow via llm_json_strict variable.",
+    )
     claude: LLMProviderConfig | None = Field(
         default=None,
         description="Claude provider configuration",

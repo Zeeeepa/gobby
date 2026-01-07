@@ -106,25 +106,44 @@ JSON with backticks inside strings:
 - Replace parsing loops with single `decode()` call
 - **Result:** ✅ Low complexity, incremental migration possible
 
-## Recommended Implementation
+## Implementation (Completed)
 
+### Helper Function
+Added to `gobby/utils/json_helpers.py`:
 ```python
-# Add to gobby/utils/json_helpers.py
-import msgspec
-from typing import TypeVar
-
-T = TypeVar("T")
-
-def decode_llm_response(text: str, response_type: type[T]) -> T | None:
+def decode_llm_response(
+    text: str,
+    response_type: type[T],
+    *,
+    strict: bool = True,
+) -> T | None:
     """Extract JSON from LLM response and decode to typed struct."""
     json_str = extract_json_from_text(text)
-    if not json_str:
+    if json_str is None:
         return None
     try:
-        return msgspec.json.decode(json_str, type=response_type, strict=False)
+        return msgspec.json.decode(json_str.encode(), type=response_type, strict=strict)
     except msgspec.ValidationError as e:
-        logger.warning(f"Invalid LLM response: {e}")
+        logger.warning(f"Invalid LLM response structure: {e}")
         return None
+```
+
+### Configuration
+Added to `llm_providers.py`:
+```python
+class LLMProvidersConfig(BaseModel):
+    json_strict: bool = Field(
+        default=True,
+        description="Strict JSON validation. Can be overridden per-workflow.",
+    )
+```
+
+### Usage Pattern
+Callers look up config/workflow variable and pass explicit `strict` value:
+```python
+# Get strict mode: workflow variable > config default
+strict = workflow_state.variables.get("llm_json_strict", config.llm_providers.json_strict)
+result = decode_llm_response(llm_text, MyResponseType, strict=strict)
 ```
 
 ## Decision
@@ -134,7 +153,7 @@ def decode_llm_response(text: str, response_type: type[T]) -> T | None:
 ### Rationale
 1. 60-80% reduction in parsing boilerplate
 2. Clear error messages with JSON paths
-3. Handles LLM quirks with `strict=False`
+3. Configurable strict mode (default True, override per-workflow)
 4. Integrates cleanly with existing code
 5. No conflicts with Pydantic config
 

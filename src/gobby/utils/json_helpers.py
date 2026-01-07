@@ -2,14 +2,21 @@
 
 This module provides robust JSON extraction from text that may contain
 markdown code blocks, preamble text, or other non-JSON content.
+
+Also provides typed JSON decoding using msgspec for structured LLM responses.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+from typing import TypeVar
+
+import msgspec
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 def extract_json_from_text(text: str) -> str | None:
@@ -101,4 +108,55 @@ def extract_json_object(text: str) -> dict | None:
         return None
     except json.JSONDecodeError as e:
         logger.warning(f"Failed to parse extracted JSON: {e}")
+        return None
+
+
+def decode_llm_response(
+    text: str,
+    response_type: type[T],
+    *,
+    strict: bool = True,
+) -> T | None:
+    """
+    Extract JSON from LLM response and decode to a typed struct.
+
+    Uses msgspec for efficient, type-safe JSON decoding with clear error messages.
+    Combines extract_json_from_text() with msgspec.json.decode().
+
+    Args:
+        text: Raw LLM response text (may contain markdown code blocks, preamble, etc.)
+        response_type: The msgspec.Struct or other type to decode to
+        strict: If True (default), type mismatches raise errors.
+                If False, allows coercion (e.g., "5" -> 5 for int fields).
+                Configure via llm_providers.json_strict in config.yaml,
+                or override per-workflow with llm_json_strict variable.
+
+    Returns:
+        Decoded response of type T, or None if extraction/decoding fails.
+
+    Examples:
+        >>> class TaskResult(msgspec.Struct):
+        ...     status: str
+        ...     count: int
+        >>> result = decode_llm_response('{"status": "ok", "count": 5}', TaskResult)
+        >>> result.status
+        'ok'
+
+        >>> # With strict=False, string "5" coerces to int 5
+        >>> result = decode_llm_response('{"status": "ok", "count": "5"}', TaskResult, strict=False)
+        >>> result.count
+        5
+    """
+    json_str = extract_json_from_text(text)
+    if json_str is None:
+        logger.debug("No JSON found in LLM response")
+        return None
+
+    try:
+        return msgspec.json.decode(json_str.encode(), type=response_type, strict=strict)
+    except msgspec.ValidationError as e:
+        logger.warning(f"Invalid LLM response structure: {e}")
+        return None
+    except msgspec.DecodeError as e:
+        logger.warning(f"Failed to decode LLM response JSON: {e}")
         return None
