@@ -84,6 +84,7 @@ Use `depends_on` to specify execution order:
 4. **Testing**: Every coding subtask MUST have a test_strategy.
 5. **Completeness**: The set of subtasks must fully accomplish the parent task.
 6. **JSON Only**: Output ONLY valid JSON - no markdown, no explanation, no code blocks.
+7. **No Scope Creep**: Do NOT include optional features, alternatives, or "nice-to-haves". Each subtask must be a concrete requirement from the parent task. Never invent additional features, suggest "consider also adding X", or include "(Optional)" sections. Implement exactly what is specified.
 
 ## Validation Criteria Rules
 
