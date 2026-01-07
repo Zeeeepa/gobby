@@ -43,12 +43,13 @@ def workflow() -> None:
 
 @workflow.command("list")
 @click.option("--all", "show_all", is_flag=True, help="Show all workflows including step-based")
+@click.option("--global", "global_only", is_flag=True, help="Show only global workflows")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 @click.pass_context
-def list_workflows(ctx: click.Context, show_all: bool, json_format: bool) -> None:
+def list_workflows(ctx: click.Context, show_all: bool, global_only: bool, json_format: bool) -> None:
     """List available workflows."""
     loader = get_workflow_loader()
-    project_path = get_project_path()
+    project_path = get_project_path() if not global_only else None
 
     # Build search directories
     search_dirs = list(loader.global_dirs)
