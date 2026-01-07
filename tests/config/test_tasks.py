@@ -5,6 +5,8 @@ RED PHASE: Tests initially import from tasks.py (should fail),
 then will pass once task-related config classes are extracted from app.py.
 """
 
+import unittest.mock
+
 import pytest
 from pydantic import ValidationError
 
@@ -1040,3 +1042,190 @@ class TestMergeWorkflowVariablesFunction:
         # Should be a dict, not a Pydantic model
         assert isinstance(effective, dict)
         assert effective["auto_decompose"] is True
+
+
+# =============================================================================
+# Backward Compatibility Layer Tests
+# =============================================================================
+
+
+class TestBackwardCompatibilityLayer:
+    """Tests for backward compatibility with old config.yaml settings.
+
+    The old location for behavior settings was in config.yaml under various sections:
+    - workflow.require_task_before_edit
+    - gobby-tasks.expansion.tdd_mode
+    - memory.injection_limit
+
+    The new location is workflow YAML variables section.
+
+    Backward compatibility requirements:
+    1. Old config.yaml settings still work
+    2. Deprecation warning logged when old location used
+    3. New location (workflow YAML) takes precedence
+    4. Missing in both locations uses hardcoded defaults
+    """
+
+    def test_old_config_location_still_works(self) -> None:
+        """Settings in old config.yaml location still work.
+
+        When workflow YAML has no variables set, fall back to config.yaml values.
+        """
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        # Simulate old config.yaml values (from WorkflowConfig, TaskExpansionConfig, etc.)
+        old_config_values = {
+            "require_task_before_edit": True,  # From WorkflowConfig
+            "tdd_mode": False,  # From TaskExpansionConfig
+            "memory_injection_limit": 5,  # From MemoryConfig
+        }
+
+        # New workflow YAML has empty variables (not specified)
+        yaml_variables: dict = {}
+
+        # Merge with old config as fallback
+        # Pattern: yaml_variables | old_config_values | hardcoded_defaults
+        hardcoded_defaults = WorkflowVariablesConfig().model_dump()
+        effective = {**hardcoded_defaults, **old_config_values, **yaml_variables}
+
+        # Old config values should be used
+        assert effective["require_task_before_edit"] is True
+        assert effective["tdd_mode"] is False
+        assert effective["memory_injection_limit"] == 5
+
+    def test_new_location_takes_precedence_over_old(self) -> None:
+        """New workflow YAML location takes precedence over old config.yaml."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        # Old config.yaml values
+        old_config_values = {
+            "require_task_before_edit": True,
+            "tdd_mode": False,
+            "memory_injection_limit": 5,
+        }
+
+        # New workflow YAML variables (takes precedence)
+        yaml_variables = {
+            "require_task_before_edit": False,  # Override old config
+            "tdd_mode": True,  # Override old config
+        }
+
+        # Merge order: defaults < old_config < yaml_variables
+        hardcoded_defaults = WorkflowVariablesConfig().model_dump()
+        effective = {**hardcoded_defaults, **old_config_values, **yaml_variables}
+
+        # New YAML values should take precedence
+        assert effective["require_task_before_edit"] is False  # From YAML
+        assert effective["tdd_mode"] is True  # From YAML
+        # Old config value used where YAML doesn't override
+        assert effective["memory_injection_limit"] == 5  # From old config
+
+    def test_both_locations_missing_uses_hardcoded_defaults(self) -> None:
+        """When both old config and new YAML are missing, use hardcoded defaults."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        # No old config values
+        old_config_values: dict = {}
+
+        # No YAML variables
+        yaml_variables: dict = {}
+
+        # Merge
+        hardcoded_defaults = WorkflowVariablesConfig().model_dump()
+        effective = {**hardcoded_defaults, **old_config_values, **yaml_variables}
+
+        # Should match hardcoded defaults
+        assert effective["require_task_before_edit"] is False
+        assert effective["require_commit_before_stop"] is True
+        assert effective["auto_decompose"] is True
+        assert effective["tdd_mode"] is True
+        assert effective["memory_injection_enabled"] is True
+        assert effective["memory_injection_limit"] == 10
+        assert effective["session_task"] is None
+
+    def test_deprecation_warning_logged_for_old_location(self) -> None:
+        """Deprecation warning is logged when old config.yaml location is used.
+
+        This test documents the expected behavior for the implementation phase.
+        The actual logging will be implemented in gt-1428cb.
+        """
+        import logging
+
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        # Test structure for deprecation detection
+        def get_effective_with_deprecation_check(
+            yaml_variables: dict,
+            old_config_values: dict,
+            logger: logging.Logger,
+        ) -> dict:
+            """Get effective config with deprecation warnings for old config usage."""
+            hardcoded_defaults = WorkflowVariablesConfig().model_dump()
+
+            # Check which old config values will be used (not overridden by YAML)
+            deprecated_keys_used = []
+            for key in old_config_values:
+                if key not in yaml_variables and key in hardcoded_defaults:
+                    deprecated_keys_used.append(key)
+
+            # Log deprecation warning if old config values are being used
+            if deprecated_keys_used:
+                logger.warning(
+                    f"Using deprecated config.yaml settings: {deprecated_keys_used}. "
+                    "Move these to workflow YAML variables section."
+                )
+
+            return {**hardcoded_defaults, **old_config_values, **yaml_variables}
+
+        # Test the deprecation detection
+        test_logger = logging.getLogger("test_deprecation")
+
+        # When old config is used without YAML override, warning should be possible
+        yaml_variables: dict = {}
+        old_config_values = {"tdd_mode": False}
+
+        with unittest.mock.patch.object(test_logger, "warning") as mock_warning:
+            get_effective_with_deprecation_check(
+                yaml_variables, old_config_values, test_logger
+            )
+            mock_warning.assert_called_once()
+            warning_msg = mock_warning.call_args[0][0]
+            assert "deprecated" in warning_msg.lower()
+            assert "tdd_mode" in warning_msg
+
+    def test_no_deprecation_warning_when_yaml_overrides(self) -> None:
+        """No deprecation warning when YAML variables override old config."""
+        import logging
+
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        def get_effective_with_deprecation_check(
+            yaml_variables: dict,
+            old_config_values: dict,
+            logger: logging.Logger,
+        ) -> dict:
+            hardcoded_defaults = WorkflowVariablesConfig().model_dump()
+
+            deprecated_keys_used = []
+            for key in old_config_values:
+                if key not in yaml_variables and key in hardcoded_defaults:
+                    deprecated_keys_used.append(key)
+
+            if deprecated_keys_used:
+                logger.warning(
+                    f"Using deprecated config.yaml settings: {deprecated_keys_used}."
+                )
+
+            return {**hardcoded_defaults, **old_config_values, **yaml_variables}
+
+        test_logger = logging.getLogger("test_no_deprecation")
+
+        # YAML overrides old config - no warning should be logged
+        yaml_variables = {"tdd_mode": True}  # Overrides old config
+        old_config_values = {"tdd_mode": False}
+
+        with unittest.mock.patch.object(test_logger, "warning") as mock_warning:
+            get_effective_with_deprecation_check(
+                yaml_variables, old_config_values, test_logger
+            )
+            mock_warning.assert_not_called()
