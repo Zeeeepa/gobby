@@ -135,4 +135,11 @@ jobs:
 
       - name: Check package contents
         run: |
-          uv run python -c "import tarfile; t = tarfile.open('dist/gobby-*.tar.gz'); print('\\n'.join(t.getnames()[:20]))"
+          uv run python -c "
+          import tarfile, glob
+          files = glob.glob('dist/gobby-*.tar.gz')
+          if not files:
+              raise FileNotFoundError('No dist/gobby-*.tar.gz found')
+          t = tarfile.open(files[0])
+          print('\\n'.join(t.getnames()[:20]))
+          "
