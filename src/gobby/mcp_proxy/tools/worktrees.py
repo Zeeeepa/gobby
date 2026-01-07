@@ -251,6 +251,7 @@ def create_worktrees_registry(
 
         # Install CLI hooks if provider specified
         # Each CLI needs its own hook configuration with paths pointing to worktree
+        hooks_installed = False
         if provider:
             worktree_path_obj = Path(worktree.worktree_path)
             try:

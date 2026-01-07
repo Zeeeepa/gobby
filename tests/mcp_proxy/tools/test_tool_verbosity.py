@@ -50,9 +50,9 @@ async def test_task_verbosity_reduction():
     # Test create
     result = await registry.call("create_task", {"title": "test"})
     assert result["success"] is True
-    assert result["task"]["id"] == "task-123"
+    assert result["id"] == "task-123"
     # Should NOT contain full dict in improved version
-    assert "description" not in result["task"]
+    assert "description" not in result
 
 
 @pytest.mark.asyncio
@@ -66,6 +66,7 @@ async def test_worktree_verbosity_reduction():
     mock_wt.worktree_path = "/tmp/wt"
     mock_wt.branch_name = "feat/test"
     mock_storage.create.return_value = mock_wt
+    mock_storage.get_by_branch.return_value = None  # Ensure no collision
     mock_git.create_worktree.return_value.success = True
 
     # Mock resolve_project_context to avoid invalid repo errors
@@ -86,19 +87,24 @@ async def test_worktree_verbosity_reduction():
 @pytest.mark.asyncio
 async def test_session_message_truncation():
     """Verify get_session_messages truncates large content."""
-    mock_msg_manager = MagicMock()
     mock_session_manager = MagicMock()
 
-    long_content = "A" * 1000
-    mock_msg_manager.get_messages.return_value = [
-        {"role": "user", "content": long_content, "tool_calls": []}
-    ]
+    class FakeMessageManager:
+        async def get_messages(self, *args, **kwargs):
+            return [{"role": "user", "content": "A" * 1000, "tool_calls": []}]
 
-    registry = create_session_messages_registry(mock_session_manager, mock_msg_manager)
+        async def count_messages(self, *args, **kwargs):
+            return 1
+
+    mock_msg_manager = FakeMessageManager()
+
+    registry = create_session_messages_registry(
+        message_manager=mock_msg_manager, session_manager=mock_session_manager
+    )
 
     # Test default truncation
     result = await registry.call("get_session_messages", {"session_id": "sess-123"})
-    assert result["success"] is True
+    assert result.get("success") is True, f"Result failed: {result}"
     msg = result["messages"][0]
 
     # In improved version:

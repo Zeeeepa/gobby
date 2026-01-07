@@ -246,7 +246,7 @@ def create_task_registry(
                 )
 
         # Return minimal or full result based on config
-        result = task.to_dict() if show_result_on_create else {"id": task.id}
+        result = task.to_dict() if show_result_on_create else {"success": True, "id": task.id}
         if validation_generated:
             result["validation_generated"] = True
         return result
