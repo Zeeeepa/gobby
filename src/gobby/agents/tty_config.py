@@ -46,6 +46,7 @@ class PlatformPreferences(BaseModel):
             "kitty",
             "alacritty",
             "terminal.app",
+            "tmux",  # Multiplexer (last resort)
         ],
         description="Terminal preference order for macOS",
     )
@@ -56,13 +57,16 @@ class PlatformPreferences(BaseModel):
             "gnome-terminal",
             "konsole",
             "alacritty",
+            "tmux",  # Multiplexer (last resort)
         ],
         description="Terminal preference order for Linux",
     )
     windows: list[str] = Field(
         default_factory=lambda: [
             "windows-terminal",
+            "powershell",
             "alacritty",
+            "wsl",
             "cmd",
         ],
         description="Terminal preference order for Windows",
@@ -100,6 +104,18 @@ DEFAULT_TERMINAL_CONFIGS: dict[str, dict[str, Any]] = {
     },
     "cmd": {
         # Built-in on Windows, no command needed
+    },
+    "powershell": {
+        # pwsh (PowerShell Core) is preferred, falls back to powershell (Windows PowerShell)
+        "command": "pwsh",
+    },
+    "wsl": {
+        "command": "wsl",
+        # Options can specify distribution: ["-d", "Ubuntu"]
+    },
+    "tmux": {
+        "command": "tmux",
+        # Options can set socket name, config file, etc.
     },
 }
 
@@ -215,15 +231,19 @@ preferences:
     - kitty
     - alacritty
     - terminal.app
+    - tmux
   linux:
     - ghostty
     - kitty
     - gnome-terminal
     - konsole
     - alacritty
+    - tmux
   windows:
     - windows-terminal
+    - powershell
     - alacritty
+    - wsl
     - cmd
 
 # Terminal-specific configurations (overrides defaults)
@@ -244,6 +264,21 @@ preferences:
 #
 #   iterm:
 #     app_path: /Applications/iTerm.app
+#
+#   powershell:
+#     command: pwsh                         # Use 'powershell' for Windows PowerShell
+#
+#   wsl:
+#     command: wsl
+#     options:                              # Specify WSL distribution
+#       - "-d"
+#       - "Ubuntu"
+#
+#   tmux:
+#     command: tmux
+#     options:                              # Use specific socket/config
+#       - "-L"
+#       - "gobby"
 """
 
     with open(config_path, "w") as f:

@@ -194,6 +194,11 @@ class TerminalType(str, Enum):
     # Windows
     WINDOWS_TERMINAL = "windows-terminal"
     CMD = "cmd"
+    POWERSHELL = "powershell"
+    WSL = "wsl"
+
+    # Cross-platform multiplexer
+    TMUX = "tmux"
 
     # Auto-detect
     AUTO = "auto"
@@ -898,6 +903,274 @@ class CmdSpawner(TerminalSpawnerBase):
             )
 
 
+class PowerShellSpawner(TerminalSpawnerBase):
+    """Spawner for Windows PowerShell."""
+
+    @property
+    def terminal_type(self) -> TerminalType:
+        return TerminalType.POWERSHELL
+
+    def is_available(self) -> bool:
+        if platform.system() != "Windows":
+            return False
+        config = get_tty_config().get_terminal_config("powershell")
+        if not config.enabled:
+            return False
+        # Check for pwsh (PowerShell Core) first, then powershell (Windows PowerShell)
+        command = config.command or "pwsh"
+        if shutil.which(command) is not None:
+            return True
+        # Fall back to Windows PowerShell
+        return shutil.which("powershell") is not None
+
+    def spawn(
+        self,
+        command: list[str],
+        cwd: str | Path,
+        env: dict[str, str] | None = None,
+        title: str | None = None,
+    ) -> SpawnResult:
+        try:
+            tty_config = get_tty_config().get_terminal_config("powershell")
+            # Prefer pwsh (PowerShell Core) over powershell (Windows PowerShell)
+            cli_command = tty_config.command or "pwsh"
+            if shutil.which(cli_command) is None:
+                cli_command = "powershell"
+
+            # Build the inner command to run
+            # PowerShell requires special escaping for the -Command parameter
+            inner_cmd = subprocess.list2cmdline(command)
+
+            # Build PowerShell command:
+            # Start-Process spawns a new window, -WorkingDirectory sets cwd
+            # -NoExit keeps the window open after command completes
+            ps_script = f'Set-Location -Path "{cwd}"; {inner_cmd}'
+
+            args = ["cmd", "/c", "start", "", cli_command]
+            # Add extra options from config
+            args.extend(tty_config.options)
+            if title:
+                args.extend(["-Title", title])
+            args.extend(["-NoExit", "-Command", ps_script])
+
+            spawn_env = os.environ.copy()
+            if env:
+                spawn_env.update(env)
+
+            process = subprocess.Popen(
+                args,
+                env=spawn_env,
+                creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+            )
+
+            return SpawnResult(
+                success=True,
+                message=f"Spawned PowerShell with PID {process.pid}",
+                pid=process.pid,
+                terminal_type=self.terminal_type.value,
+            )
+
+        except Exception as e:
+            return SpawnResult(
+                success=False,
+                message=f"Failed to spawn PowerShell: {e}",
+                error=str(e),
+            )
+
+
+class WSLSpawner(TerminalSpawnerBase):
+    """Spawner for Windows Subsystem for Linux (WSL2)."""
+
+    @property
+    def terminal_type(self) -> TerminalType:
+        return TerminalType.WSL
+
+    def is_available(self) -> bool:
+        if platform.system() != "Windows":
+            return False
+        config = get_tty_config().get_terminal_config("wsl")
+        if not config.enabled:
+            return False
+        command = config.command or "wsl"
+        return shutil.which(command) is not None
+
+    def spawn(
+        self,
+        command: list[str],
+        cwd: str | Path,
+        env: dict[str, str] | None = None,
+        title: str | None = None,
+    ) -> SpawnResult:
+        try:
+            tty_config = get_tty_config().get_terminal_config("wsl")
+            cli_command = tty_config.command or "wsl"
+
+            # Convert Windows path to WSL path if needed
+            # e.g., C:\Users\foo -> /mnt/c/Users/foo
+            cwd_str = str(cwd)
+            if len(cwd_str) >= 2 and cwd_str[1] == ":":
+                # Windows absolute path - convert to WSL format
+                drive = cwd_str[0].lower()
+                wsl_path = f"/mnt/{drive}{cwd_str[2:].replace(chr(92), '/')}"
+            else:
+                wsl_path = cwd_str
+
+            # Build the command to run inside WSL
+            # Escape for bash shell inside WSL
+            inner_parts = [shlex.quote(part) for part in command]
+            inner_cmd = " ".join(inner_parts)
+            wsl_script = f"cd {shlex.quote(wsl_path)} && {inner_cmd}"
+
+            # Build environment exports for WSL
+            env_exports = ""
+            if env:
+                exports = []
+                for k, v in env.items():
+                    if k.isidentifier():
+                        exports.append(f"export {k}={shlex.quote(v)}")
+                if exports:
+                    env_exports = " && ".join(exports) + " && "
+
+            full_script = env_exports + wsl_script
+
+            # Use cmd /c start to spawn in a new console window
+            args = ["cmd", "/c", "start"]
+            if title:
+                args.append(subprocess.list2cmdline([title]))
+            else:
+                args.append('""')
+            args.extend([cli_command])
+            # Add extra options from config (e.g., -d for distribution)
+            args.extend(tty_config.options)
+            args.extend(["--", "bash", "-c", full_script])
+
+            spawn_env = os.environ.copy()
+            # Note: env vars passed via spawn_env won't reach WSL directly
+            # They're handled via the bash -c script above
+
+            process = subprocess.Popen(
+                args,
+                env=spawn_env,
+                creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+            )
+
+            return SpawnResult(
+                success=True,
+                message=f"Spawned WSL with PID {process.pid}",
+                pid=process.pid,
+                terminal_type=self.terminal_type.value,
+            )
+
+        except Exception as e:
+            return SpawnResult(
+                success=False,
+                message=f"Failed to spawn WSL: {e}",
+                error=str(e),
+            )
+
+
+class TmuxSpawner(TerminalSpawnerBase):
+    """
+    Spawner for tmux terminal multiplexer.
+
+    Creates a new detached tmux session that runs the command.
+    The session can be attached to later with `tmux attach -t <session>`.
+    """
+
+    @property
+    def terminal_type(self) -> TerminalType:
+        return TerminalType.TMUX
+
+    def is_available(self) -> bool:
+        # tmux is available on macOS and Linux (not Windows natively)
+        if platform.system() == "Windows":
+            return False
+        config = get_tty_config().get_terminal_config("tmux")
+        if not config.enabled:
+            return False
+        command = config.command or "tmux"
+        return shutil.which(command) is not None
+
+    def spawn(
+        self,
+        command: list[str],
+        cwd: str | Path,
+        env: dict[str, str] | None = None,
+        title: str | None = None,
+    ) -> SpawnResult:
+        try:
+            tty_config = get_tty_config().get_terminal_config("tmux")
+            cli_command = tty_config.command or "tmux"
+
+            # Generate a unique session name based on title or timestamp
+            import time
+
+            session_name = title or f"gobby-{int(time.time())}"
+            # Sanitize session name (tmux doesn't like dots or colons)
+            session_name = session_name.replace(".", "-").replace(":", "-")
+
+            # Build tmux command:
+            # tmux new-session -d -s <name> -c <cwd> <command>
+            # -d: detached (runs in background)
+            # -s: session name
+            # -c: starting directory
+            args = [
+                cli_command,
+                "new-session",
+                "-d",  # Detached
+                "-s",
+                session_name,
+                "-c",
+                str(cwd),
+            ]
+
+            # Add extra options from config
+            args.extend(tty_config.options)
+
+            # Add the command to run (must be last)
+            # For complex commands, wrap in shell
+            if len(command) == 1:
+                args.append(command[0])
+            else:
+                # Use shell to handle complex commands with arguments
+                args.extend(["sh", "-c", shlex.join(command)])
+
+            spawn_env = os.environ.copy()
+            if env:
+                spawn_env.update(env)
+
+            process = subprocess.Popen(
+                args,
+                cwd=cwd,
+                env=spawn_env,
+                start_new_session=True,
+            )
+
+            # Wait for tmux to start (it exits quickly after creating the session)
+            process.wait()
+
+            if process.returncode != 0:
+                return SpawnResult(
+                    success=False,
+                    message=f"tmux exited with code {process.returncode}",
+                    error=f"tmux failed to create session '{session_name}'",
+                )
+
+            return SpawnResult(
+                success=True,
+                message=f"Spawned tmux session '{session_name}' (attach with: tmux attach -t {session_name})",
+                pid=process.pid,
+                terminal_type=self.terminal_type.value,
+            )
+
+        except Exception as e:
+            return SpawnResult(
+                success=False,
+                message=f"Failed to spawn tmux: {e}",
+                error=str(e),
+            )
+
+
 class TerminalSpawner:
     """
     Main terminal spawner that auto-detects and uses available terminals.
@@ -918,6 +1191,9 @@ class TerminalSpawner:
         "konsole": KonsoleSpawner,
         "windows-terminal": WindowsTerminalSpawner,
         "cmd": CmdSpawner,
+        "powershell": PowerShellSpawner,
+        "wsl": WSLSpawner,
+        "tmux": TmuxSpawner,
     }
 
     def __init__(self) -> None:
@@ -937,6 +1213,9 @@ class TerminalSpawner:
             KonsoleSpawner(),
             WindowsTerminalSpawner(),
             CmdSpawner(),
+            PowerShellSpawner(),
+            WSLSpawner(),
+            TmuxSpawner(),
         ]
 
         for spawner in all_spawners:
