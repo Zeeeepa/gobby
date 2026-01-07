@@ -2,7 +2,7 @@
 
 Learn a new skill from this session using gobby-skills MCP tools.
 
-# 3. **Verify**: Use `list_skills` to confirm the new skill exists.
+## 1. **Verify**: Use `list_skills` to confirm the new skill exists.
 
 ### Example: Learning from a Session
 
@@ -11,7 +11,7 @@ Learn a new skill from this session using gobby-skills MCP tools.
 tool_call("gobby-skills", "learn_skills_from_session", {
     "session_id": "sess_12345"
 })
-```gobby-skills` server.
+```
 
 The skill will be extracted from the current session's work patterns and saved for future use.
 
