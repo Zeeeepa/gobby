@@ -23,7 +23,7 @@ variables:
   # Minimum importance threshold for memory injection (0.0-1.0)
   memory_injection_min_importance: 0.3
   # NOTE: session_task enforcement has been moved to the autonomous-task step workflow.
-  # Use activate_autonomous_task(task_id=..., session_id=...) for task-scoped sessions.
+  # Use activate_workflow(name="autonomous-task", variables={"session_task": "gt-..."}, session_id=...) for task-scoped sessions.
 
 triggers:
   on_stop:

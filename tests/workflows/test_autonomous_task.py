@@ -4,17 +4,15 @@ Tests for autonomous-task step workflow and related functionality.
 Tests:
 1. task_tree_complete() helper function
 2. on_premature_stop handler
-3. activate_autonomous_task MCP tool
+3. activate_workflow with variables for autonomous-task
 4. Workflow loading and structure
 """
 
-from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.workflows.definitions import (
     PrematureStopHandler,
     WorkflowDefinition,
@@ -318,12 +316,12 @@ class TestAutonomousTaskWorkflowLoading:
 
 
 # =============================================================================
-# Test activate_autonomous_task MCP Tool
+# Test activate_workflow with variables for autonomous-task
 # =============================================================================
 
 
-class TestActivateAutonomousTaskTool:
-    """Tests for the activate_autonomous_task MCP tool."""
+class TestActivateWorkflowWithVariables:
+    """Tests for activate_workflow MCP tool with variables parameter."""
 
     @pytest.fixture
     def state_manager(self, temp_db):
@@ -350,20 +348,27 @@ class TestActivateAutonomousTaskTool:
         )
         return session.id
 
-    def test_requires_session_id(self, state_manager):
+    def test_requires_session_id(self, temp_db):
         """Tool requires session_id parameter."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
+        from gobby.workflows.loader import WorkflowLoader
+        from gobby.workflows.state_manager import WorkflowStateManager
 
-        registry = create_workflows_registry(state_manager=state_manager)
-        tool_func = registry._tools["activate_autonomous_task"].func
+        # Need loader with workflow directory
+        workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        state_manager = WorkflowStateManager(temp_db)
 
-        result = tool_func(task_id="gt-abc123")
+        registry = create_workflows_registry(loader=loader, state_manager=state_manager)
+        tool_func = registry._tools["activate_workflow"].func
+
+        result = tool_func(name="autonomous-task", variables={"session_task": "gt-abc123"})
 
         assert result["success"] is False
         assert "session_id is required" in result["error"]
 
-    def test_creates_workflow_state(self, temp_db, session_id):
-        """Tool creates workflow state with session_task set."""
+    def test_creates_workflow_state_with_variables(self, temp_db, session_id):
+        """Tool creates workflow state with variables merged correctly."""
         from gobby.mcp_proxy.tools.workflows import create_workflows_registry
         from gobby.workflows.loader import WorkflowLoader
         from gobby.workflows.state_manager import WorkflowStateManager
@@ -374,20 +379,49 @@ class TestActivateAutonomousTaskTool:
         state_manager = WorkflowStateManager(temp_db)
 
         registry = create_workflows_registry(loader=loader, state_manager=state_manager)
-        tool_func = registry._tools["activate_autonomous_task"].func
+        tool_func = registry._tools["activate_workflow"].func
 
-        result = tool_func(task_id="gt-abc123", session_id=session_id)
+        result = tool_func(
+            name="autonomous-task",
+            variables={"session_task": "gt-abc123"},
+            session_id=session_id,
+        )
 
         assert result["success"] is True
         assert result["workflow"] == "autonomous-task"
         assert result["step"] == "work"
-        assert result["session_task"] == "gt-abc123"
+        assert result["variables"]["session_task"] == "gt-abc123"
 
         # Verify state was saved
         state = state_manager.get_state(session_id)
         assert state is not None
         assert state.workflow_name == "autonomous-task"
         assert state.variables.get("session_task") == "gt-abc123"
+
+    def test_merges_workflow_defaults_with_passed_variables(self, temp_db, session_id):
+        """Passed variables override workflow defaults."""
+        from gobby.mcp_proxy.tools.workflows import create_workflows_registry
+        from gobby.workflows.loader import WorkflowLoader
+        from gobby.workflows.state_manager import WorkflowStateManager
+
+        workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        state_manager = WorkflowStateManager(temp_db)
+
+        registry = create_workflows_registry(loader=loader, state_manager=state_manager)
+        tool_func = registry._tools["activate_workflow"].func
+
+        # Override the default premature_stop_max_attempts
+        result = tool_func(
+            name="autonomous-task",
+            variables={"session_task": "gt-abc123", "premature_stop_max_attempts": 5},
+            session_id=session_id,
+        )
+
+        assert result["success"] is True
+        # Verify override worked
+        assert result["variables"]["premature_stop_max_attempts"] == 5
+        assert result["variables"]["session_task"] == "gt-abc123"
 
     def test_rejects_existing_step_workflow(self, temp_db, session_id):
         """Tool rejects activation if step workflow already active."""
@@ -408,35 +442,13 @@ class TestActivateAutonomousTaskTool:
         state_manager.save_state(existing_state)
 
         registry = create_workflows_registry(loader=loader, state_manager=state_manager)
-        tool_func = registry._tools["activate_autonomous_task"].func
+        tool_func = registry._tools["activate_workflow"].func
 
-        result = tool_func(task_id="gt-abc123", session_id=session_id)
+        result = tool_func(
+            name="autonomous-task",
+            variables={"session_task": "gt-abc123"},
+            session_id=session_id,
+        )
 
         assert result["success"] is False
         assert "already has workflow" in result["error"]
-
-    def test_allows_activation_with_lifecycle_state(self, temp_db, session_id):
-        """Tool allows activation when only __lifecycle__ state exists."""
-        from gobby.mcp_proxy.tools.workflows import create_workflows_registry
-        from gobby.workflows.loader import WorkflowLoader
-        from gobby.workflows.state_manager import WorkflowStateManager
-
-        workflow_dir = Path(__file__).parent.parent.parent / "src/gobby/install/shared/workflows"
-        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
-        state_manager = WorkflowStateManager(temp_db)
-
-        # Create __lifecycle__ state (from set_variable calls)
-        lifecycle_state = WorkflowState(
-            session_id=session_id,
-            workflow_name="__lifecycle__",
-            step="",
-            variables={"some_var": "value"},
-        )
-        state_manager.save_state(lifecycle_state)
-
-        registry = create_workflows_registry(loader=loader, state_manager=state_manager)
-        tool_func = registry._tools["activate_autonomous_task"].func
-
-        result = tool_func(task_id="gt-abc123", session_id=session_id)
-
-        assert result["success"] is True

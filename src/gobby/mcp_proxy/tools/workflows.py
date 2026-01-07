@@ -2,12 +2,16 @@
 Internal MCP tools for Gobby Workflow System.
 
 Exposes functionality for:
+- get_workflow: Get details about a specific workflow definition
 - list_workflows: Discover available workflow definitions
-- activate_workflow: Start a step-based workflow
+- activate_workflow: Start a step-based workflow (supports initial variables)
 - end_workflow: Complete/terminate active workflow
 - get_workflow_status: Get current workflow state
 - request_step_transition: Request transition to a different step
 - mark_artifact_complete: Register an artifact as complete
+- set_variable: Set a workflow variable for the session
+- get_variable: Get workflow variable(s) for the session
+- import_workflow: Import a workflow from a file path
 
 These tools are registered with the InternalToolRegistry and accessed
 via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
@@ -177,19 +181,29 @@ def create_workflows_registry(
         name: str,
         session_id: str | None = None,
         initial_step: str | None = None,
+        variables: dict[str, Any] | None = None,
         project_path: str | None = None,
     ) -> dict[str, Any]:
         """
         Activate a step-based workflow for the current session.
 
         Args:
-            name: Workflow name (e.g., "plan-act-reflect", "tdd")
+            name: Workflow name (e.g., "plan-act-reflect", "autonomous-task")
             session_id: Required session ID (must be provided to prevent cross-session bleed)
             initial_step: Optional starting step (defaults to first step)
+            variables: Optional initial variables to set (merged with workflow defaults)
             project_path: Optional project directory path
 
         Returns:
             Success status, workflow info, and current step.
+
+        Example:
+            activate_workflow(
+                name="autonomous-task",
+                variables={"session_task": "gt-abc123"},
+                session_id="...",
+                project_path="..."
+            )
 
         Errors if:
             - session_id not provided
@@ -236,6 +250,11 @@ def create_workflows_registry(
         else:
             step = definition.steps[0].name if definition.steps else "default"
 
+        # Merge workflow default variables with passed-in variables
+        merged_variables = dict(definition.variables)  # Start with workflow defaults
+        if variables:
+            merged_variables.update(variables)  # Override with passed-in values
+
         # Create state
         state = WorkflowState(
             session_id=session_id,
@@ -248,7 +267,7 @@ def create_workflows_registry(
             observations=[],
             reflection_pending=False,
             context_injected=False,
-            variables={},
+            variables=merged_variables,
             task_list=None,
             current_task_index=0,
             files_modified_this_task=0,
@@ -262,6 +281,7 @@ def create_workflows_registry(
             "workflow": name,
             "step": step,
             "steps": [s.name for s in definition.steps],
+            "variables": merged_variables,
         }
 
     @registry.tool(
@@ -515,7 +535,7 @@ def create_workflows_registry(
         if name == "session_task" and value:
             result["warning"] = (
                 "DEPRECATED: Setting session_task directly is deprecated. "
-                "Use activate_autonomous_task(task_id=..., session_id=...) instead "
+                "Use activate_workflow(name='autonomous-task', variables={'session_task': ...}) instead "
                 "for proper state machine semantics and on_premature_stop handling."
             )
 
@@ -645,90 +665,6 @@ def create_workflows_registry(
             "workflow_name": name,
             "destination": str(dest_path),
             "is_global": is_global,
-        }
-
-    @registry.tool(
-        name="activate_autonomous_task",
-        description="Activate autonomous-task workflow with a session_task (atomic operation).",
-    )
-    def activate_autonomous_task(
-        task_id: str,
-        session_id: str | None = None,
-        project_path: str | None = None,
-    ) -> dict[str, Any]:
-        """
-        Activate the autonomous-task step workflow with a task assignment.
-
-        This is a convenience helper that atomically:
-        1. Sets the session_task variable to the given task ID
-        2. Activates the autonomous-task workflow
-
-        The workflow will keep the agent working until the task tree is complete.
-        Use this instead of manually setting variables and activating separately.
-
-        Args:
-            task_id: Task ID (e.g., "gt-abc123") or list of task IDs to work on
-            session_id: Required session ID (must be provided explicitly)
-            project_path: Optional project directory path
-
-        Returns:
-            Success status, workflow info, and current step.
-
-        Example:
-            activate_autonomous_task(task_id="gt-abc123", session_id="sess-xyz")
-        """
-        proj = Path(project_path) if project_path else None
-
-        # Require explicit session_id
-        if not session_id:
-            return {
-                "success": False,
-                "error": "session_id is required. Pass the session ID explicitly.",
-            }
-
-        # Check for existing workflow
-        existing = _state_manager.get_state(session_id)
-        if existing and existing.workflow_name != "__lifecycle__":
-            return {
-                "success": False,
-                "error": f"Session already has workflow '{existing.workflow_name}' active. Use end_workflow first.",
-            }
-
-        # Load the autonomous-task workflow
-        definition = _loader.load_workflow("autonomous-task", proj)
-        if not definition:
-            return {
-                "success": False,
-                "error": "Workflow 'autonomous-task' not found. Ensure it's installed.",
-            }
-
-        # Create state with session_task already set
-        state = WorkflowState(
-            session_id=session_id,
-            workflow_name="autonomous-task",
-            step="work",  # Start in 'work' step
-            step_entered_at=datetime.now(UTC),
-            step_action_count=0,
-            total_action_count=0,
-            artifacts={},
-            observations=[],
-            reflection_pending=False,
-            context_injected=False,
-            variables={"session_task": task_id},  # Key: set session_task
-            task_list=None,
-            current_task_index=0,
-            files_modified_this_task=0,
-        )
-
-        _state_manager.save_state(state)
-
-        return {
-            "success": True,
-            "session_id": session_id,
-            "workflow": "autonomous-task",
-            "step": "work",
-            "session_task": task_id,
-            "message": f"Autonomous task workflow activated. Work on task {task_id} until all subtasks are complete.",
         }
 
     return registry
