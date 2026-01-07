@@ -184,10 +184,12 @@ class TmuxSpawner(TerminalSpawnerBase):
             session_name = session_name.replace(".", "-").replace(":", "-")
 
             # Build tmux command:
-            # tmux new-session -d -s <name> -c <cwd> <command>
+            # tmux new-session -d -s <name> -c <cwd> <command> \; set-option destroy-unattached off
             # -d: detached (runs in background)
             # -s: session name
             # -c: starting directory
+            # The chained set-option prevents session destruction when user has
+            # global destroy-unattached on (must be atomic with session creation)
             args = [
                 cli_command,
                 "new-session",
@@ -201,13 +203,17 @@ class TmuxSpawner(TerminalSpawnerBase):
             # Add extra options from config
             args.extend(tty_config.options)
 
-            # Add the command to run (must be last)
+            # Add the command to run
             # For complex commands, wrap in shell
             if len(command) == 1:
                 args.append(command[0])
             else:
                 # Use shell to handle complex commands with arguments
                 args.extend(["sh", "-c", shlex.join(command)])
+
+            # Chain set-option to disable destroy-unattached atomically
+            # This prevents the session from being destroyed before we can configure it
+            args.extend([";", "set-option", "-t", session_name, "destroy-unattached", "off"])
 
             spawn_env = os.environ.copy()
             if env:

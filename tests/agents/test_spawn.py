@@ -285,8 +285,11 @@ class TestTmuxSpawner:
 
     @patch("platform.system", return_value="Darwin")
     @patch("shutil.which", return_value="/usr/local/bin/tmux")
+    @patch("subprocess.run")
     @patch("subprocess.Popen")
-    def test_spawn_creates_detached_session(self, mock_popen, mock_which, mock_system):
+    def test_spawn_creates_detached_session(
+        self, mock_popen, mock_run, mock_which, mock_system
+    ):
         """tmux spawner creates a detached session."""
         spawner = TmuxSpawner()
         mock_process = MagicMock()
@@ -311,8 +314,11 @@ class TestTmuxSpawner:
 
     @patch("platform.system", return_value="Darwin")
     @patch("shutil.which", return_value="/usr/local/bin/tmux")
+    @patch("subprocess.run")
     @patch("subprocess.Popen")
-    def test_spawn_sanitizes_session_name(self, mock_popen, mock_which, mock_system):
+    def test_spawn_sanitizes_session_name(
+        self, mock_popen, mock_run, mock_which, mock_system
+    ):
         """tmux spawner sanitizes session names."""
         spawner = TmuxSpawner()
         mock_process = MagicMock()
@@ -335,6 +341,37 @@ class TestTmuxSpawner:
         # Dots and colons should be replaced with dashes
         assert "." not in session_name
         assert ":" not in session_name
+
+    @patch("platform.system", return_value="Darwin")
+    @patch("shutil.which", return_value="/usr/local/bin/tmux")
+    @patch("subprocess.Popen")
+    def test_spawn_disables_destroy_unattached(self, mock_popen, mock_which, mock_system):
+        """tmux spawner disables destroy-unattached to prevent immediate session termination."""
+        spawner = TmuxSpawner()
+        mock_process = MagicMock()
+        mock_process.pid = 12345
+        mock_process.returncode = 0
+        mock_process.wait.return_value = 0
+        mock_popen.return_value = mock_process
+
+        with patch("gobby.agents.spawn.get_tty_config") as mock_config:
+            mock_config.return_value.get_terminal_config.return_value = MagicMock(
+                enabled=True, command="tmux", options=[]
+            )
+            result = spawner.spawn(["echo", "test"], cwd="/tmp", title="test-session")
+
+        # Verify destroy-unattached is disabled via chained command
+        call_args = mock_popen.call_args[0][0]
+        # Find the chained set-option command (after ;)
+        assert ";" in call_args
+        semicolon_idx = call_args.index(";")
+        chained_args = call_args[semicolon_idx + 1 :]
+        assert "set-option" in chained_args
+        assert "-t" in chained_args
+        assert "test-session" in chained_args
+        assert "destroy-unattached" in chained_args
+        assert "off" in chained_args
+        assert result.success is True
 
 
 class TestTerminalSpawnerRegistry:
