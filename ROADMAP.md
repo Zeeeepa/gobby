@@ -86,12 +86,12 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 5: Workflow Hook Integration 🔶 PARTIAL                               │
+│ Sprint 5: Workflow Hook Integration ✅ COMPLETED                             │
 │ WORKFLOWS Phase 3                                                            │
 │                                                                              │
 │ Deliverable: Workflows evaluate on hook events, tool blocking               │
 │ Dependencies: Sprint 4                                                       │
-│ Done: session_start, session_end hooks. Pending: prompt_submit, tool hooks  │
+│ Done: All hooks (session, tool, stop, pre_compact) with trigger aliases     │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -331,7 +331,7 @@ This document defines the implementation order across all Gobby planning documen
 | 3 | Task MCP/CLI | TASKS Phases 7-10 | Sprint 2 | ✅ Completed |
 | 3.5 | Task Extensions | TASKS Phases 9.5-9.9 | Sprint 3 | ✅ Completed |
 | 4 | Workflow Foundation | WORKFLOWS Phases 0-2 | None | ✅ Completed |
-| 5 | Workflow Hooks | WORKFLOWS Phase 3 | Sprint 4 | ✅ Completed (session lifecycle) |
+| 5 | Workflow Hooks | WORKFLOWS Phase 3 | Sprint 4 | ✅ Completed |
 | 6 | Workflow Actions | WORKFLOWS Phase 4 | Sprint 5 | ✅ Completed (all actions) |
 | 7 | Context & Templates | WORKFLOWS Phases 5-6 | Sprint 6 | ✅ Completed |
 | 7.1 | Session Message Foundation | SESSION_TRACKING Phase 1 | None | ✅ Completed |
