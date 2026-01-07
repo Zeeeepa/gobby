@@ -122,3 +122,30 @@ def detect_multi_step(description: str | None) -> bool:
             return True
 
     return False
+
+
+def extract_steps(description: str | None) -> list[dict[str, str | list[int] | None]]:
+    """
+    Extract implementation steps from a task description.
+
+    Parses numbered lists, bullet points, and other step formats to
+    generate subtask specifications.
+
+    Args:
+        description: Task description text to parse
+
+    Returns:
+        List of step dicts, each containing:
+        - title: Step title (required)
+        - description: Additional details (optional)
+        - depends_on: List of step indices this step depends on (optional)
+
+    Examples:
+        >>> steps = extract_steps("1. Create model\\n2. Add API")
+        >>> steps[0]["title"]
+        'Create model'
+        >>> steps[1]["depends_on"]
+        [0]
+    """
+    # TDD stub - implementation to follow
+    raise NotImplementedError("extract_steps not yet implemented")
