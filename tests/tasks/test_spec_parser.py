@@ -11,6 +11,7 @@ from gobby.tasks.spec_parser import (
     HeadingNode,
     HierarchyBuildResult,
     MarkdownStructureParser,
+    ParallelGroup,
     TaskHierarchyBuilder,
 )
 
@@ -1703,3 +1704,312 @@ class TestHeadingHasCheckboxes:
         checkbox_lookup = {"Tasks": []}  # Empty list
 
         assert builder._heading_has_checkboxes(heading, checkbox_lookup) is False
+
+
+# =============================================================================
+# Parallelism Detection Tests
+# =============================================================================
+
+
+class TestParallelGroup:
+    """Tests for ParallelGroup dataclass."""
+
+    def test_parallel_group_fields(self):
+        """ParallelGroup has correct fields."""
+        group = ParallelGroup(
+            task_ids=["gt-1", "gt-2", "gt-3"],
+            parent_task_id="gt-parent",
+            heading_level=3,
+        )
+        assert group.task_ids == ["gt-1", "gt-2", "gt-3"]
+        assert group.parent_task_id == "gt-parent"
+        assert group.heading_level == 3
+
+    def test_parallel_group_size(self):
+        """Size property returns correct count."""
+        group = ParallelGroup(task_ids=["gt-1", "gt-2"])
+        assert group.size == 2
+
+    def test_parallel_group_is_parallelizable_true(self):
+        """is_parallelizable returns True for multiple tasks."""
+        group = ParallelGroup(task_ids=["gt-1", "gt-2"])
+        assert group.is_parallelizable() is True
+
+    def test_parallel_group_is_parallelizable_false_single(self):
+        """is_parallelizable returns False for single task."""
+        group = ParallelGroup(task_ids=["gt-1"])
+        assert group.is_parallelizable() is False
+
+    def test_parallel_group_is_parallelizable_false_empty(self):
+        """is_parallelizable returns False for empty group."""
+        group = ParallelGroup(task_ids=[])
+        assert group.is_parallelizable() is False
+
+    def test_parallel_group_defaults(self):
+        """ParallelGroup has correct defaults."""
+        group = ParallelGroup(task_ids=["gt-1"])
+        assert group.parent_task_id is None
+        assert group.heading_level == 0
+
+
+class TestHierarchyBuildResultParallelGroups:
+    """Tests for HierarchyBuildResult parallel_groups functionality."""
+
+    def test_parallelizable_groups_filters_correctly(self):
+        """parallelizable_groups returns only groups with multiple tasks."""
+        groups = [
+            ParallelGroup(task_ids=["gt-1"]),  # Single task, not parallelizable
+            ParallelGroup(task_ids=["gt-2", "gt-3"]),  # Multiple tasks, parallelizable
+            ParallelGroup(task_ids=["gt-4", "gt-5", "gt-6"]),  # Multiple tasks
+        ]
+        result = HierarchyBuildResult(
+            tasks=[],
+            root_task_ids=[],
+            total_count=0,
+            parallel_groups=groups,
+        )
+
+        parallelizable = result.parallelizable_groups
+        assert len(parallelizable) == 2
+        assert parallelizable[0].task_ids == ["gt-2", "gt-3"]
+        assert parallelizable[1].task_ids == ["gt-4", "gt-5", "gt-6"]
+
+
+class TestParallelismDetection:
+    """Tests for TaskHierarchyBuilder parallelism detection."""
+
+    def test_sibling_phases_detected_as_parallel(self, mock_task_manager):
+        """Sibling phases at the same level are detected as parallelizable."""
+        content = """## Phase 1: Foundation
+
+Setup the foundation.
+
+## Phase 2: Implementation
+
+Implement the core.
+
+## Phase 3: Testing
+
+Write tests.
+"""
+        parser = MarkdownStructureParser()
+        headings = parser.parse(content)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+        result = builder.build_from_headings(headings)
+
+        # Should detect the 3 sibling phases as a parallel group
+        assert len(result.parallel_groups) == 1
+        group = result.parallel_groups[0]
+        assert group.size == 3
+        assert group.is_parallelizable() is True
+        assert group.parent_task_id is None  # Top-level
+        assert group.heading_level == 2
+
+    def test_nested_siblings_detected_at_each_level(self, mock_task_manager):
+        """Sibling headings at each level are detected as parallel groups."""
+        content = """## Phase 1: Core
+
+### Task 1.1: Setup
+
+Setup step.
+
+### Task 1.2: Config
+
+Config step.
+
+### Task 1.3: Deploy
+
+Deploy step.
+
+## Phase 2: Testing
+
+Test the system.
+"""
+        parser = MarkdownStructureParser()
+        headings = parser.parse(content)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+        result = builder.build_from_headings(headings)
+
+        # Should have 2 parallel groups:
+        # 1. Top-level: Phase 1, Phase 2
+        # 2. Under Phase 1: Task 1.1, Task 1.2, Task 1.3
+        assert len(result.parallel_groups) == 2
+
+        # Find the groups by level
+        top_level = [g for g in result.parallel_groups if g.heading_level == 2][0]
+        nested_level = [g for g in result.parallel_groups if g.heading_level == 3][0]
+
+        assert top_level.size == 2  # Phase 1, Phase 2
+        assert nested_level.size == 3  # Task 1.1, 1.2, 1.3
+        assert nested_level.parent_task_id is not None  # Parent is Phase 1
+
+    def test_single_heading_not_parallelizable(self, mock_task_manager):
+        """Single heading does not create parallelizable group."""
+        content = """## Single Phase
+
+Just one phase.
+"""
+        parser = MarkdownStructureParser()
+        headings = parser.parse(content)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+        result = builder.build_from_headings(headings)
+
+        # Group exists but is not parallelizable
+        assert len(result.parallel_groups) == 1
+        assert result.parallel_groups[0].is_parallelizable() is False
+        assert len(result.parallelizable_groups) == 0
+
+    def test_deep_nesting_parallel_groups(self, mock_task_manager):
+        """Parallel groups detected at all levels of nesting."""
+        content = """## Epic 1
+
+### Phase 1.1
+
+#### Task A
+
+Task A details.
+
+#### Task B
+
+Task B details.
+
+### Phase 1.2
+
+Phase 1.2 content.
+
+## Epic 2
+
+Epic 2 content.
+"""
+        parser = MarkdownStructureParser()
+        headings = parser.parse(content)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+        result = builder.build_from_headings(headings)
+
+        # Should have 3 parallel groups:
+        # 1. Top-level (h2): Epic 1, Epic 2
+        # 2. Under Epic 1 (h3): Phase 1.1, Phase 1.2
+        # 3. Under Phase 1.1 (h4): Task A, Task B
+        assert len(result.parallel_groups) == 3
+
+        h2_groups = [g for g in result.parallel_groups if g.heading_level == 2]
+        h3_groups = [g for g in result.parallel_groups if g.heading_level == 3]
+        h4_groups = [g for g in result.parallel_groups if g.heading_level == 4]
+
+        assert len(h2_groups) == 1
+        assert h2_groups[0].size == 2  # Epic 1, Epic 2
+
+        assert len(h3_groups) == 1
+        assert h3_groups[0].size == 2  # Phase 1.1, Phase 1.2
+
+        assert len(h4_groups) == 1
+        assert h4_groups[0].size == 2  # Task A, Task B
+
+    def test_parallel_groups_have_correct_parent_ids(self, mock_task_manager):
+        """Parallel groups correctly reference their parent task IDs."""
+        content = """## Parent Phase
+
+### Child 1
+
+Child 1 content.
+
+### Child 2
+
+Child 2 content.
+"""
+        parser = MarkdownStructureParser()
+        headings = parser.parse(content)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+        result = builder.build_from_headings(headings)
+
+        # Find the child group (h3)
+        child_group = [g for g in result.parallel_groups if g.heading_level == 3][0]
+
+        # Parent should be the "Parent Phase" task
+        parent_task = next(t for t in result.tasks if t.title == "Parent Phase")
+        assert child_group.parent_task_id == parent_task.id
+
+    def test_no_cross_dependencies_between_siblings(self, mock_task_manager):
+        """Sibling tasks have no dependencies on each other (implicit in structure)."""
+        content = """## Phase A
+
+Content A.
+
+## Phase B
+
+Content B.
+
+## Phase C
+
+Content C.
+"""
+        parser = MarkdownStructureParser()
+        headings = parser.parse(content)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+        result = builder.build_from_headings(headings)
+
+        # All tasks at root level have no parent (independent)
+        for task in result.tasks:
+            assert task.parent_task_id is None
+
+        # Parallel group confirms they're siblings
+        assert len(result.parallelizable_groups) == 1
+        assert result.parallelizable_groups[0].size == 3
+
+    def test_empty_headings_no_parallel_groups(self, mock_task_manager):
+        """Empty heading list produces no parallel groups."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+        result = builder.build_from_headings([])
+
+        assert len(result.parallel_groups) == 0
+
+    def test_with_parent_task_id_sets_group_parent(self, mock_task_manager):
+        """Builder with parent_task_id sets it on top-level group."""
+        content = """## Sub-Phase 1
+
+Content 1.
+
+## Sub-Phase 2
+
+Content 2.
+"""
+        parser = MarkdownStructureParser()
+        headings = parser.parse(content)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            parent_task_id="gt-external-parent",
+        )
+        result = builder.build_from_headings(headings)
+
+        # Top-level group should have the external parent
+        top_group = result.parallel_groups[0]
+        assert top_group.parent_task_id == "gt-external-parent"

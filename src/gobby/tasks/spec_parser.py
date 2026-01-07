@@ -564,6 +564,33 @@ class CheckboxExtractor:
 
 
 @dataclass
+class ParallelGroup:
+    """A group of tasks that can be executed in parallel.
+
+    Sibling tasks at the same heading level with no cross-references
+    are parallelizable and can be assigned to separate worktrees.
+
+    Attributes:
+        task_ids: List of task IDs in this parallel group
+        parent_task_id: The parent epic that depends on all tasks in this group
+        heading_level: The heading level these tasks came from (for debugging)
+    """
+
+    task_ids: list[str]
+    parent_task_id: str | None = None
+    heading_level: int = 0
+
+    @property
+    def size(self) -> int:
+        """Number of tasks in this group."""
+        return len(self.task_ids)
+
+    def is_parallelizable(self) -> bool:
+        """True if group has multiple tasks that can run in parallel."""
+        return len(self.task_ids) > 1
+
+
+@dataclass
 class CreatedTask:
     """Result of creating a task from parsed structure."""
 
@@ -581,11 +608,17 @@ class HierarchyBuildResult:
     tasks: list[CreatedTask]
     root_task_ids: list[str]  # Top-level task IDs (no parent in this build)
     total_count: int
+    parallel_groups: list[ParallelGroup] = field(default_factory=list)
 
     @property
     def task_ids(self) -> list[str]:
         """All created task IDs."""
         return [t.id for t in self.tasks]
+
+    @property
+    def parallelizable_groups(self) -> list[ParallelGroup]:
+        """Groups with multiple tasks that can run in parallel."""
+        return [g for g in self.parallel_groups if g.is_parallelizable()]
 
 
 class TaskHierarchyBuilder:
@@ -674,10 +707,14 @@ class TaskHierarchyBuilder:
             )
             root_task_ids.extend(task_ids)
 
+        # Detect parallel groups from sibling headings
+        parallel_groups = self._detect_parallel_groups(headings, created_tasks)
+
         return HierarchyBuildResult(
             tasks=created_tasks,
             root_task_ids=root_task_ids,
             total_count=len(created_tasks),
+            parallel_groups=parallel_groups,
         )
 
     def build_from_checkboxes(
@@ -1068,3 +1105,85 @@ class TaskHierarchyBuilder:
                 return True
 
         return False
+
+    def _detect_parallel_groups(
+        self,
+        headings: list[HeadingNode],
+        created_tasks: list[CreatedTask],
+    ) -> list[ParallelGroup]:
+        """Detect parallelizable task groups from sibling headings.
+
+        Sibling headings at the same level under the same parent are
+        considered parallelizable (can run in separate worktrees).
+
+        Args:
+            headings: The original heading tree
+            created_tasks: List of created tasks (to map heading text -> task ID)
+
+        Returns:
+            List of ParallelGroup objects for sibling groups
+        """
+        parallel_groups: list[ParallelGroup] = []
+
+        # Build a mapping from heading text to task ID
+        heading_to_task: dict[str, str] = {}
+        for task in created_tasks:
+            heading_to_task[task.title] = task.id
+
+        # Recursively collect parallel groups from the heading tree
+        self._collect_parallel_groups(
+            headings=headings,
+            parent_task_id=self.parent_task_id,
+            heading_to_task=heading_to_task,
+            parallel_groups=parallel_groups,
+        )
+
+        return parallel_groups
+
+    def _collect_parallel_groups(
+        self,
+        headings: list[HeadingNode],
+        parent_task_id: str | None,
+        heading_to_task: dict[str, str],
+        parallel_groups: list[ParallelGroup],
+    ) -> None:
+        """Recursively collect parallel groups from heading siblings.
+
+        Args:
+            headings: List of sibling headings at the current level
+            parent_task_id: The parent task ID for these headings
+            heading_to_task: Mapping from heading text to task ID
+            parallel_groups: List to append ParallelGroup objects to
+        """
+        if not headings:
+            return
+
+        # Collect task IDs for sibling headings at this level
+        sibling_task_ids: list[str] = []
+        heading_level = headings[0].level if headings else 0
+
+        for heading in headings:
+            task_id = heading_to_task.get(heading.text)
+            if task_id:
+                sibling_task_ids.append(task_id)
+
+            # Recursively process children of this heading
+            if heading.children:
+                # Get the task ID for this heading to use as parent for children
+                this_task_id = heading_to_task.get(heading.text)
+                self._collect_parallel_groups(
+                    headings=heading.children,
+                    parent_task_id=this_task_id,
+                    heading_to_task=heading_to_task,
+                    parallel_groups=parallel_groups,
+                )
+
+        # Create a parallel group if there are multiple siblings
+        if len(sibling_task_ids) >= 1:
+            parallel_groups.append(
+                ParallelGroup(
+                    task_ids=sibling_task_ids,
+                    parent_task_id=parent_task_id,
+                    heading_level=heading_level,
+                )
+            )
