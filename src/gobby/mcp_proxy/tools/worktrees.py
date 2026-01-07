@@ -650,6 +650,7 @@ def create_worktrees_registry(
         description="Find worktrees with no activity for a period.",
     )
     async def detect_stale_worktrees(
+        project_path: str | None = None,
         hours: int = 24,
         limit: int = 50,
     ) -> dict[str, Any]:
@@ -657,20 +658,23 @@ def create_worktrees_registry(
         Find stale worktrees (no activity for N hours).
 
         Args:
+            project_path: Path to project directory (pass cwd from CLI).
             hours: Hours of inactivity threshold (default: 24).
             limit: Maximum results (default: 50).
 
         Returns:
             Dict with list of stale worktrees.
         """
-        if project_id is None:
-            return {
-                "success": False,
-                "error": "No project context.",
-            }
+        _, resolved_project_id, error = _resolve_project_context(
+            project_path, git_manager, project_id
+        )
+        if error:
+            return {"success": False, "error": error}
+        if resolved_project_id is None:
+            return {"success": False, "error": "Could not resolve project ID"}
 
         stale = worktree_storage.find_stale(
-            project_id=project_id,
+            project_id=resolved_project_id,
             hours=hours,
             limit=limit,
         )
@@ -696,6 +700,7 @@ def create_worktrees_registry(
         description="Mark and optionally delete stale worktrees.",
     )
     async def cleanup_stale_worktrees(
+        project_path: str | None = None,
         hours: int = 24,
         dry_run: bool = True,
         delete_git: bool = False,
@@ -704,6 +709,7 @@ def create_worktrees_registry(
         Cleanup stale worktrees.
 
         Args:
+            project_path: Path to project directory (pass cwd from CLI).
             hours: Hours of inactivity threshold (default: 24).
             dry_run: If True, only report what would be cleaned (default: True).
             delete_git: If True, also delete git worktrees (default: False).
@@ -711,15 +717,17 @@ def create_worktrees_registry(
         Returns:
             Dict with cleanup results.
         """
-        if project_id is None:
-            return {
-                "success": False,
-                "error": "No project context.",
-            }
+        resolved_git_manager, resolved_project_id, error = _resolve_project_context(
+            project_path, git_manager, project_id
+        )
+        if error:
+            return {"success": False, "error": error}
+        if resolved_project_id is None:
+            return {"success": False, "error": "Could not resolve project ID"}
 
         # Find and mark stale worktrees
         stale = worktree_storage.cleanup_stale(
-            project_id=project_id,
+            project_id=resolved_project_id,
             hours=hours,
             dry_run=dry_run,
         )
@@ -735,8 +743,8 @@ def create_worktrees_registry(
             }
 
             # Optionally delete git worktrees
-            if delete_git and not dry_run and git_manager:
-                git_result = git_manager.delete_worktree(
+            if delete_git and not dry_run and resolved_git_manager:
+                git_result = resolved_git_manager.delete_worktree(
                     wt.worktree_path,
                     force=True,
                 )
