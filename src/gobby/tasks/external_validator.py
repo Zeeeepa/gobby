@@ -6,7 +6,6 @@ ensuring the validator has no prior knowledge of the implementation.
 
 import json
 import logging
-import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -14,6 +13,7 @@ from gobby.config.app import TaskValidationConfig
 from gobby.llm import LLMService
 from gobby.tasks.issue_extraction import parse_issues_from_response
 from gobby.tasks.validation_models import Issue
+from gobby.utils.json_helpers import extract_json_object
 
 logger = logging.getLogger(__name__)
 
@@ -184,30 +184,15 @@ def _parse_external_validation_response(response: str) -> ExternalValidationResu
             error="Empty response",
         )
 
-    # Try to extract JSON from response
-    content = response.strip()
-
-    # Try code block first
-    json_block = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
-    if json_block:
-        json_str = json_block.group(1)
-    else:
-        # Try to find raw JSON object
-        json_obj = re.search(r"(\{.*\})", content, re.DOTALL)
-        if json_obj:
-            json_str = json_obj.group(1)
-        else:
-            json_str = content
-
-    try:
-        data = json.loads(json_str)
-    except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse external validation response: {e}")
+    # Extract JSON from response using shared utility
+    data = extract_json_object(response)
+    if data is None:
+        logger.warning("Failed to parse external validation response")
         return ExternalValidationResult(
             status="error",
             summary="Failed to parse validator response",
             issues=[],
-            error=f"JSON parse error: {e}",
+            error="No valid JSON found in response",
         )
 
     # Extract fields

@@ -1,6 +1,5 @@
 """MCP server import functionality."""
 
-import json
 import logging
 import re
 from typing import TYPE_CHECKING, Any
@@ -9,6 +8,7 @@ from gobby.config.app import DaemonConfig
 from gobby.storage.database import LocalDatabase
 from gobby.storage.mcp import LocalMCPManager
 from gobby.storage.projects import LocalProjectManager
+from gobby.utils.json_helpers import extract_json_object
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.manager import MCPClientManager
@@ -398,29 +398,13 @@ class MCPServerImporter:
         Returns:
             Parsed JSON dict or None
         """
-        # Try to find JSON in code blocks first
-        code_block_pattern = r"```(?:json)?\s*(\{[\s\S]*?\})\s*```"
-        matches = re.findall(code_block_pattern, text)
+        result = extract_json_object(text)
+        if result is None:
+            return None
 
-        for match in matches:
-            try:
-                result: dict[str, Any] = json.loads(match)
-                return result
-            except json.JSONDecodeError:
-                continue
-
-        # Try to find raw JSON object
-        json_pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
-        matches = re.findall(json_pattern, text)
-
-        for match in matches:
-            try:
-                parsed: dict[str, Any] = json.loads(match)
-                # Validate it looks like a server config
-                if "name" in parsed or "transport" in parsed:
-                    return parsed
-            except json.JSONDecodeError:
-                continue
+        # Validate it looks like a server config
+        if "name" in result or "transport" in result:
+            return result
 
         return None
 

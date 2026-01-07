@@ -22,6 +22,7 @@ from typing import Literal
 
 from gobby.config.app import TaskValidationConfig
 from gobby.llm import LLMService
+from gobby.utils.json_helpers import extract_json_object
 
 logger = logging.getLogger(__name__)
 
@@ -554,29 +555,21 @@ class TaskValidator:
                 model=self.config.model,
             )
 
-            import json
-            import re
-
             if not response_content or not response_content.strip():
                 logger.warning(f"Empty LLM response for task {task_id} validation")
                 return ValidationResult(
                     status="pending", feedback="Validation failed: Empty response from LLM"
                 )
 
-            content = response_content.strip()
-            logger.debug(f"Validation LLM response for {task_id}: {content[:200]}...")
+            logger.debug(f"Validation LLM response for {task_id}: {response_content[:200]}...")
 
-            # Try to find JSON in code block
-            json_block = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
-            if json_block:
-                content = json_block.group(1)
-            else:
-                # If no code block, try to find { ... }
-                json_obj = re.search(r"(\{.*\})", content, re.DOTALL)
-                if json_obj:
-                    content = json_obj.group(1)
-
-            result_data = json.loads(content)
+            # Extract JSON using shared utility
+            result_data = extract_json_object(response_content)
+            if result_data is None:
+                logger.warning(f"Failed to parse JSON from validation response for {task_id}")
+                return ValidationResult(
+                    status="pending", feedback="Validation failed: Could not parse response"
+                )
 
             return ValidationResult(
                 status=result_data.get("status", "pending"), feedback=result_data.get("feedback")

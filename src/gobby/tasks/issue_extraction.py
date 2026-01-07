@@ -3,11 +3,10 @@
 Provides utilities for parsing structured issues from validation LLM responses.
 """
 
-import json
 import logging
-import re
 
 from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
+from gobby.utils.json_helpers import extract_json_object
 
 logger = logging.getLogger(__name__)
 
@@ -73,30 +72,7 @@ def _extract_json(content: str) -> dict | None:
     Returns:
         Parsed dict or None if parsing fails
     """
-    # Try to find JSON in code block first
-    json_block = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
-    if json_block:
-        try:
-            result = json.loads(json_block.group(1))
-            return dict(result) if isinstance(result, dict) else None
-        except json.JSONDecodeError:
-            pass
-
-    # Try to find raw JSON object
-    json_obj = re.search(r"(\{.*\})", content, re.DOTALL)
-    if json_obj:
-        try:
-            result = json.loads(json_obj.group(1))
-            return dict(result) if isinstance(result, dict) else None
-        except json.JSONDecodeError:
-            pass
-
-    # Try parsing the whole content as JSON
-    try:
-        result = json.loads(content)
-        return dict(result) if isinstance(result, dict) else None
-    except json.JSONDecodeError:
-        return None
+    return extract_json_object(content)
 
 
 def _parse_single_issue(issue_dict: dict) -> Issue | None:
