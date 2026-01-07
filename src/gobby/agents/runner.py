@@ -313,6 +313,22 @@ class AgentRunner:
                 project_path=config.project_path,
             )
             if workflow_definition:
+                # Reject lifecycle workflows - they run automatically via hooks
+                if workflow_definition.type == "lifecycle":
+                    self.logger.error(
+                        f"Cannot use lifecycle workflow '{effective_workflow}' for agent spawning"
+                    )
+                    return AgentResult(
+                        output="",
+                        status="error",
+                        error=(
+                            f"Cannot use lifecycle workflow '{effective_workflow}' for agent spawning. "
+                            f"Lifecycle workflows run automatically on events. "
+                            f"Use a step workflow like 'plan-execute' instead."
+                        ),
+                        turns_used=0,
+                    )
+
                 self.logger.info(
                     f"Loaded workflow '{effective_workflow}' for agent "
                     f"(type={workflow_definition.type})"

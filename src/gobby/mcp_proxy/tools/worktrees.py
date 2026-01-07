@@ -900,6 +900,20 @@ def create_worktrees_registry(
                 ),
             }
 
+        # Validate workflow (reject lifecycle workflows)
+        if workflow:
+            from gobby.workflows.loader import WorkflowLoader
+
+            workflow_loader = WorkflowLoader()
+            is_valid, error_msg = workflow_loader.validate_workflow_for_agent(
+                workflow, project_path=project_path
+            )
+            if not is_valid:
+                return {
+                    "success": False,
+                    "error": error_msg,
+                }
+
         # Check if worktree already exists for this branch
         existing = worktree_storage.get_by_branch(resolved_project_id, branch_name)
         if existing:

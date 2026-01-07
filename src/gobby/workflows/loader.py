@@ -283,3 +283,38 @@ class WorkflowLoader:
     def clear_discovery_cache(self) -> None:
         """Clear the discovery cache. Call when workflows may have changed."""
         self._discovery_cache.clear()
+
+    def validate_workflow_for_agent(
+        self,
+        workflow_name: str,
+        project_path: Path | str | None = None,
+    ) -> tuple[bool, str | None]:
+        """
+        Validate that a workflow can be used for agent spawning.
+
+        Lifecycle workflows run automatically via hooks and cannot be
+        explicitly activated for agents. Only step workflows are valid.
+
+        Args:
+            workflow_name: Name of the workflow to validate
+            project_path: Optional project path for workflow resolution
+
+        Returns:
+            Tuple of (is_valid, error_message).
+            If valid, returns (True, None).
+            If invalid, returns (False, error_message).
+        """
+        workflow = self.load_workflow(workflow_name, project_path=project_path)
+
+        if not workflow:
+            # Workflow not found - let the caller decide if this is an error
+            return True, None
+
+        if workflow.type == "lifecycle":
+            return False, (
+                f"Cannot use lifecycle workflow '{workflow_name}' for agent spawning. "
+                f"Lifecycle workflows run automatically on events. "
+                f"Use a step workflow like 'plan-execute' instead."
+            )
+
+        return True, None

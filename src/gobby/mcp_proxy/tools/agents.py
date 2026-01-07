@@ -166,6 +166,18 @@ def create_agents_registry(
                 "error": f"Invalid mode '{mode}'. Supported: {supported_modes}",
             }
 
+        # Validate workflow (reject lifecycle workflows)
+        if workflow:
+            from gobby.workflows.loader import WorkflowLoader
+
+            workflow_loader = WorkflowLoader()
+            is_valid, error_msg = workflow_loader.validate_workflow_for_agent(workflow)
+            if not is_valid:
+                return {
+                    "success": False,
+                    "error": error_msg,
+                }
+
         # Infer context from project if not provided
         ctx = get_project_context()
         if project_id is None:
