@@ -10,7 +10,7 @@ This document defines the implementation order across all Gobby planning documen
 
 | Document | Location | Focus |
 |----------|----------|-------|
-| WORKFLOWS | `docs/plans/completed/WORKFLOWS.md` | Phase-based workflow enforcement |
+| WORKFLOWS | `docs/plans/completed/WORKFLOWS.md` | Step-based workflow enforcement |
 | TASKS | `docs/plans/completed/TASKS.md` | Persistent task tracking system (includes V2 enhancements) |
 | SESSION_TRACKING | `docs/plans/completed/SESSION_TRACKING.md` | Async JSONL processing, multi-CLI message storage |
 | SESSION_MANAGEMENT | `docs/plans/completed/SESSION_MANAGEMENT.md` | Session CRUD tools, handoff MCP tools |
@@ -22,11 +22,11 @@ This document defines the implementation order across all Gobby planning documen
 
 ### Post-MVP Plans
 
-| Document | Location | Focus |
-|----------|----------|-------|
-| POST_MVP_ENHANCEMENTS | `docs/plans/POST_MVP_ENHANCEMENTS.md` | 10 major phases: worktrees, merge resolution, GitHub/Linear, autonomous loops |
-| SUBAGENTS | `docs/plans/SUBAGENTS.md` | Multi-provider agent spawning system |
-| UI | `docs/plans/UI.md` | Web dashboard, real-time visualization |
+| Document | Location | Focus | Status |
+|----------|----------|-------|--------|
+| POST_MVP_ENHANCEMENTS | `docs/plans/POST_MVP_ENHANCEMENTS.md` | 10 major phases: worktrees, merge resolution, GitHub/Linear, autonomous loops | Partial |
+| SUBAGENTS | `docs/plans/completed/SUBAGENTS.md` | Multi-provider agent spawning system | ✅ Complete |
+| UI | `docs/plans/UI.md` | Web dashboard, real-time visualization | Pending |
 
 ---
 
@@ -356,9 +356,9 @@ This document defines the implementation order across all Gobby planning documen
 |--------|-------|----------------|--------------|--------|
 | 8 | Webhooks | HOOK_EXTENSIONS Phase 2 | Sprint 1 | Pending |
 | 9 | Python Plugins | HOOK_EXTENSIONS Phase 3 | Sprint 1 | Pending |
-| 10 | Workflow CLI/MCP | WORKFLOWS Phases 7-8 | Sprint 7 | Pending |
+| 10 | Workflow CLI/MCP | WORKFLOWS Phases 7-8 | Sprint 7 | ✅ Complete |
 | 11 | Workflow-Task Integration | TASKS Phases 11-13 | Sprints 3, 7 | Pending |
-| 12 | Tool Metrics | MCP_PROXY Phase 1 | None | Pending |
+| 12 | Tool Metrics | MCP_PROXY Phase 1 | None | ✅ Complete |
 | 13 | Lazy Init | MCP_PROXY Phase 2 | None | Pending |
 | 15 | Self-Healing MCP | MCP_PROXY Phases 4-5 | Sprint 14 | Pending |
 | 16 | Hook Workflow Integration | HOOK_EXTENSIONS Phases 4-5 | Sprints 7, 9 | Pending |
@@ -370,8 +370,8 @@ This document defines the implementation order across all Gobby planning documen
 | Sprint | Focus | Plan Reference | Dependencies | Status |
 |--------|-------|----------------|--------------|--------|
 | 20 | Session Management Tools | SESSION_MANAGEMENT | Sprint 7.4 | Pending |
-| 21 | Task V2: Enhanced Validation | TASKS Phases 12.6-12.13 | Sprint 17 | Pending |
-| 22 | Worktree Coordination | POST_MVP Phase 1 | Sprint 7.4 | Pending |
+| 21 | Task V2: Enhanced Validation | TASKS Phases 12.6-12.13 | Sprint 17 | 🔶 Mostly Complete |
+| 22 | Worktree Coordination | POST_MVP Phase 1 | Sprint 7.4 | 🔶 Mostly Complete |
 | 23 | Merge Resolution | POST_MVP Phase 2 | Sprint 22 | Pending |
 | 24 | GitHub Integration | POST_MVP Phase 4 | Sprint 3 | Pending |
 | 25 | Linear Integration | POST_MVP Phase 5 | Sprint 3 | Pending |
@@ -379,7 +379,7 @@ This document defines the implementation order across all Gobby planning documen
 | 27 | Enhanced Skill Routing | POST_MVP Phase 8 | Sprint 7.6 | Pending |
 | 28 | Semantic Memory Search | POST_MVP Phase 9 | Sprint 7.5 | Pending |
 | 29 | Autonomous Work Loop | POST_MVP Phase 10 | Sprints 3, 7 | Pending |
-| 30 | Subagent System | SUBAGENTS Phases 1-4 | Sprint 7 | Pending |
+| 30 | Subagent System | SUBAGENTS Phases 1-4 | Sprint 7 | ✅ Complete |
 | 31 | Web Dashboard | UI Phases 1-7 | Sprint 1 | Pending |
 
 ---
@@ -443,7 +443,7 @@ Sprint 31 (Web Dashboard - can start after Sprint 1)
 - [x] Context sources (previous_session_summary, handoff, artifacts, observations, workflow_state)
 - [x] Jinja2 templating for context injection
 - [x] All 7 built-in templates (session-handoff, plan-execute, react, plan-act-reflect, plan-to-tasks, architect, test-driven)
-- **Value**: Complete workflow templating system ready for phase-based enforcement
+- **Value**: Complete workflow templating system ready for step-based enforcement
 
 ### Milestone 2.5: "Session Recording" (Sprints 7.1-7.4) ✅ COMPLETE
 
@@ -471,12 +471,12 @@ Sprint 31 (Web Dashboard - can start after Sprint 1)
 
 ### Milestone 5: "Smart MCP Proxy" (Sprints 12-15) 🔶 PARTIAL
 
-- [ ] Tool metrics and recommendations (Sprint 12)
+- [x] Tool metrics and recommendations (Sprint 12) ✅
 - [ ] Lazy server initialization (Sprint 13)
 - [x] Semantic search with OpenAI embeddings (Sprint 14) ✅
 - [ ] Self-healing fallbacks (Sprint 15)
 - **Value**: Intelligent tool orchestration across MCP servers
-- **Done**: `search_tools` MCP/CLI, `recommend_tools` with semantic/hybrid/llm modes
+- **Done**: `search_tools` MCP/CLI, `recommend_tools` with semantic/hybrid/llm modes, `gobby-metrics` tools
 
 ### Milestone 6: "Production Ready" (Sprints 16-18)
 
@@ -489,7 +489,7 @@ Sprint 31 (Web Dashboard - can start after Sprint 1)
 
 ## Post-MVP Milestones
 
-### Milestone 7: "Task System V2" (Sprint 21) ✅ PARTIAL
+### Milestone 7: "Task System V2" (Sprint 21) 🔶 MOSTLY COMPLETE
 
 - [x] Commit linking infrastructure (migration, storage) ✅
 - [x] MCP tools: `link_commit`, `auto_link_commits`, `get_task_diff` ✅
@@ -501,13 +501,19 @@ Sprint 31 (Web Dashboard - can start after Sprint 1)
 - [x] External validator support ✅
 - [x] Escalation workflow ✅
 - **Value**: Production-grade QA loops with traceability
-- **Remaining**: Phases 12.6-12.13 (future enhancements in TASKS.md)
+- **Remaining**:
+  - [ ] Git hook integration (`gobby tasks hooks install`, pre-commit/post-merge hooks)
+  - [ ] External validator agent (separate agent when `use_external_validator=true`)
+  - [ ] Agent instructions (CLAUDE.md injection templates)
+  - [ ] CLI commands: `gobby tasks reopen`, `gobby tasks dep add/remove/tree/cycles`, `gobby tasks ready/blocked`, `gobby tasks stats`
+  - [ ] GitHub Issues sync (moved to Sprint 24)
 
-### Milestone 8: "Worktree Orchestration" (Sprints 22-23)
+### Milestone 8: "Worktree Orchestration" (Sprints 22-23) 🔶 MOSTLY COMPLETE
 
-- [ ] Daemon-managed worktree registry
-- [ ] Agent spawning in worktrees
-- [ ] Stale worktree detection and cleanup
+- [x] Daemon-managed worktree registry ✅
+- [x] Agent spawning in worktrees (`spawn_agent_in_worktree`) ✅
+- [x] Stale worktree detection and cleanup (`detect_stale_worktrees`, `cleanup_stale_worktrees`) ✅
+- [x] MCP tools: `create_worktree`, `list_worktrees`, `get_worktree`, `update_worktree_status` ✅
 - [ ] Tiered merge conflict resolution (Auto-Claude inspired)
 - **Value**: True parallel development with multiple agents
 
@@ -533,13 +539,14 @@ Sprint 31 (Web Dashboard - can start after Sprint 1)
 - [ ] Task-driven work loops
 - **Value**: Hands-off task execution overnight
 
-### Milestone 12: "Multi-Agent Orchestration" (Sprint 30)
+### Milestone 12: "Multi-Agent Orchestration" (Sprint 30) ✅ COMPLETE
 
-- [ ] `AgentExecutor` interface with multi-provider support
-- [ ] Claude, Gemini, Codex, LiteLLM executors
-- [ ] `complete()` tool for structured subagent completion
-- [ ] Workflow tool filtering for subagents
-- [ ] Agent depth tracking and safety limits
+- [x] `AgentExecutor` interface with multi-provider support ✅
+- [x] Claude, Gemini, Codex executors ✅
+- [x] MCP tools: `start_agent`, `stop_agent`, `list_agents`, `get_agent_status` ✅
+- [x] Context injection with `session_context` parameter ✅
+- [x] Agent depth tracking and safety limits ✅
+- [x] Terminal and headless spawn modes ✅
 - **Value**: Orchestrate specialized agents with different models
 
 ### Milestone 13: "Visual Control Center" (Sprint 31)
