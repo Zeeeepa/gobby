@@ -477,6 +477,7 @@ These variables control how Gobby behaves during a session:
 | `tdd_mode` | `true` | Generate test→implement task pairs during expansion |
 | `memory_injection_enabled` | `true` | Enable memory injection (controls `memory_inject` action) |
 | `memory_injection_limit` | `10` | Default limit for memory injection per query |
+| `memory_injection_min_importance` | `0.3` | Minimum importance threshold (0.0-1.0) for memory filtering |
 | `session_task` | `null` | Task(s) that must complete before stopping. Values: task ID, list of IDs, or `"*"` for all ready tasks |
 
 ### Defining Variables in Workflow YAML

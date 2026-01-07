@@ -20,6 +20,8 @@ variables:
   memory_injection_enabled: true
   # Default limit for memory injection per query
   memory_injection_limit: 10
+  # Minimum importance threshold for memory injection (0.0-1.0)
+  memory_injection_min_importance: 0.3
   # Task to complete before stopping (null = no enforcement)
   # Values: null, "gt-abc123", ["gt-abc", "gt-def"], or "*" (all ready tasks)
   session_task: null

@@ -655,6 +655,7 @@ class ActionExecutor:
         Workflow variables used:
             memory_injection_enabled: If false, injection is skipped
             memory_injection_limit: Default limit when not specified in action
+            memory_injection_min_importance: Default importance threshold (0.0-1.0)
         """
         # Check workflow variable for enabled state
         variables = context.state.variables or {}
@@ -662,9 +663,9 @@ class ActionExecutor:
             logger.debug("memory_inject: Disabled by workflow variable")
             return None
 
-        # Get default limit from workflow variable
+        # Get defaults from workflow variables
         default_limit = variables.get("memory_injection_limit", 10)
-        limit = kwargs.get("limit", default_limit)
+        default_importance = variables.get("memory_injection_min_importance", 0.3)
 
         return await memory_inject(
             memory_manager=context.memory_manager,
@@ -672,8 +673,8 @@ class ActionExecutor:
             session_id=context.session_id,
             query=kwargs.get("query"),
             project_id=kwargs.get("project_id"),
-            min_importance=kwargs.get("min_importance", 0.3),
-            limit=limit,
+            min_importance=kwargs.get("min_importance", default_importance),
+            limit=kwargs.get("limit", default_limit),
             min_similarity=kwargs.get("min_similarity"),
         )
 
