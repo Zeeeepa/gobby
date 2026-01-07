@@ -1,39 +1,38 @@
 """
-Internal MCP tools for Gobby Task System.
+Internal MCP tools for Gobby Task System (facade module).
 
-Exposes functionality for:
-- Task CRUD (create, get, update, close, delete, list)
-- Dependencies (add, remove, tree, cycles)
-- Ready Work (ready lists, blocked lists)
-- Session Integration (link, get)
-- Git Sync (trigger sync, status)
+This module provides the main create_task_registry() factory function that
+creates a unified tool registry by merging all task-related tool registries.
 
-These tools are registered with the InternalToolRegistry and accessed
-via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
+Tool categories (extracted to separate modules via Strangler Fig pattern):
+- Core CRUD: create, get, update, close, delete, list (this module)
+- Dependencies: add_dependency, remove_dependency, get_dependency_tree (task_dependencies.py)
+- Readiness: list_ready_tasks, list_blocked_tasks, suggest_next_task (task_readiness.py)
+- Sync/Git: sync_tasks, link_commit, auto_link_commits, get_task_diff (task_sync.py)
+- Expansion: expand_task, expand_from_spec, analyze_complexity (task_expansion.py)
+- Validation: validate_task, generate_validation_criteria (task_validation.py)
+
+For direct access to specific registries, import from:
+- gobby.mcp_proxy.tools.task_dependencies
+- gobby.mcp_proxy.tools.task_readiness
+- gobby.mcp_proxy.tools.task_sync
+- gobby.mcp_proxy.tools.task_expansion
+- gobby.mcp_proxy.tools.task_validation
+
+Or import via the package __init__.py for convenience.
 """
 
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.mcp_proxy.tools.task_dependencies import (
-    create_dependency_registry,
-)
 
-# Re-export tools from extracted modules (Strangler Fig pattern)
-# This allows gradual migration - callers can import from either location
-from gobby.mcp_proxy.tools.task_expansion import (
-    create_expansion_registry,
-)
-from gobby.mcp_proxy.tools.task_readiness import (
-    create_readiness_registry,
-)
-from gobby.mcp_proxy.tools.task_sync import (
-    create_sync_registry,
-)
-from gobby.mcp_proxy.tools.task_validation import (
-    create_validation_registry,
-)
+# Import extracted registries for internal merging
+from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
+from gobby.mcp_proxy.tools.task_expansion import create_expansion_registry
+from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
+from gobby.mcp_proxy.tools.task_sync import create_sync_registry
+from gobby.mcp_proxy.tools.task_validation import create_validation_registry
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.task_dependencies import TaskDependencyManager
@@ -55,7 +54,7 @@ from gobby.tasks.validation_history import ValidationHistoryManager
 from gobby.utils.project_context import get_project_context
 from gobby.utils.project_init import initialize_project
 
-__all__ = ["create_task_registry", "create_dependency_registry", "create_expansion_registry", "create_readiness_registry", "create_sync_registry", "create_validation_registry"]
+__all__ = ["create_task_registry"]
 
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
