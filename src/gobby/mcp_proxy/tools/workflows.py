@@ -110,21 +110,20 @@ def create_workflows_registry(
         description="List available workflow definitions from project and global directories.",
     )
     def list_workflows(
-        project_path: str | None = None,
+        project_path: str,
         workflow_type: str | None = None,
         global_only: bool = False,
     ) -> dict[str, Any]:
         """
         List available workflows.
 
-        Lists workflows from global directories (~/.gobby/workflows) and optionally
-        from a project directory. Project workflows shadow global ones with the same name.
+        Lists workflows from both project (.gobby/workflows) and global (~/.gobby/workflows)
+        directories. Project workflows shadow global ones with the same name.
 
         Args:
-            project_path: Project directory path to include project-local workflows.
-                         Pass the cwd to see project workflows.
+            project_path: Project directory path (required). Pass cwd for current project.
             workflow_type: Filter by type ("step" or "lifecycle")
-            global_only: If True, only show global workflows (ignore project_path)
+            global_only: If True, only show global workflows (ignore project)
 
         Returns:
             List of workflows with name, type, description, and source
@@ -132,11 +131,10 @@ def create_workflows_registry(
         import yaml
 
         search_dirs = list(_loader.global_dirs)
-        proj = None
+        proj = Path(project_path)
 
-        # Include project workflows unless global_only
-        if not global_only and project_path:
-            proj = Path(project_path)
+        # Include project workflows unless global_only (project searched first to shadow global)
+        if not global_only:
             project_dir = proj / ".gobby" / "workflows"
             if project_dir.exists():
                 search_dirs.insert(0, project_dir)
