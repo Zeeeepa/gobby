@@ -10,6 +10,8 @@ from gobby.tasks.commits import (
     auto_link_commits,
     extract_task_ids_from_message,
     get_task_diff,
+    is_doc_only_diff,
+    summarize_diff_for_validation,
 )
 
 
@@ -417,3 +419,131 @@ class TestAutoLinkCommits:
             result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
 
             assert result.skipped >= 1
+
+
+class TestIsDocOnlyDiff:
+    """Tests for is_doc_only_diff function."""
+
+    def test_returns_true_for_markdown_only(self):
+        """Test that returns True for markdown-only diffs."""
+        diff = """diff --git a/README.md b/README.md
+index abc..def 100644
+--- a/README.md
++++ b/README.md
+@@ -1,1 +1,2 @@
++new line
+"""
+        assert is_doc_only_diff(diff) is True
+
+    def test_returns_true_for_multiple_doc_files(self):
+        """Test that returns True for multiple doc files."""
+        diff = """diff --git a/README.md b/README.md
++content
+diff --git a/CHANGELOG.md b/CHANGELOG.md
++more content
+diff --git a/docs/guide.txt b/docs/guide.txt
++text file
+"""
+        assert is_doc_only_diff(diff) is True
+
+    def test_returns_false_for_code_files(self):
+        """Test that returns False when code files are included."""
+        diff = """diff --git a/src/main.py b/src/main.py
+index abc..def 100644
+--- a/src/main.py
++++ b/src/main.py
+@@ -1,1 +1,2 @@
++new code
+"""
+        assert is_doc_only_diff(diff) is False
+
+    def test_returns_false_for_mixed_files(self):
+        """Test that returns False for mixed doc and code files."""
+        diff = """diff --git a/README.md b/README.md
++doc content
+diff --git a/src/main.py b/src/main.py
++code content
+"""
+        assert is_doc_only_diff(diff) is False
+
+    def test_returns_false_for_empty_diff(self):
+        """Test that returns False for empty diff."""
+        assert is_doc_only_diff("") is False
+
+    def test_supports_multiple_doc_extensions(self):
+        """Test that various doc extensions are supported."""
+        diff = """diff --git a/doc.rst b/doc.rst
++rst content
+diff --git a/notes.adoc b/notes.adoc
++adoc content
+diff --git a/info.markdown b/info.markdown
++markdown content
+"""
+        assert is_doc_only_diff(diff) is True
+
+
+class TestSummarizeDiffForValidation:
+    """Tests for summarize_diff_for_validation function."""
+
+    def test_returns_original_for_small_diffs(self):
+        """Test that small diffs are returned unchanged."""
+        small_diff = "diff --git a/file.py b/file.py\n+line"
+        result = summarize_diff_for_validation(small_diff)
+        assert result == small_diff
+
+    def test_includes_file_list_summary(self):
+        """Test that summarized diffs include file list."""
+        large_diff = "diff --git a/file1.py b/file1.py\n" + ("+" * 20000)
+        large_diff += "\ndiff --git a/file2.py b/file2.py\n" + ("+" * 20000)
+
+        result = summarize_diff_for_validation(large_diff, max_chars=5000)
+
+        assert "file1.py" in result
+        assert "file2.py" in result
+        assert "Files Changed:" in result
+
+    def test_counts_additions_and_deletions(self):
+        """Test that summary includes +/- counts."""
+        diff = """diff --git a/file.py b/file.py
++added line 1
++added line 2
+-removed line
+""" + ("x" * 50000)
+
+        result = summarize_diff_for_validation(diff, max_chars=5000)
+
+        # Should have stats in the summary
+        assert "+" in result
+        assert "-" in result
+
+    def test_truncates_to_max_chars(self):
+        """Test that result respects max_chars limit."""
+        large_diff = "diff --git a/file.py b/file.py\n" + ("+" * 100000)
+
+        result = summarize_diff_for_validation(large_diff, max_chars=10000)
+
+        assert len(result) <= 10000
+
+    def test_handles_empty_diff(self):
+        """Test graceful handling of empty diff."""
+        result = summarize_diff_for_validation("")
+        assert result == ""
+
+    def test_handles_none_diff(self):
+        """Test graceful handling of None diff."""
+        result = summarize_diff_for_validation(None)
+        assert result is None
+
+    def test_preserves_file_headers_when_truncating(self):
+        """Test that file headers are preserved even when content is truncated."""
+        diff = """diff --git a/important.py b/important.py
+index abc..def 100644
+--- a/important.py
++++ b/important.py
+@@ -1,100 +1,200 @@
+""" + ("+added\n" * 10000)
+
+        result = summarize_diff_for_validation(diff, max_chars=2000)
+
+        # Should still have the file name visible
+        assert "important.py" in result

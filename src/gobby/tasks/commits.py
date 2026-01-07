@@ -113,6 +113,138 @@ def get_task_diff(
     )
 
 
+# Doc file extensions that don't need LLM validation
+DOC_EXTENSIONS = {".md", ".txt", ".rst", ".adoc", ".markdown"}
+
+
+def is_doc_only_diff(diff: str) -> bool:
+    """Check if a diff only affects documentation files.
+
+    Args:
+        diff: Git diff string.
+
+    Returns:
+        True if all modified files are documentation files.
+    """
+    if not diff:
+        return False
+
+    # Find all file paths in the diff
+    file_pattern = r"^diff --git a/(.+?) b/"
+    matches = re.findall(file_pattern, diff, re.MULTILINE)
+
+    if not matches:
+        return False
+
+    # Check if all files are doc files
+    for file_path in matches:
+        ext = Path(file_path).suffix.lower()
+        if ext not in DOC_EXTENSIONS:
+            return False
+
+    return True
+
+
+def summarize_diff_for_validation(
+    diff: str,
+    max_chars: int = 30000,
+    max_hunk_lines: int = 50,
+) -> str:
+    """Summarize a diff for LLM validation, ensuring all files are visible.
+
+    For large diffs, this:
+    1. Always shows the complete file list with stats
+    2. Truncates individual hunks to avoid overwhelming the LLM
+    3. Prioritizes showing file names over full content
+
+    Args:
+        diff: Full git diff string.
+        max_chars: Maximum characters to return.
+        max_hunk_lines: Maximum lines per hunk before truncation.
+
+    Returns:
+        Summarized diff string that fits within max_chars.
+    """
+    if not diff or len(diff) <= max_chars:
+        return diff
+
+    # Parse the diff into files
+    file_diffs = re.split(r"(?=^diff --git)", diff, flags=re.MULTILINE)
+    file_diffs = [f for f in file_diffs if f.strip()]
+
+    if not file_diffs:
+        return diff[:max_chars] + "\n\n... [diff truncated] ..."
+
+    # First, collect file stats
+    file_stats: list[dict[str, str | int]] = []
+    for file_diff in file_diffs:
+        # Extract file name
+        name_match = re.match(r"diff --git a/(.+?) b/", file_diff)
+        if name_match:
+            file_name = name_match.group(1)
+        else:
+            file_name = "(unknown)"
+
+        # Count additions/deletions
+        additions = len(re.findall(r"^\+[^+]", file_diff, re.MULTILINE))
+        deletions = len(re.findall(r"^-[^-]", file_diff, re.MULTILINE))
+
+        file_stats.append(
+            {
+                "name": file_name,
+                "additions": additions,
+                "deletions": deletions,
+                "diff": file_diff,
+            }
+        )
+
+    # Build summary header
+    total_additions = sum(int(f["additions"]) for f in file_stats)
+    total_deletions = sum(int(f["deletions"]) for f in file_stats)
+
+    summary_parts: list[str] = [
+        f"## Diff Summary ({len(file_stats)} files, +{total_additions}/-{total_deletions})\n",
+        "### Files Changed:\n",
+    ]
+
+    for f in file_stats:
+        summary_parts.append(f"- {f['name']} (+{f['additions']}/-{f['deletions']})\n")
+
+    summary_parts.append("\n### File Details:\n\n")
+
+    # Calculate remaining space for file contents
+    header_size = sum(len(p) for p in summary_parts)
+    remaining_chars = max_chars - header_size - 100  # Buffer for truncation message
+
+    # Distribute remaining space among files
+    chars_per_file = remaining_chars // len(file_stats) if file_stats else remaining_chars
+
+    for f in file_stats:
+        file_content = str(f["diff"])
+
+        if len(file_content) > chars_per_file:
+            # Truncate this file's diff but keep the header
+            header_end = file_content.find("@@")
+            if header_end > 0:
+                header = file_content[:header_end]
+                hunks = file_content[header_end:]
+                # Keep first part of hunks
+                truncated_hunks = hunks[: chars_per_file - len(header) - 50]
+                file_content = header + truncated_hunks + "\n... [file diff truncated] ...\n"
+            else:
+                file_content = file_content[:chars_per_file] + "\n... [file diff truncated] ...\n"
+
+        summary_parts.append(file_content)
+
+    result = "".join(summary_parts)
+
+    # Final safety check
+    if len(result) > max_chars:
+        result = result[:max_chars] + "\n\n... [diff truncated] ..."
+
+    return result
+
+
 # Task ID patterns to search for in commit messages
 TASK_ID_PATTERNS = [
     # [gt-xxxxx] - bracket format

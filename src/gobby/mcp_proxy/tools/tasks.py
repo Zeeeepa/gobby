@@ -41,7 +41,7 @@ from gobby.storage.tasks import (
 from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.sync.tasks import TaskSyncManager
 from gobby.tasks.commits import auto_link_commits as auto_link_commits_fn
-from gobby.tasks.commits import get_task_diff
+from gobby.tasks.commits import get_task_diff, is_doc_only_diff, summarize_diff_for_validation
 from gobby.tasks.expansion import TaskExpander
 from gobby.tasks.validation import TaskValidator
 from gobby.utils.project_context import get_project_context
@@ -596,6 +596,8 @@ def create_task_registry(
                 # Leaf task with validation criteria: run LLM validation
                 # Use provided changes_summary or auto-fetch via smart context gathering
                 validation_context = changes_summary
+                raw_diff = None  # Track the raw diff for doc-only check
+
                 if not validation_context:
                     # First try commit-based diff if task has linked commits
                     if task.commits:
@@ -609,9 +611,12 @@ def create_task_registry(
                                 cwd=repo_path,
                             )
                             if diff_result.diff:
+                                raw_diff = diff_result.diff
+                                # Use smart summarization to ensure all files are visible
+                                summarized_diff = summarize_diff_for_validation(raw_diff)
                                 validation_context = (
                                     f"Commit-based diff ({len(diff_result.commits)} commits, "
-                                    f"{diff_result.file_count} files):\n\n{diff_result.diff}"
+                                    f"{diff_result.file_count} files):\n\n{summarized_diff}"
                                 )
                             else:
                                 import logging
@@ -642,7 +647,19 @@ def create_task_registry(
                         if smart_context:
                             validation_context = f"Validation context:\n\n{smart_context}"
 
-                if validation_context:
+                # Auto-skip LLM validation for doc-only changes
+                if raw_diff and is_doc_only_diff(raw_diff):
+                    import logging
+
+                    logging.getLogger(__name__).info(
+                        f"Skipping LLM validation for task {task.id}: doc-only changes"
+                    )
+                    task_manager.update_task(
+                        task_id,
+                        validation_status="valid",
+                        validation_feedback="Auto-validated: documentation-only changes",
+                    )
+                elif validation_context:
                     result = await task_validator.validate_task(
                         task_id=task.id,
                         title=task.title,
@@ -731,7 +748,11 @@ def create_task_registry(
                 },
                 "skip_validation": {
                     "type": "boolean",
-                    "description": "Explicitly skip validation checks.",
+                    "description": (
+                        "Skip LLM validation even when task has validation_criteria. "
+                        "USE THIS when: validation fails due to truncated diff, validator misses context, "
+                        "or you've manually verified completion. Provide override_justification explaining why."
+                    ),
                     "default": False,
                 },
                 "session_id": {
@@ -741,12 +762,20 @@ def create_task_registry(
                 },
                 "override_justification": {
                     "type": "string",
-                    "description": "Why agent bypassed validation or commit requirement. Required when no_commit_needed=True.",
+                    "description": (
+                        "Justification for bypassing validation or commit check. "
+                        "Required when skip_validation=True or no_commit_needed=True. "
+                        "Example: 'Validation saw truncated diff - verified via git show that commit includes all changes'"
+                    ),
                     "default": None,
                 },
                 "no_commit_needed": {
                     "type": "boolean",
-                    "description": "Set to True for tasks that don't produce code changes (research, planning, review). Requires override_justification.",
+                    "description": (
+                        "ONLY for tasks with NO code changes (pure research, planning, documentation review). "
+                        "Do NOT use this to bypass validation when a commit exists - use skip_validation instead. "
+                        "Requires override_justification."
+                    ),
                     "default": False,
                 },
                 "commit_sha": {
