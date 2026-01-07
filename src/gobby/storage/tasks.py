@@ -459,6 +459,22 @@ class LocalTaskManager:
                         "Task must be decomposed into subtasks first."
                     )
 
+        # Block setting validation criteria on needs_decomposition tasks without subtasks
+        if validation_criteria is not UNSET and validation_criteria is not None:
+            current_task = self.get_task(task_id)
+            if current_task.status == "needs_decomposition":
+                # Check if task has subtasks
+                children = self.db.fetchone(
+                    "SELECT COUNT(*) as count FROM tasks WHERE parent_task_id = ?",
+                    (task_id,),
+                )
+                has_children = children and children["count"] > 0
+                if not has_children:
+                    raise ValueError(
+                        f"Cannot set validation criteria on task {task_id} with 'needs_decomposition' status. "
+                        "Decompose the task into subtasks first, then set validation criteria."
+                    )
+
         updates = []
         params: list[Any] = []
 
