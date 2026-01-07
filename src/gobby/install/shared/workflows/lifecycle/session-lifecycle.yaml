@@ -22,7 +22,24 @@ variables:
   memory_injection_limit: 10
   # Minimum importance threshold for memory injection (0.0-1.0)
   memory_injection_min_importance: 0.3
-  # Task to complete before stopping (null = no enforcement)
+  # DEPRECATED: session_task variable for lifecycle-based task enforcement
+  # This variable is deprecated in favor of the autonomous-task step workflow.
+  #
+  # Instead of setting session_task directly:
+  #   call_tool(server="gobby-workflows", tool="set_variable",
+  #             args={"name": "session_task", "value": "gt-xxx"})
+  #
+  # Use the autonomous-task workflow:
+  #   call_tool(server="gobby-workflows", tool="activate_autonomous_task",
+  #             args={"task_id": "gt-xxx"})
+  #
+  # The new pattern provides:
+  # - Explicit state machine semantics (work → complete)
+  # - Clear entry/exit conditions
+  # - Proper on_premature_stop guidance
+  # - Better separation of concerns
+  #
+  # This variable will be removed in a future version.
   session_task: null
 
 triggers:

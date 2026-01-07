@@ -502,13 +502,24 @@ def create_workflows_registry(
         state.variables[name] = value
         _state_manager.save_state(state)
 
-        return {
+        # Build response
+        result: dict[str, Any] = {
             "success": True,
             "session_id": session_id,
             "variable": name,
             "value": value,
             "all_variables": state.variables,
         }
+
+        # Add deprecation warning for session_task variable
+        if name == "session_task" and value:
+            result["warning"] = (
+                "DEPRECATED: Setting session_task directly is deprecated. "
+                "Use activate_autonomous_task(task_id=..., session_id=...) instead "
+                "for proper state machine semantics and on_premature_stop handling."
+            )
+
+        return result
 
     @registry.tool(
         name="get_variable",
