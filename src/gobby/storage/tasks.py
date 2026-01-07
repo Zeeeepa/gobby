@@ -7,9 +7,12 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.storage.database import LocalDatabase
+
+if TYPE_CHECKING:
+    from gobby.workflows.definitions import WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -1158,7 +1161,7 @@ class LocalTaskManager:
         project_id: str,
         title: str,
         description: str | None = None,
-        auto_decompose: bool = True,
+        auto_decompose: bool | None = None,
         parent_task_id: str | None = None,
         created_in_session_id: str | None = None,
         priority: int = 2,
@@ -1174,6 +1177,7 @@ class LocalTaskManager:
         workflow_name: str | None = None,
         verification: str | None = None,
         sequence_order: int | None = None,
+        workflow_state: "WorkflowState | None" = None,
     ) -> dict[str, Any]:
         """Create a task with optional auto-decomposition of multi-step descriptions.
 
@@ -1181,11 +1185,17 @@ class LocalTaskManager:
         (numbered lists, bullet points, etc.) are automatically broken down
         into a parent task plus subtasks.
 
+        The auto_decompose setting can be controlled at three levels (in priority order):
+        1. Explicit parameter: auto_decompose=True/False passed to this call
+        2. Workflow variable: workflow_state.variables.get("auto_decompose")
+        3. Default: True (auto-decompose enabled)
+
         Args:
             project_id: Project ID
             title: Task title
             description: Task description (analyzed for multi-step patterns)
-            auto_decompose: Whether to auto-decompose multi-step descriptions
+            auto_decompose: Whether to auto-decompose multi-step descriptions.
+                If None, checks workflow_state variable, then defaults to True.
             parent_task_id: Optional parent task ID (for nested tasks)
             created_in_session_id: Session ID where task was created
             priority: Task priority (1=high, 2=medium, 3=low)
@@ -1201,6 +1211,7 @@ class LocalTaskManager:
             workflow_name: Workflow name
             verification: Verification steps
             sequence_order: Sequence order in parent
+            workflow_state: Optional workflow state for session-level variable lookup
 
         Returns:
             Dict with auto_decomposed flag and either:
@@ -1209,6 +1220,15 @@ class LocalTaskManager:
         """
         from gobby.storage.task_dependencies import TaskDependencyManager
         from gobby.tasks.auto_decompose import detect_multi_step, extract_steps
+
+        # Determine effective auto_decompose value
+        # Priority: explicit parameter > workflow variable > default (True)
+        if auto_decompose is not None:
+            effective_auto_decompose = auto_decompose
+        elif workflow_state and workflow_state.variables.get("auto_decompose") is not None:
+            effective_auto_decompose = bool(workflow_state.variables.get("auto_decompose"))
+        else:
+            effective_auto_decompose = True
 
         # Check if description has multi-step content
         is_multi_step = detect_multi_step(description) if description else False
@@ -1237,7 +1257,7 @@ class LocalTaskManager:
             )
             return {"auto_decomposed": False, "task": task.to_dict()}
 
-        if not auto_decompose:
+        if not effective_auto_decompose:
             # Multi-step but opt-out: create with needs_decomposition status
             task = self.create_task(
                 project_id=project_id,
