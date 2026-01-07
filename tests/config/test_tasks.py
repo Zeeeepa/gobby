@@ -908,3 +908,135 @@ class TestWorkflowVariablesMergeWithDB:
         assert config.auto_decompose is False
         # unknown_field should not be accessible
         assert not hasattr(config, "unknown_field")
+
+
+# =============================================================================
+# merge_workflow_variables Function Tests
+# =============================================================================
+
+
+class TestMergeWorkflowVariablesFunction:
+    """Tests for the merge_workflow_variables function."""
+
+    def test_import_function(self) -> None:
+        """Test merge_workflow_variables can be imported."""
+        from gobby.config.tasks import merge_workflow_variables
+
+        assert merge_workflow_variables is not None
+        assert callable(merge_workflow_variables)
+
+    def test_merge_with_no_overrides(self) -> None:
+        """When db_overrides is None, returns YAML defaults."""
+        from gobby.config.tasks import merge_workflow_variables
+
+        yaml_defaults = {
+            "auto_decompose": True,
+            "tdd_mode": True,
+            "memory_injection_limit": 10,
+        }
+
+        effective = merge_workflow_variables(yaml_defaults, None)
+
+        assert effective["auto_decompose"] is True
+        assert effective["tdd_mode"] is True
+        assert effective["memory_injection_limit"] == 10
+
+    def test_merge_with_empty_overrides(self) -> None:
+        """When db_overrides is empty dict, returns YAML defaults."""
+        from gobby.config.tasks import merge_workflow_variables
+
+        yaml_defaults = {"auto_decompose": True}
+        effective = merge_workflow_variables(yaml_defaults, {})
+
+        assert effective["auto_decompose"] is True
+
+    def test_merge_partial_overrides(self) -> None:
+        """Partial DB overrides merge correctly with YAML defaults."""
+        from gobby.config.tasks import merge_workflow_variables
+
+        yaml_defaults = {
+            "auto_decompose": True,
+            "tdd_mode": True,
+            "memory_injection_limit": 10,
+        }
+        db_overrides = {"auto_decompose": False}
+
+        effective = merge_workflow_variables(yaml_defaults, db_overrides)
+
+        assert effective["auto_decompose"] is False  # From DB
+        assert effective["tdd_mode"] is True  # From YAML
+        assert effective["memory_injection_limit"] == 10  # From YAML
+
+    def test_merge_full_overrides(self) -> None:
+        """Full DB overrides take precedence."""
+        from gobby.config.tasks import merge_workflow_variables
+
+        yaml_defaults = {
+            "require_task_before_edit": False,
+            "require_commit_before_stop": True,
+            "auto_decompose": True,
+            "tdd_mode": True,
+            "memory_injection_enabled": True,
+            "memory_injection_limit": 10,
+            "session_task": None,
+        }
+        db_overrides = {
+            "require_task_before_edit": True,
+            "require_commit_before_stop": False,
+            "auto_decompose": False,
+            "tdd_mode": False,
+            "memory_injection_enabled": False,
+            "memory_injection_limit": 5,
+            "session_task": "gt-xyz",
+        }
+
+        effective = merge_workflow_variables(yaml_defaults, db_overrides)
+
+        # All should come from DB
+        assert effective["require_task_before_edit"] is True
+        assert effective["require_commit_before_stop"] is False
+        assert effective["auto_decompose"] is False
+        assert effective["tdd_mode"] is False
+        assert effective["memory_injection_enabled"] is False
+        assert effective["memory_injection_limit"] == 5
+        assert effective["session_task"] == "gt-xyz"
+
+    def test_validation_enabled_by_default(self) -> None:
+        """By default, validation is enabled and returns validated model."""
+        from gobby.config.tasks import merge_workflow_variables
+
+        # Should fill in defaults for missing fields
+        effective = merge_workflow_variables({"auto_decompose": False}, None)
+
+        # Should have all fields from model defaults
+        assert "require_task_before_edit" in effective
+        assert "memory_injection_limit" in effective
+
+    def test_validation_rejects_invalid_values(self) -> None:
+        """Invalid values are rejected when validation is enabled."""
+        from gobby.config.tasks import merge_workflow_variables
+
+        with pytest.raises(ValidationError):
+            merge_workflow_variables({"memory_injection_limit": 0})
+
+    def test_validation_disabled_skips_validation(self) -> None:
+        """When validate=False, validation is skipped."""
+        from gobby.config.tasks import merge_workflow_variables
+
+        # Invalid value but with validation disabled
+        effective = merge_workflow_variables(
+            {"memory_injection_limit": 0}, None, validate=False
+        )
+
+        # Should pass through without validation
+        assert effective["memory_injection_limit"] == 0
+
+    def test_returns_dict_for_action_access(self) -> None:
+        """Returns dict that actions can access like effective['key']."""
+        from gobby.config.tasks import merge_workflow_variables
+
+        effective = merge_workflow_variables({"auto_decompose": True})
+
+        # Should be a dict, not a Pydantic model
+        assert isinstance(effective, dict)
+        assert effective["auto_decompose"] is True

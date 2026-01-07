@@ -13,7 +13,7 @@ Contains task-related Pydantic config models:
 Extracted from app.py using Strangler Fig pattern for code decomposition.
 """
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -25,6 +25,7 @@ __all__ = [
     "GobbyTasksConfig",
     "WorkflowConfig",
     "WorkflowVariablesConfig",
+    "merge_workflow_variables",
 ]
 
 
@@ -372,3 +373,52 @@ class WorkflowVariablesConfig(BaseModel):
         if v <= 0:
             raise ValueError("memory_injection_limit must be positive")
         return v
+
+
+def merge_workflow_variables(
+    yaml_defaults: dict[str, Any],
+    db_overrides: dict[str, Any] | None = None,
+    validate: bool = True,
+) -> dict[str, Any]:
+    """Merge workflow YAML defaults with DB session overrides.
+
+    Implements the merge order: YAML defaults → DB overrides → effective config.
+    DB overrides take precedence over YAML defaults.
+
+    Args:
+        yaml_defaults: Variable defaults from workflow YAML definition.
+        db_overrides: Session-specific overrides from DB workflow_states.variables.
+            Can be None if no session state exists.
+        validate: If True, validate merged result through WorkflowVariablesConfig.
+            Invalid values will raise ValidationError.
+
+    Returns:
+        Effective config dict with merged variables that actions can access.
+
+    Raises:
+        ValidationError: If validate=True and merged values fail validation.
+
+    Example:
+        >>> yaml_defaults = {"auto_decompose": True, "tdd_mode": True}
+        >>> db_overrides = {"auto_decompose": False}
+        >>> effective = merge_workflow_variables(yaml_defaults, db_overrides)
+        >>> effective["auto_decompose"]
+        False
+        >>> effective["tdd_mode"]
+        True
+    """
+    # Start with defaults
+    effective = dict(yaml_defaults)
+
+    # Apply DB overrides (takes precedence)
+    if db_overrides:
+        effective.update(db_overrides)
+
+    # Validate through WorkflowVariablesConfig if requested
+    if validate:
+        # This will raise ValidationError for invalid values
+        validated = WorkflowVariablesConfig(**effective)
+        # Return as dict for action access
+        return validated.model_dump()
+
+    return effective
