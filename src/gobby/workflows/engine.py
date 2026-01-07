@@ -1,6 +1,7 @@
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
@@ -111,9 +112,11 @@ class WorkflowEngine:
         # Logic matches WORKFLOWS.md "Evaluation Flow"
 
         # Determine context for evaluation
+        # Use SimpleNamespace for variables so dot notation works (variables.session_task)
         eval_context = {
             "event": event,
             "workflow_state": state,
+            "variables": SimpleNamespace(**state.variables),
             "session": {},  # TODO: Attach session info
             "tool_name": event.data.get("tool_name"),
             "tool_args": event.data.get("tool_args", {}),
@@ -894,10 +897,11 @@ class WorkflowEngine:
             return None
 
         # Build evaluation context
+        # Use SimpleNamespace for variables so dot notation works (variables.session_task)
         eval_context = {
             "workflow_state": state,
             "state": state,
-            "variables": state.variables,
+            "variables": SimpleNamespace(**state.variables),
             "current_step": state.step,
         }
         # Add session variables to context
