@@ -12,12 +12,14 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from gobby.config.app import TaskExpansionConfig
+from gobby.config.app import ProjectVerificationConfig, TaskExpansionConfig
 from gobby.llm import LLMService
 from gobby.storage.task_dependencies import TaskDependencyManager
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.tasks.context import ExpansionContext, ExpansionContextGatherer
+from gobby.tasks.criteria import PatternCriteriaInjector
 from gobby.tasks.prompts.expand import ExpansionPromptBuilder
+from gobby.utils.project_context import get_verification_config
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +45,7 @@ class TaskExpander:
         llm_service: LLMService,
         task_manager: LocalTaskManager,
         mcp_manager: Any | None = None,
+        verification_config: ProjectVerificationConfig | None = None,
     ):
         self.config = config
         self.llm_service = llm_service
@@ -55,6 +58,15 @@ class TaskExpander:
             mcp_manager=mcp_manager,
         )
         self.prompt_builder = ExpansionPromptBuilder(config)
+
+        # Initialize pattern criteria injector
+        # Try to get verification config from project if not provided
+        if verification_config is None:
+            verification_config = get_verification_config()
+        self.criteria_injector = PatternCriteriaInjector(
+            pattern_config=config.pattern_criteria,
+            verification_config=verification_config,
+        )
 
     async def expand_task(
         self,
@@ -143,11 +155,26 @@ class TaskExpander:
             enable_code_context=enable_code_context,
         )
 
+        # Inject pattern-specific criteria based on task labels and description
+        pattern_criteria = self.criteria_injector.inject(
+            task=task_obj,
+            context=expansion_ctx,
+        )
+
+        # Combine user context with pattern criteria if detected
+        combined_instructions = context or ""
+        if pattern_criteria:
+            logger.info(f"Detected patterns for {task_id}, adding pattern-specific criteria")
+            if combined_instructions:
+                combined_instructions += f"\n\n{pattern_criteria}"
+            else:
+                combined_instructions = pattern_criteria
+
         # Build prompt using builder
         prompt = self.prompt_builder.build_user_prompt(
             task=task_obj,
             context=expansion_ctx,
-            user_instructions=context,
+            user_instructions=combined_instructions if combined_instructions else None,
         )
 
         try:
