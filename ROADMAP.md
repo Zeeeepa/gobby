@@ -126,7 +126,7 @@ This document defines the implementation order across all Gobby planning documen
 ═══════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 7.1: Session Message Foundation                                       │
+│ Sprint 7.1: Session Message Foundation ✅ COMPLETED                          │
 │ SESSION_TRACKING Phase 1                                                     │
 │                                                                              │
 │ Deliverable: Database schema, LocalMessageManager, ParsedMessage dataclass  │
@@ -135,7 +135,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 7.2: Async Message Processor                                          │
+│ Sprint 7.2: Async Message Processor ✅ COMPLETED                              │
 │ SESSION_TRACKING Phase 2                                                     │
 │                                                                              │
 │ Deliverable: SessionMessageProcessor with byte-offset polling, debouncing   │
@@ -144,7 +144,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 7.3: Session Tracking Integration                                     │
+│ Sprint 7.3: Session Tracking Integration ✅ COMPLETED                         │
 │ SESSION_TRACKING Phases 3-4                                                  │
 │                                                                              │
 │ Deliverable: Runner/HookManager integration, WebSocket broadcasting         │
