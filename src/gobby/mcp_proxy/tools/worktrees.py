@@ -251,7 +251,6 @@ def create_worktrees_registry(
 
         # Install CLI hooks if provider specified
         # Each CLI needs its own hook configuration with paths pointing to worktree
-        hooks_installed = False
         if provider:
             worktree_path_obj = Path(worktree.worktree_path)
             try:
@@ -278,10 +277,14 @@ def create_worktrees_registry(
 
                     result = install_antigravity(worktree_path_obj)
                     if result["success"]:
-                        logger.info(f"Installed Antigravity hooks in worktree: {worktree.worktree_path}")
+                        logger.info(
+                            f"Installed Antigravity hooks in worktree: {worktree.worktree_path}"
+                        )
                         hooks_installed = True
                     else:
-                        logger.warning(f"Failed to install Antigravity hooks: {result.get('error')}")
+                        logger.warning(
+                            f"Failed to install Antigravity hooks: {result.get('error')}"
+                        )
                 # Note: codex uses CODEX_NOTIFY_SCRIPT env var, not project-level hooks
             except Exception as e:
                 logger.warning(f"Failed to install {provider} hooks in worktree: {e}")
@@ -289,11 +292,7 @@ def create_worktrees_registry(
         return {
             "success": True,
             "worktree_id": worktree.id,
-            "branch_name": worktree.branch_name,
             "worktree_path": worktree.worktree_path,
-            "base_branch": worktree.base_branch,
-            "task_id": worktree.task_id,
-            "status": worktree.status,
             "hooks_installed": hooks_installed,
         }
 
@@ -989,7 +988,9 @@ def create_worktrees_registry(
 
                 result = install_antigravity(worktree_path_obj)
                 if result["success"]:
-                    logger.info(f"Installed Antigravity hooks in worktree: {worktree.worktree_path}")
+                    logger.info(
+                        f"Installed Antigravity hooks in worktree: {worktree.worktree_path}"
+                    )
                 else:
                     logger.warning(f"Failed to install Antigravity hooks: {result.get('error')}")
             # Note: codex uses CODEX_NOTIFY_SCRIPT env var, not project-level hooks

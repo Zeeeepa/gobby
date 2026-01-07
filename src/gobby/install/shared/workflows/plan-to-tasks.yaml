@@ -1,6 +1,6 @@
 name: plan-to-tasks
 description: "Decompose a plan into atomic tasks and execute sequentially with persistent tracking"
-type: stepped
+type: step
 version: "2.0"
 
 variables:

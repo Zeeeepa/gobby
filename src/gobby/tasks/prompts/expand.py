@@ -263,6 +263,14 @@ class ExpansionPromptBuilder:
             for t in context.related_tasks:
                 context_parts.append(f"- {t.title} ({t.status})")
 
+        if context.project_structure:
+            context_parts.append("\n**Project Structure:**")
+            context_parts.append(context.project_structure)
+            context_parts.append(
+                "\n*IMPORTANT: Use these actual paths when referencing files. "
+                "Do NOT invent paths like 'gt/core/' or 'lib/utils/' - only use paths shown above.*"
+            )
+
         context_str = (
             "\n".join(context_parts) if context_parts else "No additional context available."
         )

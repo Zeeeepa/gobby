@@ -52,10 +52,10 @@ def create_skills_registry(
     )
 
     @registry.tool(
-        name="learn_skill_from_session",
+        name="learn_skills_from_session",
         description="Learn skills from a completed session.",
     )
-    async def learn_skill_from_session(session_id: str) -> dict[str, Any]:
+    async def learn_skills_from_session(session_id: str) -> dict[str, Any]:
         """
         Learn skills from a completed session.
 
@@ -83,7 +83,6 @@ def create_skills_registry(
                     {
                         "id": s.id,
                         "name": s.name,
-                        "description": s.description,
                     }
                     for s in skills
                 ],
@@ -136,7 +135,13 @@ def create_skills_registry(
         try:
             skill = storage.get_skill(skill_id)
             if skill:
-                return {"success": True, "skill": skill.to_dict()}
+                return {
+                    "success": True,
+                    "skill": {
+                        "id": skill.id,
+                        "name": skill.name,
+                    },
+                }
             else:
                 return {"success": False, "error": "Skill not found"}
         except Exception as e:
@@ -228,7 +233,13 @@ def create_skills_registry(
                 trigger_pattern=trigger_pattern,
                 tags=tags,
             )
-            return {"success": True, "skill": skill.to_dict()}
+            return {
+                "success": True,
+                "skill": {
+                    "id": skill.id,
+                    "name": skill.name,
+                },
+            }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -264,7 +275,13 @@ def create_skills_registry(
                 trigger_pattern=trigger_pattern,
                 tags=tags,
             )
-            return {"success": True, "skill": skill.to_dict()}
+            return {
+                "success": True,
+                "skill": {
+                    "id": skill.id,
+                    "name": skill.name,
+                },
+            }
         except ValueError as e:
             return {"success": False, "error": str(e)}
         except Exception as e:

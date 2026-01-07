@@ -95,7 +95,7 @@ class WorkflowEngine:
         # Skip if this is a lifecycle-only state (used for task_claimed tracking)
         if state.workflow_name == "__lifecycle__":
             logger.debug(
-                f"Skipping stepped workflow handling for lifecycle state in session {session_id}"
+                f"Skipping step workflow handling for lifecycle state in session {session_id}"
             )
             return HookResponse(decision="allow")
 

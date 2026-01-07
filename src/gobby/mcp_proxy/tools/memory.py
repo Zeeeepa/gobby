@@ -75,10 +75,6 @@ def create_memory_registry(
                 "success": True,
                 "memory": {
                     "id": memory.id,
-                    "content": memory.content,
-                    "type": memory.memory_type,
-                    "importance": memory.importance,
-                    "tags": memory.tags,
                 },
             }
         except Exception as e:
@@ -258,10 +254,6 @@ def create_memory_registry(
                 "success": True,
                 "memory": {
                     "id": memory.id,
-                    "content": memory.content,
-                    "type": memory.memory_type,
-                    "importance": memory.importance,
-                    "tags": memory.tags,
                     "updated_at": memory.updated_at,
                 },
             }

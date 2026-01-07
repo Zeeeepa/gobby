@@ -1,6 +1,6 @@
 name: architect
 description: "BMAD-inspired development: requirements -> design -> implement -> review"
-type: stepped
+type: step
 version: "1.0"
 
 steps:

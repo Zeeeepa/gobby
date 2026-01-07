@@ -1,6 +1,6 @@
 name: test-driven
 description: "Test-Driven Development: Red -> Green -> Refactor"
-type: stepped
+type: step
 version: "1.0"
 
 steps:

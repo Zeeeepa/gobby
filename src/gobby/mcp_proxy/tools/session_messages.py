@@ -123,76 +123,103 @@ def create_session_messages_registry(
     if message_manager is not None:
 
         @registry.tool(
-            name="get_session_messages",
-            description="Get messages for a specific session.",
-        )
-        async def get_session_messages(
-            session_id: str,
-            limit: int = 100,
-            offset: int = 0,
-            role: str | None = None,
-        ) -> dict[str, Any]:
-            """
-            Get messages for a session.
+        name="get_session_messages",
+        description="Get messages for a session.",
+    )
+    async def get_session_messages(
+        session_id: str,
+        limit: int = 50,
+        offset: int = 0,
+        full_content: bool = False,
+    ) -> dict[str, Any]:
+        """
+        Get messages for a session.
 
-            Args:
-                session_id: Session ID
-                limit: Max messages to return (default 100)
-                offset: Pagination offset
-                role: Filter by role (user, assistant, tool)
-
-            Returns:
-                List of messages and total count
-            """
+        Args:
+            session_id: The session ID
+            limit: Max messages to return
+            offset: Offset for pagination
+            full_content: If True, returns full content. If False (default), truncates large content.
+        """
+        try:
             messages = await message_manager.get_messages(
-                session_id=session_id, limit=limit, offset=offset, role=role
+                session_id=session_id,
+                limit=limit,
+                offset=offset,
             )
+            
+            # Truncate content if not full_content
+            if not full_content:
+                for msg in messages:
+                    if "content" in msg and msg["content"] and isinstance(msg["content"], str):
+                        if len(msg["content"]) > 500:
+                            msg["content"] = msg["content"][:500] + "... (truncated)"
+                    
+                    if "tool_calls" in msg and msg["tool_calls"]:
+                        for tc in msg["tool_calls"]:
+                            if "input" in tc and isinstance(tc["input"], str) and len(tc["input"]) > 200:
+                                tc["input"] = tc["input"][:200] + "... (truncated)"
+                                
+                    if "tool_result" in msg and msg["tool_result"]:
+                        tr = msg["tool_result"]
+                        if "content" in tr and isinstance(tr["content"], str) and len(tr["content"]) > 200:
+                            tr["content"] = tr["content"][:200] + "... (truncated)"
+
             session_total = await message_manager.count_messages(session_id)
 
-            result: dict[str, Any] = {
-                "session_id": session_id,
+            return {
+                "success": True,
                 "messages": messages,
                 "total_count": session_total,
                 "returned_count": len(messages),
                 "limit": limit,
                 "offset": offset,
+                "truncated": not full_content,
             }
-
-            # Add role filter info if filtering was applied
-            if role:
-                result["role_filter"] = role
-
-            return result
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
         @registry.tool(
-            name="search_messages",
-            description="Search messages across all sessions using full-text search.",
-        )
-        async def search_messages(
-            query: str,
-            project_id: str | None = None,
-            limit: int = 20,
-        ) -> dict[str, Any]:
-            """
-            Search messages using FTS.
+        name="search_messages",
+        description="Search messages using Full Text Search (FTS).",
+    )
+    def search_messages(
+        query: str,
+        session_id: str | None = None,
+        limit: int = 20,
+        full_content: bool = False,
+    ) -> dict[str, Any]:
+        """
+        Search messages.
 
-            Args:
-                query: Search query
-                project_id: Filter by project (optional)
-                limit: Max results (default 20)
-
-            Returns:
-                List of matching messages with session context
-            """
-            results = await message_manager.search_messages(
-                query_text=query, project_id=project_id, limit=limit
+        Args:
+            query: Search query
+            session_id: Optional session filter
+            limit: Max results
+            full_content: If True, returns full content. If False (default), truncates large content.
+        """
+        try:
+            results = message_manager.search(
+                query=query,
+                session_id=session_id,
+                limit=limit,
             )
-
+            
+            # Truncate content if not full_content
+            if not full_content:
+                for msg in results:
+                    if "content" in msg and msg["content"] and isinstance(msg["content"], str):
+                        if len(msg["content"]) > 500:
+                            msg["content"] = msg["content"][:500] + "... (truncated)"
+                            
             return {
-                "query": query,
-                "count": len(results),
+                "success": True,
                 "results": results,
+                "count": len(results),
+                "truncated": not full_content,
             }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
     # --- Handoff Tools ---
     # Only register if session_manager is available

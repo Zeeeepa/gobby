@@ -34,6 +34,7 @@ class ExpansionContext:
     existing_tests: dict[str, list[str]] | None = None  # module -> [test files]
     function_signatures: dict[str, list[str]] | None = None  # file -> [signatures]
     verification_commands: dict[str, str] | None = None  # name -> command
+    project_structure: str | None = None  # tree view of project directories
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -47,6 +48,7 @@ class ExpansionContext:
             "existing_tests": self.existing_tests,
             "function_signatures": self.function_signatures,
             "verification_commands": self.verification_commands,
+            "project_structure": self.project_structure,
             # We don't include full snippets in dict summary often, but useful for debug
             "snippet_count": len(self.file_snippets),
         }
@@ -145,6 +147,9 @@ class ExpansionContextGatherer:
         # Get verification commands from project config
         verification_commands = self._get_verification_commands()
 
+        # Generate project structure tree
+        project_structure = self._generate_project_structure()
+
         return ExpansionContext(
             task=task,
             related_tasks=related_tasks,
@@ -156,6 +161,7 @@ class ExpansionContextGatherer:
             existing_tests=existing_tests if existing_tests else None,
             function_signatures=function_signatures if function_signatures else None,
             verification_commands=verification_commands if verification_commands else None,
+            project_structure=project_structure,
         )
 
     async def _find_related_tasks(self, task: Task) -> list[Task]:
@@ -540,3 +546,157 @@ class ExpansionContextGatherer:
             except Exception:
                 return f"{arg.arg}: ..."
         return arg.arg
+
+    def _generate_project_structure(self, max_depth: int = 3) -> str | None:
+        """
+        Generate a tree view of the project structure.
+
+        Primary: Uses gitingest (works with any language, respects .gitignore)
+        Fallback: Custom tree builder using pathlib
+
+        This provides context to help the LLM understand where files should
+        be placed, preventing hallucinated paths like 'gt/core/file.py'.
+
+        Args:
+            max_depth: Maximum depth for fallback tree builder
+
+        Returns:
+            Tree view string with file placement guidance, or None if failed.
+        """
+        from pathlib import Path
+
+        root = find_project_root()
+        if not root:
+            return None
+
+        tree = None
+
+        # Primary: Try gitingest
+        try:
+            from gitingest import ingest
+
+            _summary, tree, _content = ingest(str(root))
+        except ImportError:
+            logger.debug("gitingest not installed, using fallback tree builder")
+        except Exception as e:
+            logger.debug(f"gitingest failed ({e}), using fallback tree builder")
+
+        # Fallback: Custom tree builder
+        if not tree:
+            tree = self._build_tree_fallback(root, max_depth)
+
+        if not tree:
+            return None
+
+        lines = ["## Project Structure", "", tree]
+
+        # Add file placement guidance based on common patterns
+        guidance = self._get_file_placement_guidance(root)
+        if guidance:
+            lines.append("")
+            lines.append("## File Placement Guidance")
+            lines.append(guidance)
+
+        return "\n".join(lines)
+
+    def _build_tree_fallback(self, root: Path, max_depth: int = 3) -> str | None:
+        """
+        Fallback tree builder using pathlib when gitingest unavailable.
+
+        Args:
+            root: Project root path
+            max_depth: Maximum depth to traverse
+
+        Returns:
+            Tree string or None
+        """
+        lines: list[str] = []
+
+        # Source directories to include
+        source_dirs = ["src", "lib", "app", "tests"]
+
+        for src_dir in source_dirs:
+            dir_path = root / src_dir
+            if dir_path.exists() and dir_path.is_dir():
+                self._build_tree_recursive(dir_path, root, lines, max_depth=max_depth)
+
+        return "\n".join(lines) if lines else None
+
+    def _build_tree_recursive(
+        self,
+        path: Path,
+        root: Path,
+        lines: list[str],
+        prefix: str = "",
+        max_depth: int = 3,
+        current_depth: int = 0,
+    ) -> None:
+        """Recursively build tree lines for a directory."""
+        if current_depth > max_depth:
+            return
+
+        skip_dirs = {
+            "__pycache__", ".git", ".venv", "venv", "node_modules",
+            ".pytest_cache", ".mypy_cache", "htmlcov", "dist", "build", ".egg-info",
+        }
+
+        rel_path = path.relative_to(root)
+        lines.append(f"{prefix}{rel_path}/")
+
+        try:
+            children = sorted(path.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
+        except PermissionError:
+            return
+
+        dirs = [c for c in children if c.is_dir() and c.name not in skip_dirs]
+
+        for i, child in enumerate(dirs):
+            is_last = i == len(dirs) - 1
+            child_prefix = prefix + ("    " if is_last else "│   ")
+            self._build_tree_recursive(
+                child, root, lines, prefix=child_prefix,
+                max_depth=max_depth, current_depth=current_depth + 1,
+            )
+
+    def _get_file_placement_guidance(self, root: Path) -> str:
+        """
+        Extract file placement guidance from CLAUDE.md or provide defaults.
+
+        Returns guidance string for common file types.
+        """
+        guidance_lines = []
+
+        # Check for CLAUDE.md
+        claude_md = root / "CLAUDE.md"
+        if claude_md.exists():
+            try:
+                content = claude_md.read_text(encoding="utf-8")
+                # Look for architecture or file placement sections
+                if "src/gobby" in content:
+                    # This is a Gobby project - provide specific guidance
+                    guidance_lines.extend(
+                        [
+                            "- Task-related code: `src/gobby/tasks/`",
+                            "- Workflow actions: `src/gobby/workflows/`",
+                            "- MCP tools: `src/gobby/mcp_proxy/tools/`",
+                            "- CLI commands: `src/gobby/cli/`",
+                            "- Storage/DB: `src/gobby/storage/`",
+                            "- Configuration: `src/gobby/config/`",
+                            "- Tests mirror source: `tests/tasks/`, `tests/workflows/`, etc.",
+                        ]
+                    )
+            except Exception:
+                pass
+
+        # Default guidance if CLAUDE.md doesn't provide specific info
+        if not guidance_lines:
+            # Detect common patterns
+            if (root / "src").exists():
+                pkg_dirs = [d.name for d in (root / "src").iterdir() if d.is_dir()]
+                if pkg_dirs:
+                    pkg = pkg_dirs[0]  # Usually the main package
+                    guidance_lines.append(f"- Source code goes in `src/{pkg}/`")
+            if (root / "tests").exists():
+                guidance_lines.append("- Tests go in `tests/` mirroring source structure")
+
+        return "\n".join(guidance_lines)
