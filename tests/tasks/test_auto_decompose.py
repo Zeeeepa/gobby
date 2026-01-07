@@ -978,3 +978,269 @@ class TestNeedsDecompositionStatusTransitions:
         # Parent should auto-transition to open
         parent = task_manager.get_task(parent_id)
         assert parent.status == "open"
+
+
+# =============================================================================
+# Workflow Variable Integration Tests (TDD - gt-5f05d8)
+# =============================================================================
+
+from datetime import UTC, datetime
+from unittest.mock import MagicMock
+
+from gobby.workflows.definitions import WorkflowState
+
+
+@pytest.fixture
+def workflow_state():
+    """Create a workflow state with empty variables."""
+    return WorkflowState(
+        session_id="test-session-123",
+        workflow_name="test-workflow",
+        step="execute",
+        step_entered_at=datetime.now(UTC),
+        variables={},
+    )
+
+
+@pytest.fixture
+def mock_state_manager(workflow_state):
+    """Create mock workflow state manager that returns our test state."""
+    mock = MagicMock()
+    mock.get_state.return_value = workflow_state
+    return mock
+
+
+class TestAutoDecomposeWorkflowVariableDefault:
+    """Tests for default behavior when workflow variable not set."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_defaults_to_auto_decompose_true_when_variable_not_set(
+        self, task_manager, workflow_state
+    ):
+        """When auto_decompose workflow variable is not set, defaults to True."""
+        # Workflow state has no auto_decompose variable
+        assert "auto_decompose" not in workflow_state.variables
+
+        description = """1. First step
+2. Second step
+3. Third step"""
+
+        # Create task using the workflow-aware method
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Test task",
+            description=description,
+            # Not passing auto_decompose - should default to True
+            workflow_state=workflow_state,
+        )
+
+        # Should auto-decompose (default behavior)
+        assert result["auto_decomposed"] is True
+        assert "parent_task" in result
+        assert "subtasks" in result
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_defaults_to_true_when_workflow_state_is_none(self, task_manager):
+        """When no workflow state provided, defaults to auto_decompose=True."""
+        description = """1. First step
+2. Second step
+3. Third step"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Test task",
+            description=description,
+            workflow_state=None,
+        )
+
+        # Should auto-decompose (default behavior)
+        assert result["auto_decomposed"] is True
+
+
+class TestAutoDecomposeWorkflowVariableOverride:
+    """Tests for session-level override via workflow variable."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_session_variable_false_disables_auto_decomposition(
+        self, task_manager, workflow_state
+    ):
+        """Setting auto_decompose=False in workflow disables decomposition."""
+        # Set workflow variable to False
+        workflow_state.variables["auto_decompose"] = False
+
+        description = """1. First step
+2. Second step
+3. Third step"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Test task",
+            description=description,
+            workflow_state=workflow_state,
+        )
+
+        # Should NOT auto-decompose due to session variable
+        assert result["auto_decomposed"] is False
+        assert "task" in result
+        assert result["task"]["status"] == "needs_decomposition"
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_session_variable_true_enables_auto_decomposition(
+        self, task_manager, workflow_state
+    ):
+        """Setting auto_decompose=True in workflow explicitly enables decomposition."""
+        # Set workflow variable to True explicitly
+        workflow_state.variables["auto_decompose"] = True
+
+        description = """1. First step
+2. Second step
+3. Third step"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Test task",
+            description=description,
+            workflow_state=workflow_state,
+        )
+
+        # Should auto-decompose
+        assert result["auto_decomposed"] is True
+        assert "parent_task" in result
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_call_parameter_overrides_session_variable(
+        self, task_manager, workflow_state
+    ):
+        """Individual call parameter overrides session-level setting."""
+        # Session says don't auto-decompose
+        workflow_state.variables["auto_decompose"] = False
+
+        description = """1. First step
+2. Second step
+3. Third step"""
+
+        # But explicit call says do it
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Test task",
+            description=description,
+            auto_decompose=True,  # Explicit override
+            workflow_state=workflow_state,
+        )
+
+        # Call parameter wins
+        assert result["auto_decomposed"] is True
+        assert "parent_task" in result
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_explicit_false_overrides_session_true(self, task_manager, workflow_state):
+        """Explicit auto_decompose=False overrides session True."""
+        # Session says auto-decompose
+        workflow_state.variables["auto_decompose"] = True
+
+        description = """1. First step
+2. Second step
+3. Third step"""
+
+        # But explicit call says don't
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Test task",
+            description=description,
+            auto_decompose=False,  # Explicit override
+            workflow_state=workflow_state,
+        )
+
+        # Call parameter wins
+        assert result["auto_decomposed"] is False
+        assert "task" in result
+
+
+class TestAutoDecomposeWorkflowVariablePersistence:
+    """Tests for workflow variable persistence across calls."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_session_variable_affects_multiple_calls(self, task_manager, workflow_state):
+        """Workflow variable persists and affects subsequent calls."""
+        # Set workflow variable once
+        workflow_state.variables["auto_decompose"] = False
+
+        description = """1. First step
+2. Second step
+3. Third step"""
+
+        # First call
+        result1 = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Task 1",
+            description=description,
+            workflow_state=workflow_state,
+        )
+        assert result1["auto_decomposed"] is False
+
+        # Second call (same workflow state)
+        result2 = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Task 2",
+            description=description,
+            workflow_state=workflow_state,
+        )
+        assert result2["auto_decomposed"] is False
+
+        # Third call - now change the variable
+        workflow_state.variables["auto_decompose"] = True
+        result3 = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Task 3",
+            description=description,
+            workflow_state=workflow_state,
+        )
+        assert result3["auto_decomposed"] is True
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_different_sessions_have_independent_variables(self, task_manager):
+        """Different sessions have independent auto_decompose settings."""
+        state1 = WorkflowState(
+            session_id="session-1",
+            workflow_name="test-workflow",
+            step="execute",
+            step_entered_at=datetime.now(UTC),
+            variables={"auto_decompose": False},
+        )
+        state2 = WorkflowState(
+            session_id="session-2",
+            workflow_name="test-workflow",
+            step="execute",
+            step_entered_at=datetime.now(UTC),
+            variables={"auto_decompose": True},
+        )
+
+        description = """1. First step
+2. Second step
+3. Third step"""
+
+        # Session 1 - should NOT decompose
+        result1 = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Session 1 task",
+            description=description,
+            workflow_state=state1,
+        )
+        assert result1["auto_decomposed"] is False
+
+        # Session 2 - should decompose
+        result2 = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Session 2 task",
+            description=description,
+            workflow_state=state2,
+        )
+        assert result2["auto_decomposed"] is True
