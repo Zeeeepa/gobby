@@ -1,0 +1,145 @@
+# msgspec Evaluation for LLM Response Validation
+
+**Task:** gt-575bca
+**Date:** 2026-01-07
+**Status:** ✅ Recommended for adoption
+
+## Executive Summary
+
+msgspec (v0.20.0) is recommended for replacing manual JSON parsing in LLM response handling. Testing confirms it integrates cleanly with our `extract_json_from_text()` utility and provides significant boilerplate reduction.
+
+## Test Results
+
+### 1. Basic Struct with Enums
+```python
+class IssueType(str, Enum):
+    TEST_FAILURE = "test_failure"
+    LINT_ERROR = "lint_error"
+
+class Issue(msgspec.Struct):
+    type: IssueType
+    severity: IssueSeverity
+    title: str
+    location: str | None = None
+    recurring_count: int = 0
+```
+**Result:** ✅ Enums parsed directly, optional fields work correctly
+
+### 2. Error Message Quality
+
+| Scenario | Error Message |
+|----------|---------------|
+| Invalid enum | `Invalid enum value 'invalid_type' - at $.issues[0].type` |
+| Missing field | `Object missing required field 'title' - at $.issues[0]` |
+| Wrong type | `Expected 'str', got 'int' - at $.issues[0].title` |
+
+**Result:** ✅ Clear errors with JSON path for debugging
+
+### 3. Type Coercion (LLM Quirks)
+
+LLMs sometimes return `"5"` instead of `5`. With `strict=False`:
+- `"5"` → `5` (int) ✅
+- `"3.14"` → `3.14` (float) ✅
+
+**Result:** ✅ Use `strict=False` for LLM responses
+
+### 4. Integration with extract_json_from_text()
+
+```python
+llm_response = '''Here are the issues:
+```json
+{"issues": [{"type": "test_failure", "severity": "major", "title": "Test failed"}]}
+```
+'''
+
+json_str = extract_json_from_text(llm_response)
+result = msgspec.json.decode(json_str, type=ValidationResponse, strict=False)
+```
+**Result:** ✅ Two-step extraction + decode works perfectly
+
+### 5. Nested Backticks (Recent Bug Fix)
+
+JSON with backticks inside strings:
+```json
+{"description": "Output like:\n```\nresult\n```"}
+```
+**Result:** ✅ Works correctly with our fixed extract_json_from_text()
+
+## File Coverage Analysis
+
+### validation_models.py
+- **Current:** 90 lines with manual `to_dict()`/`from_dict()`
+- **With msgspec:** ~35 lines (Struct handles serialization)
+- **Reduction:** 60%
+
+### issue_extraction.py
+- **Current:** 140 lines of manual field validation
+- **With msgspec:** ~30 lines (one decode call)
+- **Reduction:** 80%
+
+### expansion.py
+- **Current:** 50 lines of SubtaskSpec parsing
+- **With msgspec:** ~15 lines
+- **Reduction:** 70%
+
+### external_validator.py
+- **Current:** 60 lines parsing ExternalValidationResult
+- **With msgspec:** ~20 lines
+- **Reduction:** 65%
+
+### spec_parser.py
+- **Current:** 5 dataclasses with manual parsing
+- **With msgspec:** 5 Structs with automatic parsing
+- **Reduction:** 50%
+
+## Compatibility Assessment
+
+### Pydantic Coexistence
+- **Config models:** Keep Pydantic (complex validation, env vars, YAML)
+- **LLM responses:** Use msgspec (simple schemas, performance)
+- **Result:** ✅ No conflicts, different use cases
+
+### Migration Complexity
+- Structs are similar to dataclasses
+- Replace `@dataclass` with `class X(msgspec.Struct)`
+- Remove manual `to_dict()`/`from_dict()` methods
+- Replace parsing loops with single `decode()` call
+- **Result:** ✅ Low complexity, incremental migration possible
+
+## Recommended Implementation
+
+```python
+# Add to gobby/utils/json_helpers.py
+import msgspec
+from typing import TypeVar
+
+T = TypeVar("T")
+
+def decode_llm_response(text: str, response_type: type[T]) -> T | None:
+    """Extract JSON from LLM response and decode to typed struct."""
+    json_str = extract_json_from_text(text)
+    if not json_str:
+        return None
+    try:
+        return msgspec.json.decode(json_str, type=response_type, strict=False)
+    except msgspec.ValidationError as e:
+        logger.warning(f"Invalid LLM response: {e}")
+        return None
+```
+
+## Decision
+
+**✅ ADOPT msgspec for LLM response validation**
+
+### Rationale
+1. 60-80% reduction in parsing boilerplate
+2. Clear error messages with JSON paths
+3. Handles LLM quirks with `strict=False`
+4. Integrates cleanly with existing code
+5. No conflicts with Pydantic config
+
+### Migration Priority
+1. `validation_models.py` + `issue_extraction.py` (highest impact)
+2. `expansion.py` (SubtaskSpec)
+3. `external_validator.py`
+4. `spec_parser.py` (lowest priority, most complex)
