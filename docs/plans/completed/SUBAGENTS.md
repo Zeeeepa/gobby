@@ -7,6 +7,7 @@ Enable agents to spawn independent subagents from within a session. Subagents ca
 Key insight: **The parent agent doesn't need to implement subtasks itself** - it can delegate to specialized subagents that follow workflows, use different providers, and report results back.
 
 Inspired by:
+
 - Claude Code's Task tool (subagent spawning)
 - Worktree parallelization patterns
 - Multi-agent orchestration systems
@@ -16,25 +17,32 @@ Inspired by:
 ## Use Cases
 
 ### Provider Diversity
+
 Use the best model for each task:
+
 - Gemini for research and web search
 - Claude for code generation
 - Codex for backend implementation
 - OpenRouter for cost-effective subtasks
 
 ### Parallel Development
+
 Spawn agents in separate worktrees:
+
 - Frontend agent (Gemini) → `feature/ui`
 - Backend agent (Codex) → `feature/api`
 - Test agent (Claude) → `feature/tests`
 
 ### Workflow Enforcement
+
 Subagent follows a workflow definition:
+
 - Tool restrictions per step
 - Exit conditions with validation
 - Structured completion via `complete()` tool
 
 ### Cost Optimization
+
 Delegate routine tasks to cheaper models while the orchestrator uses a more capable model.
 
 ---
@@ -458,6 +466,7 @@ class AgentExecutor(ABC):
 ```
 
 Provider implementations:
+
 - **ClaudeExecutor**: Refactor from `ClaudeLLMProvider.generate_with_mcp_tools()` (src/gobby/llm/claude.py:453-615)
 - **GeminiExecutor**: Use Gemini function calling API
 - **CodexExecutor**: Use Codex tool use API
@@ -597,6 +606,7 @@ settings:
 ### Tool Filtering for Subagents
 
 Subagents automatically have `start_agent` blocked unless workflow explicitly allows. They always have access to:
+
 - `complete` - signal completion
 - `list_agents` - see sibling agents (read-only)
 - Workflow-allowed tools
@@ -667,6 +677,7 @@ Bridge the gap between the current low-level implementation and the planned user
 Update `start_agent` MCP tool to match the planned API from the spec.
 
 **Current signature (low-level):**
+
 ```python
 start_agent(
     prompt, parent_session_id, project_id, machine_id, source,
@@ -675,6 +686,7 @@ start_agent(
 ```
 
 **Target signature (user-facing):**
+
 ```python
 start_agent(
     prompt: str,
@@ -705,6 +717,7 @@ start_agent(
 Implement `ContextResolver` to fetch and format context for subagent injection.
 
 **Context Sources:**
+
 | Source | Format | Description |
 |--------|--------|-------------|
 | `summary_markdown` | Default | Parent session's `summary_markdown` field |
@@ -785,6 +798,7 @@ Define how resolved context is prepended to the agent prompt.
 Split `AgentRunner.run()` into `prepare_run()` + `execute_run()` to enable terminal mode.
 
 **Why this split?**
+
 - `prepare_run()` creates database state: child session, agent_run record, workflow state
 - `execute_run()` runs the executor loop
 - Terminal mode: calls `prepare_run()`, then spawns terminal that picks up from session via hooks
@@ -886,14 +900,18 @@ agents:
 
 ---
 
-### Phase 3: Multi-Provider Support
+### Phase 3: Multi-Provider Support ✅ COMPLETED
+
+> **Status**: All AgentExecutor implementations complete.
 
 Create additional AgentExecutor implementations for provider diversity.
 
-- [ ] Create `GeminiExecutor` using Gemini function calling
-- [ ] Create `LiteLLMExecutor` using OpenAI-compatible API
-- [ ] Create `CodexExecutor` (if Codex supports tool use)
-- [ ] Implement provider resolution (workflow → config → default)
+- [x] Create `GeminiExecutor` using Gemini function calling
+- [x] Create `LiteLLMExecutor` using OpenAI-compatible API
+- [x] Create `CodexExecutor` with dual-mode support:
+  - **api_key mode**: OpenAI API function calling with full tool injection
+  - **subscription mode**: Codex CLI spawning (`codex exec --json`), no custom tools
+- [x] Implement provider resolution (workflow → config → default)
 
 ### Phase 4: Worktree Management ✅ COMPLETED
 
@@ -921,6 +939,7 @@ Daemon-managed worktree registry with agent assignment, status tracking, and coo
 Agent spawning supports three execution modes and cross-platform terminals:
 
 **Execution Modes:**
+
 | Mode | Description | Use Case |
 |------|-------------|----------|
 | `terminal` | Spawn external terminal window | CLI users, full terminal features |
@@ -928,6 +947,7 @@ Agent spawning supports three execution modes and cross-platform terminals:
 | `headless` | Daemon captures output, no terminal | Background agents, CI/CD |
 
 **Cross-Platform Terminal Support:**
+
 | Terminal | macOS | Linux | Windows |
 |----------|-------|-------|---------|
 | ghostty | `open -na ghostty --args -e` | `ghostty -e` | ❌ |
@@ -941,6 +961,7 @@ Agent spawning supports three execution modes and cross-platform terminals:
 | cmd | ❌ | ❌ | `start cmd /k` |
 
 **Implementation Tasks:**
+
 - [x] Create `src/gobby/agents/spawn.py` with `TerminalSpawner` class
 - [x] Implement `SpawnMode` enum (terminal, embedded, headless)
 - [x] Implement macOS spawners (Ghostty, iTerm, Terminal.app, kitty)
@@ -1014,7 +1035,7 @@ Add CLI command groups for agents and worktrees.
 
 ### Phase 7: Testing ✅ COMPLETED
 
-> **Status**: 120/120 tests passing. All tests implemented.
+> **Status**: 470 tests passing. All tests implemented.
 
 - [x] Unit tests for AgentExecutor implementations (all providers)
 - [x] Unit tests for AgentRunner
@@ -1027,9 +1048,9 @@ Add CLI command groups for agents and worktrees.
 - [x] Integration tests for worktree lifecycle
 - [x] Fix `test_rejects_outside_project` test failure (error message mismatch)
 
-### Phase 8: Documentation ⏳ IN PROGRESS
+### Phase 8: Documentation ✅ COMPLETED
 
-> **Status**: CLAUDE.md updated. Remaining items pending.
+> **Status**: All documentation tasks completed.
 
 - [x] Update CLAUDE.md with gobby-agents section
 - [x] Update CLAUDE.md with gobby-worktrees section
