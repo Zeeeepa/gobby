@@ -795,3 +795,186 @@ class TestCreateTaskAutoDecomposeEdgeCases:
         # Parent becomes epic when it has subtasks
         parent = result["parent_task"]
         assert parent["type"] in ("epic", "feature")  # Implementation may vary
+
+
+# =============================================================================
+# needs_decomposition Status Tests (TDD - gt-490145)
+# =============================================================================
+
+
+class TestNeedsDecompositionStatusValidation:
+    """Tests for needs_decomposition status recognition and validation."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_needs_decomposition_is_valid_status(self, task_manager):
+        """needs_decomposition should be a recognized task status."""
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Test task",
+        )
+        # Should be able to update to needs_decomposition
+        updated = task_manager.update_task(task.id, status="needs_decomposition")
+        assert updated.status == "needs_decomposition"
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_list_tasks_includes_needs_decomposition_status(self, task_manager):
+        """Tasks with needs_decomposition status should appear in list_tasks."""
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Multi-step task",
+        )
+        task_manager.update_task(task.id, status="needs_decomposition")
+
+        # List all tasks - should include needs_decomposition
+        tasks = task_manager.list_tasks(project_id="test-project")
+        task_ids = [t.id for t in tasks]
+        assert task.id in task_ids
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_list_tasks_filters_by_needs_decomposition_status(self, task_manager):
+        """list_tasks should support filtering by needs_decomposition status."""
+        task1 = task_manager.create_task(
+            project_id="test-project",
+            title="Needs decomposition",
+        )
+        task_manager.update_task(task1.id, status="needs_decomposition")
+
+        task2 = task_manager.create_task(
+            project_id="test-project",
+            title="Normal task",
+        )
+
+        # Filter by needs_decomposition status
+        tasks = task_manager.list_tasks(project_id="test-project", status="needs_decomposition")
+        assert len(tasks) == 1
+        assert tasks[0].id == task1.id
+
+
+class TestNeedsDecompositionClaimBlocking:
+    """Tests for blocking claim on needs_decomposition tasks."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_cannot_claim_needs_decomposition_task(self, task_manager):
+        """Tasks with needs_decomposition status cannot be claimed (set to in_progress)."""
+        description = """1. Step one
+2. Step two
+3. Step three"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Multi-step",
+            description=description,
+            auto_decompose=False,
+        )
+        task_id = result["task"]["id"]
+
+        # Attempting to claim (set to in_progress) should fail
+        with pytest.raises(ValueError) as exc_info:
+            task_manager.update_task(task_id, status="in_progress")
+
+        assert "decompos" in str(exc_info.value).lower()
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_claim_error_message_indicates_decomposition_required(self, task_manager):
+        """Error message should indicate task must be decomposed first."""
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Big task",
+        )
+        task_manager.update_task(task.id, status="needs_decomposition")
+
+        try:
+            task_manager.update_task(task.id, status="in_progress")
+            pytest.fail("Expected ValueError")
+        except ValueError as e:
+            error_msg = str(e).lower()
+            assert "decompos" in error_msg or "subtask" in error_msg
+
+
+class TestNeedsDecompositionStatusTransitions:
+    """Tests for status transitions involving needs_decomposition."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_can_transition_to_open_after_decomposition(self, task_manager):
+        """needs_decomposition task can transition to open after adding subtasks."""
+        parent = task_manager.create_task(
+            project_id="test-project",
+            title="Parent task",
+        )
+        task_manager.update_task(parent.id, status="needs_decomposition")
+
+        # Create a subtask
+        task_manager.create_task(
+            project_id="test-project",
+            title="Subtask",
+            parent_task_id=parent.id,
+        )
+
+        # Now should be able to transition to open
+        updated = task_manager.update_task(parent.id, status="open")
+        assert updated.status == "open"
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_cannot_directly_transition_to_in_progress(self, task_manager):
+        """needs_decomposition cannot transition directly to in_progress."""
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Task",
+        )
+        task_manager.update_task(task.id, status="needs_decomposition")
+
+        with pytest.raises(ValueError):
+            task_manager.update_task(task.id, status="in_progress")
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_cannot_directly_transition_to_closed(self, task_manager):
+        """needs_decomposition cannot transition directly to closed."""
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Task",
+        )
+        task_manager.update_task(task.id, status="needs_decomposition")
+
+        with pytest.raises(ValueError):
+            task_manager.update_task(task.id, status="closed")
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_auto_transition_to_open_when_subtasks_created(self, task_manager):
+        """Task should auto-transition from needs_decomposition to open when subtasks added."""
+        description = """1. First step
+2. Second step
+3. Third step"""
+
+        # Create with auto_decompose=False (gets needs_decomposition status)
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Parent",
+            description=description,
+            auto_decompose=False,
+        )
+        parent_id = result["task"]["id"]
+
+        # Verify it's in needs_decomposition
+        parent = task_manager.get_task(parent_id)
+        assert parent.status == "needs_decomposition"
+
+        # Now decompose it by creating subtasks
+        for i in range(3):
+            task_manager.create_task(
+                project_id="test-project",
+                title=f"Subtask {i+1}",
+                parent_task_id=parent_id,
+            )
+
+        # Parent should auto-transition to open
+        parent = task_manager.get_task(parent_id)
+        assert parent.status == "open"
