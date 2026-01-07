@@ -304,7 +304,11 @@ class WorkflowLoader:
             If valid, returns (True, None).
             If invalid, returns (False, error_message).
         """
-        workflow = self.load_workflow(workflow_name, project_path=project_path)
+        try:
+            workflow = self.load_workflow(workflow_name, project_path=project_path)
+        except ValueError as e:
+            # Circular inheritance or other workflow loading errors
+            return False, f"Failed to load workflow '{workflow_name}': {e}"
 
         if not workflow:
             # Workflow not found - let the caller decide if this is an error

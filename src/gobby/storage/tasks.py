@@ -356,24 +356,24 @@ class LocalTaskManager:
                         ),
                     )
 
-                logger.debug(f"Created task {task_id} in project {project_id}")
+                    logger.debug(f"Created task {task_id} in project {project_id}")
 
-                # Auto-transition parent from needs_decomposition to open
-                if parent_task_id:
-                    parent = self.db.fetchone(
-                        "SELECT status FROM tasks WHERE id = ?",
-                        (parent_task_id,),
-                    )
-                    if parent and parent["status"] == "needs_decomposition":
-                        now = datetime.now(UTC).isoformat()
-                        conn.execute(
-                            "UPDATE tasks SET status = 'open', updated_at = ? WHERE id = ?",
-                            (now, parent_task_id),
+                    # Auto-transition parent from needs_decomposition to open
+                    if parent_task_id:
+                        parent = self.db.fetchone(
+                            "SELECT status FROM tasks WHERE id = ?",
+                            (parent_task_id,),
                         )
-                        logger.debug(
-                            f"Auto-transitioned parent task {parent_task_id} from "
-                            "needs_decomposition to open"
-                        )
+                        if parent and parent["status"] == "needs_decomposition":
+                            transition_now = datetime.now(UTC).isoformat()
+                            conn.execute(
+                                "UPDATE tasks SET status = 'open', updated_at = ? WHERE id = ?",
+                                (transition_now, parent_task_id),
+                            )
+                            logger.debug(
+                                f"Auto-transitioned parent task {parent_task_id} from "
+                                "needs_decomposition to open"
+                            )
 
                 self._notify_listeners()
                 return self.get_task(task_id)

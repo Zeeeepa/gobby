@@ -8,6 +8,7 @@ using LLM providers with structured JSON output.
 import asyncio
 import json
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -463,9 +464,30 @@ class TaskExpander:
             desc_lower = (spec.description or "").lower()
             for _file_path, signatures in context.function_signatures.items():
                 for sig in signatures:
-                    # Check if this function is mentioned in the subtask
-                    func_name = sig.split("(")[0].split()[-1] if "(" in sig else sig.split()[-1]
-                    if func_name.lower() in desc_lower:
+                    if not sig:
+                        continue
+                    # Extract function name robustly using regex
+                    # Handles: "def func_name(", "async def func_name(", "func_name("
+                    func_name = None
+                    # Try regex patterns first
+                    match = re.search(r"(?:async\s+)?def\s+(\w+)", sig)
+                    if match:
+                        func_name = match.group(1)
+                    else:
+                        # Fallback: try to get name before first paren
+                        match = re.search(r"(\w+)\s*\(", sig)
+                        if match:
+                            func_name = match.group(1)
+                        else:
+                            # Last resort: use existing split logic
+                            try:
+                                func_name = (
+                                    sig.split("(")[0].split()[-1] if "(" in sig else sig.split()[-1]
+                                )
+                            except (IndexError, AttributeError):
+                                continue
+
+                    if func_name and func_name.lower() in desc_lower:
                         criteria_parts.append(
                             f"## Function Integrity\n\n"
                             f"- [ ] `{func_name}` signature preserved or updated as intended"

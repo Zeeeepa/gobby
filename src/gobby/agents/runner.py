@@ -282,31 +282,8 @@ class AgentRunner:
         # Get effective workflow name (prefers 'workflow' over legacy 'workflow_name')
         effective_workflow = config.get_effective_workflow()
 
-        # Create child session
-        try:
-            child_session = self._child_session_manager.create_child_session(
-                ChildSessionConfig(
-                    parent_session_id=parent_session_id,
-                    project_id=project_id,
-                    machine_id=machine_id,
-                    source=config.source,
-                    workflow_name=effective_workflow,
-                    title=config.title,
-                    git_branch=config.git_branch,
-                )
-            )
-        except ValueError as e:
-            self.logger.error(f"Failed to create child session: {e}")
-            return AgentResult(
-                output="",
-                status="error",
-                error=str(e),
-                turns_used=0,
-            )
-
-        # Load workflow definition if specified
+        # Validate workflow BEFORE creating child session to avoid orphaned sessions
         workflow_definition = None
-        workflow_state = None
         if effective_workflow:
             workflow_definition = self._workflow_loader.load_workflow(
                 effective_workflow,
@@ -329,40 +306,66 @@ class AgentRunner:
                         turns_used=0,
                     )
 
-                self.logger.info(
-                    f"Loaded workflow '{effective_workflow}' for agent "
-                    f"(type={workflow_definition.type})"
-                )
-
-                # Initialize workflow state for child session
-                initial_step = ""
-                if workflow_definition.steps:
-                    initial_step = workflow_definition.steps[0].name
-
-                # Build initial variables with agent depth information
-                initial_variables = dict(workflow_definition.variables)
-                initial_variables["agent_depth"] = child_session.agent_depth
-                initial_variables["max_agent_depth"] = self._child_session_manager.max_agent_depth
-                initial_variables["can_spawn"] = (
-                    child_session.agent_depth < self._child_session_manager.max_agent_depth
-                )
-                initial_variables["parent_session_id"] = parent_session_id
-
-                workflow_state = WorkflowState(
-                    session_id=child_session.id,
+        # Create child session (now safe - workflow validated above)
+        try:
+            child_session = self._child_session_manager.create_child_session(
+                ChildSessionConfig(
+                    parent_session_id=parent_session_id,
+                    project_id=project_id,
+                    machine_id=machine_id,
+                    source=config.source,
                     workflow_name=effective_workflow,
-                    step=initial_step,
-                    variables=initial_variables,
+                    title=config.title,
+                    git_branch=config.git_branch,
                 )
-                self._workflow_state_manager.save_state(workflow_state)
-                self.logger.info(
-                    f"Initialized workflow state for child session {child_session.id} "
-                    f"(step={initial_step}, agent_depth={child_session.agent_depth})"
-                )
-            else:
-                self.logger.warning(
-                    f"Workflow '{effective_workflow}' not found, proceeding without workflow"
-                )
+            )
+        except ValueError as e:
+            self.logger.error(f"Failed to create child session: {e}")
+            return AgentResult(
+                output="",
+                status="error",
+                error=str(e),
+                turns_used=0,
+            )
+
+        # Initialize workflow state if workflow was loaded
+        workflow_state = None
+        if workflow_definition:
+            self.logger.info(
+                f"Loaded workflow '{effective_workflow}' for agent "
+                f"(type={workflow_definition.type})"
+            )
+
+            # Initialize workflow state for child session
+            initial_step = ""
+            if workflow_definition.steps:
+                initial_step = workflow_definition.steps[0].name
+
+            # Build initial variables with agent depth information
+            initial_variables = dict(workflow_definition.variables)
+            initial_variables["agent_depth"] = child_session.agent_depth
+            initial_variables["max_agent_depth"] = self._child_session_manager.max_agent_depth
+            initial_variables["can_spawn"] = (
+                child_session.agent_depth < self._child_session_manager.max_agent_depth
+            )
+            initial_variables["parent_session_id"] = parent_session_id
+
+            workflow_state = WorkflowState(
+                session_id=child_session.id,
+                workflow_name=effective_workflow,
+                step=initial_step,
+                variables=initial_variables,
+            )
+            self._workflow_state_manager.save_state(workflow_state)
+            self.logger.info(
+                f"Initialized workflow state for child session {child_session.id} "
+                f"(step={initial_step}, agent_depth={child_session.agent_depth})"
+            )
+        elif effective_workflow:
+            # workflow_definition is None but effective_workflow was specified
+            self.logger.warning(
+                f"Workflow '{effective_workflow}' not found, proceeding without workflow"
+            )
 
         # Create agent run record
         agent_run = self._run_storage.create(

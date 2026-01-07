@@ -872,7 +872,7 @@ def create_worktrees_registry(
         parent_session_id: str | None = None,
         mode: str = "terminal",  # Note: in_process mode is not supported
         terminal: str = "auto",
-        provider: str = "claude",
+        provider: Literal["claude", "gemini", "codex", "antigravity"] = "claude",
         model: str | None = None,
         workflow: str | None = None,
         timeout: float = 120.0,
