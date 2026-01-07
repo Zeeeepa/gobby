@@ -62,6 +62,7 @@ class WorkflowStateManager:
                 updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(session_id) DO UPDATE SET
+                workflow_name = excluded.workflow_name,
                 step = excluded.step,
                 step_entered_at = excluded.step_entered_at,
                 step_action_count = excluded.step_action_count,
