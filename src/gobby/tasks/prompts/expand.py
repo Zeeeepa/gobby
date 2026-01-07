@@ -201,6 +201,17 @@ class ExpansionPromptBuilder:
                 "update the existing test files rather than creating new ones.*"
             )
 
+        if context.function_signatures:
+            context_parts.append("\n**Functions Being Modified:**")
+            for file_path, signatures in context.function_signatures.items():
+                context_parts.append(f"- {file_path}:")
+                for sig in signatures:
+                    context_parts.append(f"  - `{sig}`")
+            context_parts.append(
+                "\n*Note: Reference these signatures in validation criteria "
+                "to ensure functions are preserved or properly refactored.*"
+            )
+
         if context.project_patterns:
             context_parts.append("\n**Project Patterns:**")
             for k, v in context.project_patterns.items():

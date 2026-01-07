@@ -5,6 +5,9 @@ This module provides tools to gather relevant context from the codebase and
 project state to inform the task expansion process.
 """
 
+from __future__ import annotations
+
+import ast
 import asyncio
 import itertools
 import logging
@@ -29,6 +32,7 @@ class ExpansionContext:
     agent_findings: str = ""
     web_research: list[dict[str, Any]] | None = None
     existing_tests: dict[str, list[str]] | None = None  # module -> [test files]
+    function_signatures: dict[str, list[str]] | None = None  # file -> [signatures]
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -40,6 +44,7 @@ class ExpansionContext:
             "agent_findings": self.agent_findings,
             "web_research": self.web_research,
             "existing_tests": self.existing_tests,
+            "function_signatures": self.function_signatures,
             # We don't include full snippets in dict summary often, but useful for debug
             "snippet_count": len(self.file_snippets),
         }
@@ -132,6 +137,9 @@ class ExpansionContextGatherer:
         python_files = [f for f in relevant_files if f.endswith(".py")]
         existing_tests = self.discover_existing_tests(python_files) if python_files else {}
 
+        # Extract function signatures from Python files
+        function_signatures = self.extract_signatures(python_files) if python_files else {}
+
         return ExpansionContext(
             task=task,
             related_tasks=related_tasks,
@@ -141,6 +149,7 @@ class ExpansionContextGatherer:
             agent_findings=agent_findings,
             web_research=web_research,
             existing_tests=existing_tests if existing_tests else None,
+            function_signatures=function_signatures if function_signatures else None,
         )
 
     async def _find_related_tasks(self, task: Task) -> list[Task]:
@@ -328,3 +337,166 @@ class ExpansionContextGatherer:
             import_path = import_path[:-9]
 
         return import_path if import_path else None
+
+    def extract_signatures(self, file_paths: list[str]) -> dict[str, list[str]]:
+        """
+        Extract function and class signatures from Python files using AST.
+
+        Args:
+            file_paths: List of file paths (e.g., ['src/gobby/tasks/expansion.py'])
+
+        Returns:
+            Dict mapping file path to list of signatures:
+            {
+                'src/gobby/tasks/expansion.py': [
+                    'class TaskExpander',
+                    'def expand_task(self, task_id: str, ...) -> dict[str, Any]',
+                    'def _parse_subtasks(self, response: str) -> list[SubtaskSpec]',
+                ]
+            }
+        """
+        result: dict[str, list[str]] = {}
+        root = find_project_root()
+        if not root:
+            return result
+
+        for file_path in file_paths:
+            # Only process Python files
+            if not file_path.endswith(".py"):
+                continue
+
+            full_path = root / file_path
+            if not full_path.exists() or not full_path.is_file():
+                continue
+
+            try:
+                with open(full_path, encoding="utf-8") as f:
+                    source = f.read()
+
+                tree = ast.parse(source)
+                signatures = self._extract_signatures_from_ast(tree)
+
+                if signatures:
+                    result[file_path] = signatures
+                    logger.debug(f"Extracted {len(signatures)} signatures from {file_path}")
+
+            except SyntaxError as e:
+                logger.warning(f"Syntax error parsing {file_path}: {e}")
+            except Exception as e:
+                logger.warning(f"Error extracting signatures from {file_path}: {e}")
+
+        return result
+
+    def _extract_signatures_from_ast(self, tree: ast.AST) -> list[str]:
+        """
+        Extract signatures from an AST tree.
+
+        Args:
+            tree: Parsed AST tree
+
+        Returns:
+            List of signature strings
+        """
+        signatures: list[str] = []
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                # Class signature
+                bases = ", ".join(self._get_base_names(node))
+                if bases:
+                    signatures.append(f"class {node.name}({bases})")
+                else:
+                    signatures.append(f"class {node.name}")
+
+            elif isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                # Function signature with type hints
+                sig = self._format_function_signature(node)
+                signatures.append(sig)
+
+        return signatures
+
+    def _get_base_names(self, class_node: ast.ClassDef) -> list[str]:
+        """Get base class names from a ClassDef node."""
+        names: list[str] = []
+        for base in class_node.bases:
+            if isinstance(base, ast.Name):
+                names.append(base.id)
+            elif isinstance(base, ast.Attribute):
+                # Handle cases like module.Class
+                names.append(ast.unparse(base))
+            elif isinstance(base, ast.Subscript):
+                # Handle generics like Generic[T]
+                names.append(ast.unparse(base))
+        return names
+
+    def _format_function_signature(
+        self, func_node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> str:
+        """
+        Format a function signature with type hints.
+
+        Args:
+            func_node: Function AST node
+
+        Returns:
+            Formatted signature string like 'def foo(x: int, y: str) -> bool'
+        """
+        prefix = "async def" if isinstance(func_node, ast.AsyncFunctionDef) else "def"
+        name = func_node.name
+
+        # Format arguments
+        args_parts: list[str] = []
+
+        # Handle positional-only args (Python 3.8+)
+        for arg in func_node.args.posonlyargs:
+            args_parts.append(self._format_arg(arg))
+        if func_node.args.posonlyargs:
+            args_parts.append("/")
+
+        # Regular args
+        num_defaults = len(func_node.args.defaults)
+        num_args = len(func_node.args.args)
+        for i, arg in enumerate(func_node.args.args):
+            default_idx = i - (num_args - num_defaults)
+            if default_idx >= 0:
+                args_parts.append(f"{self._format_arg(arg)}=...")
+            else:
+                args_parts.append(self._format_arg(arg))
+
+        # *args
+        if func_node.args.vararg:
+            args_parts.append(f"*{self._format_arg(func_node.args.vararg)}")
+        elif func_node.args.kwonlyargs:
+            args_parts.append("*")
+
+        # Keyword-only args
+        for i, arg in enumerate(func_node.args.kwonlyargs):
+            if func_node.args.kw_defaults[i] is not None:
+                args_parts.append(f"{self._format_arg(arg)}=...")
+            else:
+                args_parts.append(self._format_arg(arg))
+
+        # **kwargs
+        if func_node.args.kwarg:
+            args_parts.append(f"**{self._format_arg(func_node.args.kwarg)}")
+
+        args_str = ", ".join(args_parts)
+
+        # Return type annotation
+        return_annotation = ""
+        if func_node.returns:
+            try:
+                return_annotation = f" -> {ast.unparse(func_node.returns)}"
+            except Exception:
+                return_annotation = " -> ..."
+
+        return f"{prefix} {name}({args_str}){return_annotation}"
+
+    def _format_arg(self, arg: ast.arg) -> str:
+        """Format a function argument with optional type annotation."""
+        if arg.annotation:
+            try:
+                return f"{arg.arg}: {ast.unparse(arg.annotation)}"
+            except Exception:
+                return f"{arg.arg}: ..."
+        return arg.arg
