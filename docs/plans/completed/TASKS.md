@@ -520,9 +520,8 @@ gobby tasks blocked
 gobby tasks sync [--import] [--export]
 gobby tasks sync --status
 
-# Git hooks
-gobby tasks hooks install                # Install pre-commit, post-merge hooks
-gobby tasks hooks uninstall
+# Git hooks (installed via `gobby install`)
+# See cli/installers/git_hooks.py for implementation
 
 # Compaction (memory decay)
 gobby tasks compact --analyze            # List candidates (closed 30+ days)
@@ -839,12 +838,12 @@ task_validation:
 ### Phase 9: Hook & Git Integration
 
 - [ ] Add task context to session hooks
-- [ ] Implement `gobby tasks hooks install` command
-- [ ] Create git pre-commit hook (export before commit)
-- [ ] Create git post-merge hook (import after pull)
-- [ ] Create git post-checkout hook (import on branch switch)
-- [ ] Add `gobby install --git-hooks` option for git hook installation
-- [ ] Document git hook setup
+- [x] ~~Implement `gobby tasks hooks install` command~~ (removed; use `gobby install`)
+- [x] Create git pre-commit hook (export before commit)
+- [x] Create git post-merge hook (import after pull)
+- [x] Create git post-checkout hook (import on branch switch)
+- [x] Add `gobby install` for git hook installation
+- [x] Document git hook setup
 
 ### Phase 9.5: Compaction (Memory Decay)
 

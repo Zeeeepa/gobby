@@ -502,7 +502,7 @@ Sprint 31 (Web Dashboard - can start after Sprint 1)
 - [x] Escalation workflow ✅
 - **Value**: Production-grade QA loops with traceability
 - **Remaining**:
-  - [ ] Git hook integration (`gobby tasks hooks install`, pre-commit/post-merge hooks)
+  - [x] Git hook integration (via `gobby install`, pre-commit/post-merge hooks)
   - [ ] External validator agent (separate agent when `use_external_validator=true`)
   - [ ] Agent instructions (CLAUDE.md injection templates)
   - [ ] CLI commands: `gobby tasks reopen`, `gobby tasks dep add/remove/tree/cycles`, `gobby tasks ready/blocked`, `gobby tasks stats`

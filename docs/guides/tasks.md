@@ -302,11 +302,7 @@ Tasks automatically sync to `.gobby/tasks.jsonl`:
 Install git hooks for automatic task sync on commits and branch changes:
 
 ```bash
-# Install via tasks CLI
-gobby tasks hooks install
-
-# Or via main install command
-gobby install --git-hooks
+gobby install
 ```
 
 **Hooks installed:**
@@ -316,14 +312,7 @@ gobby install --git-hooks
 | `post-merge` | After pull/merge | Import tasks from JSONL |
 | `post-checkout` | On branch switch | Import tasks from JSONL |
 
-**Manage hooks:**
-```bash
-# Check status
-gobby tasks hooks status
-
-# Remove hooks
-gobby tasks hooks uninstall
-```
+The installer chains with existing hooks (preserving pre-commit framework if present) and creates backups before modification.
 
 This ensures tasks stay in sync with your git branches without manual intervention.
 
@@ -445,11 +434,6 @@ gobby tasks blocked
 
 # Sync
 gobby tasks sync [--import] [--export]
-
-# Git Hooks
-gobby tasks hooks install              # Install git hooks for auto-sync
-gobby tasks hooks uninstall            # Remove git hooks
-gobby tasks hooks status               # Check hook installation status
 
 # Expansion
 gobby tasks expand TASK_ID [--strategy S]
