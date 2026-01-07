@@ -16,6 +16,7 @@ import yaml
 from pydantic import BaseModel, Field, field_validator
 
 # Re-export from extracted modules (Strangler Fig pattern for backwards compatibility)
+from gobby.config.llm_providers import LLMProviderConfig, LLMProvidersConfig
 from gobby.config.logging import LoggingSettings
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 
@@ -447,79 +448,7 @@ class GobbyTasksConfig(BaseModel):
     )
 
 
-class LLMProviderConfig(BaseModel):
-    """Configuration for a single LLM provider."""
-
-    models: str = Field(
-        description="Comma-separated list of available models for this provider",
-    )
-    auth_mode: Literal["subscription", "api_key", "adc"] = Field(
-        default="subscription",
-        description="Authentication mode: 'subscription' (CLI-based), 'api_key' (BYOK), 'adc' (Google ADC)",
-    )
-
-    def get_models_list(self) -> list[str]:
-        """Return models as a list."""
-        return [m.strip() for m in self.models.split(",") if m.strip()]
-
-
-class LLMProvidersConfig(BaseModel):
-    """
-    Configuration for multiple LLM providers.
-
-    Example YAML:
-    ```yaml
-    llm_providers:
-      claude:
-        models: claude-haiku-4-5,claude-sonnet-4-5,claude-opus-4-5
-      codex:
-        models: gpt-4o-mini,gpt-5-mini,gpt-5
-        auth_mode: subscription
-      gemini:
-        models: gemini-2.0-flash,gemini-2.5-pro
-        auth_mode: adc
-      litellm:
-        models: gpt-4o-mini,mistral-large
-        auth_mode: api_key
-      api_keys:
-        OPENAI_API_KEY: sk-...
-        MISTRAL_API_KEY: ...
-    ```
-    """
-
-    claude: LLMProviderConfig | None = Field(
-        default=None,
-        description="Claude provider configuration",
-    )
-    codex: LLMProviderConfig | None = Field(
-        default=None,
-        description="Codex (OpenAI) provider configuration",
-    )
-    gemini: LLMProviderConfig | None = Field(
-        default=None,
-        description="Gemini provider configuration",
-    )
-    litellm: LLMProviderConfig | None = Field(
-        default=None,
-        description="LiteLLM provider configuration",
-    )
-    api_keys: dict[str, str] = Field(
-        default_factory=dict,
-        description="API keys for BYOK providers (key name -> key value)",
-    )
-
-    def get_enabled_providers(self) -> list[str]:
-        """Return list of enabled provider names."""
-        providers = []
-        if self.claude:
-            providers.append("claude")
-        if self.codex:
-            providers.append("codex")
-        if self.gemini:
-            providers.append("gemini")
-        if self.litellm:
-            providers.append("litellm")
-        return providers
+# LLMProviderConfig and LLMProvidersConfig moved to gobby.config.llm_providers (re-exported above)
 
 
 class TitleSynthesisConfig(BaseModel):
