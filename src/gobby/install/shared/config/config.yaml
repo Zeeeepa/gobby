@@ -27,7 +27,8 @@ gobby-tasks:
   show_result_on_create: false
   expansion:
     enabled: true
-    tdd_mode: true
+    # Behavior settings (tdd_mode, auto_decompose, etc.) are in workflow YAML variables.
+    # See: .gobby/workflows/lifecycle/session-lifecycle.yaml
     provider: claude
     model: claude-opus-4-5
     codebase_research_enabled: true
