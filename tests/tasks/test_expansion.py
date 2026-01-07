@@ -334,6 +334,90 @@ More text"""
         result = expander._extract_json(text)
         assert result is None
 
+    def test_extracts_json_with_nested_backticks(
+        self, mock_task_manager, mock_llm_service, task_expansion_config
+    ):
+        """Test that JSON extraction handles backticks inside string values.
+
+        This was a bug where the regex matched inner ``` as end of code block.
+        """
+        expander = TaskExpander(task_expansion_config, mock_llm_service, mock_task_manager)
+
+        # JSON with backticks inside a string field
+        text = '''```json
+{
+  "subtasks": [
+    {
+      "title": "Add gitingest integration",
+      "description": "Return tree like:\\n```\\nsrc/gobby/\\n```\\nfor context"
+    }
+  ]
+}
+```'''
+
+        result = expander._extract_json(text)
+        assert result is not None
+
+        # Verify the extracted JSON is valid and contains the backticks
+        import json
+        parsed = json.loads(result)
+        assert "subtasks" in parsed
+        assert "```" in parsed["subtasks"][0]["description"]
+
+    def test_extracts_json_with_braces_in_strings(
+        self, mock_task_manager, mock_llm_service, task_expansion_config
+    ):
+        """Test that JSON extraction handles braces inside string values.
+
+        Braces in strings should not affect brace depth counting.
+        """
+        expander = TaskExpander(task_expansion_config, mock_llm_service, mock_task_manager)
+
+        text = '{"text": "Hello { world } with {braces}", "nested": {"key": "value"}}'
+        result = expander._extract_json(text)
+
+        import json
+        parsed = json.loads(result)
+        assert parsed["text"] == "Hello { world } with {braces}"
+        assert parsed["nested"]["key"] == "value"
+
+    def test_extracts_json_with_escaped_quotes(
+        self, mock_task_manager, mock_llm_service, task_expansion_config
+    ):
+        """Test that JSON extraction handles escaped quotes in strings."""
+        expander = TaskExpander(task_expansion_config, mock_llm_service, mock_task_manager)
+
+        text = r'{"message": "He said \"hello\" to me", "count": 1}'
+        result = expander._extract_json(text)
+
+        import json
+        parsed = json.loads(result)
+        assert parsed["message"] == 'He said "hello" to me'
+        assert parsed["count"] == 1
+
+    def test_extracts_json_with_multiple_code_blocks(
+        self, mock_task_manager, mock_llm_service, task_expansion_config
+    ):
+        """Test extraction when response has multiple code blocks, only first matters."""
+        expander = TaskExpander(task_expansion_config, mock_llm_service, mock_task_manager)
+
+        text = '''Here's an example:
+```python
+def example():
+    pass
+```
+
+And here's the JSON:
+```json
+{"subtasks": [{"title": "Real task"}]}
+```
+'''
+
+        result = expander._extract_json(text)
+        import json
+        parsed = json.loads(result)
+        assert parsed["subtasks"][0]["title"] == "Real task"
+
 
 class TestSubtaskSpec:
     """Tests for SubtaskSpec dataclass."""

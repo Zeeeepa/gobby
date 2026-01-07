@@ -8,7 +8,6 @@ using LLM providers with structured JSON output.
 import asyncio
 import json
 import logging
-import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -287,35 +286,48 @@ class TaskExpander:
         """
         Extract JSON from text, handling markdown code blocks.
 
+        Uses json.JSONDecoder.raw_decode() which properly handles all JSON
+        edge cases (nested strings, escapes, etc.) rather than custom parsing.
+
         Args:
             text: Raw text that may contain JSON
 
         Returns:
             Extracted JSON string, or None if not found
         """
-        # Try to find JSON in code blocks first
-        code_block_pattern = r"```(?:json)?\s*\n?([\s\S]*?)\n?```"
-        matches: list[str] = re.findall(code_block_pattern, text)
-        for match in matches:
-            stripped: str = match.strip()
-            if stripped.startswith("{"):
-                return stripped
+        decoder = json.JSONDecoder()
 
-        # Try to find raw JSON object
-        # Look for { ... } pattern
-        brace_start = text.find("{")
-        if brace_start == -1:
-            return None
+        # Build list of positions to try, prioritizing code block content
+        positions_to_try: list[int] = []
 
-        # Find matching closing brace
-        depth = 0
-        for i, char in enumerate(text[brace_start:], brace_start):
-            if char == "{":
-                depth += 1
-            elif char == "}":
-                depth -= 1
-                if depth == 0:
-                    return text[brace_start : i + 1]
+        # Look for ```json marker first
+        code_block_idx = text.find("```json")
+        if code_block_idx != -1:
+            brace_pos = text.find("{", code_block_idx + 7)
+            if brace_pos != -1:
+                positions_to_try.append(brace_pos)
+
+        # Then try plain ``` marker
+        if not positions_to_try:
+            code_block_idx = text.find("```")
+            if code_block_idx != -1:
+                brace_pos = text.find("{", code_block_idx + 3)
+                if brace_pos != -1:
+                    positions_to_try.append(brace_pos)
+
+        # Finally try raw JSON (first { in text)
+        first_brace = text.find("{")
+        if first_brace != -1 and first_brace not in positions_to_try:
+            positions_to_try.append(first_brace)
+
+        # Try each position until we find valid JSON
+        for pos in positions_to_try:
+            try:
+                # raw_decode returns (obj, end_idx) where end_idx is absolute position in text
+                _, end_idx = decoder.raw_decode(text, pos)
+                return text[pos:end_idx]
+            except json.JSONDecodeError:
+                continue
 
         return None
 
