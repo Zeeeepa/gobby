@@ -5,13 +5,23 @@ type: lifecycle
 settings:
   priority: 10  # Run first - critical for handoff before other LLM calls
 
-# Session-scoped variables
-# Set session_task to enforce task completion before stopping:
-#   - null: No task enforcement
-#   - "gt-abc123": Single task - must complete this task and its subtasks
-#   - ["gt-abc123", "gt-def456"]: List - must complete all listed tasks
-#   - "*": Wildcard - work until no ready tasks remain in the project
+# Session-scoped variables (can be overridden per session)
+# These provide runtime control over behavior settings
 variables:
+  # Task enforcement - require active task before file modifications
+  require_task_before_edit: false
+  # Commit enforcement - block stop if task has uncommitted changes
+  require_commit_before_stop: true
+  # Auto-decompose multi-step task descriptions into subtasks
+  auto_decompose: true
+  # Enable TDD mode for task expansion (test-implementation pairs)
+  tdd_mode: true
+  # Enable memory injection at session start
+  memory_injection_enabled: true
+  # Maximum memories to inject per session
+  memory_injection_limit: 10
+  # Task to complete before stopping (null = no enforcement)
+  # Values: null, "gt-abc123", ["gt-abc", "gt-def"], or "*" (all ready tasks)
   session_task: null
 
 triggers:
