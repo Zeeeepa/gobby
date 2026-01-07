@@ -152,9 +152,9 @@ Statuses: `active` → `stale` → `merged` → `abandoned`
 Step-based workflows enforce tool restrictions:
 
 ```bash
-uv run gobby workflow list       # Available workflows
-uv run gobby workflow set NAME   # Activate workflow
-uv run gobby workflow status     # Current state
+uv run gobby workflows list       # Available workflows
+uv run gobby workflows set NAME   # Activate workflow
+uv run gobby workflows status     # Current state
 ```
 
 Built-in: `plan-execute`, `test-driven`, `plan-act-reflect`

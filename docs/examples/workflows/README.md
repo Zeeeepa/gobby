@@ -51,10 +51,10 @@ Copy workflow files to one of:
 
 ```bash
 # Using CLI
-gobby workflow set agent-tdd
+gobby workflows set agent-tdd
 
 # Or check status
-gobby workflow status
+gobby workflows status
 ```
 
 ### Spawn agent with workflow

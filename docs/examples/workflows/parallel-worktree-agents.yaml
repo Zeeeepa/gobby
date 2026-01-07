@@ -3,7 +3,7 @@
 # for parallel development of independent features.
 #
 # Usage: Copy to ~/.gobby/workflows/ or .gobby/workflows/
-# Activate: Set workflow_name when spawning agent, or use gobby workflow set
+# Activate: Set workflow_name when spawning agent, or use gobby workflows set
 
 name: parallel-worktree-agents
 description: Spawn agents in isolated worktrees for parallel development

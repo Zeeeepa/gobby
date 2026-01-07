@@ -225,7 +225,7 @@ This document defines the implementation order across all Gobby planning documen
 │ Sprint 10: Workflow CLI & MCP Tools                                          │
 │ WORKFLOWS Phases 7-8                                                         │
 │                                                                              │
-│ Deliverable: gobby workflow commands, workflow MCP tools                    │
+│ Deliverable: gobby workflows commands, workflow MCP tools                   │
 │ Dependencies: Sprint 7                                                       │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │

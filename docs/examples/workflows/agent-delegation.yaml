@@ -3,7 +3,7 @@
 # coordinates and reviews results.
 #
 # Usage: Copy to ~/.gobby/workflows/ or .gobby/workflows/
-# Activate: Set workflow_name when spawning agent, or use gobby workflow set
+# Activate: Set workflow_name when spawning agent, or use gobby workflows set
 
 name: agent-delegation
 description: Delegate subtasks to subagents with parent coordination

@@ -36,12 +36,12 @@ def get_project_path() -> Path | None:
 
 
 @click.group()
-def workflow() -> None:
+def workflows() -> None:
     """Manage Gobby workflows."""
     pass
 
 
-@workflow.command("list")
+@workflows.command("list")
 @click.option("--all", "show_all", is_flag=True, help="Show all workflows including step-based")
 @click.option("--global", "global_only", is_flag=True, help="Show only global workflows")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
@@ -121,7 +121,7 @@ def list_workflows(
             click.echo(f"    {wf['description'][:80]}")
 
 
-@workflow.command("show")
+@workflows.command("show")
 @click.argument("name")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 @click.pass_context
@@ -170,7 +170,7 @@ def show_workflow(ctx: click.Context, name: str, json_format: bool) -> None:
             click.echo(f"  {trigger_name}: {len(actions)} action(s)")
 
 
-@workflow.command("status")
+@workflows.command("status")
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 @click.pass_context
@@ -228,7 +228,7 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
 
     if state.disabled:
         click.echo(f"⚠️  DISABLED{f': {state.disabled_reason}' if state.disabled_reason else ''}")
-        click.echo("   Use 'gobby workflow enable' to re-enable enforcement.")
+        click.echo("   Use 'gobby workflows enable' to re-enable enforcement.")
 
     if state.reflection_pending:
         click.echo("⚠️  Reflection pending")
@@ -240,7 +240,7 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
         click.echo(f"Task progress: {state.current_task_index + 1}/{len(state.task_list)}")
 
 
-@workflow.command("set")
+@workflows.command("set")
 @click.argument("name")
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
 @click.option("--step", "-p", "initial_step", help="Initial step (defaults to first)")
@@ -265,7 +265,7 @@ def set_workflow(
 
     if definition.type == "lifecycle":
         click.echo(f"Workflow '{name}' is a lifecycle workflow (auto-runs on events).", err=True)
-        click.echo("Use 'gobby workflow set' only for step-based workflows.", err=True)
+        click.echo("Use 'gobby workflows set' only for step-based workflows.", err=True)
         raise SystemExit(1)
 
     # Get session
@@ -284,7 +284,7 @@ def set_workflow(
     existing = state_manager.get_state(session_id)
     if existing:
         click.echo(f"Session already has workflow '{existing.workflow_name}' active.")
-        click.echo("Use 'gobby workflow clear' first to remove it.")
+        click.echo("Use 'gobby workflows clear' first to remove it.")
         raise SystemExit(1)
 
     # Determine initial step
@@ -320,7 +320,7 @@ def set_workflow(
     click.echo(f"  Starting step: {step}")
 
 
-@workflow.command("clear")
+@workflows.command("clear")
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
 @click.option("--force", "-f", is_flag=True, help="Skip confirmation")
 @click.pass_context
@@ -354,7 +354,7 @@ def clear_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
     click.echo(f"✓ Cleared workflow from session {session_id[:12]}...")
 
 
-@workflow.command("step")
+@workflows.command("step")
 @click.argument("step_name")
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
 @click.option("--force", "-f", is_flag=True, help="Skip exit condition checks")
@@ -407,7 +407,7 @@ def set_step(ctx: click.Context, step_name: str, session_id: str | None, force: 
     click.echo(f"✓ Transitioned from '{old_step}' to '{step_name}'")
 
 
-@workflow.command("reset")
+@workflows.command("reset")
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
 @click.option("--force", "-f", is_flag=True, help="Skip confirmation")
 @click.pass_context
@@ -458,7 +458,7 @@ def reset_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
     click.echo(f"✓ Reset workflow to initial step '{initial_step}'")
 
 
-@workflow.command("disable")
+@workflows.command("disable")
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
 @click.option("--reason", "-r", help="Reason for disabling")
 @click.pass_context
@@ -492,10 +492,10 @@ def disable_workflow(ctx: click.Context, session_id: str | None, reason: str | N
     state_manager.save_state(state)
     click.echo(f"✓ Disabled workflow '{state.workflow_name}'")
     click.echo("  Tool restrictions and step enforcement are now suspended.")
-    click.echo("  Use 'gobby workflow enable' to re-enable.")
+    click.echo("  Use 'gobby workflows enable' to re-enable.")
 
 
-@workflow.command("enable")
+@workflows.command("enable")
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
 @click.pass_context
 def enable_workflow(ctx: click.Context, session_id: str | None) -> None:
@@ -530,7 +530,7 @@ def enable_workflow(ctx: click.Context, session_id: str | None) -> None:
     click.echo(f"  Current step: {state.step}")
 
 
-@workflow.command("artifact")
+@workflows.command("artifact")
 @click.argument("artifact_type")
 @click.argument("file_path")
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
@@ -566,7 +566,7 @@ def mark_artifact(
         click.echo(f"  All artifacts: {', '.join(state.artifacts.keys())}")
 
 
-@workflow.command("import")
+@workflows.command("import")
 @click.argument("source")
 @click.option("--name", "-n", help="Override workflow name")
 @click.option("--global", "is_global", is_flag=True, help="Install to global directory")
@@ -630,7 +630,7 @@ def import_workflow(ctx: click.Context, source: str, name: str | None, is_global
     click.echo(f"✓ Imported workflow '{workflow_name}' to {dest_path}")
 
 
-@workflow.command("audit")
+@workflows.command("audit")
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
 @click.option(
     "--type",
@@ -731,7 +731,7 @@ def audit_workflow(
         click.echo()  # Blank line between entries
 
 
-@workflow.command("set-var")
+@workflows.command("set-var")
 @click.argument("name")
 @click.argument("value")
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
@@ -746,11 +746,11 @@ def set_variable(
 
     Examples:
 
-        gobby workflow set-var session_epic gt-abc123
+        gobby workflows set-var session_epic gt-abc123
 
-        gobby workflow set-var is_worktree true
+        gobby workflows set-var is_worktree true
 
-        gobby workflow set-var max_retries 5
+        gobby workflows set-var max_retries 5
     """
     from datetime import UTC, datetime
 
@@ -821,7 +821,7 @@ def set_variable(
         click.echo(f"  Session: {session_id[:12]}...")
 
 
-@workflow.command("get-var")
+@workflows.command("get-var")
 @click.argument("name", required=False)
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
@@ -836,9 +836,9 @@ def get_variable(
 
     Examples:
 
-        gobby workflow get-var session_epic
+        gobby workflows get-var session_epic
 
-        gobby workflow get-var
+        gobby workflows get-var
     """
     state_manager = get_state_manager()
 

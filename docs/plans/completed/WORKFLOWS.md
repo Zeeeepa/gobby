@@ -845,31 +845,31 @@ File backups to `~/.gobby/session_summaries/` are handled by a **separate backup
 
 ```bash
 # List available workflows
-gobby workflow list
+gobby workflows list
 
 # Show workflow details
-gobby workflow show plan-act-reflect
+gobby workflows show plan-act-reflect
 
 # Set workflow for current project
-gobby workflow set plan-act-reflect
+gobby workflows set plan-act-reflect
 
 # Clear workflow for current project
-gobby workflow clear
+gobby workflows clear
 
 # Show current workflow state
-gobby workflow status
+gobby workflows status
 
 # Manually transition phase (escape hatch)
-gobby workflow phase <phase-name>
+gobby workflows phase <phase-name>
 
 # Import workflow from URL or file
-gobby workflow import https://example.com/workflow.yaml
-gobby workflow import ./my-workflow.yaml
+gobby workflows import https://example.com/workflow.yaml
+gobby workflows import ./my-workflow.yaml
 
 # Escape Hatches & Debugging
-gobby workflow phase <name> --force     # Skip exit conditions
-gobby workflow reset                    # Return to initial phase
-gobby workflow disable                  # Temporarily suspend enforcement
+gobby workflows phase <name> --force     # Skip exit conditions
+gobby workflows reset                    # Return to initial phase
+gobby workflows disable                  # Temporarily suspend enforcement
 ```
 
 ---
@@ -1092,18 +1092,18 @@ Before building new workflow capabilities, extract the current session handoff b
 
 ### Phase 7: CLI Commands ✅ MOSTLY COMPLETE
 
-- [x] Implement `gobby workflow list`
-- [x] Implement `gobby workflow show <name>`
-- [x] Implement `gobby workflow set <name>`
-- [x] Implement `gobby workflow clear`
-- [x] Implement `gobby workflow status`
-- [x] Implement `gobby workflow phase <name>` (manual override)
-- [ ] Implement `gobby workflow handoff <notes>`
-- [x] Implement `gobby workflow import <source>`
+- [x] Implement `gobby workflows list`
+- [x] Implement `gobby workflows show <name>`
+- [x] Implement `gobby workflows set <name>`
+- [x] Implement `gobby workflows clear`
+- [x] Implement `gobby workflows status`
+- [x] Implement `gobby workflows phase <name>` (manual override)
+- [ ] Implement `gobby workflows handoff <notes>`
+- [x] Implement `gobby workflows import <source>`
 
 #### Stop-Edit-Restart Versioning (Decision 6)
 
-- [ ] Ensure `gobby workflow reset` reloads workflow definition from disk
+- [ ] Ensure `gobby workflows reset` reloads workflow definition from disk
 - [ ] Log workflow version/hash at load time for debugging
 - [ ] Document that workflow YAML is locked at session start; changes require reset
 
@@ -1157,7 +1157,7 @@ Before building new workflow capabilities, extract the current session handoff b
 - [x] Log rule evaluations in WorkflowEngine (engine.py:762-785)
 - [x] Log phase transitions in WorkflowEngine (engine.py:196, 787-806)
 - [ ] Log exit condition checks
-- [x] Implement `gobby workflow audit` CLI command (cli/workflows.py:618-710)
+- [x] Implement `gobby workflows audit` CLI command (cli/workflows.py:618-710)
 - [ ] Implement `get_workflow_audit` MCP tool
 - [x] Add audit log retention/cleanup method (WorkflowAuditManager.cleanup_old_entries)
 
@@ -1219,19 +1219,19 @@ CREATE INDEX idx_audit_timestamp ON workflow_audit_log(timestamp);
 
 ```bash
 # View audit log for current session
-gobby workflow audit
+gobby workflows audit
 
 # View audit log for specific session
-gobby workflow audit --session <session_id>
+gobby workflows audit --session <session_id>
 
 # Filter by event type
-gobby workflow audit --type tool_call
+gobby workflows audit --type tool_call
 
 # Filter by result (show only blocks)
-gobby workflow audit --result block
+gobby workflows audit --result block
 
 # Export as JSON
-gobby workflow audit --format json > audit.json
+gobby workflows audit --format json > audit.json
 ```
 
 ### MCP Tool
@@ -1261,7 +1261,7 @@ async def get_workflow_audit(
 ### Example Audit Output
 
 ```bash
-$ gobby workflow audit --result block
+$ gobby workflows audit --result block
 
 [2024-01-15 10:23:45] BLOCK tool_call
   Phase: plan

@@ -17,7 +17,7 @@ from .memory import memory
 from .sessions import sessions
 from .skills import skills
 from .tasks import tasks
-from .workflows import workflow
+from .workflows import workflows
 from .worktrees import worktrees
 
 
@@ -51,7 +51,7 @@ cli.add_command(sessions)
 cli.add_command(agents)
 cli.add_command(worktrees)
 cli.add_command(mcp_proxy)
-cli.add_command(workflow)
+cli.add_command(workflows)
 cli.add_command(hooks)
 cli.add_command(plugins)
 cli.add_command(webhooks)

@@ -270,12 +270,12 @@ git commit -m "Update tasks"
 
 ## Workflow Management
 
-### `gobby workflow list`
+### `gobby workflows list`
 
 List available workflows.
 
 ```bash
-gobby workflow list [--all] [--json]
+gobby workflows list [--all] [--json]
 ```
 
 | Option | Description |
@@ -283,20 +283,20 @@ gobby workflow list [--all] [--json]
 | `--all` | Show all workflows including step-based |
 | `--json` | Output as JSON |
 
-### `gobby workflow show`
+### `gobby workflows show`
 
 Show workflow details.
 
 ```bash
-gobby workflow show <name> [--json]
+gobby workflows show <name> [--json]
 ```
 
-### `gobby workflow set`
+### `gobby workflows set`
 
 Activate a workflow for a session.
 
 ```bash
-gobby workflow set <name> [--session ID] [--step INITIAL_STEP]
+gobby workflows set <name> [--session ID] [--step INITIAL_STEP]
 ```
 
 | Option | Description |
@@ -306,12 +306,12 @@ gobby workflow set <name> [--session ID] [--step INITIAL_STEP]
 
 **Note:** Only for step-based workflows. Lifecycle workflows auto-run.
 
-### `gobby workflow status`
+### `gobby workflows status`
 
 Show current workflow state for a session.
 
 ```bash
-gobby workflow status [--session ID] [--json]
+gobby workflows status [--session ID] [--json]
 ```
 
 | Option | Description |
@@ -319,12 +319,12 @@ gobby workflow status [--session ID] [--json]
 | `--session`, `-s` | Session ID (defaults to current) |
 | `--json` | Output as JSON |
 
-### `gobby workflow clear`
+### `gobby workflows clear`
 
 Clear/deactivate workflow for a session.
 
 ```bash
-gobby workflow clear [--session ID] [--force]
+gobby workflows clear [--session ID] [--force]
 ```
 
 | Option | Description |
@@ -332,12 +332,12 @@ gobby workflow clear [--session ID] [--force]
 | `--session`, `-s` | Session ID (defaults to current) |
 | `--force`, `-f` | Skip confirmation |
 
-### `gobby workflow step`
+### `gobby workflows step`
 
 Manually transition to a step (escape hatch).
 
 ```bash
-gobby workflow step <step-name> [--session ID] [--force]
+gobby workflows step <step-name> [--session ID] [--force]
 ```
 
 | Option | Description |
@@ -345,20 +345,20 @@ gobby workflow step <step-name> [--session ID] [--force]
 | `--session`, `-s` | Session ID (defaults to current) |
 | `--force`, `-f` | Skip exit condition checks |
 
-### `gobby workflow artifact`
+### `gobby workflows artifact`
 
 Mark an artifact as complete.
 
 ```bash
-gobby workflow artifact <type> <file-path> [--session ID]
+gobby workflows artifact <type> <file-path> [--session ID]
 ```
 
-### `gobby workflow import`
+### `gobby workflows import`
 
 Import a workflow from a file.
 
 ```bash
-gobby workflow import <source> [--name NAME] [--global]
+gobby workflows import <source> [--name NAME] [--global]
 ```
 
 | Option | Description |

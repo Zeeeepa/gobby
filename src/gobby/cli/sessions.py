@@ -24,6 +24,29 @@ def get_message_manager() -> LocalSessionMessageManager:
     return LocalSessionMessageManager(db)
 
 
+def _format_turns_for_llm(turns: list[dict]) -> str:
+    """Format transcript turns for LLM analysis."""
+    formatted: list[str] = []
+    for i, turn in enumerate(turns):
+        message = turn.get("message", {})
+        role = message.get("role", "unknown")
+        content = message.get("content", "")
+
+        if isinstance(content, list):
+            text_parts: list[str] = []
+            for block in content:
+                if isinstance(block, dict):
+                    if block.get("type") == "text":
+                        text_parts.append(str(block.get("text", "")))
+                    elif block.get("type") == "tool_use":
+                        text_parts.append(f"[Tool: {block.get('name', 'unknown')}]")
+            content = " ".join(text_parts)
+
+        formatted.append(f"[Turn {i + 1} - {role}]: {content}")
+
+    return "\n\n".join(formatted)
+
+
 @click.group()
 def sessions() -> None:
     """Manage Gobby sessions."""
@@ -300,10 +323,31 @@ def session_stats(project_id: str | None) -> None:
         click.echo(f"    {source}: {count}")
 
 
-@sessions.command("handoff")
+@sessions.command("create-handoff")
 @click.option("--session-id", "-s", help="Session ID (defaults to current active session)")
+@click.option("--compact", is_flag=True, default=False, help="Generate compact summary only")
+@click.option("--full", "full_summary", is_flag=True, default=False, help="Generate full LLM summary only")
+@click.option(
+    "--output",
+    type=click.Choice(["db", "file", "all"]),
+    default="all",
+    help="Where to save: db only, file only, or all (both)",
+)
+@click.option(
+    "--path",
+    "output_path",
+    default="~/.gobby/session_summaries/",
+    help="Directory path for file output",
+)
 @click.argument("notes", required=False)
-def create_handoff(session_id: str | None, notes: str | None) -> None:
+def create_handoff(
+    session_id: str | None,
+    compact: bool,
+    full_summary: bool,
+    output: str,
+    output_path: str,
+    notes: str | None,
+) -> None:
     """Create handoff context for a session.
 
     Extracts structured context from the session transcript:
@@ -314,9 +358,22 @@ def create_handoff(session_id: str | None, notes: str | None) -> None:
     - Initial goal
     - Recent activity
 
+    Summary types:
+    - --compact: Fast structured extraction using TranscriptAnalyzer
+    - --full: LLM-powered comprehensive summary
+    - Neither flag: Generate both (default)
+
+    Output destinations:
+    - db: Save to database only
+    - file: Write to file only (in --path directory)
+    - all: Save to both database and file
+
+    File output: full summary saved as session_*.md, compact as session_compact_*.md.
+
     If no session ID is provided, uses the current project's most recent active session.
     """
     import subprocess
+    import time
     from pathlib import Path
 
     from gobby.mcp_proxy.tools.session_messages import _format_handoff_markdown
@@ -426,13 +483,116 @@ def create_handoff(session_id: str | None, notes: str | None) -> None:
     except Exception:
         pass
 
-    # Format and save
-    markdown = _format_handoff_markdown(handoff_ctx, notes)
-    manager.update_compact_markdown(session.id, markdown)
+    # Determine what to generate (neither flag = both)
+    generate_compact = not full_summary or compact  # generate if --compact or neither flag
+    generate_full = not compact or full_summary  # generate if --full or neither flag
+
+    # Generate content
+    compact_markdown = None
+    full_markdown = None
+
+    if generate_compact:
+        compact_markdown = _format_handoff_markdown(handoff_ctx, notes)
+
+    if generate_full:
+        # Generate LLM-powered full summary
+        try:
+            from gobby.config.app import load_config
+            from gobby.llm.claude import ClaudeLLMProvider
+            from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
+
+            config = load_config()
+            provider = ClaudeLLMProvider(config)
+            transcript_parser = ClaudeTranscriptParser()
+
+            # Get prompt template from config
+            prompt_template = None
+            if hasattr(config, "session_summary") and config.session_summary:
+                prompt_template = getattr(config.session_summary, "prompt", None)
+
+            if not prompt_template:
+                click.echo(
+                    "Warning: No prompt template configured. "
+                    "Set 'session_summary.prompt' in ~/.gobby/config.yaml",
+                    err=True,
+                )
+                if full_summary and not compact:
+                    return
+
+            # Prepare context for LLM
+            last_turns = transcript_parser.extract_turns_since_clear(turns, max_turns=50)
+            last_messages = transcript_parser.extract_last_messages(turns, num_pairs=2)
+
+            context = {
+                "transcript_summary": _format_turns_for_llm(last_turns),
+                "last_messages": last_messages,
+                "git_status": handoff_ctx.git_status or "",
+                "file_changes": "",
+                "external_id": session.id[:12],
+                "session_id": session.id,
+                "session_source": session.source,
+            }
+
+            import anyio
+
+            async def _generate() -> str:
+                return await provider.generate_summary(context, prompt_template=prompt_template)
+
+            full_markdown = anyio.run(_generate)
+
+        except Exception as e:
+            click.echo(f"Warning: Failed to generate full summary: {e}", err=True)
+            if full_summary and not compact:
+                # Only --full was requested and it failed
+                return
+
+    # Determine what to save
+    save_to_db = output in ("db", "all")
+    save_to_file = output in ("file", "all")
+
+    # Save to database - always save both compact and full when available
+    if save_to_db:
+        if compact_markdown:
+            manager.update_compact_markdown(session.id, compact_markdown)
+            click.echo(f"Saved compact to database: {len(compact_markdown)} chars")
+        if full_markdown:
+            manager.update_summary(session.id, summary_markdown=full_markdown)
+            click.echo(f"Saved full to database: {len(full_markdown)} chars")
+
+    # Save to file
+    files_written = []
+    if save_to_file:
+        try:
+            summary_dir = Path(output_path).expanduser()
+            summary_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = int(time.time())
+
+            # Write full summary as session_*.md
+            if full_markdown:
+                full_file = summary_dir / f"session_{timestamp}_{session.id[:12]}.md"
+                full_file.write_text(full_markdown, encoding="utf-8")
+                files_written.append(str(full_file))
+                click.echo(f"Saved full to file: {full_file}")
+
+            # Write compact summary as session_compact_*.md
+            if compact_markdown:
+                compact_file = summary_dir / f"session_compact_{timestamp}_{session.id[:12]}.md"
+                compact_file.write_text(compact_markdown, encoding="utf-8")
+                files_written.append(str(compact_file))
+                click.echo(f"Saved compact to file: {compact_file}")
+
+        except Exception as e:
+            click.echo(f"Error writing file: {e}", err=True)
 
     # Output summary
-    click.echo(f"Created handoff context for session {session.id[:12]}")
-    click.echo(f"  Markdown length: {len(markdown)} chars")
+    summary_type = "both" if generate_compact and generate_full else ("compact" if generate_compact else "full")
+    click.echo(f"\nCreated handoff context for session {session.id[:12]}")
+    click.echo(f"  Type: {summary_type}")
+    click.echo(f"  Output: {output}")
+    if compact_markdown:
+        click.echo(f"  Compact length: {len(compact_markdown)} chars")
+    if full_markdown:
+        click.echo(f"  Full length: {len(full_markdown)} chars")
     click.echo(f"  Active task: {'Yes' if handoff_ctx.active_gobby_task else 'No'}")
     click.echo(f"  Todo items: {len(handoff_ctx.todo_state)}")
     click.echo(f"  Files modified: {len(handoff_ctx.files_modified)}")
@@ -441,3 +601,5 @@ def create_handoff(session_id: str | None, notes: str | None) -> None:
 
     if notes:
         click.echo(f"  Notes: {notes[:50]}{'...' if len(notes) > 50 else ''}")
+    for f in files_written:
+        click.echo(f"  File: {f}")

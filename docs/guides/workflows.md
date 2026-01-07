@@ -312,7 +312,7 @@ TDD workflow. Blocks implementation until test exists.
 ### List Workflows
 
 ```bash
-gobby workflow list [--all] [--json]
+gobby workflows list [--all] [--json]
 ```
 
 | Option | Description |
@@ -323,13 +323,13 @@ gobby workflow list [--all] [--json]
 ### Show Workflow Details
 
 ```bash
-gobby workflow show <name> [--json]
+gobby workflows show <name> [--json]
 ```
 
 ### Activate Workflow
 
 ```bash
-gobby workflow set <name> [--session ID] [--step INITIAL_STEP]
+gobby workflows set <name> [--session ID] [--step INITIAL_STEP]
 ```
 
 **Note:** Only for step-based workflows. Lifecycle workflows auto-run.
@@ -337,7 +337,7 @@ gobby workflow set <name> [--session ID] [--step INITIAL_STEP]
 ### Check Workflow Status
 
 ```bash
-gobby workflow status [--session ID] [--json]
+gobby workflows status [--session ID] [--json]
 ```
 
 Shows current step, action counts, artifacts, and pending tasks.
@@ -345,13 +345,13 @@ Shows current step, action counts, artifacts, and pending tasks.
 ### Clear/Deactivate Workflow
 
 ```bash
-gobby workflow clear [--session ID] [--force]
+gobby workflows clear [--session ID] [--force]
 ```
 
 ### Manual Step Transition (Escape Hatch)
 
 ```bash
-gobby workflow step <step-name> [--session ID] [--force]
+gobby workflows step <step-name> [--session ID] [--force]
 ```
 
 Skips normal exit conditions. Use when stuck.
@@ -359,13 +359,13 @@ Skips normal exit conditions. Use when stuck.
 ### Mark Artifact Complete
 
 ```bash
-gobby workflow artifact <type> <file-path> [--session ID]
+gobby workflows artifact <type> <file-path> [--session ID]
 ```
 
 ### Import Workflow
 
 ```bash
-gobby workflow import <source> [--name NAME] [--global]
+gobby workflows import <source> [--name NAME] [--global]
 ```
 
 Import from a local file (URL import coming soon).
@@ -557,20 +557,20 @@ Codex sessions can **track** workflow state but cannot **enforce** it. Full enfo
 
 ```bash
 # Check workflow exists
-gobby workflow list
+gobby workflows list
 
 # Verify YAML is valid
-gobby workflow show <name>
+gobby workflows show <name>
 ```
 
 ### Stuck in a Step
 
 ```bash
 # Force transition to another step
-gobby workflow step <target-step> --force
+gobby workflows step <target-step> --force
 
 # Or clear the workflow entirely
-gobby workflow clear --force
+gobby workflows clear --force
 ```
 
 ### Tool Blocked Unexpectedly
@@ -578,7 +578,7 @@ gobby workflow clear --force
 Check current step restrictions:
 
 ```bash
-gobby workflow status --json
+gobby workflows status --json
 ```
 
 Look at `allowed_tools` and `blocked_tools` for the current step.

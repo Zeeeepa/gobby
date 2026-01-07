@@ -98,6 +98,29 @@ def _format_handoff_markdown(ctx: HandoffContext, notes: str | None = None) -> s
     return "\n".join(sections)
 
 
+def _format_turns_for_llm(turns: list[dict]) -> str:
+    """Format transcript turns for LLM analysis."""
+    formatted: list[str] = []
+    for i, turn in enumerate(turns):
+        message = turn.get("message", {})
+        role = message.get("role", "unknown")
+        content = message.get("content", "")
+
+        if isinstance(content, list):
+            text_parts: list[str] = []
+            for block in content:
+                if isinstance(block, dict):
+                    if block.get("type") == "text":
+                        text_parts.append(str(block.get("text", "")))
+                    elif block.get("type") == "tool_use":
+                        text_parts.append(f"[Tool: {block.get('name', 'unknown')}]")
+            content = " ".join(text_parts)
+
+        formatted.append(f"[Turn {i + 1} - {role}]: {content}")
+
+    return "\n\n".join(formatted)
+
+
 def create_session_messages_registry(
     message_manager: LocalSessionMessageManager | None = None,
     session_manager: LocalSessionManager | None = None,
@@ -265,27 +288,31 @@ def create_session_messages_registry(
         async def create_handoff(
             session_id: str | None = None,
             notes: str | None = None,
+            compact: bool = False,
+            full: bool = False,
+            write_file: bool = True,
+            output_path: str = ".gobby/session_summaries/",
         ) -> dict[str, Any]:
             """
             Create handoff context for a session.
 
-            Uses TranscriptAnalyzer to extract:
-            - Active gobby-task
-            - TodoWrite state
-            - Files modified
-            - Git commits and status
-            - Initial goal
-            - Recent activity
+            Generates compact (TranscriptAnalyzer) and/or full (LLM) summaries.
+            Always saves to database. Optionally writes to file.
 
             Args:
                 session_id: Session ID (optional, defaults to current active session)
                 notes: Additional notes to include in handoff
+                compact: Generate compact summary only (default: False, neither = both)
+                full: Generate full LLM summary only (default: False, neither = both)
+                write_file: Also write to file (default: True). DB is always written.
+                output_path: Directory for file output (default: .gobby/session_summaries/ in project)
 
             Returns:
-                Success status, markdown length, and extracted context summary
+                Success status, markdown lengths, and extracted context summary
             """
             import json
             import subprocess
+            import time
             from pathlib import Path
 
             from gobby.sessions.analyzer import TranscriptAnalyzer
@@ -294,8 +321,20 @@ def create_session_messages_registry(
                 return {"error": "Session manager not available"}
 
             # Find session
+            session = None
             if session_id:
                 session = session_manager.get(session_id)
+                if not session:
+                    # Try prefix match
+                    sessions = session_manager.list(limit=100)
+                    matches = [s for s in sessions if s.id.startswith(session_id)]
+                    if len(matches) == 1:
+                        session = matches[0]
+                    elif len(matches) > 1:
+                        return {
+                            "error": f"Ambiguous session ID prefix '{session_id}'",
+                            "matches": [s.id for s in matches[:5]],
+                        }
             else:
                 # Get most recent active session
                 sessions = session_manager.list(status="active", limit=1)
@@ -358,16 +397,100 @@ def create_session_messages_registry(
             except Exception:
                 pass
 
-            # Format as markdown
-            markdown = _format_handoff_markdown(handoff_ctx, notes)
+            # Determine what to generate (neither flag = both)
+            generate_compact = not full or compact
+            generate_full = not compact or full
 
-            # Save to session
-            session_manager.update_compact_markdown(session.id, markdown)
+            # Generate content
+            compact_markdown = None
+            full_markdown = None
+            full_error = None
+
+            if generate_compact:
+                compact_markdown = _format_handoff_markdown(handoff_ctx, notes)
+
+            if generate_full:
+                try:
+                    from gobby.config.app import load_config
+                    from gobby.llm.claude import ClaudeLLMProvider
+                    from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
+
+                    config = load_config()
+                    provider = ClaudeLLMProvider(config)
+                    transcript_parser = ClaudeTranscriptParser()
+
+                    # Get prompt template from config
+                    prompt_template = None
+                    if hasattr(config, "session_summary") and config.session_summary:
+                        prompt_template = getattr(config.session_summary, "prompt", None)
+
+                    if not prompt_template:
+                        raise ValueError(
+                            "No prompt template configured. "
+                            "Set 'session_summary.prompt' in ~/.gobby/config.yaml"
+                        )
+
+                    # Prepare context for LLM
+                    last_turns = transcript_parser.extract_turns_since_clear(turns, max_turns=50)
+                    last_messages = transcript_parser.extract_last_messages(turns, num_pairs=2)
+
+                    context = {
+                        "transcript_summary": _format_turns_for_llm(last_turns),
+                        "last_messages": last_messages,
+                        "git_status": handoff_ctx.git_status or "",
+                        "file_changes": "",
+                        "external_id": session.id[:12],
+                        "session_id": session.id,
+                        "session_source": session.source,
+                    }
+
+                    full_markdown = await provider.generate_summary(context, prompt_template=prompt_template)
+
+                except Exception as e:
+                    full_error = str(e)
+                    if full and not compact:
+                        return {"error": f"Failed to generate full summary: {e}", "session_id": session.id}
+
+            # Always save to database
+            if compact_markdown:
+                session_manager.update_compact_markdown(session.id, compact_markdown)
+            if full_markdown:
+                session_manager.update_summary(session.id, summary_markdown=full_markdown)
+
+            # Save to file if requested
+            files_written = []
+            if write_file:
+                try:
+                    summary_dir = Path(output_path)
+                    if not summary_dir.is_absolute():
+                        summary_dir = Path.cwd() / summary_dir
+                    summary_dir.mkdir(parents=True, exist_ok=True)
+                    timestamp = int(time.time())
+
+                    if full_markdown:
+                        full_file = summary_dir / f"session_{timestamp}_{session.id[:12]}.md"
+                        full_file.write_text(full_markdown, encoding="utf-8")
+                        files_written.append(str(full_file))
+
+                    if compact_markdown:
+                        compact_file = summary_dir / f"session_compact_{timestamp}_{session.id[:12]}.md"
+                        compact_file.write_text(compact_markdown, encoding="utf-8")
+                        files_written.append(str(compact_file))
+
+                except Exception as e:
+                    return {
+                        "success": False,
+                        "error": f"Failed to write file: {e}",
+                        "session_id": session.id,
+                    }
 
             return {
                 "success": True,
                 "session_id": session.id,
-                "markdown_length": len(markdown),
+                "compact_length": len(compact_markdown) if compact_markdown else 0,
+                "full_length": len(full_markdown) if full_markdown else 0,
+                "full_error": full_error,
+                "files_written": files_written,
                 "context_summary": {
                     "has_active_task": bool(handoff_ctx.active_gobby_task),
                     "todo_count": len(handoff_ctx.todo_state),
