@@ -1534,3 +1534,196 @@ class TestUpdateTaskStepDetectionBehaviors:
         # Explicit param wins over workflow variable
         assert result["auto_decomposed"] is True
         assert "subtasks" in result
+
+
+# =============================================================================
+# Validation Criteria Interaction Tests (TDD - gt-2725da)
+# =============================================================================
+
+
+class TestValidationCriteriaUndecomposedTasks:
+    """Tests for validation criteria blocking on undecomposed tasks."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_cannot_set_validation_criteria_on_needs_decomposition_task(self, task_manager):
+        """Tasks with needs_decomposition status cannot have validation criteria set."""
+        # Create task with needs_decomposition status
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Multi-step task",
+        )
+        task_manager.update_task(task.id, status="needs_decomposition")
+
+        # Attempting to set validation criteria should fail
+        with pytest.raises(ValueError) as exc_info:
+            task_manager.update_task(
+                task.id,
+                validation_criteria="## Acceptance\n- [ ] All done",
+            )
+
+        error_msg = str(exc_info.value).lower()
+        assert "decompos" in error_msg or "subtask" in error_msg
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_error_message_guides_to_decompose_first(self, task_manager):
+        """Error message should guide user to decompose the task first."""
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Task needing decomposition",
+        )
+        task_manager.update_task(task.id, status="needs_decomposition")
+
+        try:
+            task_manager.update_task(
+                task.id,
+                validation_criteria="## Criteria\n- Test",
+            )
+            pytest.fail("Expected ValueError")
+        except ValueError as e:
+            error_msg = str(e).lower()
+            # Should mention need to decompose
+            assert "decompos" in error_msg or "subtask" in error_msg
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_can_set_validation_criteria_after_decomposition(self, task_manager):
+        """Validation criteria can be set after task is decomposed."""
+        # Create task with needs_decomposition status
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Task to decompose",
+        )
+        task_manager.update_task(task.id, status="needs_decomposition")
+
+        # Add subtasks (decompose)
+        task_manager.create_task(
+            project_id="test-project",
+            title="Subtask 1",
+            parent_task_id=task.id,
+        )
+
+        # Now should be able to set validation criteria
+        updated = task_manager.update_task(
+            task.id,
+            validation_criteria="## Acceptance\n- [ ] All subtasks complete",
+        )
+        assert updated.validation_criteria is not None
+        assert "All subtasks complete" in updated.validation_criteria
+
+
+class TestValidationCriteriaDecomposedTasks:
+    """Tests for validation criteria on decomposed tasks."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_parent_task_can_have_high_level_criteria(self, task_manager):
+        """Parent task can have high-level validation criteria."""
+        description = """1. First step
+2. Second step
+3. Third step"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Parent with criteria",
+            description=description,
+            auto_decompose=True,
+        )
+
+        parent_id = result["parent_task"]["id"]
+
+        # Set high-level criteria on parent
+        updated = task_manager.update_task(
+            parent_id,
+            validation_criteria="## High-Level Acceptance\n- [ ] Feature works end-to-end",
+        )
+
+        assert updated.validation_criteria is not None
+        assert "High-Level" in updated.validation_criteria
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_subtasks_can_each_have_specific_criteria(self, task_manager):
+        """Each subtask can have its own specific validation criteria."""
+        description = """1. Create model
+2. Add API
+3. Build UI"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Task with subtasks",
+            description=description,
+            auto_decompose=True,
+        )
+
+        # Set specific criteria on each subtask
+        for i, subtask in enumerate(result["subtasks"]):
+            updated = task_manager.update_task(
+                subtask["id"],
+                validation_criteria=f"## Subtask {i+1} Criteria\n- [ ] Step {i+1} complete",
+            )
+            assert updated.validation_criteria is not None
+            assert f"Subtask {i+1}" in updated.validation_criteria
+
+
+class TestValidationCriteriaOnComplete:
+    """Tests for validation criteria behavior on task completion."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_needs_decomposition_cannot_be_marked_complete(self, task_manager):
+        """Tasks with needs_decomposition status cannot be marked complete."""
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Incomplete decomposition",
+        )
+        task_manager.update_task(task.id, status="needs_decomposition")
+
+        # Should not be able to close (already tested, but verify here too)
+        with pytest.raises(ValueError):
+            task_manager.update_task(task.id, status="closed")
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_decomposed_task_can_be_completed_after_subtasks_done(self, task_manager):
+        """Decomposed tasks can be completed after all subtasks are done."""
+        description = """1. Step A
+2. Step B
+3. Step C"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Task to complete",
+            description=description,
+            auto_decompose=True,
+        )
+
+        parent_id = result["parent_task"]["id"]
+
+        # Complete all subtasks
+        for subtask in result["subtasks"]:
+            task_manager.update_task(subtask["id"], status="in_progress")
+            task_manager.update_task(subtask["id"], status="closed")
+
+        # Parent should now be closable
+        closed = task_manager.update_task(parent_id, status="closed")
+        assert closed.status == "closed"
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_validation_criteria_preserved_on_completion(self, task_manager):
+        """Validation criteria should be preserved when task is completed."""
+        task = task_manager.create_task(
+            project_id="test-project",
+            title="Task with criteria",
+            validation_criteria="## Criteria\n- [ ] Everything works",
+        )
+
+        # Complete the task
+        task_manager.update_task(task.id, status="in_progress")
+        closed = task_manager.update_task(task.id, status="closed")
+
+        # Criteria should still be there
+        assert closed.validation_criteria is not None
+        assert "Everything works" in closed.validation_criteria
