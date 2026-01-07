@@ -2,57 +2,134 @@
 Configuration package for Gobby daemon.
 
 This package provides Pydantic config models for all daemon settings.
-Configs are being decomposed from app.py using Strangler Fig pattern.
+Configuration classes are organized into submodules by functionality:
 
-Module structure (in progress):
-- app.py: Main DaemonConfig and remaining configs
+Module structure:
+- app.py: Main DaemonConfig aggregator and utility functions
 - logging.py: LoggingSettings
-- llm_providers.py: LLM provider and AI feature configs
 - servers.py: WebSocket and MCP proxy configs
-- tasks.py: Task expansion and validation configs
+- llm_providers.py: LLM provider configurations
 - persistence.py: Memory and skill storage configs
+- tasks.py: Task expansion, validation, and workflow configs
 - extensions.py: Hook extension configs (webhooks, plugins)
+- sessions.py: Session lifecycle and tracking configs
+- features.py: MCP proxy feature configs (code execution, tool recommendation)
 """
 
-# Currently all configs are in app.py - will migrate to submodules
+# Core configuration and utilities from app.py
 from gobby.config.app import (
-    CodeExecutionConfig,
     DaemonConfig,
-    LLMProviderConfig,
-    LLMProvidersConfig,
-    LoggingSettings,
-    MCPClientProxyConfig,
-    PluginItemConfig,
-    PluginsConfig,
-    RecommendToolsConfig,
-    SessionSummaryConfig,
-    TitleSynthesisConfig,
-    WebhookEndpointConfig,
-    WebhooksConfig,
-    WebSocketSettings,
     expand_env_vars,
     load_config,
     save_config,
 )
 
-# Re-exports for backwards compatibility
-# As configs migrate to submodules, imports will change but __all__ stays the same
+# Extension configs
+from gobby.config.extensions import (
+    HookExtensionsConfig,
+    PluginItemConfig,
+    PluginsConfig,
+    WebhookEndpointConfig,
+    WebhooksConfig,
+    WebSocketBroadcastConfig,
+)
+
+# Feature configs
+from gobby.config.features import (
+    CodeExecutionConfig,
+    ImportMCPServerConfig,
+    MetricsConfig,
+    ProjectVerificationConfig,
+    RecommendToolsConfig,
+    ToolSummarizerConfig,
+)
+
+# LLM provider configs
+from gobby.config.llm_providers import (
+    LLMProviderConfig,
+    LLMProvidersConfig,
+)
+
+# Logging configs
+from gobby.config.logging import LoggingSettings
+
+# Persistence configs
+from gobby.config.persistence import (
+    MemoryConfig,
+    MemorySyncConfig,
+    SkillConfig,
+    SkillSyncConfig,
+)
+
+# Server configs
+from gobby.config.servers import (
+    MCPClientProxyConfig,
+    WebSocketSettings,
+)
+
+# Session configs
+from gobby.config.sessions import (
+    ContextInjectionConfig,
+    MessageTrackingConfig,
+    SessionLifecycleConfig,
+    SessionSummaryConfig,
+    TitleSynthesisConfig,
+)
+
+# Task configs
+from gobby.config.tasks import (
+    CompactHandoffConfig,
+    GobbyTasksConfig,
+    PatternCriteriaConfig,
+    TaskExpansionConfig,
+    TaskValidationConfig,
+    WorkflowConfig,
+)
+
 __all__ = [
-    "CodeExecutionConfig",
+    # Core
     "DaemonConfig",
-    "LLMProviderConfig",
-    "LLMProvidersConfig",
-    "LoggingSettings",
-    "MCPClientProxyConfig",
-    "PluginItemConfig",
-    "PluginsConfig",
-    "RecommendToolsConfig",
-    "SessionSummaryConfig",
-    "TitleSynthesisConfig",
-    "WebhookEndpointConfig",
-    "WebhooksConfig",
-    "WebSocketSettings",
     "expand_env_vars",
     "load_config",
     "save_config",
+    # Extension configs
+    "HookExtensionsConfig",
+    "PluginItemConfig",
+    "PluginsConfig",
+    "WebhookEndpointConfig",
+    "WebhooksConfig",
+    "WebSocketBroadcastConfig",
+    # Feature configs
+    "CodeExecutionConfig",
+    "ImportMCPServerConfig",
+    "MetricsConfig",
+    "ProjectVerificationConfig",
+    "RecommendToolsConfig",
+    "ToolSummarizerConfig",
+    # LLM provider configs
+    "LLMProviderConfig",
+    "LLMProvidersConfig",
+    # Logging configs
+    "LoggingSettings",
+    # Persistence configs
+    "MemoryConfig",
+    "MemorySyncConfig",
+    "SkillConfig",
+    "SkillSyncConfig",
+    # Server configs
+    "MCPClientProxyConfig",
+    "WebSocketSettings",
+    # Session configs
+    "ContextInjectionConfig",
+    "MessageTrackingConfig",
+    "SessionLifecycleConfig",
+    "SessionSummaryConfig",
+    "TitleSynthesisConfig",
+    # Task configs
+    "CompactHandoffConfig",
+    "GobbyTasksConfig",
+    "PatternCriteriaConfig",
+    "TaskExpansionConfig",
+    "TaskValidationConfig",
+    "WorkflowConfig",
 ]
