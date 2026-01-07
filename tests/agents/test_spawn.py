@@ -373,6 +373,67 @@ class TestTmuxSpawner:
         assert "off" in chained_args
         assert result.success is True
 
+    @patch("platform.system", return_value="Darwin")
+    @patch("shutil.which", return_value="/usr/local/bin/tmux")
+    @patch("subprocess.Popen")
+    def test_spawn_sets_window_title(self, mock_popen, mock_which, mock_system):
+        """tmux spawner sets window title using -n flag."""
+        spawner = TmuxSpawner()
+        mock_process = MagicMock()
+        mock_process.pid = 12345
+        mock_process.returncode = 0
+        mock_process.wait.return_value = 0
+        mock_popen.return_value = mock_process
+
+        with patch("gobby.agents.spawn.get_tty_config") as mock_config:
+            mock_config.return_value.get_terminal_config.return_value = MagicMock(
+                enabled=True, command="tmux", options=[]
+            )
+            result = spawner.spawn(["echo", "test"], cwd="/tmp", title="my-window")
+
+        call_args = mock_popen.call_args[0][0]
+        # Verify -n flag is present with the session name as window title
+        assert "-n" in call_args
+        n_index = call_args.index("-n")
+        window_name = call_args[n_index + 1]
+        assert window_name == "my-window"
+        assert result.success is True
+
+    @patch("platform.system", return_value="Darwin")
+    @patch("shutil.which", return_value="/usr/local/bin/tmux")
+    @patch("subprocess.Popen")
+    def test_spawn_passes_env_vars(self, mock_popen, mock_which, mock_system):
+        """tmux spawner passes env vars to session via shell exports."""
+        spawner = TmuxSpawner()
+        mock_process = MagicMock()
+        mock_process.pid = 12345
+        mock_process.returncode = 0
+        mock_process.wait.return_value = 0
+        mock_popen.return_value = mock_process
+
+        with patch("gobby.agents.spawn.get_tty_config") as mock_config:
+            mock_config.return_value.get_terminal_config.return_value = MagicMock(
+                enabled=True, command="tmux", options=[]
+            )
+            result = spawner.spawn(
+                ["echo", "test"],
+                cwd="/tmp",
+                title="test-env",
+                env={"MY_VAR": "my_value"},
+            )
+
+        call_args = mock_popen.call_args[0][0]
+        # Verify env vars are exported in the shell command
+        assert "sh" in call_args
+        sh_index = call_args.index("sh")
+        # The -c flag for sh should be right after sh
+        assert call_args[sh_index + 1] == "-c"
+        shell_cmd = call_args[sh_index + 2]
+        assert "export MY_VAR=" in shell_cmd
+        assert "my_value" in shell_cmd
+        assert "exec echo test" in shell_cmd
+        assert result.success is True
+
 
 class TestTerminalSpawnerRegistry:
     """Tests for TerminalSpawner registry."""

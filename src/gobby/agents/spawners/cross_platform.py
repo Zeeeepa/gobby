@@ -184,9 +184,12 @@ class TmuxSpawner(TerminalSpawnerBase):
             session_name = session_name.replace(".", "-").replace(":", "-")
 
             # Build tmux command:
-            # tmux new-session -d -s <name> -c <cwd> <command> \; set-option destroy-unattached off
+            # tmux new-session -d -s <name> -n <name> -c <cwd> <command> \
+            #   \; set-option destroy-unattached off \
+            #   \; set-environment VAR value ...
             # -d: detached (runs in background)
             # -s: session name
+            # -n: window name (title)
             # -c: starting directory
             # The chained set-option prevents session destruction when user has
             # global destroy-unattached on (must be atomic with session creation)
@@ -196,6 +199,8 @@ class TmuxSpawner(TerminalSpawnerBase):
                 "-d",  # Detached
                 "-s",
                 session_name,
+                "-n",
+                session_name,  # Window title
                 "-c",
                 str(cwd),
             ]
@@ -203,9 +208,19 @@ class TmuxSpawner(TerminalSpawnerBase):
             # Add extra options from config
             args.extend(tty_config.options)
 
-            # Add the command to run
-            # For complex commands, wrap in shell
-            if len(command) == 1:
+            # Build the command to run, injecting env vars if provided
+            # We export env vars in the shell command so they're available to the process
+            # (tmux set-environment only affects new processes, not the initial command)
+            if env:
+                # Build export statements for each env var
+                exports = " ".join(
+                    f"export {shlex.quote(k)}={shlex.quote(v)};"
+                    for k, v in env.items()
+                )
+                # Wrap command with exports
+                shell_cmd = f"{exports} exec {shlex.join(command)}"
+                args.extend(["sh", "-c", shell_cmd])
+            elif len(command) == 1:
                 args.append(command[0])
             else:
                 # Use shell to handle complex commands with arguments
