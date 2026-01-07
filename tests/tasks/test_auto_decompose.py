@@ -1727,3 +1727,292 @@ class TestValidationCriteriaOnComplete:
         # Criteria should still be there
         assert closed.validation_criteria is not None
         assert "Everything works" in closed.validation_criteria
+
+
+# =============================================================================
+# Integration Tests: Full Auto-Decompose Workflows
+# =============================================================================
+
+
+class TestAutoDecomposeHappyPathWorkflow:
+    """Integration tests for the happy path: auto-decomposition enabled."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_full_workflow_create_decompose_complete(self, task_manager, dep_manager):
+        """Full workflow: create with multi-step -> subtasks created -> complete all."""
+        description = """Implement user authentication:
+1. Create user model with email/password
+2. Add login API endpoint
+3. Implement JWT token generation"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Implement auth",
+            description=description,
+            auto_decompose=True,
+        )
+
+        # Verify decomposition occurred
+        assert result["auto_decomposed"] is True
+        assert result["parent_task"]["status"] == "open"
+        assert len(result["subtasks"]) == 3
+
+        parent_id = result["parent_task"]["id"]
+
+        # Complete subtasks in sequence
+        for i, subtask in enumerate(result["subtasks"]):
+            task_manager.update_task(subtask["id"], status="in_progress")
+            task_manager.update_task(subtask["id"], status="closed")
+
+            # Check parent is still open until all done
+            parent = task_manager.get_task(parent_id)
+            if i < len(result["subtasks"]) - 1:
+                assert parent.status == "open"
+
+        # Parent can now be closed
+        task_manager.update_task(parent_id, status="in_progress")
+        closed_parent = task_manager.update_task(parent_id, status="closed")
+        assert closed_parent.status == "closed"
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_subtasks_have_sequential_dependencies(self, task_manager, dep_manager):
+        """Subtasks should have dependencies on previous steps."""
+        description = """Setup pipeline:
+1. Install dependencies
+2. Configure database
+3. Run migrations"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Setup",
+            description=description,
+            auto_decompose=True,
+        )
+
+        subtasks = result["subtasks"]
+        assert len(subtasks) == 3
+
+        # First subtask has no blockers
+        blockers_0 = dep_manager.get_blockers(subtasks[0]["id"])
+        assert len(blockers_0) == 0
+
+        # Second subtask blocked by first
+        blockers_1 = dep_manager.get_blockers(subtasks[1]["id"])
+        assert len(blockers_1) == 1
+        assert blockers_1[0].depends_on == subtasks[0]["id"]
+
+        # Third subtask blocked by second
+        blockers_2 = dep_manager.get_blockers(subtasks[2]["id"])
+        assert len(blockers_2) == 1
+        assert blockers_2[0].depends_on == subtasks[1]["id"]
+
+
+class TestAutoDecomposeOptOutPathWorkflow:
+    """Integration tests for opt-out path: auto_decompose=False."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_opt_out_then_manual_decomposition(self, task_manager):
+        """Opt-out creates needs_decomposition, manual subtasks transitions to open."""
+        description = """Refactor module:
+1. Extract interface
+2. Create implementations
+3. Update consumers"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Refactor",
+            description=description,
+            auto_decompose=False,
+        )
+
+        # Task has needs_decomposition status (not decomposed)
+        assert result["auto_decomposed"] is False
+        assert result["task"]["status"] == "needs_decomposition"
+
+        parent_id = result["task"]["id"]
+
+        # Manually add subtasks
+        sub1 = task_manager.create_task(
+            project_id="test-project",
+            title="Extract interface",
+            parent_task_id=parent_id,
+        )
+        sub2 = task_manager.create_task(
+            project_id="test-project",
+            title="Create implementations",
+            parent_task_id=parent_id,
+        )
+
+        # Parent transitions to open
+        parent = task_manager.get_task(parent_id)
+        assert parent.status == "open"
+
+        # Complete subtasks and parent
+        task_manager.update_task(sub1.id, status="in_progress")
+        task_manager.update_task(sub1.id, status="closed")
+        task_manager.update_task(sub2.id, status="in_progress")
+        task_manager.update_task(sub2.id, status="closed")
+
+        task_manager.update_task(parent_id, status="in_progress")
+        closed = task_manager.update_task(parent_id, status="closed")
+        assert closed.status == "closed"
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_needs_decomposition_blocks_in_progress(self, task_manager):
+        """Tasks with needs_decomposition cannot be set to in_progress."""
+        description = """Build feature:
+1. Design API
+2. Implement backend
+3. Add frontend"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Feature",
+            description=description,
+            auto_decompose=False,
+        )
+
+        task_id = result["task"]["id"]
+
+        # Cannot claim without decomposing
+        with pytest.raises(ValueError) as exc_info:
+            task_manager.update_task(task_id, status="in_progress")
+
+        assert "needs_decomposition" in str(exc_info.value).lower()
+
+
+class TestAutoDecomposeMixedContentWorkflow:
+    """Integration tests for descriptions with steps and other content."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_steps_extracted_with_surrounding_context(self, task_manager):
+        """Steps become subtasks, parent retains full description."""
+        # Note: extract_steps extracts both numbered and bullet items
+        description = """Implement logging system for the application.
+
+1. Add logging library to dependencies
+2. Create logger wrapper class
+3. Instrument key functions with logging
+
+This will improve debugging and monitoring."""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Add logging",
+            description=description,
+            auto_decompose=True,
+        )
+
+        # Steps become subtasks
+        assert result["auto_decomposed"] is True
+        assert len(result["subtasks"]) == 3
+        assert result["subtasks"][0]["title"] == "Add logging library to dependencies"
+
+        # Parent retains the full original description
+        parent = task_manager.get_task(result["parent_task"]["id"])
+        assert "Implement logging system" in parent.description
+        assert "improve debugging" in parent.description
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_reproduction_steps_not_extracted(self, task_manager):
+        """Bug reproduction steps should not become subtasks."""
+        description = """Button not working
+
+## Steps to Reproduce
+1. Click login button
+2. Enter credentials
+3. Click submit
+
+## Expected
+Login succeeds
+
+## Actual
+Nothing happens"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Fix login button",
+            description=description,
+            auto_decompose=True,
+        )
+
+        # Reproduction steps are not implementation steps (single task returned)
+        assert result["auto_decomposed"] is False
+        assert "task" in result  # Not decomposed returns "task" key
+
+
+class TestAutoDecomposeWorkflowWithVariables:
+    """Integration tests for workflow variable control."""
+
+    @pytest.fixture
+    def workflow_state_disabled(self):
+        """Workflow state with auto_decompose disabled."""
+        return WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="execute",
+            step_entered_at=datetime.now(UTC),
+            variables={"auto_decompose": False},
+        )
+
+    @pytest.fixture
+    def workflow_state_enabled(self):
+        """Workflow state with auto_decompose enabled."""
+        return WorkflowState(
+            session_id="test-session",
+            workflow_name="test",
+            step="execute",
+            step_entered_at=datetime.now(UTC),
+            variables={"auto_decompose": True},
+        )
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_workflow_variable_controls_decomposition(
+        self, task_manager, workflow_state_disabled
+    ):
+        """Workflow variable can disable auto-decomposition for session."""
+        description = """Setup:
+1. Install deps
+2. Configure
+3. Test"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Setup",
+            description=description,
+            workflow_state=workflow_state_disabled,
+        )
+
+        # Variable disabled decomposition
+        assert result["auto_decomposed"] is False
+        assert result["task"]["status"] == "needs_decomposition"
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_explicit_param_overrides_workflow_variable(
+        self, task_manager, workflow_state_disabled
+    ):
+        """Explicit parameter takes precedence over workflow variable."""
+        description = """Build:
+1. Compile
+2. Link
+3. Package"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Build",
+            description=description,
+            auto_decompose=True,  # Explicit True overrides variable False
+            workflow_state=workflow_state_disabled,
+        )
+
+        # Explicit param won
+        assert result["auto_decomposed"] is True
+        assert len(result["subtasks"]) == 3
