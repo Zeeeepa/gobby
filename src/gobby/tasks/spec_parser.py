@@ -1125,10 +1125,10 @@ class TaskHierarchyBuilder:
         """
         parallel_groups: list[ParallelGroup] = []
 
-        # Build a mapping from heading text to task ID
-        heading_to_task: dict[str, str] = {}
+        # Build a mapping from (title, parent_id) to task ID to handle duplicate titles
+        heading_to_task: dict[tuple[str, str | None], str] = {}
         for task in created_tasks:
-            heading_to_task[task.title] = task.id
+            heading_to_task[(task.title, task.parent_task_id)] = task.id
 
         # Recursively collect parallel groups from the heading tree
         self._collect_parallel_groups(
@@ -1144,7 +1144,7 @@ class TaskHierarchyBuilder:
         self,
         headings: list[HeadingNode],
         parent_task_id: str | None,
-        heading_to_task: dict[str, str],
+        heading_to_task: dict[tuple[str, str | None], str],
         parallel_groups: list[ParallelGroup],
     ) -> None:
         """Recursively collect parallel groups from heading siblings.
@@ -1152,7 +1152,7 @@ class TaskHierarchyBuilder:
         Args:
             headings: List of sibling headings at the current level
             parent_task_id: The parent task ID for these headings
-            heading_to_task: Mapping from heading text to task ID
+            heading_to_task: Mapping from (heading text, parent_id) to task ID
             parallel_groups: List to append ParallelGroup objects to
         """
         if not headings:
@@ -1163,14 +1163,14 @@ class TaskHierarchyBuilder:
         heading_level = headings[0].level if headings else 0
 
         for heading in headings:
-            task_id = heading_to_task.get(heading.text)
+            task_id = heading_to_task.get((heading.text, parent_task_id))
             if task_id:
                 sibling_task_ids.append(task_id)
 
             # Recursively process children of this heading
             if heading.children:
                 # Get the task ID for this heading to use as parent for children
-                this_task_id = heading_to_task.get(heading.text)
+                this_task_id = heading_to_task.get((heading.text, parent_task_id))
                 self._collect_parallel_groups(
                     headings=heading.children,
                     parent_task_id=this_task_id,

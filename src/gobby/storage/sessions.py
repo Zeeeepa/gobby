@@ -7,7 +7,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, cast
+from typing import Any
 
 from gobby.storage.database import LocalDatabase
 
@@ -164,7 +164,10 @@ class LocalSessionManager:
                 ),
             )
             logger.debug(f"Reusing existing session {existing.id} for external_id={external_id}")
-            return cast(Session, self.get(existing.id))
+            session = self.get(existing.id)
+            if session is None:
+                raise RuntimeError(f"Session {existing.id} disappeared during update")
+            return session
 
         # New session - create it
         session_id = str(uuid.uuid4())
@@ -196,7 +199,10 @@ class LocalSessionManager:
         )
         logger.debug(f"Created new session {session_id} for external_id={external_id}")
 
-        return cast(Session, self.get(session_id))
+        session = self.get(session_id)
+        if session is None:
+            raise RuntimeError(f"Session {session_id} not found after creation")
+        return session
 
     def get(self, session_id: str) -> Session | None:
         """Get session by ID."""

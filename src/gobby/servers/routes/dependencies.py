@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 __all__ = [
     "get_server",
     "get_mcp_manager",
+    "get_mcp_manager_required",
     "get_internal_manager",
     "get_tools_handler",
     "get_config",
