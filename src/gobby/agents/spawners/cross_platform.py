@@ -251,10 +251,11 @@ class TmuxSpawner(TerminalSpawnerBase):
                     error=f"tmux failed to create session '{session_name}'",
                 )
 
+            # pid=None since tmux process has exited; session_name is the identifier
             return SpawnResult(
                 success=True,
                 message=f"Spawned tmux session '{session_name}' (attach with: tmux attach -t {session_name})",
-                pid=process.pid,
+                pid=None,
                 terminal_type=self.terminal_type.value,
             )
 
