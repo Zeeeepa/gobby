@@ -484,6 +484,26 @@ async def validate_session_task_scope(
         logger.debug("validate_session_task_scope: No session_task set, allowing")
         return None
 
+    # Handle "*" wildcard - means all tasks are in scope
+    if session_task == "*":
+        logger.debug("validate_session_task_scope: session_task='*', allowing all tasks")
+        return None
+
+    # Normalize to list for uniform handling
+    # session_task can be: string (single ID), list of IDs, or "*"
+    if isinstance(session_task, str):
+        session_task_ids = [session_task]
+    elif isinstance(session_task, list):
+        session_task_ids = session_task
+    else:
+        logger.warning(f"validate_session_task_scope: Invalid session_task type: {type(session_task)}")
+        return None
+
+    # Empty list means no scope restriction
+    if not session_task_ids:
+        logger.debug("validate_session_task_scope: Empty session_task list, allowing")
+        return None
+
     # Check if this is an update_task call setting status to in_progress
     if not event_data:
         logger.debug("validate_session_task_scope: No event_data, allowing")
@@ -508,30 +528,40 @@ async def validate_session_task_scope(
         logger.debug("validate_session_task_scope: No task_id in arguments, allowing")
         return None
 
-    # Check if task is a descendant of session_task
-    if is_descendant_of(task_manager, task_id, session_task):
-        logger.debug(
-            f"validate_session_task_scope: Task '{task_id}' is descendant of "
-            f"session_task '{session_task}', allowing"
-        )
-        return None
+    # Check if task is a descendant of ANY session_task
+    for ancestor_id in session_task_ids:
+        if is_descendant_of(task_manager, task_id, ancestor_id):
+            logger.debug(
+                f"validate_session_task_scope: Task '{task_id}' is descendant of "
+                f"session_task '{ancestor_id}', allowing"
+            )
+            return None
 
-    # Task is outside the session_task scope - block
+    # Task is outside all session_task scopes - block
     logger.info(
         f"validate_session_task_scope: Blocking claim of task '{task_id}' - "
-        f"not a descendant of session_task '{session_task}'"
+        f"not a descendant of any session_task: {session_task_ids}"
     )
 
-    # Get session_task details for better error message
-    session_task_obj = task_manager.get_task(session_task)
-    session_task_title = session_task_obj.title if session_task_obj else session_task
+    # Build error message with scope details
+    if len(session_task_ids) == 1:
+        session_task_obj = task_manager.get_task(session_task_ids[0])
+        scope_desc = (
+            f"'{session_task_obj.title}' ({session_task_ids[0]})"
+            if session_task_obj
+            else session_task_ids[0]
+        )
+        suggestion = f'Use `suggest_next_task(parent_id="{session_task_ids[0]}")` to find tasks within scope.'
+    else:
+        scope_desc = ", ".join(session_task_ids)
+        suggestion = "Use `suggest_next_task()` with one of the scoped parent IDs to find tasks within scope."
 
     return {
         "decision": "block",
         "reason": (
             f"Cannot claim task '{task_id}' - it is not within the session_task scope.\n\n"
-            f"This session is scoped to: '{session_task_title}' ({session_task})\n"
-            f"Only tasks that are descendants of this epic/feature can be claimed.\n\n"
-            f"Use `suggest_next_task(parent_id=\"{session_task}\")` to find tasks within scope."
+            f"This session is scoped to: {scope_desc}\n"
+            f"Only tasks that are descendants of these epics/features can be claimed.\n\n"
+            f"{suggestion}"
         ),
     }

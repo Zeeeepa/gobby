@@ -464,3 +464,106 @@ class TestValidateSessionTaskScope:
         )
 
         assert result is None  # Allowed - no task manager to check
+
+    async def test_wildcard_allows_all(self, mock_task_manager):
+        """When session_task='*', all tasks are allowed."""
+        workflow_state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+            step_entered_at=datetime.now(UTC),
+            variables={"session_task": "*"},
+        )
+        event_data = {
+            "tool_name": "update_task",
+            "tool_input": {"arguments": {"task_id": "any-task", "status": "in_progress"}},
+        }
+
+        result = await validate_session_task_scope(
+            task_manager=mock_task_manager,
+            workflow_state=workflow_state,
+            event_data=event_data,
+        )
+
+        assert result is None  # Allowed - wildcard means all tasks
+
+    async def test_array_allows_descendant_of_any(self, mock_task_manager):
+        """When session_task is array, task must be descendant of ANY."""
+        workflow_state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+            step_entered_at=datetime.now(UTC),
+            variables={"session_task": ["epic-1", "epic-2"]},
+        )
+        event_data = {
+            "tool_name": "update_task",
+            "tool_input": {"arguments": {"task_id": "child-of-epic-2", "status": "in_progress"}},
+        }
+
+        # Mock is_descendant_of: False for epic-1, True for epic-2
+        with patch(
+            "gobby.workflows.task_enforcement_actions.is_descendant_of"
+        ) as mock_descendant:
+            mock_descendant.side_effect = [False, True]  # Not under epic-1, but under epic-2
+
+            result = await validate_session_task_scope(
+                task_manager=mock_task_manager,
+                workflow_state=workflow_state,
+                event_data=event_data,
+            )
+
+        assert result is None  # Allowed - descendant of epic-2
+        assert mock_descendant.call_count == 2
+
+    async def test_array_blocks_if_not_descendant_of_any(self, mock_task_manager):
+        """When session_task is array, blocks if not descendant of any."""
+        workflow_state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+            step_entered_at=datetime.now(UTC),
+            variables={"session_task": ["epic-1", "epic-2"]},
+        )
+        event_data = {
+            "tool_name": "update_task",
+            "tool_input": {"arguments": {"task_id": "unrelated-task", "status": "in_progress"}},
+        }
+
+        with patch(
+            "gobby.workflows.task_enforcement_actions.is_descendant_of"
+        ) as mock_descendant:
+            mock_descendant.return_value = False  # Not under any
+
+            result = await validate_session_task_scope(
+                task_manager=mock_task_manager,
+                workflow_state=workflow_state,
+                event_data=event_data,
+            )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "epic-1" in result["reason"]
+        assert "epic-2" in result["reason"]
+
+    async def test_empty_array_allows_all(self, mock_task_manager):
+        """Empty session_task array means no scope restriction."""
+        workflow_state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+            step_entered_at=datetime.now(UTC),
+            variables={"session_task": []},
+        )
+        event_data = {
+            "tool_name": "update_task",
+            "tool_input": {"arguments": {"task_id": "any-task", "status": "in_progress"}},
+        }
+
+        result = await validate_session_task_scope(
+            task_manager=mock_task_manager,
+            workflow_state=workflow_state,
+            event_data=event_data,
+        )
+
+        assert result is None  # Allowed - empty list means no restriction
