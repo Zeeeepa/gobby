@@ -184,7 +184,7 @@ def create_workflows_registry(
 
         Args:
             name: Workflow name (e.g., "plan-act-reflect", "tdd")
-            session_id: Optional session ID (defaults to most recent active)
+            session_id: Required session ID (must be provided to prevent cross-session bleed)
             initial_step: Optional starting step (defaults to first step)
             project_path: Optional project directory path
 
@@ -192,6 +192,7 @@ def create_workflows_registry(
             Success status, workflow info, and current step.
 
         Errors if:
+            - session_id not provided
             - Another step-based workflow is currently active
             - Workflow not found
             - Workflow is lifecycle type (those auto-run, not manually activated)
@@ -209,15 +210,12 @@ def create_workflows_registry(
                 "error": f"Workflow '{name}' is lifecycle type (auto-runs on events, not manually activated)",
             }
 
-        # Get session
+        # Require explicit session_id to prevent cross-session bleed
         if not session_id:
-            row = _db.fetchone(
-                "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-            )
-            if row:
-                session_id = row["id"]
-            else:
-                return {"success": False, "error": "No active session found"}
+            return {
+                "success": False,
+                "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
+            }
 
         # Check for existing workflow
         existing = _state_manager.get_state(session_id)
@@ -281,20 +279,18 @@ def create_workflows_registry(
         Does not affect lifecycle workflows (they continue running).
 
         Args:
-            session_id: Optional session ID (defaults to most recent active)
+            session_id: Required session ID (must be provided to prevent cross-session bleed)
             reason: Optional reason for ending
 
         Returns:
             Success status
         """
+        # Require explicit session_id to prevent cross-session bleed
         if not session_id:
-            row = _db.fetchone(
-                "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-            )
-            if row:
-                session_id = row["id"]
-            else:
-                return {"success": False, "error": "No active session found"}
+            return {
+                "success": False,
+                "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
+            }
 
         state = _state_manager.get_state(session_id)
         if not state:
@@ -318,19 +314,17 @@ def create_workflows_registry(
         Get current workflow step and state.
 
         Args:
-            session_id: Optional session ID (defaults to most recent active)
+            session_id: Required session ID (must be provided to prevent cross-session bleed)
 
         Returns:
             Workflow state including step, action counts, artifacts
         """
+        # Require explicit session_id to prevent cross-session bleed
         if not session_id:
-            row = _db.fetchone(
-                "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-            )
-            if row:
-                session_id = row["id"]
-            else:
-                return {"has_workflow": False, "error": "No active session found"}
+            return {
+                "has_workflow": False,
+                "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
+            }
 
         state = _state_manager.get_state(session_id)
         if not state:
@@ -369,7 +363,7 @@ def create_workflows_registry(
         Args:
             to_step: Target step name
             reason: Reason for transition
-            session_id: Optional session ID
+            session_id: Required session ID (must be provided to prevent cross-session bleed)
             force: Skip exit condition checks
             project_path: Optional project directory path
 
@@ -378,14 +372,12 @@ def create_workflows_registry(
         """
         proj = Path(project_path) if project_path else None
 
+        # Require explicit session_id to prevent cross-session bleed
         if not session_id:
-            row = _db.fetchone(
-                "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-            )
-            if row:
-                session_id = row["id"]
-            else:
-                return {"success": False, "error": "No active session found"}
+            return {
+                "success": False,
+                "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
+            }
 
         state = _state_manager.get_state(session_id)
         if not state:
@@ -432,19 +424,17 @@ def create_workflows_registry(
         Args:
             artifact_type: Type of artifact (e.g., "plan", "spec", "test")
             file_path: Path to the artifact file
-            session_id: Optional session ID
+            session_id: Required session ID (must be provided to prevent cross-session bleed)
 
         Returns:
             Success status
         """
+        # Require explicit session_id to prevent cross-session bleed
         if not session_id:
-            row = _db.fetchone(
-                "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-            )
-            if row:
-                session_id = row["id"]
-            else:
-                return {"success": False, "error": "No active session found"}
+            return {
+                "success": False,
+                "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
+            }
 
         state = _state_manager.get_state(session_id)
         if not state:
@@ -484,19 +474,17 @@ def create_workflows_registry(
         Args:
             name: Variable name (e.g., "session_epic", "is_worktree")
             value: Variable value (string, number, boolean, or null)
-            session_id: Optional session ID (defaults to most recent active)
+            session_id: Required session ID (must be provided to prevent cross-session bleed)
 
         Returns:
             Success status and updated variables
         """
+        # Require explicit session_id to prevent cross-session bleed
         if not session_id:
-            row = _db.fetchone(
-                "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-            )
-            if row:
-                session_id = row["id"]
-            else:
-                return {"success": False, "error": "No active session found"}
+            return {
+                "success": False,
+                "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
+            }
 
         # Get or create state
         state = _state_manager.get_state(session_id)
@@ -535,19 +523,17 @@ def create_workflows_registry(
 
         Args:
             name: Variable name to get (if None, returns all variables)
-            session_id: Optional session ID (defaults to most recent active)
+            session_id: Required session ID (must be provided to prevent cross-session bleed)
 
         Returns:
             Variable value(s) and session info
         """
+        # Require explicit session_id to prevent cross-session bleed
         if not session_id:
-            row = _db.fetchone(
-                "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-            )
-            if row:
-                session_id = row["id"]
-            else:
-                return {"success": False, "error": "No active session found"}
+            return {
+                "success": False,
+                "error": "session_id is required. Pass the session ID explicitly to prevent cross-session variable bleed.",
+            }
 
         state = _state_manager.get_state(session_id)
         if not state:
