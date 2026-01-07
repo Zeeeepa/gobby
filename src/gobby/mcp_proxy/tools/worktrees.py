@@ -131,6 +131,86 @@ def _resolve_project_context(
     return default_git_manager, default_project_id, None
 
 
+def _copy_project_json_to_worktree(
+    repo_path: str | Path,
+    worktree_path: str | Path,
+) -> None:
+    """
+    Copy .gobby/project.json from main repo to worktree.
+
+    This ensures worktree sessions use the same project_id as the parent repo.
+
+    Args:
+        repo_path: Path to main repository
+        worktree_path: Path to worktree directory
+    """
+    main_gobby_dir = Path(repo_path) / ".gobby"
+    main_project_json = main_gobby_dir / "project.json"
+    worktree_gobby_dir = Path(worktree_path) / ".gobby"
+
+    if main_project_json.exists():
+        try:
+            worktree_gobby_dir.mkdir(parents=True, exist_ok=True)
+            worktree_project_json = worktree_gobby_dir / "project.json"
+            if not worktree_project_json.exists():
+                shutil.copy2(main_project_json, worktree_project_json)
+                logger.info(f"Copied project.json to worktree: {worktree_project_json}")
+        except Exception as e:
+            logger.warning(f"Failed to copy project.json to worktree: {e}")
+
+
+def _install_provider_hooks(
+    provider: str | None,
+    worktree_path: str | Path,
+) -> bool:
+    """
+    Install CLI hooks for the specified provider in the worktree.
+
+    Args:
+        provider: Provider name ('claude', 'gemini', 'antigravity', or None)
+        worktree_path: Path to worktree directory
+
+    Returns:
+        True if hooks were successfully installed, False otherwise
+    """
+    if not provider:
+        return False
+
+    worktree_path_obj = Path(worktree_path)
+    try:
+        if provider == "claude":
+            from gobby.cli.installers.claude import install_claude
+
+            result = install_claude(worktree_path_obj)
+            if result["success"]:
+                logger.info(f"Installed Claude hooks in worktree: {worktree_path}")
+                return True
+            else:
+                logger.warning(f"Failed to install Claude hooks: {result.get('error')}")
+        elif provider == "gemini":
+            from gobby.cli.installers.gemini import install_gemini
+
+            result = install_gemini(worktree_path_obj)
+            if result["success"]:
+                logger.info(f"Installed Gemini hooks in worktree: {worktree_path}")
+                return True
+            else:
+                logger.warning(f"Failed to install Gemini hooks: {result.get('error')}")
+        elif provider == "antigravity":
+            from gobby.cli.installers.antigravity import install_antigravity
+
+            result = install_antigravity(worktree_path_obj)
+            if result["success"]:
+                logger.info(f"Installed Antigravity hooks in worktree: {worktree_path}")
+                return True
+            else:
+                logger.warning(f"Failed to install Antigravity hooks: {result.get('error')}")
+        # Note: codex uses CODEX_NOTIFY_SCRIPT env var, not project-level hooks
+    except Exception as e:
+        logger.warning(f"Failed to install {provider} hooks in worktree: {e}")
+    return False
+
+
 def create_worktrees_registry(
     worktree_storage: LocalWorktreeManager,
     git_manager: WorktreeGitManager | None = None,
@@ -233,62 +313,9 @@ def create_worktrees_registry(
             task_id=task_id,
         )
 
-        # Copy .gobby/project.json to worktree for project identification
-        # This ensures worktree sessions use the same project_id as parent
-        main_gobby_dir = Path(resolved_git_mgr.repo_path) / ".gobby"
-        main_project_json = main_gobby_dir / "project.json"
-        worktree_gobby_dir = Path(worktree.worktree_path) / ".gobby"
-
-        if main_project_json.exists():
-            try:
-                worktree_gobby_dir.mkdir(parents=True, exist_ok=True)
-                worktree_project_json = worktree_gobby_dir / "project.json"
-                if not worktree_project_json.exists():
-                    shutil.copy2(main_project_json, worktree_project_json)
-                    logger.info(f"Copied project.json to worktree: {worktree_project_json}")
-            except Exception as e:
-                logger.warning(f"Failed to copy project.json to worktree: {e}")
-
-        # Install CLI hooks if provider specified
-        # Each CLI needs its own hook configuration with paths pointing to worktree
-        hooks_installed = False
-        if provider:
-            worktree_path_obj = Path(worktree.worktree_path)
-            try:
-                if provider == "claude":
-                    from gobby.cli.installers.claude import install_claude
-
-                    result = install_claude(worktree_path_obj)
-                    if result["success"]:
-                        logger.info(f"Installed Claude hooks in worktree: {worktree.worktree_path}")
-                        hooks_installed = True
-                    else:
-                        logger.warning(f"Failed to install Claude hooks: {result.get('error')}")
-                elif provider == "gemini":
-                    from gobby.cli.installers.gemini import install_gemini
-
-                    result = install_gemini(worktree_path_obj)
-                    if result["success"]:
-                        logger.info(f"Installed Gemini hooks in worktree: {worktree.worktree_path}")
-                        hooks_installed = True
-                    else:
-                        logger.warning(f"Failed to install Gemini hooks: {result.get('error')}")
-                elif provider == "antigravity":
-                    from gobby.cli.installers.antigravity import install_antigravity
-
-                    result = install_antigravity(worktree_path_obj)
-                    if result["success"]:
-                        logger.info(
-                            f"Installed Antigravity hooks in worktree: {worktree.worktree_path}"
-                        )
-                        hooks_installed = True
-                    else:
-                        logger.warning(
-                            f"Failed to install Antigravity hooks: {result.get('error')}"
-                        )
-                # Note: codex uses CODEX_NOTIFY_SCRIPT env var, not project-level hooks
-            except Exception as e:
-                logger.warning(f"Failed to install {provider} hooks in worktree: {e}")
+        # Copy project.json and install provider hooks
+        _copy_project_json_to_worktree(resolved_git_mgr.repo_path, worktree.worktree_path)
+        hooks_installed = _install_provider_hooks(provider, worktree.worktree_path)
 
         return {
             "success": True,
@@ -949,55 +976,9 @@ def create_worktrees_registry(
                 task_id=task_id,
             )
 
-        # Copy .gobby/project.json to worktree for project identification
-        # This ensures worktree sessions use the same project_id as parent
-        main_gobby_dir = Path(resolved_git_mgr.repo_path) / ".gobby"
-        main_project_json = main_gobby_dir / "project.json"
-        worktree_gobby_dir = Path(worktree.worktree_path) / ".gobby"
-
-        if main_project_json.exists():
-            try:
-                worktree_gobby_dir.mkdir(parents=True, exist_ok=True)
-                worktree_project_json = worktree_gobby_dir / "project.json"
-                if not worktree_project_json.exists():
-                    shutil.copy2(main_project_json, worktree_project_json)
-                    logger.info(f"Copied project.json to worktree: {worktree_project_json}")
-            except Exception as e:
-                logger.warning(f"Failed to copy project.json to worktree: {e}")
-
-        # Install CLI hooks in worktree so agent sessions communicate with daemon
-        # Each CLI needs its own hook configuration with paths pointing to worktree
-        worktree_path_obj = Path(worktree.worktree_path)
-        try:
-            if provider == "claude":
-                from gobby.cli.installers.claude import install_claude
-
-                result = install_claude(worktree_path_obj)
-                if result["success"]:
-                    logger.info(f"Installed Claude hooks in worktree: {worktree.worktree_path}")
-                else:
-                    logger.warning(f"Failed to install Claude hooks: {result.get('error')}")
-            elif provider == "gemini":
-                from gobby.cli.installers.gemini import install_gemini
-
-                result = install_gemini(worktree_path_obj)
-                if result["success"]:
-                    logger.info(f"Installed Gemini hooks in worktree: {worktree.worktree_path}")
-                else:
-                    logger.warning(f"Failed to install Gemini hooks: {result.get('error')}")
-            elif provider == "antigravity":
-                from gobby.cli.installers.antigravity import install_antigravity
-
-                result = install_antigravity(worktree_path_obj)
-                if result["success"]:
-                    logger.info(
-                        f"Installed Antigravity hooks in worktree: {worktree.worktree_path}"
-                    )
-                else:
-                    logger.warning(f"Failed to install Antigravity hooks: {result.get('error')}")
-            # Note: codex uses CODEX_NOTIFY_SCRIPT env var, not project-level hooks
-        except Exception as e:
-            logger.warning(f"Failed to install {provider} hooks in worktree: {e}")
+        # Copy project.json and install provider hooks
+        _copy_project_json_to_worktree(resolved_git_mgr.repo_path, worktree.worktree_path)
+        _install_provider_hooks(provider, worktree.worktree_path)
 
         # Check spawn depth limit
         can_spawn, reason, _depth = agent_runner.can_spawn(parent_session_id)
