@@ -113,10 +113,24 @@ class WorkflowEngine:
 
         # Determine context for evaluation
         # Use SimpleNamespace for variables so dot notation works (variables.session_task)
+        # Look up session info for condition evaluation
+        session_info = {}
+        if self.action_executor and self.action_executor.session_manager:
+            session = self.action_executor.session_manager.get_by_external_id(event.session_id)
+            if session:
+                session_info = {
+                    "id": session.id,
+                    "external_id": session.external_id,
+                    "project_id": session.project_id,
+                    "status": session.status,
+                    "git_branch": session.git_branch,
+                    "source": session.source,
+                }
         eval_context = {
             "event": event,
             "workflow_state": state,
             "variables": SimpleNamespace(**state.variables),
+            "session": SimpleNamespace(**session_info),
             "tool_name": event.data.get("tool_name"),
             "tool_args": event.data.get("tool_args", {}),
         }
