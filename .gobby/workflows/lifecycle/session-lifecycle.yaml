@@ -3,7 +3,7 @@ description: "Unified session lifecycle: context handoff, memory, and skills"
 type: lifecycle
 
 settings:
-  priority: 10  # Run first - critical for handoff before other LLM calls
+  priority: 10 # Run first - critical for handoff before other LLM calls
 
 # Session-scoped variables (can be overridden per session)
 # These provide runtime control over behavior settings
@@ -35,7 +35,7 @@ triggers:
     - action: inject_context
       when: "event.data.get('source') == 'clear'"
       source: previous_session_summary
-      require: true  # Block if handoff context missing
+      require: true # Block if handoff context missing
       template: |
         ## Previous Session Context
         *Injected by Gobby session handoff*
@@ -46,16 +46,12 @@ triggers:
     - action: inject_context
       when: "event.data.get('source') == 'compact'"
       source: compact_handoff
-      require: true  # Block if handoff context missing
+      require: true # Block if handoff context missing
       template: |
         ## Continuation Context
         *Injected by Gobby compact handoff*
 
         {{ handoff }}
-
-    # Memory injection - inject relevant stored memories
-    - action: memory_inject
-      # Uses config defaults: importance_threshold=0.3, injection_limit=10
 
     # Memory sync - import from JSONL for Git persistence
     - action: memory_sync_import

@@ -52,7 +52,7 @@ Use progressive disclosure to minimize tokens:
 ### Internal Servers (gobby-*)
 
 | Server | Purpose |
-|--------|---------|
+| :--- | :--- |
 | `gobby-tasks` | Task CRUD, dependencies, ready work, validation |
 | `gobby-agents` | Subagent spawning with context injection |
 | `gobby-worktrees` | Git worktree management |
@@ -187,7 +187,7 @@ call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
 ## Hook Events
 
 | Event | Description |
-|-------|-------------|
+| :--- | :--- |
 | `session_start/end` | Session lifecycle |
 | `before_tool/after_tool` | Tool execution (can block) |
 | `stop` | Agent stop (can block) |
