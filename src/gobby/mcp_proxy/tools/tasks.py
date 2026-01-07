@@ -1712,7 +1712,12 @@ def create_task_registry(
             worktree_manager = LocalWorktreeManager(task_manager.db)
             wt = worktree_manager.get_by_task(task_id)
             if wt:
-                if reason_normalized in ("wont_fix", "obsolete", "duplicate", "already_implemented"):
+                if reason_normalized in (
+                    "wont_fix",
+                    "obsolete",
+                    "duplicate",
+                    "already_implemented",
+                ):
                     worktree_manager.mark_abandoned(wt.id)
                 elif reason_normalized == "completed":
                     worktree_manager.mark_merged(wt.id)
@@ -1848,7 +1853,7 @@ def create_task_registry(
     )
 
     def list_tasks(
-        status: str | None = None,
+        status: str | list[str] | None = None,
         priority: int | None = None,
         task_type: str | None = None,
         assignee: str | None = None,
@@ -1861,8 +1866,14 @@ def create_task_registry(
         """List tasks with optional filters."""
         # Filter by current project unless all_projects is True
         project_id = None if all_projects else get_current_project_id()
+
+        # Handle comma-separated status string
+        status_filter: str | list[str] | None = status
+        if isinstance(status, str) and "," in status:
+            status_filter = [s.strip() for s in status.split(",")]
+
         tasks = task_manager.list_tasks(
-            status=status,
+            status=status_filter,
             priority=priority,
             task_type=task_type,
             assignee=assignee,
@@ -1880,7 +1891,11 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "status": {"type": "string", "description": "Filter by status", "default": None},
+                "status": {
+                    "oneOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}],
+                    "description": "Filter by status. Can be a single status, array of statuses, or comma-separated string (e.g., 'open,in_progress')",
+                    "default": None,
+                },
                 "priority": {
                     "type": "integer",
                     "description": "Filter by priority",

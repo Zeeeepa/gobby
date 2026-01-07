@@ -2,6 +2,7 @@
 Shared utilities for task CLI commands.
 """
 
+import json
 import logging
 import sys
 from pathlib import Path
@@ -63,6 +64,44 @@ def get_sync_manager() -> TaskSyncManager:
             export_path = str(stealth_dir / f"{project_id}.jsonl")
 
     return TaskSyncManager(manager, export_path=export_path)
+
+
+def get_claimed_task_ids() -> set[str]:
+    """Get task IDs that are claimed by active sessions via session_task variable.
+
+    Queries workflow_states for active sessions that have a session_task variable set,
+    indicating the task is being actively worked on by that session.
+
+    Returns:
+        Set of task IDs claimed by active sessions
+    """
+    try:
+        db = LocalDatabase()
+        # Join workflow_states with sessions to find active sessions with session_task
+        rows = db.fetchall(
+            """
+            SELECT ws.variables
+            FROM workflow_states ws
+            JOIN sessions s ON ws.session_id = s.id
+            WHERE s.status = 'active'
+            AND ws.variables IS NOT NULL
+            AND ws.variables != '{}'
+            """
+        )
+
+        claimed_ids: set[str] = set()
+        for row in rows:
+            try:
+                variables = json.loads(row["variables"]) if row["variables"] else {}
+                if session_task := variables.get("session_task"):
+                    claimed_ids.add(session_task)
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+        return claimed_ids
+    except Exception as e:
+        logger.debug(f"Failed to get claimed task IDs: {e}")
+        return set()
 
 
 def pad_to_width(text: str, width: int) -> str:
@@ -225,7 +264,11 @@ COL_ID = 9  # gt-xxxxxx
 
 
 def format_task_row(
-    task: Task, tree_prefix: str = "", is_primary: bool = True, muted: bool = False
+    task: Task,
+    tree_prefix: str = "",
+    is_primary: bool = True,
+    muted: bool = False,
+    claimed_task_ids: set[str] | None = None,
 ) -> str:
     """Format a task for list output.
 
@@ -234,17 +277,29 @@ def format_task_row(
         tree_prefix: Tree-style prefix (e.g., "├── ", "│   └── ")
         is_primary: If False, task is an ancestor shown for context (muted style)
         muted: Explicit muted flag (overrides is_primary)
+        claimed_task_ids: Set of task IDs claimed by active sessions
     """
     show_muted = muted or not is_primary
+    is_claimed = claimed_task_ids is not None and task.id in claimed_task_ids
 
-    status_icon = {
-        "open": "○",
-        "in_progress": "●",
-        "completed": "✓",
-        "closed": "✓",
-        "blocked": "⊗",
-        "escalated": "⚠",
-    }.get(task.status, "?")
+    # Status icons:
+    # ○ = open, unclaimed
+    # ◐ = open, claimed by active session
+    # ● = in_progress
+    # ✓ = completed/closed
+    # ⊗ = blocked
+    # ⚠ = escalated
+    if task.status == "open" and is_claimed:
+        status_icon = "◐"  # Open but claimed by active session
+    else:
+        status_icon = {
+            "open": "○",
+            "in_progress": "●",
+            "completed": "✓",
+            "closed": "✓",
+            "blocked": "⊗",
+            "escalated": "⚠",
+        }.get(task.status, "?")
 
     priority_icon = {
         1: "🔴",  # High

@@ -12,6 +12,7 @@ from gobby.cli.tasks._utils import (
     compute_tree_prefixes,
     format_task_header,
     format_task_row,
+    get_claimed_task_ids,
     get_task_manager,
     resolve_task_id,
     sort_tasks_for_tree,
@@ -20,9 +21,19 @@ from gobby.utils.project_context import get_project_context
 
 
 @click.command("list")
-@click.option("--status", help="Filter by status (open, in_progress, completed, blocked)")
+@click.option(
+    "--status",
+    help="Filter by status (open, in_progress, closed, blocked). Comma-separated for multiple.",
+)
+@click.option(
+    "--active",
+    is_flag=True,
+    help="Shorthand for --status open,in_progress (all active work)",
+)
 @click.option("--assignee", help="Filter by assignee")
-@click.option("--ready", is_flag=True, help="Show only ready tasks (open with no blocking deps)")
+@click.option(
+    "--ready", is_flag=True, help="Show only ready tasks (open/in_progress with no blocking deps)"
+)
 @click.option(
     "--blocked", is_flag=True, help="Show only blocked tasks (open with unresolved blockers)"
 )
@@ -30,6 +41,7 @@ from gobby.utils.project_context import get_project_context
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def list_tasks(
     status: str | None,
+    active: bool,
     assignee: str | None,
     ready: bool,
     blocked: bool,
@@ -41,13 +53,27 @@ def list_tasks(
         click.echo("Error: --ready and --blocked are mutually exclusive.", err=True)
         return
 
+    if active and status:
+        click.echo("Error: --active and --status are mutually exclusive.", err=True)
+        return
+
+    # Parse comma-separated statuses or use --active shorthand
+    status_filter: str | list[str] | None = None
+    if active:
+        status_filter = ["open", "in_progress"]
+    elif status:
+        if "," in status:
+            status_filter = [s.strip() for s in status.split(",")]
+        else:
+            status_filter = status
+
     project_ctx = get_project_context()
     project_id = project_ctx.get("id") if project_ctx else None
 
     manager = get_task_manager()
 
     if ready:
-        # Use ready task detection (open tasks with no unresolved blocking dependencies)
+        # Use ready task detection (open/in_progress tasks with no unresolved blocking dependencies)
         tasks_list = manager.list_ready_tasks(
             project_id=project_id,
             assignee=assignee,
@@ -66,7 +92,7 @@ def list_tasks(
     else:
         tasks_list = manager.list_tasks(
             project_id=project_id,
-            status=status,
+            status=status_filter,
             assignee=assignee,
             limit=limit,
         )
@@ -90,13 +116,23 @@ def list_tasks(
     # Sort for proper tree display order
     display_tasks = sort_tasks_for_tree(display_tasks)
 
+    # Get tasks claimed by active sessions for indicator display
+    claimed_ids = get_claimed_task_ids()
+
     click.echo(f"Found {len(tasks_list)} {label}:")
     click.echo(format_task_header())
     prefixes = compute_tree_prefixes(display_tasks, primary_ids)
     for task in display_tasks:
         prefix_info = prefixes.get(task.id, ("", True))
         tree_prefix, is_primary = prefix_info
-        click.echo(format_task_row(task, tree_prefix=tree_prefix, is_primary=is_primary))
+        click.echo(
+            format_task_row(
+                task,
+                tree_prefix=tree_prefix,
+                is_primary=is_primary,
+                claimed_task_ids=claimed_ids,
+            )
+        )
 
 
 @click.command("ready")
@@ -124,13 +160,16 @@ def ready_tasks(
         click.echo("No ready tasks found.")
         return
 
+    # Get tasks claimed by active sessions for indicator display
+    claimed_ids = get_claimed_task_ids()
+
     click.echo(f"Found {len(tasks_list)} ready tasks:")
     click.echo(format_task_header())
 
     if flat:
         # Simple flat list without tree structure
         for task in tasks_list:
-            click.echo(format_task_row(task))
+            click.echo(format_task_row(task, claimed_task_ids=claimed_ids))
     else:
         # Include ancestors for proper tree hierarchy
         display_tasks, primary_ids = collect_ancestors(tasks_list, manager)
@@ -139,7 +178,14 @@ def ready_tasks(
         for task in display_tasks:
             prefix_info = prefixes.get(task.id, ("", True))
             tree_prefix, is_primary = prefix_info
-            click.echo(format_task_row(task, tree_prefix=tree_prefix, is_primary=is_primary))
+            click.echo(
+                format_task_row(
+                    task,
+                    tree_prefix=tree_prefix,
+                    is_primary=is_primary,
+                    claimed_task_ids=claimed_ids,
+                )
+            )
 
 
 @click.command("blocked")

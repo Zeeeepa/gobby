@@ -761,7 +761,7 @@ class LocalTaskManager:
     def list_tasks(
         self,
         project_id: str | None = None,
-        status: str | None = None,
+        status: str | list[str] | None = None,
         priority: int | None = None,
         assignee: str | None = None,
         task_type: str | None = None,
@@ -773,6 +773,10 @@ class LocalTaskManager:
     ) -> list[Task]:
         """List tasks with filtering.
 
+        Args:
+            status: Filter by status. Can be a single status string, a list of statuses,
+                or None to include all statuses.
+
         Results are ordered hierarchically: parents appear before their children,
         with siblings sorted by priority ASC, then created_at ASC.
         """
@@ -783,8 +787,13 @@ class LocalTaskManager:
             query += " AND project_id = ?"
             params.append(project_id)
         if status:
-            query += " AND status = ?"
-            params.append(status)
+            if isinstance(status, list):
+                placeholders = ", ".join("?" for _ in status)
+                query += f" AND status IN ({placeholders})"
+                params.extend(status)
+            else:
+                query += " AND status = ?"
+                params.append(status)
         if priority:
             query += " AND priority = ?"
             params.append(priority)
@@ -824,12 +833,15 @@ class LocalTaskManager:
         limit: int = 50,
         offset: int = 0,
     ) -> list[Task]:
-        """List tasks that are open and not blocked by any open blocking dependency.
+        """List tasks that are ready to work on (open or in_progress) and not blocked.
 
         A task is ready if:
-        1. It is open
+        1. It is open or in_progress
         2. It has no open blocking dependencies
         3. Its parent (if any) is also ready (recursive check up the chain)
+
+        Note: in_progress tasks are included because they represent active work
+        that should remain visible in the ready queue.
 
         Results are ordered hierarchically: parents appear before their children,
         with siblings sorted by priority ASC, then created_at ASC.
@@ -843,9 +855,9 @@ class LocalTaskManager:
         # Parent tasks should still be considered "ready" even if blocked by children.
         query = """
         WITH RECURSIVE ready_tasks AS (
-            -- Base case: open tasks with no parent and no external blocking deps
+            -- Base case: open/in_progress tasks with no parent and no external blocking deps
             SELECT t.id FROM tasks t
-            WHERE t.status = 'open'
+            WHERE t.status IN ('open', 'in_progress')
             AND t.parent_task_id IS NULL
             AND NOT EXISTS (
                 SELECT 1 FROM task_dependencies d
@@ -860,10 +872,10 @@ class LocalTaskManager:
 
             UNION ALL
 
-            -- Recursive case: open tasks whose parent is ready and no external blocking deps
+            -- Recursive case: open/in_progress tasks whose parent is ready and no external blocking deps
             SELECT t.id FROM tasks t
             JOIN ready_tasks rt ON t.parent_task_id = rt.id
-            WHERE t.status = 'open'
+            WHERE t.status IN ('open', 'in_progress')
             AND NOT EXISTS (
                 SELECT 1 FROM task_dependencies d
                 JOIN tasks blocker ON d.depends_on = blocker.id
@@ -1051,7 +1063,7 @@ class LocalTaskManager:
 
     def count_ready_tasks(self, project_id: str | None = None) -> int:
         """
-        Count tasks that are open and not blocked by any external blocking dependency.
+        Count tasks that are ready (open or in_progress) and not blocked by any external blocking dependency.
 
         Excludes parent tasks blocked by their own children (completion block, not work block).
 
@@ -1063,7 +1075,7 @@ class LocalTaskManager:
         """
         query = """
         SELECT COUNT(*) as count FROM tasks t
-        WHERE t.status = 'open'
+        WHERE t.status IN ('open', 'in_progress')
         AND NOT EXISTS (
             SELECT 1 FROM task_dependencies d
             JOIN tasks blocker ON d.depends_on = blocker.id
