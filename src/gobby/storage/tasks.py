@@ -1342,3 +1342,138 @@ class LocalTaskManager:
             "parent_task": parent_task.to_dict(),
             "subtasks": subtasks,
         }
+
+    def update_task_with_step_detection(
+        self,
+        task_id: str,
+        description: str | None = None,
+        auto_decompose: bool | None = None,
+        workflow_state: "WorkflowState | None" = None,
+    ) -> dict[str, Any]:
+        """Update a task's description with multi-step detection.
+
+        When the description is updated, detect if it contains multi-step content.
+        If multi-step content is detected and the task doesn't already have subtasks:
+        - auto_decompose=True: Create subtasks automatically
+        - auto_decompose=False: Set task status to needs_decomposition
+
+        The auto_decompose setting can be controlled at three levels (in priority order):
+        1. Explicit parameter: auto_decompose=True/False passed to this call
+        2. Workflow variable: workflow_state.variables.get("auto_decompose")
+        3. Default: True (auto-decompose enabled)
+
+        Args:
+            task_id: ID of the task to update
+            description: New description text to analyze for steps
+            auto_decompose: Whether to auto-decompose multi-step descriptions.
+                If None, checks workflow_state variable, then defaults to True.
+            workflow_state: Optional workflow state for session-level variable lookup
+
+        Returns:
+            Dict with:
+            - steps_detected: bool - whether multi-step content was found
+            - step_count: int - number of steps detected (0 if none)
+            - auto_decomposed: bool - whether subtasks were created
+            - task: dict - updated task data
+            - subtasks: list[dict] - created subtasks (if auto_decomposed)
+        """
+        from gobby.storage.task_dependencies import TaskDependencyManager
+        from gobby.tasks.auto_decompose import detect_multi_step, extract_steps
+
+        # Get current task
+        task = self.get_task(task_id)
+        if not task:
+            raise ValueError(f"Task not found: {task_id}")
+
+        # Check if task already has subtasks (skip detection)
+        children = self.db.fetchone(
+            "SELECT COUNT(*) as count FROM tasks WHERE parent_task_id = ?",
+            (task_id,),
+        )
+        has_children = children and children["count"] > 0
+        if has_children:
+            # Task already decomposed - just update description
+            updated = self.update_task(task_id, description=description)
+            return {
+                "steps_detected": False,
+                "step_count": 0,
+                "auto_decomposed": False,
+                "task": updated.to_dict(),
+            }
+
+        # Detect multi-step content
+        is_multi_step = detect_multi_step(description) if description else False
+
+        if not is_multi_step:
+            # No steps detected - normal update
+            updated = self.update_task(task_id, description=description)
+            return {
+                "steps_detected": False,
+                "step_count": 0,
+                "auto_decomposed": False,
+                "task": updated.to_dict(),
+            }
+
+        # Multi-step detected - determine effective auto_decompose value
+        # Priority: explicit parameter > workflow variable > default (True)
+        if auto_decompose is not None:
+            effective_auto_decompose = auto_decompose
+        elif workflow_state and workflow_state.variables.get("auto_decompose") is not None:
+            effective_auto_decompose = bool(workflow_state.variables.get("auto_decompose"))
+        else:
+            effective_auto_decompose = True
+
+        # Extract steps for count and potential subtasks
+        steps = extract_steps(description)
+        step_count = len(steps)
+
+        if not effective_auto_decompose:
+            # Opt-out: set needs_decomposition status
+            updated = self.update_task(
+                task_id,
+                description=description,
+                status="needs_decomposition",
+            )
+            return {
+                "steps_detected": True,
+                "step_count": step_count,
+                "auto_decomposed": False,
+                "task": updated.to_dict(),
+            }
+
+        # Auto-decompose: update task and create subtasks
+        updated = self.update_task(task_id, description=description)
+
+        # Create subtasks
+        dep_manager = TaskDependencyManager(self.db)
+        subtasks: list[dict[str, Any]] = []
+
+        for idx, step in enumerate(steps):
+            subtask = self.create_task(
+                project_id=task.project_id,
+                title=step["title"],
+                description=step.get("description"),
+                parent_task_id=task_id,
+                priority=task.priority,
+                task_type="task",
+                labels=task.labels,
+                sequence_order=idx,
+            )
+            subtasks.append(subtask.to_dict())
+
+            # Add sequential dependency (step N+1 is blocked by step N)
+            depends_on_indices = step.get("depends_on")
+            if depends_on_indices:
+                for dep_idx in depends_on_indices:
+                    if 0 <= dep_idx < len(subtasks) - 1:
+                        dep_manager.add_dependency(
+                            subtask.id, subtasks[dep_idx]["id"], "blocks"
+                        )
+
+        return {
+            "steps_detected": True,
+            "step_count": step_count,
+            "auto_decomposed": True,
+            "task": updated.to_dict(),
+            "subtasks": subtasks,
+        }
