@@ -117,7 +117,6 @@ class WorkflowEngine:
             "event": event,
             "workflow_state": state,
             "variables": SimpleNamespace(**state.variables),
-            "session": {},  # TODO: Attach session info
             "tool_name": event.data.get("tool_name"),
             "tool_args": event.data.get("tool_args", {}),
         }
