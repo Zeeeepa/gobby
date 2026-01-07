@@ -141,10 +141,7 @@ session_lifecycle:
   transcript_processing_batch_size: 10    
 compact_handoff:
   enabled: true
-  # NOTE: The 'prompt' field is deprecated. Template is now in session-handoff.yaml workflow.
-  # To customize the compact handoff format, edit:
-  #   .gobby/workflows/lifecycle/session-handoff.yaml
-  # Look for the inject_context action with source: compact_handoff
+
 session_summary:
   enabled: false
   provider: claude

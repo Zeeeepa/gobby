@@ -6,7 +6,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from gobby.storage.database import LocalDatabase
 
@@ -136,7 +136,7 @@ class LocalAgentRunManager:
         )
 
         logger.debug(f"Created agent run {run_id} for session {parent_session_id}")
-        return self.get(run_id)  # type: ignore
+        return cast(AgentRun, self.get(run_id))
 
     def get(self, run_id: str) -> AgentRun | None:
         """Get agent run by ID."""

@@ -817,7 +817,7 @@ class WindowsTerminalSpawner(TerminalSpawnerBase):
             process = subprocess.Popen(
                 args,
                 env=spawn_env,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,  # type: ignore[attr-defined]
+                creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
             )
 
             return SpawnResult(
@@ -880,7 +880,7 @@ class CmdSpawner(TerminalSpawnerBase):
             process = subprocess.Popen(
                 args,
                 env=spawn_env,
-                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,  # type: ignore[attr-defined]
+                creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
             )
 
             return SpawnResult(
@@ -1523,9 +1523,7 @@ class HeadlessSpawner:
                 if result.process and result.process.stdout:
                     loop = asyncio.get_running_loop()
                     while True:
-                        line = await loop.run_in_executor(
-                            None, result.process.stdout.readline
-                        )
+                        line = await loop.run_in_executor(None, result.process.stdout.readline)
                         if not line:
                             break
                         line = line.rstrip("\n")

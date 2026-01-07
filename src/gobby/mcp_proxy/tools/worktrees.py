@@ -18,7 +18,7 @@ import platform
 import shutil
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.worktrees import WorktreeStatus
@@ -501,7 +501,7 @@ def create_worktrees_registry(
                 "error": f"Invalid strategy '{strategy}'. Must be 'rebase' or 'merge'.",
             }
 
-        strategy_literal: Literal["rebase", "merge"] = strategy  # type: ignore[assignment]
+        strategy_literal = cast(Literal["rebase", "merge"], strategy)
 
         result = git_manager.sync_from_main(
             worktree.worktree_path,
@@ -656,7 +656,7 @@ def create_worktrees_registry(
                 )
                 result["git_deleted"] = git_result.success
                 if not git_result.success:
-                    result["git_error"] = git_result.error
+                    result["git_error"] = git_result.error or "Unknown error"
 
             results.append(result)
 

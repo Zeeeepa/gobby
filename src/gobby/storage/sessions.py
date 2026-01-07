@@ -7,7 +7,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from gobby.storage.database import LocalDatabase
 
@@ -164,7 +164,7 @@ class LocalSessionManager:
                 ),
             )
             logger.debug(f"Reusing existing session {existing.id} for external_id={external_id}")
-            return self.get(existing.id)  # type: ignore
+            return cast(Session, self.get(existing.id))
 
         # New session - create it
         session_id = str(uuid.uuid4())
@@ -196,7 +196,7 @@ class LocalSessionManager:
         )
         logger.debug(f"Created new session {session_id} for external_id={external_id}")
 
-        return self.get(session_id)  # type: ignore
+        return cast(Session, self.get(session_id))
 
     def get(self, session_id: str) -> Session | None:
         """Get session by ID."""
