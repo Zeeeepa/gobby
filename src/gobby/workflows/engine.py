@@ -130,6 +130,13 @@ class WorkflowEngine:
             if approval_response:
                 return approval_response
 
+            # Reset premature stop counter on user prompt
+            # This allows the failsafe to distinguish agent-stuck-in-loop from user-initiated-stops
+            if state.variables.get("_premature_stop_count", 0) > 0:
+                state.variables["_premature_stop_count"] = 0
+                self.state_manager.save_state(state)
+                logger.debug(f"Reset premature_stop_count for session {session_id}")
+
         # Check blocked tools
         if event.event_type == HookEventType.BEFORE_TOOL:
             # Block tool calls while waiting for approval
@@ -912,11 +919,34 @@ class WorkflowEngine:
             )
             return None
 
+        # Failsafe: check if we've exceeded max stop attempts
+        # Counter is stored in variables and resets on BEFORE_AGENT (user prompt)
+        stop_count = state.variables.get("_premature_stop_count", 0) + 1
+        max_attempts = state.variables.get("premature_stop_max_attempts", 3)
+
+        # Update and persist the counter
+        state.variables["_premature_stop_count"] = stop_count
+        self.state_manager.save_state(state)
+
+        if max_attempts > 0 and stop_count >= max_attempts:
+            logger.warning(
+                f"Premature stop failsafe triggered for workflow '{workflow.name}': "
+                f"stop_count={stop_count} >= max_attempts={max_attempts}"
+            )
+            return HookResponse(
+                decision="allow",
+                context=(
+                    f"⚠️ **Failsafe Exit**: Allowing stop after {stop_count} blocked attempts. "
+                    f"Task may be incomplete."
+                ),
+            )
+
         # Handle premature stop based on action type
         handler = workflow.on_premature_stop
         logger.info(
             f"Premature stop detected for workflow '{workflow.name}': "
-            f"action={handler.action}, message={handler.message}"
+            f"action={handler.action}, message={handler.message}, "
+            f"attempt {stop_count}/{max_attempts}"
         )
 
         if handler.action == "block":

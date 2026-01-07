@@ -23,6 +23,8 @@ type: step
 # Session-scoped variables (set on activation)
 variables:
   session_task: null  # Task ID(s) to complete before exit
+  # Failsafe: force allow stop after N blocked attempts (resets on user prompt)
+  premature_stop_max_attempts: 3
 
 steps:
   - name: work
