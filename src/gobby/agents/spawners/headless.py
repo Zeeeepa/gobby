@@ -6,16 +6,23 @@ import asyncio
 import os
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from gobby.agents.constants import get_terminal_env_vars
 from gobby.agents.spawners.base import HeadlessResult
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 __all__ = ["HeadlessSpawner"]
 
 
 # Import these from spawn.py to avoid duplication
-def _get_spawn_utils():
+def _get_spawn_utils() -> tuple[
+    Callable[..., list[str]],
+    Callable[[str, str], str],
+    int,
+]:
     """Lazy import to avoid circular dependencies."""
     from gobby.agents.spawn import (
         MAX_ENV_PROMPT_LENGTH,
