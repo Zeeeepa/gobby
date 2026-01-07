@@ -8,6 +8,7 @@ Contains task-related Pydantic config models:
 - TaskValidationConfig: Task completion validation settings
 - GobbyTasksConfig: Combined gobby-tasks MCP server config
 - WorkflowConfig: Workflow engine configuration
+- WorkflowVariablesConfig: Default values for session workflow variables
 
 Extracted from app.py using Strangler Fig pattern for code decomposition.
 """
@@ -23,6 +24,7 @@ __all__ = [
     "TaskValidationConfig",
     "GobbyTasksConfig",
     "WorkflowConfig",
+    "WorkflowVariablesConfig",
 ]
 
 
@@ -317,4 +319,56 @@ class WorkflowConfig(BaseModel):
         """Validate timeout is non-negative."""
         if v < 0:
             raise ValueError("Timeout must be non-negative (0 = no timeout)")
+        return v
+
+
+class WorkflowVariablesConfig(BaseModel):
+    """Default values for session workflow variables.
+
+    These defaults are used when workflow YAML files don't specify values.
+    Variables can be overridden per-session via set_variable MCP tool.
+
+    The precedence order is:
+    1. Explicit parameter (highest priority)
+    2. Workflow variable (set at runtime)
+    3. Workflow YAML default
+    4. This config (lowest priority)
+    """
+
+    require_task_before_edit: bool = Field(
+        default=False,
+        description="Require an active task (in_progress) before allowing file edits",
+    )
+    require_commit_before_stop: bool = Field(
+        default=True,
+        description="Block session stop if task has uncommitted changes",
+    )
+    auto_decompose: bool = Field(
+        default=True,
+        description="Auto-decompose multi-step task descriptions into subtasks",
+    )
+    tdd_mode: bool = Field(
+        default=True,
+        description="Enable TDD mode for task expansion (test-implementation pairs)",
+    )
+    memory_injection_enabled: bool = Field(
+        default=True,
+        description="Enable memory injection at session start",
+    )
+    memory_injection_limit: int = Field(
+        default=10,
+        description="Maximum memories to inject per session",
+    )
+    session_task: str | list[str] | None = Field(
+        default=None,
+        description="Task(s) to complete before stopping. "
+        "Values: None (no enforcement), task ID, list of IDs, or '*' (all ready tasks)",
+    )
+
+    @field_validator("memory_injection_limit")
+    @classmethod
+    def validate_memory_limit(cls, v: int) -> int:
+        """Validate memory limit is positive."""
+        if v <= 0:
+            raise ValueError("memory_injection_limit must be positive")
         return v
