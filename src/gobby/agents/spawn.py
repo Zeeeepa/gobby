@@ -580,4 +580,3 @@ def read_prompt_from_env() -> str | None:
 
     # Fall back to inline prompt
     return os.environ.get(GOBBY_PROMPT)
-

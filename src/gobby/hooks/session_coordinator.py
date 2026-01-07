@@ -233,9 +233,7 @@ class SessionCoordinator:
                 try:
                     # Determine source from session (default to claude)
                     source = getattr(session, "source", "claude") or "claude"
-                    self._message_processor.register_session(
-                        session.id, jsonl_path, source=source
-                    )
+                    self._message_processor.register_session(session.id, jsonl_path, source=source)
                     registered_count += 1
                 except Exception as e:
                     self.logger.warning(f"Failed to re-register session {session.id}: {e}")
@@ -386,9 +384,7 @@ class SessionCoordinator:
                     self.logger.warning(f"Failed to release worktree {worktree.id}: {e}")
 
             if worktrees:
-                self.logger.info(
-                    f"Released {len(worktrees)} worktree(s) from session {session_id}"
-                )
+                self.logger.info(f"Released {len(worktrees)} worktree(s) from session {session_id}")
         except Exception as e:
             self.logger.warning(f"Failed to list worktrees for session {session_id}: {e}")
 

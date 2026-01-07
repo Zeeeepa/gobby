@@ -192,9 +192,7 @@ def initialize_project(
     if existing:
         # Project exists in DB but no local project.json - write it
         logger.debug(f"Found existing project in database: {name}")
-        _write_project_json(
-            cwd, existing.id, existing.name, existing.created_at, verification
-        )
+        _write_project_json(cwd, existing.id, existing.name, existing.created_at, verification)
         return InitResult(
             project_id=existing.id,
             project_name=existing.name,

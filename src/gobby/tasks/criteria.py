@@ -293,9 +293,7 @@ class CriteriaGenerator:
         # 2. File-specific criteria
         if relevant_files and description:
             text_to_check = (title + " " + (description or "")).lower()
-            matching_files = [
-                f for f in relevant_files if f.lower() in text_to_check
-            ]
+            matching_files = [f for f in relevant_files if f.lower() in text_to_check]
             if matching_files:
                 file_criteria = ["## File Requirements", ""]
                 for f in matching_files:

@@ -46,7 +46,9 @@ def workflow() -> None:
 @click.option("--global", "global_only", is_flag=True, help="Show only global workflows")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 @click.pass_context
-def list_workflows(ctx: click.Context, show_all: bool, global_only: bool, json_format: bool) -> None:
+def list_workflows(
+    ctx: click.Context, show_all: bool, global_only: bool, json_format: bool
+) -> None:
     """List available workflows."""
     loader = get_workflow_loader()
     project_path = get_project_path() if not global_only else None

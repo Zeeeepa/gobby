@@ -166,6 +166,7 @@ def install_claude(project_path: Path) -> dict[str, Any]:
     # Replace $PROJECT_PATH with absolute project path
     abs_project_path = str(project_path.resolve())
     gobby_settings_str = gobby_settings_str.replace("$PROJECT_PATH", abs_project_path)
+
     try:
         gobby_settings = json.loads(gobby_settings_str)
     except json.JSONDecodeError as e:

@@ -214,8 +214,7 @@ class TmuxSpawner(TerminalSpawnerBase):
             if env:
                 # Build export statements for each env var
                 exports = " ".join(
-                    f"export {shlex.quote(k)}={shlex.quote(v)};"
-                    for k, v in env.items()
+                    f"export {shlex.quote(k)}={shlex.quote(v)};" for k, v in env.items()
                 )
                 # Wrap command with exports
                 shell_cmd = f"{exports} exec {shlex.join(command)}"

@@ -18,7 +18,7 @@ import platform
 import shutil
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.worktrees import WorktreeStatus
@@ -584,6 +584,8 @@ def create_worktrees_registry(
                 "success": False,
                 "error": f"Invalid strategy '{strategy}'. Must be 'rebase' or 'merge'.",
             }
+
+        from typing import Literal, cast
 
         strategy_literal = cast(Literal["rebase", "merge"], strategy)
 

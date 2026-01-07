@@ -207,10 +207,14 @@ def create_session_messages_registry(
                 full_content: If True, returns full content. If False (default), truncates large content.
             """
             try:
-                results = message_manager.search(
-                    query=query,
-                    session_id=session_id,
-                    limit=limit,
+                import asyncio
+
+                results = asyncio.get_event_loop().run_until_complete(
+                    message_manager.search_messages(
+                        query_text=query,
+                        session_id=session_id,
+                        limit=limit,
+                    )
                 )
 
                 # Truncate content if not full_content

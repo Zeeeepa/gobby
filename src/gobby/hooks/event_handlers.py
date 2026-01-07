@@ -212,7 +212,9 @@ class EventHandlers:
                             self.logger.warning(f"Workflow error: {e}")
 
                     # Build system message
-                    system_message = f"Session ID: {session_id}\nProject ID: {existing_session.project_id}"
+                    system_message = (
+                        f"Session ID: {session_id}\nProject ID: {existing_session.project_id}"
+                    )
                     if parent_session_id:
                         system_message += f"\nParent ID: {parent_session_id}"
                         context_parts.append(f"Parent session: {parent_session_id}")

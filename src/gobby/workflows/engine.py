@@ -115,8 +115,18 @@ class WorkflowEngine:
         # Use SimpleNamespace for variables so dot notation works (variables.session_task)
         # Look up session info for condition evaluation
         session_info = {}
-        if self.action_executor and self.action_executor.session_manager:
-            session = self.action_executor.session_manager.get_by_external_id(event.session_id)
+        if (
+            self.action_executor
+            and self.action_executor.session_manager
+            and event.machine_id
+            and event.project_id
+        ):
+            session = self.action_executor.session_manager.find_by_external_id(
+                external_id=event.session_id,
+                machine_id=event.machine_id,
+                project_id=event.project_id,
+                source=event.source.value,
+            )
             if session:
                 session_info = {
                     "id": session.id,
@@ -924,9 +934,7 @@ class WorkflowEngine:
         exit_condition_met = self.evaluator.evaluate(workflow.exit_condition, eval_context)
 
         if exit_condition_met:
-            logger.debug(
-                f"Workflow '{workflow.name}' exit_condition met, allowing stop"
-            )
+            logger.debug(f"Workflow '{workflow.name}' exit_condition met, allowing stop")
             return None
 
         # Exit condition not met - check for premature stop handler

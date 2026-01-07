@@ -811,15 +811,13 @@ def create_task_registry(
 
     def delete_task(task_id: str, cascade: bool = True) -> dict[str, Any]:
         """Delete a task and its children by default."""
-        task = task_manager.delete_task(task_id, cascade=cascade)
-        if not task:
+        deleted = task_manager.delete_task(task_id, cascade=cascade)
+        if not deleted:
             return {"success": False, "error": f"Task {task_id} not found"}
 
         return {
             "success": True,
-            "task": {
-                "id": task.id,
-            },
+            "deleted_task_id": task_id,
         }
 
     registry.register(

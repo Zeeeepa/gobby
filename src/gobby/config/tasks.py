@@ -84,7 +84,12 @@ class PatternCriteriaConfig(BaseModel):
     )
     detection_keywords: dict[str, list[str]] = Field(
         default_factory=lambda: {
-            "strangler-fig": ["strangler fig", "strangler-fig", "strangler pattern", "delegation pattern"],
+            "strangler-fig": [
+                "strangler fig",
+                "strangler-fig",
+                "strangler pattern",
+                "delegation pattern",
+            ],
             "tdd": ["tdd", "test-driven", "test driven", "red-green", "red green"],
             "refactoring": ["refactor", "refactoring", "restructure", "reorganize"],
         },

@@ -1342,10 +1342,13 @@ class LocalTaskManager:
         subtasks: list[dict[str, Any]] = []
 
         for idx, step in enumerate(steps):
+            # extract_steps guarantees title is str, description is str|None
+            step_title = str(step["title"]) if step["title"] else f"Step {idx + 1}"
+            step_desc = str(step["description"]) if step.get("description") else None
             subtask = self.create_task(
                 project_id=project_id,
-                title=step["title"],
-                description=step.get("description"),
+                title=step_title,
+                description=step_desc,
                 parent_task_id=parent_task.id,
                 created_in_session_id=created_in_session_id,
                 priority=priority,
@@ -1358,12 +1361,11 @@ class LocalTaskManager:
 
             # Add sequential dependency (step N+1 is blocked by step N)
             depends_on_indices = step.get("depends_on")
-            if depends_on_indices:
+            if depends_on_indices and isinstance(depends_on_indices, list):
                 for dep_idx in depends_on_indices:
-                    if 0 <= dep_idx < len(subtasks) - 1:  # -1 because current task is already appended
-                        dep_manager.add_dependency(
-                            subtask.id, subtasks[dep_idx]["id"], "blocks"
-                        )
+                    if isinstance(dep_idx, int) and 0 <= dep_idx < len(subtasks) - 1:
+                        # -1 because current task is already appended
+                        dep_manager.add_dependency(subtask.id, subtasks[dep_idx]["id"], "blocks")
 
         return {
             "auto_decomposed": True,
@@ -1477,10 +1479,13 @@ class LocalTaskManager:
         subtasks: list[dict[str, Any]] = []
 
         for idx, step in enumerate(steps):
+            # extract_steps guarantees title is str, description is str|None
+            step_title = str(step["title"]) if step["title"] else f"Step {idx + 1}"
+            step_desc = str(step["description"]) if step.get("description") else None
             subtask = self.create_task(
                 project_id=task.project_id,
-                title=step["title"],
-                description=step.get("description"),
+                title=step_title,
+                description=step_desc,
                 parent_task_id=task_id,
                 priority=task.priority,
                 task_type="task",
@@ -1491,12 +1496,10 @@ class LocalTaskManager:
 
             # Add sequential dependency (step N+1 is blocked by step N)
             depends_on_indices = step.get("depends_on")
-            if depends_on_indices:
+            if depends_on_indices and isinstance(depends_on_indices, list):
                 for dep_idx in depends_on_indices:
-                    if 0 <= dep_idx < len(subtasks) - 1:
-                        dep_manager.add_dependency(
-                            subtask.id, subtasks[dep_idx]["id"], "blocks"
-                        )
+                    if isinstance(dep_idx, int) and 0 <= dep_idx < len(subtasks) - 1:
+                        dep_manager.add_dependency(subtask.id, subtasks[dep_idx]["id"], "blocks")
 
         return {
             "steps_detected": True,

@@ -328,11 +328,11 @@ def configure_mcp_server_toml(config_path: Path, server_name: str = "gobby") -> 
 
     # Add MCP server config
     # Use 'uv run gobby' since most users won't have gobby installed globally
-    mcp_config = f'''
+    mcp_config = f"""
 [mcp_servers.{server_name}]
 command = "uv"
 args = ["run", "gobby", "mcp-server"]
-'''
+"""
     updated = (existing.rstrip() + "\n" if existing.strip() else "") + mcp_config
 
     try:

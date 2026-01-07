@@ -136,8 +136,7 @@ async def memory_inject(
         # Apply similarity threshold for semantic search
         if query and min_similarity is not None:
             project_memories = [
-                m for m in project_memories
-                if getattr(m, "similarity", 1.0) >= min_similarity
+                m for m in project_memories if getattr(m, "similarity", 1.0) >= min_similarity
             ]
 
         memory_context = build_memory_context(project_memories)

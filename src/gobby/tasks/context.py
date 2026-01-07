@@ -12,6 +12,7 @@ import asyncio
 import itertools
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from gobby.storage.tasks import Task
@@ -475,9 +476,7 @@ class ExpansionContextGatherer:
                 names.append(ast.unparse(base))
         return names
 
-    def _format_function_signature(
-        self, func_node: ast.FunctionDef | ast.AsyncFunctionDef
-    ) -> str:
+    def _format_function_signature(self, func_node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
         """
         Format a function signature with type hints.
 
@@ -563,8 +562,6 @@ class ExpansionContextGatherer:
         Returns:
             Tree view string with file placement guidance, or None if failed.
         """
-        from pathlib import Path
-
         root = find_project_root()
         if not root:
             return None
@@ -636,8 +633,17 @@ class ExpansionContextGatherer:
             return
 
         skip_dirs = {
-            "__pycache__", ".git", ".venv", "venv", "node_modules",
-            ".pytest_cache", ".mypy_cache", "htmlcov", "dist", "build", ".egg-info",
+            "__pycache__",
+            ".git",
+            ".venv",
+            "venv",
+            "node_modules",
+            ".pytest_cache",
+            ".mypy_cache",
+            "htmlcov",
+            "dist",
+            "build",
+            ".egg-info",
         }
 
         rel_path = path.relative_to(root)
@@ -654,8 +660,12 @@ class ExpansionContextGatherer:
             is_last = i == len(dirs) - 1
             child_prefix = prefix + ("    " if is_last else "│   ")
             self._build_tree_recursive(
-                child, root, lines, prefix=child_prefix,
-                max_depth=max_depth, current_depth=current_depth + 1,
+                child,
+                root,
+                lines,
+                prefix=child_prefix,
+                max_depth=max_depth,
+                current_depth=current_depth + 1,
             )
 
     def _get_file_placement_guidance(self, root: Path) -> str:

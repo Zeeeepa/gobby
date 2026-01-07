@@ -448,7 +448,8 @@ class TaskExpander:
         # 3. Add file-specific criteria if relevant files are mentioned
         if context.relevant_files and spec.description:
             relevant_for_subtask = [
-                f for f in context.relevant_files
+                f
+                for f in context.relevant_files
                 if f.lower() in (spec.title + (spec.description or "")).lower()
             ]
             if relevant_for_subtask:

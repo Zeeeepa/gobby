@@ -496,7 +496,9 @@ async def validate_session_task_scope(
     elif isinstance(session_task, list):
         session_task_ids = session_task
     else:
-        logger.warning(f"validate_session_task_scope: Invalid session_task type: {type(session_task)}")
+        logger.warning(
+            f"validate_session_task_scope: Invalid session_task type: {type(session_task)}"
+        )
         return None
 
     # Empty list means no scope restriction
@@ -520,7 +522,9 @@ async def validate_session_task_scope(
     # Only check when setting status to in_progress (claiming)
     new_status = arguments.get("status")
     if new_status != "in_progress":
-        logger.debug(f"validate_session_task_scope: Status '{new_status}' not in_progress, allowing")
+        logger.debug(
+            f"validate_session_task_scope: Status '{new_status}' not in_progress, allowing"
+        )
         return None
 
     task_id = arguments.get("task_id")
