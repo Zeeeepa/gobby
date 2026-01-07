@@ -31,8 +31,8 @@ reviews:
   # Review status in PR
   review_status: true
 
-  # Collapse walkthrough above this many files
-  collapse_walkthrough: 5
+  # Collapse walkthrough in PR summary
+  collapse_walkthrough: true
 
   # Path-based review instructions
   path_instructions:
@@ -73,7 +73,7 @@ tools:
     enabled: true
 
   # GitHub Actions feedback
-  github_actions:
+  github-checks:
     enabled: true
 
   # Enable linter integration for context
@@ -92,7 +92,7 @@ knowledge_base:
 
   # Reference issues and discussions
   issues:
-    enabled: true
+    scope: auto
 
 # Ignore patterns - files to skip reviewing
 ignore:
