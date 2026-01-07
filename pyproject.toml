@@ -21,6 +21,7 @@ dependencies = [
     "wcwidth>=0.2.14",
     "tomli-w>=1.0.0",
     "msgspec>=0.20.0",
+    # gitingest>=0.3.1 includes CVE-2024-56074 fix (commit 9996a06, Dec 2024)
     "gitingest>=0.3.1",
 ]
 
