@@ -1362,9 +1362,12 @@ memory:
 
 Enable fully autonomous task execution where the agent works through the task queue until exhausted, stopped, or stuck. The loop survives session boundaries through handoff context and uses tasks as persistent state.
 
-**Current State:** Session-lifecycle workflow handles handoff context. Task system provides persistent work tracking. Step-based workflows enforce execution structure.
+**Current State:** Session-lifecycle workflow handles handoff context. Task system provides persistent work tracking. Step-based workflows enforce execution structure. **Partially implemented:**
+- ✅ `start_new_session` action in `session_actions.py` for session chaining
+- ✅ `autonomous-loop.yaml` lifecycle workflow for automatic session chaining
+- ✅ `autonomous-task.yaml` step-based workflow with task-driven execution, exit conditions, and premature stop handling
 
-**Goal:** Combine these systems into a cohesive autonomous loop with robust termination controls accessible via HTTP, MCP, WebSocket, CLI, and slash commands.
+**Remaining:** Multi-surface stop signals, progress tracking with stuck detection, HTTP/WebSocket/CLI loop controls.
 
 ### Phase 9: Core Design Principles
 

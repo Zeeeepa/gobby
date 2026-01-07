@@ -531,12 +531,12 @@ Sprint 31 (Web Dashboard - can start after Sprint 1)
 - [ ] Semantic memory search with sqlite-vec (KnowNote inspired)
 - **Value**: Agents that get smarter over time
 
-### Milestone 11: "Autonomous Execution" (Sprint 29)
+### Milestone 11: "Autonomous Execution" (Sprint 29) 🔶 PARTIAL
 
 - [ ] Multi-surface stop signals (HTTP, MCP, WebSocket, CLI, slash commands)
 - [ ] Progress tracking with stuck detection (3 layers)
-- [ ] Session chaining for context limits
-- [ ] Task-driven work loops
+- [x] Session chaining for context limits ✅
+- [x] Task-driven work loops ✅
 - **Value**: Hands-off task execution overnight
 
 ### Milestone 12: "Multi-Agent Orchestration" (Sprint 30) ✅ COMPLETE
