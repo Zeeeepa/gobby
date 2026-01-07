@@ -13,6 +13,7 @@ Gobby supports two types of workflows that can coexist:
 Event-driven workflows that respond to session events without enforcing steps or tool restrictions.
 
 **Characteristics:**
+
 - `type: lifecycle`
 - No `steps` section
 - Only `triggers` section
@@ -20,6 +21,7 @@ Event-driven workflows that respond to session events without enforcing steps or
 - **Multiple lifecycle workflows can be active simultaneously**
 
 **Use cases:**
+
 - Session handoff (enabled by default)
 - Auto-save and backup
 - Logging and analytics
@@ -30,13 +32,15 @@ Event-driven workflows that respond to session events without enforcing steps or
 State machine workflows that enforce steps with tool restrictions, transition conditions, and exit criteria.
 
 **Characteristics:**
-- `type: stepped` (default)
+
+- `type: step` (default)
 - Has `steps` section with allowed/blocked tools
 - Has `transitions` and `exit_conditions`
 - **Only one step-based workflow active at a time per session**
 - Can coexist with lifecycle workflows
 
 **Use cases:**
+
 - Plan-and-Execute
 - ReAct (Reason-Act-Observe)
 - Plan-Act-Reflect
@@ -45,6 +49,7 @@ State machine workflows that enforce steps with tool restrictions, transition co
 ### Coexistence
 
 Lifecycle and step-based workflows run together:
+
 - The `session-handoff` lifecycle workflow is always active (by default)
 - You can activate ONE step-based workflow (like `plan-execute`) on top
 - Multiple concurrent sessions can each have their own active workflow
@@ -63,8 +68,8 @@ description: "Structured development with planning and reflection steps"
 # Optional: Semantic version string (default: "1.0")
 version: "1.0"
 
-# Optional: Workflow type - "stepped" (default) or "lifecycle"
-type: stepped
+# Optional: Workflow type - "step" (default) or "lifecycle"
+type: step
 
 # Optional: Inherit from another workflow
 extends: base-workflow
@@ -166,6 +171,7 @@ steps:
 ```
 
 **Inheritance rules:**
+
 - Child values override parent values
 - Arrays are replaced, not merged
 - Deep merge for objects/dicts
@@ -265,37 +271,37 @@ triggers:
       source: previous_session_summary
 ```
 
-### plan-execute (stepped)
+### plan-execute (step)
 
 Basic planning enforcement. Restricts to read-only tools until user approves.
 
 **Steps:** `plan` -> `execute`
 
-### react (stepped)
+### react (step)
 
 ReAct loop with observation capture. Each action's result is captured and injected into reasoning context.
 
 **Steps:** `reason` -> `act` -> `observe` (loop)
 
-### plan-act-reflect (stepped)
+### plan-act-reflect (step)
 
 Full reflection workflow. Automatically enters reflection step after N actions or on errors.
 
 **Steps:** `plan` -> `act` -> `reflect` (loop)
 
-### plan-to-tasks (stepped)
+### plan-to-tasks (step)
 
 Task decomposition workflow. Breaks a plan into atomic tasks and executes sequentially with verification gates.
 
 **Steps:** `decompose` -> `execute` -> `verify` (loop) -> `complete`
 
-### architect (stepped)
+### architect (step)
 
 BMAD-inspired development workflow.
 
 **Steps:** `requirements` -> `design` -> `implementation` -> `review`
 
-### test-driven (stepped)
+### test-driven (step)
 
 TDD workflow. Blocks implementation until test exists.
 
@@ -455,6 +461,61 @@ steps:
         source: task_list.tasks
 ```
 
+## Workflow Variables
+
+Workflow variables control session behavior. They're defined in workflow YAML files and can be overridden at runtime.
+
+### Behavior Variables
+
+These variables control how Gobby behaves during a session:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `require_task_before_edit` | `false` | Block Edit/Write tools unless a task is `in_progress` |
+| `require_commit_before_stop` | `true` | Block session stop if task has uncommitted changes |
+| `auto_decompose` | `true` | Auto-expand multi-step task descriptions into subtasks |
+| `tdd_mode` | `true` | Generate test→implement task pairs during expansion |
+| `memory_injection_enabled` | `true` | Inject relevant memories at session start |
+| `memory_injection_limit` | `10` | Max memories to inject |
+| `session_task` | `null` | Task(s) that must complete before stopping. Values: task ID, list of IDs, or `"*"` for all ready tasks |
+
+### Defining Variables in Workflow YAML
+
+```yaml
+name: my-workflow
+type: lifecycle
+
+variables:
+  require_task_before_edit: true
+  tdd_mode: false
+  session_task: "gt-abc123"
+```
+
+### Changing Variables at Runtime
+
+Use the `set_variable` MCP tool to override defaults for the current session:
+
+```python
+call_tool("gobby-workflows", "set_variable", {
+    "name": "tdd_mode",
+    "value": false
+})
+```
+
+### Precedence Order
+
+1. **Explicit parameter** (highest) - passed directly to a tool
+2. **Runtime override** - set via `set_variable` during session
+3. **Workflow YAML default** - defined in workflow file
+4. **System default** (lowest) - hardcoded fallback
+
+### Configuration Split
+
+- **config.yaml**: Infrastructure settings (daemon_port, database_path, log_level, LLM providers, MCP servers)
+- **Workflow YAML**: Behavior settings (the variables above)
+
+This separation means you can have different behavior per workflow without modifying global config.
+
 ## State and Persistence
 
 ### What Persists
@@ -482,6 +543,7 @@ For work that must survive session boundaries:
 ### Codex
 
 Codex uses a notify-only hook. It cannot:
+
 - Block tool calls
 - Inject context
 - Enforce step transitions
