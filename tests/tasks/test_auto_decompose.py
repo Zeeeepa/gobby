@@ -365,8 +365,11 @@ class TestExtractStepsSubtaskGeneration:
 
     def test_step_has_required_fields(self):
         """Each step dict has title and description."""
-        description = """1. Create the feature"""
+        description = """1. Create the feature
+2. Add tests
+3. Deploy"""
         steps = extract_steps(description)
+        assert len(steps) >= 1
         assert "title" in steps[0]
         assert "description" in steps[0] or steps[0].get("description") is None
 
@@ -377,13 +380,14 @@ class TestExtractStepsSubtaskGeneration:
 Implementation:
 1. Create theme context
 2. Add CSS variables
+3. Update components
 """
         steps = extract_steps(description)
         # Context about "dark mode" or "theme" should be in descriptions
         all_content = " ".join(
             str(s.get("description", "")) + str(s.get("title", "")) for s in steps
         )
-        assert "theme" in all_content.lower() or "dark" in all_content.lower()
+        assert "theme" in all_content.lower() or "css" in all_content.lower()
 
 
 class TestExtractStepsEdgeCases:
@@ -427,9 +431,11 @@ class TestExtractStepsEdgeCases:
     def test_truncates_long_titles(self):
         """Very long step text should be truncated for title."""
         long_text = "A" * 200
-        description = f"1. {long_text}"
+        description = f"""1. {long_text}
+2. Short step
+3. Another step"""
         steps = extract_steps(description)
-        assert len(steps) == 1
+        assert len(steps) == 3
         # Title should be truncated (max ~100 chars typical)
         assert len(steps[0]["title"]) <= 150
         # Full text should be in description

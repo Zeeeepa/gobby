@@ -147,5 +147,92 @@ def extract_steps(description: str | None) -> list[dict[str, str | list[int] | N
         >>> steps[1]["depends_on"]
         [0]
     """
-    # TDD stub - implementation to follow
-    raise NotImplementedError("extract_steps not yet implemented")
+    if not description:
+        return []
+
+    # Check if this description has multi-step content
+    if not detect_multi_step(description):
+        return []
+
+    steps: list[dict[str, str | list[int] | None]] = []
+    lines = description.split("\n")
+
+    # Patterns for step detection
+    numbered_pattern = re.compile(r"^\s*(\d+)[.)]\s*(.+)$")
+    bullet_pattern = re.compile(r"^\s*[-*]\s+(.+)$")
+
+    current_step: dict[str, str | list[int] | None] | None = None
+    continuation_lines: list[str] = []
+
+    def finalize_step() -> None:
+        """Save current step with any continuation lines."""
+        nonlocal current_step, continuation_lines
+        if current_step:
+            if continuation_lines:
+                current_step["description"] = "\n".join(continuation_lines).strip()
+            steps.append(current_step)
+        current_step = None
+        continuation_lines = []
+
+    for line in lines:
+        # Check for numbered step
+        numbered_match = numbered_pattern.match(line)
+        if numbered_match:
+            finalize_step()
+            title = numbered_match.group(2).strip()
+            current_step = _create_step_dict(title, len(steps))
+            continue
+
+        # Check for bullet step
+        bullet_match = bullet_pattern.match(line)
+        if bullet_match:
+            finalize_step()
+            title = bullet_match.group(1).strip()
+            current_step = _create_step_dict(title, len(steps))
+            continue
+
+        # Check for continuation line (indented content after a step)
+        if current_step and line.strip() and (line.startswith("  ") or line.startswith("\t")):
+            continuation_lines.append(line.strip())
+
+    # Finalize last step
+    finalize_step()
+
+    return steps
+
+
+def _create_step_dict(
+    title: str, index: int, max_title_length: int = 100
+) -> dict[str, str | list[int] | None]:
+    """
+    Create a step dictionary with title, description, and dependencies.
+
+    Args:
+        title: Raw title text
+        index: Step index (0-based)
+        max_title_length: Maximum title length before truncation
+
+    Returns:
+        Step dict with title, description (if truncated), and depends_on
+    """
+    # Strip markdown formatting for cleaner title
+    clean_title = title.strip()
+
+    # Handle truncation for long titles
+    description: str | None = None
+    if len(clean_title) > max_title_length:
+        description = clean_title
+        clean_title = clean_title[:max_title_length].rsplit(" ", 1)[0] + "..."
+
+    step: dict[str, str | list[int] | None] = {
+        "title": clean_title,
+        "description": description,
+    }
+
+    # Add dependency on previous step (sequential execution)
+    if index > 0:
+        step["depends_on"] = [index - 1]
+    else:
+        step["depends_on"] = None
+
+    return step
