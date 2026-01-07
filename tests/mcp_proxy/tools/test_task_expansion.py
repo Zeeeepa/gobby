@@ -50,6 +50,9 @@ def mock_task_manager():
 def mock_task_expander():
     """Create a mock task expander."""
     expander = AsyncMock(spec=TaskExpander)
+    # Mock config for expand_from_spec which accesses task_expander.config.pattern_criteria
+    expander.config = MagicMock()
+    expander.config.pattern_criteria = {}
     return expander
 
 
