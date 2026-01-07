@@ -22,13 +22,21 @@ variables:
   memory_injection_limit: 10
   # Minimum importance threshold for memory injection (0.0-1.0)
   memory_injection_min_importance: 0.3
-  # NOTE: session_task enforcement has been moved to the autonomous-task step workflow.
-  # Use activate_autonomous_task(task_id=..., session_id=...) for task-scoped sessions.
+  # Task to complete before stopping (null = no enforcement)
+  # Values: null, "gt-abc123", ["gt-abc", "gt-def"], or "*" (all ready tasks)
+  session_task: null
 
 triggers:
   on_stop:
     # Commit enforcement - block stop if task has uncommitted changes
     - action: require_commit_before_stop
+
+    # Task completion enforcement - block stop until all subtasks are complete
+    # Only runs if session_task variable is set
+    - action: require_task_complete
+      when: "variables.get('session_task')"
+      task_id: "{{ variables.session_task }}"
+
 
   on_session_start:
     # Context handoff - inject previous session summary
@@ -54,7 +62,7 @@ triggers:
         {{ handoff }}
 
     # Memory injection - inject relevant stored memories
-    - action: memory_inject
+    # - action: memory_inject
       # Uses config defaults: importance_threshold=0.3, injection_limit=10
 
     # Memory sync - import from JSONL for Git persistence
