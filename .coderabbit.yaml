@@ -1,0 +1,106 @@
+# CodeRabbit Configuration
+# https://docs.coderabbit.ai/guides/configure-coderabbit
+
+language: en-US
+
+# Review settings
+reviews:
+  # Enable auto-review on PRs
+  auto_review:
+    enabled: true
+    # Don't review draft PRs
+    drafts: false
+    # Review based on changed lines
+    base_branches:
+      - main
+      - dev
+
+  # Review profile - balance between thoroughness and noise
+  profile: chill
+
+  # Request changes vs comments
+  request_changes_workflow: false
+
+  # High-level summary in PR description
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+
+  # Generate poem (fun but optional)
+  poem: false
+
+  # Review status in PR
+  review_status: true
+
+  # Collapse walkthrough above this many files
+  collapse_walkthrough: 5
+
+  # Path-based review instructions
+  path_instructions:
+    - path: "src/**/*.py"
+      instructions: |
+        - Check for proper type hints (project uses strict mypy)
+        - Ensure async functions are properly awaited
+        - Watch for potential security issues (SQL injection, command injection)
+        - Verify proper error handling
+
+    - path: "tests/**/*.py"
+      instructions: |
+        - Ensure tests are meaningful, not just coverage padding
+        - Check for proper mocking and fixtures
+        - Verify async tests use pytest-asyncio markers
+
+    - path: "src/gobby/mcp_proxy/**"
+      instructions: |
+        - This is the MCP (Model Context Protocol) proxy layer
+        - Check for proper tool schema validation
+        - Ensure tools return appropriate response structures
+
+    - path: "src/gobby/hooks/**"
+      instructions: |
+        - Hook handlers must be idempotent
+        - Check for proper event handling patterns
+        - Ensure plugins follow the HookPlugin interface
+
+# Chat settings
+chat:
+  # Enable chat interactions in PR comments
+  auto_reply: true
+
+# Tool integrations
+tools:
+  # Enable AST-based analysis
+  ast_grep:
+    enabled: true
+
+  # GitHub Actions feedback
+  github_actions:
+    enabled: true
+
+  # Enable linter integration for context
+  ruff:
+    enabled: true
+
+  # Shell script analysis
+  shellcheck:
+    enabled: true
+
+# Knowledge base
+knowledge_base:
+  # Learn from merged PRs
+  learnings:
+    scope: auto
+
+  # Reference issues and discussions
+  issues:
+    enabled: true
+
+# Ignore patterns - files to skip reviewing
+ignore:
+  - "**/*.lock"
+  - "**/uv.lock"
+  - "**/.gobby/tasks.jsonl"
+  - "**/htmlcov/**"
+  - "**/__pycache__/**"
+  - "**/.mypy_cache/**"
+  - "**/build/**"
+  - "**/dist/**"
