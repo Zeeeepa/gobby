@@ -231,7 +231,7 @@ def install_git_hooks(
             # If this is a pre-commit framework hook for pre-commit stage,
             # replace it entirely with our wrapper (which calls pre-commit)
             if hook_name == "pre-commit" and _is_precommit_framework_hook(content):
-                new_content = f"#!/bin/bash\n\n{gobby_section}"
+                new_content = f"#!/usr/bin/env bash\n\n{gobby_section}"
                 hook_path.write_text(new_content)
                 logger.info("Replaced pre-commit framework hook with Gobby wrapper")
             else:
@@ -248,16 +248,16 @@ def install_git_hooks(
                         rest = lines[1] if len(lines) > 1 else ""
                         new_content = f"{shebang}\n\n{gobby_section}\n{rest.strip()}\n"
                     else:
-                        new_content = f"#!/bin/sh\n\n{gobby_section}\n{content}"
+                        new_content = f"#!/usr/bin/env bash\n\n{gobby_section}\n{content}"
                 else:
-                    new_content = f"#!/bin/sh\n\n{gobby_section}"
+                    new_content = f"#!/usr/bin/env bash\n\n{gobby_section}"
 
                 hook_path.write_text(new_content)
                 logger.info(f"Appended Gobby hook to existing {hook_name}")
 
         else:
-            # Create new hook
-            new_content = f"#!/bin/sh\n\n{gobby_section}"
+            # Create new hook (use bash for pre-commit process substitution)
+            new_content = f"#!/usr/bin/env bash\n\n{gobby_section}"
             hook_path.write_text(new_content)
             logger.info(f"Created new {hook_name} hook")
 
