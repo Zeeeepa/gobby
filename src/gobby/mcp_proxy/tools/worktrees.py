@@ -191,8 +191,8 @@ def create_worktrees_registry(
             return {"success": False, "error": error}
 
         # Type narrowing: if no error, these are guaranteed non-None
-        assert resolved_git_mgr is not None
-        assert resolved_project_id is not None
+        if resolved_git_mgr is None or resolved_project_id is None:
+            raise RuntimeError("Git manager or project ID unexpectedly None")
 
         # Check if branch already exists as a worktree
         existing = worktree_storage.get_by_branch(resolved_project_id, branch_name)
@@ -747,7 +747,8 @@ def create_worktrees_registry(
             return {"success": False, "error": error}
 
         # Type narrowing: if no error, resolved_project_id is guaranteed non-None
-        assert resolved_project_id is not None
+        if resolved_project_id is None:
+            raise RuntimeError("Project ID unexpectedly None")
 
         counts = worktree_storage.count_by_status(resolved_project_id)
 
@@ -879,8 +880,8 @@ def create_worktrees_registry(
             return {"success": False, "error": error}
 
         # Type narrowing: if no error, these are guaranteed non-None
-        assert resolved_git_mgr is not None
-        assert resolved_project_id is not None
+        if resolved_git_mgr is None or resolved_project_id is None:
+            raise RuntimeError("Git manager or project ID unexpectedly None")
 
         if parent_session_id is None:
             return {

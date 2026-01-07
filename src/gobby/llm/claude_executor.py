@@ -202,7 +202,8 @@ class ClaudeExecutor(AgentExecutor):
             turns_used = 0
             final_output = ""
             client = self._client
-            assert client is not None  # For type checker
+            if client is None:
+                raise RuntimeError("ClaudeExecutor client not initialized")
 
             while turns_used < max_turns:
                 turns_used += 1

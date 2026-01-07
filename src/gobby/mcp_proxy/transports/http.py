@@ -70,8 +70,8 @@ class HTTPTransportConnection(BaseTransportConnection):
 
     async def _run_connection(self) -> None:
         """Background task that owns the streamablehttp_client lifecycle."""
-        assert self._disconnect_event is not None
-        assert self._session_ready is not None
+        if self._disconnect_event is None or self._session_ready is None:
+            raise RuntimeError("Connection events not initialized")
 
         try:
             # URL is required for HTTP transport

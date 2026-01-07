@@ -600,10 +600,12 @@ def create_task_registry(
                     # First try commit-based diff if task has linked commits
                     if task.commits:
                         try:
+                            # Don't include uncommitted changes - they're likely unrelated to this task
+                            # The linked commits ARE the work for this task
                             diff_result = get_task_diff(
                                 task_id=task.id,
                                 task_manager=task_manager,
-                                include_uncommitted=True,  # Include uncommitted for complete picture
+                                include_uncommitted=False,
                                 cwd=repo_path,
                             )
                             if diff_result.diff:
@@ -611,11 +613,23 @@ def create_task_registry(
                                     f"Commit-based diff ({len(diff_result.commits)} commits, "
                                     f"{diff_result.file_count} files):\n\n{diff_result.diff}"
                                 )
-                        except Exception:
-                            pass  # Fall back to smart context on error
+                            else:
+                                import logging
 
-                    # Fall back to smart context if no commit diff available
-                    if not validation_context:
+                                logging.getLogger(__name__).warning(
+                                    f"get_task_diff returned empty for task {task.id} "
+                                    f"with commits {task.commits}"
+                                )
+                        except Exception as e:
+                            import logging
+
+                            logging.getLogger(__name__).warning(
+                                f"get_task_diff failed for task {task.id}: {e}"
+                            )
+
+                    # Fall back to smart context ONLY if no linked commits
+                    # (uncommitted changes are unrelated if we have specific commits linked)
+                    if not validation_context and not task.commits:
                         from gobby.tasks.validation import get_validation_context_smart
 
                         # Smart context gathering: uncommitted changes + multi-commit window + file analysis

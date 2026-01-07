@@ -173,7 +173,8 @@ class GeminiExecutor(AgentExecutor):
             turns_used = 0
             final_output = ""
             genai = self._genai
-            assert genai is not None  # For type checker
+            if genai is None:
+                raise RuntimeError("GeminiExecutor genai not initialized")
 
             # Create the model with tools
             gemini_tools = self._convert_tools_to_gemini_format(tools)

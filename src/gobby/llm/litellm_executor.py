@@ -160,7 +160,8 @@ class LiteLLMExecutor(AgentExecutor):
             turns_used = 0
             final_output = ""
             litellm = self._litellm
-            assert litellm is not None  # For type checker
+            if litellm is None:
+                raise RuntimeError("LiteLLMExecutor litellm not initialized")
 
             # Convert tools to OpenAI format
             openai_tools = self._convert_tools_to_openai_format(tools)
