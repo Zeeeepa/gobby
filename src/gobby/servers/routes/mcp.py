@@ -99,7 +99,7 @@ def create_mcp_router() -> APIRouter:
                 tools_result = await session.list_tools()
                 tools = []
                 for tool in tools_result.tools:
-                    tool_dict = {
+                    tool_dict: dict[str, Any] = {
                         "name": tool.name,
                         "description": tool.description if hasattr(tool, "description") else None,
                     }
@@ -214,7 +214,8 @@ def create_mcp_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.get("/tools")
-    async def list_all_mcp_tools(server_filter: str | None = None,
+    async def list_all_mcp_tools(
+        server_filter: str | None = None,
         server: "HTTPServer" = Depends(get_server),
     ) -> dict[str, Any]:
         """
@@ -303,7 +304,8 @@ def create_mcp_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/tools/schema")
-    async def get_tool_schema(request: Request,
+    async def get_tool_schema(
+        request: Request,
         server: "HTTPServer" = Depends(get_server),
     ) -> dict[str, Any]:
         """
@@ -375,7 +377,8 @@ def create_mcp_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/tools/call")
-    async def call_mcp_tool(request: Request,
+    async def call_mcp_tool(
+        request: Request,
         server: "HTTPServer" = Depends(get_server),
     ) -> dict[str, Any]:
         """
@@ -456,7 +459,8 @@ def create_mcp_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=error_msg) from e
 
     @router.post("/servers")
-    async def add_mcp_server(request: Request,
+    async def add_mcp_server(
+        request: Request,
         server: "HTTPServer" = Depends(get_server),
     ) -> dict[str, Any]:
         """
@@ -526,7 +530,8 @@ def create_mcp_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/servers/import")
-    async def import_mcp_server(request: Request,
+    async def import_mcp_server(
+        request: Request,
         server: "HTTPServer" = Depends(get_server),
     ) -> dict[str, Any]:
         """
@@ -606,7 +611,8 @@ def create_mcp_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.delete("/servers/{name}")
-    async def remove_mcp_server(name: str,
+    async def remove_mcp_server(
+        name: str,
         server: "HTTPServer" = Depends(get_server),
     ) -> dict[str, Any]:
         """
@@ -639,7 +645,8 @@ def create_mcp_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/tools/recommend")
-    async def recommend_mcp_tools(request: Request,
+    async def recommend_mcp_tools(
+        request: Request,
         server: "HTTPServer" = Depends(get_server),
     ) -> dict[str, Any]:
         """
@@ -716,7 +723,8 @@ def create_mcp_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/tools/search")
-    async def search_mcp_tools(request: Request,
+    async def search_mcp_tools(
+        request: Request,
         server: "HTTPServer" = Depends(get_server),
     ) -> dict[str, Any]:
         """
@@ -814,7 +822,8 @@ def create_mcp_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/tools/embed")
-    async def embed_mcp_tools(request: Request,
+    async def embed_mcp_tools(
+        request: Request,
         server: "HTTPServer" = Depends(get_server),
     ) -> dict[str, Any]:
         """
@@ -944,7 +953,10 @@ def create_mcp_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/{server_name}/tools/{tool_name}")
-    async def mcp_proxy(server_name: str, tool_name: str, request: Request,
+    async def mcp_proxy(
+        server_name: str,
+        tool_name: str,
+        request: Request,
         server: "HTTPServer" = Depends(get_server),
     ) -> dict[str, Any]:
         """
@@ -1044,7 +1056,8 @@ def create_mcp_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=error_msg) from e
 
     @router.post("/refresh")
-    async def refresh_mcp_tools(request: Request,
+    async def refresh_mcp_tools(
+        request: Request,
         server: "HTTPServer" = Depends(get_server),
     ) -> dict[str, Any]:
         """
@@ -1278,7 +1291,8 @@ def create_code_router(server: "HTTPServer") -> APIRouter:
     metrics = get_metrics_collector()
 
     @router.post("/execute")
-    async def execute_code(request: Request,
+    async def execute_code(
+        request: Request,
         server: "HTTPServer" = Depends(get_server),
     ) -> dict[str, Any]:
         """
@@ -1325,7 +1339,8 @@ def create_code_router(server: "HTTPServer") -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     @router.post("/process-dataset")
-    async def process_dataset(request: Request,
+    async def process_dataset(
+        request: Request,
         server: "HTTPServer" = Depends(get_server),
     ) -> dict[str, Any]:
         """
@@ -1501,7 +1516,8 @@ def create_plugins_router() -> APIRouter:
     router = APIRouter(prefix="/plugins", tags=["plugins"])
 
     @router.get("")
-    async def list_plugins(request: Request,
+    async def list_plugins(
+        request: Request,
         server: "HTTPServer" = Depends(get_server),
     ) -> dict[str, Any]:
         """
@@ -1642,7 +1658,8 @@ def create_webhooks_router() -> APIRouter:
         }
 
     @router.post("/test")
-    async def test_webhook(request: Request,
+    async def test_webhook(
+        request: Request,
         server: "HTTPServer" = Depends(get_server),
     ) -> dict[str, Any]:
         """

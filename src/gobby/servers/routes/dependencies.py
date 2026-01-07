@@ -9,12 +9,12 @@ These dependencies extract server components from app.state, enabling:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import HTTPException, Request
 
 if TYPE_CHECKING:
-    from gobby.config.app import AppConfig
+    from gobby.config.app import DaemonConfig
     from gobby.llm import LLMService
     from gobby.mcp_proxy.manager import MCPClientManager
     from gobby.mcp_proxy.registry_manager import InternalToolRegistryManager
@@ -38,7 +38,10 @@ async def get_server(request: Request) -> HTTPServer:
     server = getattr(request.app.state, "server", None)
     if server is None:
         raise HTTPException(status_code=503, detail="Server not initialized")
-    return server
+    # Import here to avoid circular import, cast to help mypy
+    from gobby.servers.http import HTTPServer
+
+    return cast(HTTPServer, server)
 
 
 async def get_mcp_manager(request: Request) -> MCPClientManager | None:
@@ -67,7 +70,7 @@ async def get_tools_handler(request: Request) -> Any:
     return server._tools_handler
 
 
-async def get_config(request: Request) -> AppConfig | None:
+async def get_config(request: Request) -> DaemonConfig | None:
     """Get the application configuration."""
     server = await get_server(request)
     return server.config
@@ -100,7 +103,7 @@ async def resolve_project_id(request: Request, project_id: str | None = None) ->
         HTTPException: If no project ID can be resolved
     """
     server = await get_server(request)
-    resolved = server._resolve_project_id(project_id)
+    resolved = server._resolve_project_id(project_id, cwd=None)
     if resolved is None:
         raise HTTPException(status_code=400, detail="No project ID provided or detected")
     return resolved
