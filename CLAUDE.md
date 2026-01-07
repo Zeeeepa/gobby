@@ -104,6 +104,10 @@ Include task ID in commit messages for auto-linking:
 - `[gt-abc123] feat: add feature` (recommended)
 - `gt-abc123: fix bug`
 
+### Commit Messages
+
+Do not add the "Generated with Claude Code" or "Co-Authored-By" trailer to commit messages.
+
 ## Session Handoff
 
 On `/compact`, Gobby extracts continuation context (git state, tool calls, todo state) and injects it on next session start. Look for `## Continuation Context` blocks.
