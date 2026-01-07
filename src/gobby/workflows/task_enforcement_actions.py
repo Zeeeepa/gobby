@@ -9,6 +9,8 @@ import logging
 import subprocess
 from typing import TYPE_CHECKING, Any
 
+from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
+
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
     from gobby.storage.tasks import LocalTaskManager
@@ -441,5 +443,95 @@ async def require_active_task(
             f'2. **Claim an existing task**: `update_task(task_id="...", status="in_progress")`\n\n'
             f"Use `list_ready_tasks()` to see available tasks."
             f"{project_task_hint}"
+        ),
+    }
+
+
+async def validate_session_task_scope(
+    task_manager: "LocalTaskManager | None",
+    workflow_state: "WorkflowState | None",
+    event_data: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """
+    Block claiming a task that is not a descendant of session_task.
+
+    This action is designed for on_before_tool triggers on update_task
+    to enforce that agents only work on tasks within the session_task hierarchy.
+
+    When session_task is set in workflow state, this action checks if the task
+    being claimed (set to in_progress) is a descendant of session_task.
+
+    Args:
+        task_manager: LocalTaskManager for querying tasks
+        workflow_state: Workflow state with session_task variable
+        event_data: Hook event data containing tool_name and tool_input
+
+    Returns:
+        Dict with decision="block" if task is outside session_task scope,
+        or None to allow the claim.
+    """
+    if not workflow_state:
+        logger.debug("validate_session_task_scope: No workflow_state, allowing")
+        return None
+
+    if not task_manager:
+        logger.debug("validate_session_task_scope: No task_manager, allowing")
+        return None
+
+    # Get session_task from workflow state
+    session_task = workflow_state.variables.get("session_task")
+    if not session_task:
+        logger.debug("validate_session_task_scope: No session_task set, allowing")
+        return None
+
+    # Check if this is an update_task call setting status to in_progress
+    if not event_data:
+        logger.debug("validate_session_task_scope: No event_data, allowing")
+        return None
+
+    tool_name = event_data.get("tool_name")
+    if tool_name != "update_task":
+        logger.debug(f"validate_session_task_scope: Tool '{tool_name}' not update_task, allowing")
+        return None
+
+    tool_input = event_data.get("tool_input", {})
+    arguments = tool_input.get("arguments", {}) or {}
+
+    # Only check when setting status to in_progress (claiming)
+    new_status = arguments.get("status")
+    if new_status != "in_progress":
+        logger.debug(f"validate_session_task_scope: Status '{new_status}' not in_progress, allowing")
+        return None
+
+    task_id = arguments.get("task_id")
+    if not task_id:
+        logger.debug("validate_session_task_scope: No task_id in arguments, allowing")
+        return None
+
+    # Check if task is a descendant of session_task
+    if is_descendant_of(task_manager, task_id, session_task):
+        logger.debug(
+            f"validate_session_task_scope: Task '{task_id}' is descendant of "
+            f"session_task '{session_task}', allowing"
+        )
+        return None
+
+    # Task is outside the session_task scope - block
+    logger.info(
+        f"validate_session_task_scope: Blocking claim of task '{task_id}' - "
+        f"not a descendant of session_task '{session_task}'"
+    )
+
+    # Get session_task details for better error message
+    session_task_obj = task_manager.get_task(session_task)
+    session_task_title = session_task_obj.title if session_task_obj else session_task
+
+    return {
+        "decision": "block",
+        "reason": (
+            f"Cannot claim task '{task_id}' - it is not within the session_task scope.\n\n"
+            f"This session is scoped to: '{session_task_title}' ({session_task})\n"
+            f"Only tasks that are descendants of this epic/feature can be claimed.\n\n"
+            f"Use `suggest_next_task(parent_id=\"{session_task}\")` to find tasks within scope."
         ),
     }

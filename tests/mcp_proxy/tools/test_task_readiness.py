@@ -279,6 +279,7 @@ class TestSuggestNextTask:
         task_manager.list_ready_tasks.assert_called_once_with(
             task_type="bug",
             limit=50,
+            project_id="test-project-id",
         )
 
     def test_suggest_next_task_scoring(self, mock_readiness_registry):
@@ -419,6 +420,157 @@ class TestReadinessEdgeCases:
         list_blocked()
         # Default limit for blocked tasks is 20
         assert task_manager.list_blocked_tasks.call_args.kwargs["limit"] == 20
+
+
+class TestSuggestNextTaskWithParentId:
+    """Tests for suggest_next_task with parent_id filtering."""
+
+    def test_suggest_next_task_with_parent_id(self, mock_readiness_registry):
+        """Test suggest_next_task filters to descendants when parent_id is set."""
+        from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
+
+        task_manager = MagicMock()
+
+        # Create parent task
+        parent_task = MagicMock()
+        parent_task.id = "epic-1"
+        parent_task.parent_task_id = None
+
+        # Create child tasks (descendants of epic-1)
+        child_task = MagicMock()
+        child_task.id = "child-1"
+        child_task.parent_task_id = "epic-1"
+        child_task.priority = 2
+        child_task.complexity_score = None
+        child_task.test_strategy = None
+        child_task.to_dict.return_value = {"id": "child-1", "title": "Child task"}
+
+        # Create unrelated task (not a descendant)
+        other_task = MagicMock()
+        other_task.id = "other-1"
+        other_task.parent_task_id = "other-epic"
+        other_task.priority = 1  # Higher priority but outside scope
+        other_task.to_dict.return_value = {"id": "other-1"}
+
+        # list_ready_tasks returns both tasks
+        task_manager.list_ready_tasks.return_value = [child_task, other_task]
+
+        # list_tasks is called multiple times:
+        # 1. Building descendant set: children of epic-1
+        # 2. Building descendant set: children of child-1 (empty = leaf)
+        # 3. Scoring: children of child-1 (to check if leaf)
+        def list_tasks_side_effect(**kwargs):
+            parent_id = kwargs.get("parent_task_id")
+            if parent_id == "epic-1":
+                return [child_task]
+            return []  # No children for child-1
+
+        task_manager.list_tasks.side_effect = list_tasks_side_effect
+
+        registry = create_readiness_registry(task_manager=task_manager)
+        suggest = registry.get_tool("suggest_next_task")
+
+        result = suggest(parent_id="epic-1")
+
+        # Should only suggest child task, not other-1
+        assert result["suggestion"] is not None
+        assert result["suggestion"]["id"] == "child-1"
+
+    def test_suggest_next_task_with_parent_id_no_descendants(self, mock_readiness_registry):
+        """Test suggest_next_task returns no suggestion when no descendants are ready."""
+        from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
+
+        task_manager = MagicMock()
+
+        # No ready tasks are descendants of the specified parent
+        other_task = MagicMock()
+        other_task.id = "other-1"
+        other_task.parent_task_id = "other-epic"
+
+        task_manager.list_ready_tasks.return_value = [other_task]
+        task_manager.list_tasks.return_value = []  # No children of epic-1
+
+        registry = create_readiness_registry(task_manager=task_manager)
+        suggest = registry.get_tool("suggest_next_task")
+
+        result = suggest(parent_id="epic-1")
+
+        assert result["suggestion"] is None
+        assert "No ready tasks" in result["reason"]
+
+
+class TestIsDescendantOf:
+    """Tests for is_descendant_of helper function."""
+
+    def test_is_descendant_of_direct_child(self):
+        """Test is_descendant_of for direct parent-child relationship."""
+        from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
+
+        task_manager = MagicMock()
+
+        # Child task
+        child_task = MagicMock()
+        child_task.parent_task_id = "parent-1"
+
+        task_manager.get_task.return_value = child_task
+
+        result = is_descendant_of(task_manager, "child-1", "parent-1")
+        assert result is True
+
+    def test_is_descendant_of_grandchild(self):
+        """Test is_descendant_of for grandparent-grandchild relationship."""
+        from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
+
+        task_manager = MagicMock()
+
+        # Grandchild -> Child -> Parent
+        grandchild = MagicMock()
+        grandchild.parent_task_id = "child-1"
+
+        child = MagicMock()
+        child.parent_task_id = "parent-1"
+
+        task_manager.get_task.side_effect = [grandchild, child]
+
+        result = is_descendant_of(task_manager, "grandchild-1", "parent-1")
+        assert result is True
+
+    def test_is_descendant_of_self(self):
+        """Test is_descendant_of returns True for same task."""
+        from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
+
+        task_manager = MagicMock()
+
+        result = is_descendant_of(task_manager, "task-1", "task-1")
+        assert result is True
+
+    def test_is_descendant_of_unrelated(self):
+        """Test is_descendant_of returns False for unrelated tasks."""
+        from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
+
+        task_manager = MagicMock()
+
+        # Task with different parent
+        task = MagicMock()
+        task.parent_task_id = "other-parent"
+
+        other_parent = MagicMock()
+        other_parent.parent_task_id = None
+
+        task_manager.get_task.side_effect = [task, other_parent]
+
+        result = is_descendant_of(task_manager, "task-1", "not-my-parent")
+        assert result is False
+
+    def test_is_descendant_of_not_found(self):
+        """Test is_descendant_of returns False when task not found."""
+        from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
+
+        task_manager = MagicMock()
+        task_manager.get_task.return_value = None
+
+        result = is_descendant_of(task_manager, "missing-task", "parent-1")
+        assert result is False
 
 
 @pytest.fixture

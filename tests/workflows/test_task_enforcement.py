@@ -1,12 +1,15 @@
 """Tests for task enforcement actions."""
 
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from gobby.workflows.definitions import WorkflowState
-from gobby.workflows.task_enforcement_actions import require_active_task
+from gobby.workflows.task_enforcement_actions import (
+    require_active_task,
+    validate_session_task_scope,
+)
 
 
 @pytest.fixture
@@ -311,3 +314,153 @@ class TestRequireActiveTask:
         assert result2["decision"] == "block"
         # Without state, each call shows full error
         assert "Each session must explicitly" in result2["inject_context"]
+
+
+class TestValidateSessionTaskScope:
+    """Tests for validate_session_task_scope action."""
+
+    @pytest.fixture
+    def workflow_state_with_session_task(self):
+        """Create a workflow state with session_task set."""
+        return WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+            step_entered_at=datetime.now(UTC),
+            variables={"session_task": "epic-1"},
+        )
+
+    async def test_no_session_task_allows_all(self, mock_task_manager, workflow_state):
+        """When no session_task is set, any task can be claimed."""
+        event_data = {
+            "tool_name": "update_task",
+            "tool_input": {"arguments": {"task_id": "any-task", "status": "in_progress"}},
+        }
+
+        result = await validate_session_task_scope(
+            task_manager=mock_task_manager,
+            workflow_state=workflow_state,
+            event_data=event_data,
+        )
+
+        assert result is None  # Allowed
+
+    async def test_descendant_task_allowed(
+        self, mock_task_manager, workflow_state_with_session_task
+    ):
+        """Task that is descendant of session_task is allowed."""
+        event_data = {
+            "tool_name": "update_task",
+            "tool_input": {"arguments": {"task_id": "child-1", "status": "in_progress"}},
+        }
+
+        # Mock is_descendant_of to return True
+        with patch(
+            "gobby.workflows.task_enforcement_actions.is_descendant_of"
+        ) as mock_descendant:
+            mock_descendant.return_value = True
+
+            result = await validate_session_task_scope(
+                task_manager=mock_task_manager,
+                workflow_state=workflow_state_with_session_task,
+                event_data=event_data,
+            )
+
+        assert result is None  # Allowed
+        mock_descendant.assert_called_once_with(mock_task_manager, "child-1", "epic-1")
+
+    async def test_non_descendant_task_blocked(
+        self, mock_task_manager, workflow_state_with_session_task
+    ):
+        """Task outside session_task hierarchy is blocked."""
+        event_data = {
+            "tool_name": "update_task",
+            "tool_input": {"arguments": {"task_id": "other-task", "status": "in_progress"}},
+        }
+
+        # Mock is_descendant_of to return False
+        with patch(
+            "gobby.workflows.task_enforcement_actions.is_descendant_of"
+        ) as mock_descendant:
+            mock_descendant.return_value = False
+
+            # Mock get_task for error message
+            mock_session_task = MagicMock()
+            mock_session_task.title = "My Epic"
+            mock_task_manager.get_task.return_value = mock_session_task
+
+            result = await validate_session_task_scope(
+                task_manager=mock_task_manager,
+                workflow_state=workflow_state_with_session_task,
+                event_data=event_data,
+            )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        assert "not within the session_task scope" in result["reason"]
+        assert "epic-1" in result["reason"]
+        assert "suggest_next_task" in result["reason"]
+
+    async def test_non_update_task_tool_allowed(
+        self, mock_task_manager, workflow_state_with_session_task
+    ):
+        """Non-update_task tool calls are not affected."""
+        event_data = {
+            "tool_name": "create_task",
+            "tool_input": {"arguments": {"title": "New task"}},
+        }
+
+        result = await validate_session_task_scope(
+            task_manager=mock_task_manager,
+            workflow_state=workflow_state_with_session_task,
+            event_data=event_data,
+        )
+
+        assert result is None  # Allowed - not an update_task call
+
+    async def test_non_in_progress_status_allowed(
+        self, mock_task_manager, workflow_state_with_session_task
+    ):
+        """Setting status to something other than in_progress is allowed."""
+        event_data = {
+            "tool_name": "update_task",
+            "tool_input": {"arguments": {"task_id": "any-task", "status": "blocked"}},
+        }
+
+        result = await validate_session_task_scope(
+            task_manager=mock_task_manager,
+            workflow_state=workflow_state_with_session_task,
+            event_data=event_data,
+        )
+
+        assert result is None  # Allowed - not claiming (in_progress)
+
+    async def test_no_workflow_state_allows(self, mock_task_manager):
+        """When no workflow state, scope check is skipped."""
+        event_data = {
+            "tool_name": "update_task",
+            "tool_input": {"arguments": {"task_id": "any-task", "status": "in_progress"}},
+        }
+
+        result = await validate_session_task_scope(
+            task_manager=mock_task_manager,
+            workflow_state=None,
+            event_data=event_data,
+        )
+
+        assert result is None  # Allowed - no workflow state to check
+
+    async def test_no_task_manager_allows(self, workflow_state_with_session_task):
+        """When no task manager, scope check is skipped."""
+        event_data = {
+            "tool_name": "update_task",
+            "tool_input": {"arguments": {"task_id": "any-task", "status": "in_progress"}},
+        }
+
+        result = await validate_session_task_scope(
+            task_manager=None,
+            workflow_state=workflow_state_with_session_task,
+            event_data=event_data,
+        )
+
+        assert result is None  # Allowed - no task manager to check

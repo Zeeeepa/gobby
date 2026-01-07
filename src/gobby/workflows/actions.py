@@ -47,6 +47,7 @@ from gobby.workflows.task_enforcement_actions import (
     require_active_task,
     require_commit_before_stop,
     require_task_complete,
+    validate_session_task_scope,
 )
 from gobby.workflows.templates import TemplateEngine
 from gobby.workflows.todo_actions import mark_todo_complete, write_todos
@@ -214,6 +215,7 @@ class ActionExecutor:
         self.register("require_active_task", self._handle_require_active_task)
         self.register("require_commit_before_stop", self._handle_require_commit_before_stop)
         self.register("require_task_complete", self._handle_require_task_complete)
+        self.register("validate_session_task_scope", self._handle_validate_session_task_scope)
         # Webhook
         self.register("webhook", self._handle_webhook)
 
@@ -874,6 +876,20 @@ class ActionExecutor:
             event_data=context.event_data,
             project_id=project_id,
             workflow_state=context.state,
+        )
+
+    async def _handle_validate_session_task_scope(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Validate that claimed task is within session_task scope.
+
+        When session_task is set in workflow state, this blocks claiming
+        tasks that are not descendants of session_task.
+        """
+        return await validate_session_task_scope(
+            task_manager=self.task_manager,
+            workflow_state=context.state,
+            event_data=context.event_data,
         )
 
     async def _handle_webhook(self, context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:
