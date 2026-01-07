@@ -190,6 +190,17 @@ class ExpansionPromptBuilder:
             for f in context.relevant_files:
                 context_parts.append(f"- {f}")
 
+        if context.existing_tests:
+            context_parts.append("\n**Existing Tests:**")
+            for module, test_files in context.existing_tests.items():
+                context_parts.append(f"- {module}:")
+                for tf in test_files:
+                    context_parts.append(f"  - {tf}")
+            context_parts.append(
+                "\n*Note: When creating test tasks for modules with existing tests, "
+                "update the existing test files rather than creating new ones.*"
+            )
+
         if context.project_patterns:
             context_parts.append("\n**Project Patterns:**")
             for k, v in context.project_patterns.items():

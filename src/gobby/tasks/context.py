@@ -28,6 +28,7 @@ class ExpansionContext:
     project_patterns: dict[str, str]
     agent_findings: str = ""
     web_research: list[dict[str, Any]] | None = None
+    existing_tests: dict[str, list[str]] | None = None  # module -> [test files]
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -38,6 +39,7 @@ class ExpansionContext:
             "project_patterns": self.project_patterns,
             "agent_findings": self.agent_findings,
             "web_research": self.web_research,
+            "existing_tests": self.existing_tests,
             # We don't include full snippets in dict summary often, but useful for debug
             "snippet_count": len(self.file_snippets),
         }
@@ -126,6 +128,10 @@ class ExpansionContextGatherer:
         file_snippets = self._read_file_snippets(relevant_files)
         project_patterns = self._detect_project_patterns()
 
+        # Discover existing tests for relevant Python files
+        python_files = [f for f in relevant_files if f.endswith(".py")]
+        existing_tests = self.discover_existing_tests(python_files) if python_files else {}
+
         return ExpansionContext(
             task=task,
             related_tasks=related_tasks,
@@ -134,6 +140,7 @@ class ExpansionContextGatherer:
             project_patterns=project_patterns,
             agent_findings=agent_findings,
             web_research=web_research,
+            existing_tests=existing_tests if existing_tests else None,
         )
 
     async def _find_related_tasks(self, task: Task) -> list[Task]:
@@ -225,3 +232,99 @@ class ExpansionContextGatherer:
             patterns["tests"] = "tests/"
 
         return patterns
+
+    def discover_existing_tests(self, module_paths: list[str]) -> dict[str, list[str]]:
+        """
+        Find test files that cover the given modules.
+
+        For each module path, searches the tests/ directory for files that
+        import from that module.
+
+        Args:
+            module_paths: List of file paths (e.g., ['src/gobby/tasks/expansion.py'])
+
+        Returns:
+            Dict mapping module path to list of test files that import it.
+        """
+        import re
+        import subprocess
+
+        result: dict[str, list[str]] = {}
+        root = find_project_root()
+        if not root:
+            return result
+
+        tests_dir = root / "tests"
+        if not tests_dir.exists():
+            return result
+
+        for module_path in module_paths:
+            # Convert file path to import path
+            # e.g., src/gobby/tasks/expansion.py -> gobby.tasks.expansion
+            import_path = self._path_to_import(module_path)
+            if not import_path:
+                continue
+
+            # Search for imports of this module in tests/
+            try:
+                # Use grep to find test files that import this module
+                # Pattern matches: from {module} import, import {module}
+                pattern = rf"(from\s+{re.escape(import_path)}(\.\w+)*\s+import|import\s+{re.escape(import_path)})"
+                grep_result = subprocess.run(
+                    ["grep", "-r", "-l", "-E", pattern, str(tests_dir)],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+
+                if grep_result.returncode == 0 and grep_result.stdout.strip():
+                    test_files = []
+                    for line in grep_result.stdout.strip().split("\n"):
+                        if line:
+                            # Convert to relative path from project root
+                            rel_path = line.replace(str(root) + "/", "")
+                            test_files.append(rel_path)
+
+                    if test_files:
+                        result[module_path] = test_files
+                        logger.debug(
+                            f"Found {len(test_files)} test files for {module_path}: {test_files}"
+                        )
+
+            except subprocess.TimeoutExpired:
+                logger.warning(f"Timeout searching for tests of {module_path}")
+            except Exception as e:
+                logger.warning(f"Error searching for tests of {module_path}: {e}")
+
+        return result
+
+    def _path_to_import(self, file_path: str) -> str | None:
+        """
+        Convert a file path to a Python import path.
+
+        Args:
+            file_path: File path like 'src/gobby/tasks/expansion.py'
+
+        Returns:
+            Import path like 'gobby.tasks.expansion', or None if not convertible.
+        """
+        # Remove .py extension
+        if not file_path.endswith(".py"):
+            return None
+
+        path = file_path[:-3]  # Remove .py
+
+        # Remove common prefixes
+        for prefix in ["src/", "lib/"]:
+            if path.startswith(prefix):
+                path = path[len(prefix) :]
+                break
+
+        # Convert slashes to dots
+        import_path = path.replace("/", ".")
+
+        # Remove __init__ suffix if present
+        if import_path.endswith(".__init__"):
+            import_path = import_path[:-9]
+
+        return import_path if import_path else None
