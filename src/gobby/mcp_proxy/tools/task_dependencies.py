@@ -109,8 +109,11 @@ def create_dependency_registry(
 
     def remove_dependency(task_id: str, depends_on: str) -> dict[str, Any]:
         """Remove a dependency between tasks."""
-        dep_manager.remove_dependency(task_id, depends_on)
-        return {"removed": True, "task_id": task_id, "depends_on": depends_on}
+        try:
+            dep_manager.remove_dependency(task_id, depends_on)
+            return {"removed": True, "task_id": task_id, "depends_on": depends_on}
+        except ValueError as e:
+            return {"error": str(e)}
 
     registry.register(
         name="remove_dependency",

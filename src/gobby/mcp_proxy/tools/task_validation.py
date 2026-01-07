@@ -286,7 +286,7 @@ def create_validation_registry(
         """
         task = task_manager.get_task(task_id)
         if not task:
-            return {"error": f"Task {task_id} not found"}
+            raise ValueError(f"Task {task_id} not found")
 
         history = validation_history_manager.get_iteration_history(task_id)
 
