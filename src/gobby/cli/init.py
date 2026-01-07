@@ -42,6 +42,8 @@ def init(ctx: click.Context, name: str | None, github_url: str | None) -> None:
                 click.echo("  Detected verification commands:")
                 for key, value in verification_dict.items():
                     if key != "custom":
+                        if value is None:
+                            continue
                         click.echo(f"    {key}: {value}")
                     elif value:  # custom dict
                         if isinstance(value, dict):

@@ -207,12 +207,16 @@ class SessionCoordinator:
 
     # ==================== LIFECYCLE OPERATIONS ====================
 
-    def reregister_active_sessions(self) -> int:
+    def reregister_active_sessions(self, limit: int = 1000) -> int:
         """
         Re-register active sessions with the message processor.
 
         Called during initialization to restore message processing
         for sessions that were active before a daemon restart.
+
+        Args:
+            limit: Maximum number of sessions to re-register (default 1000).
+                   Sessions beyond this limit will not be re-registered.
 
         Returns:
             Number of sessions successfully re-registered
@@ -222,7 +226,7 @@ class SessionCoordinator:
 
         try:
             # Query active sessions from storage
-            active_sessions = self._session_storage.list(status="active", limit=100)
+            active_sessions = self._session_storage.list(status="active", limit=limit)
             registered_count = 0
 
             for session in active_sessions:

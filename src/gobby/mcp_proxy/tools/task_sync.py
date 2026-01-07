@@ -73,6 +73,12 @@ def create_sync_registry(
 
     def sync_tasks(direction: str = "both") -> dict[str, Any]:
         """Manually trigger task synchronization."""
+        valid_directions = ("import", "export", "both")
+        if direction not in valid_directions:
+            return {
+                "error": f"Invalid direction '{direction}'. Must be one of: {', '.join(valid_directions)}"
+            }
+
         result = {}
         if direction in ["import", "both"]:
             sync_manager.import_from_jsonl()

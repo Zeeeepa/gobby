@@ -53,8 +53,10 @@ if command -v pre-commit >/dev/null 2>&1 && [ -f .pre-commit-config.yaml ]; then
                 echo ""
                 echo "Pre-commit auto-fixed files. Creating separate commit..."
 
-                # Stage only the auto-fixed files
-                echo "$AUTO_FIXED" | xargs git add
+                # Stage only the auto-fixed files (handle filenames with spaces/special chars)
+                echo "$AUTO_FIXED" | while IFS= read -r file; do
+                    [ -n "$file" ] && git add -- "$file"
+                done
 
                 # Commit them with --no-verify to skip hooks
                 git commit --no-verify -m "style: auto-format (pre-commit)" >/dev/null
@@ -119,7 +121,7 @@ def _backup_hook(hook_path: Path, hooks_dir: Path) -> str | None:
 
 def _has_gobby_hook(content: str) -> bool:
     """Check if content already contains Gobby hook markers."""
-    return GOBBY_HOOK_START in content or "gobby" in content.lower()
+    return GOBBY_HOOK_START in content
 
 
 def _is_precommit_framework_hook(content: str) -> bool:

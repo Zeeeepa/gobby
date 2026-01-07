@@ -59,7 +59,7 @@ gobby tasks sync
 
 ## Task Lifecycle
 
-```
+```text
 open → in_progress → closed
    ↘                ↘ failed (validation failures)
     needs_decomposition → open (when subtasks added)

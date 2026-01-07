@@ -285,7 +285,12 @@ class CodexExecutor(AgentExecutor):
                     tool_name = tool_call.function.name
                     try:
                         arguments = json.loads(tool_call.function.arguments)
-                    except json.JSONDecodeError:
+                    except json.JSONDecodeError as e:
+                        self.logger.warning(
+                            f"Failed to parse tool call arguments for '{tool_name}' "
+                            f"(id={getattr(tool_call, 'id', 'unknown')}): {e}. "
+                            f"Arguments: {tool_call.function.arguments!r}"
+                        )
                         arguments = {}
 
                     # Record the tool call

@@ -174,16 +174,22 @@ class PowerShellSpawner(TerminalSpawnerBase):
             # PowerShell requires special escaping for the -Command parameter
             inner_cmd = subprocess.list2cmdline(command)
 
+            # Escape values for PowerShell single-quoted strings (double any single quotes)
+            safe_cwd = "'" + str(cwd).replace("'", "''") + "'"
+            safe_inner_cmd = inner_cmd.replace("'", "''")
+
             # Build PowerShell command:
             # Start-Process spawns a new window, -WorkingDirectory sets cwd
             # -NoExit keeps the window open after command completes
-            ps_script = f'Set-Location -Path "{cwd}"; {inner_cmd}'
+            ps_script = f"Set-Location -Path {safe_cwd}; {safe_inner_cmd}"
 
             args = ["cmd", "/c", "start", "", cli_command]
             # Add extra options from config
             args.extend(tty_config.options)
             if title:
-                args.extend(["-Title", title])
+                # Escape title for PowerShell
+                safe_title = "'" + title.replace("'", "''") + "'"
+                args.extend(["-Title", safe_title])
             args.extend(["-NoExit", "-Command", ps_script])
 
             spawn_env = os.environ.copy()

@@ -69,6 +69,13 @@ class EmbeddedSpawner:
         Returns:
             EmbeddedPTYResult with PTY file descriptors and process info
         """
+        if not command or len(command) == 0:
+            return EmbeddedPTYResult(
+                success=False,
+                message="Cannot spawn process with empty command",
+                error="Empty command list provided",
+            )
+
         if platform.system() == "Windows" or pty is None:
             return EmbeddedPTYResult(
                 success=False,

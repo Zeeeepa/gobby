@@ -56,9 +56,8 @@ class GhosttySpawner(TerminalSpawnerBase):
             # Note: Ghostty requires --key=value syntax, not --key value
             if platform.system() == "Darwin":
                 app_path = tty_config.app_path or "/Applications/Ghostty.app"
-                app_name = Path(app_path).name  # e.g., "Ghostty.app"
                 # Build args for open command
-                # open -na Ghostty.app --args [ghostty-options] -e [command]
+                # open -na /path/to/Ghostty.app --args [ghostty-options] -e [command]
                 # Note: 'open' doesn't pass cwd, so we must use --working-directory
                 ghostty_args = [f"--working-directory={cwd}"]
                 if title:
@@ -67,7 +66,7 @@ class GhosttySpawner(TerminalSpawnerBase):
                 ghostty_args.extend(tty_config.options)
                 ghostty_args.extend(["-e"] + command)
 
-                args = ["open", "-na", app_name, "--args"] + ghostty_args
+                args = ["open", "-na", app_path, "--args"] + ghostty_args
             else:
                 # On Linux/other platforms, use ghostty CLI directly
                 cli_command = tty_config.command or "ghostty"

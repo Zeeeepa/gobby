@@ -1410,10 +1410,8 @@ class LocalTaskManager:
         from gobby.storage.task_dependencies import TaskDependencyManager
         from gobby.tasks.auto_decompose import detect_multi_step, extract_steps
 
-        # Get current task
+        # Get current task (get_task raises ValueError if not found)
         task = self.get_task(task_id)
-        if not task:
-            raise ValueError(f"Task not found: {task_id}")
 
         # Check if task already has subtasks (skip detection)
         children = self.db.fetchone(
