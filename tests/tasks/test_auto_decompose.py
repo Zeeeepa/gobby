@@ -450,3 +450,348 @@ class TestExtractStepsEdgeCases:
         steps = extract_steps(description)
         assert len(steps) == 3
         assert "Setup" in steps[0]["title"] or "Configure" in steps[0]["title"]
+
+
+# =============================================================================
+# create_task Integration Tests (TDD - auto_decompose parameter)
+# =============================================================================
+
+import pytest
+
+from gobby.storage.database import LocalDatabase
+from gobby.storage.migrations import run_migrations
+from gobby.storage.task_dependencies import TaskDependencyManager
+from gobby.storage.tasks import LocalTaskManager
+
+
+@pytest.fixture
+def task_db(tmp_path):
+    """Create a test database with migrations applied."""
+    db_path = tmp_path / "test.db"
+    db = LocalDatabase(str(db_path))
+    run_migrations(db)
+    # Create a test project
+    with db.transaction() as conn:
+        conn.execute(
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("test-project", "Test Project"),
+        )
+    return db
+
+
+@pytest.fixture
+def task_manager(task_db):
+    """Create a LocalTaskManager instance."""
+    return LocalTaskManager(task_db)
+
+
+@pytest.fixture
+def dep_manager(task_db):
+    """Create a TaskDependencyManager instance."""
+    return TaskDependencyManager(task_db)
+
+
+class TestCreateTaskAutoDecomposeDefault:
+    """Tests for default auto_decompose=True behavior."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_multi_step_description_creates_parent_and_subtasks(self, task_manager, dep_manager):
+        """Multi-step description should create parent task plus subtasks."""
+        description = """Implement authentication:
+
+1. Create user model with email and password fields
+2. Add login endpoint with JWT token generation
+3. Implement logout endpoint to invalidate tokens
+"""
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Add authentication",
+            description=description,
+        )
+
+        assert result["auto_decomposed"] is True
+        assert "parent_task" in result
+        assert "subtasks" in result
+        assert len(result["subtasks"]) == 3
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_auto_decomposed_result_includes_parent_task(self, task_manager, dep_manager):
+        """Result should include the parent task details."""
+        description = """Steps:
+- Create database schema
+- Add API endpoints
+- Write tests
+"""
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Build feature",
+            description=description,
+        )
+
+        assert result["auto_decomposed"] is True
+        parent = result["parent_task"]
+        assert parent["title"] == "Build feature"
+        assert parent["id"].startswith("gt-")
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_auto_decomposed_subtasks_have_correct_parent(self, task_manager, dep_manager):
+        """Subtasks should have parent_task_id set to the parent."""
+        description = """1. First step
+2. Second step
+3. Third step"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Multi-step task",
+            description=description,
+        )
+
+        parent_id = result["parent_task"]["id"]
+        for subtask in result["subtasks"]:
+            assert subtask["parent_task_id"] == parent_id
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_auto_decomposed_subtasks_have_sequential_dependencies(
+        self, task_manager, dep_manager
+    ):
+        """Subtasks should have blocking dependencies (step N blocks step N+1)."""
+        description = """Implementation:
+1. Create schema
+2. Build API
+3. Add tests"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Sequential task",
+            description=description,
+        )
+
+        subtasks = result["subtasks"]
+        assert len(subtasks) == 3
+
+        # Second subtask should be blocked by first
+        blockers_1 = dep_manager.get_blockers(subtasks[1]["id"])
+        assert len(blockers_1) == 1
+        assert blockers_1[0].depends_on == subtasks[0]["id"]
+
+        # Third subtask should be blocked by second
+        blockers_2 = dep_manager.get_blockers(subtasks[2]["id"])
+        assert len(blockers_2) == 1
+        assert blockers_2[0].depends_on == subtasks[1]["id"]
+
+        # First subtask should have no blockers
+        blockers_0 = dep_manager.get_blockers(subtasks[0]["id"])
+        assert len(blockers_0) == 0
+
+
+class TestCreateTaskAutoDecomposeOptOut:
+    """Tests for auto_decompose=False behavior."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_opt_out_creates_single_task_with_needs_decomposition(self, task_manager):
+        """With auto_decompose=False, multi-step creates single task with needs_decomposition status."""
+        description = """1. Step one
+2. Step two
+3. Step three"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Decompose later",
+            description=description,
+            auto_decompose=False,
+        )
+
+        assert result["auto_decomposed"] is False
+        task = result["task"]
+        assert task["status"] == "needs_decomposition"
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_needs_decomposition_task_cannot_be_claimed(self, task_manager):
+        """Task with needs_decomposition status should not appear in ready tasks."""
+        description = """1. One
+2. Two
+3. Three"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Cannot claim yet",
+            description=description,
+            auto_decompose=False,
+        )
+
+        task_id = result["task"]["id"]
+
+        # Task should not be in ready tasks list
+        ready_tasks = task_manager.list_ready_tasks(project_id="test-project")
+        ready_ids = [t.id for t in ready_tasks]
+        assert task_id not in ready_ids
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_opt_out_preserves_full_description(self, task_manager):
+        """Opt-out should preserve the multi-step description for later decomposition."""
+        description = """Feature requirements:
+
+1. Create user interface
+2. Build backend API
+3. Add database schema
+4. Write integration tests
+"""
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Big feature",
+            description=description,
+            auto_decompose=False,
+        )
+
+        task = task_manager.get_task(result["task"]["id"])
+        assert "1. Create user interface" in task.description
+        assert "4. Write integration tests" in task.description
+
+
+class TestCreateTaskSingleStep:
+    """Tests for single-step descriptions (no decomposition)."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_single_step_returns_normal_task(self, task_manager):
+        """Single-step description should create normal task."""
+        description = "Fix the typo in the README file."
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Fix typo",
+            description=description,
+        )
+
+        assert result["auto_decomposed"] is False
+        task = result["task"]
+        assert task["status"] == "open"
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_single_step_with_auto_decompose_true(self, task_manager):
+        """Single-step description ignores auto_decompose=True."""
+        description = "Update version number"
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Bump version",
+            description=description,
+            auto_decompose=True,
+        )
+
+        assert result["auto_decomposed"] is False
+        assert "task" in result
+        assert "subtasks" not in result
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_empty_description_returns_normal_task(self, task_manager):
+        """Empty description should create normal task."""
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Quick task",
+            description=None,
+        )
+
+        assert result["auto_decomposed"] is False
+        task = result["task"]
+        assert task["title"] == "Quick task"
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_false_positive_description_returns_normal_task(self, task_manager):
+        """Descriptions with false positive patterns should not decompose."""
+        description = """Bug: Login fails.
+
+Steps to reproduce:
+1. Open login page
+2. Enter valid credentials
+3. Click login
+4. Observe error message
+
+Expected: Login succeeds."""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Fix login bug",
+            description=description,
+        )
+
+        # Should not decompose - "steps to reproduce" is false positive
+        assert result["auto_decomposed"] is False
+        assert "task" in result
+
+
+class TestCreateTaskAutoDecomposeEdgeCases:
+    """Edge cases for auto_decompose integration."""
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_inherits_parent_properties(self, task_manager):
+        """Subtasks should inherit priority and labels from parent."""
+        description = """1. Step A
+2. Step B
+3. Step C"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Prioritized task",
+            description=description,
+            priority=1,
+            labels=["urgent", "backend"],
+        )
+
+        parent = result["parent_task"]
+        assert parent["priority"] == 1
+        assert "urgent" in parent["labels"]
+
+        # Subtasks inherit priority
+        for subtask in result["subtasks"]:
+            full_task = task_manager.get_task(subtask["id"])
+            assert full_task.priority == 1
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_subtasks_have_extracted_titles(self, task_manager):
+        """Subtask titles should be extracted from step text."""
+        description = """Tasks:
+- Create user model with email field
+- Add password hashing
+- Implement login validation"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="User auth",
+            description=description,
+        )
+
+        subtask_titles = [s["title"] for s in result["subtasks"]]
+        assert "Create user model with email field" in subtask_titles
+        assert "Add password hashing" in subtask_titles
+
+    @pytest.mark.slow
+    @pytest.mark.integration
+    def test_parent_task_is_epic_when_has_subtasks(self, task_manager):
+        """Parent task with subtasks should be type 'epic' (or remain as specified)."""
+        description = """1. First
+2. Second
+3. Third"""
+
+        result = task_manager.create_task_with_decomposition(
+            project_id="test-project",
+            title="Epic task",
+            description=description,
+            task_type="feature",
+        )
+
+        # Parent becomes epic when it has subtasks
+        parent = result["parent_task"]
+        assert parent["type"] in ("epic", "feature")  # Implementation may vary
