@@ -61,13 +61,15 @@ gobby tasks sync
 
 ```
 open → in_progress → closed
-                  ↘ failed (validation failures)
+   ↘                ↘ failed (validation failures)
+    needs_decomposition → open (when subtasks added)
 ```
 
 - **open**: Ready or blocked, not started
 - **in_progress**: Currently being worked on
 - **closed**: Completed with reason
 - **failed**: Exceeded validation retry limit
+- **needs_decomposition**: Multi-step task awaiting breakdown into subtasks
 
 ## Task Types
 
@@ -113,6 +115,74 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
 | `blocks` | Hard dependency - prevents task from being "ready" |
 | `related` | Soft link - informational only |
 | `discovered-from` | Task found while working on another |
+
+## Auto-Decomposition
+
+When creating tasks with multi-step descriptions (numbered lists, bullet points with action verbs), the system automatically breaks them into subtasks.
+
+### How It Works
+
+```python
+# This description with 3+ numbered steps triggers auto-decomposition
+call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
+    "title": "Implement auth",
+    "description": """1. Create user model
+2. Add login endpoint
+3. Generate JWT tokens"""
+})
+# Result: parent task + 3 subtasks with sequential dependencies
+```
+
+### Detection Patterns
+
+Multi-step content is detected when:
+- **Numbered lists** with 3+ items (e.g., `1. First`, `2. Second`, `3. Third`)
+- **Bullet lists** with 3+ action verbs (`- Create`, `- Add`, `- Implement`)
+- **Phase headers** (`## Phase 1`, `## Phase 2`)
+- **Sequence words** (`first`, `then`, `finally`, `next`)
+
+**False positives avoided:**
+- Bug reproduction steps (`Steps to Reproduce: 1. Click...`)
+- Acceptance criteria
+- Requirements lists
+- Options/approaches
+
+### Opting Out
+
+```python
+# Disable auto-decomposition for a single task
+call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
+    "title": "Complex task",
+    "description": "1. Step one\n2. Step two\n3. Step three",
+    "auto_decompose": False  # Creates single task with needs_decomposition status
+})
+
+# Disable for entire session via workflow variable
+call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
+    "name": "auto_decompose",
+    "value": False
+})
+```
+
+### The `needs_decomposition` Status
+
+When `auto_decompose=False` on a multi-step description:
+- Task is created with `status: needs_decomposition`
+- Task **cannot** be claimed (`in_progress`) until decomposed
+- Task **cannot** have validation criteria set until decomposed
+- Adding subtasks automatically transitions status to `open`
+
+```python
+# Check if task needs decomposition
+task = call_tool(server_name="gobby-tasks", tool_name="get_task", arguments={"task_id": "gt-xxx"})
+if task["status"] == "needs_decomposition":
+    # Add subtasks manually
+    call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
+        "title": "Subtask 1",
+        "parent_task_id": task["id"]
+    })
+    # Parent automatically transitions to 'open'
+```
 
 ## LLM-Powered Expansion
 

@@ -169,6 +169,13 @@ call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
     "name": "session_task",
     "value": "gt-abc123"
 })
+
+# Disable auto-decomposition for the session
+# (Multi-step task descriptions normally auto-create subtasks)
+call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
+    "name": "auto_decompose",
+    "value": False
+})
 ```
 
 ## Memory & Skills
