@@ -258,14 +258,15 @@ class TestMemoryInjectAtSessionStart:
         assert response.context is None or response.context == ""
 
     @pytest.mark.asyncio
-    async def test_memory_manager_disabled_skips_injection(
+    async def test_memory_injection_disabled_via_workflow_variable(
         self,
-        workflow_engine_with_memory: WorkflowEngine,
+        workflow_loader,
+        action_executor_with_memory,
         mock_memory_manager,
         session_manager: LocalSessionManager,
         sample_project,
     ):
-        """Verify memory injection is skipped when memory system is disabled."""
+        """Verify memory injection is skipped when workflow variable disables it."""
         session = session_manager.register(
             external_id="test-ext-id-4",
             machine_id="test-machine",
@@ -273,8 +274,17 @@ class TestMemoryInjectAtSessionStart:
             project_id=sample_project["id"],
         )
 
-        # Disable memory system
-        mock_memory_manager.config.enabled = False
+        # Create state manager that returns state with memory_injection_enabled=false
+        state_manager = MagicMock(spec=WorkflowStateManager)
+        mock_state = MagicMock()
+        mock_state.variables = {"memory_injection_enabled": False}
+        state_manager.get_state.return_value = mock_state
+
+        workflow_engine = WorkflowEngine(
+            loader=workflow_loader,
+            state_manager=state_manager,
+            action_executor=action_executor_with_memory,
+        )
 
         event = HookEvent(
             event_type=HookEventType.SESSION_START,
@@ -285,11 +295,9 @@ class TestMemoryInjectAtSessionStart:
             metadata={"_platform_session_id": session.id},
         )
 
-        response = await workflow_engine_with_memory.evaluate_all_lifecycle_workflows(
-            event
-        )
+        response = await workflow_engine.evaluate_all_lifecycle_workflows(event)
 
-        # recall should not be called when disabled
+        # recall should not be called when disabled via workflow variable
         mock_memory_manager.recall.assert_not_called()
         assert response.decision == "allow"
 

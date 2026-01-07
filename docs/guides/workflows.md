@@ -475,8 +475,8 @@ These variables control how Gobby behaves during a session:
 | `require_commit_before_stop` | `true` | Block session stop if task has uncommitted changes |
 | `auto_decompose` | `true` | Auto-expand multi-step task descriptions into subtasks |
 | `tdd_mode` | `true` | Generate test→implement task pairs during expansion |
-| `memory_injection_enabled` | `true` | Inject relevant memories at session start |
-| `memory_injection_limit` | `10` | Max memories to inject |
+| `memory_injection_enabled` | `true` | Enable memory injection (controls `memory_inject` action) |
+| `memory_injection_limit` | `10` | Default limit for memory injection per query |
 | `session_task` | `null` | Task(s) that must complete before stopping. Values: task ID, list of IDs, or `"*"` for all ready tasks |
 
 ### Defining Variables in Workflow YAML

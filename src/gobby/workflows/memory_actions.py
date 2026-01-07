@@ -55,27 +55,39 @@ async def memory_inject(
     memory_manager: Any,
     session_manager: Any,
     session_id: str,
+    query: str | None = None,
     project_id: str | None = None,
-    min_importance: float | None = None,
-    limit: int | None = None,
+    min_importance: float = 0.3,
+    limit: int = 10,
+    min_similarity: float | None = None,
 ) -> dict[str, Any] | None:
     """Inject memory context into the session.
+
+    When called with a query, uses semantic search to find relevant memories.
+    Without a query, falls back to importance-based retrieval (not recommended).
+
+    Note: Enabled state and default limit are controlled by workflow variables
+    (memory_injection_enabled, memory_injection_limit) in the action handler.
 
     Args:
         memory_manager: The memory manager instance
         session_manager: The session manager instance
         session_id: Current session ID
+        query: Search query for semantic memory retrieval (recommended)
         project_id: Override project ID (optional)
-        min_importance: Minimum importance threshold (optional)
-        limit: Max memories to inject (optional)
+        min_importance: Minimum importance threshold (default: 0.3)
+        limit: Max memories to inject (default: 10, typically from workflow variable)
+        min_similarity: Minimum similarity threshold for semantic search (optional)
 
     Returns:
-        Dict with inject_context and count, or None if disabled
+        Dict with inject_context and count, or None if memory manager unavailable
+
+    Example workflow usage:
+        - action: memory_inject
+          query: "{{ task.title }} {{ task.description }}"
+          limit: 5
     """
     if not memory_manager:
-        return None
-
-    if not memory_manager.config.enabled:
         return None
 
     # Resolve project_id from session if not provided
@@ -91,21 +103,42 @@ async def memory_inject(
     from gobby.memory.context import build_memory_context
 
     try:
-        config = memory_manager.config
-        threshold = min_importance if min_importance is not None else config.importance_threshold
-        injection_limit = limit if limit is not None else config.injection_limit
-
-        project_memories = memory_manager.recall(
-            project_id=project_id,
-            min_importance=threshold,
-            limit=injection_limit,
-        )
+        # Use semantic search when query is provided (recommended)
+        if query:
+            project_memories = memory_manager.recall(
+                query=query,
+                project_id=project_id,
+                min_importance=min_importance,
+                limit=limit,
+                use_semantic=True,
+            )
+            search_mode = "semantic"
+        else:
+            # Fallback to importance-based (not recommended - no context)
+            logger.warning(
+                "memory_inject: Called without query - using importance-based retrieval. "
+                "Consider providing a query for context-aware injection."
+            )
+            project_memories = memory_manager.recall(
+                project_id=project_id,
+                min_importance=min_importance,
+                limit=limit,
+            )
+            search_mode = "importance"
 
         if not project_memories:
             logger.debug(
-                f"memory_inject: No memories found for project {project_id} (threshold={threshold})"
+                f"memory_inject: No memories found for project {project_id} "
+                f"(mode={search_mode}, threshold={min_importance})"
             )
             return {"injected": False, "reason": "No memories found", "count": 0}
+
+        # Apply similarity threshold for semantic search
+        if query and min_similarity is not None:
+            project_memories = [
+                m for m in project_memories
+                if getattr(m, "similarity", 1.0) >= min_similarity
+            ]
 
         memory_context = build_memory_context(project_memories)
 
@@ -114,7 +147,7 @@ async def memory_inject(
 
         logger.info(
             f"memory_inject: Injected {len(project_memories)} memories "
-            f"(threshold={threshold}, limit={injection_limit})"
+            f"(mode={search_mode}, threshold={min_importance}, limit={limit})"
         )
 
         return {"inject_context": memory_context, "count": len(project_memories)}

@@ -289,10 +289,10 @@ async def test_memory_extract_disabled(
 
 
 @pytest.mark.asyncio
-async def test_memory_inject_uses_config_threshold(
+async def test_memory_inject_uses_workflow_variable_limit(
     mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
 ):
-    """Test memory_inject uses config importance_threshold as default."""
+    """Test memory_inject uses memory_injection_limit workflow variable as default."""
     session = session_manager.register(
         external_id="threshold-ext",
         machine_id="test-machine",
@@ -302,26 +302,27 @@ async def test_memory_inject_uses_config_threshold(
     mem_action_context.session_id = session.id
     mem_action_context.state.session_id = session.id
 
-    # Set config threshold
-    mock_mem_services["memory_manager"].config.enabled = True
-    mock_mem_services["memory_manager"].config.importance_threshold = 0.7
-    mock_mem_services["memory_manager"].config.injection_limit = 5
+    # Set workflow variables for memory injection
+    mem_action_context.state.variables = {
+        "memory_injection_enabled": True,
+        "memory_injection_limit": 5,
+    }
 
     m1 = MagicMock()
     m1.memory_type = "fact"
     m1.content = "High importance memory"
     mock_mem_services["memory_manager"].recall.return_value = [m1]
 
-    # Call without min_importance kwarg - should use config default
+    # Call without limit kwarg - should use workflow variable default
     result = await mem_action_executor.execute("memory_inject", mem_action_context)
 
     assert result is not None
     assert "inject_context" in result
-    # Verify recall was called with config threshold
+    # Verify recall was called with workflow variable limit
     mock_mem_services["memory_manager"].recall.assert_called_with(
         project_id=str(sample_project["id"]),
-        min_importance=0.7,
-        limit=5,
+        min_importance=0.3,  # Default from function
+        limit=5,  # From workflow variable
     )
 
 
@@ -329,7 +330,7 @@ async def test_memory_inject_uses_config_threshold(
 async def test_memory_inject_enforces_limit(
     mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
 ):
-    """Test memory_inject respects injection_limit from config."""
+    """Test memory_inject respects memory_injection_limit workflow variable."""
     session = session_manager.register(
         external_id="limit-ext",
         machine_id="test-machine",
@@ -339,9 +340,11 @@ async def test_memory_inject_enforces_limit(
     mem_action_context.session_id = session.id
     mem_action_context.state.session_id = session.id
 
-    mock_mem_services["memory_manager"].config.enabled = True
-    mock_mem_services["memory_manager"].config.importance_threshold = 0.3
-    mock_mem_services["memory_manager"].config.injection_limit = 3
+    # Set workflow variable for limit
+    mem_action_context.state.variables = {
+        "memory_injection_enabled": True,
+        "memory_injection_limit": 3,
+    }
 
     # Return 3 memories (limit)
     memories = [MagicMock(memory_type="fact", content=f"Memory {i}") for i in range(3)]
@@ -351,16 +354,16 @@ async def test_memory_inject_enforces_limit(
 
     assert result is not None
     assert result["count"] == 3
-    # Verify limit was passed to recall
+    # Verify limit was passed to recall from workflow variable
     call_kwargs = mock_mem_services["memory_manager"].recall.call_args[1]
     assert call_kwargs["limit"] == 3
 
 
 @pytest.mark.asyncio
-async def test_memory_inject_kwargs_override_config(
+async def test_memory_inject_kwargs_override_workflow_variables(
     mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
 ):
-    """Test that kwargs can override config values."""
+    """Test that kwargs can override workflow variable values."""
     session = session_manager.register(
         external_id="override-ext",
         machine_id="test-machine",
@@ -370,10 +373,11 @@ async def test_memory_inject_kwargs_override_config(
     mem_action_context.session_id = session.id
     mem_action_context.state.session_id = session.id
 
-    # Config values
-    mock_mem_services["memory_manager"].config.enabled = True
-    mock_mem_services["memory_manager"].config.importance_threshold = 0.3
-    mock_mem_services["memory_manager"].config.injection_limit = 10
+    # Workflow variable values (would be 10 if not overridden)
+    mem_action_context.state.variables = {
+        "memory_injection_enabled": True,
+        "memory_injection_limit": 10,
+    }
 
     m1 = MagicMock(memory_type="fact", content="Memory")
     mock_mem_services["memory_manager"].recall.return_value = [m1]
@@ -387,7 +391,7 @@ async def test_memory_inject_kwargs_override_config(
     )
 
     assert result is not None
-    # Verify kwargs overrode config
+    # Verify kwargs overrode workflow variable
     mock_mem_services["memory_manager"].recall.assert_called_with(
         project_id=str(sample_project["id"]),
         min_importance=0.8,

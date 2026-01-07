@@ -641,14 +641,40 @@ class ActionExecutor:
     async def _handle_memory_inject(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """Inject memory context into the session."""
+        """Inject memory context into the session.
+
+        Supports query-based semantic search for context-aware injection.
+
+        Args (from workflow YAML):
+            query: Search query for semantic retrieval (recommended)
+            limit: Max memories to inject (defaults to memory_injection_limit variable)
+            min_importance: Minimum importance threshold
+            min_similarity: Minimum similarity for semantic search
+            project_id: Override project ID
+
+        Workflow variables used:
+            memory_injection_enabled: If false, injection is skipped
+            memory_injection_limit: Default limit when not specified in action
+        """
+        # Check workflow variable for enabled state
+        variables = context.state.variables or {}
+        if not variables.get("memory_injection_enabled", True):
+            logger.debug("memory_inject: Disabled by workflow variable")
+            return None
+
+        # Get default limit from workflow variable
+        default_limit = variables.get("memory_injection_limit", 10)
+        limit = kwargs.get("limit", default_limit)
+
         return await memory_inject(
             memory_manager=context.memory_manager,
             session_manager=context.session_manager,
             session_id=context.session_id,
+            query=kwargs.get("query"),
             project_id=kwargs.get("project_id"),
-            min_importance=kwargs.get("min_importance"),
-            limit=kwargs.get("limit"),
+            min_importance=kwargs.get("min_importance", 0.3),
+            limit=limit,
+            min_similarity=kwargs.get("min_similarity"),
         )
 
     async def _handle_memory_extract(
