@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Valid providers
-SUPPORTED_PROVIDERS = frozenset(["claude", "gemini", "litellm"])
+SUPPORTED_PROVIDERS = frozenset(["claude", "gemini", "litellm", "codex"])
 
 # Default provider when nothing is specified
 DEFAULT_PROVIDER = "claude"
@@ -286,6 +286,8 @@ def create_executor(
             return _create_gemini_executor(provider_config, model)
         elif provider == "litellm":
             return _create_litellm_executor(provider_config, config, model)
+        elif provider == "codex":
+            return _create_codex_executor(provider_config, model)
         else:
             raise ExecutorCreationError(
                 provider,
@@ -377,6 +379,39 @@ def _create_litellm_executor(
         default_model=model or default_model,
         api_base=api_base,
         api_keys=api_keys,
+    )
+
+
+def _create_codex_executor(
+    provider_config: "LLMProviderConfig | None",
+    model: str | None,
+) -> AgentExecutor:
+    """
+    Create CodexExecutor with appropriate auth mode.
+
+    Codex supports two modes with different capabilities:
+    - api_key: OpenAI API with function calling (full tool injection)
+    - subscription: Codex CLI with ChatGPT subscription (no custom tools)
+
+    See CodexExecutor docstring for detailed mode differences.
+    """
+    from gobby.llm.codex_executor import CodexExecutor
+
+    # Determine auth mode and model from config
+    auth_mode = "api_key"
+    default_model = "gpt-4o"
+
+    if provider_config:
+        auth_mode = getattr(provider_config, "auth_mode", "api_key") or "api_key"
+        models_str = getattr(provider_config, "models", None)
+        if models_str:
+            models = [m.strip() for m in models_str.split(",") if m.strip()]
+            if models:
+                default_model = models[0]
+
+    return CodexExecutor(
+        auth_mode=auth_mode,  # type: ignore[arg-type]
+        default_model=model or default_model,
     )
 
 
