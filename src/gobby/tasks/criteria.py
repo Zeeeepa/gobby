@@ -1,8 +1,9 @@
 """
-Pattern-specific criteria injection for task expansion.
+Criteria generation for task expansion.
 
-This module provides the PatternCriteriaInjector class that detects patterns
-from task labels and descriptions, then injects appropriate validation criteria.
+This module provides:
+- PatternCriteriaInjector: Detects patterns from labels/descriptions and injects criteria
+- CriteriaGenerator: Shared criteria generator for both structured and LLM expansion
 """
 
 from __future__ import annotations
@@ -226,3 +227,118 @@ class PatternCriteriaInjector:
                 sections.append(section)
 
         return "\n\n".join(sections)
+
+
+class CriteriaGenerator:
+    """Shared criteria generator for both structured and LLM expansion.
+
+    Generates validation criteria by combining:
+    - Pattern-specific criteria (from labels/description)
+    - Verification command criteria (from project config)
+    - File-specific criteria (when relevant files provided)
+
+    Can be used by:
+    - TaskExpander (LLM expansion)
+    - TaskHierarchyBuilder (structured expansion)
+    """
+
+    def __init__(
+        self,
+        pattern_config: PatternCriteriaConfig,
+        verification_config: ProjectVerificationConfig | None = None,
+    ):
+        """Initialize the generator.
+
+        Args:
+            pattern_config: Pattern criteria configuration with templates
+            verification_config: Project verification commands configuration
+        """
+        self.pattern_injector = PatternCriteriaInjector(
+            pattern_config=pattern_config,
+            verification_config=verification_config,
+        )
+        self.verification_config = verification_config
+
+    def generate(
+        self,
+        title: str,
+        description: str | None = None,
+        labels: list[str] | None = None,
+        relevant_files: list[str] | None = None,
+        verification_commands: dict[str, str] | None = None,
+    ) -> str:
+        """Generate validation criteria markdown.
+
+        Args:
+            title: Task title
+            description: Task description
+            labels: Optional labels for pattern detection
+            relevant_files: Optional list of relevant file paths
+            verification_commands: Optional verification commands override
+
+        Returns:
+            Markdown-formatted validation criteria string
+        """
+        criteria_parts: list[str] = []
+
+        # 1. Pattern-specific criteria from labels
+        if labels:
+            pattern_criteria = self.pattern_injector.inject_for_labels(
+                labels=labels,
+                extra_placeholders=verification_commands,
+            )
+            if pattern_criteria:
+                criteria_parts.append(pattern_criteria)
+
+        # 2. File-specific criteria
+        if relevant_files and description:
+            text_to_check = (title + " " + (description or "")).lower()
+            matching_files = [
+                f for f in relevant_files if f.lower() in text_to_check
+            ]
+            if matching_files:
+                file_criteria = ["## File Requirements", ""]
+                for f in matching_files:
+                    file_criteria.append(f"- [ ] `{f}` is correctly modified/created")
+                criteria_parts.append("\n".join(file_criteria))
+
+        # 3. Verification command criteria
+        verification = self._get_verification_commands(verification_commands)
+        if verification:
+            verification_criteria = ["## Verification", ""]
+            for name, cmd in verification.items():
+                if name in ["unit_tests", "type_check", "lint"]:
+                    verification_criteria.append(f"- [ ] `{cmd}` passes")
+            if len(verification_criteria) > 2:  # Has items beyond header
+                criteria_parts.append("\n".join(verification_criteria))
+
+        return "\n\n".join(criteria_parts) if criteria_parts else ""
+
+    def _get_verification_commands(
+        self,
+        override: dict[str, str] | None = None,
+    ) -> dict[str, str]:
+        """Get verification commands from config or override.
+
+        Args:
+            override: Optional override commands
+
+        Returns:
+            Dict of verification command name -> command
+        """
+        if override:
+            return override
+
+        commands: dict[str, str] = {}
+        if self.verification_config:
+            if self.verification_config.unit_tests:
+                commands["unit_tests"] = self.verification_config.unit_tests
+            if self.verification_config.type_check:
+                commands["type_check"] = self.verification_config.type_check
+            if self.verification_config.lint:
+                commands["lint"] = self.verification_config.lint
+            if self.verification_config.integration:
+                commands["integration"] = self.verification_config.integration
+            for name, cmd in self.verification_config.custom.items():
+                commands[name] = cmd
+        return commands

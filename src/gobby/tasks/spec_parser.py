@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from gobby.storage.tasks import LocalTaskManager
+    from gobby.tasks.criteria import CriteriaGenerator
     from gobby.tasks.expansion import TaskExpander
 
 logger = logging.getLogger(__name__)
@@ -612,6 +613,7 @@ class TaskHierarchyBuilder:
         parent_task_id: str | None = None,
         default_priority: int = 2,
         parent_labels: list[str] | None = None,
+        criteria_generator: CriteriaGenerator | None = None,
     ) -> None:
         """Initialize the builder.
 
@@ -621,12 +623,14 @@ class TaskHierarchyBuilder:
             parent_task_id: Optional parent task ID (tasks created will be children)
             default_priority: Default priority for created tasks (1=high, 2=medium, 3=low)
             parent_labels: Optional labels from parent task (for pattern detection in LLM expansion)
+            criteria_generator: Optional CriteriaGenerator for validation criteria
         """
         self.task_manager = task_manager
         self.project_id = project_id
         self.parent_task_id = parent_task_id
         self.default_priority = default_priority
         self.parent_labels = parent_labels or []
+        self.criteria_generator = criteria_generator
 
     def build_from_headings(
         self,
@@ -844,6 +848,15 @@ class TaskHierarchyBuilder:
         Returns:
             CreatedTask with task details
         """
+        # Generate validation criteria if generator available (skip epics)
+        validation_criteria = None
+        if self.criteria_generator and task_type != "epic":
+            validation_criteria = self.criteria_generator.generate(
+                title=title,
+                description=description,
+                labels=labels or self.parent_labels,
+            )
+
         task = self.task_manager.create_task(
             title=title,
             project_id=self.project_id,
@@ -852,6 +865,7 @@ class TaskHierarchyBuilder:
             description=description,
             priority=self.default_priority,
             labels=labels,
+            validation_criteria=validation_criteria if validation_criteria else None,
         )
 
         # Update status if not default

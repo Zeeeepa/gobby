@@ -18,12 +18,13 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.task_dependencies import TaskDependencyManager
 from gobby.storage.tasks import LocalTaskManager
+from gobby.tasks.criteria import CriteriaGenerator
 from gobby.tasks.spec_parser import (
     CheckboxExtractor,
     MarkdownStructureParser,
     TaskHierarchyBuilder,
 )
-from gobby.utils.project_context import get_project_context
+from gobby.utils.project_context import get_project_context, get_verification_config
 from gobby.utils.project_init import initialize_project
 
 if TYPE_CHECKING:
@@ -423,11 +424,23 @@ def create_expansion_registry(
         subtask_ids: list[str] = []
 
         if effective_mode == "structured":
+            # Create criteria generator for structured expansion
+            criteria_generator = None
+            if task_expander:
+                # Get pattern config from task expander's config
+                pattern_config = task_expander.config.pattern_criteria
+                verification_config = get_verification_config()
+                criteria_generator = CriteriaGenerator(
+                    pattern_config=pattern_config,
+                    verification_config=verification_config,
+                )
+
             # Use structured parsing with optional LLM fallback
             builder = TaskHierarchyBuilder(
                 task_manager=task_manager,
                 project_id=project_id,
                 parent_task_id=spec_task.id,
+                criteria_generator=criteria_generator,
             )
 
             # Use fallback method if task_expander available (for hybrid specs)
