@@ -8,7 +8,6 @@ then will pass once task-related config classes are extracted from app.py.
 import pytest
 from pydantic import ValidationError
 
-
 # =============================================================================
 # Import Tests (RED phase targets)
 # =============================================================================
@@ -605,3 +604,307 @@ class TestWorkflowConfigFromAppPy:
 
         with pytest.raises(ValidationError):
             WorkflowConfig(timeout=-1.0)
+
+
+# =============================================================================
+# WorkflowVariablesConfig Tests
+# =============================================================================
+
+
+class TestWorkflowVariablesConfigImport:
+    """Test that WorkflowVariablesConfig can be imported from the tasks module."""
+
+    def test_import_from_tasks_module(self) -> None:
+        """Test importing WorkflowVariablesConfig from config.tasks."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        assert WorkflowVariablesConfig is not None
+
+
+class TestWorkflowVariablesConfigDefaults:
+    """Test WorkflowVariablesConfig default values."""
+
+    def test_default_instantiation(self) -> None:
+        """Test WorkflowVariablesConfig creates with all defaults."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        config = WorkflowVariablesConfig()
+        assert config.require_task_before_edit is False
+        assert config.require_commit_before_stop is True
+        assert config.auto_decompose is True
+        assert config.tdd_mode is True
+        assert config.memory_injection_enabled is True
+        assert config.memory_injection_limit == 10
+        assert config.session_task is None
+
+    def test_all_fields_have_correct_types(self) -> None:
+        """Test that all fields have correct types."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        config = WorkflowVariablesConfig()
+        assert isinstance(config.require_task_before_edit, bool)
+        assert isinstance(config.require_commit_before_stop, bool)
+        assert isinstance(config.auto_decompose, bool)
+        assert isinstance(config.tdd_mode, bool)
+        assert isinstance(config.memory_injection_enabled, bool)
+        assert isinstance(config.memory_injection_limit, int)
+        # session_task can be None, str, or list
+
+
+class TestWorkflowVariablesConfigCustom:
+    """Test WorkflowVariablesConfig with custom values."""
+
+    def test_custom_boolean_values(self) -> None:
+        """Test setting custom boolean values."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        config = WorkflowVariablesConfig(
+            require_task_before_edit=True,
+            require_commit_before_stop=False,
+            auto_decompose=False,
+            tdd_mode=False,
+            memory_injection_enabled=False,
+        )
+        assert config.require_task_before_edit is True
+        assert config.require_commit_before_stop is False
+        assert config.auto_decompose is False
+        assert config.tdd_mode is False
+        assert config.memory_injection_enabled is False
+
+    def test_custom_memory_injection_limit(self) -> None:
+        """Test setting custom memory_injection_limit."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        config = WorkflowVariablesConfig(memory_injection_limit=25)
+        assert config.memory_injection_limit == 25
+
+    def test_session_task_string_value(self) -> None:
+        """Test session_task with single task ID string."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        config = WorkflowVariablesConfig(session_task="gt-abc123")
+        assert config.session_task == "gt-abc123"
+
+    def test_session_task_list_value(self) -> None:
+        """Test session_task with list of task IDs."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        config = WorkflowVariablesConfig(session_task=["gt-abc", "gt-def"])
+        assert config.session_task == ["gt-abc", "gt-def"]
+
+    def test_session_task_wildcard(self) -> None:
+        """Test session_task with wildcard '*' for all ready tasks."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        config = WorkflowVariablesConfig(session_task="*")
+        assert config.session_task == "*"
+
+
+class TestWorkflowVariablesConfigValidation:
+    """Test WorkflowVariablesConfig validation."""
+
+    def test_memory_injection_limit_must_be_positive(self) -> None:
+        """Test that memory_injection_limit must be positive."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        with pytest.raises(ValidationError) as exc_info:
+            WorkflowVariablesConfig(memory_injection_limit=0)
+        assert "positive" in str(exc_info.value).lower()
+
+    def test_memory_injection_limit_negative_rejected(self) -> None:
+        """Test that negative memory_injection_limit is rejected."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        with pytest.raises(ValidationError) as exc_info:
+            WorkflowVariablesConfig(memory_injection_limit=-5)
+        assert "positive" in str(exc_info.value).lower()
+
+
+# =============================================================================
+# WorkflowVariablesConfig Merge Logic Tests
+# =============================================================================
+
+
+class TestWorkflowVariablesMergeWithDB:
+    """Tests for merging YAML defaults with DB session overrides.
+
+    Tests the merge flow:
+    workflow YAML variables (defaults) → DB workflow_states.variables (session overrides) → effective config
+    """
+
+    def test_no_db_overrides_returns_yaml_defaults(self) -> None:
+        """When DB has no overrides, YAML defaults are used."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        # YAML defaults (from session-lifecycle.yaml pattern)
+        yaml_defaults = {
+            "require_task_before_edit": False,
+            "require_commit_before_stop": True,
+            "auto_decompose": True,
+            "tdd_mode": True,
+            "memory_injection_enabled": True,
+            "memory_injection_limit": 10,
+            "session_task": None,
+        }
+
+        # DB has no overrides (empty dict)
+        db_overrides: dict = {}
+
+        # Merge: YAML | DB (DB takes precedence)
+        effective = {**yaml_defaults, **db_overrides}
+
+        # Should match YAML defaults exactly
+        assert effective == yaml_defaults
+
+        # Validate through config class
+        config = WorkflowVariablesConfig(**effective)
+        assert config.auto_decompose is True
+        assert config.tdd_mode is True
+        assert config.memory_injection_limit == 10
+
+    def test_partial_db_overrides_merge_correctly(self) -> None:
+        """Partial DB overrides merge with YAML defaults."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        yaml_defaults = {
+            "require_task_before_edit": False,
+            "require_commit_before_stop": True,
+            "auto_decompose": True,
+            "tdd_mode": True,
+            "memory_injection_enabled": True,
+            "memory_injection_limit": 10,
+            "session_task": None,
+        }
+
+        # DB overrides only some fields
+        db_overrides = {
+            "auto_decompose": False,  # Override
+            "session_task": "gt-xyz789",  # Override
+        }
+
+        # Merge
+        effective = {**yaml_defaults, **db_overrides}
+
+        # Verify partial overrides work
+        assert effective["auto_decompose"] is False  # From DB
+        assert effective["session_task"] == "gt-xyz789"  # From DB
+        assert effective["tdd_mode"] is True  # From YAML (not overridden)
+        assert effective["memory_injection_limit"] == 10  # From YAML
+
+        # Validate through config class
+        config = WorkflowVariablesConfig(**effective)
+        assert config.auto_decompose is False
+        assert config.session_task == "gt-xyz789"
+        assert config.tdd_mode is True
+
+    def test_full_db_overrides_take_precedence(self) -> None:
+        """Full DB overrides completely override YAML defaults."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        yaml_defaults = {
+            "require_task_before_edit": False,
+            "require_commit_before_stop": True,
+            "auto_decompose": True,
+            "tdd_mode": True,
+            "memory_injection_enabled": True,
+            "memory_injection_limit": 10,
+            "session_task": None,
+        }
+
+        # DB overrides everything
+        db_overrides = {
+            "require_task_before_edit": True,
+            "require_commit_before_stop": False,
+            "auto_decompose": False,
+            "tdd_mode": False,
+            "memory_injection_enabled": False,
+            "memory_injection_limit": 5,
+            "session_task": ["gt-aaa", "gt-bbb"],
+        }
+
+        effective = {**yaml_defaults, **db_overrides}
+
+        # All values should be from DB
+        assert effective == db_overrides
+
+        # Validate through config class
+        config = WorkflowVariablesConfig(**effective)
+        assert config.require_task_before_edit is True
+        assert config.require_commit_before_stop is False
+        assert config.auto_decompose is False
+        assert config.tdd_mode is False
+        assert config.memory_injection_enabled is False
+        assert config.memory_injection_limit == 5
+        assert config.session_task == ["gt-aaa", "gt-bbb"]
+
+    def test_invalid_db_values_rejected_wrong_type_bool(self) -> None:
+        """Invalid boolean value from DB is rejected by validator."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        yaml_defaults = {"auto_decompose": True}
+
+        # DB has wrong type - string instead of bool
+        db_overrides = {"auto_decompose": "not_a_bool"}
+
+        effective = {**yaml_defaults, **db_overrides}
+
+        # Pydantic should coerce or reject
+        # "not_a_bool" as string is truthy but shouldn't be valid
+        with pytest.raises(ValidationError):
+            WorkflowVariablesConfig(**effective)
+
+    def test_invalid_db_values_rejected_memory_limit_zero(self) -> None:
+        """Invalid memory_injection_limit=0 from DB is rejected."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        yaml_defaults = {"memory_injection_limit": 10}
+        db_overrides = {"memory_injection_limit": 0}
+
+        effective = {**yaml_defaults, **db_overrides}
+
+        with pytest.raises(ValidationError) as exc_info:
+            WorkflowVariablesConfig(**effective)
+        assert "positive" in str(exc_info.value).lower()
+
+    def test_invalid_db_values_rejected_memory_limit_negative(self) -> None:
+        """Invalid negative memory_injection_limit from DB is rejected."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        yaml_defaults = {"memory_injection_limit": 10}
+        db_overrides = {"memory_injection_limit": -100}
+
+        effective = {**yaml_defaults, **db_overrides}
+
+        with pytest.raises(ValidationError) as exc_info:
+            WorkflowVariablesConfig(**effective)
+        assert "positive" in str(exc_info.value).lower()
+
+    def test_invalid_db_values_rejected_wrong_type_int(self) -> None:
+        """Invalid type for memory_injection_limit from DB is rejected."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        yaml_defaults = {"memory_injection_limit": 10}
+        db_overrides = {"memory_injection_limit": "not_an_int"}
+
+        effective = {**yaml_defaults, **db_overrides}
+
+        with pytest.raises(ValidationError):
+            WorkflowVariablesConfig(**effective)
+
+    def test_extra_db_fields_are_ignored(self) -> None:
+        """Extra fields from DB that aren't in config are ignored (model_config)."""
+        from gobby.config.tasks import WorkflowVariablesConfig
+
+        yaml_defaults = {"auto_decompose": True}
+        db_overrides = {
+            "auto_decompose": False,
+            "unknown_field": "should_be_ignored",
+        }
+
+        effective = {**yaml_defaults, **db_overrides}
+
+        # Should not raise - extra fields are ignored by default Pydantic
+        config = WorkflowVariablesConfig(**effective)
+        assert config.auto_decompose is False
+        # unknown_field should not be accessible
+        assert not hasattr(config, "unknown_field")
