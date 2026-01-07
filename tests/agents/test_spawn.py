@@ -531,7 +531,7 @@ class TestEmbeddedSpawnerPlatform:
     def test_not_supported_on_windows(self, mock_system):
         """EmbeddedSpawner returns error on Windows."""
         # Also mock pty to None to simulate Windows
-        with patch("gobby.agents.spawn.pty", None):
+        with patch("gobby.agents.spawners.embedded.pty", None):
             spawner = EmbeddedSpawner()
             result = spawner.spawn(["echo", "test"], cwd="/tmp")
 
@@ -542,7 +542,7 @@ class TestEmbeddedSpawnerPlatform:
     @patch("platform.system", return_value="Windows")
     def test_spawn_agent_not_supported_on_windows(self, mock_system):
         """spawn_agent returns error on Windows."""
-        with patch("gobby.agents.spawn.pty", None):
+        with patch("gobby.agents.spawners.embedded.pty", None):
             spawner = EmbeddedSpawner()
             result = spawner.spawn_agent(
                 cli="claude",
@@ -750,7 +750,7 @@ class TestEmbeddedSpawnerUnix:
 class TestEmbeddedSpawnerMocked:
     """Tests for EmbeddedSpawner with mocked system calls."""
 
-    @patch("gobby.agents.spawn.pty")
+    @patch("gobby.agents.spawners.embedded.pty")
     @patch("os.fork")
     def test_spawn_handles_fork_error(self, mock_fork, mock_pty):
         """spawn() handles fork() errors gracefully."""
@@ -763,7 +763,7 @@ class TestEmbeddedSpawnerMocked:
         assert result.success is False
         assert "Fork failed" in result.error or "Failed" in result.message
 
-    @patch("gobby.agents.spawn.pty")
+    @patch("gobby.agents.spawners.embedded.pty")
     def test_spawn_handles_openpty_error(self, mock_pty):
         """spawn() handles openpty() errors gracefully."""
         mock_pty.openpty.side_effect = OSError("PTY creation failed")
