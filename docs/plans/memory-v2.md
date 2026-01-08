@@ -1,393 +1,618 @@
-# Memory v2: Cloud-Ready Memory Architecture
+# Memory V2: Memora-Inspired Enhancements
 
 ## Overview
 
-Memory v2 evolves Gobby's memory system from local-only SQLite to a **pluggable backend architecture** that supports local storage, cloud services, and graceful degradation between them. This enables Gobby Pro's cloud memory features while maintaining a fully functional free tier.
+Memory V2 overhauls gobby-memory's search and relationship capabilities, inspired by [Memora](https://github.com/agentic-mcp-tools/memora). The goal is better semantic search without API dependencies, automatic memory relationships, and visualization.
 
-## Vision
+**Key improvements:**
+- **TF-IDF semantic search** - Zero-dependency local search (no OpenAI API required)
+- **Cross-references** - Auto-link related memories based on similarity
+- **Knowledge graph visualization** - Interactive HTML graph with vis.js
+- **Enhanced tag filtering** - Boolean logic (AND/OR/NOT)
 
-> "Your agent's memory should survive anything—compactions, crashes, even closed terminals."
-
-Current memory (v1) works well for local single-machine usage, but has limitations:
-
-1. **No semantic graph** - Memories are flat, no relationships between concepts
-2. **No temporal awareness** - Can't answer "what did I learn last week?"
-3. **Lost on ungraceful exit** - Terminal close = lost final segment memories
-4. **No cross-device sync** - Memories stuck on one machine
-
-Memory v2 addresses these through:
-
-1. **Backend abstraction** - Swap storage implementations without changing API
-2. **Cloud backend option** - Vector + graph database for semantic search
-3. **Daemon-based recovery** - Never lose memories, even on crash
-4. **Graceful degradation** - Falls back through layers when services unavailable
+**What stays the same:**
+- Project scoping, session linking, importance/decay
+- MCP tool interface (remember, recall, forget, etc.)
+- Workflow integration, handoff context
+- Git sync to .gobby/memories.jsonl
 
 ## Architecture
 
-### Backend Protocol
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     MemoryManager                            │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │                   Search Backend                         ││
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐  ││
+│  │  │   TF-IDF    │  │   OpenAI    │  │  Text Search    │  ││
+│  │  │  (default)  │  │ (optional)  │  │   (fallback)    │  ││
+│  │  └──────┬──────┘  └──────┬──────┘  └────────┬────────┘  ││
+│  │         └────────────────┼──────────────────┘           ││
+│  │                          ▼                               ││
+│  │                  Hybrid Ranker (RRF)                     ││
+│  └─────────────────────────────────────────────────────────┘│
+│                                                              │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │               Cross-Reference Engine                     ││
+│  │  - Auto-link on create                                   ││
+│  │  - Similarity threshold configurable                     ││
+│  │  - Bidirectional relationships                           ││
+│  └─────────────────────────────────────────────────────────┘│
+│                                                              │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │               Visualization Export                       ││
+│  │  - vis.js HTML graph                                     ││
+│  │  - Color by memory type                                  ││
+│  │  - Size by importance                                    ││
+│  └─────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Phase 1: TF-IDF Search Backend
+
+### Why TF-IDF?
+
+- **Zero dependencies** - Uses sklearn's TfidfVectorizer (already a transitive dep)
+- **No API costs** - Works completely offline
+- **Fast** - Sub-millisecond search for thousands of memories
+- **Good enough** - For memory recall, TF-IDF captures keyword/concept overlap well
+
+The existing OpenAI embedding search remains available as an optional backend for users who want deeper semantic matching.
+
+### Implementation
+
+Create `src/gobby/memory/search/tfidf.py`:
 
 ```python
-class MemoryBackend(Protocol):
-    """Protocol for swappable memory backends."""
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
-    async def remember(
-        self,
-        content: str,
-        memory_type: str = "fact",
-        importance: float = 0.5,
-        project_id: str | None = None,
-        tags: list[str] | None = None,
-        supersedes: str | None = None,
-    ) -> Memory: ...
+class TFIDFSearcher:
+    """Zero-dependency semantic search using TF-IDF."""
 
-    async def recall(
-        self,
-        query: str | None = None,
-        project_id: str | None = None,
-        limit: int = 10,
-        min_importance: float | None = None,
-        use_semantic: bool = True,
-    ) -> list[Memory]: ...
+    def __init__(self):
+        self.vectorizer = TfidfVectorizer(
+            stop_words='english',
+            ngram_range=(1, 2),  # Unigrams + bigrams
+            max_features=10000,
+            min_df=1,
+        )
+        self._fitted = False
+        self._memory_ids: list[str] = []
+        self._vectors = None
 
-    async def forget(self, memory_id: str) -> bool: ...
+    def fit(self, memories: list[tuple[str, str]]) -> None:
+        """Build index from all memories. Call after bulk changes."""
+        if not memories:
+            self._fitted = False
+            return
 
-    async def correct(
-        self,
-        memory_id: str,
-        new_content: str,
-        reason: str = "user_correction"
-    ) -> Memory: ...
+        self._memory_ids = [m[0] for m in memories]
+        contents = [m[1] for m in memories]
+        self._vectors = self.vectorizer.fit_transform(contents)
+        self._fitted = True
 
-    async def save_conversation_segment(
-        self,
-        session_id: str,
-        messages: list[dict],
-        extract_memories: bool = True,
-    ) -> dict: ...
+    def search(self, query: str, top_k: int = 10) -> list[tuple[str, float]]:
+        """Return [(memory_id, similarity_score), ...] sorted by relevance."""
+        if not self._fitted or len(self._memory_ids) == 0:
+            return []
 
-    def is_available(self) -> bool: ...
+        query_vec = self.vectorizer.transform([query])
+        similarities = cosine_similarity(query_vec, self._vectors)[0]
+
+        # Get top-k indices
+        top_indices = np.argsort(similarities)[-top_k:][::-1]
+
+        return [
+            (self._memory_ids[i], float(similarities[i]))
+            for i in top_indices
+            if similarities[i] > 0
+        ]
+
+    def needs_refit(self) -> bool:
+        """Check if index needs rebuilding."""
+        return not self._fitted
 ```
 
-### Backend Implementations
+### Search Backend Protocol
 
-| Backend | Storage | Semantic Search | Relationships | Use Case |
-|---------|---------|-----------------|---------------|----------|
-| `SQLiteBackend` | Local SQLite | OpenAI embeddings (optional) | None | Free tier, offline |
-| `CloudBackend` | Vector DB + Graph DB | Native | Full graph | Gobby Pro |
+Create `src/gobby/memory/search/__init__.py`:
 
-### Graceful Degradation Layers
+```python
+from typing import Protocol
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  LAYER 1: Cloud Backend (Primary when available)                    │
-│  ─────────────────────────────────────────────────────────────────  │
-│  Vector DB (semantic) + Graph DB (relationships) + LLM extraction   │
-│  Features: Semantic search, temporal queries, cross-session graph   │
-└───────────────────────────────┬─────────────────────────────────────┘
-                                │ (if cloud unavailable)
-                                ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  LAYER 2: SQLite + Embeddings (Fallback)                            │
-│  ─────────────────────────────────────────────────────────────────  │
-│  Local SQLite + optional OpenAI embeddings                          │
-│  Features: Semantic search (if API key), text search fallback       │
-└───────────────────────────────┬─────────────────────────────────────┘
-                                │ (if database unavailable)
-                                ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  LAYER 3: JSONL Files (Last resort)                                 │
-│  ─────────────────────────────────────────────────────────────────  │
-│  .gobby/memories.jsonl - Git-tracked, human-readable                │
-│  Features: Text search only, but always works                       │
-└───────────────────────────────┬─────────────────────────────────────┘
-                                │ (always available)
-                                ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  LAYER 4: Session Summaries (Human backup)                          │
-│  ─────────────────────────────────────────────────────────────────  │
-│  compact_markdown / summary_markdown in sessions table              │
-│  Features: Re-parseable, audit trail, zero dependencies             │
-└─────────────────────────────────────────────────────────────────────┘
+class SearchBackend(Protocol):
+    """Protocol for pluggable search backends."""
+
+    def fit(self, memories: list[tuple[str, str]]) -> None:
+        """Build/rebuild the search index."""
+        ...
+
+    def search(self, query: str, top_k: int = 10) -> list[tuple[str, float]]:
+        """Search for relevant memories."""
+        ...
+
+    def needs_refit(self) -> bool:
+        """Check if index needs rebuilding."""
+        ...
+
+
+def get_search_backend(backend_type: str, **kwargs) -> SearchBackend:
+    """Factory for search backends."""
+    if backend_type == "tfidf":
+        from gobby.memory.search.tfidf import TFIDFSearcher
+        return TFIDFSearcher()
+    elif backend_type == "openai":
+        from gobby.memory.semantic_search import SemanticMemorySearch
+        # Wrap existing implementation
+        return OpenAISearchAdapter(**kwargs)
+    else:
+        raise ValueError(f"Unknown search backend: {backend_type}")
 ```
 
-## Memory Types
-
-### Type 1: Auto-Extracted Memories
-
-Source: LLM analysis of conversation segments
-When: PRE_COMPACT, SESSION_END, recovery job
-
-```
-Examples:
-  - "Project uses pytest with fixtures in conftest.py"
-  - "JWT tokens use RS256 algorithm"
-  - "User asked for dark mode during task gt-015"
-
-Properties:
-  - Temporal: Connected to sessions, tasks, timestamps
-  - Medium importance (0.5-0.7)
-  - May decay over time if not accessed
-```
-
-### Type 2: Explicit Facts (User-provided)
-
-Source: User explicitly says "remember this" or uses gobby-memory.remember
-When: Any time during session
-
-```
-Examples:
-  - "Remember: always use yarn, not npm in this project"
-  - "Remember: Josh prefers functional components"
-  - "Remember: deploy to staging before prod"
-
-Properties:
-  - HIGH importance (0.8-1.0)
-  - Never decays
-  - Surfaced prominently in recall
-```
-
-### Type 3: Corrections (Override previous memories)
-
-Source: User corrects a fact or preference
-When: Any time, usually after seeing incorrect recall
-
-```
-Examples:
-  - "Actually the rate limit is 500/min, not 1000"
-  - "I changed my mind - use npm, not yarn"
-
-Storage Strategy:
-  - Create SUPERSEDES relationship to old memory
-  - Old memory marked as deprecated but retained for audit
-  - Only latest version returned in recall
-```
-
-### Type 4: Project Context (from codebase scan)
-
-Source: init_memory scan of codebase and CLAUDE.md
-When: First session in project, or explicit refresh
-
-```
-Examples:
-  - "Project uses FastAPI with Pydantic models"
-  - "Test command is 'uv run pytest'"
-  - "Main entry point is src/cli.py"
-
-Properties:
-  - Medium importance (0.6)
-  - Tagged as source="codebase_scan"
-  - Can be refreshed on demand
-```
-
-## Recovery Architecture
-
-### Data Available in Daemon
-
-The daemon already stores session messages in real-time:
-
-```sql
--- session_messages table (populated by SessionMessageProcessor every 2s)
-session_id | message_index | role | content | tool_name | tool_input | ...
-
--- session_message_state table (tracks processing progress)
-session_id | last_byte_offset | last_message_index | last_processed_at
-```
-
-This means **all conversation data is already captured**, even if SESSION_END hook never fires.
-
-### Recovery Flow for Ungraceful Exits
-
-```
-T+0        User closes terminal (SIGKILL, no SESSION_END)
-T+2s       SessionMessageProcessor stores final messages (already running)
-T+30min    SessionLifecycleManager.expire_stale_sessions() marks as "paused"
-T+35min    SessionLifecycleManager.process_pending_transcripts() runs
-T+35min    NEW: _extract_memories_for_session() recovers to memory backend
-
-RESULT: Maximum 30-40 minute delay, but NO MEMORY LOSS
-```
-
-### New Column for Tracking
-
-```sql
--- Add to sessions table
-ALTER TABLE sessions ADD COLUMN memory_sync_index INTEGER DEFAULT 0;
--- Tracks last message_index synced to memory backend
-```
-
-## Session Lifecycle Integration
-
-### Memory Save Points
-
-| Event | Action | Data Saved |
-|-------|--------|------------|
-| SESSION_START | `memory_sync_import` | Load from .gobby/memories.jsonl |
-| BEFORE_AGENT | `memory_recall_for_prompt` | Inject relevant memories |
-| PRE_COMPACT | `save_conversation_segment` | **CRITICAL**: Save segment before compaction |
-| SESSION_END (graceful) | `save_conversation_segment` + `memory_extract` | Final segment + LLM extraction |
-| Session recovery (daemon) | `recover_memories_from_messages` | Parse session_messages table |
-
-### Workflow Actions
+### Configuration
 
 ```yaml
-# session-lifecycle.yaml (enhanced)
+memory:
+  search_backend: "tfidf"  # tfidf, openai, or hybrid
 
-triggers:
-  on_session_start:
-    - action: memory_sync_import
-    - action: memory_recall_context
-      when: "backend.is_available()"
-      fallback_action: memory_recall_relevant
+  tfidf:
+    ngram_range: [1, 2]
+    max_features: 10000
+    refit_threshold: 10  # Refit after N new memories
 
-  on_before_agent:
-    - action: memory_recall_for_prompt
-      limit: 5
+  openai:
+    model: "text-embedding-3-small"
+    # Requires OPENAI_API_KEY
 
-  on_pre_compact:
-    # CRITICAL: Save segment BEFORE context is cleared
-    - action: memory_save_segment
-      include_messages_since: "session.memory_sync_index"
-    - action: generate_handoff
-      mode: compact
-
-  on_session_end:
-    - action: memory_save_segment
-      final: true
-    - action: memory_extract
-    - action: memory_sync_export
+  hybrid:
+    tfidf_weight: 0.5
+    openai_weight: 0.5
 ```
 
-## MCP Tools
+### Checklist
 
-### Enhanced Memory Tools
+- [ ] Create `src/gobby/memory/search/` package
+- [ ] Implement `TFIDFSearcher` class
+- [ ] Create `SearchBackend` protocol
+- [ ] Implement `OpenAISearchAdapter` wrapping existing code
+- [ ] Add `HybridSearcher` combining both
+- [ ] Update `MemoryManager.recall()` to use search backend
+- [ ] Add refit trigger on memory mutations
+- [ ] Add `gobby memory reindex` CLI command
+- [ ] Add config schema for search backend selection
+- [ ] Unit tests for TFIDFSearcher
+- [ ] Integration tests for search backend switching
+
+---
+
+## Phase 2: Cross-References
+
+### Concept
+
+Automatically link related memories when created. This enables:
+- "Show me related memories" queries
+- Graph-based memory exploration
+- Better context injection (include related memories)
+
+### Data Model
+
+```sql
+CREATE TABLE memory_crossrefs (
+    source_id TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    similarity REAL NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (source_id, target_id),
+    FOREIGN KEY (source_id) REFERENCES memories(id) ON DELETE CASCADE,
+    FOREIGN KEY (target_id) REFERENCES memories(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_crossrefs_source ON memory_crossrefs(source_id);
+CREATE INDEX idx_crossrefs_target ON memory_crossrefs(target_id);
+```
+
+### Implementation
 
 ```python
-@registry.tool(name="remember_fact")
-async def remember_fact(
-    content: str,
-    importance: float = 0.9,
-    tags: list[str] | None = None,
-    supersedes: str | None = None,
-) -> dict:
-    """Store an explicit fact with high importance."""
+# In MemoryManager
 
-@registry.tool(name="correct_memory")
-async def correct_memory(
-    query: str,
-    new_content: str,
-) -> dict:
-    """Find and correct a memory."""
+async def remember(self, content: str, ...) -> Memory:
+    memory = await self.storage.create_memory(...)
 
-@registry.tool(name="recall_temporal")
-async def recall_temporal(
-    query: str,
-    since: str | None = None,  # "yesterday", "last week", ISO date
-    until: str | None = None,
-) -> dict:
-    """Recall memories with temporal filtering (cloud backend only)."""
+    # Auto cross-reference if enabled
+    if self.config.auto_crossref:
+        await self._create_crossrefs(memory)
+
+    return memory
+
+async def _create_crossrefs(
+    self,
+    memory: Memory,
+    threshold: float = 0.3,
+    max_links: int = 5,
+) -> None:
+    """Find and link similar memories."""
+    similar = self.search_backend.search(memory.content, top_k=max_links + 1)
+
+    for other_id, score in similar:
+        if other_id != memory.id and score >= threshold:
+            self.storage.create_crossref(memory.id, other_id, score)
+
+def get_related(self, memory_id: str, limit: int = 5) -> list[Memory]:
+    """Get memories linked to this one."""
+    crossrefs = self.storage.get_crossrefs(memory_id, limit)
+    return [self.storage.get_memory(ref.target_id) for ref in crossrefs]
 ```
 
-## Configuration
+### MCP Tool
+
+```python
+@registry.tool(
+    name="get_related_memories",
+    description="Get memories related to a specific memory.",
+)
+def get_related_memories(
+    memory_id: str,
+    limit: int = 5,
+) -> dict[str, Any]:
+    """Get memories linked via cross-references."""
+    related = memory_manager.get_related(memory_id, limit)
+    return {
+        "success": True,
+        "memories": [m.to_dict() for m in related],
+    }
+```
+
+### Configuration
+
+```yaml
+memory:
+  auto_crossref: true
+  crossref_threshold: 0.3  # Minimum similarity to create link
+  crossref_max_links: 5    # Max links per memory
+```
+
+### Checklist
+
+- [ ] Create database migration for `memory_crossrefs` table
+- [ ] Add `create_crossref()`, `get_crossrefs()` to storage layer
+- [ ] Implement `_create_crossrefs()` in MemoryManager
+- [ ] Add `get_related()` method
+- [ ] Add `get_related_memories` MCP tool
+- [ ] Add `gobby memory related MEMORY_ID` CLI command
+- [ ] Add config options for cross-referencing
+- [ ] Unit tests for crossref creation
+- [ ] Integration tests for related memory queries
+
+---
+
+## Phase 3: Enhanced Tag Filtering
+
+### Current State
+
+Basic tag matching with simple LIKE queries.
+
+### Enhanced Filtering
+
+Support boolean logic for tag queries:
+
+```python
+def search_memories(
+    self,
+    query_text: str | None = None,
+    tags_all: list[str] | None = None,    # AND - must have all
+    tags_any: list[str] | None = None,    # OR - must have at least one
+    tags_none: list[str] | None = None,   # NOT - must not have any
+    **kwargs,
+) -> list[Memory]:
+    sql = "SELECT * FROM memories WHERE 1=1"
+    params = []
+
+    if tags_all:
+        for tag in tags_all:
+            sql += " AND tags LIKE ?"
+            params.append(f'%"{tag}"%')
+
+    if tags_any:
+        tag_clauses = [f"tags LIKE ?" for _ in tags_any]
+        sql += f" AND ({' OR '.join(tag_clauses)})"
+        params.extend(f'%"{tag}"%' for tag in tags_any)
+
+    if tags_none:
+        for tag in tags_none:
+            sql += " AND (tags IS NULL OR tags NOT LIKE ?)"
+            params.append(f'%"{tag}"%')
+
+    # ... rest of query
+```
+
+### MCP Tool Update
+
+```python
+@registry.tool(
+    name="recall",
+    description="Recall memories with optional filtering.",
+)
+def recall(
+    query: str | None = None,
+    tags_all: list[str] | None = None,
+    tags_any: list[str] | None = None,
+    tags_none: list[str] | None = None,
+    # ... existing params
+) -> dict[str, Any]:
+    ...
+```
+
+### Checklist
+
+- [ ] Update `search_memories()` with boolean tag logic
+- [ ] Update `recall` MCP tool with new tag params
+- [ ] Update `gobby memory recall` CLI with tag flags
+- [ ] Add documentation for tag filtering
+- [ ] Unit tests for each tag filter mode
+
+---
+
+## Phase 4: Knowledge Graph Visualization
+
+### Concept
+
+Export memory graph as standalone HTML with vis.js for interactive exploration.
+
+### Implementation
+
+Create `src/gobby/memory/viz.py`:
+
+```python
+import json
+from pathlib import Path
+
+def export_memory_graph(
+    memories: list[Memory],
+    crossrefs: list[CrossRef],
+    output_path: Path | None = None,
+) -> str:
+    """Generate standalone HTML with vis.js graph."""
+
+    # Color by type
+    colors = {
+        "fact": "#4CAF50",      # Green
+        "preference": "#2196F3", # Blue
+        "pattern": "#FF9800",    # Orange
+        "context": "#9C27B0",    # Purple
+    }
+
+    nodes = []
+    edges = []
+
+    for mem in memories:
+        nodes.append({
+            "id": mem.id,
+            "label": _truncate(mem.content, 40),
+            "title": mem.content,  # Tooltip
+            "color": colors.get(mem.memory_type, "#9E9E9E"),
+            "size": 10 + (mem.importance * 20),
+            "font": {"size": 12},
+        })
+
+    for ref in crossrefs:
+        edges.append({
+            "from": ref.source_id,
+            "to": ref.target_id,
+            "value": ref.similarity,
+            "title": f"Similarity: {ref.similarity:.2f}",
+        })
+
+    html = _generate_html(nodes, edges)
+
+    if output_path:
+        output_path.write_text(html)
+
+    return html
+
+
+def _truncate(text: str, max_len: int) -> str:
+    if len(text) <= max_len:
+        return text
+    return text[:max_len-3] + "..."
+
+
+def _generate_html(nodes: list, edges: list) -> str:
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>Gobby Memory Graph</title>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        body {{ margin: 0; padding: 0; font-family: system-ui, sans-serif; }}
+        #graph {{ width: 100%; height: 100vh; }}
+        #legend {{
+            position: absolute; top: 10px; right: 10px;
+            background: white; padding: 10px; border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }}
+        .legend-item {{ display: flex; align-items: center; margin: 5px 0; }}
+        .legend-color {{ width: 16px; height: 16px; border-radius: 50%; margin-right: 8px; }}
+    </style>
+</head>
+<body>
+    <div id="graph"></div>
+    <div id="legend">
+        <div class="legend-item"><div class="legend-color" style="background: #4CAF50"></div>Fact</div>
+        <div class="legend-item"><div class="legend-color" style="background: #2196F3"></div>Preference</div>
+        <div class="legend-item"><div class="legend-color" style="background: #FF9800"></div>Pattern</div>
+        <div class="legend-item"><div class="legend-color" style="background: #9C27B0"></div>Context</div>
+    </div>
+    <script>
+        var nodes = new vis.DataSet({json.dumps(nodes)});
+        var edges = new vis.DataSet({json.dumps(edges)});
+        var container = document.getElementById('graph');
+        var data = {{ nodes: nodes, edges: edges }};
+        var options = {{
+            physics: {{
+                stabilization: {{ iterations: 100 }},
+                barnesHut: {{ gravitationalConstant: -2000 }}
+            }},
+            nodes: {{ shape: 'dot', borderWidth: 2 }},
+            edges: {{ smooth: {{ type: 'continuous' }} }},
+            interaction: {{ hover: true, tooltipDelay: 100 }}
+        }};
+        var network = new vis.Network(container, data, options);
+    </script>
+</body>
+</html>"""
+```
+
+### CLI Command
+
+```python
+@memory.command()
+@click.option("--output", "-o", type=click.Path(), help="Output HTML file")
+@click.option("--open", "open_browser", is_flag=True, help="Open in browser")
+def graph(output: str | None, open_browser: bool):
+    """Export and view memory graph visualization."""
+    memories = memory_manager.list_memories(limit=500)
+    crossrefs = memory_manager.get_all_crossrefs()
+
+    if output:
+        output_path = Path(output)
+    else:
+        output_path = Path(tempfile.gettempdir()) / "gobby_memory_graph.html"
+
+    export_memory_graph(memories, crossrefs, output_path)
+
+    click.echo(f"Graph exported to {output_path}")
+
+    if open_browser:
+        import webbrowser
+        webbrowser.open(f"file://{output_path}")
+```
+
+### Checklist
+
+- [ ] Create `src/gobby/memory/viz.py`
+- [ ] Implement `export_memory_graph()` function
+- [ ] Add `gobby memory graph` CLI command
+- [ ] Add `--output` and `--open` flags
+- [ ] Add optional MCP tool for graph export
+- [ ] Unit tests for graph generation
+- [ ] Integration test for CLI command
+
+---
+
+## Phase 5: Migration & Configuration
+
+### Config Updates
 
 ```yaml
 # ~/.gobby/config.yaml
 
 memory:
   enabled: true
-  backend: "sqlite"  # "sqlite" | "cloud"
 
-  # Cloud backend settings (Gobby Pro)
-  cloud:
-    api_url: "https://api.gobby.dev/v1"
-    api_key: "${GOBBY_PRO_KEY}"
-    timeout: 10.0
-    retry_count: 3
+  # Search backend (NEW)
+  search_backend: "tfidf"  # tfidf, openai, hybrid
+
+  tfidf:
+    ngram_range: [1, 2]
+    max_features: 10000
+    refit_threshold: 10
+
+  # Cross-references (NEW)
+  auto_crossref: true
+  crossref_threshold: 0.3
+  crossref_max_links: 5
 
   # Existing settings
   auto_extract: true
   injection_limit: 10
   importance_threshold: 0.3
-
-  # Recovery settings
-  recovery:
-    enabled: true
-    check_interval_minutes: 10
-    stale_session_timeout_minutes: 30
+  decay_enabled: true
+  decay_rate: 0.05
+  decay_floor: 0.1
 ```
 
-## Gobby Pro Features
+### Migration Steps
 
-Cloud backend enables premium features:
+1. **Database migration** - Add `memory_crossrefs` table
+2. **Backfill crossrefs** - Run similarity search on existing memories
+3. **Build TF-IDF index** - Index all existing memories
 
-| Feature | Free (SQLite) | Pro (Cloud) |
-|---------|---------------|-------------|
-| Memory storage | Local only | Cloud + local backup |
-| Semantic search | Optional (needs OpenAI key) | Native |
-| Temporal queries | No | Yes |
-| Memory relationships | No | Graph-based |
-| Cross-device sync | No | Yes |
-| Team memories | No | Yes |
-| Crash recovery | 30-40 min delay | Near real-time |
+```python
+async def migrate_to_v2():
+    """One-time migration to Memory V2."""
 
-## Implementation Phases
+    # 1. Create crossrefs table
+    db.execute(CROSSREFS_MIGRATION_SQL)
 
-### Phase 1: Protocol & Refactor (Pre-launch)
+    # 2. Build TF-IDF index
+    memories = storage.list_memories(limit=10000)
+    search_backend.fit([(m.id, m.content) for m in memories])
 
-See [memory-v2-protocol.md](./memory-v2-protocol.md) for detailed implementation plan.
+    # 3. Backfill crossrefs
+    for memory in memories:
+        await manager._create_crossrefs(memory)
 
-- Define `MemoryBackend` protocol
-- Refactor `MemoryManager` to implement protocol as `SQLiteBackend`
-- Add config schema for backend selection
-- Add `memory_sync_index` column to sessions table
+    logger.info(f"Migrated {len(memories)} memories to V2")
+```
 
-**Estimated effort: 6-10 hours**
+### Checklist
 
-### Phase 2: Cloud Backend (Post-MVP)
+- [ ] Create database migration script
+- [ ] Add migration command: `gobby memory migrate-v2`
+- [ ] Update config schema with new options
+- [ ] Add startup check for pending migration
+- [ ] Document migration process
 
-- Implement `CloudBackend` adapter
-- Deploy cloud infrastructure (Vector DB + Graph DB)
-- Integrate with billing system
-- Add `gobby pro` CLI commands
+---
 
-**Estimated effort: 2-3 weeks**
+## Implementation Order
 
-### Phase 3: Recovery Enhancement (Post-MVP)
+1. **Phase 1: TF-IDF Search** (3-4 hours)
+   - Highest value - enables semantic search without API
+   - Unblocks Phase 2
 
-- Add `_extract_memories_for_session()` to `SessionLifecycleManager`
-- Implement segment-based memory extraction
-- Add memory deduplication across segments
+2. **Phase 2: Cross-References** (2-3 hours)
+   - Depends on search backend for similarity
+   - Unblocks Phase 4
 
-**Estimated effort: 1 week**
+3. **Phase 3: Tag Filtering** (1 hour)
+   - Independent, can be done anytime
+   - Quick win
 
-### Phase 4: Corrections & Versioning (Post-MVP)
+4. **Phase 4: Visualization** (2 hours)
+   - Depends on crossrefs for graph edges
+   - Nice-to-have, impressive demo
 
-- Implement memory correction workflow
-- Add `SUPERSEDES` relationship tracking
-- Build memory version history
+5. **Phase 5: Migration** (1-2 hours)
+   - Do after Phase 1+2 are stable
+   - Required for existing users
 
-**Estimated effort: 1 week**
+**Total estimated effort: 10-12 hours**
 
-### Phase 5: Team Features (Future)
-
-- Shared team memory namespace
-- Memory access controls
-- Organizational knowledge aggregation
-
-**Estimated effort: 2-3 weeks**
+---
 
 ## Decisions
 
 | # | Question | Decision | Rationale |
 |---|----------|----------|-----------|
-| 1 | **Backend selection** | Config-driven, runtime switchable | Allows upgrade without migration |
-| 2 | **Recovery timing** | Use existing SessionLifecycleManager | Infrastructure already exists |
-| 3 | **Correction model** | SUPERSEDES relationship | Preserves audit trail |
-| 4 | **Cloud vs local** | Both, with fallback | Best UX for all users |
-| 5 | **Segment boundaries** | PRE_COMPACT events | Natural save points |
-| 6 | **Keep summary_markdown?** | Yes, as backup layer | Human-readable fallback |
+| 1 | Primary search backend | TF-IDF | Zero dependencies, fast, good enough for memory recall |
+| 2 | Keep OpenAI backend? | Yes, as optional | Some users may prefer deeper semantic matching |
+| 3 | Crossref storage | Separate table | Clean schema, easy to query bidirectionally |
+| 4 | Crossref creation | On memory create | Real-time linking, no batch job needed |
+| 5 | Visualization library | vis.js (CDN) | No bundling needed, standalone HTML |
+| 6 | Migration approach | Explicit command | User controls when to migrate |
 
-## References
+---
 
-- [Memory v1 Plan](./completed/MEMORY.md) - Original memory implementation
-- [Session Lifecycle](../src/gobby/sessions/lifecycle.py) - Recovery infrastructure
-- [Session Messages](../src/gobby/storage/session_messages.py) - Real-time message capture
+## Supersedes
+
+This plan supersedes **Phase 8: Semantic Memory Search with sqlite-vec** from `docs/plans/enhancements.md`.
+
+**Why the change:**
+- sqlite-vec requires native extension loading (platform issues)
+- sentence-transformers adds ~500MB dependency
+- TF-IDF achieves similar results for memory recall use case
+- Memora's approach is battle-tested and simpler

@@ -1168,206 +1168,56 @@ skill_routing:
 
 ---
 
-## Phase 8: Semantic Memory Search with sqlite-vec
+## Phase 8: Memory V2 - Semantic Search & Relationships
 
-### Phase 8: Overview
+> **See [docs/plans/memory-v2.md](memory-v2.md) for full specification.**
 
-Implement vector-based semantic search for `gobby-memory` using [sqlite-vec](https://github.com/asg017/sqlite-vec), inspired by [KnowNote](https://github.com/MrSibe/KnowNote). This enables "recall by meaning" rather than just keyword matching.
+This phase overhauls gobby-memory with Memora-inspired enhancements:
 
-**Inspiration:** KnowNote's local-first RAG pipeline with SQLite + sqlite-vec.
+- **TF-IDF semantic search** - Zero-dependency local search (no OpenAI API required)
+- **Cross-references** - Auto-link related memories based on similarity
+- **Knowledge graph visualization** - Interactive HTML graph with vis.js
+- **Enhanced tag filtering** - Boolean logic (AND/OR/NOT)
 
-**Goal:** Enable semantic memory recall without requiring external vector databases or APIs.
+### Phases
 
-### Why sqlite-vec?
+| Phase | Feature | Effort |
+|-------|---------|--------|
+| 8.1 | TF-IDF Search Backend | 3-4 hours |
+| 8.2 | Cross-References | 2-3 hours |
+| 8.3 | Enhanced Tag Filtering | 1 hour |
+| 8.4 | Knowledge Graph Visualization | 2 hours |
+| 8.5 | Migration & Configuration | 1-2 hours |
 
-- **Local-first** - No external services, works offline
-- **Single file** - Embeddings stored in same SQLite database
-- **Fast** - Optimized SIMD vector operations
-- **Portable** - Pure SQLite extension, cross-platform
+**Total estimated effort: 10-12 hours**
 
-### Architecture
+### Why This Changed
 
-```text
-Memory Recall Query
-        │
-        ▼
-┌───────────────────────────────────────────────────┐
-│                 Hybrid Search                      │
-│  ┌─────────────────┐  ┌─────────────────────────┐ │
-│  │  Text Search    │  │  Vector Search          │ │
-│  │  (FTS5)         │  │  (sqlite-vec)           │ │
-│  │  Fast, exact    │  │  Semantic, fuzzy        │ │
-│  └────────┬────────┘  └───────────┬─────────────┘ │
-│           │                       │               │
-│           └───────────┬───────────┘               │
-│                       ▼                           │
-│              Reciprocal Rank Fusion               │
-│              (combine results)                    │
-└───────────────────────┬───────────────────────────┘
-                        │
-                        ▼
-                 Ranked Results
-```
-
-### Phase 8: Data Model
-
-```sql
--- Load sqlite-vec extension (on connection)
--- .load vec0
-
--- Memory embeddings (separate table for clean schema)
-CREATE TABLE memory_embeddings (
-    memory_id TEXT PRIMARY KEY,
-    embedding BLOB NOT NULL,                  -- vec_f32(384) for all-MiniLM-L6-v2
-    model TEXT NOT NULL,                      -- embedding model used
-    created_at TEXT NOT NULL,
-    FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
-);
-
--- Vector search index
-CREATE VIRTUAL TABLE memory_vec USING vec0(
-    embedding float[384]
-);
-
--- Trigger to sync vec table with embeddings
-CREATE TRIGGER memory_embeddings_ai AFTER INSERT ON memory_embeddings BEGIN
-    INSERT INTO memory_vec(rowid, embedding)
-    SELECT me.rowid, me.embedding
-    FROM memory_embeddings me WHERE me.memory_id = new.memory_id;
-END;
-```
-
-### Local Embedding Generation
-
-Use a small, fast local model to avoid API costs:
-
-```python
-# Using sentence-transformers
-from sentence_transformers import SentenceTransformer
-
-class LocalEmbedder:
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
-        self.model = SentenceTransformer(model_name)
-
-    def embed(self, text: str) -> list[float]:
-        return self.model.encode(text).tolist()
-
-    def embed_batch(self, texts: list[str]) -> list[list[float]]:
-        return self.model.encode(texts).tolist()
-```
-
-### Enhanced Recall
-
-```python
-@mcp.tool()
-def recall(
-    query: str,
-    search_mode: str = "hybrid",              # text, vector, hybrid
-    memory_type: str | None = None,
-    min_importance: float = 0.0,
-    limit: int = 10,
-    include_scores: bool = False,
-) -> dict:
-    """
-    Recall memories with semantic search support.
-
-    search_mode:
-    - "text": FTS5 keyword search (fast, exact matches)
-    - "vector": Semantic similarity search (meaning-based)
-    - "hybrid": Combine both with reciprocal rank fusion
-    """
-
-@mcp.tool()
-def find_similar_memories(
-    memory_id: str,
-    limit: int = 5,
-) -> dict:
-    """Find memories semantically similar to a given memory."""
-
-@mcp.tool()
-def cluster_memories(
-    memory_type: str | None = None,
-    n_clusters: int = 5,
-) -> dict:
-    """
-    Cluster memories by semantic similarity.
-
-    Useful for discovering themes and patterns in stored memories.
-    """
-```
-
-### Phase 8: Configuration
-
-```yaml
-memory:
-  # ... existing config ...
-
-  semantic_search:
-    enabled: true
-    embedding_model: "all-MiniLM-L6-v2"       # Local model
-    embedding_dimensions: 384
-    search_mode: "hybrid"                      # Default search mode
-    hybrid_alpha: 0.5                          # Weight for vector vs text (0=text, 1=vector)
-    auto_embed: true                           # Embed new memories automatically
-    batch_size: 32                             # Batch size for embedding generation
-```
-
-### Phase 8: Implementation Checklist
-
-#### Phase 8.1: sqlite-vec Integration
-
-- [ ] Add sqlite-vec as dependency (pip install sqlite-vec)
-- [ ] Create extension loading in database connection
-- [ ] Create migration for `memory_embeddings` and `memory_vec` tables
-- [ ] Test extension loading across platforms
-
-#### Phase 8.2: Local Embedding
-
-- [ ] Add sentence-transformers as optional dependency
-- [ ] Create `src/memory/embeddings.py` with `LocalEmbedder`
-- [ ] Implement lazy model loading (load on first use)
-- [ ] Add embedding generation to memory creation flow
-- [ ] Add batch embedding for existing memories
-
-#### Phase 8.3: Vector Search
-
-- [ ] Implement `vector_search(query_embedding, limit)` using vec0
-- [ ] Implement `hybrid_search(query, limit, alpha)` with RRF
-- [ ] Add similarity threshold filtering
-- [ ] Implement `find_similar_memories()`
-
-#### Phase 8.4: MCP Tool Updates
-
-- [ ] Update `recall()` to support `search_mode` parameter
-- [ ] Add `find_similar_memories()` tool
-- [ ] Add `cluster_memories()` tool (optional, depends on sklearn)
-
-#### Phase 8.5: CLI Commands
-
-- [ ] Add `--mode` flag to `gobby memory recall` command
-- [ ] Add `gobby memory embed` command to generate embeddings for existing memories
-- [ ] Add `gobby memory similar MEMORY_ID` command
-
-#### Phase 8.6: Migration & Backfill
-
-- [ ] Create migration script for existing memories
-- [ ] Add `gobby memory migrate-embeddings` command
-- [ ] Handle memories without embeddings gracefully in search
+The original sqlite-vec approach had issues:
+- Native extension loading causes platform compatibility problems
+- sentence-transformers adds ~500MB dependency
+- TF-IDF achieves similar results for memory recall with zero dependencies
 
 ---
 
-## Phase 9: Autonomous Work Loop
+## Phase 9: Autonomous Work Loop ✅ COMPLETE
 
 ### Phase 9: Overview
 
 Enable fully autonomous task execution where the agent works through the task queue until exhausted, stopped, or stuck. The loop survives session boundaries through handoff context and uses tasks as persistent state.
 
-**Current State:** Session-lifecycle workflow handles handoff context. Task system provides persistent work tracking. Step-based workflows enforce execution structure. **Partially implemented:**
-- ✅ `start_new_session` action in `session_actions.py` for session chaining
+**Status: COMPLETE** - Implemented via workflow system rather than a dedicated `gobby-loop` server.
+
+**Implemented Components:**
 - ✅ `autonomous-loop.yaml` lifecycle workflow for automatic session chaining
 - ✅ `autonomous-task.yaml` step-based workflow with task-driven execution, exit conditions, and premature stop handling
+- ✅ `StopRegistry` class (`src/gobby/autonomous/stop_registry.py`) - thread-safe stop signal management
+- ✅ `ProgressTracker` class (`src/gobby/autonomous/progress_tracker.py`) - progress monitoring
+- ✅ `StuckDetector` class (`src/gobby/autonomous/stuck_detector.py`) - loop and stagnation detection
+- ✅ HTTP endpoint: `POST /sessions/{session_id}/stop` for external stop signals
+- ✅ Workflow actions: `check_stop_signal`, `track_progress`, `check_stuck`, `handle_stuck`
 
-**Remaining:** Multi-surface stop signals, progress tracking with stuck detection, HTTP/WebSocket/CLI loop controls.
+**Design Note:** The original plan below called for a dedicated `gobby-loop` MCP server and `gobby loop` CLI commands. This was superseded by integrating autonomous functionality into the existing workflow and session systems, which provides better composability and fewer moving parts. The detailed design below is preserved for historical context but is NOT the implemented approach.
 
 ### Phase 9: Core Design Principles
 
@@ -1600,76 +1450,47 @@ autonomous_loop:
   graceful_stop_timeout_seconds: 30         # Wait for current step to complete
 ```
 
-### Phase 9: Implementation Checklist
+### Phase 9: Implementation Checklist (ACTUAL STATUS)
 
-#### Phase 9.1: Stop Signal Infrastructure
+#### Phase 9.1: Stop Signal Infrastructure ✅ COMPLETE
 
-- [ ] Create `src/gobby/autonomous/stop_registry.py` with `StopRegistry` class
-- [ ] Add database migration for `loop_stop_signals` table
-- [ ] Implement thread-safe stop signal management
-- [ ] Add stop signal checking to workflow engine
+- [x] `src/gobby/autonomous/stop_registry.py` with `StopRegistry` class
+- [x] `session_stop_signals` table (not `loop_stop_signals` - per-session design)
+- [x] Thread-safe stop signal management
+- [x] Workflow actions: `check_stop_signal`, `clear_stop_signal`
 
-#### Phase 9.2: Progress Tracking
+#### Phase 9.2: Progress Tracking ✅ COMPLETE
 
-- [ ] Create `src/gobby/autonomous/progress_tracker.py` with `ProgressTracker` class
-- [ ] Add database migration for `loop_progress` table
-- [ ] Implement progress recording from tool results
-- [ ] Add stagnation detection algorithm
+- [x] `src/gobby/autonomous/progress_tracker.py` with `ProgressTracker` class
+- [x] Progress recording from tool results
+- [x] Stagnation detection algorithm
+- [x] Workflow actions: `start_progress_tracking`, `stop_progress_tracking`, `record_progress`
 
-#### Phase 9.3: Stuck Detection
+#### Phase 9.3: Stuck Detection ✅ COMPLETE
 
-- [ ] Add database migration for `task_selection_history` table
-- [ ] Implement task selection loop detection
-- [ ] Create `check_stop_signal` workflow action
-- [ ] Create `detect_task_loop` workflow action
-- [ ] Create `start_progress_tracking` / `stop_progress_tracking` actions
+- [x] `src/gobby/autonomous/stuck_detector.py` with `StuckDetector` class
+- [x] Task selection loop detection
+- [x] Workflow actions: `check_stuck`, `handle_stuck`
 
-#### Phase 9.4: MCP Tools
+#### Phase 9.4-9.8: MCP/HTTP/WebSocket/CLI/Slash Commands ❌ SUPERSEDED
 
-- [ ] Create `src/gobby/mcp_proxy/tools/loop.py` with `LoopToolRegistry`
-- [ ] Register as `gobby-loop` internal server
-- [ ] Implement `start_autonomous_loop`, `stop_autonomous_loop`, `get_loop_status`
-- [ ] Implement `pause_loop`, `resume_loop`, `skip_current_task`
+The original plan called for a dedicated `gobby-loop` MCP server and CLI commands.
+This was superseded by integrating with existing systems:
+- **Stop signals**: Use `POST /sessions/{session_id}/stop` HTTP endpoint
+- **Workflow control**: Use `gobby workflows activate/deactivate autonomous-task`
+- **Variables**: Use `gobby-workflows.set_variable` MCP tool
 
-#### Phase 9.5: HTTP Endpoints
+#### Phase 9.9: Workflow Files ✅ COMPLETE
 
-- [ ] Add `/api/v1/loop/*` endpoints to `src/gobby/servers/http.py`
-- [ ] Implement start, stop, pause, resume, skip, status endpoints
-- [ ] Add authentication/authorization for loop control
+- [x] `autonomous-task.yaml` step-based workflow with exit conditions
+- [x] `autonomous-loop.yaml` lifecycle workflow for session chaining
+- [x] Installed to `~/.gobby/workflows/` via `gobby install`
 
-#### Phase 9.6: WebSocket Integration
+#### Phase 9.10: Integration Testing 🔶 PARTIAL
 
-- [ ] Add loop control message handlers to WebSocket server
-- [ ] Implement loop progress event emission
-- [ ] Add real-time status streaming
-
-#### Phase 9.7: CLI Commands
-
-- [ ] Add `gobby loop` command group to CLI
-- [ ] Implement start, stop, pause, resume, skip, status, watch commands
-- [ ] Add progress output formatting
-
-#### Phase 9.8: Slash Commands
-
-- [ ] Create `/loop` skill with subcommands
-- [ ] Register slash command handlers
-- [ ] Integrate with session context
-
-#### Phase 9.9: Workflow Files
-
-- [ ] Create `autonomous-execution.yaml` step-based workflow
-- [ ] Create `autonomous-lifecycle.yaml` lifecycle workflow
-- [ ] Install to `~/.gobby/workflows/` on daemon start
-
-#### Phase 9.10: Integration Testing
-
-- [ ] Test natural completion (no more tasks)
-- [ ] Test all stop signal sources (HTTP, MCP, WS, CLI, /slash)
-- [ ] Test stuck detection (validation fails, selection loop, stagnation)
-- [ ] Test session chaining on context limit
-- [ ] Test pause/resume flow
-- [ ] Test skip task flow
-- [ ] Test memory/skill integration
+- [x] Tests in `tests/autonomous/test_autonomous.py`
+- [x] Tests in `tests/workflows/test_autonomous_task.py`
+- [ ] Full end-to-end integration testing
 
 ---
 
@@ -1703,17 +1524,15 @@ autonomous_loop:
 | Pipeline Workflows | Medium | High | P3 | Auto-Claude |
 | **Artifact Index** | **High** | **Medium** | **P1** | Continuous-Claude v2 |
 | **Enhanced Skill Routing** | **High** | **Medium** | **P2** | SkillForge |
-| **Semantic Memory Search** | **Medium** | **Medium** | **P2** | KnowNote |
-| **Autonomous Work Loop** | **High** | **High** | **P1** | Original Design |
+| **Memory V2 (Search + Relationships)** | **High** | **Medium** | **P2** | Memora |
+| ~~Autonomous Work Loop~~ | ~~High~~ | ~~High~~ | ✅ **DONE** | Original Design |
 
 **Recommendations:**
 
 1. **Immediate wins** - Artifact Index (Phase 6) provides high value with moderate effort and enables better session continuity
 2. **After SUBAGENTS Phase 4** - Merge Resolution (Phase 1) requires worktrees to be implemented first
-3. **Intelligence layer** - Skill Routing (Phase 7) + Semantic Memory (Phase 8) make Gobby smarter over time
+3. **Intelligence layer** - Skill Routing (Phase 7) + Memory V2 (Phase 8) make Gobby smarter over time
 4. **External integrations** - GitHub/Linear after core intelligence is solid
-5. **Autonomous execution** - Autonomous Work Loop (Phase 9) enables hands-off task execution; depends on existing task system + workflows being stable
 
 **Dependencies:**
 - Phase 1 (Merge Resolution) requires SUBAGENTS.md Phase 4 (`gobby-worktrees`)
-- Phase 9 (Autonomous Loop) benefits from Phase 2 (QA Loop) and Phase 6 (Artifact Index)
