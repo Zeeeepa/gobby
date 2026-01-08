@@ -312,7 +312,7 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 18: Testing & Error Recovery                                          │
+│ Sprint 18: End-to-End Testing                                                │
 │ WORKFLOWS Phases 9-11 + AUTONOMOUS_HANDOFF tests                            │
 │                                                                              │
 │ Deliverable: Comprehensive tests, crash recovery, escape hatches            │
@@ -333,7 +333,7 @@ This document defines the implementation order across all Gobby planning documen
 
 ## Sprint Summary Table
 
-### MVP Sprints (Completed)
+### Completed Sprints
 
 | Sprint | Focus | Plan Reference | Dependencies | Status |
 |--------|-------|----------------|--------------|--------|
@@ -343,7 +343,7 @@ This document defines the implementation order across all Gobby planning documen
 | 3.5 | Task Extensions | TASKS Phases 9.5-9.9 | Sprint 3 | ✅ Completed |
 | 4 | Workflow Foundation | WORKFLOWS Phases 0-2 | None | ✅ Completed |
 | 5 | Workflow Hooks | WORKFLOWS Phase 3 | Sprint 4 | ✅ Completed |
-| 6 | Workflow Actions | WORKFLOWS Phase 4 | Sprint 5 | ✅ Completed (all actions) |
+| 6 | Workflow Actions | WORKFLOWS Phase 4 | Sprint 5 | ✅ Completed |
 | 7 | Context & Templates | WORKFLOWS Phases 5-6 | Sprint 6 | ✅ Completed |
 | 7.1 | Session Message Foundation | SESSION_TRACKING Phase 1 | None | ✅ Completed |
 | 7.2 | Async Message Processor | SESSION_TRACKING Phase 2 | Sprint 7.1 | ✅ Completed |
@@ -353,28 +353,23 @@ This document defines the implementation order across all Gobby planning documen
 | 7.6 | Skill Learning | MEMORY Phases 3-4 | Sprint 7.5 | ✅ Completed |
 | 7.7 | Memory MCP/CLI | MEMORY Phases 5-6 | Sprint 7.6 | ✅ Completed |
 | 7.8 | Memory Sync & Enhancements | MEMORY Phases 7-10 | Sprint 7.7 | ✅ Completed |
-| 14 | Semantic Tool Search | MCP_PROXY Phase 3 | None | ✅ Completed |
+| 8 | Webhooks | HOOK_EXTENSIONS Phase 2 | Sprint 1 | ✅ Completed |
+| 9 | Python Plugins | HOOK_EXTENSIONS Phase 3 | Sprint 1 | ✅ Completed |
+| 10 | Workflow CLI/MCP | WORKFLOWS Phases 7-8 | Sprint 7 | ✅ Completed |
+| 11 | Workflow-Task Integration | TASKS Phases 11-13 | Sprints 3, 7 | ✅ Completed |
+| 12 | Tool Metrics | MCP_PROXY Phase 1 | None | ✅ Completed |
+| 13 | Lazy Init | MCP_PROXY Phase 2 | None | ✅ Completed |
+| 14 | Semantic Tool Search | MCP_PROXY Phase 3 | Sprint 12 | ✅ Completed |
+| 15 | Self-Healing MCP | MCP_PROXY Phases 4-5 | Sprint 14 | ✅ Completed |
+| 16 | Hook Workflow Integration | HOOK_EXTENSIONS Phases 4-5 | Sprints 7, 9 | ✅ Completed |
+| 17 | Feature Gap Coverage | MCP_PROXY, HOOK_EXT, MEMORY, HANDOFF gaps | Sprint 16 | ✅ Completed |
 
-### Current Sprint
+### Pending Sprints (Final Polish)
 
 | Sprint | Focus | Plan Reference | Dependencies | Status |
 |--------|-------|----------------|--------------|--------|
-| 17 | Feature Gap Coverage | MCP_PROXY, HOOK_EXTENSIONS, MEMORY, AUTONOMOUS_HANDOFF | None | ✅ Completed |
-
-### Upcoming Sprints
-
-| Sprint | Focus | Plan Reference | Dependencies | Status |
-|--------|-------|----------------|--------------|--------|
-| 8 | Webhooks | HOOK_EXTENSIONS Phase 2 | Sprint 1 | ✅ Complete |
-| 9 | Python Plugins | HOOK_EXTENSIONS Phase 3 | Sprint 1 | ✅ Complete |
-| 10 | Workflow CLI/MCP | WORKFLOWS Phases 7-8 | Sprint 7 | ✅ Complete |
-| 11 | Workflow-Task Integration | TASKS Phases 11-13 | Sprints 3, 7 | ✅ Complete |
-| 12 | Tool Metrics | MCP_PROXY Phase 1 | None | ✅ Complete |
-| 13 | Lazy Init | MCP_PROXY Phase 2 | None | ✅ Complete |
-| 15 | Self-Healing MCP | MCP_PROXY Phases 4-5 | Sprint 14 | ✅ Complete |
-| 16 | Hook Workflow Integration | HOOK_EXTENSIONS Phases 4-5 | Sprints 7, 9 | ✅ Complete |
-| 18 | Testing & Recovery | WORKFLOWS Phases 9-11, AUTONOMOUS_HANDOFF tests | Sprint 17 | Pending |
-| 19 | Documentation | All Plans, AUTONOMOUS_HANDOFF docs | Sprint 18 | Pending |
+| 18 | End-to-End Testing | WORKFLOWS Phases 9-11, AUTONOMOUS_HANDOFF tests | Sprint 17 | Pending |
+| 19 | Documentation | All Plans, User Guides | Sprint 18 | Pending |
 
 ### Post-MVP Sprints
 
