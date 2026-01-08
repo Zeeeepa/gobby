@@ -24,7 +24,7 @@ This document defines the implementation order across all Gobby planning documen
 
 | Document | Location | Focus | Status |
 |----------|----------|-------|--------|
-| POST_MVP_ENHANCEMENTS | `docs/plans/POST_MVP_ENHANCEMENTS.md` | 10 major phases: worktrees, merge resolution, GitHub/Linear, autonomous loops | Partial |
+| ENHANCEMENTS | `docs/plans/enhancements.md` | 10 major phases: worktrees, merge resolution, GitHub/Linear, autonomous loops | Partial |
 | SUBAGENTS | `docs/plans/completed/SUBAGENTS.md` | Multi-provider agent spawning system | ✅ Complete |
 | UI | `docs/plans/UI.md` | Web dashboard, real-time visualization | Pending |
 
@@ -335,34 +335,34 @@ This document defines the implementation order across all Gobby planning documen
 
 ### Completed Sprints
 
-| Sprint | Focus | Plan Reference | Dependencies | Status |
-|--------|-------|----------------|--------------|--------|
-| 1 | WebSocket Broadcasting | HOOK_EXTENSIONS Phase 1 | None | ✅ Completed |
-| 2 | Core Task System | TASKS Phases 1-6 | None | ✅ Completed |
-| 3 | Task MCP/CLI | TASKS Phases 7-10 | Sprint 2 | ✅ Completed |
-| 3.5 | Task Extensions | TASKS Phases 9.5-9.9 | Sprint 3 | ✅ Completed |
-| 4 | Workflow Foundation | WORKFLOWS Phases 0-2 | None | ✅ Completed |
-| 5 | Workflow Hooks | WORKFLOWS Phase 3 | Sprint 4 | ✅ Completed |
-| 6 | Workflow Actions | WORKFLOWS Phase 4 | Sprint 5 | ✅ Completed |
-| 7 | Context & Templates | WORKFLOWS Phases 5-6 | Sprint 6 | ✅ Completed |
-| 7.1 | Session Message Foundation | SESSION_TRACKING Phase 1 | None | ✅ Completed |
-| 7.2 | Async Message Processor | SESSION_TRACKING Phase 2 | Sprint 7.1 | ✅ Completed |
-| 7.3 | Session Tracking Integration | SESSION_TRACKING Phases 3-4 | Sprint 7.2 | ✅ Completed |
-| 7.4 | Multi-CLI Parsers & API | SESSION_TRACKING Phases 5-6 | Sprint 7.3 | ✅ Completed |
-| 7.5 | Memory Storage & Operations | MEMORY Phases 1-2 | Sprint 7.4 | ✅ Completed |
-| 7.6 | Skill Learning | MEMORY Phases 3-4 | Sprint 7.5 | ✅ Completed |
-| 7.7 | Memory MCP/CLI | MEMORY Phases 5-6 | Sprint 7.6 | ✅ Completed |
-| 7.8 | Memory Sync & Enhancements | MEMORY Phases 7-10 | Sprint 7.7 | ✅ Completed |
-| 8 | Webhooks | HOOK_EXTENSIONS Phase 2 | Sprint 1 | ✅ Completed |
-| 9 | Python Plugins | HOOK_EXTENSIONS Phase 3 | Sprint 1 | ✅ Completed |
-| 10 | Workflow CLI/MCP | WORKFLOWS Phases 7-8 | Sprint 7 | ✅ Completed |
-| 11 | Workflow-Task Integration | TASKS Phases 11-13 | Sprints 3, 7 | ✅ Completed |
-| 12 | Tool Metrics | MCP_PROXY Phase 1 | None | ✅ Completed |
-| 13 | Lazy Init | MCP_PROXY Phase 2 | None | ✅ Completed |
-| 14 | Semantic Tool Search | MCP_PROXY Phase 3 | Sprint 12 | ✅ Completed |
-| 15 | Self-Healing MCP | MCP_PROXY Phases 4-5 | Sprint 14 | ✅ Completed |
-| 16 | Hook Workflow Integration | HOOK_EXTENSIONS Phases 4-5 | Sprints 7, 9 | ✅ Completed |
-| 17 | Feature Gap Coverage | MCP_PROXY, HOOK_EXT, MEMORY, HANDOFF gaps | Sprint 16 | ✅ Completed |
+| Focus | Plan Reference |
+|-------|----------------|
+| WebSocket Broadcasting | HOOK_EXTENSIONS Phase 1 |
+| Core Task System | TASKS Phases 1-6 |
+| Task MCP/CLI | TASKS Phases 7-10 |
+| Task Extensions | TASKS Phases 9.5-9.9 |
+| Workflow Foundation | WORKFLOWS Phases 0-2 |
+| Workflow Hooks | WORKFLOWS Phase 3 |
+| Workflow Actions | WORKFLOWS Phase 4 |
+| Context & Templates | WORKFLOWS Phases 5-6 |
+| Session Message Foundation | SESSION_TRACKING Phase 1 |
+| Async Message Processor | SESSION_TRACKING Phase 2 |
+| Session Tracking Integration | SESSION_TRACKING Phases 3-4 |
+| Multi-CLI Parsers & API | SESSION_TRACKING Phases 5-6 |
+| Memory Storage & Operations | MEMORY Phases 1-2 |
+| Skill Learning | MEMORY Phases 3-4 |
+| Memory MCP/CLI | MEMORY Phases 5-6 |
+| Memory Sync & Enhancements | MEMORY Phases 7-10 |
+| Webhooks | HOOK_EXTENSIONS Phase 2 |
+| Python Plugins | HOOK_EXTENSIONS Phase 3 |
+| Workflow CLI/MCP | WORKFLOWS Phases 7-8 |
+| Workflow-Task Integration | TASKS Phases 11-13 |
+| Tool Metrics | MCP_PROXY Phase 1 |
+| Lazy Init | MCP_PROXY Phase 2 |
+| Semantic Tool Search | MCP_PROXY Phase 3 |
+| Self-Healing MCP | MCP_PROXY Phases 4-5 |
+| Hook Workflow Integration | HOOK_EXTENSIONS Phases 4-5 |
+| Feature Gap Coverage | MCP_PROXY, HOOK_EXT, MEMORY, HANDOFF gaps |
 
 ### Pending Sprints (Final Polish)
 
@@ -377,14 +377,14 @@ This document defines the implementation order across all Gobby planning documen
 |--------|-------|----------------|--------------|--------|
 | 20 | Session Management Tools | SESSION_MANAGEMENT | Sprint 7.4 | ✅ Complete |
 | 21 | Task V2: Enhanced Validation | TASKS Phases 12.6-12.13 | Sprint 17 | 🔶 Mostly Complete |
-| 22 | Worktree Coordination | POST_MVP Phase 1 | Sprint 7.4 | 🔶 Mostly Complete |
-| 23 | Merge Resolution | POST_MVP Phase 2 | Sprint 22 | Pending |
-| 24 | GitHub Integration | POST_MVP Phase 4 | Sprint 3 | Pending |
-| 25 | Linear Integration | POST_MVP Phase 5 | Sprint 3 | Pending |
-| 26 | Artifact Index | POST_MVP Phase 7 | Sprint 7.4 | Pending |
-| 27 | Enhanced Skill Routing | POST_MVP Phase 8 | Sprint 7.6 | Pending |
-| 28 | Semantic Memory Search | POST_MVP Phase 9 | Sprint 7.5 | Pending |
-| 29 | Autonomous Work Loop | POST_MVP Phase 10 | Sprints 3, 7 | 🔶 Partial |
+| 22 | Worktree Coordination | ENHANCEMENTS Phase 1 | Sprint 7.4 | 🔶 Mostly Complete |
+| 23 | Merge Resolution | ENHANCEMENTS Phase 2 | Sprint 22 | Pending |
+| 24 | GitHub Integration | ENHANCEMENTS Phase 4 | Sprint 3 | Pending |
+| 25 | Linear Integration | ENHANCEMENTS Phase 5 | Sprint 3 | Pending |
+| 26 | Artifact Index | ENHANCEMENTS Phase 7 | Sprint 7.4 | Pending |
+| 27 | Enhanced Skill Routing | ENHANCEMENTS Phase 8 | Sprint 7.6 | Pending |
+| 28 | Semantic Memory Search | ENHANCEMENTS Phase 9 | Sprint 7.5 | Pending |
+| 29 | Autonomous Work Loop | ENHANCEMENTS Phase 10 | Sprints 3, 7 | 🔶 Partial |
 | 30 | Subagent System | SUBAGENTS Phases 1-4 | Sprint 7 | ✅ Complete |
 | 31 | Web Dashboard | UI Phases 1-7 | Sprint 1 | Pending |
 
