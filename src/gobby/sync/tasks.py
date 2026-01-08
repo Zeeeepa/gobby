@@ -205,7 +205,7 @@ class TaskSyncManager:
                             """
                             INSERT OR REPLACE INTO tasks (
                                 id, project_id, title, description, parent_task_id,
-                                status, priority, type, created_at, updated_at,
+                                status, priority, task_type, created_at, updated_at,
                                 commits, validation_status, validation_feedback,
                                 validation_fail_count, validation_criteria,
                                 validation_override_reason, escalated_at, escalation_reason
@@ -435,7 +435,7 @@ class TaskSyncManager:
                         conn.execute(
                             """
                             INSERT INTO tasks (
-                                id, project_id, title, description, status, type,
+                                id, project_id, title, description, status, task_type,
                                 labels, created_at, updated_at
                             ) VALUES (?, ?, ?, ?, 'open', 'issue', ?, ?, ?)
                             """,
