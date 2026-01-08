@@ -243,7 +243,11 @@ def create_mcp_router() -> APIRouter:
             # Resolve project_id for metrics lookup
             resolved_project_id = None
             if include_metrics:
-                resolved_project_id = server._resolve_project_id(project_id, cwd=None)
+                try:
+                    resolved_project_id = server._resolve_project_id(project_id, cwd=None)
+                except ValueError:
+                    # Project not initialized; skip metrics enrichment
+                    resolved_project_id = None
 
             # If specific server requested
             if server_filter:
@@ -313,6 +317,9 @@ def create_mcp_router() -> APIRouter:
 
                 for server_name, tools_list in tools_by_server.items():
                     for tool in tools_list:
+                        # Guard against non-dict or missing-name entries
+                        if not isinstance(tool, dict) or "name" not in tool:
+                            continue
                         tool_name = tool.get("name")
                         key = (server_name, tool_name)
                         if key in metrics_by_key:

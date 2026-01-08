@@ -1,6 +1,7 @@
 """SQLite database manager for local storage."""
 
 import logging
+import re
 import sqlite3
 import threading
 from collections.abc import Iterator
@@ -12,6 +13,10 @@ logger = logging.getLogger(__name__)
 
 # Default database path
 DEFAULT_DB_PATH = Path.home() / ".gobby" / "gobby.db"
+
+# SQL identifier validation pattern (alphanumeric + underscore only)
+# Used by safe_update to prevent SQL injection via column/table names
+_SQL_IDENTIFIER_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
 class LocalDatabase:
@@ -72,6 +77,68 @@ class LocalDatabase:
         """Execute query and fetch all rows."""
         cursor = self.execute(sql, params)
         return cursor.fetchall()
+
+    def safe_update(
+        self,
+        table: str,
+        values: dict[str, Any],
+        where: str,
+        where_params: tuple[Any, ...],
+    ) -> sqlite3.Cursor:
+        """
+        Safely execute an UPDATE statement with dynamic columns.
+
+        This method validates table and column names against a strict allowlist
+        pattern to prevent SQL injection, even though callers typically use
+        hardcoded strings. This is defense-in-depth.
+
+        Args:
+            table: Table name (validated against identifier pattern).
+            values: Dictionary of column_name -> new_value.
+            where: WHERE clause (e.g., "id = ?"). This is NOT validated -
+                   callers must use parameterized queries for values.
+            where_params: Parameters for the WHERE clause placeholders.
+
+        Returns:
+            sqlite3.Cursor from the executed statement.
+
+        Raises:
+            ValueError: If table or column names fail validation.
+
+        Example:
+            db.safe_update(
+                "sessions",
+                {"status": "closed", "updated_at": now},
+                "id = ?",
+                (session_id,)
+            )
+        """
+        if not values:
+            # No-op: return cursor without executing
+            return self.connection.cursor()
+
+        # Validate table name
+        if not _SQL_IDENTIFIER_PATTERN.match(table):
+            raise ValueError(f"Invalid table name: {table!r}")
+
+        # Validate column names and build SET clause
+        set_clauses: list[str] = []
+        update_params: list[Any] = []
+
+        for col, val in values.items():
+            if not _SQL_IDENTIFIER_PATTERN.match(col):
+                raise ValueError(f"Invalid column name: {col!r}")
+            set_clauses.append(f"{col} = ?")
+            update_params.append(val)
+
+        # Construct and execute query
+        # nosec B608: Table and column names are validated above against
+        # a strict alphanumeric pattern. The WHERE clause uses parameterized
+        # queries. This is safe from SQL injection.
+        sql = f"UPDATE {table} SET {', '.join(set_clauses)} WHERE {where}"  # nosec B608
+        full_params = tuple(update_params) + where_params
+
+        return self.execute(sql, full_params)
 
     @contextmanager
     def transaction(self) -> Iterator[sqlite3.Connection]:

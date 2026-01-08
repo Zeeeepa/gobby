@@ -393,37 +393,25 @@ class LocalSessionManager:
         Returns:
             Updated Session or None if not found
         """
-        updates: list[str] = []
-        params: list[Any] = []
+        values: dict[str, Any] = {}
 
         if external_id is not None:
-            updates.append("external_id = ?")
-            params.append(external_id)
+            values["external_id"] = external_id
         if jsonl_path is not None:
-            updates.append("jsonl_path = ?")
-            params.append(jsonl_path)
+            values["jsonl_path"] = jsonl_path
         if status is not None:
-            updates.append("status = ?")
-            params.append(status)
+            values["status"] = status
         if title is not None:
-            updates.append("title = ?")
-            params.append(title)
+            values["title"] = title
         if git_branch is not None:
-            updates.append("git_branch = ?")
-            params.append(git_branch)
+            values["git_branch"] = git_branch
 
-        if not updates:
+        if not values:
             return self.get(session_id)
 
-        now = datetime.now(UTC).isoformat()
-        updates.append("updated_at = ?")
-        params.append(now)
-        params.append(session_id)
+        values["updated_at"] = datetime.now(UTC).isoformat()
 
-        self.db.execute(
-            f"UPDATE sessions SET {', '.join(updates)} WHERE id = ?",
-            tuple(params),
-        )
+        self.db.safe_update("sessions", values, "id = ?", (session_id,))
         return self.get(session_id)
 
     def list(
@@ -461,13 +449,14 @@ class LocalSessionManager:
         where_clause = " AND ".join(conditions) if conditions else "1=1"
         params.append(limit)
 
+        # nosec B608: where_clause built from hardcoded condition strings, values parameterized
         rows = self.db.fetchall(
             f"""
             SELECT * FROM sessions
             WHERE {where_clause}
             ORDER BY updated_at DESC
             LIMIT ?
-            """,
+            """,  # nosec B608
             tuple(params),
         )
         return [Session.from_row(row) for row in rows]
@@ -504,8 +493,9 @@ class LocalSessionManager:
 
         where_clause = " AND ".join(conditions) if conditions else "1=1"
 
+        # nosec B608: where_clause built from hardcoded condition strings, values parameterized
         result = self.db.fetchone(
-            f"SELECT COUNT(*) as count FROM sessions WHERE {where_clause}",
+            f"SELECT COUNT(*) as count FROM sessions WHERE {where_clause}",  # nosec B608
             tuple(params),
         )
         return result["count"] if result else 0
@@ -661,32 +651,21 @@ class LocalSessionManager:
         Returns:
             Updated session or None if not found.
         """
-        now = datetime.now(UTC).isoformat()
-
-        # Build dynamic update with only provided fields
-        updates = []
-        params: list[Any] = []
+        values: dict[str, Any] = {}
 
         if workflow_name is not None:
-            updates.append("workflow_name = ?")
-            params.append(workflow_name)
+            values["workflow_name"] = workflow_name
         if agent_run_id is not None:
-            updates.append("agent_run_id = ?")
-            params.append(agent_run_id)
+            values["agent_run_id"] = agent_run_id
         if context_injected is not None:
-            updates.append("context_injected = ?")
-            params.append(1 if context_injected else 0)
+            values["context_injected"] = 1 if context_injected else 0
         if original_prompt is not None:
-            updates.append("original_prompt = ?")
-            params.append(original_prompt)
+            values["original_prompt"] = original_prompt
 
-        if not updates:
+        if not values:
             return self.get(session_id)
 
-        updates.append("updated_at = ?")
-        params.append(now)
-        params.append(session_id)
+        values["updated_at"] = datetime.now(UTC).isoformat()
 
-        sql = f"UPDATE sessions SET {', '.join(updates)} WHERE id = ?"
-        self.db.execute(sql, tuple(params))
+        self.db.safe_update("sessions", values, "id = ?", (session_id,))
         return self.get(session_id)

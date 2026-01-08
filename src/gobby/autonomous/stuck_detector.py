@@ -142,24 +142,36 @@ class StuckDetector:
     def detect_task_loop(self, session_id: str) -> StuckDetectionResult:
         """Detect task selection loops.
 
+        Checks the last N task selections (task_window_size) within the past hour
+        to detect if any task has been selected more times than the threshold.
+
         Args:
             session_id: The session to check
 
         Returns:
             StuckDetectionResult indicating if stuck in task loop
         """
-        # Get recent task selections
+        from datetime import timedelta
+
+        # Compute cutoff as ISO8601 string for like-for-like comparison
+        cutoff = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
+
+        # Get the last N task selections within the time window, then aggregate
         rows = self.db.fetchall(
             """
             SELECT task_id, COUNT(*) as count
-            FROM task_selection_history
-            WHERE session_id = ?
-            AND selected_at > datetime('now', '-1 hour')
+            FROM (
+                SELECT task_id
+                FROM task_selection_history
+                WHERE session_id = ?
+                AND selected_at > ?
+                ORDER BY selected_at DESC
+                LIMIT ?
+            )
             GROUP BY task_id
             ORDER BY count DESC
-            LIMIT ?
             """,
-            (session_id, self.task_window_size),
+            (session_id, cutoff, self.task_window_size),
         )
 
         if not rows:

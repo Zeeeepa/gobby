@@ -22,6 +22,9 @@ import pytest
 from gobby.agents.spawners.base import HeadlessResult
 from gobby.agents.spawners.headless import HeadlessSpawner, _get_spawn_utils
 
+# Skip entire module on Windows - these tests require Unix-specific features
+pytestmark = pytest.mark.skipif(sys.platform == "win32", reason="Unix-specific tests")
+
 # =============================================================================
 # Tests for _get_spawn_utils helper function
 # =============================================================================

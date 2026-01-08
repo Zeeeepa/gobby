@@ -390,7 +390,7 @@ class ClaudeExecutor(AgentExecutor):
                     # We're in an async context, use run_coroutine_threadsafe
                     coro = tool_handler(tool_schema.name, kwargs)
                     future: concurrent.futures.Future[ToolResult] = (
-                        asyncio.run_coroutine_threadsafe(coro, loop)  # type: ignore[arg-type]
+                        asyncio.run_coroutine_threadsafe(coro, loop)
                     )
                     try:
                         result = future.result(timeout=30)
@@ -427,7 +427,7 @@ class ClaudeExecutor(AgentExecutor):
         # Create MCP server config with our tools
         mcp_server = create_sdk_mcp_server(
             name="gobby-executor",
-            tools=tool_functions,  # type: ignore[arg-type]
+            tools=tool_functions,
         )
         mcp_servers: dict[str, Any] = {"gobby-executor": mcp_server}
 

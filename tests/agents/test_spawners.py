@@ -859,6 +859,8 @@ class TestEmbeddedSpawner:
         assert call_kwargs["working_directory"] == "/projects/app"
 
 
+@pytest.mark.integration
+@pytest.mark.slow
 @pytest.mark.skipif(sys.platform == "win32", reason="PTY not available on Windows")
 class TestEmbeddedSpawnerUnix:
     """Integration tests for EmbeddedSpawner on Unix systems."""
@@ -1770,6 +1772,7 @@ class TestSecurityAndEdgeCases:
 # =============================================================================
 
 
+@pytest.mark.integration
 @pytest.mark.skipif(sys.platform != "darwin", reason="macOS-only tests")
 class TestMacOSIntegration:
     """Integration tests that only run on macOS."""

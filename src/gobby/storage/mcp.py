@@ -252,8 +252,9 @@ class LocalMCPManager:
         if enabled_only:
             conditions.append("enabled = 1")
 
+        # nosec B608: where_clause built from hardcoded condition strings, values parameterized
         where_clause = " AND ".join(conditions)
-        query = f"SELECT * FROM mcp_servers WHERE {where_clause} ORDER BY name"
+        query = f"SELECT * FROM mcp_servers WHERE {where_clause} ORDER BY name"  # nosec B608
         rows = self.db.fetchall(query, tuple(params))
 
         return [MCPServer.from_row(row) for row in rows]
@@ -315,12 +316,13 @@ class LocalMCPManager:
 
         fields["updated_at"] = datetime.now(UTC).isoformat()
 
+        # nosec B608: fields validated against allowlist above, values parameterized
         set_clause = ", ".join(f"{k} = ?" for k in fields)
         # Update by server ID to be precise
         values = list(fields.values()) + [server.id]
 
         self.db.execute(
-            f"UPDATE mcp_servers SET {set_clause} WHERE id = ?",
+            f"UPDATE mcp_servers SET {set_clause} WHERE id = ?",  # nosec B608
             tuple(values),
         )
 

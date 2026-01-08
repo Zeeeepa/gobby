@@ -250,18 +250,18 @@ class StopRegistry:
         Returns:
             Number of signals cleaned up
         """
-        cutoff = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-        # Simple: remove all acknowledged signals older than cutoff
-        # In practice, we might want more sophisticated logic
+        from datetime import timedelta
+
+        threshold = datetime.now(UTC) - timedelta(hours=max_age_hours)
 
         with self._lock:
             result = self.db.execute(
                 """
                 DELETE FROM session_stop_signals
                 WHERE acknowledged_at IS NOT NULL
-                AND datetime(acknowledged_at) < datetime(?, '-' || ? || ' hours')
+                AND datetime(acknowledged_at) < datetime(?)
                 """,
-                (cutoff.isoformat(), max_age_hours),
+                (threshold.isoformat(),),
             )
 
             if result.rowcount > 0:

@@ -480,8 +480,8 @@ class WebSocketServer:
                         "type": "stop_response",
                         "session_id": session_id,
                         "success": True,
-                        "signal_id": signal.signal_id,
-                        "signaled_at": signal.signaled_at.isoformat(),
+                        "signal_id": signal.session_id,
+                        "signaled_at": signal.requested_at.isoformat(),
                     }
                 )
             )
@@ -492,7 +492,7 @@ class WebSocketServer:
                 session_id=session_id,
                 reason=reason,
                 source="websocket",
-                signal_id=signal.signal_id,
+                signal_id=signal.session_id,
             )
 
             logger.info(f"Stop requested for session {session_id} via WebSocket")

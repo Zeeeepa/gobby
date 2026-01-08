@@ -566,7 +566,8 @@ class LocalTaskManager:
 
         params.append(task_id)  # for WHERE clause
 
-        sql = f"UPDATE tasks SET {', '.join(updates)} WHERE id = ?"
+        # nosec B608: SET clause built from hardcoded column names, values parameterized
+        sql = f"UPDATE tasks SET {', '.join(updates)} WHERE id = ?"  # nosec B608
 
         with self.db.transaction() as conn:
             cursor = conn.execute(sql, tuple(params))
