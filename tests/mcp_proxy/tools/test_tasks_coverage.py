@@ -174,7 +174,12 @@ class TestCreateTaskTool:
         mock_task = MagicMock()
         mock_task.id = "gt-new123"
         mock_task.to_dict.return_value = {"id": "gt-new123", "title": "New Task"}
-        mock_task_manager.create_task.return_value = mock_task
+        # Mock create_task_with_decomposition to return non-decomposed result
+        mock_task_manager.create_task_with_decomposition.return_value = {
+            "auto_decomposed": False,
+            "task": {"id": "gt-new123", "title": "New Task"},
+        }
+        mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
@@ -182,7 +187,7 @@ class TestCreateTaskTool:
             result = await registry.call("create_task", {"title": "New Task"})
 
             assert result == {"success": True, "id": "gt-new123"}
-            mock_task_manager.create_task.assert_called_once()
+            mock_task_manager.create_task_with_decomposition.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_create_task_with_blocks(self, mock_task_manager, mock_sync_manager):
@@ -196,7 +201,11 @@ class TestCreateTaskTool:
             mock_task = MagicMock()
             mock_task.id = "gt-blocker"
             mock_task.to_dict.return_value = {"id": "gt-blocker"}
-            mock_task_manager.create_task.return_value = mock_task
+            mock_task_manager.create_task_with_decomposition.return_value = {
+                "auto_decomposed": False,
+                "task": {"id": "gt-blocker"},
+            }
+            mock_task_manager.get_task.return_value = mock_task
 
             with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
                 mock_ctx.return_value = {"id": "proj-1"}
@@ -224,7 +233,11 @@ class TestCreateTaskTool:
         mock_task = MagicMock()
         mock_task.id = "gt-labeled"
         mock_task.to_dict.return_value = {"id": "gt-labeled", "labels": ["urgent", "bug"]}
-        mock_task_manager.create_task.return_value = mock_task
+        mock_task_manager.create_task_with_decomposition.return_value = {
+            "auto_decomposed": False,
+            "task": {"id": "gt-labeled", "labels": ["urgent", "bug"]},
+        }
+        mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
@@ -233,8 +246,8 @@ class TestCreateTaskTool:
                 "create_task", {"title": "Labeled Task", "labels": ["urgent", "bug"]}
             )
 
-            mock_task_manager.create_task.assert_called_once()
-            call_kwargs = mock_task_manager.create_task.call_args.kwargs
+            mock_task_manager.create_task_with_decomposition.assert_called_once()
+            call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
             assert call_kwargs["labels"] == ["urgent", "bug"]
 
     @pytest.mark.asyncio
@@ -245,14 +258,18 @@ class TestCreateTaskTool:
         mock_task = MagicMock()
         mock_task.id = "gt-manual"
         mock_task.to_dict.return_value = {"id": "gt-manual"}
-        mock_task_manager.create_task.return_value = mock_task
+        mock_task_manager.create_task_with_decomposition.return_value = {
+            "auto_decomposed": False,
+            "task": {"id": "gt-manual"},
+        }
+        mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
             await registry.call("create_task", {"title": "Verify that the feature works correctly"})
 
-            call_kwargs = mock_task_manager.create_task.call_args.kwargs
+            call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
             assert call_kwargs["test_strategy"] == "manual"
 
     @pytest.mark.asyncio
@@ -265,7 +282,11 @@ class TestCreateTaskTool:
         mock_task = MagicMock()
         mock_task.id = "gt-auto"
         mock_task.to_dict.return_value = {"id": "gt-auto"}
-        mock_task_manager.create_task.return_value = mock_task
+        mock_task_manager.create_task_with_decomposition.return_value = {
+            "auto_decomposed": False,
+            "task": {"id": "gt-auto"},
+        }
+        mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
@@ -276,7 +297,7 @@ class TestCreateTaskTool:
                 {"title": "Verify that tests pass", "test_strategy": "automated"},
             )
 
-            call_kwargs = mock_task_manager.create_task.call_args.kwargs
+            call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
             assert call_kwargs["test_strategy"] == "automated"
 
     @pytest.mark.asyncio
@@ -287,7 +308,11 @@ class TestCreateTaskTool:
         mock_task = MagicMock()
         mock_task.id = "gt-full"
         mock_task.to_dict.return_value = {"id": "gt-full"}
-        mock_task_manager.create_task.return_value = mock_task
+        mock_task_manager.create_task_with_decomposition.return_value = {
+            "auto_decomposed": False,
+            "task": {"id": "gt-full"},
+        }
+        mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
@@ -307,7 +332,7 @@ class TestCreateTaskTool:
                 },
             )
 
-            call_kwargs = mock_task_manager.create_task.call_args.kwargs
+            call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
             assert call_kwargs["title"] == "Full Task"
             assert call_kwargs["description"] == "Detailed description"
             assert call_kwargs["priority"] == 1
@@ -326,7 +351,11 @@ class TestCreateTaskTool:
         mock_task = MagicMock()
         mock_task.id = "gt-new"
         mock_task.to_dict.return_value = {"id": "gt-new"}
-        mock_task_manager.create_task.return_value = mock_task
+        mock_task_manager.create_task_with_decomposition.return_value = {
+            "auto_decomposed": False,
+            "task": {"id": "gt-new"},
+        }
+        mock_task_manager.get_task.return_value = mock_task
 
         with (
             patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx,
@@ -340,7 +369,7 @@ class TestCreateTaskTool:
             await registry.call("create_task", {"title": "Task"})
 
             mock_init.assert_called_once()
-            call_kwargs = mock_task_manager.create_task.call_args.kwargs
+            call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
             assert call_kwargs["project_id"] == "new-proj"
 
     @pytest.mark.asyncio
@@ -359,7 +388,11 @@ class TestCreateTaskTool:
             "title": "Full Task",
             "status": "open",
         }
-        mock_task_manager.create_task.return_value = mock_task
+        mock_task_manager.create_task_with_decomposition.return_value = {
+            "auto_decomposed": False,
+            "task": {"id": "gt-full", "title": "Full Task", "status": "open"},
+        }
+        mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
@@ -387,7 +420,10 @@ class TestCreateTaskTool:
         mock_task.id = "gt-auto"
         mock_task.task_type = "task"  # Not epic
         mock_task.to_dict.return_value = {"id": "gt-auto"}
-        mock_task_manager.create_task.return_value = mock_task
+        mock_task_manager.create_task_with_decomposition.return_value = {
+            "auto_decomposed": False,
+            "task": {"id": "gt-auto"},
+        }
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
@@ -417,7 +453,11 @@ class TestCreateTaskTool:
         mock_task.id = "gt-epic"
         mock_task.task_type = "epic"
         mock_task.to_dict.return_value = {"id": "gt-epic"}
-        mock_task_manager.create_task.return_value = mock_task
+        mock_task_manager.create_task_with_decomposition.return_value = {
+            "auto_decomposed": False,
+            "task": {"id": "gt-epic"},
+        }
+        mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
