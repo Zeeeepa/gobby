@@ -15,7 +15,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 import yaml
 
 from gobby.agents.tty_config import (
@@ -28,7 +27,6 @@ from gobby.agents.tty_config import (
     load_tty_config,
     reload_tty_config,
 )
-
 
 # =============================================================================
 # Tests for TerminalConfig model
@@ -760,22 +758,20 @@ class TestReloadTTYConfig:
 
             # Load initial
             tty_module._config = None
-            with patch("gobby.agents.tty_config.load_tty_config", wraps=load_tty_config):
-                # Simulate loading from this file
-                config1 = load_tty_config(f.name)
-                tty_module._config = config1
+            config1 = load_tty_config(f.name)
+            tty_module._config = config1
+            assert config1.preferences.macos == ["iterm"]
 
             # Modify file
             with open(f.name, "w") as f2:
                 yaml.dump({"preferences": {"macos": ["terminal.app"]}}, f2)
 
-            # Reload should get new config
-            with patch.object(Path, "home", return_value=Path(f.name).parent):
-                # This won't actually reload from our temp file without more patching
-                # but it tests the reload mechanism
+            # Patch load_tty_config to reload from our temp file
+            with patch("gobby.agents.tty_config.load_tty_config", side_effect=lambda: load_tty_config(f.name)):
                 config2 = reload_tty_config()
 
             assert isinstance(config2, TTYConfig)
+            assert config2.preferences.macos == ["terminal.app"]
 
             Path(f.name).unlink()
 
@@ -807,7 +803,7 @@ class TestEdgeCasesAndErrorHandling:
         )
         assert prefs.macos == ["terminal.app"]
 
-    def test_get_terminal_config_caseInsensitive_lookup(self):
+    def test_get_terminal_config_case_sensitive_lookup(self):
         """get_terminal_config is case-sensitive (lowercase expected)."""
         config = TTYConfig()
         # These should be different
@@ -819,6 +815,8 @@ class TestEdgeCasesAndErrorHandling:
 
     def test_load_tty_config_with_extra_keys_ignored(self):
         """load_tty_config ignores unknown top-level keys."""
+        import pydantic
+
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             yaml.dump(
                 {
@@ -829,16 +827,15 @@ class TestEdgeCasesAndErrorHandling:
             )
             f.flush()
 
-            # This may raise or ignore depending on Pydantic config
-            # If strict mode is off, it should work
             try:
                 config = load_tty_config(f.name)
+                # If it succeeds, verify the config is correct
                 assert config.preferences.macos == ["iterm"]
-            except Exception:
-                # If Pydantic is strict, this is expected
+            except pydantic.ValidationError:
+                # If Pydantic is strict, this specific error is expected
                 pass
-
-            Path(f.name).unlink()
+            finally:
+                Path(f.name).unlink()
 
     def test_terminal_config_options_are_list_not_tuple(self):
         """TerminalConfig options are always a list."""

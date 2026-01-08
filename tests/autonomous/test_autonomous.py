@@ -9,9 +9,8 @@ Tests cover:
 import threading
 import time
 from collections.abc import Iterator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -19,7 +18,6 @@ from gobby.autonomous.progress_tracker import (
     HIGH_VALUE_PROGRESS,
     MEANINGFUL_TOOLS,
     ProgressEvent,
-    ProgressSummary,
     ProgressTracker,
     ProgressType,
 )
@@ -931,9 +929,10 @@ class TestStopRegistryCleanup:
 
         count = stop_registry.cleanup_stale(max_age_hours=24)
 
-        # Should have cleaned up the signal
-        assert count >= 0  # May be 0 or 1 depending on timing
-        # Verify signal is gone or still there based on exact timing
+        # Should have cleaned up exactly one signal
+        assert count == 1
+        # Verify signal is gone
+        assert stop_registry.has_pending_signal(session_id) is False
 
     def test_cleanup_stale_preserves_pending(
         self, stop_registry: StopRegistry, session_id: str

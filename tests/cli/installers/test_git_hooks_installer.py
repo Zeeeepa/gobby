@@ -1,12 +1,9 @@
 """Tests for the git hooks installer module."""
 
-import os
 import stat
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from gobby.cli.installers.git_hooks import (
     GOBBY_HOOK_END,
@@ -603,7 +600,8 @@ class TestInstallGitHooks:
 
         result = install_git_hooks(tmp_path, setup_precommit=True)
 
-        # Should still succeed even if pre-commit install fails
+        # Should still succeed even if pre-commit pre-push install times out
+        # precommit_installed is True because pre-commit config was detected
         assert result["success"] is True
         assert result["precommit_installed"] is True
 

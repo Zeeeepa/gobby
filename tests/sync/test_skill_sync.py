@@ -69,6 +69,7 @@ async def test_export_to_files(sync_manager, tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
 async def test_import_from_files_legacy(sync_manager, tmp_path):
     """Test importing from legacy flat file format."""
     sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
@@ -95,6 +96,7 @@ imported instructions
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
 async def test_import_from_files_claude_format(sync_manager, tmp_path):
     """Test importing from Claude Code plugin format."""
     sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
@@ -154,6 +156,7 @@ async def test_trigger_export_debounce(sync_manager):
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
 async def test_export_to_claude_format(sync_manager, tmp_path):
     """Test exporting to Claude Code format."""
     count = await sync_manager.export_to_claude_format(output_dir=tmp_path)
@@ -184,6 +187,7 @@ async def test_export_to_claude_format(sync_manager, tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
 async def test_export_to_codex_format(sync_manager, tmp_path):
     """Test exporting to Codex format."""
     count = await sync_manager.export_to_codex_format(output_dir=tmp_path)
@@ -197,6 +201,7 @@ async def test_export_to_codex_format(sync_manager, tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
 async def test_export_to_gemini_format(sync_manager, tmp_path):
     """Test exporting to Gemini format (TOML)."""
     count = await sync_manager.export_to_gemini_format(output_dir=tmp_path)
@@ -326,7 +331,6 @@ async def test_get_sync_dir_non_stealth_with_project_context(sync_manager, tmp_p
 
     def patched_get_sync_dir():
         # Import is inside the function, so we patch it there
-        import gobby.sync.skills
 
         with monkeypatch.context() as m:
             m.setattr(
@@ -710,6 +714,7 @@ async def test_get_skill_by_name_finds_exact_match(sync_manager):
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
 async def test_import_skills_sync_skips_hidden_dirs(sync_manager, tmp_path):
     """Test _import_skills_sync skips directories starting with dot."""
     sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
@@ -733,6 +738,7 @@ instructions
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
 async def test_import_skills_sync_skips_hidden_files(sync_manager, tmp_path):
     """Test _import_skills_sync skips files starting with dot."""
     sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
@@ -948,6 +954,7 @@ async def test_import_skills_sync_handles_exception(sync_manager, tmp_path, monk
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
 async def test_export_skills_sync_empty_name_fallback(mock_skill_manager, tmp_path):
     """Test _export_skills_sync uses ID when name is all special chars."""
     mock_skill_manager.list_skills.return_value = [
@@ -977,6 +984,7 @@ async def test_export_skills_sync_empty_name_fallback(mock_skill_manager, tmp_pa
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
 async def test_export_skills_sync_with_error(mock_skill_manager, tmp_path, monkeypatch):
     """Test _export_skills_sync handles per-skill errors gracefully."""
     mock_skill_manager.list_skills.return_value = [
@@ -1174,6 +1182,7 @@ async def test_build_trigger_description_short_patterns_filtered(mock_skill_mana
 
 
 @pytest.mark.asyncio
+@pytest.mark.slow
 async def test_trigger_export_creates_new_task_when_done(sync_manager):
     """Test trigger_export creates new task when previous is done."""
     sync_manager.export_to_files = AsyncMock(return_value=1)
@@ -1195,6 +1204,7 @@ async def test_trigger_export_creates_new_task_when_done(sync_manager):
 
 
 @pytest.mark.asyncio
+@pytest.mark.slow
 async def test_shutdown_cancels_running_task(sync_manager):
     """Test shutdown properly handles CancelledError from export task."""
     # Create a task that will get cancelled
@@ -1301,6 +1311,7 @@ async def test_build_trigger_description_with_empty_pattern_parts(mock_skill_man
 
 
 @pytest.mark.asyncio
+@pytest.mark.integration
 async def test_import_skill_claude_format_without_meta_file(sync_manager, tmp_path):
     """Test importing Claude format skill when .gobby-meta.json doesn't exist."""
     sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)

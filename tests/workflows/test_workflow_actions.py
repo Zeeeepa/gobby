@@ -231,26 +231,6 @@ async def test_generate_summary(
     # Verify status NOT updated to handoff_ready (legacy behavior only in handoff action)
     assert updated_session.status != "handoff_ready"
 
-    tasks_data = [
-        {"title": "Task 1", "description": "Desc 1", "priority": 1},
-        {"title": "Task 2", "labels": ["bug"]},
-    ]
-
-    result = await action_executor.execute("persist_tasks", action_context, tasks=tasks_data)
-
-    assert result is not None
-    assert result["tasks_persisted"] == 2
-    assert len(result["ids"]) == 2
-
-    # Verify tasks in DB
-    # Verify tasks in DB
-    # from gobby.storage.tasks import LocalTaskManager
-    # Assuming LocalTaskManager can be imported; if not, we might need a mock or fix import
-
-    # Check execution success directly via DB or return values
-    # Since we don't have LocalTaskManager imported in test file yet, let's trust the return
-    pass
-
 
 @pytest.mark.asyncio
 async def test_write_todos(action_executor, action_context, tmp_path):

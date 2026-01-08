@@ -395,8 +395,10 @@ class TestLoadYaml:
         data = load_yaml(str(config_file))
         assert data == {}
 
-    def test_env_var_expansion_in_yaml(self, temp_dir: Path):
+    def test_env_var_expansion_in_yaml(self, temp_dir: Path, monkeypatch):
         """Test environment variable expansion in YAML files."""
+        monkeypatch.delenv("TEST_PORT", raising=False)
+
         config_file = temp_dir / "env_config.yaml"
         config_file.write_text("daemon_port: ${TEST_PORT:-9999}")
 

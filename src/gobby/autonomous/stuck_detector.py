@@ -6,6 +6,8 @@ Provides multi-layer stuck detection for autonomous workflows:
 3. Tool call patterns - repeated identical tool calls
 """
 
+import ast
+import json
 import logging
 import threading
 from dataclasses import dataclass
@@ -343,12 +345,24 @@ class StuckDetector:
             (session_id, limit),
         )
 
-        return [
-            TaskSelectionEvent(
-                session_id=row["session_id"],
-                task_id=row["task_id"],
-                selected_at=datetime.fromisoformat(row["selected_at"]),
-                context=eval(row["context"]) if row["context"] else None,  # Safe: we wrote this
+        events = []
+        for row in rows:
+            context = None
+            if row["context"]:
+                try:
+                    context = ast.literal_eval(row["context"])
+                except (ValueError, SyntaxError):
+                    try:
+                        context = json.loads(row["context"])
+                    except json.JSONDecodeError:
+                        logger.warning(f"Failed to parse context for task selection: {row['context'][:100]}")
+                        context = None
+            events.append(
+                TaskSelectionEvent(
+                    session_id=row["session_id"],
+                    task_id=row["task_id"],
+                    selected_at=datetime.fromisoformat(row["selected_at"]),
+                    context=context,
+                )
             )
-            for row in rows
-        ]
+        return events

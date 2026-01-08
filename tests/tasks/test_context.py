@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 import subprocess
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -482,7 +482,8 @@ class TestFindRelevantFiles:
 
         with patch("gobby.tasks.context.find_project_root", return_value=tmp_project):
             files = await gatherer._find_relevant_files(task)
-        # .txt is not in the allowed extensions (py|js|ts|tsx|jsx|md|json|html|css|yaml|toml|sh)
+        # .txt and .exe are not in the allowed extensions (py|js|ts|tsx|jsx|md|json|html|css|yaml|toml|sh)
+        assert "file.txt" not in files
         assert "file.exe" not in files
 
     @pytest.mark.asyncio

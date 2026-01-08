@@ -6,8 +6,6 @@ and markdown formatting functions.
 
 import json
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -388,24 +386,33 @@ class TestInjectContext:
         self, mock_session_manager, mock_template_engine
     ):
         """Should use .dict() method when .model_dump() is not available."""
-        # Create a mock state that doesn't have model_dump
-        mock_state = MagicMock()
-        mock_state.artifacts = {}
-        mock_state.observations = []
-        del mock_state.model_dump
-        mock_state.dict.return_value = {"workflow_name": "test", "step": "step1"}
+
+        # Create a concrete helper class that has dict() but not model_dump
+        class TestState:
+            def __init__(self):
+                self.artifacts = {}
+                self.observations = []
+                self.dict_called = False
+
+            def dict(self, exclude=None):
+                self.dict_called = True
+                return {"workflow_name": "test", "step": "step1"}
+
+        test_state = TestState()
+        # Verify no model_dump attribute
+        assert not hasattr(test_state, "model_dump")
 
         result = inject_context(
             session_manager=mock_session_manager,
             session_id="test-session",
-            state=mock_state,
+            state=test_state,
             template_engine=mock_template_engine,
             source="workflow_state",
         )
 
         assert result is not None
         assert "## Workflow State" in result["inject_context"]
-        mock_state.dict.assert_called_once()
+        assert test_state.dict_called is True
 
     def test_compact_handoff_source(
         self, mock_session_manager, mock_template_engine, mock_session

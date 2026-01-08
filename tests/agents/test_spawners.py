@@ -10,17 +10,14 @@ Tests for:
 from __future__ import annotations
 
 import os
-import platform
 import sys
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from gobby.agents.spawners.base import (
     EmbeddedPTYResult,
-    SpawnResult,
     TerminalType,
 )
 from gobby.agents.spawners.cross_platform import (
@@ -36,7 +33,6 @@ from gobby.agents.spawners.macos import (
     TerminalAppSpawner,
     escape_applescript,
 )
-
 
 # =============================================================================
 # Helper Fixtures
@@ -1733,9 +1729,26 @@ class TestSecurityAndEdgeCases:
             # The semicolons should be quoted/escaped
             assert "rm -rf /" not in shell_cmd.split()  # Not as separate command
 
-    def test_path_with_spaces(self):
+    @patch("subprocess.Popen")
+    @patch("gobby.agents.spawners.linux.get_tty_config")
+    def test_path_with_spaces(self, mock_config, mock_popen):
         """Spawners handle paths with spaces correctly."""
-        # This is more of a documentation test - actual handling varies by spawner
+        mock_config.return_value.get_terminal_config.return_value = MagicMock(
+            enabled=True, command="konsole", options=[]
+        )
+        mock_process = MagicMock()
+        mock_process.pid = 12345
+        mock_popen.return_value = mock_process
+
+        spawner = KonsoleSpawner()
+        path_with_spaces = "/path/with spaces/directory"
+        spawner.spawn(["echo", "test"], cwd=path_with_spaces)
+
+        mock_popen.assert_called_once()
+        # KonsoleSpawner passes cwd via --workdir command-line arg
+        call_args = mock_popen.call_args[0][0]
+        workdir_idx = call_args.index("--workdir")
+        assert call_args[workdir_idx + 1] == path_with_spaces
 
     @patch("subprocess.Popen")
     @patch("gobby.agents.spawners.linux.get_tty_config")
@@ -1772,8 +1785,9 @@ class TestMacOSIntegration:
             pytest.skip("Skipping GUI tests in CI")
 
         spawner = TerminalAppSpawner()
-        # Just check the is_available logic, don't actually spawn
-        # This tests the real path detection
+        # Check the is_available logic returns a boolean
+        result = spawner.is_available()
+        assert isinstance(result, bool)
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux-only tests")

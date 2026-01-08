@@ -1067,8 +1067,9 @@ class TestRefreshToolsIncremental:
             project_id=sample_project["id"],
         )
 
-        # Without schema_hash_manager, existing tools are treated as changed
-        assert stats["updated"] == 1 or stats["added"] == 0  # Depends on hash manager presence
+        # Without schema_hash_manager, exactly one tool change should be recorded
+        assert stats["updated"] + stats["added"] == 1
+        assert stats.get("removed", 0) == 0
 
         tools = mcp_manager.get_cached_tools("update-server", project_id=sample_project["id"])
         assert len(tools) == 1

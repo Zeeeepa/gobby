@@ -16,7 +16,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from gobby.config.app import (
-    PatternCriteriaConfig,
     ProjectVerificationConfig,
     TaskExpansionConfig,
 )
@@ -303,7 +302,8 @@ class TestPatternCriteriaInjection:
             provider = mock_llm_service.get_provider.return_value
             call_args = provider.generate_text.call_args
             prompt = call_args.kwargs["prompt"]
-            assert "performance optimization" in prompt.lower() or result is not None
+            assert "performance optimization" in prompt.lower()
+            assert isinstance(result, dict)
 
 
 # =============================================================================
@@ -807,8 +807,8 @@ class TestGeneratePreciseCriteria:
             parent_labels=["refactoring"],
         )
 
-        # Refactoring pattern should inject criteria
-        assert criteria is not None or criteria == ""
+        # Criteria should be a string (can be empty if no pattern matched)
+        assert isinstance(criteria, str)
 
     @pytest.mark.asyncio
     async def test_generate_criteria_with_test_strategy_substitution(

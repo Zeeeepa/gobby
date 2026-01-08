@@ -82,7 +82,7 @@ You are operating within a Gobby-enabled environment. You **must** use the `gobb
 ## MCP Tool Usage Guide
 Gobby uses a proxy pattern for tools.
 
-*   **List Tools:** `mcp_list_tools(server="gobby-tasks")`
+*   **List Tools:** `mcp_list_tools(server_name="gobby-tasks")`
 *   **Get Schema:** `mcp_get_tool_schema(server_name="gobby-tasks", tool_name="create_task")`
 *   **Call Tool:** `mcp_call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={...})`
 
