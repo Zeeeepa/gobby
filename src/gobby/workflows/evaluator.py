@@ -1,9 +1,12 @@
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .definitions import WorkflowState
+
+if TYPE_CHECKING:
+    from .webhook_executor import WebhookExecutor, WebhookResult
 
 logger = logging.getLogger(__name__)
 
@@ -127,6 +130,7 @@ class ConditionEvaluator:
         self._plugin_conditions: dict[str, Any] = {}
         self._task_manager: Any = None
         self._stop_registry: Any = None
+        self._webhook_executor: WebhookExecutor | None = None
 
     def register_task_manager(self, task_manager: Any) -> None:
         """
@@ -151,6 +155,18 @@ class ConditionEvaluator:
         """
         self._stop_registry = stop_registry
         logger.debug("ConditionEvaluator: stop_registry registered")
+
+    def register_webhook_executor(self, webhook_executor: "WebhookExecutor") -> None:
+        """
+        Register a webhook executor for webhook condition evaluation.
+
+        This enables webhook conditions in workflow transitions.
+
+        Args:
+            webhook_executor: WebhookExecutor instance
+        """
+        self._webhook_executor = webhook_executor
+        logger.debug("ConditionEvaluator: webhook_executor registered")
 
     def register_plugin_conditions(self, plugin_registry: Any) -> None:
         """
@@ -280,9 +296,102 @@ class ConditionEvaluator:
                 if expr and not self.evaluate(expr, context):
                     return False
 
-            # Add other types as needed
+            elif cond_type == "webhook":
+                # Webhook condition - check pre-evaluated result stored in variables
+                # The async evaluate_webhook_conditions method must be called first
+                condition_id = condition.get(
+                    "id", f"webhook_{hash(str(condition)) % 10000}"
+                )
+                result_var = f"_webhook_{condition_id}_result"
+
+                # Get pre-evaluated webhook result from state
+                webhook_result = state.variables.get(result_var)
+                if webhook_result is None:
+                    # Webhook hasn't been evaluated yet
+                    logger.warning(
+                        f"Webhook condition '{condition_id}' not pre-evaluated. "
+                        "Call evaluate_webhook_conditions() first."
+                    )
+                    return False
+
+                # Check based on configured criteria
+                if not self._check_webhook_result(condition, webhook_result):
+                    return False
 
         return True
+
+    def _check_webhook_result(
+        self, condition: dict[str, Any], result: dict[str, Any]
+    ) -> bool:
+        """Check if webhook result matches the condition criteria.
+
+        Args:
+            condition: Webhook condition configuration
+            result: Pre-evaluated webhook result stored in state
+
+        Returns:
+            True if condition is satisfied
+        """
+        # Check success (default: require success)
+        expect_success = condition.get("expect_success", True)
+        if expect_success and not result.get("success", False):
+            return False
+        if not expect_success and result.get("success", False):
+            return False
+
+        # Check status code if specified
+        expected_status = condition.get("status_code")
+        if expected_status is not None:
+            actual_status = result.get("status_code")
+            if isinstance(expected_status, list):
+                if actual_status not in expected_status:
+                    return False
+            elif actual_status != expected_status:
+                return False
+
+        # Check body contains string if specified
+        body_contains = condition.get("body_contains")
+        if body_contains:
+            body = result.get("body", "")
+            if body_contains not in body:
+                return False
+
+        # Check JSON body field if specified (dot notation: "data.approved")
+        json_field = condition.get("json_field")
+        if json_field:
+            json_body = result.get("json_body", {})
+            expected_value = condition.get("json_value")
+            actual_value = self._get_nested_value(json_body, json_field)
+
+            if expected_value is not None:
+                if actual_value != expected_value:
+                    return False
+            else:
+                # Just check field exists and is truthy
+                if not actual_value:
+                    return False
+
+        return True
+
+    def _get_nested_value(self, obj: dict[str, Any], path: str) -> Any:
+        """Get a nested value from a dict using dot notation.
+
+        Args:
+            obj: Dictionary to traverse
+            path: Dot-separated path (e.g., "data.user.name")
+
+        Returns:
+            Value at path, or None if not found
+        """
+        parts = path.split(".")
+        current: Any = obj
+        for part in parts:
+            if not isinstance(current, dict):
+                return None
+            current = current.get(part)
+            if current is None:
+                return None
+        return current
 
     def check_pending_approval(
         self, conditions: list[dict[str, Any]], state: WorkflowState
@@ -335,3 +444,119 @@ class ConditionEvaluator:
             )
 
         return None
+
+    async def evaluate_webhook_conditions(
+        self, conditions: list[dict[str, Any]], state: WorkflowState
+    ) -> dict[str, Any]:
+        """
+        Pre-evaluate webhook conditions and store results in state variables.
+
+        This async method must be called before check_exit_conditions() for
+        workflows that include webhook conditions. Results are stored in
+        state.variables with keys like "_webhook_<id>_result".
+
+        Args:
+            conditions: List of condition dicts from workflow definition
+            state: Current workflow state (will be modified)
+
+        Returns:
+            Dict with evaluation summary:
+            - evaluated: Number of webhook conditions evaluated
+            - results: Dict mapping condition_id to webhook result
+            - errors: List of any errors encountered
+
+        Example webhook condition config:
+            {
+                "type": "webhook",
+                "id": "approval_check",
+                "url": "https://api.example.com/approve",
+                "method": "POST",  # Optional, default POST
+                "headers": {"Authorization": "Bearer ${secrets.API_KEY}"},
+                "payload": {"session_id": "{{ session_id }}"},
+                "timeout": 30,  # Optional, default 30s
+                "expect_success": true,  # Check response is 2xx
+                "status_code": 200,  # Or [200, 201] for multiple
+                "body_contains": "approved",  # Check body contains string
+                "json_field": "data.approved",  # Check JSON field
+                "json_value": true,  # Expected value (optional)
+                "store_as": "approval_response"  # Store full result in variable
+            }
+        """
+        if not self._webhook_executor:
+            logger.warning("No webhook_executor registered for condition evaluation")
+            return {"evaluated": 0, "results": {}, "errors": ["No webhook executor"]}
+
+        evaluated = 0
+        results: dict[str, dict[str, Any]] = {}
+        errors: list[str] = []
+
+        for condition in conditions:
+            if condition.get("type") != "webhook":
+                continue
+
+            condition_id = condition.get(
+                "id", f"webhook_{hash(str(condition)) % 10000}"
+            )
+
+            try:
+                # Execute the webhook
+                webhook_result = await self._webhook_executor.execute(
+                    url=condition.get("url", ""),
+                    method=condition.get("method", "POST"),
+                    headers=condition.get("headers"),
+                    payload=condition.get("payload"),
+                    timeout=condition.get("timeout", 30),
+                    context={
+                        "session_id": state.session_id,
+                        "workflow_name": state.workflow_name,
+                        "step": state.step,
+                        "variables": state.variables,
+                    },
+                )
+
+                # Convert result to storable dict
+                result_dict: dict[str, Any] = {
+                    "success": webhook_result.success,
+                    "status_code": webhook_result.status_code,
+                    "body": webhook_result.body,
+                    "error": webhook_result.error,
+                    "json_body": webhook_result.json_body(),
+                }
+
+                # Store result in state variables
+                result_var = f"_webhook_{condition_id}_result"
+                state.variables[result_var] = result_dict
+
+                # Also store in named variable if specified
+                store_as = condition.get("store_as")
+                if store_as:
+                    state.variables[store_as] = result_dict
+
+                results[condition_id] = result_dict
+                evaluated += 1
+
+                logger.debug(
+                    f"Webhook condition '{condition_id}' evaluated: "
+                    f"status={webhook_result.status_code}, success={webhook_result.success}"
+                )
+
+            except Exception as e:
+                error_msg = f"Webhook condition '{condition_id}' failed: {e}"
+                logger.error(error_msg)
+                errors.append(error_msg)
+
+                # Store error result
+                result_var = f"_webhook_{condition_id}_result"
+                state.variables[result_var] = {
+                    "success": False,
+                    "status_code": None,
+                    "body": None,
+                    "error": str(e),
+                    "json_body": None,
+                }
+
+        return {
+            "evaluated": evaluated,
+            "results": results,
+            "errors": errors,
+        }
