@@ -201,6 +201,38 @@ def create_metrics_registry(metrics_manager: ToolMetricsManager) -> InternalTool
             return {"success": False, "error": str(e)}
 
     @registry.tool(
+        name="reset_tool_metrics",
+        description="Admin tool to reset/delete metrics for a specific tool.",
+    )
+    def reset_tool_metrics(
+        server_name: str | None = None,
+        tool_name: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Reset/delete metrics for a specific tool (admin operation).
+
+        Args:
+            server_name: Server containing the tool
+            tool_name: Specific tool to reset metrics for
+
+        Returns:
+            Number of rows deleted
+        """
+        try:
+            deleted = metrics_manager.reset_metrics(
+                server_name=server_name,
+                tool_name=tool_name,
+            )
+            return {
+                "success": True,
+                "deleted_count": deleted,
+                "server_name": server_name,
+                "tool_name": tool_name,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
         name="cleanup_old_metrics",
         description="Delete metrics older than retention period (default 7 days).",
     )
