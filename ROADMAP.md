@@ -8,77 +8,77 @@ This document defines the implementation order across all Gobby planning documen
 
 ### Completed Plans
 
-| Document | Location | Focus |
-|----------|----------|-------|
-| WORKFLOWS | `docs/plans/completed/WORKFLOWS.md` | Step-based workflow enforcement |
-| TASKS | `docs/plans/completed/TASKS.md` | Persistent task tracking system (includes V2 enhancements) |
-| SESSION_TRACKING | `docs/plans/completed/SESSION_TRACKING.md` | Async JSONL processing, multi-CLI message storage |
-| SESSION_MANAGEMENT | `docs/plans/completed/SESSION_MANAGEMENT.md` | Session CRUD tools, handoff MCP tools |
-| SKILLS | `docs/plans/completed/SKILLS.md` | Skills module decoupling (from memory) |
-| HOOK_EXTENSIONS | `docs/plans/completed/HOOK_EXTENSIONS.md` | WebSocket events, webhooks, plugins |
-| MCP_PROXY_IMPROVEMENTS | `docs/plans/completed/MCP_PROXY_IMPROVEMENTS.md` | Tool metrics, semantic search, self-healing |
-| MEMORY | `docs/plans/completed/MEMORY.md` | Persistent memory and skill learning |
-| AUTONOMOUS_HANDOFF | `docs/plans/completed/AUTONOMOUS_HANDOFF.md` | Pre-compact context extraction, session chaining |
-| SUBAGENTS | `docs/plans/completed/SUBAGENTS.md` | Multi-provider agent spawning system |
+| Document               | Location                                       | Focus                                                      |
+| ---------------------- | ---------------------------------------------- | ---------------------------------------------------------- |
+| WORKFLOWS              | `docs/plans/completed/WORKFLOWS.md`            | Step-based workflow enforcement                            |
+| TASKS                  | `docs/plans/completed/TASKS.md`                | Persistent task tracking system (includes V2 enhancements) |
+| SESSION_TRACKING       | `docs/plans/completed/SESSION_TRACKING.md`     | Async JSONL processing, multi-CLI message storage          |
+| SESSION_MANAGEMENT     | `docs/plans/completed/SESSION_MANAGEMENT.md`   | Session CRUD tools, handoff MCP tools                      |
+| SKILLS                 | `docs/plans/completed/SKILLS.md`               | Skills module decoupling (from memory)                     |
+| HOOK_EXTENSIONS        | `docs/plans/completed/HOOK_EXTENSIONS.md`      | WebSocket events, webhooks, plugins                        |
+| MCP_PROXY_IMPROVEMENTS | `docs/plans/completed/MCP_PROXY_IMPROVEMENTS.md` | Tool metrics, semantic search, self-healing                |
+| MEMORY                 | `docs/plans/completed/MEMORY.md`               | Persistent memory and skill learning                       |
+| AUTONOMOUS_HANDOFF     | `docs/plans/completed/AUTONOMOUS_HANDOFF.md`   | Pre-compact context extraction, session chaining           |
+| SUBAGENTS              | `docs/plans/completed/SUBAGENTS.md`            | Multi-provider agent spawning system                       |
 
 ### Post-MVP Plans
 
-| Document | Location | Focus | Status |
-|----------|----------|-------|--------|
-| ENHANCEMENTS | `docs/plans/enhancements.md` | 10 major phases: worktrees, merge resolution, GitHub/Linear, autonomous loops | Partial |
-| UI | `docs/plans/UI.md` | Web dashboard, real-time visualization | Pending |
+| Document     | Location                     | Focus                                                                          | Status  |
+| ------------ | ---------------------------- | ------------------------------------------------------------------------------ | ------- |
+| ENHANCEMENTS | `docs/plans/enhancements.md` | 10 major phases: worktrees, merge resolution, GitHub/Linear, autonomous loops  | Partial |
+| UI           | `docs/plans/UI.md`           | Web dashboard, real-time visualization                                         | Pending |
 
 ## Sprint Summary Table
 
 ### Completed Sprints
 
-| Focus | Plan Reference |
-|-------|----------------|
-| WebSocket Broadcasting | HOOK_EXTENSIONS Phase 1 |
-| Core Task System | TASKS Phases 1-6 |
-| Task MCP/CLI | TASKS Phases 7-10 |
-| Task Extensions | TASKS Phases 9.5-9.9 |
-| Workflow Foundation | WORKFLOWS Phases 0-2 |
-| Workflow Hooks | WORKFLOWS Phase 3 |
-| Workflow Actions | WORKFLOWS Phase 4 |
-| Context & Templates | WORKFLOWS Phases 5-6 |
-| Session Message Foundation | SESSION_TRACKING Phase 1 |
-| Async Message Processor | SESSION_TRACKING Phase 2 |
-| Session Tracking Integration | SESSION_TRACKING Phases 3-4 |
-| Multi-CLI Parsers & API | SESSION_TRACKING Phases 5-6 |
-| Memory Storage & Operations | MEMORY Phases 1-2 |
-| Skill Learning | MEMORY Phases 3-4 |
-| Memory MCP/CLI | MEMORY Phases 5-6 |
-| Memory Sync & Enhancements | MEMORY Phases 7-10 |
-| Webhooks | HOOK_EXTENSIONS Phase 2 |
-| Python Plugins | HOOK_EXTENSIONS Phase 3 |
-| Workflow CLI/MCP | WORKFLOWS Phases 7-8 |
-| Workflow-Task Integration | TASKS Phases 11-13 |
-| Tool Metrics | MCP_PROXY Phase 1 |
-| Lazy Init | MCP_PROXY Phase 2 |
-| Semantic Tool Search | MCP_PROXY Phase 3 |
-| Self-Healing MCP | MCP_PROXY Phases 4-5 |
-| Hook Workflow Integration | HOOK_EXTENSIONS Phases 4-5 |
-| Feature Gap Coverage | MCP_PROXY, HOOK_EXT, MEMORY, HANDOFF gaps |
-| Session Management Tools | SESSION_MANAGEMENT |
-| Subagent System | SUBAGENTS Phases 1-4 |
+| Focus                        | Plan Reference                             |
+| ---------------------------- | ------------------------------------------ |
+| WebSocket Broadcasting       | HOOK_EXTENSIONS Phase 1                    |
+| Core Task System             | TASKS Phases 1-6                           |
+| Task MCP/CLI                 | TASKS Phases 7-10                          |
+| Task Extensions              | TASKS Phases 9.5-9.9                       |
+| Workflow Foundation          | WORKFLOWS Phases 0-2                       |
+| Workflow Hooks               | WORKFLOWS Phase 3                          |
+| Workflow Actions             | WORKFLOWS Phase 4                          |
+| Context & Templates          | WORKFLOWS Phases 5-6                       |
+| Session Message Foundation   | SESSION_TRACKING Phase 1                   |
+| Async Message Processor      | SESSION_TRACKING Phase 2                   |
+| Session Tracking Integration | SESSION_TRACKING Phases 3-4                |
+| Multi-CLI Parsers & API      | SESSION_TRACKING Phases 5-6                |
+| Memory Storage & Operations  | MEMORY Phases 1-2                          |
+| Skill Learning               | MEMORY Phases 3-4                          |
+| Memory MCP/CLI               | MEMORY Phases 5-6                          |
+| Memory Sync & Enhancements   | MEMORY Phases 7-10                         |
+| Webhooks                     | HOOK_EXTENSIONS Phase 2                    |
+| Python Plugins               | HOOK_EXTENSIONS Phase 3                    |
+| Workflow CLI/MCP             | WORKFLOWS Phases 7-8                       |
+| Workflow-Task Integration    | TASKS Phases 11-13                         |
+| Tool Metrics                 | MCP_PROXY Phase 1                          |
+| Lazy Init                    | MCP_PROXY Phase 2                          |
+| Semantic Tool Search         | MCP_PROXY Phase 3                          |
+| Self-Healing MCP             | MCP_PROXY Phases 4-5                       |
+| Hook Workflow Integration    | HOOK_EXTENSIONS Phases 4-5                 |
+| Feature Gap Coverage         | MCP_PROXY, HOOK_EXT, MEMORY, HANDOFF gaps  |
+| Session Management Tools     | SESSION_MANAGEMENT                         |
+| Subagent System              | SUBAGENTS Phases 1-4                       |
 
 ### Remaining Sprints
 
-| Focus | Plan Reference | Notes |
-|-------|----------------|-------|
-| Task V2: Enhanced Validation | TASKS Phases 12.6-12.13 | 🔶 Remaining: external validator agent spawning |
-| Worktree Coordination | ENHANCEMENTS Phase 1 | 🔶 Remaining: tiered merge conflict resolution |
-| Merge Resolution | ENHANCEMENTS Phase 2 | |
-| GitHub Integration | ENHANCEMENTS Phase 4 | |
-| Linear Integration | ENHANCEMENTS Phase 5 | |
-| Artifact Index | ENHANCEMENTS Phase 7 | |
-| Enhanced Skill Routing | ENHANCEMENTS Phase 8 | |
-| Semantic Memory Search | ENHANCEMENTS Phase 9 | |
-| Autonomous Work Loop | ENHANCEMENTS Phase 10 | 🔶 Remaining: multi-surface stop signals, stuck detection |
-| Web Dashboard | UI Phases 1-7 | |
-| End-to-End Testing | WORKFLOWS Phases 9-11 | |
-| Documentation | All Plans, User Guides | |
+| Focus                        | Plan Reference             | Notes                                                       |
+| ---------------------------- | -------------------------- | ----------------------------------------------------------- |
+| Task V2: Enhanced Validation | TASKS Phases 12.6-12.13    | 🔶 Remaining: external validator agent spawning             |
+| Worktree Coordination        | ENHANCEMENTS Phase 1       | 🔶 Remaining: tiered merge conflict resolution              |
+| Merge Resolution             | ENHANCEMENTS Phase 2       |                                                             |
+| GitHub Integration           | ENHANCEMENTS Phase 4       |                                                             |
+| Linear Integration           | ENHANCEMENTS Phase 5       |                                                             |
+| Artifact Index               | ENHANCEMENTS Phase 7       |                                                             |
+| Enhanced Skill Routing       | ENHANCEMENTS Phase 8       |                                                             |
+| Semantic Memory Search       | ENHANCEMENTS Phase 9       |                                                             |
+| Autonomous Work Loop         | ENHANCEMENTS Phase 10      | 🔶 Remaining: multi-surface stop signals, stuck detection   |
+| Web Dashboard                | UI Phases 1-7              |                                                             |
+| End-to-End Testing           | WORKFLOWS Phases 9-11      |                                                             |
+| Documentation                | All Plans, User Guides     |                                                             |
 
 ---
 
