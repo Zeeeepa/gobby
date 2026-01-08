@@ -1209,7 +1209,7 @@ def create_mcp_router() -> APIRouter:
                                         schema = t.inputSchema
                                 tools.append(
                                     {
-                                        "name": t.name,  # type: ignore[attr-defined]
+                                        "name": getattr(t, "name", ""),
                                         "description": getattr(t, "description", ""),
                                         "inputSchema": schema,
                                     }

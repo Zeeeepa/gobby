@@ -678,6 +678,9 @@ class TestAutonomousExecutionActions:
         self, action_executor, action_context, mock_services
     ):
         """Test stop_progress_tracking with keep_data=True."""
+        # Reset the mock to ensure isolation from other tests
+        mock_services["progress_tracker"].reset_mock()
+
         mock_summary = MagicMock()
         mock_summary.total_events = 5
         mock_summary.high_value_events = 2
@@ -692,8 +695,7 @@ class TestAutonomousExecutionActions:
 
         assert result["success"] is True
         # clear_session should NOT be called when keep_data is True
-        # The first call is from start_progress_tracking in other tests, not this one
-        # So we check that it wasn't called in this test by checking the call count
+        mock_services["progress_tracker"].clear_session.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_record_progress(self, action_executor, action_context, mock_services):

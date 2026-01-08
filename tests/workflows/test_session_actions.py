@@ -1,10 +1,11 @@
 """
 Tests for session-related workflow actions in gobby.workflows.session_actions.
 
-Tests the three main functions:
+Tests the four main functions:
 - start_new_session: Starting new CLI sessions with various configurations
 - mark_session_status: Marking current or parent session status
 - switch_mode: Signaling agent mode switches
+- mark_loop_complete: Marking workflow loops as complete
 """
 
 from unittest.mock import MagicMock, patch

@@ -472,8 +472,8 @@ class TestEdgeCases:
         assert result is not None
         assert result.resolve() == project_dir.resolve()
 
-    def test_concurrent_read_simulation(self, tmp_path: Path):
-        """Test that reading project context is safe even if file changes."""
+    def test_read_reflects_updated_file(self, tmp_path: Path):
+        """Test that reading project context reflects file updates."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
         project_file = gobby_dir / "project.json"

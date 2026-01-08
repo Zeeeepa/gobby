@@ -678,6 +678,7 @@ class TestCreateExecutorAdvanced:
             assert call_args[0][0] is None  # provider_config
 
 
+@pytest.mark.integration
 class TestExecutorCreationWithConfig:
     """Tests for executor creation with provider config."""
 

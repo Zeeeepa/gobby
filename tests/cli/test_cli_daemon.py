@@ -86,12 +86,12 @@ class TestStartCommand:
         mock_httpx_get.return_value = mock_response
 
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):
-            # Create necessary directories
-            gobby_dir = Path.home() / ".gobby"
+            # Create necessary directories within temp_dir by setting HOME
+            gobby_dir = temp_dir / ".gobby"
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
-            result = runner.invoke(cli, ["start"])
+            result = runner.invoke(cli, ["start"], env={"HOME": str(temp_dir)})
 
             assert result.exit_code == 0
             assert "Initializing local storage" in result.output

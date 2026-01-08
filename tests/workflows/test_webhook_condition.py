@@ -173,7 +173,7 @@ class TestWebhookConditionEvaluation:
         result = await evaluator.evaluate_webhook_conditions(conditions, state)
 
         assert result["evaluated"] == 0
-        assert "No webhook executor" in result["errors"]
+        assert any("No webhook executor" in e for e in result["errors"])
 
 
 class TestWebhookConditionChecking:
