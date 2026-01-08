@@ -972,7 +972,7 @@ class TestNeedsDecompositionStatusTransitions:
         for i in range(3):
             task_manager.create_task(
                 project_id="test-project",
-                title=f"Subtask {i+1}",
+                title=f"Subtask {i + 1}",
                 parent_task_id=parent_id,
             )
 
@@ -1651,10 +1651,10 @@ class TestValidationCriteriaDecomposedTasks:
         for i, subtask in enumerate(result["subtasks"]):
             updated = task_manager.update_task(
                 subtask["id"],
-                validation_criteria=f"## Subtask {i+1} Criteria\n- [ ] Step {i+1} complete",
+                validation_criteria=f"## Subtask {i + 1} Criteria\n- [ ] Step {i + 1} complete",
             )
             assert updated.validation_criteria is not None
-            assert f"Subtask {i+1}" in updated.validation_criteria
+            assert f"Subtask {i + 1}" in updated.validation_criteria
 
 
 class TestValidationCriteriaOnComplete:

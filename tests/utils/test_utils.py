@@ -232,8 +232,19 @@ class TestProjectContext:
         assert result is not None
         assert result.resolve() == temp_dir.resolve()
 
-    def test_find_project_root_not_found(self, temp_dir: Path):
+    def test_find_project_root_not_found(self, temp_dir: Path, monkeypatch):
         """Test finding project root when not in a project."""
+        # Isolate test from parent directories
+        original_exists = Path.exists
+
+        def isolated_exists(self):
+            try:
+                self.relative_to(temp_dir)
+                return original_exists(self)
+            except ValueError:
+                return False
+
+        monkeypatch.setattr(Path, "exists", isolated_exists)
         result = find_project_root(temp_dir)
         assert result is None
 
@@ -252,8 +263,19 @@ class TestProjectContext:
         # Handle macOS symlinks (/var -> /private/var)
         assert Path(result["project_path"]).resolve() == temp_dir.resolve()
 
-    def test_get_project_context_not_found(self, temp_dir: Path):
+    def test_get_project_context_not_found(self, temp_dir: Path, monkeypatch):
         """Test getting project context when not in a project."""
+        # Isolate test from parent directories
+        original_exists = Path.exists
+
+        def isolated_exists(self):
+            try:
+                self.relative_to(temp_dir)
+                return original_exists(self)
+            except ValueError:
+                return False
+
+        monkeypatch.setattr(Path, "exists", isolated_exists)
         result = get_project_context(temp_dir)
         assert result is None
 

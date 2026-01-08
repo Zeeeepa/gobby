@@ -43,8 +43,20 @@ class TestFindProjectRoot:
         assert result is not None
         assert result.resolve() == tmp_path.resolve()
 
-    def test_find_project_root_not_found(self, tmp_path: Path):
+    def test_find_project_root_not_found(self, tmp_path: Path, monkeypatch):
         """Test finding project root when no .gobby/project.json exists."""
+        # Isolate test from parent directories by making exists() return False for paths outside tmp_path
+        original_exists = Path.exists
+
+        def isolated_exists(self):
+            # Only check existence for paths under tmp_path
+            try:
+                self.relative_to(tmp_path)
+                return original_exists(self)
+            except ValueError:
+                return False
+
+        monkeypatch.setattr(Path, "exists", isolated_exists)
         result = find_project_root(tmp_path)
         assert result is None
 
@@ -69,21 +81,45 @@ class TestFindProjectRoot:
             mock_cwd.assert_called_once()
             assert result is None
 
-    def test_find_project_root_gobby_dir_exists_but_no_project_json(self, tmp_path: Path):
+    def test_find_project_root_gobby_dir_exists_but_no_project_json(
+        self, tmp_path: Path, monkeypatch
+    ):
         """Test that .gobby dir without project.json is not considered a project root."""
         gobby_dir = tmp_path / ".gobby"
         gobby_dir.mkdir()
         # No project.json file
 
+        # Isolate test from parent directories
+        original_exists = Path.exists
+
+        def isolated_exists(self):
+            try:
+                self.relative_to(tmp_path)
+                return original_exists(self)
+            except ValueError:
+                return False
+
+        monkeypatch.setattr(Path, "exists", isolated_exists)
         result = find_project_root(tmp_path)
         assert result is None
 
-    def test_find_project_root_at_filesystem_root(self, tmp_path: Path):
+    def test_find_project_root_at_filesystem_root(self, tmp_path: Path, monkeypatch):
         """Test finding project root traverses up to filesystem root without error."""
         # Create directory without .gobby
         subdir = tmp_path / "some" / "path"
         subdir.mkdir(parents=True)
 
+        # Isolate test from parent directories
+        original_exists = Path.exists
+
+        def isolated_exists(self):
+            try:
+                self.relative_to(tmp_path)
+                return original_exists(self)
+            except ValueError:
+                return False
+
+        monkeypatch.setattr(Path, "exists", isolated_exists)
         # Should return None after traversing to filesystem root
         result = find_project_root(subdir)
         assert result is None
@@ -114,8 +150,19 @@ class TestGetProjectContext:
         assert "project_path" in result
         assert Path(result["project_path"]).resolve() == tmp_path.resolve()
 
-    def test_get_project_context_not_found(self, tmp_path: Path):
+    def test_get_project_context_not_found(self, tmp_path: Path, monkeypatch):
         """Test getting project context when no project exists."""
+        # Isolate test from parent directories
+        original_exists = Path.exists
+
+        def isolated_exists(self):
+            try:
+                self.relative_to(tmp_path)
+                return original_exists(self)
+            except ValueError:
+                return False
+
+        monkeypatch.setattr(Path, "exists", isolated_exists)
         result = get_project_context(tmp_path)
         assert result is None
 

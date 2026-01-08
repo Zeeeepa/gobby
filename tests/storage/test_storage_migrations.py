@@ -235,9 +235,9 @@ def test_validation_history_foreign_key(tmp_path):
     sql_lower = row["sql"].lower()
 
     # Check for foreign key reference to tasks
-    assert (
-        "references tasks" in sql_lower or "foreign key" in sql_lower
-    ), "task_validation_history missing foreign key to tasks"
+    assert "references tasks" in sql_lower or "foreign key" in sql_lower, (
+        "task_validation_history missing foreign key to tasks"
+    )
 
 
 def test_validation_history_index_exists(tmp_path):

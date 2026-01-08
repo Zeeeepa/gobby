@@ -1465,7 +1465,7 @@ class MockTaskExpander:
         subtask_ids = []
         for i in range(2):
             task = self.mock_task_manager.create_task(
-                title=f"Subtask {i+1} for {title}",
+                title=f"Subtask {i + 1} for {title}",
                 project_id="test-project",
                 task_type="task",
                 parent_task_id=task_id,
