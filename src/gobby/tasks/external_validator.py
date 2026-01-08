@@ -2,9 +2,10 @@
 
 Provides a separate validation path using either:
 1. A fresh LLM context (direct API calls) - mode: "llm"
-2. A spawned agent instance with tools - mode: "agent"
+2. An in-process agent instance with tools - mode: "agent"
+3. A spawned headless agent process - mode: "spawn"
 
-Both modes ensure the validator has no prior knowledge of the implementation.
+All modes ensure the validator has no prior knowledge of the implementation.
 """
 
 import json
@@ -19,7 +20,20 @@ from gobby.tasks.validation_models import Issue
 from gobby.utils.json_helpers import extract_json_object
 
 if TYPE_CHECKING:
+    from typing import Protocol
+
     from gobby.agents.runner import AgentRunner
+
+    class AgentSpawner(Protocol):
+        """Protocol for agent spawning interface (gobby-agents)."""
+
+        async def start_agent(self, **kwargs: Any) -> dict[str, Any]:
+            """Start a new agent process."""
+            ...
+
+        async def get_agent_result(self, agent_id: str, **kwargs: Any) -> dict[str, Any]:
+            """Get the result of a completed agent run."""
+            ...
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +57,12 @@ class ExternalValidationResult:
 
 async def run_external_validation(
     config: TaskValidationConfig,
-    llm_service: LLMService,
+    llm_service: LLMService | None,
     task: dict[str, Any],
     changes_context: str,
     force_external: bool = False,
     agent_runner: "AgentRunner | None" = None,
+    agent_spawner: "AgentSpawner | None" = None,
 ) -> ExternalValidationResult:
     """Run external validation with a fresh LLM context or agent.
 
@@ -55,9 +70,10 @@ async def run_external_validation(
     ensuring the validator is objective and has no knowledge of the implementation
     process.
 
-    Two modes are supported:
+    Three modes are supported:
     - "llm": Direct LLM API calls (default, backwards compatible)
-    - "agent": Spawns a full agent instance with tools for validation
+    - "agent": In-process agent instance with tools for validation
+    - "spawn": Spawned headless agent process via gobby-agents
 
     Args:
         config: Validation configuration
@@ -65,7 +81,8 @@ async def run_external_validation(
         task: Task dictionary with id, title, description, validation_criteria
         changes_context: Code changes to validate (typically a git diff)
         force_external: If True, run external validation even if config.use_external_validator is False
-        agent_runner: Agent runner for spawning validation agent (required for agent mode)
+        agent_runner: Agent runner for in-process validation (required for agent mode)
+        agent_spawner: Agent spawner interface for headless agents (required for spawn mode)
 
     Returns:
         ExternalValidationResult with status, summary, and any issues found
@@ -81,7 +98,14 @@ async def run_external_validation(
     # Dispatch based on mode
     mode = getattr(config, "external_validator_mode", "llm")
 
-    if mode == "agent":
+    if mode == "spawn":
+        return await _run_spawn_validation(
+            config=config,
+            task=task,
+            changes_context=changes_context,
+            agent_spawner=agent_spawner,
+        )
+    elif mode == "agent":
         return await _run_agent_validation(
             config=config,
             task=task,
@@ -218,6 +242,194 @@ async def _run_agent_validation(
             issues=[],
             error=str(e),
         )
+
+
+async def _run_spawn_validation(
+    config: TaskValidationConfig,
+    task: dict[str, Any],
+    changes_context: str,
+    agent_spawner: "AgentSpawner | None" = None,
+) -> ExternalValidationResult:
+    """Run validation by spawning a separate headless agent process.
+
+    Spawns a completely separate agent process via gobby-agents.start_agent.
+    This ensures the validator has no shared state with the implementation agent
+    and runs in a fresh context.
+
+    Args:
+        config: Validation configuration
+        task: Task dictionary
+        changes_context: Code changes to validate
+        agent_spawner: Agent spawner interface (gobby-agents)
+
+    Returns:
+        ExternalValidationResult
+    """
+    if not agent_spawner:
+        logger.warning("Spawn validation requested but no agent spawner available")
+        return ExternalValidationResult(
+            status="error",
+            summary="Spawn validation not available (no agent spawner)",
+            issues=[],
+            error="Agent spawner required for spawn mode",
+        )
+
+    try:
+        # Build validation prompt with objective instructions
+        prompt = _build_spawn_validation_prompt(task, changes_context)
+
+        # Determine model to use
+        model = config.external_validator_model or config.model
+
+        # Spawn a headless agent with no parent context
+        spawn_result = await agent_spawner.start_agent(
+            prompt=prompt,
+            mode="headless",
+            model=model,
+            provider=config.provider,
+            max_turns="5",  # Validation should be quick
+            timeout="120.0",
+            # Critical: no parent session context to ensure fresh context
+            parent_session_id=None,
+            session_context=None,
+        )
+
+        if not spawn_result.get("success"):
+            error_msg = spawn_result.get("error", "Failed to spawn validation agent")
+            logger.error(f"Failed to spawn validation agent: {error_msg}")
+            return ExternalValidationResult(
+                status="error",
+                summary=f"Failed to spawn validation agent: {error_msg}",
+                issues=[],
+                error=error_msg,
+            )
+
+        agent_id = spawn_result.get("agent_id")
+        if not agent_id:
+            return ExternalValidationResult(
+                status="error",
+                summary="Spawn succeeded but no agent_id returned",
+                issues=[],
+                error="No agent_id in spawn result",
+            )
+
+        # Poll for agent completion
+        result = await agent_spawner.get_agent_result(agent_id)
+
+        if not result.get("success"):
+            status = result.get("status", "error")
+            error_msg = result.get("error", "Agent execution failed")
+
+            if status == "timeout":
+                return ExternalValidationResult(
+                    status="error",
+                    summary=f"Validation agent timed out: {error_msg}",
+                    issues=[],
+                    error=error_msg,
+                )
+
+            return ExternalValidationResult(
+                status="error",
+                summary=f"Validation agent failed: {error_msg}",
+                issues=[],
+                error=error_msg,
+            )
+
+        # Parse the agent's output
+        output = result.get("output", "")
+        return _parse_external_validation_response(output)
+
+    except Exception as e:
+        logger.error(f"Spawn validation failed: {e}")
+        return ExternalValidationResult(
+            status="error",
+            summary=f"Spawn validation failed: {str(e)}",
+            issues=[],
+            error=str(e),
+        )
+
+
+def _build_spawn_validation_prompt(
+    task: dict[str, Any],
+    changes_context: str,
+) -> str:
+    """Build the validation prompt for spawn mode.
+
+    Creates a prompt that instructs the spawned agent to be objective
+    and adversarial in its validation.
+
+    Args:
+        task: Task dictionary
+        changes_context: Code changes to validate
+
+    Returns:
+        Formatted prompt string
+    """
+    task_id = task.get("id", "unknown")
+    task_title = task.get("title", "Unknown Task")
+    task_description = task.get("description", "")
+    validation_criteria = task.get("validation_criteria", "")
+
+    # Build criteria section
+    if validation_criteria:
+        criteria_section = f"Acceptance Criteria:\n{validation_criteria}"
+    elif task_description:
+        criteria_section = f"Task Description:\n{task_description}"
+    else:
+        criteria_section = "No specific criteria provided. Evaluate for general correctness."
+
+    prompt = f"""You are an OBJECTIVE and ADVERSARIAL QA validator.
+
+## Critical Instructions
+- You have NO prior context about this task or its implementation
+- Do NOT assume the implementation is correct
+- Verify each criterion INDEPENDENTLY
+- Be CRITICAL - look for what's missing or broken
+- Your role is to find problems, not to approve
+
+## Task Being Validated
+ID: {task_id}
+Title: {task_title}
+
+{criteria_section}
+
+## Code Changes to Validate
+{changes_context}
+
+## Validation Process
+1. Review each acceptance criterion one by one
+2. Check if the code changes actually satisfy each criterion
+3. Look for edge cases, missing error handling, security issues
+4. Verify tests exist and cover the requirements
+5. Be thorough and skeptical
+
+## Required Output
+After your analysis, provide your verdict as a JSON object:
+
+```json
+{{
+  "status": "valid" | "invalid",
+  "summary": "Brief assessment explaining your verdict",
+  "issues": [
+    {{
+      "type": "acceptance_gap|test_failure|lint_error|type_error|security",
+      "severity": "blocker|major|minor",
+      "title": "Brief description of the issue",
+      "location": "file:line (if applicable)",
+      "details": "Full explanation of the problem",
+      "suggested_fix": "How to resolve (if known)"
+    }}
+  ]
+}}
+```
+
+If ALL criteria are FULLY met with no issues, return status "valid".
+If there are ANY problems or gaps, return status "invalid" with detailed issues.
+
+Begin your validation now. Be critical and thorough.
+"""
+
+    return prompt
 
 
 def _build_agent_validation_prompt(

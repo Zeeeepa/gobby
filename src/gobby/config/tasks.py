@@ -236,10 +236,11 @@ class TaskValidationConfig(BaseModel):
         default=None,
         description="Model for external validation (defaults to validation.model)",
     )
-    external_validator_mode: Literal["llm", "agent"] = Field(
+    external_validator_mode: Literal["llm", "agent", "spawn"] = Field(
         default="llm",
         description="External validator mode: 'llm' uses direct API calls, "
-        "'agent' spawns a full agent instance with tools for validation",
+        "'agent' uses in-process agent with tools, "
+        "'spawn' spawns a separate headless agent process via gobby-agents",
     )
     # Escalation settings
     escalation_enabled: bool = Field(
