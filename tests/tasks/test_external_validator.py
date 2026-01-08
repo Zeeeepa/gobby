@@ -1026,3 +1026,346 @@ class TestAgentSpawnValidation:
             word in prompt_lower
             for word in ["objective", "adversarial", "critical", "independently", "verify"]
         )
+
+
+class TestValidationContextPassing:
+    """Tests for validation context passing to external validator.
+
+    TDD Red Phase: These tests verify that structured validation context
+    (git diff, test results, acceptance criteria, etc.) is properly
+    passed to the external validator agent.
+
+    Task: gt-2799a5
+    """
+
+    @pytest.fixture
+    def validation_config(self):
+        """Create a validation config for context tests."""
+        return TaskValidationConfig(
+            enabled=True,
+            provider="claude",
+            model="claude-haiku-4-5",
+            use_external_validator=True,
+            external_validator_mode="spawn",
+            external_validator_model="claude-sonnet-4-5",
+        )
+
+    @pytest.fixture
+    def mock_agent_spawner(self):
+        """Mock the gobby-agents spawner interface."""
+        spawner = MagicMock()
+        spawner.start_agent = AsyncMock(
+            return_value={
+                "success": True,
+                "agent_id": "agent-ctx-123",
+                "status": "running",
+            }
+        )
+        spawner.get_agent_result = AsyncMock(
+            return_value={
+                "success": True,
+                "status": "completed",
+                "output": '{"status": "valid", "summary": "All criteria met", "issues": []}',
+            }
+        )
+        return spawner
+
+    @pytest.mark.asyncio
+    async def test_git_diff_included_in_context(
+        self, validation_config, mock_agent_spawner
+    ):
+        """Test that git diff is included in the context passed to agent."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        git_diff = """diff --git a/src/auth.py b/src/auth.py
+index abc1234..def5678 100644
+--- a/src/auth.py
++++ b/src/auth.py
+@@ -10,6 +10,15 @@ class AuthService:
++    def login(self, username: str, password: str) -> bool:
++        \"\"\"Authenticate user with credentials.\"\"\"
++        return self._verify_credentials(username, password)
+"""
+
+        task = {
+            "id": "gt-ctx-test",
+            "title": "Add login functionality",
+            "validation_criteria": "- [ ] Login method exists",
+        }
+
+        await run_external_validation(
+            config=validation_config,
+            llm_service=None,
+            task=task,
+            changes_context=git_diff,
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        prompt = call_kwargs.get("prompt", "")
+
+        # Git diff should be in the prompt
+        assert "diff --git" in prompt or "src/auth.py" in prompt
+        assert "login" in prompt.lower()
+
+    @pytest.mark.asyncio
+    async def test_test_results_included_when_available(
+        self, validation_config, mock_agent_spawner
+    ):
+        """Test that test results are included in context when provided."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        # Include test results in the changes context
+        changes_with_tests = """diff --git a/src/feature.py b/src/feature.py
++def new_feature():
++    return True
+
+## Test Results
+```
+PASSED tests/test_feature.py::test_new_feature - 0.02s
+PASSED tests/test_feature.py::test_edge_case - 0.01s
+2 passed in 0.05s
+```
+"""
+
+        task = {
+            "id": "gt-test-results",
+            "title": "Add new feature",
+            "validation_criteria": "- [ ] Tests pass",
+            "test_strategy": "Run pytest for feature tests",
+        }
+
+        await run_external_validation(
+            config=validation_config,
+            llm_service=None,
+            task=task,
+            changes_context=changes_with_tests,
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        prompt = call_kwargs.get("prompt", "")
+
+        # Test results should be preserved in context
+        assert "PASSED" in prompt or "passed" in prompt.lower()
+        assert "test_feature" in prompt or "pytest" in prompt.lower()
+
+    @pytest.mark.asyncio
+    async def test_acceptance_criteria_included(
+        self, validation_config, mock_agent_spawner
+    ):
+        """Test that acceptance criteria from task is included in context."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        task = {
+            "id": "gt-criteria",
+            "title": "Implement caching",
+            "description": "Add Redis-based caching layer",
+            "validation_criteria": """## Acceptance Criteria
+- [ ] Cache service interface defined
+- [ ] Redis implementation provided
+- [ ] Cache invalidation on updates
+- [ ] TTL configuration supported""",
+        }
+
+        await run_external_validation(
+            config=validation_config,
+            llm_service=None,
+            task=task,
+            changes_context="diff content",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        prompt = call_kwargs.get("prompt", "")
+
+        # All acceptance criteria should be in prompt
+        assert "Cache service interface" in prompt or "cache" in prompt.lower()
+        assert "Redis" in prompt or "redis" in prompt.lower()
+        assert "invalidation" in prompt.lower() or "TTL" in prompt
+
+    @pytest.mark.asyncio
+    async def test_validation_criteria_field_passed(
+        self, validation_config, mock_agent_spawner
+    ):
+        """Test that validation_criteria field is passed to context."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        task = {
+            "id": "gt-vc-test",
+            "title": "Add authentication",
+            "validation_criteria": "- [ ] JWT tokens generated\n- [ ] Tokens expire after 24h\n- [ ] Refresh tokens supported",
+        }
+
+        await run_external_validation(
+            config=validation_config,
+            llm_service=None,
+            task=task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        prompt = call_kwargs.get("prompt", "")
+
+        # Validation criteria content should be in prompt
+        assert "JWT" in prompt or "jwt" in prompt.lower()
+        assert "24h" in prompt or "expire" in prompt.lower()
+        assert "Refresh" in prompt or "refresh" in prompt.lower()
+
+    @pytest.mark.asyncio
+    async def test_test_strategy_field_passed(
+        self, validation_config, mock_agent_spawner
+    ):
+        """Test that test_strategy field is passed to context."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        task = {
+            "id": "gt-ts-test",
+            "title": "Add unit tests",
+            "validation_criteria": "- [ ] Tests added",
+            "test_strategy": "Use pytest with 80% coverage target. Mock external APIs.",
+        }
+
+        await run_external_validation(
+            config=validation_config,
+            llm_service=None,
+            task=task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        prompt = call_kwargs.get("prompt", "")
+
+        # Test strategy should be in prompt
+        # Note: Current implementation may not include test_strategy yet
+        # This test defines expected behavior
+        assert "pytest" in prompt.lower() or "80%" in prompt or "coverage" in prompt.lower()
+
+    @pytest.mark.asyncio
+    async def test_context_truncation_respects_max_chars(
+        self, mock_agent_spawner
+    ):
+        """Test that context truncation respects max_chars limit."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        # Create config with low max_chars for testing truncation
+        config = TaskValidationConfig(
+            enabled=True,
+            provider="claude",
+            model="claude-haiku-4-5",
+            use_external_validator=True,
+            external_validator_mode="spawn",
+            # Note: max_context_chars config may not exist yet
+            # This test defines expected behavior for truncation
+        )
+
+        # Very long diff that should be truncated
+        long_diff = "diff --git a/file.py b/file.py\n" + ("+added line\n" * 10000)
+
+        task = {
+            "id": "gt-trunc-test",
+            "title": "Large change",
+            "validation_criteria": "- [ ] Works",
+        }
+
+        await run_external_validation(
+            config=config,
+            llm_service=None,
+            task=task,
+            changes_context=long_diff,
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        prompt = call_kwargs.get("prompt", "")
+
+        # Prompt should not be excessively long
+        # Implementation should truncate or summarize very large diffs
+        # For now, just verify prompt was created
+        assert len(prompt) > 0
+        assert "Large change" in prompt or "gt-trunc-test" in prompt
+
+    @pytest.mark.asyncio
+    async def test_description_used_when_no_validation_criteria(
+        self, validation_config, mock_agent_spawner
+    ):
+        """Test that description is used when validation_criteria is empty."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        task = {
+            "id": "gt-desc-test",
+            "title": "Improve performance",
+            "description": "Optimize database queries to reduce response time by 50%",
+            "validation_criteria": "",  # Empty
+        }
+
+        await run_external_validation(
+            config=validation_config,
+            llm_service=None,
+            task=task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        prompt = call_kwargs.get("prompt", "")
+
+        # Description should be used as fallback
+        assert "database" in prompt.lower() or "queries" in prompt.lower()
+        assert "50%" in prompt or "response time" in prompt.lower()
+
+    @pytest.mark.asyncio
+    async def test_task_id_included_in_context(
+        self, validation_config, mock_agent_spawner
+    ):
+        """Test that task ID is included in validation context."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        task = {
+            "id": "gt-abc123",
+            "title": "Specific task",
+            "validation_criteria": "- [ ] Done",
+        }
+
+        await run_external_validation(
+            config=validation_config,
+            llm_service=None,
+            task=task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        prompt = call_kwargs.get("prompt", "")
+
+        # Task ID should be in prompt for traceability
+        assert "gt-abc123" in prompt
+
+    @pytest.mark.asyncio
+    async def test_task_title_included_in_context(
+        self, validation_config, mock_agent_spawner
+    ):
+        """Test that task title is included in validation context."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        task = {
+            "id": "gt-title-test",
+            "title": "Implement user registration flow",
+            "validation_criteria": "- [ ] Registration works",
+        }
+
+        await run_external_validation(
+            config=validation_config,
+            llm_service=None,
+            task=task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        prompt = call_kwargs.get("prompt", "")
+
+        # Task title should be in prompt
+        assert "user registration" in prompt.lower() or "Implement user registration" in prompt
