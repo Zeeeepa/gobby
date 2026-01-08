@@ -700,3 +700,329 @@ class TestAgentModeValidation:
         assert agent_config.mode == "in_process"
         assert agent_config.max_turns == 20
         assert agent_config.timeout == 120.0
+
+
+class TestAgentSpawnValidation:
+    """Tests for external validation via spawned agent process.
+
+    TDD Red Phase: These tests verify that when external_validator_mode="spawn",
+    a separate agent process is spawned via gobby-agents.start_agent rather than
+    using an in-process AgentRunner. The implementation does not exist yet.
+
+    Task: gt-09277c
+    """
+
+    @pytest.fixture
+    def validation_config_spawn(self):
+        """Create a validation config with agent spawn mode enabled."""
+        return TaskValidationConfig(
+            enabled=True,
+            provider="claude",
+            model="claude-haiku-4-5",
+            use_external_validator=True,
+            external_validator_mode="spawn",  # Spawn separate process
+            external_validator_model="claude-sonnet-4-5",
+        )
+
+    @pytest.fixture
+    def mock_agent_spawner(self):
+        """Mock the gobby-agents spawner interface."""
+        spawner = MagicMock()
+        spawner.start_agent = AsyncMock(
+            return_value={
+                "success": True,
+                "agent_id": "agent-validator-123",
+                "status": "running",
+            }
+        )
+        spawner.get_agent_result = AsyncMock(
+            return_value={
+                "success": True,
+                "status": "completed",
+                "output": '{"status": "valid", "summary": "All criteria met", "issues": []}',
+            }
+        )
+        return spawner
+
+    @pytest.fixture
+    def sample_task(self):
+        """Create a sample task for validation."""
+        return {
+            "id": "gt-test456",
+            "title": "Implement secure file upload",
+            "description": "Add file upload with virus scanning",
+            "validation_criteria": "- [ ] Files are scanned for viruses\n- [ ] Upload size limit enforced",
+        }
+
+    @pytest.mark.asyncio
+    async def test_spawn_mode_invokes_agent_spawner(
+        self, validation_config_spawn, mock_agent_spawner, sample_task
+    ):
+        """Test that spawn mode invokes gobby-agents.start_agent."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        result = await run_external_validation(
+            config=validation_config_spawn,
+            llm_service=None,  # Not used in spawn mode
+            task=sample_task,
+            changes_context="diff --git a/src/upload.py",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        # Agent spawner should be invoked
+        mock_agent_spawner.start_agent.assert_called_once()
+
+        # Should poll for result
+        mock_agent_spawner.get_agent_result.assert_called()
+
+        # Result should be parsed
+        assert result.status == "valid"
+
+    @pytest.mark.asyncio
+    async def test_spawn_mode_uses_headless_mode(
+        self, validation_config_spawn, mock_agent_spawner, sample_task
+    ):
+        """Test that spawned agent uses headless mode (no terminal UI)."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        await run_external_validation(
+            config=validation_config_spawn,
+            llm_service=None,
+            task=sample_task,
+            changes_context="diff content",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        assert call_kwargs.get("mode") == "headless"
+
+    @pytest.mark.asyncio
+    async def test_spawn_mode_passes_correct_model(
+        self, validation_config_spawn, mock_agent_spawner, sample_task
+    ):
+        """Test that spawned agent uses external_validator_model."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        await run_external_validation(
+            config=validation_config_spawn,
+            llm_service=None,
+            task=sample_task,
+            changes_context="diff content",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        assert call_kwargs.get("model") == "claude-sonnet-4-5"
+
+    @pytest.mark.asyncio
+    async def test_spawn_mode_creates_validation_prompt(
+        self, validation_config_spawn, mock_agent_spawner, sample_task
+    ):
+        """Test that spawned agent receives validation-specific prompt."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        await run_external_validation(
+            config=validation_config_spawn,
+            llm_service=None,
+            task=sample_task,
+            changes_context="diff --git a/src/upload.py",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        prompt = call_kwargs.get("prompt", "")
+
+        # Prompt should contain validation instructions
+        assert "validat" in prompt.lower()  # validate/validation/validator
+        assert sample_task["id"] in prompt or sample_task["title"] in prompt
+        assert "criteria" in prompt.lower()
+
+    @pytest.mark.asyncio
+    async def test_spawn_mode_includes_changes_context(
+        self, validation_config_spawn, mock_agent_spawner, sample_task
+    ):
+        """Test that spawned agent prompt includes changes context."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        changes = "diff --git a/src/upload.py b/src/upload.py\n+def scan_file():"
+
+        await run_external_validation(
+            config=validation_config_spawn,
+            llm_service=None,
+            task=sample_task,
+            changes_context=changes,
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        prompt = call_kwargs.get("prompt", "")
+
+        # Changes should be included
+        assert "diff" in prompt.lower() or "upload.py" in prompt
+
+    @pytest.mark.asyncio
+    async def test_spawn_mode_sets_max_turns(
+        self, validation_config_spawn, mock_agent_spawner, sample_task
+    ):
+        """Test that spawned agent has limited max_turns."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        await run_external_validation(
+            config=validation_config_spawn,
+            llm_service=None,
+            task=sample_task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        # Validator should have limited turns (single-shot or few turns)
+        max_turns = call_kwargs.get("max_turns")
+        assert max_turns is not None
+        assert int(max_turns) <= 10  # Validation shouldn't need many turns
+
+    @pytest.mark.asyncio
+    async def test_spawn_mode_without_spawner_returns_error(
+        self, validation_config_spawn, sample_task
+    ):
+        """Test that spawn mode returns error when no spawner is available."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        result = await run_external_validation(
+            config=validation_config_spawn,
+            llm_service=None,
+            task=sample_task,
+            changes_context="diff",
+            agent_spawner=None,  # No spawner
+        )
+
+        assert result.status == "error"
+        assert "spawn" in result.summary.lower() or "not available" in result.summary.lower()
+
+    @pytest.mark.asyncio
+    async def test_spawn_mode_handles_spawn_failure(
+        self, validation_config_spawn, mock_agent_spawner, sample_task
+    ):
+        """Test that spawn mode handles agent spawn failures."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        mock_agent_spawner.start_agent.return_value = {
+            "success": False,
+            "error": "Failed to spawn agent",
+        }
+
+        result = await run_external_validation(
+            config=validation_config_spawn,
+            llm_service=None,
+            task=sample_task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        assert result.status == "error"
+        assert "spawn" in result.summary.lower() or "failed" in result.summary.lower()
+
+    @pytest.mark.asyncio
+    async def test_spawn_mode_handles_agent_timeout(
+        self, validation_config_spawn, mock_agent_spawner, sample_task
+    ):
+        """Test that spawn mode handles agent execution timeout."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        mock_agent_spawner.get_agent_result.return_value = {
+            "success": False,
+            "status": "timeout",
+            "error": "Agent execution timed out",
+        }
+
+        result = await run_external_validation(
+            config=validation_config_spawn,
+            llm_service=None,
+            task=sample_task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        assert result.status == "error"
+        assert "timeout" in result.summary.lower() or "timed out" in result.summary.lower()
+
+    @pytest.mark.asyncio
+    async def test_spawn_mode_parses_invalid_result(
+        self, validation_config_spawn, mock_agent_spawner, sample_task
+    ):
+        """Test that spawn mode correctly parses 'invalid' result from agent."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        mock_agent_spawner.get_agent_result.return_value = {
+            "success": True,
+            "status": "completed",
+            "output": '{"status": "invalid", "summary": "Missing virus scanning", "issues": [{"type": "acceptance_gap", "severity": "major", "title": "No virus scan implemented"}]}',
+        }
+
+        result = await run_external_validation(
+            config=validation_config_spawn,
+            llm_service=None,
+            task=sample_task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        assert result.status == "invalid"
+        assert len(result.issues) >= 1
+
+    @pytest.mark.asyncio
+    async def test_spawn_mode_agent_runs_in_separate_context(
+        self, validation_config_spawn, mock_agent_spawner, sample_task
+    ):
+        """Test that spawned agent does not share context with implementation agent.
+
+        This is critical: the validator must not see the implementation agent's
+        conversation history to avoid bias.
+        """
+        from gobby.tasks.external_validator import run_external_validation
+
+        await run_external_validation(
+            config=validation_config_spawn,
+            llm_service=None,
+            task=sample_task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+
+        # Should not pass parent_session_id (no context inheritance)
+        # or should explicitly pass session_context=None
+        assert call_kwargs.get("parent_session_id") is None
+        assert call_kwargs.get("session_context") in (None, "", "none")
+
+    @pytest.mark.asyncio
+    async def test_spawn_mode_agent_has_validator_system_prompt(
+        self, validation_config_spawn, mock_agent_spawner, sample_task
+    ):
+        """Test that spawned agent receives validator-specific system instructions.
+
+        The validator should be instructed to:
+        1. Be objective and adversarial
+        2. Not assume success
+        3. Verify each criterion independently
+        """
+        from gobby.tasks.external_validator import run_external_validation
+
+        await run_external_validation(
+            config=validation_config_spawn,
+            llm_service=None,
+            task=sample_task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        prompt = call_kwargs.get("prompt", "")
+
+        # System prompt should instruct objectivity
+        prompt_lower = prompt.lower()
+        assert any(
+            word in prompt_lower
+            for word in ["objective", "adversarial", "critical", "independently", "verify"]
+        )
