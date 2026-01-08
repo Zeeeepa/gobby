@@ -1,6 +1,5 @@
 """Tests for the LiteLLMProvider LLM implementation."""
 
-
 import pytest
 
 from gobby.config.app import (
@@ -41,6 +40,7 @@ class TestLiteLLMProviderInit:
     def test_init_with_api_keys(self, litellm_config: DaemonConfig):
         """Test initialization with API keys in config."""
         from gobby.llm.litellm import LiteLLMProvider
+
         provider = LiteLLMProvider(litellm_config)
 
         assert provider.provider_name == "litellm"
@@ -51,6 +51,7 @@ class TestLiteLLMProviderInit:
     def test_init_without_api_keys(self, litellm_config_no_keys: DaemonConfig):
         """Test initialization without API keys."""
         from gobby.llm.litellm import LiteLLMProvider
+
         provider = LiteLLMProvider(litellm_config_no_keys)
 
         assert provider._api_keys == {}
@@ -62,30 +63,35 @@ class TestLiteLLMProviderProperties:
     def test_provider_name(self, litellm_config: DaemonConfig):
         """Test provider_name property."""
         from gobby.llm.litellm import LiteLLMProvider
+
         provider = LiteLLMProvider(litellm_config)
         assert provider.provider_name == "litellm"
 
     def test_auth_mode(self, litellm_config: DaemonConfig):
         """Test auth_mode property always returns api_key."""
         from gobby.llm.litellm import LiteLLMProvider
+
         provider = LiteLLMProvider(litellm_config)
         assert provider.auth_mode == "api_key"
 
     def test_get_model_summary(self, litellm_config: DaemonConfig):
         """Test _get_model for summary task."""
         from gobby.llm.litellm import LiteLLMProvider
+
         provider = LiteLLMProvider(litellm_config)
         assert provider._get_model("summary") == "gpt-4o-mini"
 
     def test_get_model_title(self, litellm_config: DaemonConfig):
         """Test _get_model for title task."""
         from gobby.llm.litellm import LiteLLMProvider
+
         provider = LiteLLMProvider(litellm_config)
         assert provider._get_model("title") == "gpt-4o-mini"
 
     def test_get_model_unknown(self, litellm_config: DaemonConfig):
         """Test _get_model for unknown task defaults to gpt-4o-mini."""
         from gobby.llm.litellm import LiteLLMProvider
+
         provider = LiteLLMProvider(litellm_config)
         assert provider._get_model("unknown") == "gpt-4o-mini"
 
@@ -97,12 +103,12 @@ class TestLiteLLMProviderGenerateSummary:
     async def test_generate_summary_no_litellm(self, litellm_config: DaemonConfig):
         """Test generate_summary returns error when litellm not initialized."""
         from gobby.llm.litellm import LiteLLMProvider
+
         provider = LiteLLMProvider(litellm_config)
         provider._litellm = None
 
         result = await provider.generate_summary(
-            {"transcript_summary": "test"},
-            prompt_template="Test {transcript_summary}"
+            {"transcript_summary": "test"}, prompt_template="Test {transcript_summary}"
         )
 
         assert "unavailable" in result
@@ -111,6 +117,7 @@ class TestLiteLLMProviderGenerateSummary:
     async def test_generate_summary_no_template(self, litellm_config: DaemonConfig):
         """Test generate_summary raises when no template provided."""
         from gobby.llm.litellm import LiteLLMProvider
+
         provider = LiteLLMProvider(litellm_config)
 
         with pytest.raises(ValueError, match="prompt_template is required"):
@@ -124,12 +131,12 @@ class TestLiteLLMProviderSynthesizeTitle:
     async def test_synthesize_title_no_litellm(self, litellm_config: DaemonConfig):
         """Test synthesize_title returns None when litellm not initialized."""
         from gobby.llm.litellm import LiteLLMProvider
+
         provider = LiteLLMProvider(litellm_config)
         provider._litellm = None
 
         result = await provider.synthesize_title(
-            "test prompt",
-            prompt_template="Generate title: {user_prompt}"
+            "test prompt", prompt_template="Generate title: {user_prompt}"
         )
 
         assert result is None
@@ -138,6 +145,7 @@ class TestLiteLLMProviderSynthesizeTitle:
     async def test_synthesize_title_no_template(self, litellm_config: DaemonConfig):
         """Test synthesize_title raises when no template provided."""
         from gobby.llm.litellm import LiteLLMProvider
+
         provider = LiteLLMProvider(litellm_config)
 
         with pytest.raises(ValueError, match="prompt_template is required"):
@@ -151,6 +159,7 @@ class TestLiteLLMProviderExecuteCode:
     async def test_execute_code_not_supported(self, litellm_config: DaemonConfig):
         """Test execute_code returns not supported error."""
         from gobby.llm.litellm import LiteLLMProvider
+
         provider = LiteLLMProvider(litellm_config)
 
         result = await provider.execute_code("print('hello')")
@@ -164,12 +173,10 @@ class TestLiteLLMProviderExecuteCode:
     async def test_execute_code_different_language(self, litellm_config: DaemonConfig):
         """Test execute_code returns not supported for any language."""
         from gobby.llm.litellm import LiteLLMProvider
+
         provider = LiteLLMProvider(litellm_config)
 
-        result = await provider.execute_code(
-            "console.log('hello')",
-            language="javascript"
-        )
+        result = await provider.execute_code("console.log('hello')", language="javascript")
 
         assert result["success"] is False
         assert result["language"] == "javascript"

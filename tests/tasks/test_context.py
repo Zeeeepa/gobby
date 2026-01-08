@@ -23,6 +23,16 @@ def mock_task_manager():
     return MagicMock()
 
 
+@pytest.fixture(autouse=True)
+def mock_gitingest():
+    """Mock gitingest to avoid external dependency and warnings."""
+    mock_module = MagicMock()
+    # Mock ingest to return a tuple (summary, tree, content)
+    mock_module.ingest.return_value = ("summary", "tree", "content")
+    with patch.dict("sys.modules", {"gitingest": mock_module}):
+        yield mock_module
+
+
 @pytest.fixture
 def sample_task():
     """Create a sample task for testing."""

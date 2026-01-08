@@ -99,37 +99,41 @@ class Task:
             updated_at=row["updated_at"],
             description=row["description"],
             parent_task_id=row["parent_task_id"],
-            created_in_session_id=row["created_in_session_id"]
-            if "created_in_session_id" in keys
-            else (row["discovered_in_session_id"] if "discovered_in_session_id" in keys else None),
-            closed_in_session_id=row["closed_in_session_id"]
-            if "closed_in_session_id" in keys
-            else None,
+            created_in_session_id=(
+                row["created_in_session_id"]
+                if "created_in_session_id" in keys
+                else (
+                    row["discovered_in_session_id"] if "discovered_in_session_id" in keys else None
+                )
+            ),
+            closed_in_session_id=(
+                row["closed_in_session_id"] if "closed_in_session_id" in keys else None
+            ),
             closed_commit_sha=row["closed_commit_sha"] if "closed_commit_sha" in keys else None,
             closed_at=row["closed_at"] if "closed_at" in keys else None,
             assignee=row["assignee"],
             labels=labels,
             closed_reason=row["closed_reason"],
             validation_status=row["validation_status"] if "validation_status" in keys else None,
-            validation_feedback=row["validation_feedback"]
-            if "validation_feedback" in keys
-            else None,
+            validation_feedback=(
+                row["validation_feedback"] if "validation_feedback" in keys else None
+            ),
             test_strategy=row["test_strategy"] if "test_strategy" in keys else None,
             complexity_score=row["complexity_score"] if "complexity_score" in keys else None,
             estimated_subtasks=row["estimated_subtasks"] if "estimated_subtasks" in keys else None,
             expansion_context=row["expansion_context"] if "expansion_context" in keys else None,
-            validation_criteria=row["validation_criteria"]
-            if "validation_criteria" in keys
-            else None,
-            use_external_validator=bool(row["use_external_validator"])
-            if "use_external_validator" in keys
-            else False,
-            validation_fail_count=row["validation_fail_count"]
-            if "validation_fail_count" in keys
-            else 0,
-            validation_override_reason=row["validation_override_reason"]
-            if "validation_override_reason" in keys
-            else None,
+            validation_criteria=(
+                row["validation_criteria"] if "validation_criteria" in keys else None
+            ),
+            use_external_validator=(
+                bool(row["use_external_validator"]) if "use_external_validator" in keys else False
+            ),
+            validation_fail_count=(
+                row["validation_fail_count"] if "validation_fail_count" in keys else 0
+            ),
+            validation_override_reason=(
+                row["validation_override_reason"] if "validation_override_reason" in keys else None
+            ),
             workflow_name=row["workflow_name"] if "workflow_name" in keys else None,
             verification=row["verification"] if "verification" in keys else None,
             sequence_order=row["sequence_order"] if "sequence_order" in keys else None,

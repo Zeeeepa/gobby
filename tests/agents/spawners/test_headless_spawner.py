@@ -135,8 +135,14 @@ class TestHeadlessSpawnerSpawn:
 
             assert result.success is True
             stdout, _ = result.process.communicate()
-            # tmpdir may be a symlink on macOS
-            assert tmpdir in stdout or os.path.basename(tmpdir) in stdout
+            # tmpdir may be a symlink on macOS, so resolve both
+            resolved_tmp = str(Path(tmpdir).resolve())
+            resolved_stdout = str(Path(stdout.strip()).resolve()) if stdout.strip() else stdout
+            assert (
+                resolved_tmp in stdout
+                or resolved_tmp in resolved_stdout
+                or os.path.basename(tmpdir) in stdout
+            )
 
     def test_spawn_with_path_object(self):
         """spawn() accepts Path object for cwd."""

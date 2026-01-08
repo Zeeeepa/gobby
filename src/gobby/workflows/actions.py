@@ -1140,9 +1140,11 @@ class ActionExecutor:
             )
             # Add callback to log errors silently
             task.add_done_callback(
-                lambda t: logger.debug(f"Broadcast {event} failed: {t.exception()}")
-                if t.exception()
-                else None
+                lambda t: (
+                    logger.debug(f"Broadcast {event} failed: {t.exception()}")
+                    if t.exception()
+                    else None
+                )
             )
         except Exception as e:
             logger.debug(f"Failed to schedule broadcast for {event}: {e}")

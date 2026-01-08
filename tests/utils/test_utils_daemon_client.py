@@ -50,7 +50,7 @@ class TestDaemonClientCheckHealth:
         mock_response = MagicMock()
         mock_response.status_code = 200
 
-        with patch('httpx.get', return_value=mock_response):
+        with patch("httpx.get", return_value=mock_response):
             is_healthy, error = client.check_health()
 
         assert is_healthy is True
@@ -63,7 +63,7 @@ class TestDaemonClientCheckHealth:
         mock_response = MagicMock()
         mock_response.status_code = 503
 
-        with patch('httpx.get', return_value=mock_response):
+        with patch("httpx.get", return_value=mock_response):
             is_healthy, error = client.check_health()
 
         assert is_healthy is False
@@ -73,7 +73,7 @@ class TestDaemonClientCheckHealth:
         """Test health check when daemon not running."""
         client = DaemonClient()
 
-        with patch('httpx.get', side_effect=Exception("Connection refused")):
+        with patch("httpx.get", side_effect=Exception("Connection refused")):
             is_healthy, error = client.check_health()
 
         assert is_healthy is False
@@ -83,7 +83,7 @@ class TestDaemonClientCheckHealth:
         """Test health check with other errors."""
         client = DaemonClient()
 
-        with patch('httpx.get', side_effect=Exception("DNS resolution failed")):
+        with patch("httpx.get", side_effect=Exception("DNS resolution failed")):
             is_healthy, error = client.check_health()
 
         assert is_healthy is False
@@ -97,7 +97,7 @@ class TestDaemonClientCheckStatus:
         """Test status when daemon is ready."""
         client = DaemonClient()
 
-        with patch.object(client, 'check_health', return_value=(True, None)):
+        with patch.object(client, "check_health", return_value=(True, None)):
             is_ready, message, status, error = client.check_status()
 
         assert is_ready is True
@@ -109,7 +109,7 @@ class TestDaemonClientCheckStatus:
         """Test status when daemon is not running."""
         client = DaemonClient()
 
-        with patch.object(client, 'check_health', return_value=(False, None)):
+        with patch.object(client, "check_health", return_value=(False, None)):
             is_ready, message, status, error = client.check_status()
 
         assert is_ready is False
@@ -121,7 +121,7 @@ class TestDaemonClientCheckStatus:
         """Test status when daemon cannot be accessed."""
         client = DaemonClient()
 
-        with patch.object(client, 'check_health', return_value=(False, "HTTP 503")):
+        with patch.object(client, "check_health", return_value=(False, "HTTP 503")):
             is_ready, message, status, error = client.check_status()
 
         assert is_ready is False
@@ -140,7 +140,7 @@ class TestDaemonClientCallHttpApi:
         mock_response = MagicMock()
         mock_response.status_code = 200
 
-        with patch('httpx.get', return_value=mock_response) as mock_get:
+        with patch("httpx.get", return_value=mock_response) as mock_get:
             response = client.call_http_api("/test", method="GET")
 
         assert response == mock_response
@@ -153,11 +153,9 @@ class TestDaemonClientCallHttpApi:
         mock_response = MagicMock()
         mock_response.status_code = 200
 
-        with patch('httpx.post', return_value=mock_response) as mock_post:
+        with patch("httpx.post", return_value=mock_response) as mock_post:
             response = client.call_http_api(
-                "/sessions/register",
-                method="POST",
-                json_data={"cli_key": "test-123"}
+                "/sessions/register", method="POST", json_data={"cli_key": "test-123"}
             )
 
         assert response == mock_response
@@ -169,7 +167,7 @@ class TestDaemonClientCallHttpApi:
 
         mock_response = MagicMock()
 
-        with patch('httpx.put', return_value=mock_response) as mock_put:
+        with patch("httpx.put", return_value=mock_response) as mock_put:
             response = client.call_http_api("/update", method="PUT", json_data={"key": "value"})
 
         assert response == mock_response
@@ -181,7 +179,7 @@ class TestDaemonClientCallHttpApi:
 
         mock_response = MagicMock()
 
-        with patch('httpx.delete', return_value=mock_response) as mock_delete:
+        with patch("httpx.delete", return_value=mock_response) as mock_delete:
             response = client.call_http_api("/resource/123", method="DELETE")
 
         assert response == mock_response
@@ -200,18 +198,18 @@ class TestDaemonClientCallHttpApi:
 
         mock_response = MagicMock()
 
-        with patch('httpx.get', return_value=mock_response) as mock_get:
+        with patch("httpx.get", return_value=mock_response) as mock_get:
             client.call_http_api("/test", method="GET", timeout=30.0)
 
         # Verify custom timeout was used
         call_args = mock_get.call_args
-        assert call_args.kwargs['timeout'] == 30.0
+        assert call_args.kwargs["timeout"] == 30.0
 
     def test_exception_handling(self):
         """Test exception is raised on failure."""
         client = DaemonClient()
 
-        with patch('httpx.post', side_effect=Exception("Network error")):
+        with patch("httpx.post", side_effect=Exception("Network error")):
             with pytest.raises(Exception, match="Network error"):
                 client.call_http_api("/test", method="POST")
 
@@ -228,11 +226,11 @@ class TestDaemonClientCallMcpTool:
         mock_response.json.return_value = {"result": "success"}
         mock_response.raise_for_status = MagicMock()
 
-        with patch.object(client, 'call_http_api', return_value=mock_response):
+        with patch.object(client, "call_http_api", return_value=mock_response):
             result = client.call_mcp_tool(
                 server_name="context7",
                 tool_name="get-library-docs",
-                arguments={"libraryId": "/react/react"}
+                arguments={"libraryId": "/react/react"},
             )
 
         assert result == {"result": "success"}
@@ -245,14 +243,14 @@ class TestDaemonClientCallMcpTool:
         mock_response.json.return_value = {}
         mock_response.raise_for_status = MagicMock()
 
-        with patch.object(client, 'call_http_api', return_value=mock_response) as mock_call:
+        with patch.object(client, "call_http_api", return_value=mock_response) as mock_call:
             client.call_mcp_tool("supabase", "list_tables", {"schemas": ["public"]})
 
         mock_call.assert_called_once_with(
             endpoint="/mcp/supabase/tools/list_tables",
             method="POST",
             json_data={"schemas": ["public"]},
-            timeout=None
+            timeout=None,
         )
 
 
@@ -263,7 +261,7 @@ class TestDaemonClientStatusCache:
         """Test updating status cache."""
         client = DaemonClient()
 
-        with patch.object(client, 'check_status', return_value=(True, "Ready", "ready", None)):
+        with patch.object(client, "check_status", return_value=(True, "Ready", "ready", None)):
             client.update_status_cache()
 
         assert client._cached_is_ready is True
@@ -286,7 +284,9 @@ class TestDaemonClientStatusCache:
         """Test getting cached status after update."""
         client = DaemonClient()
 
-        with patch.object(client, 'check_status', return_value=(False, "Not running", "not_running", None)):
+        with patch.object(
+            client, "check_status", return_value=(False, "Not running", "not_running", None)
+        ):
             client.update_status_cache()
 
         is_ready, message, status, error = client.get_cached_status()
@@ -300,10 +300,10 @@ class TestDaemonClientStatusCache:
         client = DaemonClient()
 
         # Verify the lock exists
-        assert hasattr(client, '_cache_lock')
+        assert hasattr(client, "_cache_lock")
 
         # Test that operations work (thread safety is implicit via lock usage)
-        with patch.object(client, 'check_status', return_value=(True, "Ready", "ready", None)):
+        with patch.object(client, "check_status", return_value=(True, "Ready", "ready", None)):
             client.update_status_cache()
 
         result = client.get_cached_status()

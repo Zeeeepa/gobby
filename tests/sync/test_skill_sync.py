@@ -76,14 +76,16 @@ async def test_import_from_files_legacy(sync_manager, tmp_path):
 
     # Create dummy skill file
     skill_file = tmp_path / "imported_skill.md"
-    skill_file.write_text("""---
+    skill_file.write_text(
+        """---
 name: imported_skill
 description: imported
 trigger_pattern: import
 tags: [t2]
 ---
 imported instructions
-""")
+"""
+    )
 
     count = await sync_manager.import_from_files()
 
@@ -107,12 +109,14 @@ async def test_import_from_files_claude_format(sync_manager, tmp_path):
 
     # SKILL.md with Claude Code format
     skill_file = skill_dir / "SKILL.md"
-    skill_file.write_text("""---
+    skill_file.write_text(
+        """---
 name: my-skill
 description: This skill should be used when the user asks to "do something". A helpful skill.
 ---
 Step-by-step instructions here
-""")
+"""
+    )
 
     # Gobby metadata
     meta_file = skill_dir / ".gobby-meta.json"
@@ -329,9 +333,7 @@ async def test_get_sync_dir_non_stealth_with_project_context(sync_manager, tmp_p
     # We need to patch inside the function's scope
     original_get_sync_dir = sync_manager._get_sync_dir
 
-    def patched_get_sync_dir():
-        # Import is inside the function, so we patch it there
-
+    def patched_get_sync_dir(*args, **kwargs):
         with monkeypatch.context() as m:
             m.setattr(
                 "gobby.utils.project_context.get_project_context",
@@ -339,8 +341,14 @@ async def test_get_sync_dir_non_stealth_with_project_context(sync_manager, tmp_p
             )
             return original_get_sync_dir()
 
-    # Actually test the non-stealth path - need a different approach
-    # Since the import is inside the function, test the fallback instead
+    # Apply the patch to the instance method
+    monkeypatch.setattr(sync_manager, "_get_sync_dir", patched_get_sync_dir)
+
+    path = sync_manager._get_sync_dir()
+
+    # It should use the project path + .gobby/sync/skills
+    expected = tmp_path / ".gobby" / "sync" / "skills"
+    assert path == expected
 
 
 @pytest.mark.asyncio
@@ -721,12 +729,14 @@ async def test_import_skills_sync_skips_hidden_dirs(sync_manager, tmp_path):
     hidden_dir = tmp_path / ".hidden"
     hidden_dir.mkdir()
     skill_file = hidden_dir / "SKILL.md"
-    skill_file.write_text("""---
+    skill_file.write_text(
+        """---
 name: hidden_skill
 description: should be skipped
 ---
 instructions
-""")
+"""
+    )
 
     count = await sync_manager.import_from_files()
 
@@ -743,12 +753,14 @@ async def test_import_skills_sync_skips_hidden_files(sync_manager, tmp_path):
 
     # Create hidden file
     hidden_file = tmp_path / ".hidden_skill.md"
-    hidden_file.write_text("""---
+    hidden_file.write_text(
+        """---
 name: hidden_skill
 description: should be skipped
 ---
 instructions
-""")
+"""
+    )
 
     count = await sync_manager.import_from_files()
 
@@ -788,9 +800,11 @@ async def test_import_skill_file_no_frontmatter(sync_manager, tmp_path):
 async def test_import_skill_file_incomplete_frontmatter(sync_manager, tmp_path):
     """Test _import_skill_file rejects files with incomplete frontmatter."""
     skill_file = tmp_path / "incomplete.md"
-    skill_file.write_text("""---
+    skill_file.write_text(
+        """---
 name: test
-""")  # Missing closing ---
+"""
+    )  # Missing closing ---
 
     result = sync_manager._import_skill_file(skill_file, {})
 
@@ -801,11 +815,13 @@ name: test
 async def test_import_skill_file_no_name(sync_manager, tmp_path):
     """Test _import_skill_file rejects files without name in frontmatter."""
     skill_file = tmp_path / "no_name.md"
-    skill_file.write_text("""---
+    skill_file.write_text(
+        """---
 description: No name field
 ---
 instructions
-""")
+"""
+    )
 
     result = sync_manager._import_skill_file(skill_file, {})
 
@@ -818,13 +834,15 @@ async def test_import_skill_file_with_comma_separated_tags(sync_manager, tmp_pat
     sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
 
     skill_file = tmp_path / "comma_tags.md"
-    skill_file.write_text("""---
+    skill_file.write_text(
+        """---
 name: comma_tags_skill
 description: test
 tags: "tag1, tag2, tag3"
 ---
 instructions
-""")
+"""
+    )
 
     count = await sync_manager.import_from_files()
 
@@ -839,13 +857,15 @@ async def test_import_skill_file_with_invalid_tags(sync_manager, tmp_path):
     sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
 
     skill_file = tmp_path / "bad_tags.md"
-    skill_file.write_text("""---
+    skill_file.write_text(
+        """---
 name: bad_tags_skill
 description: test
 tags: 123
 ---
 instructions
-""")
+"""
+    )
 
     count = await sync_manager.import_from_files()
 
@@ -873,13 +893,15 @@ async def test_import_skill_file_updates_existing(sync_manager, tmp_path):
     sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
 
     skill_file = tmp_path / "existing_skill.md"
-    skill_file.write_text("""---
+    skill_file.write_text(
+        """---
 name: existing_skill
 description: new desc
 trigger_pattern: new pattern
 ---
 new instructions
-""")
+"""
+    )
 
     count = await sync_manager.import_from_files()
 
@@ -897,12 +919,14 @@ new instructions
 async def test_import_skill_file_invalid_yaml(sync_manager, tmp_path):
     """Test _import_skill_file handles invalid YAML gracefully."""
     skill_file = tmp_path / "invalid_yaml.md"
-    skill_file.write_text("""---
+    skill_file.write_text(
+        """---
 name: [invalid: yaml: structure
 description: test
 ---
 instructions
-""")
+"""
+    )
 
     result = sync_manager._import_skill_file(skill_file, {})
 
@@ -918,12 +942,14 @@ async def test_import_skill_file_with_meta_json_error(sync_manager, tmp_path):
     skill_dir.mkdir()
 
     skill_file = skill_dir / "SKILL.md"
-    skill_file.write_text("""---
+    skill_file.write_text(
+        """---
 name: meta_error_skill
 description: test
 ---
 instructions
-""")
+"""
+    )
 
     # Create invalid JSON in meta file
     meta_file = skill_dir / ".gobby-meta.json"
@@ -1253,12 +1279,14 @@ async def test_import_from_files_handles_file_not_dir(sync_manager, tmp_path):
 
     # Also create a valid skill to ensure it still works
     skill_file = tmp_path / "valid_skill.md"
-    skill_file.write_text("""---
+    skill_file.write_text(
+        """---
 name: valid_skill
 description: test
 ---
 instructions
-""")
+"""
+    )
 
     count = await sync_manager.import_from_files()
 
@@ -1273,12 +1301,14 @@ async def test_import_skill_triggers_description_extraction(sync_manager, tmp_pa
 
     skill_file = tmp_path / "no_period.md"
     # Description starts with trigger phrase but has no period separator
-    skill_file.write_text("""---
+    skill_file.write_text(
+        """---
 name: no_period_skill
 description: This skill should be used when the user asks
 ---
 instructions
-""")
+"""
+    )
 
     count = await sync_manager.import_from_files()
 
@@ -1321,14 +1351,16 @@ async def test_import_skill_claude_format_without_meta_file(sync_manager, tmp_pa
     skill_dir.mkdir(parents=True, exist_ok=True)
 
     skill_file = skill_dir / "SKILL.md"
-    skill_file.write_text("""---
+    skill_file.write_text(
+        """---
 name: no-meta-skill
 description: A skill without metadata file
 trigger_pattern: from frontmatter
 tags: [tag1, tag2]
 ---
 Instructions from frontmatter only
-""")
+"""
+    )
 
     # No .gobby-meta.json file
 

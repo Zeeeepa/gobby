@@ -877,9 +877,9 @@ class TestSessionEndHandling:
 
     def test_session_end_summary_generation_error(self, mock_dependencies: dict) -> None:
         """Test error in summary generation is handled."""
-        mock_dependencies[
-            "summary_file_generator"
-        ].generate_session_summary.side_effect = Exception("Summary error")
+        mock_dependencies["summary_file_generator"].generate_session_summary.side_effect = (
+            Exception("Summary error")
+        )
 
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(

@@ -302,9 +302,9 @@ class LazyServerConnector:
                 "is_connected": state.is_connected,
                 "configured_at": state.configured_at.isoformat(),
                 "connected_at": state.connected_at.isoformat() if state.connected_at else None,
-                "last_attempt_at": state.last_attempt_at.isoformat()
-                if state.last_attempt_at
-                else None,
+                "last_attempt_at": (
+                    state.last_attempt_at.isoformat() if state.last_attempt_at else None
+                ),
                 "last_error": state.last_error,
                 "connection_attempts": state.connection_attempts,
                 "circuit_state": state.circuit_breaker.state.value,

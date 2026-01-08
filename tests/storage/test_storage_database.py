@@ -116,10 +116,7 @@ class TestLocalDatabase:
             conn = db.connection
             connections.append((thread_id, id(conn)))
 
-        threads = [
-            threading.Thread(target=worker, args=(f"thread-{i}",))
-            for i in range(3)
-        ]
+        threads = [threading.Thread(target=worker, args=(f"thread-{i}",)) for i in range(3)]
 
         for t in threads:
             t.start()

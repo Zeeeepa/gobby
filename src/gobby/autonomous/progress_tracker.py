@@ -4,6 +4,7 @@ Provides progress tracking for autonomous workflows to detect stagnation
 and enable informed decisions about when to stop or redirect work.
 """
 
+import json
 import logging
 import threading
 from dataclasses import dataclass, field
@@ -159,7 +160,7 @@ class ProgressTracker:
                     session_id,
                     progress_type.value,
                     tool_name,
-                    str(details) if details else None,
+                    json.dumps(details) if details else None,
                     now.isoformat(),
                     event.is_high_value,
                 ),
@@ -440,7 +441,7 @@ class ProgressTracker:
                 progress_type=ProgressType(row["progress_type"]),
                 timestamp=datetime.fromisoformat(row["recorded_at"]),
                 tool_name=row["tool_name"],
-                details=eval(row["details"]) if row["details"] else {},  # Safe: we wrote this
+                details=json.loads(row["details"]) if row["details"] else {},  # Safe: json loads
             )
             for row in rows
         ]

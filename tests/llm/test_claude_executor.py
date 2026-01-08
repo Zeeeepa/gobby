@@ -66,9 +66,7 @@ class TestClaudeExecutorInit:
         with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
             from gobby.llm.claude_executor import ClaudeExecutor
 
-            executor = ClaudeExecutor(
-                auth_mode="api_key", default_model="claude-opus-4-5-20251101"
-            )
+            executor = ClaudeExecutor(auth_mode="api_key", default_model="claude-opus-4-5-20251101")
 
             assert executor.default_model == "claude-opus-4-5-20251101"
 
@@ -139,9 +137,7 @@ class TestClaudeExecutorRun:
             ),
         ]
 
-    async def test_run_returns_text_response(
-        self, executor, mock_anthropic_module, simple_tools
-    ):
+    async def test_run_returns_text_response(self, executor, mock_anthropic_module, simple_tools):
         """run() returns text response when no tools are called."""
         # Setup mock response
         mock_text_block = MagicMock()
@@ -167,9 +163,7 @@ class TestClaudeExecutorRun:
         assert result.output == "Hello, I'm Claude!"
         assert len(result.tool_calls) == 0
 
-    async def test_run_handles_tool_use(
-        self, executor, mock_anthropic_module, simple_tools
-    ):
+    async def test_run_handles_tool_use(self, executor, mock_anthropic_module, simple_tools):
         """run() handles tool use and sends results back."""
         # First response with tool use
         mock_tool_block = MagicMock()
@@ -191,9 +185,7 @@ class TestClaudeExecutorRun:
         mock_response2.content = [mock_text_block]
         mock_response2.stop_reason = "end_turn"
 
-        executor._client.messages.create = AsyncMock(
-            side_effect=[mock_response1, mock_response2]
-        )
+        executor._client.messages.create = AsyncMock(side_effect=[mock_response1, mock_response2])
 
         async def weather_handler(name: str, args: dict) -> ToolResult:
             if name == "get_weather":
@@ -216,9 +208,7 @@ class TestClaudeExecutorRun:
         assert result.tool_calls[0].tool_name == "get_weather"
         assert result.tool_calls[0].arguments == {"location": "San Francisco"}
 
-    async def test_run_handles_tool_error(
-        self, executor, mock_anthropic_module, simple_tools
-    ):
+    async def test_run_handles_tool_error(self, executor, mock_anthropic_module, simple_tools):
         """run() handles tool execution errors gracefully."""
         # Response with tool use
         mock_tool_block = MagicMock()
@@ -240,9 +230,7 @@ class TestClaudeExecutorRun:
         mock_response2.content = [mock_text_block]
         mock_response2.stop_reason = "end_turn"
 
-        executor._client.messages.create = AsyncMock(
-            side_effect=[mock_response1, mock_response2]
-        )
+        executor._client.messages.create = AsyncMock(side_effect=[mock_response1, mock_response2])
 
         async def failing_handler(name: str, args: dict) -> ToolResult:
             return ToolResult(tool_name=name, success=False, error="Location not found")
@@ -259,9 +247,7 @@ class TestClaudeExecutorRun:
         assert result.tool_calls[0].result.success is False
         assert result.tool_calls[0].result.error == "Location not found"
 
-    async def test_run_respects_max_turns(
-        self, executor, mock_anthropic_module, simple_tools
-    ):
+    async def test_run_respects_max_turns(self, executor, mock_anthropic_module, simple_tools):
         """run() stops after max_turns is reached."""
         # Always return tool use (to exhaust turns)
         mock_tool_block = MagicMock()
@@ -289,9 +275,7 @@ class TestClaudeExecutorRun:
         assert result.status == "partial"
         assert result.turns_used == 3
 
-    async def test_run_handles_timeout(
-        self, executor, mock_anthropic_module, simple_tools
-    ):
+    async def test_run_handles_timeout(self, executor, mock_anthropic_module, simple_tools):
         """run() returns timeout status when execution exceeds timeout."""
         import asyncio
 
@@ -314,15 +298,11 @@ class TestClaudeExecutorRun:
         assert result.status == "timeout"
         assert "timed out" in result.error.lower()
 
-    async def test_run_handles_generic_error(
-        self, executor, mock_anthropic_module, simple_tools
-    ):
+    async def test_run_handles_generic_error(self, executor, mock_anthropic_module, simple_tools):
         """run() handles generic errors and returns timeout (outer handler)."""
         # Generic exceptions propagate and will be caught by the timeout wrapper
         # which returns a timeout or error depending on how it propagates
-        executor._client.messages.create = AsyncMock(
-            side_effect=RuntimeError("Connection failed")
-        )
+        executor._client.messages.create = AsyncMock(side_effect=RuntimeError("Connection failed"))
 
         async def dummy_handler(name: str, args: dict) -> ToolResult:
             return ToolResult(tool_name=name, success=True, result={})
@@ -341,9 +321,7 @@ class TestClaudeExecutorRun:
             # Exception propagated up - this is also acceptable behavior
             pass
 
-    async def test_run_uses_system_prompt(
-        self, executor, mock_anthropic_module, simple_tools
-    ):
+    async def test_run_uses_system_prompt(self, executor, mock_anthropic_module, simple_tools):
         """run() passes system prompt to API."""
         mock_text_block = MagicMock()
         mock_text_block.type = "text"
@@ -370,9 +348,7 @@ class TestClaudeExecutorRun:
         call_kwargs = executor._client.messages.create.call_args.kwargs
         assert call_kwargs["system"] == "You are a weather assistant."
 
-    async def test_run_uses_model_override(
-        self, executor, mock_anthropic_module, simple_tools
-    ):
+    async def test_run_uses_model_override(self, executor, mock_anthropic_module, simple_tools):
         """run() uses model override when provided."""
         mock_text_block = MagicMock()
         mock_text_block.type = "text"
@@ -441,9 +417,7 @@ class TestClaudeExecutorRun:
         mock_response2.content = [mock_text_block]
         mock_response2.stop_reason = "end_turn"
 
-        executor._client.messages.create = AsyncMock(
-            side_effect=[mock_response1, mock_response2]
-        )
+        executor._client.messages.create = AsyncMock(side_effect=[mock_response1, mock_response2])
 
         async def raising_handler(name: str, args: dict) -> ToolResult:
             raise RuntimeError("Handler crashed!")
@@ -582,9 +556,7 @@ class TestClaudeExecutorSDKMode:
         """SDK mode executor returns correct provider name."""
         assert executor_sdk_mode.provider_name == "claude"
 
-    async def test_run_with_sdk_mode_delegates_to_sdk(
-        self, executor_sdk_mode, simple_tools
-    ):
+    async def test_run_with_sdk_mode_delegates_to_sdk(self, executor_sdk_mode, simple_tools):
         """SDK mode run() delegates to _run_with_sdk method."""
         # Verify the executor is in subscription mode
         assert executor_sdk_mode.auth_mode == "subscription"

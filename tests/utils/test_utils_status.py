@@ -1,6 +1,5 @@
 """Tests for src/utils/status.py - Status Message Formatting."""
 
-
 from gobby.utils.status import format_status_message
 
 
@@ -36,51 +35,35 @@ class TestFormatStatusMessage:
 
     def test_running_status_with_pid_file(self):
         """Test running status with PID file path."""
-        result = format_status_message(
-            running=True,
-            pid_file="/var/run/gobby.pid"
-        )
+        result = format_status_message(running=True, pid_file="/var/run/gobby.pid")
 
         assert "PID file: /var/run/gobby.pid" in result
         assert "Paths:" in result
 
     def test_running_status_with_log_files(self):
         """Test running status with log files path."""
-        result = format_status_message(
-            running=True,
-            log_files="/var/log/gobby/"
-        )
+        result = format_status_message(running=True, log_files="/var/log/gobby/")
 
         assert "Logs: /var/log/gobby/" in result
         assert "Paths:" in result
 
     def test_server_configuration_with_http_port(self):
         """Test server configuration section with HTTP port."""
-        result = format_status_message(
-            running=True,
-            http_port=8765
-        )
+        result = format_status_message(running=True, http_port=8765)
 
         assert "Server Configuration:" in result
         assert "HTTP: localhost:8765" in result
 
     def test_server_configuration_with_websocket_port(self):
         """Test server configuration section with WebSocket port."""
-        result = format_status_message(
-            running=True,
-            websocket_port=8766
-        )
+        result = format_status_message(running=True, websocket_port=8766)
 
         assert "Server Configuration:" in result
         assert "WebSocket: localhost:8766" in result
 
     def test_server_configuration_with_both_ports(self):
         """Test server configuration with both ports."""
-        result = format_status_message(
-            running=True,
-            http_port=8765,
-            websocket_port=8766
-        )
+        result = format_status_message(running=True, http_port=8765, websocket_port=8766)
 
         assert "HTTP: localhost:8765" in result
         assert "WebSocket: localhost:8766" in result
@@ -100,7 +83,7 @@ class TestFormatStatusMessage:
             log_files="/home/user/.gobby/logs/",
             uptime="2h 30m 15s",
             http_port=8765,
-            websocket_port=8766
+            websocket_port=8766,
         )
 
         # Header
@@ -136,11 +119,7 @@ class TestFormatStatusMessage:
     def test_extra_kwargs_ignored(self):
         """Test that extra kwargs are silently ignored."""
         # Should not raise any exception
-        result = format_status_message(
-            running=True,
-            unknown_field="value",
-            another_unknown=123
-        )
+        result = format_status_message(running=True, unknown_field="value", another_unknown=123)
 
         assert "Status: Running" in result
 
@@ -161,10 +140,7 @@ class TestFormatStatusMessage:
     def test_mcp_proxy_section(self):
         """Test MCP proxy section with server stats."""
         result = format_status_message(
-            running=True,
-            mcp_connected=3,
-            mcp_total=5,
-            mcp_tools_cached=42
+            running=True, mcp_connected=3, mcp_total=5, mcp_tools_cached=42
         )
 
         assert "MCP Proxy:" in result
@@ -177,7 +153,7 @@ class TestFormatStatusMessage:
             running=True,
             mcp_connected=2,
             mcp_total=4,
-            mcp_unhealthy=[("server1", "retry"), ("server2", "failed")]
+            mcp_unhealthy=[("server1", "retry"), ("server2", "failed")],
         )
 
         assert "Unhealthy: server1 (retry), server2 (failed)" in result
@@ -185,10 +161,7 @@ class TestFormatStatusMessage:
     def test_sessions_section(self):
         """Test sessions section."""
         result = format_status_message(
-            running=True,
-            sessions_active=2,
-            sessions_paused=3,
-            sessions_handoff_ready=1
+            running=True, sessions_active=2, sessions_paused=3, sessions_handoff_ready=1
         )
 
         assert "Sessions:" in result
@@ -199,11 +172,7 @@ class TestFormatStatusMessage:
     def test_tasks_section(self):
         """Test tasks section."""
         result = format_status_message(
-            running=True,
-            tasks_open=10,
-            tasks_in_progress=2,
-            tasks_ready=5,
-            tasks_blocked=3
+            running=True, tasks_open=10, tasks_in_progress=2, tasks_ready=5, tasks_blocked=3
         )
 
         assert "Tasks:" in result
@@ -228,10 +197,7 @@ class TestFormatStatusMessage:
     def test_process_metrics(self):
         """Test process metrics (memory, CPU)."""
         result = format_status_message(
-            running=True,
-            uptime="1h 0m 0s",
-            memory_mb=45.5,
-            cpu_percent=2.3
+            running=True, uptime="1h 0m 0s", memory_mb=45.5, cpu_percent=2.3
         )
 
         assert "Memory: 45.5 MB" in result

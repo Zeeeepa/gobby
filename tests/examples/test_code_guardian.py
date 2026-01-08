@@ -24,11 +24,13 @@ from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSo
 def plugin() -> CodeGuardianPlugin:
     """Create a configured plugin instance."""
     p = CodeGuardianPlugin()
-    p.on_load({
-        "checks": ["ruff"],
-        "block_on_error": True,
-        "auto_fix": False,
-    })
+    p.on_load(
+        {
+            "checks": ["ruff"],
+            "block_on_error": True,
+            "auto_fix": False,
+        }
+    )
     return p
 
 
@@ -87,11 +89,13 @@ class TestPluginLifecycle:
     def test_on_load_sets_config(self):
         """Test that on_load configures the plugin."""
         plugin = CodeGuardianPlugin()
-        plugin.on_load({
-            "checks": ["ruff", "mypy"],
-            "block_on_error": False,
-            "auto_fix": True,
-        })
+        plugin.on_load(
+            {
+                "checks": ["ruff", "mypy"],
+                "block_on_error": False,
+                "auto_fix": True,
+            }
+        )
 
         assert plugin.checks == ["ruff", "mypy"]
         assert plugin.block_on_error is False

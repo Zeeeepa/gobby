@@ -97,16 +97,20 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
                     is_connected = config.name in server.mcp_manager.connections
                     mcp_health[config.name] = {
                         "connected": is_connected,
-                        "status": health.state.value
-                        if health
-                        else ("connected" if is_connected else "not_started"),
+                        "status": (
+                            health.state.value
+                            if health
+                            else ("connected" if is_connected else "not_started")
+                        ),
                         "enabled": config.enabled,
                         "transport": config.transport,
                         "health": health.health.value if health else None,
                         "consecutive_failures": health.consecutive_failures if health else 0,
-                        "last_health_check": health.last_health_check.isoformat()
-                        if health and health.last_health_check
-                        else None,
+                        "last_health_check": (
+                            health.last_health_check.isoformat()
+                            if health and health.last_health_check
+                            else None
+                        ),
                         "response_time_ms": health.response_time_ms if health else None,
                     }
             except Exception as e:

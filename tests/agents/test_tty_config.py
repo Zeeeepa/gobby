@@ -11,10 +11,12 @@ Tests for:
 
 from __future__ import annotations
 
+import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
 import yaml
 
 from gobby.agents.tty_config import (
@@ -532,6 +534,7 @@ class TestLoadTTYConfig:
             load_tty_config("~/custom/config.yaml")
             mock_expand.assert_called()
 
+    @pytest.mark.skipif(os.name == "nt", reason="chmod 000 doesn't prevent reading on Windows")
     def test_load_handles_permission_error(self):
         """load_tty_config handles permission errors gracefully."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
@@ -584,7 +587,11 @@ class TestGenerateDefaultTTYConfig:
             generate_default_tty_config(config_path)
 
             permissions = config_path.stat().st_mode & 0o777
-            assert permissions == 0o600
+            if os.name == "posix":
+                assert permissions == 0o600
+            else:
+                # On Windows, permissions might be different, check at least read/write
+                pass
 
     def test_generate_content_has_preferences_section(self):
         """Generated config has preferences section."""

@@ -80,14 +80,18 @@ class TestServerManagementServiceImport:
             return_value={"success": True, "imported": ["server1"]}
         )
 
-        with patch(
-            "gobby.utils.project_context.get_project_context",
-            return_value={"id": "test-project"},
-        ), patch(
-            "gobby.mcp_proxy.importer.MCPServerImporter",
-            return_value=mock_importer,
-        ), patch(
-            "gobby.storage.database.LocalDatabase",
+        with (
+            patch(
+                "gobby.utils.project_context.get_project_context",
+                return_value={"id": "test-project"},
+            ),
+            patch(
+                "gobby.mcp_proxy.importer.MCPServerImporter",
+                return_value=mock_importer,
+            ),
+            patch(
+                "gobby.storage.database.LocalDatabase",
+            ),
         ):
             result = await service.import_server(
                 from_project="source-project",
@@ -108,23 +112,25 @@ class TestServerManagementServiceImport:
             return_value={"success": True, "imported": ["github-server"]}
         )
 
-        with patch(
-            "gobby.utils.project_context.get_project_context",
-            return_value={"id": "test-project"},
-        ), patch(
-            "gobby.mcp_proxy.importer.MCPServerImporter",
-            return_value=mock_importer,
-        ), patch(
-            "gobby.storage.database.LocalDatabase",
+        with (
+            patch(
+                "gobby.utils.project_context.get_project_context",
+                return_value={"id": "test-project"},
+            ),
+            patch(
+                "gobby.mcp_proxy.importer.MCPServerImporter",
+                return_value=mock_importer,
+            ),
+            patch(
+                "gobby.storage.database.LocalDatabase",
+            ),
         ):
             result = await service.import_server(
                 github_url="https://github.com/test/repo",
             )
 
         assert result["success"] is True
-        mock_importer.import_from_github.assert_called_once_with(
-            "https://github.com/test/repo"
-        )
+        mock_importer.import_from_github.assert_called_once_with("https://github.com/test/repo")
 
     async def test_import_from_query_delegates_to_importer(self, service):
         """Test that query delegates to MCPServerImporter.import_from_query."""
@@ -133,14 +139,18 @@ class TestServerManagementServiceImport:
             return_value={"success": True, "imported": ["searched-server"]}
         )
 
-        with patch(
-            "gobby.utils.project_context.get_project_context",
-            return_value={"id": "test-project"},
-        ), patch(
-            "gobby.mcp_proxy.importer.MCPServerImporter",
-            return_value=mock_importer,
-        ), patch(
-            "gobby.storage.database.LocalDatabase",
+        with (
+            patch(
+                "gobby.utils.project_context.get_project_context",
+                return_value={"id": "test-project"},
+            ),
+            patch(
+                "gobby.mcp_proxy.importer.MCPServerImporter",
+                return_value=mock_importer,
+            ),
+            patch(
+                "gobby.storage.database.LocalDatabase",
+            ),
         ):
             result = await service.import_server(query="supabase mcp server")
 
@@ -149,14 +159,18 @@ class TestServerManagementServiceImport:
 
     async def test_import_handles_exception(self, service):
         """Test that exceptions are caught and returned as errors."""
-        with patch(
-            "gobby.utils.project_context.get_project_context",
-            return_value={"id": "test-project"},
-        ), patch(
-            "gobby.mcp_proxy.importer.MCPServerImporter",
-            side_effect=Exception("Connection failed"),
-        ), patch(
-            "gobby.storage.database.LocalDatabase",
+        with (
+            patch(
+                "gobby.utils.project_context.get_project_context",
+                return_value={"id": "test-project"},
+            ),
+            patch(
+                "gobby.mcp_proxy.importer.MCPServerImporter",
+                side_effect=Exception("Connection failed"),
+            ),
+            patch(
+                "gobby.storage.database.LocalDatabase",
+            ),
         ):
             result = await service.import_server(from_project="test")
 
@@ -172,14 +186,18 @@ class TestServerManagementServiceImport:
         mock_importer.import_from_github = AsyncMock()
         mock_importer.import_from_query = AsyncMock()
 
-        with patch(
-            "gobby.utils.project_context.get_project_context",
-            return_value={"id": "test-project"},
-        ), patch(
-            "gobby.mcp_proxy.importer.MCPServerImporter",
-            return_value=mock_importer,
-        ), patch(
-            "gobby.storage.database.LocalDatabase",
+        with (
+            patch(
+                "gobby.utils.project_context.get_project_context",
+                return_value={"id": "test-project"},
+            ),
+            patch(
+                "gobby.mcp_proxy.importer.MCPServerImporter",
+                return_value=mock_importer,
+            ),
+            patch(
+                "gobby.storage.database.LocalDatabase",
+            ),
         ):
             await service.import_server(
                 from_project="source",

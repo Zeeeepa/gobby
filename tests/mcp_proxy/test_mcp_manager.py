@@ -288,8 +288,18 @@ class TestMCPClientManagerInit:
     def test_init_with_configs(self):
         """Test initialization with server configs."""
         configs = [
-            MCPServerConfig(name="server1", project_id="test-project-uuid", transport="http", url="http://localhost:8001"),
-            MCPServerConfig(name="server2", project_id="test-project-uuid", transport="http", url="http://localhost:8002"),
+            MCPServerConfig(
+                name="server1",
+                project_id="test-project-uuid",
+                transport="http",
+                url="http://localhost:8001",
+            ),
+            MCPServerConfig(
+                name="server2",
+                project_id="test-project-uuid",
+                transport="http",
+                url="http://localhost:8002",
+            ),
         ]
 
         manager = MCPClientManager(server_configs=configs)
@@ -307,7 +317,14 @@ class TestMCPClientManagerInit:
 
     def test_init_with_project_context(self):
         """Test initialization with project context."""
-        configs = [MCPServerConfig(name="server1", project_id="test-project-uuid", transport="http", url="http://localhost:8001")]
+        configs = [
+            MCPServerConfig(
+                name="server1",
+                project_id="test-project-uuid",
+                transport="http",
+                url="http://localhost:8001",
+            )
+        ]
 
         manager = MCPClientManager(
             server_configs=configs,
@@ -414,7 +431,14 @@ class TestMCPClientManagerServerOperations:
     @pytest.mark.asyncio
     async def test_add_server_duplicate_raises(self):
         """Test adding duplicate server raises error."""
-        configs = [MCPServerConfig(name="server1", project_id="test-project-uuid", transport="http", url="http://localhost:8001")]
+        configs = [
+            MCPServerConfig(
+                name="server1",
+                project_id="test-project-uuid",
+                transport="http",
+                url="http://localhost:8001",
+            )
+        ]
 
         manager = MCPClientManager(server_configs=configs)
 
@@ -426,7 +450,12 @@ class TestMCPClientManagerServerOperations:
         # Try to add same server
         with pytest.raises(ValueError, match="MCP server 'server1' already exists"):
             await manager.add_server(
-                MCPServerConfig(name="server1", project_id="test-project-uuid", transport="http", url="http://localhost:8001")
+                MCPServerConfig(
+                    name="server1",
+                    project_id="test-project-uuid",
+                    transport="http",
+                    url="http://localhost:8001",
+                )
             )
 
     @pytest.mark.asyncio

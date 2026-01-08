@@ -158,9 +158,7 @@ class TestCommitAuto:
         from gobby.tasks.commits import AutoLinkResult
 
         with patch("gobby.cli.tasks.commits.get_task_manager", return_value=mock_task_manager):
-            with patch(
-                "gobby.cli.tasks.commits.auto_link_commits"
-            ) as mock_auto_link:
+            with patch("gobby.cli.tasks.commits.auto_link_commits") as mock_auto_link:
                 mock_auto_link.return_value = AutoLinkResult(
                     linked_tasks={"gt-abc123": ["abc123", "def456"]},
                     total_linked=2,
@@ -178,9 +176,7 @@ class TestCommitAuto:
         from gobby.tasks.commits import AutoLinkResult
 
         with patch("gobby.cli.tasks.commits.get_task_manager", return_value=mock_task_manager):
-            with patch(
-                "gobby.cli.tasks.commits.auto_link_commits"
-            ) as mock_auto_link:
+            with patch("gobby.cli.tasks.commits.auto_link_commits") as mock_auto_link:
                 mock_auto_link.return_value = AutoLinkResult(
                     linked_tasks={},
                     total_linked=0,
@@ -198,9 +194,7 @@ class TestCommitAuto:
         from gobby.tasks.commits import AutoLinkResult
 
         with patch("gobby.cli.tasks.commits.get_task_manager", return_value=mock_task_manager):
-            with patch(
-                "gobby.cli.tasks.commits.auto_link_commits"
-            ) as mock_auto_link:
+            with patch("gobby.cli.tasks.commits.auto_link_commits") as mock_auto_link:
                 mock_auto_link.return_value = AutoLinkResult(
                     linked_tasks={"gt-abc123": ["abc123"]},
                     total_linked=1,
@@ -218,9 +212,7 @@ class TestCommitAuto:
         from gobby.tasks.commits import AutoLinkResult
 
         with patch("gobby.cli.tasks.commits.get_task_manager", return_value=mock_task_manager):
-            with patch(
-                "gobby.cli.tasks.commits.auto_link_commits"
-            ) as mock_auto_link:
+            with patch("gobby.cli.tasks.commits.auto_link_commits") as mock_auto_link:
                 mock_auto_link.return_value = AutoLinkResult(
                     linked_tasks={},
                     total_linked=0,
@@ -318,7 +310,11 @@ class TestTaskDiff:
                 result = runner.invoke(tasks, ["diff", "gt-abc123"])
 
                 assert result.exit_code == 0
-                assert "no" in result.output.lower() or "empty" in result.output.lower() or result.output.strip() == ""
+                assert (
+                    "no" in result.output.lower()
+                    or "empty" in result.output.lower()
+                    or result.output.strip() == ""
+                )
 
     def test_diff_stats_only(self, runner, mock_task_manager):
         """Test showing diff stats only."""

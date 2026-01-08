@@ -6,7 +6,6 @@ parse_issues_from_response() which does not yet exist.
 Task: gt-35d11c
 """
 
-
 from gobby.tasks.validation_models import IssueSeverity, IssueType
 
 
@@ -18,7 +17,7 @@ class TestParseIssuesFromResponse:
         # Import the function we're testing (will fail until implemented)
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
-        response = '''
+        response = """
         {
             "status": "invalid",
             "feedback": "Found 2 issues",
@@ -40,7 +39,7 @@ class TestParseIssuesFromResponse:
                 }
             ]
         }
-        '''
+        """
 
         issues = parse_issues_from_response(response)
 
@@ -62,7 +61,7 @@ class TestParseIssuesFromResponse:
         """Test parsing issues from response wrapped in markdown code block."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
-        response = '''
+        response = """
         Based on my analysis, here are the issues:
 
         ```json
@@ -77,7 +76,7 @@ class TestParseIssuesFromResponse:
             ]
         }
         ```
-        '''
+        """
 
         issues = parse_issues_from_response(response)
 
@@ -89,14 +88,14 @@ class TestParseIssuesFromResponse:
         """Test graceful handling of malformed JSON response."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
-        malformed_response = '''
+        malformed_response = """
         {
             "status": "invalid",
             "issues": [
                 {type: "test_failure", severity: "blocker", title: "Missing quotes"}
             ]
         }
-        '''
+        """
 
         # Should not raise, should return empty list or fallback issue
         issues = parse_issues_from_response(malformed_response)
@@ -126,7 +125,7 @@ class TestParseIssuesFromResponse:
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
         # Missing required 'type' field
-        response = '''
+        response = """
         {
             "issues": [
                 {
@@ -135,7 +134,7 @@ class TestParseIssuesFromResponse:
                 }
             ]
         }
-        '''
+        """
 
         # Should either skip invalid issues or return fallback
         issues = parse_issues_from_response(response)
@@ -147,7 +146,7 @@ class TestParseIssuesFromResponse:
         """Test handling of invalid enum values in issues."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
-        response = '''
+        response = """
         {
             "issues": [
                 {
@@ -157,7 +156,7 @@ class TestParseIssuesFromResponse:
                 }
             ]
         }
-        '''
+        """
 
         # Should handle invalid enum gracefully
         issues = parse_issues_from_response(response)
@@ -179,18 +178,21 @@ class TestParseIssuesFromResponse:
             assert len(issues) == 1
             assert issues[0].issue_type == IssueType.ACCEPTANCE_GAP
             assert issues[0].severity == IssueSeverity.MAJOR
-            assert "authentication" in issues[0].title.lower() or "authentication" in (issues[0].details or "").lower()
+            assert (
+                "authentication" in issues[0].title.lower()
+                or "authentication" in (issues[0].details or "").lower()
+            )
 
     def test_parse_handles_no_issues_array(self):
         """Test response with valid JSON but no issues array."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
-        response = '''
+        response = """
         {
             "status": "valid",
             "feedback": "All criteria met"
         }
-        '''
+        """
 
         issues = parse_issues_from_response(response)
 
@@ -200,12 +202,12 @@ class TestParseIssuesFromResponse:
         """Test response with empty issues array."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
-        response = '''
+        response = """
         {
             "status": "valid",
             "issues": []
         }
-        '''
+        """
 
         issues = parse_issues_from_response(response)
 
@@ -215,7 +217,7 @@ class TestParseIssuesFromResponse:
         """Test that recurring_count field is preserved if present."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
-        response = '''
+        response = """
         {
             "issues": [
                 {
@@ -226,7 +228,7 @@ class TestParseIssuesFromResponse:
                 }
             ]
         }
-        '''
+        """
 
         issues = parse_issues_from_response(response)
 
@@ -237,7 +239,7 @@ class TestParseIssuesFromResponse:
         """Test parsing response with mix of valid and invalid issues."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
-        response = '''
+        response = """
         {
             "issues": [
                 {
@@ -256,7 +258,7 @@ class TestParseIssuesFromResponse:
                 }
             ]
         }
-        '''
+        """
 
         issues = parse_issues_from_response(response)
 
@@ -270,7 +272,7 @@ class TestParseIssuesFromResponse:
         """Test response with nested JSON structures."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
-        response = '''
+        response = """
         {
             "analysis": {
                 "summary": "Found issues"
@@ -284,7 +286,7 @@ class TestParseIssuesFromResponse:
                 }
             ]
         }
-        '''
+        """
 
         issues = parse_issues_from_response(response)
 
@@ -305,12 +307,13 @@ class TestParseIssuesEdgeCases:
                 "type": "lint_error",
                 "severity": "minor",
                 "title": f"Issue {i}",
-                "details": "x" * 1000  # Long details
+                "details": "x" * 1000,  # Long details
             }
             for i in range(100)
         ]
 
         import json
+
         response = json.dumps({"issues": issues_json})
 
         issues = parse_issues_from_response(response)
@@ -323,7 +326,7 @@ class TestParseIssuesEdgeCases:
         """Test handling of unicode characters in issues."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
-        response = '''
+        response = """
         {
             "issues": [
                 {
@@ -334,7 +337,7 @@ class TestParseIssuesEdgeCases:
                 }
             ]
         }
-        '''
+        """
 
         issues = parse_issues_from_response(response)
 
@@ -346,7 +349,7 @@ class TestParseIssuesEdgeCases:
         """Test handling of null values in optional issue fields."""
         from gobby.tasks.issue_extraction import parse_issues_from_response
 
-        response = '''
+        response = """
         {
             "issues": [
                 {
@@ -359,7 +362,7 @@ class TestParseIssuesEdgeCases:
                 }
             ]
         }
-        '''
+        """
 
         issues = parse_issues_from_response(response)
 

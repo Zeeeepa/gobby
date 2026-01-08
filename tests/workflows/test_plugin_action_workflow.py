@@ -42,13 +42,15 @@ class WorkflowTestPlugin(HookPlugin):
 
     async def _track_call(self, context: ActionContext, **kwargs) -> dict:
         """Track that this action was called with context."""
-        self.action_calls.append({
-            "action": "track_call",
-            "session_id": context.session_id,
-            "workflow_name": context.state.workflow_name if context.state else None,
-            "step": context.state.step if context.state else None,
-            "kwargs": kwargs,
-        })
+        self.action_calls.append(
+            {
+                "action": "track_call",
+                "session_id": context.session_id,
+                "workflow_name": context.state.workflow_name if context.state else None,
+                "step": context.state.step if context.state else None,
+                "kwargs": kwargs,
+            }
+        )
         return {"tracked": True, "call_count": len(self.action_calls)}
 
     async def _modify_state(self, context: ActionContext, **kwargs) -> dict:
@@ -59,11 +61,13 @@ class WorkflowTestPlugin(HookPlugin):
         if context.state and context.state.variables is not None:
             context.state.variables[var_name] = var_value
 
-        self.action_calls.append({
-            "action": "modify_state",
-            "variable": var_name,
-            "value": var_value,
-        })
+        self.action_calls.append(
+            {
+                "action": "modify_state",
+                "variable": var_name,
+                "value": var_value,
+            }
+        )
         return {"modified": True, "variable": var_name, "value": var_value}
 
     async def _inject_context(self, context: ActionContext, **kwargs) -> dict:
@@ -74,6 +78,7 @@ class WorkflowTestPlugin(HookPlugin):
     async def _slow_action(self, context: ActionContext, **kwargs) -> dict:
         """Simulate a slow action for timeout testing."""
         import asyncio
+
         delay = kwargs.get("delay", 0.1)
         await asyncio.sleep(delay)
         return {"completed": True, "delay": delay}
@@ -423,9 +428,7 @@ class TestPluginActionErrorHandling:
     """Tests for error handling in plugin actions."""
 
     @pytest.mark.asyncio
-    async def test_plugin_action_error_returns_error_dict(
-        self, action_executor, action_context
-    ):
+    async def test_plugin_action_error_returns_error_dict(self, action_executor, action_context):
         """Plugin action errors should be caught and returned as error dict."""
         result = await action_executor.execute(
             "plugin:workflow-test:failing_action",
@@ -481,9 +484,7 @@ class TestPluginActionResults:
     """Tests for plugin action result handling."""
 
     @pytest.mark.asyncio
-    async def test_plugin_action_inject_context_result(
-        self, action_executor, action_context
-    ):
+    async def test_plugin_action_inject_context_result(self, action_executor, action_context):
         """Plugin action returning inject_context should be recognized."""
         result = await action_executor.execute(
             "plugin:workflow-test:inject_context",
@@ -668,7 +669,10 @@ class TestWorkflowEngineIntegration:
         )
 
         actions = [
-            {"action": "plugin:workflow-test:inject_context", "message": "Plugin context injection"},
+            {
+                "action": "plugin:workflow-test:inject_context",
+                "message": "Plugin context injection",
+            },
         ]
 
         # The engine logs inject_context results
@@ -685,9 +689,7 @@ class TestPluginActionTimeoutAndCancellation:
     """Tests for plugin action timeout and cancellation handling."""
 
     @pytest.mark.asyncio
-    async def test_slow_plugin_action_can_be_cancelled(
-        self, action_executor, action_context
-    ):
+    async def test_slow_plugin_action_can_be_cancelled(self, action_executor, action_context):
         """Plugin action can be cancelled via asyncio cancellation."""
         import asyncio
 
@@ -708,9 +710,7 @@ class TestPluginActionTimeoutAndCancellation:
             await task
 
     @pytest.mark.asyncio
-    async def test_slow_plugin_action_respects_timeout(
-        self, action_executor, action_context
-    ):
+    async def test_slow_plugin_action_respects_timeout(self, action_executor, action_context):
         """Plugin action respects asyncio.wait_for timeout."""
         import asyncio
 

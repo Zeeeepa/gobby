@@ -1,4 +1,3 @@
-
 import pytest
 
 from gobby.storage.session_tasks import SessionTaskManager

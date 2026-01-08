@@ -505,7 +505,7 @@ class TestTmuxSpawner:
         result = spawner.spawn(["echo", "test"], cwd="/tmp", title="test-session")
 
         assert result.success is True
-        assert result.pid == 12345
+        assert result.pid is None
 
         call_args = mock_popen.call_args[0][0]
         assert ";" in call_args

@@ -165,6 +165,7 @@ def create_session_messages_registry(
                 full_content: If True, returns full content. If False (default), truncates large content.
             """
             try:
+                assert message_manager, "Message manager not available"
                 messages = await message_manager.get_messages(
                     session_id=session_id,
                     limit=limit,
@@ -230,6 +231,7 @@ def create_session_messages_registry(
                 full_content: If True, returns full content. If False (default), truncates large content.
             """
             try:
+                assert message_manager, "Message manager not available"
                 results = await message_manager.search_messages(
                     query_text=query,
                     session_id=session_id,
@@ -271,6 +273,7 @@ def create_session_messages_registry(
             Returns:
                 Session ID, compact_markdown, and whether context exists
             """
+            assert session_manager, "Session manager not available"
             session = session_manager.get(session_id)
             if not session:
                 return {"error": f"Session {session_id} not found", "found": False}
@@ -318,7 +321,7 @@ def create_session_messages_registry(
             from gobby.sessions.analyzer import TranscriptAnalyzer
 
             if session_manager is None:
-                return {"error": "Session manager not available"}
+                return {"success": False, "error": "Session manager not available"}
 
             # Find session
             session = None
@@ -341,16 +344,24 @@ def create_session_messages_registry(
                 session = sessions[0] if sessions else None
 
             if not session:
-                return {"error": "No session found", "session_id": session_id}
+                return {"success": False, "error": "No session found", "session_id": session_id}
 
             # Get transcript path
             transcript_path = session.jsonl_path
             if not transcript_path:
-                return {"error": "No transcript path for session", "session_id": session.id}
+                return {
+                    "success": False,
+                    "error": "No transcript path for session",
+                    "session_id": session.id,
+                }
 
             path = Path(transcript_path)
             if not path.exists():
-                return {"error": "Transcript file not found", "path": transcript_path}
+                return {
+                    "success": False,
+                    "error": "Transcript file not found",
+                    "path": transcript_path,
+                }
 
             # Read and parse transcript
             turns = []
@@ -398,8 +409,8 @@ def create_session_messages_registry(
                 pass
 
             # Determine what to generate (neither flag = both)
-            generate_compact = not full or compact
-            generate_full = not compact or full
+            generate_compact = compact or not full
+            generate_full = full or not compact
 
             # Generate content
             compact_markdown = None
@@ -452,6 +463,7 @@ def create_session_messages_registry(
                     full_error = str(e)
                     if full and not compact:
                         return {
+                            "success": False,
                             "error": f"Failed to generate full summary: {e}",
                             "session_id": session.id,
                         }
@@ -932,8 +944,7 @@ def create_session_messages_registry(
             Returns:
                 Success status and session details
             """
-            if session_manager is None:
-                return {"error": "Session manager not available"}
+            assert session_manager, "Session manager not available"
 
             # Find session
             if session_id:

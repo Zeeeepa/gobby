@@ -75,15 +75,17 @@ class TaskSyncManager:
                     # Commit linking
                     "commits": sorted(task.commits) if task.commits else [],
                     # Validation history (for tracking validation state across syncs)
-                    "validation": {
-                        "status": task.validation_status,
-                        "feedback": task.validation_feedback,
-                        "fail_count": task.validation_fail_count,
-                        "criteria": task.validation_criteria,
-                        "override_reason": task.validation_override_reason,
-                    }
-                    if task.validation_status
-                    else None,
+                    "validation": (
+                        {
+                            "status": task.validation_status,
+                            "feedback": task.validation_feedback,
+                            "fail_count": task.validation_fail_count,
+                            "criteria": task.validation_criteria,
+                            "override_reason": task.validation_override_reason,
+                        }
+                        if task.validation_status
+                        else None
+                    ),
                     # Escalation fields
                     "escalated_at": task.escalated_at,
                     "escalation_reason": task.escalation_reason,

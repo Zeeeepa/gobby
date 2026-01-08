@@ -200,9 +200,7 @@ class TestGetTerminalEnvVars:
 class TestPrepareTerminalSpawn:
     """Tests for prepare_terminal_spawn function."""
 
-    def test_creates_child_session(
-        self, child_session_manager, parent_session, project
-    ):
+    def test_creates_child_session(self, child_session_manager, parent_session, project):
         """Test that prepare_terminal_spawn creates a child session."""
         result = prepare_terminal_spawn(
             session_manager=child_session_manager,
@@ -246,9 +244,7 @@ class TestPrepareTerminalSpawn:
         assert result.workflow_name == "plan-execute"
         assert result.env_vars[GOBBY_WORKFLOW_NAME] == "plan-execute"
 
-    def test_short_prompt_uses_env_var(
-        self, child_session_manager, parent_session, project
-    ):
+    def test_short_prompt_uses_env_var(self, child_session_manager, parent_session, project):
         """Test that short prompts are passed via environment variable."""
         short_prompt = "Implement a simple feature"
 
@@ -264,9 +260,7 @@ class TestPrepareTerminalSpawn:
         assert result.env_vars[GOBBY_PROMPT] == short_prompt
         assert GOBBY_PROMPT_FILE not in result.env_vars
 
-    def test_long_prompt_uses_file(
-        self, child_session_manager, parent_session, project
-    ):
+    def test_long_prompt_uses_file(self, child_session_manager, parent_session, project):
         """Test that long prompts are written to a file."""
         long_prompt = "x" * (MAX_ENV_PROMPT_LENGTH + 100)
 
@@ -287,9 +281,7 @@ class TestPrepareTerminalSpawn:
         assert prompt_file.exists()
         assert prompt_file.read_text() == long_prompt
 
-    def test_max_agent_depth_passed(
-        self, child_session_manager, parent_session, project
-    ):
+    def test_max_agent_depth_passed(self, child_session_manager, parent_session, project):
         """Test that max_agent_depth is correctly passed."""
         result = prepare_terminal_spawn(
             session_manager=child_session_manager,
@@ -302,9 +294,7 @@ class TestPrepareTerminalSpawn:
 
         assert result.env_vars[GOBBY_MAX_AGENT_DEPTH] == "5"
 
-    def test_env_vars_contains_all_required(
-        self, child_session_manager, parent_session, project
-    ):
+    def test_env_vars_contains_all_required(self, child_session_manager, parent_session, project):
         """Test that env_vars contains all required variables."""
         result = prepare_terminal_spawn(
             session_manager=child_session_manager,
@@ -571,9 +561,7 @@ class TestWorktreeIntegration:
         stdout, _ = result.process.communicate()
         assert "worktree-feature-x" in stdout
 
-    def test_env_vars_for_worktree_agent(
-        self, child_session_manager, parent_session, project
-    ):
+    def test_env_vars_for_worktree_agent(self, child_session_manager, parent_session, project):
         """Test that environment variables are correctly set for worktree agents."""
         result = prepare_terminal_spawn(
             session_manager=child_session_manager,

@@ -91,8 +91,7 @@ class CodeGuardianPlugin(HookPlugin):
     def on_unload(self) -> None:
         """Cleanup on plugin unload."""
         self.logger.info(
-            f"Code Guardian stats: checked={self._files_checked}, "
-            f"blocked={self._files_blocked}"
+            f"Code Guardian stats: checked={self._files_checked}, " f"blocked={self._files_blocked}"
         )
 
     # =========================================================================
@@ -135,9 +134,7 @@ class CodeGuardianPlugin(HookPlugin):
         return None
 
     @hook_handler(HookEventType.AFTER_TOOL, priority=60)
-    def report_after_tool(
-        self, event: HookEvent, core_response: HookResponse | None
-    ) -> None:
+    def report_after_tool(self, event: HookEvent, core_response: HookResponse | None) -> None:
         """
         Post-handler: Log results and track statistics.
 
@@ -169,9 +166,7 @@ class CodeGuardianPlugin(HookPlugin):
                     "status": "failed",
                     "errors": errors,
                 }
-                self.logger.warning(
-                    f"Post-edit lint issues in {path.name}: {len(errors)} error(s)"
-                )
+                self.logger.warning(f"Post-edit lint issues in {path.name}: {len(errors)} error(s)")
 
                 # Try auto-fix if enabled
                 if self.auto_fix and "ruff" in self.checks:
@@ -308,7 +303,11 @@ class CodeGuardianPlugin(HookPlugin):
             )
 
             if result.returncode != 0 and result.stdout:
-                return [line.strip() for line in result.stdout.strip().split("\n") if line.strip() and ": error:" in line]
+                return [
+                    line.strip()
+                    for line in result.stdout.strip().split("\n")
+                    if line.strip() and ": error:" in line
+                ]
 
         except subprocess.TimeoutExpired:
             self.logger.warning(f"mypy timed out on {path}")

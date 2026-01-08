@@ -1039,9 +1039,7 @@ class TestGeneratePreciseCriteria:
             relevant_files=[],
             file_snippets={},
             project_patterns={},
-            function_signatures={
-                "src/file.py": ["myfunction(arg1, arg2)"]  # No def keyword
-            },
+            function_signatures={"src/file.py": ["myfunction(arg1, arg2)"]},  # No def keyword
         )
 
         criteria = await expander._generate_precise_criteria(
@@ -1115,9 +1113,7 @@ class TestGeneratePreciseCriteria:
             relevant_files=[],
             file_snippets={},
             project_patterns={},
-            function_signatures={
-                "src/file.py": ["property handler"]  # No parens
-            },
+            function_signatures={"src/file.py": ["property handler"]},  # No parens
         )
 
         criteria = await expander._generate_precise_criteria(
@@ -1152,9 +1148,7 @@ class TestGeneratePreciseCriteria:
             relevant_files=[],
             file_snippets={},
             project_patterns={},
-            function_signatures={
-                "src/file.py": ["()"]  # Edge case - empty before paren
-            },
+            function_signatures={"src/file.py": ["()"]},  # Edge case - empty before paren
         )
 
         # Should not raise

@@ -585,7 +585,9 @@ class TestTaskValidatorEdgeCases:
         """Test parsing JSON without markdown code block."""
         validator = TaskValidator(config, mock_llm)
         mock_provider = mock_llm.get_provider.return_value
-        mock_provider.generate_text.return_value = '{"status": "invalid", "feedback": "Missing tests"}'
+        mock_provider.generate_text.return_value = (
+            '{"status": "invalid", "feedback": "Missing tests"}'
+        )
 
         result = await validator.validate_task(
             task_id="task-1",
@@ -603,7 +605,7 @@ class TestTaskValidatorEdgeCases:
         validator = TaskValidator(config, mock_llm)
         mock_provider = mock_llm.get_provider.return_value
         mock_provider.generate_text.return_value = (
-            'Based on my analysis, here is my assessment:\n'
+            "Based on my analysis, here is my assessment:\n"
             '{"status": "valid", "feedback": "All criteria met"}'
         )
 
@@ -851,7 +853,7 @@ class TestGatherValidationContext:
         """Test handling of binary file that cannot be decoded as UTF-8."""
         validator = TaskValidator(config, mock_llm)
         binary_file = tmp_path / "binary.bin"
-        binary_file.write_bytes(b'\x80\x81\x82\x83')  # Invalid UTF-8
+        binary_file.write_bytes(b"\x80\x81\x82\x83")  # Invalid UTF-8
 
         context = await validator.gather_validation_context([str(binary_file)])
 
@@ -881,10 +883,7 @@ class TestCwdParameter:
     @patch("subprocess.run")
     def test_get_recent_commits_passes_cwd(self, mock_run):
         """Test that get_recent_commits passes cwd to subprocess.run."""
-        mock_run.return_value = MagicMock(
-            returncode=0,
-            stdout="abc123|Commit message"
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout="abc123|Commit message")
 
         get_recent_commits(n=5, cwd="/custom/path")
 
@@ -914,22 +913,15 @@ class TestCwdParameter:
     @patch("subprocess.run")
     @patch("gobby.tasks.validation.get_multi_commit_diff")
     @patch("gobby.tasks.validation.get_recent_commits")
-    def test_get_validation_context_smart_passes_cwd(
-        self, mock_commits, mock_diff, mock_run
-    ):
+    def test_get_validation_context_smart_passes_cwd(self, mock_commits, mock_diff, mock_run):
         """Test that get_validation_context_smart passes cwd to subprocess calls."""
         # Mock subprocess for Strategy 1 (uncommitted changes) - empty to trigger Strategy 2
         mock_run.return_value = MagicMock(returncode=0, stdout="")
         # Mock multi-commit diff to trigger get_recent_commits call
         mock_diff.return_value = "multi commit diff content"
-        mock_commits.return_value = [
-            {"sha": "abc123", "subject": "First commit"}
-        ]
+        mock_commits.return_value = [{"sha": "abc123", "subject": "First commit"}]
 
-        get_validation_context_smart(
-            task_title="Test task",
-            cwd="/project/root"
-        )
+        get_validation_context_smart(task_title="Test task", cwd="/project/root")
 
         # Verify subprocess.run was called with cwd for Strategy 1
         for call in mock_run.call_args_list:

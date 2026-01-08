@@ -23,26 +23,90 @@ from gobby.storage.migrations import run_migrations
 # Test corpus: memories with known content for accuracy testing
 TEST_MEMORIES = [
     # Programming facts
-    {"content": "Python uses indentation for code blocks instead of braces", "type": "fact", "topics": ["python", "syntax"]},
-    {"content": "JavaScript is a dynamically typed programming language", "type": "fact", "topics": ["javascript", "types"]},
-    {"content": "Rust provides memory safety without garbage collection", "type": "fact", "topics": ["rust", "memory"]},
-    {"content": "Go has built-in concurrency with goroutines and channels", "type": "fact", "topics": ["go", "concurrency"]},
-    {"content": "TypeScript adds static types to JavaScript", "type": "fact", "topics": ["typescript", "javascript", "types"]},
+    {
+        "content": "Python uses indentation for code blocks instead of braces",
+        "type": "fact",
+        "topics": ["python", "syntax"],
+    },
+    {
+        "content": "JavaScript is a dynamically typed programming language",
+        "type": "fact",
+        "topics": ["javascript", "types"],
+    },
+    {
+        "content": "Rust provides memory safety without garbage collection",
+        "type": "fact",
+        "topics": ["rust", "memory"],
+    },
+    {
+        "content": "Go has built-in concurrency with goroutines and channels",
+        "type": "fact",
+        "topics": ["go", "concurrency"],
+    },
+    {
+        "content": "TypeScript adds static types to JavaScript",
+        "type": "fact",
+        "topics": ["typescript", "javascript", "types"],
+    },
     # Testing preferences
-    {"content": "Always write unit tests before integration tests", "type": "preference", "topics": ["testing"]},
-    {"content": "Use pytest fixtures for test setup and teardown", "type": "preference", "topics": ["testing", "pytest"]},
-    {"content": "Mock external APIs in unit tests to avoid flakiness", "type": "preference", "topics": ["testing", "mocking"]},
+    {
+        "content": "Always write unit tests before integration tests",
+        "type": "preference",
+        "topics": ["testing"],
+    },
+    {
+        "content": "Use pytest fixtures for test setup and teardown",
+        "type": "preference",
+        "topics": ["testing", "pytest"],
+    },
+    {
+        "content": "Mock external APIs in unit tests to avoid flakiness",
+        "type": "preference",
+        "topics": ["testing", "mocking"],
+    },
     # Architecture patterns
-    {"content": "Use dependency injection for loose coupling between components", "type": "pattern", "topics": ["architecture", "di"]},
-    {"content": "Prefer composition over inheritance in object-oriented design", "type": "pattern", "topics": ["architecture", "oop"]},
-    {"content": "Apply the single responsibility principle to keep functions focused", "type": "pattern", "topics": ["architecture", "solid"]},
+    {
+        "content": "Use dependency injection for loose coupling between components",
+        "type": "pattern",
+        "topics": ["architecture", "di"],
+    },
+    {
+        "content": "Prefer composition over inheritance in object-oriented design",
+        "type": "pattern",
+        "topics": ["architecture", "oop"],
+    },
+    {
+        "content": "Apply the single responsibility principle to keep functions focused",
+        "type": "pattern",
+        "topics": ["architecture", "solid"],
+    },
     # Database facts
-    {"content": "SQLite is a serverless embedded database engine", "type": "fact", "topics": ["database", "sqlite"]},
-    {"content": "PostgreSQL supports JSON columns for semi-structured data", "type": "fact", "topics": ["database", "postgresql", "json"]},
-    {"content": "Redis is an in-memory data structure store used for caching", "type": "fact", "topics": ["database", "redis", "caching"]},
+    {
+        "content": "SQLite is a serverless embedded database engine",
+        "type": "fact",
+        "topics": ["database", "sqlite"],
+    },
+    {
+        "content": "PostgreSQL supports JSON columns for semi-structured data",
+        "type": "fact",
+        "topics": ["database", "postgresql", "json"],
+    },
+    {
+        "content": "Redis is an in-memory data structure store used for caching",
+        "type": "fact",
+        "topics": ["database", "redis", "caching"],
+    },
     # Git workflows
-    {"content": "Always create feature branches from main for new work", "type": "preference", "topics": ["git", "branching"]},
-    {"content": "Use conventional commits for clear commit message format", "type": "preference", "topics": ["git", "commits"]},
+    {
+        "content": "Always create feature branches from main for new work",
+        "type": "preference",
+        "topics": ["git", "branching"],
+    },
+    {
+        "content": "Use conventional commits for clear commit message format",
+        "type": "preference",
+        "topics": ["git", "commits"],
+    },
 ]
 
 # Test queries with expected relevant memory indices
@@ -55,7 +119,11 @@ TEST_QUERIES = [
     {"query": "TypeScript", "expected_indices": [4], "topic": "types"},
     # Semantic queries that require understanding
     {"query": "memory safety without GC", "expected_indices": [2], "topic": "memory"},
-    {"query": "loose coupling design patterns", "expected_indices": [8, 9], "topic": "architecture"},
+    {
+        "query": "loose coupling design patterns",
+        "expected_indices": [8, 9],
+        "topic": "architecture",
+    },
     {"query": "branch workflow", "expected_indices": [14], "topic": "git"},
     {"query": "parallel execution", "expected_indices": [3], "topic": "concurrency"},
 ]
@@ -70,7 +138,7 @@ def create_mock_embedding(content: str) -> list[float]:
 
     # Create base embedding from content hash
     content_hash = hashlib.sha256(content.encode()).hexdigest()
-    base = [int(content_hash[i:i+2], 16) / 255.0 for i in range(0, 64, 2)]
+    base = [int(content_hash[i : i + 2], 16) / 255.0 for i in range(0, 64, 2)]
 
     # Add topic-based components for semantic clustering
     topic_vectors = {
@@ -101,7 +169,7 @@ def create_mock_embedding(content: str) -> list[float]:
     embedding = combined + [0.0] * (1536 - len(combined))
 
     # Normalize
-    norm = sum(x*x for x in embedding) ** 0.5
+    norm = sum(x * x for x in embedding) ** 0.5
     if norm > 0:
         embedding = [x / norm for x in embedding]
 
@@ -139,13 +207,12 @@ async def populated_manager(memory_manager):
 
     # Generate mock embeddings for all memories
     with patch.object(
-        memory_manager.semantic_search,
-        "embed_text",
-        new_callable=AsyncMock
+        memory_manager.semantic_search, "embed_text", new_callable=AsyncMock
     ) as mock_embed:
         # Set up mock to return deterministic embeddings
         async def mock_embed_fn(text):
             return create_mock_embedding(text)
+
         mock_embed.side_effect = mock_embed_fn
 
         # Embed all memories
@@ -194,12 +261,12 @@ class TestSearchBenchmark:
         latencies = []
 
         with patch.object(
-            manager.semantic_search,
-            "embed_text",
-            new_callable=AsyncMock
+            manager.semantic_search, "embed_text", new_callable=AsyncMock
         ) as mock_embed:
+
             async def mock_embed_fn(text):
                 return create_mock_embedding(text)
+
             mock_embed.side_effect = mock_embed_fn
 
             for query_data in TEST_QUERIES:
@@ -284,12 +351,12 @@ class TestSearchBenchmark:
         recall_scores = []
 
         with patch.object(
-            manager.semantic_search,
-            "embed_text",
-            new_callable=AsyncMock
+            manager.semantic_search, "embed_text", new_callable=AsyncMock
         ) as mock_embed:
+
             async def mock_embed_fn(text):
                 return create_mock_embedding(text)
+
             mock_embed.side_effect = mock_embed_fn
 
             for query_data in TEST_QUERIES:
@@ -346,12 +413,12 @@ class TestSearchBenchmark:
 
         # Mock embedding for semantic search
         with patch.object(
-            manager.semantic_search,
-            "embed_text",
-            new_callable=AsyncMock
+            manager.semantic_search, "embed_text", new_callable=AsyncMock
         ) as mock_embed:
+
             async def mock_embed_fn(text):
                 return create_mock_embedding(text)
+
             mock_embed.side_effect = mock_embed_fn
 
             for query_data in TEST_QUERIES:
@@ -373,7 +440,9 @@ class TestSearchBenchmark:
                             break
 
                 if text_indices:
-                    results["text"]["precision"].append(len(expected & text_indices) / len(text_indices))
+                    results["text"]["precision"].append(
+                        len(expected & text_indices) / len(text_indices)
+                    )
                 else:
                     results["text"]["precision"].append(0.0)
                 if expected:
@@ -397,11 +466,15 @@ class TestSearchBenchmark:
                             break
 
                 if semantic_indices:
-                    results["semantic"]["precision"].append(len(expected & semantic_indices) / len(semantic_indices))
+                    results["semantic"]["precision"].append(
+                        len(expected & semantic_indices) / len(semantic_indices)
+                    )
                 else:
                     results["semantic"]["precision"].append(0.0)
                 if expected:
-                    results["semantic"]["recall"].append(len(expected & semantic_indices) / len(expected))
+                    results["semantic"]["recall"].append(
+                        len(expected & semantic_indices) / len(expected)
+                    )
                 else:
                     results["semantic"]["recall"].append(1.0)
 

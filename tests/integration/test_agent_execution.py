@@ -215,9 +215,7 @@ class TestAgentExecutionFullFlow:
 class TestAgentDepthLimit:
     """Tests for agent depth limiting."""
 
-    async def test_depth_limit_enforcement(
-        self, temp_db, session_storage, mock_executor, project
-    ):
+    async def test_depth_limit_enforcement(self, temp_db, session_storage, mock_executor, project):
         """Test that max_agent_depth is enforced."""
         runner = AgentRunner(
             db=temp_db,
@@ -307,9 +305,7 @@ class TestAgentRunStatusUpdates:
         run = runner.get_run(context.run_id)
         assert run.status == "pending"
 
-    async def test_failed_run_updates_status(
-        self, temp_db, session_storage, parent_session
-    ):
+    async def test_failed_run_updates_status(self, temp_db, session_storage, parent_session):
         """Test that failed runs update status correctly."""
         # Create executor that returns error
         error_executor = MagicMock()
@@ -349,9 +345,7 @@ class TestAgentRunStatusUpdates:
         children = session_storage.find_children(parent_session.id)
         assert children[0].status == "failed"
 
-    async def test_timeout_run_updates_status(
-        self, temp_db, session_storage, parent_session
-    ):
+    async def test_timeout_run_updates_status(self, temp_db, session_storage, parent_session):
         """Test that timed out runs update status correctly."""
         timeout_executor = MagicMock()
         timeout_executor.run = AsyncMock(
@@ -519,15 +513,11 @@ class TestAgentExecutorRegistration:
 class TestAgentRunExceptionHandling:
     """Tests for exception handling during agent execution."""
 
-    async def test_executor_exception_captured(
-        self, temp_db, session_storage, parent_session
-    ):
+    async def test_executor_exception_captured(self, temp_db, session_storage, parent_session):
         """Test that executor exceptions are captured and recorded."""
         # Create executor that raises
         bad_executor = MagicMock()
-        bad_executor.run = AsyncMock(
-            side_effect=RuntimeError("Executor crashed")
-        )
+        bad_executor.run = AsyncMock(side_effect=RuntimeError("Executor crashed"))
         bad_executor.provider_name = "test"
 
         runner = AgentRunner(
@@ -560,9 +550,7 @@ class TestAgentRunExceptionHandling:
     ):
         """Test that exceptions clean up in-memory tracking."""
         bad_executor = MagicMock()
-        bad_executor.run = AsyncMock(
-            side_effect=RuntimeError("Crash")
-        )
+        bad_executor.run = AsyncMock(side_effect=RuntimeError("Crash"))
 
         runner = AgentRunner(
             db=temp_db,
@@ -587,9 +575,7 @@ class TestAgentRunExceptionHandling:
 class TestAgentTerminalPickupMetadata:
     """Tests for terminal pickup metadata integration."""
 
-    async def test_prepare_sets_pickup_metadata(
-        self, runner, parent_session, session_storage
-    ):
+    async def test_prepare_sets_pickup_metadata(self, runner, parent_session, session_storage):
         """Test that prepare_run sets terminal pickup metadata."""
         config = AgentConfig(
             prompt="Terminal pickup test prompt",

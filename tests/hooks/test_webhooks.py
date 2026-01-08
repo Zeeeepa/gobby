@@ -208,9 +208,7 @@ class TestWebhookDispatcherTrigger:
             json={"status": "ok"},
         )
 
-        with patch.object(
-            httpx.AsyncClient, "post", new_callable=AsyncMock
-        ) as mock_post:
+        with patch.object(httpx.AsyncClient, "post", new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
             results = await dispatcher.trigger(sample_event)
@@ -232,9 +230,7 @@ class TestWebhookDispatcherTrigger:
 
         mock_response = httpx.Response(400, json={"error": "bad request"})
 
-        with patch.object(
-            httpx.AsyncClient, "post", new_callable=AsyncMock
-        ) as mock_post:
+        with patch.object(httpx.AsyncClient, "post", new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
             results = await dispatcher.trigger(sample_event)
@@ -256,9 +252,7 @@ class TestWebhookDispatcherTrigger:
 
         mock_response = httpx.Response(500, json={"error": "server error"})
 
-        with patch.object(
-            httpx.AsyncClient, "post", new_callable=AsyncMock
-        ) as mock_post:
+        with patch.object(httpx.AsyncClient, "post", new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
             results = await dispatcher.trigger(sample_event)
@@ -277,9 +271,7 @@ class TestWebhookDispatcherTrigger:
         config = WebhooksConfig(endpoints=[basic_endpoint])
         dispatcher = WebhookDispatcher(config)
 
-        with patch.object(
-            httpx.AsyncClient, "post", new_callable=AsyncMock
-        ) as mock_post:
+        with patch.object(httpx.AsyncClient, "post", new_callable=AsyncMock) as mock_post:
             mock_post.side_effect = httpx.TimeoutException("timeout")
 
             results = await dispatcher.trigger(sample_event)
@@ -313,9 +305,7 @@ class TestBlockingWebhooks:
             json={"decision": "allow"},
         )
 
-        with patch.object(
-            httpx.AsyncClient, "post", new_callable=AsyncMock
-        ) as mock_post:
+        with patch.object(httpx.AsyncClient, "post", new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
             results = await dispatcher.trigger(event)
@@ -347,9 +337,7 @@ class TestBlockingWebhooks:
             json={"decision": "block", "reason": "Not allowed"},
         )
 
-        with patch.object(
-            httpx.AsyncClient, "post", new_callable=AsyncMock
-        ) as mock_post:
+        with patch.object(httpx.AsyncClient, "post", new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
             results = await dispatcher.trigger(event)
@@ -381,9 +369,7 @@ class TestBlockingWebhooks:
             json={"decision": "deny", "reason": "Dangerous command"},
         )
 
-        with patch.object(
-            httpx.AsyncClient, "post", new_callable=AsyncMock
-        ) as mock_post:
+        with patch.object(httpx.AsyncClient, "post", new_callable=AsyncMock) as mock_post:
             mock_post.return_value = mock_response
 
             results = await dispatcher.trigger(event)

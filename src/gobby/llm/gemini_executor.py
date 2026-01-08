@@ -279,9 +279,11 @@ class GeminiExecutor(AgentExecutor):
                             genai.protos.Part(
                                 function_response=genai.protos.FunctionResponse(
                                     name=tool_name,
-                                    response=response_data
-                                    if isinstance(response_data, dict)
-                                    else {"result": response_data},
+                                    response=(
+                                        response_data
+                                        if isinstance(response_data, dict)
+                                        else {"result": response_data}
+                                    ),
                                 )
                             )
                         )

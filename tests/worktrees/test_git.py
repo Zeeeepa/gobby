@@ -654,12 +654,7 @@ class TestWorktreeGitManagerListWorktrees:
             args=["git", "worktree", "list"],
             returncode=0,
             stdout=(
-                "worktree /path/to/worktree\n"
-                "HEAD abc1234567890\n"
-                "detached\n"
-                "locked\n"
-                "prunable\n"
-                "\n"
+                "worktree /path/to/worktree\nHEAD abc1234567890\ndetached\nlocked\nprunable\n\n"
             ),
             stderr="",
         )
@@ -968,6 +963,10 @@ class TestWorktreeGitManagerDeleteWorktreeEdgeCases:
         assert result.success is True
         # No branch was deleted since we couldn't determine the branch
         assert "branch" not in result.message.lower() or "and branch" not in result.message
+        # Strictly verify we didn't try to delete a branch
+        assert (
+            "Deleted worktree" in result.message and "deleted branch" not in result.message.lower()
+        )
 
     @patch("subprocess.run")
     def test_delete_timeout(self, mock_run, manager, tmp_path):
@@ -1287,7 +1286,7 @@ class TestWorktreeGitManagerListWorktreesEdgeCases:
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "worktree", "list"],
             returncode=0,
-            stdout=("worktree /path/to/repo.git\n" "HEAD abc1234567890\n" "bare\n" "\n"),
+            stdout=("worktree /path/to/repo.git\nHEAD abc1234567890\nbare\n\n"),
             stderr="",
         )
 
@@ -1304,10 +1303,7 @@ class TestWorktreeGitManagerListWorktreesEdgeCases:
             args=["git", "worktree", "list"],
             returncode=0,
             stdout=(
-                "worktree /path/to/worktree\n"
-                "HEAD abc1234567890\n"
-                "branch feature/direct-branch\n"
-                "\n"
+                "worktree /path/to/worktree\nHEAD abc1234567890\nbranch feature/direct-branch\n\n"
             ),
             stderr="",
         )

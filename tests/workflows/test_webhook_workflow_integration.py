@@ -23,7 +23,7 @@ from gobby.workflows.state_manager import WorkflowStateManager
 # =============================================================================
 
 
-def create_mock_response(status=200, body='{}', headers=None):
+def create_mock_response(status=200, body="{}", headers=None):
     """Create a mock aiohttp response."""
     mock_response = MagicMock()
     mock_response.status = status
@@ -81,29 +81,35 @@ class WebhookTestPlugin(HookPlugin):
 
     async def _log_webhook_result(self, context: ActionContext, **kwargs) -> dict:
         """Log webhook result from previous action."""
-        self.action_calls.append({
-            "action": "log_webhook_result",
-            "kwargs": kwargs,
-            "variables": dict(context.state.variables) if context.state else {},
-        })
+        self.action_calls.append(
+            {
+                "action": "log_webhook_result",
+                "kwargs": kwargs,
+                "variables": dict(context.state.variables) if context.state else {},
+            }
+        )
         return {"logged": True}
 
     async def _process_data(self, context: ActionContext, **kwargs) -> dict:
         """Process data from previous actions."""
-        self.action_calls.append({
-            "action": "process_data",
-            "kwargs": kwargs,
-            "variables": dict(context.state.variables) if context.state else {},
-        })
+        self.action_calls.append(
+            {
+                "action": "process_data",
+                "kwargs": kwargs,
+                "variables": dict(context.state.variables) if context.state else {},
+            }
+        )
         return {"processed": True, "input": kwargs.get("data")}
 
     async def _fallback_handler(self, context: ActionContext, **kwargs) -> dict:
         """Fallback handler for webhook failures."""
-        self.action_calls.append({
-            "action": "fallback_handler",
-            "kwargs": kwargs,
-            "error": kwargs.get("error"),
-        })
+        self.action_calls.append(
+            {
+                "action": "fallback_handler",
+                "kwargs": kwargs,
+                "error": kwargs.get("error"),
+            }
+        )
         return {"fallback_executed": True}
 
 
@@ -227,9 +233,7 @@ class TestWorkflowEventTriggersWebhook:
     """Tests for workflows that fire webhooks on events."""
 
     @pytest.mark.asyncio
-    async def test_session_end_event_triggers_webhook(
-        self, action_executor, workflow_state
-    ):
+    async def test_session_end_event_triggers_webhook(self, action_executor, workflow_state):
         """Webhook is fired when workflow action executes on event."""
         mock_response = create_mock_response(
             status=200,
@@ -237,7 +241,9 @@ class TestWorkflowEventTriggersWebhook:
         )
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             context = ActionContext(
                 session_id="test-session",
                 state=workflow_state,
@@ -266,9 +272,7 @@ class TestWorkflowEventTriggersWebhook:
             assert result.get("success") is True
 
     @pytest.mark.asyncio
-    async def test_webhook_payload_includes_event_context(
-        self, action_executor, workflow_state
-    ):
+    async def test_webhook_payload_includes_event_context(self, action_executor, workflow_state):
         """Webhook payload can include interpolated event context."""
         mock_response = create_mock_response(status=200, body='{"ok": true}')
         mock_session = create_mock_session(mock_response)
@@ -277,7 +281,9 @@ class TestWorkflowEventTriggersWebhook:
         workflow_state.variables["user_id"] = "user-456"
         workflow_state.variables["action_count"] = 42
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             context = ActionContext(
                 session_id="test-session",
                 state=workflow_state,
@@ -320,7 +326,9 @@ class TestWebhookResponseChaining:
         )
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             context = ActionContext(
                 session_id="test-session",
                 state=workflow_state,
@@ -360,7 +368,9 @@ class TestWebhookResponseChaining:
         )
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             context = ActionContext(
                 session_id="test-session",
                 state=workflow_state,
@@ -390,7 +400,10 @@ class TestWebhookResponseChaining:
             # Verify plugin received the webhook data
             assert plugin_result.get("processed") is True
             assert len(webhook_test_plugin.action_calls) == 1
-            assert webhook_test_plugin.action_calls[0]["kwargs"]["data"] == '{"data": "webhook_result_data"}'
+            assert (
+                webhook_test_plugin.action_calls[0]["kwargs"]["data"]
+                == '{"data": "webhook_result_data"}'
+            )
 
 
 # =============================================================================
@@ -409,7 +422,9 @@ class TestWebhookFailureFallback:
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             context = ActionContext(
                 session_id="test-session",
                 state=workflow_state,
@@ -440,7 +455,9 @@ class TestWebhookFailureFallback:
         )
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             context = ActionContext(
                 session_id="test-session",
                 state=workflow_state,
@@ -474,7 +491,9 @@ class TestWebhookFailureFallback:
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             context = ActionContext(
                 session_id="test-session",
                 state=workflow_state,
@@ -519,9 +538,7 @@ class TestChainedWebhooks:
     """Tests for multiple webhooks executing in sequence."""
 
     @pytest.mark.asyncio
-    async def test_multiple_webhooks_execute_in_order(
-        self, action_executor, workflow_state
-    ):
+    async def test_multiple_webhooks_execute_in_order(self, action_executor, workflow_state):
         """Multiple webhooks execute in correct sequence."""
         responses = [
             create_mock_response(status=200, body='{"step": 1}'),
@@ -530,7 +547,9 @@ class TestChainedWebhooks:
         ]
         mock_session = create_mock_session(responses)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             context = ActionContext(
                 session_id="test-session",
                 state=workflow_state,
@@ -557,10 +576,7 @@ class TestChainedWebhooks:
 
             # Verify order
             assert mock_session.request.call_count == 3
-            call_urls = [
-                mock_session._call_args_list[i][1]["url"]
-                for i in range(3)
-            ]
+            call_urls = [mock_session._call_args_list[i][1]["url"] for i in range(3)]
             assert call_urls == [
                 "https://api.example.com/step-1",
                 "https://api.example.com/step-2",
@@ -568,9 +584,7 @@ class TestChainedWebhooks:
             ]
 
     @pytest.mark.asyncio
-    async def test_webhook_chain_passes_data_forward(
-        self, action_executor, workflow_state
-    ):
+    async def test_webhook_chain_passes_data_forward(self, action_executor, workflow_state):
         """Response from first webhook can be passed to second webhook."""
         responses = [
             create_mock_response(status=200, body='{"token": "abc123"}'),
@@ -578,7 +592,9 @@ class TestChainedWebhooks:
         ]
         mock_session = create_mock_session(responses)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             context = ActionContext(
                 session_id="test-session",
                 state=workflow_state,
@@ -598,6 +614,7 @@ class TestChainedWebhooks:
 
             # Parse token from response
             import json
+
             token = json.loads(result1.get("body", "{}")).get("token")
             workflow_state.variables["auth_token"] = token
 
@@ -630,7 +647,9 @@ class TestChainedWebhooks:
         ]
         mock_session = create_mock_session(responses)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             context = ActionContext(
                 session_id="test-session",
                 state=workflow_state,
@@ -678,7 +697,9 @@ class TestWebhookPluginCombination:
         mock_response = create_mock_response(status=200, body='{"received": true}')
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             context = ActionContext(
                 session_id="test-session",
                 state=workflow_state,
@@ -718,7 +739,9 @@ class TestWebhookPluginCombination:
         )
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             context = ActionContext(
                 session_id="test-session",
                 state=workflow_state,
@@ -761,7 +784,9 @@ class TestWebhookPluginCombination:
         ]
         mock_session = create_mock_session(responses)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             context = ActionContext(
                 session_id="test-session",
                 state=workflow_state,
@@ -823,7 +848,9 @@ class TestWorkflowEngineWebhookIntegration:
         mock_response = create_mock_response(status=200, body='{"engine": "test"}')
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             # Simulate workflow action list
             actions = [
                 {
@@ -840,16 +867,16 @@ class TestWorkflowEngineWebhookIntegration:
             assert mock_session.request.call_count == 1
 
     @pytest.mark.asyncio
-    async def test_engine_handles_webhook_error_gracefully(
-        self, workflow_engine, workflow_state
-    ):
+    async def test_engine_handles_webhook_error_gracefully(self, workflow_engine, workflow_state):
         """WorkflowEngine handles webhook errors without crashing."""
         mock_session = MagicMock()
         mock_session.request = MagicMock(side_effect=TimeoutError("Timeout"))
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             actions = [
                 {
                     "action": "webhook",
@@ -873,7 +900,9 @@ class TestWorkflowEngineWebhookIntegration:
         mock_response = create_mock_response(status=200, body='{"mixed": true}')
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             actions = [
                 {
                     "action": "plugin:webhook-test:process_data",
@@ -929,9 +958,7 @@ class TestWebhookErrorHandling:
         assert "error" in result
 
     @pytest.mark.asyncio
-    async def test_4xx_error_not_retried_by_default(
-        self, action_executor, workflow_state
-    ):
+    async def test_4xx_error_not_retried_by_default(self, action_executor, workflow_state):
         """4xx client errors are not retried by default."""
         mock_response = create_mock_response(
             status=400,
@@ -939,7 +966,9 @@ class TestWebhookErrorHandling:
         )
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             context = ActionContext(
                 session_id="test-session",
                 state=workflow_state,
@@ -954,7 +983,11 @@ class TestWebhookErrorHandling:
                 url="https://api.example.com/webhook",
                 method="POST",
                 payload={"invalid": "data"},
-                retry={"max_attempts": 3, "backoff_seconds": 0.01, "retry_on_status": [500, 502, 503]},
+                retry={
+                    "max_attempts": 3,
+                    "backoff_seconds": 0.01,
+                    "retry_on_status": [500, 502, 503],
+                },
             )
 
             # Should only be called once (no retry for 400)
@@ -963,16 +996,16 @@ class TestWebhookErrorHandling:
             assert result.get("status_code") == 400
 
     @pytest.mark.asyncio
-    async def test_execution_time_within_threshold(
-        self, action_executor, workflow_state
-    ):
+    async def test_execution_time_within_threshold(self, action_executor, workflow_state):
         """Webhook execution completes within acceptable time."""
         import time
 
         mock_response = create_mock_response(status=200, body='{"fast": true}')
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             context = ActionContext(
                 session_id="test-session",
                 state=workflow_state,

@@ -25,7 +25,7 @@ This module tests the MCP endpoints in src/gobby/servers/routes/mcp.py including
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -574,9 +574,7 @@ class TestListMCPServers:
         )
         # Create a manager that raises on server_configs access
         mcp_manager = MagicMock()
-        mcp_manager.server_configs = property(
-            lambda self: (_ for _ in ()).throw(RuntimeError("Config error"))
-        )
+        type(mcp_manager).server_configs = PropertyMock(side_effect=RuntimeError("Config error"))
         server.mcp_manager = mcp_manager
 
         with TestClient(server.app) as client:

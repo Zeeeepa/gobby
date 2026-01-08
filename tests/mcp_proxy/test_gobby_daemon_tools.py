@@ -244,9 +244,7 @@ class TestGobbyDaemonToolsCallTool:
             arguments=None,
         )
 
-        tools_handler.tool_proxy.call_tool.assert_called_once_with(
-            "server", "no-args-tool", None
-        )
+        tools_handler.tool_proxy.call_tool.assert_called_once_with("server", "no-args-tool", None)
 
     @pytest.mark.asyncio
     async def test_call_tool_propagates_errors(self, tools_handler):
@@ -378,9 +376,7 @@ class TestGobbyDaemonToolsServerManagement:
     @pytest.mark.asyncio
     async def test_remove_mcp_server_delegates_to_service(self, tools_handler):
         """Test that remove_mcp_server delegates to server_mgmt service."""
-        tools_handler.server_mgmt.remove_server = AsyncMock(
-            return_value={"success": True}
-        )
+        tools_handler.server_mgmt.remove_server = AsyncMock(return_value={"success": True})
 
         result = await tools_handler.remove_mcp_server("old-server")
 

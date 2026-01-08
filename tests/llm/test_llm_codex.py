@@ -40,11 +40,14 @@ def codex_config_api_key() -> DaemonConfig:
 class TestCodexProviderInit:
     """Tests for CodexProvider initialization."""
 
-    def test_init_subscription_mode_missing_auth_json(self, codex_config: DaemonConfig, tmp_path: Path):
+    def test_init_subscription_mode_missing_auth_json(
+        self, codex_config: DaemonConfig, tmp_path: Path
+    ):
         """Test initialization with subscription mode but no auth.json."""
         with patch("gobby.llm.codex.shutil.which", return_value=None):
             with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
                 from gobby.llm.codex import CodexProvider
+
                 provider = CodexProvider(codex_config)
 
                 assert provider._client is None
@@ -55,6 +58,7 @@ class TestCodexProviderInit:
         with patch("gobby.llm.codex.shutil.which", return_value=None):
             with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
                 from gobby.llm.codex import CodexProvider
+
                 provider = CodexProvider(codex_config)
 
                 assert provider.supports_code_execution is False
@@ -71,6 +75,7 @@ class TestCodexProviderInit:
         with patch("gobby.llm.codex.shutil.which", return_value="/usr/local/bin/codex"):
             with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
                 from gobby.llm.codex import CodexProvider
+
                 provider = CodexProvider(codex_config)
 
                 assert provider.supports_code_execution is True
@@ -85,6 +90,7 @@ class TestCodexProviderProperties:
         with patch("gobby.llm.codex.shutil.which", return_value=None):
             with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
                 from gobby.llm.codex import CodexProvider
+
                 provider = CodexProvider(codex_config)
                 assert provider.provider_name == "codex"
 
@@ -93,6 +99,7 @@ class TestCodexProviderProperties:
         with patch("gobby.llm.codex.shutil.which", return_value=None):
             with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
                 from gobby.llm.codex import CodexProvider
+
                 provider = CodexProvider(codex_config)
                 assert provider._get_model("summary") == "gpt-4o"
 
@@ -101,6 +108,7 @@ class TestCodexProviderProperties:
         with patch("gobby.llm.codex.shutil.which", return_value=None):
             with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
                 from gobby.llm.codex import CodexProvider
+
                 provider = CodexProvider(codex_config)
                 assert provider._get_model("title") == "gpt-4o-mini"
 
@@ -109,6 +117,7 @@ class TestCodexProviderProperties:
         with patch("gobby.llm.codex.shutil.which", return_value=None):
             with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
                 from gobby.llm.codex import CodexProvider
+
                 provider = CodexProvider(codex_config)
                 assert provider._get_model("unknown") == "gpt-4o"
 
@@ -122,12 +131,12 @@ class TestCodexProviderGenerateSummary:
         with patch("gobby.llm.codex.shutil.which", return_value=None):
             with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
                 from gobby.llm.codex import CodexProvider
+
                 provider = CodexProvider(codex_config)
                 provider._client = None
 
                 result = await provider.generate_summary(
-                    {"transcript_summary": "test"},
-                    prompt_template="Test {transcript_summary}"
+                    {"transcript_summary": "test"}, prompt_template="Test {transcript_summary}"
                 )
 
                 assert "unavailable" in result
@@ -138,6 +147,7 @@ class TestCodexProviderGenerateSummary:
         with patch("gobby.llm.codex.shutil.which", return_value=None):
             with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
                 from gobby.llm.codex import CodexProvider
+
                 provider = CodexProvider(codex_config)
                 # Set a mock client to pass the None check
                 provider._client = MagicMock()
@@ -155,12 +165,12 @@ class TestCodexProviderSynthesizeTitle:
         with patch("gobby.llm.codex.shutil.which", return_value=None):
             with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
                 from gobby.llm.codex import CodexProvider
+
                 provider = CodexProvider(codex_config)
                 provider._client = None
 
                 result = await provider.synthesize_title(
-                    "test prompt",
-                    prompt_template="Generate title: {user_prompt}"
+                    "test prompt", prompt_template="Generate title: {user_prompt}"
                 )
 
                 assert result is None
@@ -171,6 +181,7 @@ class TestCodexProviderSynthesizeTitle:
         with patch("gobby.llm.codex.shutil.which", return_value=None):
             with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
                 from gobby.llm.codex import CodexProvider
+
                 provider = CodexProvider(codex_config)
                 provider._client = MagicMock()
 
@@ -187,6 +198,7 @@ class TestCodexProviderExecuteCode:
         with patch("gobby.llm.codex.shutil.which", return_value=None):
             with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
                 from gobby.llm.codex import CodexProvider
+
                 provider = CodexProvider(codex_config)
 
                 result = await provider.execute_code("print('hello')")
@@ -195,7 +207,9 @@ class TestCodexProviderExecuteCode:
                 assert "requires Codex CLI" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_execute_code_unsupported_language(self, codex_config: DaemonConfig, tmp_path: Path):
+    async def test_execute_code_unsupported_language(
+        self, codex_config: DaemonConfig, tmp_path: Path
+    ):
         """Test execute_code fails for unsupported languages."""
         # Set up auth.json and mock CLI
         codex_dir = tmp_path / ".codex"
@@ -206,6 +220,7 @@ class TestCodexProviderExecuteCode:
         with patch("gobby.llm.codex.shutil.which", return_value="/usr/local/bin/codex"):
             with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
                 from gobby.llm.codex import CodexProvider
+
                 provider = CodexProvider(codex_config)
 
                 result = await provider.execute_code("console.log('hello')", language="javascript")
@@ -218,7 +233,9 @@ class TestCodexProviderExecuteCode:
 class TestCodexProviderGetApiKey:
     """Tests for _get_api_key method."""
 
-    def test_get_api_key_subscription_corrupt_json(self, codex_config: DaemonConfig, tmp_path: Path):
+    def test_get_api_key_subscription_corrupt_json(
+        self, codex_config: DaemonConfig, tmp_path: Path
+    ):
         """Test _get_api_key handles corrupt auth.json."""
         codex_dir = tmp_path / ".codex"
         codex_dir.mkdir()
@@ -228,6 +245,7 @@ class TestCodexProviderGetApiKey:
         with patch("gobby.llm.codex.shutil.which", return_value=None):
             with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
                 from gobby.llm.codex import CodexProvider
+
                 provider = CodexProvider(codex_config)
                 # Should handle corrupt JSON gracefully
                 assert provider._client is None
@@ -242,6 +260,7 @@ class TestCodexProviderGetApiKey:
         with patch("gobby.llm.codex.shutil.which", return_value=None):
             with patch("gobby.llm.codex.Path.home", return_value=tmp_path):
                 from gobby.llm.codex import CodexProvider
+
                 provider = CodexProvider(codex_config)
                 # Should handle missing key gracefully
                 assert provider._client is None

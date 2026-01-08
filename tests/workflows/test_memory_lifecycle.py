@@ -28,7 +28,8 @@ def template_workflow_dir(temp_dir: Path) -> Path:
 
     # Copy the actual memory-lifecycle workflow
     memory_lifecycle = lifecycle_dir / "memory-lifecycle.yaml"
-    memory_lifecycle.write_text("""
+    memory_lifecycle.write_text(
+        """
 name: memory-lifecycle
 description: Standard memory lifecycle hooks
 version: "1.0"
@@ -44,7 +45,8 @@ triggers:
 
   on_session_end:
     - action: skills_learn
-""")
+"""
+    )
     return workflow_dir
 
 
@@ -306,14 +308,16 @@ class TestMemoryLifecyclePriority:
         # Add another lifecycle workflow with default priority (in lifecycle/ subdir)
         lifecycle_dir = temp_dir / "workflows" / "lifecycle"
         other_workflow = lifecycle_dir / "other-lifecycle.yaml"
-        other_workflow.write_text("""
+        other_workflow.write_text(
+            """
 name: other-lifecycle
 type: lifecycle
 triggers:
   on_session_start:
     - action: inject_context
       content: "Other context"
-""")
+"""
+        )
 
         # Clear cache and rediscover
         workflow_loader.clear_discovery_cache()

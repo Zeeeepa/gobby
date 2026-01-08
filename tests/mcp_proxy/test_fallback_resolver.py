@@ -267,9 +267,7 @@ class TestToolFallbackResolver:
 
     def test_get_success_rate_handles_error(self, fallback_resolver, mock_metrics_manager):
         """Test graceful handling of metrics lookup errors."""
-        mock_metrics_manager.get_tool_success_rate = MagicMock(
-            side_effect=Exception("DB error")
-        )
+        mock_metrics_manager.get_tool_success_rate = MagicMock(side_effect=Exception("DB error"))
 
         rate = fallback_resolver._get_success_rate("server", "tool", "project")
 

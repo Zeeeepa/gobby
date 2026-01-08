@@ -84,16 +84,14 @@ async def test_find_relevant_files_in_description(mock_task_manager, sample_task
         assert "src/auth.py" in files
         assert "invalid.txt" not in files  # txt not in our allowed extensions list
 
+
 @pytest.mark.asyncio
 async def test_gather_context_with_agentic_research(mock_task_manager, sample_task):
     from gobby.config.app import TaskExpansionConfig
 
     # Mock config and service
     config = TaskExpansionConfig(
-        enabled=True,
-        provider="claude",
-        model="claude-test",
-        codebase_research_enabled=True
+        enabled=True, provider="claude", model="claude-test", codebase_research_enabled=True
     )
     llm_service = MagicMock()
 
@@ -103,20 +101,20 @@ async def test_gather_context_with_agentic_research(mock_task_manager, sample_ta
     # We need to mock these properly because they are called
     # But since they are async, we need async mocks
 
-    with patch.object(gatherer, '_find_related_tasks', return_value=[]), \
-         patch.object(gatherer, '_find_relevant_files', return_value=[]), \
-         patch.object(gatherer, '_read_file_snippets', return_value={}), \
-         patch.object(gatherer, '_detect_project_patterns', return_value={}), \
-         patch("gobby.tasks.research.TaskResearchAgent") as MockAgent:
+    with (
+        patch.object(gatherer, "_find_related_tasks", return_value=[]),
+        patch.object(gatherer, "_find_relevant_files", return_value=[]),
+        patch.object(gatherer, "_read_file_snippets", return_value={}),
+        patch.object(gatherer, "_detect_project_patterns", return_value={}),
+        patch("gobby.tasks.research.TaskResearchAgent") as MockAgent,
+    ):
 
-        mock_agent_instance =  MockAgent.return_value
+        mock_agent_instance = MockAgent.return_value
 
         # Simpler way to mock async return
         async def mock_run(*args, **kwargs):
-            return {
-                "relevant_files": ["agent_found.py"],
-                "findings": "Found it"
-            }
+            return {"relevant_files": ["agent_found.py"], "findings": "Found it"}
+
         mock_agent_instance.run.side_effect = mock_run
 
         context = await gatherer.gather_context(sample_task)

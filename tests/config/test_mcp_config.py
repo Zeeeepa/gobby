@@ -289,7 +289,11 @@ class TestMCPConfigManagerSaveServers:
         config_path.write_text(json.dumps({"servers": []}))
 
         server = MCPServerConfig(
-            name="test-http", project_id="global", enabled=True, transport="http", url="http://localhost:8080/mcp"
+            name="test-http",
+            project_id="global",
+            enabled=True,
+            transport="http",
+            url="http://localhost:8080/mcp",
         )
 
         manager = MCPConfigManager(str(config_path))
@@ -338,7 +342,10 @@ class TestMCPConfigManagerAddServer:
         config_path.write_text(json.dumps({"servers": []}))
 
         server = MCPServerConfig(
-            name="new-server", project_id="global", transport="http", url="http://localhost:8080/mcp"
+            name="new-server",
+            project_id="global",
+            transport="http",
+            url="http://localhost:8080/mcp",
         )
 
         manager = MCPConfigManager(str(config_path))
@@ -358,7 +365,9 @@ class TestMCPConfigManagerAddServer:
         }
         config_path.write_text(json.dumps(config_data))
 
-        server = MCPServerConfig(name="existing", project_id="global", transport="http", url="http://localhost:9090/mcp")
+        server = MCPServerConfig(
+            name="existing", project_id="global", transport="http", url="http://localhost:9090/mcp"
+        )
 
         manager = MCPConfigManager(str(config_path))
 
@@ -429,7 +438,10 @@ class TestMCPConfigManagerUpdateServer:
         config_path.write_text(json.dumps({"servers": []}))
 
         server = MCPServerConfig(
-            name="non-existent", project_id="global", transport="http", url="http://localhost:8080/mcp"
+            name="non-existent",
+            project_id="global",
+            transport="http",
+            url="http://localhost:8080/mcp",
         )
 
         manager = MCPConfigManager(str(config_path))

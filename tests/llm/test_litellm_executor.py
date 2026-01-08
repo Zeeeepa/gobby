@@ -113,9 +113,7 @@ class TestLiteLLMExecutorRun:
             ),
         ]
 
-    async def test_run_returns_text_response(
-        self, executor, mock_litellm_module, simple_tools
-    ):
+    async def test_run_returns_text_response(self, executor, mock_litellm_module, simple_tools):
         """run() returns text response when no tools are called."""
         # Setup mock response
         mock_message = MagicMock()
@@ -143,9 +141,7 @@ class TestLiteLLMExecutorRun:
         assert result.output == "Hello, I'm an AI!"
         assert len(result.tool_calls) == 0
 
-    async def test_run_handles_function_call(
-        self, executor, mock_litellm_module, simple_tools
-    ):
+    async def test_run_handles_function_call(self, executor, mock_litellm_module, simple_tools):
         """run() handles function calls and sends results back."""
         # First response with function call
         mock_tool_call = MagicMock()
@@ -181,9 +177,7 @@ class TestLiteLLMExecutorRun:
         mock_response2 = MagicMock()
         mock_response2.choices = [mock_choice2]
 
-        mock_litellm_module.acompletion = AsyncMock(
-            side_effect=[mock_response1, mock_response2]
-        )
+        mock_litellm_module.acompletion = AsyncMock(side_effect=[mock_response1, mock_response2])
 
         async def weather_handler(name: str, args: dict) -> ToolResult:
             if name == "get_weather":
@@ -206,9 +200,7 @@ class TestLiteLLMExecutorRun:
         assert result.tool_calls[0].tool_name == "get_weather"
         assert result.tool_calls[0].arguments == {"location": "San Francisco"}
 
-    async def test_run_handles_tool_error(
-        self, executor, mock_litellm_module, simple_tools
-    ):
+    async def test_run_handles_tool_error(self, executor, mock_litellm_module, simple_tools):
         """run() handles tool execution errors gracefully."""
         # Response with function call
         mock_tool_call = MagicMock()
@@ -238,9 +230,7 @@ class TestLiteLLMExecutorRun:
         mock_response2 = MagicMock()
         mock_response2.choices = [mock_choice2]
 
-        mock_litellm_module.acompletion = AsyncMock(
-            side_effect=[mock_response1, mock_response2]
-        )
+        mock_litellm_module.acompletion = AsyncMock(side_effect=[mock_response1, mock_response2])
 
         async def failing_handler(name: str, args: dict) -> ToolResult:
             return ToolResult(tool_name=name, success=False, error="Location not found")
@@ -257,9 +247,7 @@ class TestLiteLLMExecutorRun:
         assert result.tool_calls[0].result.success is False
         assert result.tool_calls[0].result.error == "Location not found"
 
-    async def test_run_respects_max_turns(
-        self, executor, mock_litellm_module, simple_tools
-    ):
+    async def test_run_respects_max_turns(self, executor, mock_litellm_module, simple_tools):
         """run() stops after max_turns is reached."""
         # Always return function call (to exhaust turns)
         mock_tool_call = MagicMock()
@@ -293,9 +281,7 @@ class TestLiteLLMExecutorRun:
         assert result.status == "partial"
         assert result.turns_used == 3
 
-    async def test_run_handles_timeout(
-        self, executor, mock_litellm_module, simple_tools
-    ):
+    async def test_run_handles_timeout(self, executor, mock_litellm_module, simple_tools):
         """run() returns timeout status when execution exceeds timeout."""
         import asyncio
 
@@ -318,9 +304,7 @@ class TestLiteLLMExecutorRun:
         assert result.status == "timeout"
         assert "timed out" in result.error.lower()
 
-    async def test_run_handles_api_error(
-        self, executor, mock_litellm_module, simple_tools
-    ):
+    async def test_run_handles_api_error(self, executor, mock_litellm_module, simple_tools):
         """run() returns error status on API error."""
         mock_litellm_module.acompletion = AsyncMock(
             side_effect=Exception("API Error: Rate limited")
@@ -338,9 +322,7 @@ class TestLiteLLMExecutorRun:
         assert result.status == "error"
         assert "API Error" in result.error
 
-    async def test_run_uses_system_prompt(
-        self, executor, mock_litellm_module, simple_tools
-    ):
+    async def test_run_uses_system_prompt(self, executor, mock_litellm_module, simple_tools):
         """run() passes system prompt in messages."""
         mock_message = MagicMock()
         mock_message.content = "Response"
@@ -371,9 +353,7 @@ class TestLiteLLMExecutorRun:
         assert messages[0]["role"] == "system"
         assert messages[0]["content"] == "You are a weather assistant."
 
-    async def test_run_uses_model_override(
-        self, executor, mock_litellm_module, simple_tools
-    ):
+    async def test_run_uses_model_override(self, executor, mock_litellm_module, simple_tools):
         """run() uses model override when provided."""
         mock_message = MagicMock()
         mock_message.content = "Response"
@@ -466,9 +446,7 @@ class TestLiteLLMExecutorRun:
         mock_response2 = MagicMock()
         mock_response2.choices = [mock_choice2]
 
-        mock_litellm_module.acompletion = AsyncMock(
-            side_effect=[mock_response1, mock_response2]
-        )
+        mock_litellm_module.acompletion = AsyncMock(side_effect=[mock_response1, mock_response2])
 
         async def dummy_handler(name: str, args: dict) -> ToolResult:
             # Handler should receive empty dict for invalid JSON

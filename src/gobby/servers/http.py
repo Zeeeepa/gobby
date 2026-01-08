@@ -366,6 +366,9 @@ class HTTPServer:
                 app.state.hook_manager.shutdown()
                 logger.debug("HookManager shutdown complete")
 
+            # Process graceful shutdown (tasks, MCP connections)
+            await self._process_shutdown()
+
             self._running = False
 
         app = FastAPI(

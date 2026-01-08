@@ -760,9 +760,9 @@ class MCPClientManager:
             name: {
                 "state": status.state.value,
                 "health": status.health.value,
-                "last_check": status.last_health_check.isoformat()
-                if status.last_health_check
-                else None,
+                "last_check": (
+                    status.last_health_check.isoformat() if status.last_health_check else None
+                ),
                 "failures": status.consecutive_failures,
                 "response_time_ms": status.response_time_ms,
             }

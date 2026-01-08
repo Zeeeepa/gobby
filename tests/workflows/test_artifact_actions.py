@@ -418,6 +418,7 @@ class TestReadArtifact:
         assert workflow_state.variables["large_content"] == large_content
 
 
+@pytest.mark.integration
 class TestIntegrationCaptureAndRead:
     """Integration tests for capture and read workflow."""
 

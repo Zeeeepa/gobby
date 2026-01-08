@@ -203,9 +203,7 @@ async def test_inject_context_reads_compact_handoff(
     )
 
     # Execute inject_context with compact_handoff source
-    result = await action_executor.execute(
-        "inject_context", context, source="compact_handoff"
-    )
+    result = await action_executor.execute("inject_context", context, source="compact_handoff")
 
     # Verify injection returns the session's own markdown
     assert result is not None
@@ -255,9 +253,7 @@ async def test_full_compact_handoff_flow(
     )
 
     with patch.object(action_executor, "_get_git_status", return_value="M src/auth/login.py"):
-        extract_result = await action_executor.execute(
-            "extract_handoff_context", extract_context
-        )
+        extract_result = await action_executor.execute("extract_handoff_context", extract_context)
 
     assert extract_result.get("handoff_context_extracted") is True
 
@@ -360,9 +356,7 @@ async def test_inject_context_no_compact_markdown(
         mcp_manager=AsyncMock(),
     )
 
-    result = await action_executor.execute(
-        "inject_context", context, source="compact_handoff"
-    )
+    result = await action_executor.execute("inject_context", context, source="compact_handoff")
 
     # Should return None or empty when no compact_markdown exists
     assert result is None or result.get("inject_context") is None

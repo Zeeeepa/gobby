@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -156,7 +158,7 @@ class ConditionEvaluator:
         self._stop_registry = stop_registry
         logger.debug("ConditionEvaluator: stop_registry registered")
 
-    def register_webhook_executor(self, webhook_executor: "WebhookExecutor") -> None:
+    def register_webhook_executor(self, webhook_executor: WebhookExecutor | None) -> None:
         """
         Register a webhook executor for webhook condition evaluation.
 
@@ -230,9 +232,12 @@ class ConditionEvaluator:
 
             # Add task-related helpers (bind task_manager via closure)
             if self._task_manager:
-                allowed_globals["task_tree_complete"] = lambda task_id: task_tree_complete(
-                    self._task_manager, task_id
-                )
+
+                def _task_tree_complete_wrapper(task_id: str | list[str] | None) -> bool:
+                    # Helper wrapper to match types
+                    return task_tree_complete(self._task_manager, task_id)  # type: ignore
+
+                allowed_globals["task_tree_complete"] = _task_tree_complete_wrapper
             else:
                 # Provide a no-op that returns True when no task_manager
                 allowed_globals["task_tree_complete"] = lambda task_id: True
@@ -328,6 +333,9 @@ class ConditionEvaluator:
         Returns:
             True if condition is satisfied
         """
+        if not isinstance(result, dict):
+            return False
+
         # Check success (default: require success)
         expect_success = condition.get("expect_success", True)
         if expect_success and not result.get("success", False):
@@ -509,12 +517,17 @@ class ConditionEvaluator:
                 )
 
                 # Convert result to storable dict
+                try:
+                    json_body = webhook_result.json_body()
+                except Exception:
+                    json_body = None
+
                 result_dict: dict[str, Any] = {
                     "success": webhook_result.success,
                     "status_code": webhook_result.status_code,
                     "body": webhook_result.body,
                     "error": webhook_result.error,
-                    "json_body": webhook_result.json_body(),
+                    "json_body": json_body,
                 }
 
                 # Store result in state variables

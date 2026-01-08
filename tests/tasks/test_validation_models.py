@@ -190,17 +190,21 @@ class TestIssue:
     def test_issue_invalid_type_raises(self):
         """Test that invalid issue type raises ValueError."""
         with pytest.raises(ValueError):
-            Issue.from_dict({
-                "type": "invalid_type",
-                "severity": "major",
-                "title": "Test",
-            })
+            Issue.from_dict(
+                {
+                    "type": "invalid_type",
+                    "severity": "major",
+                    "title": "Test",
+                }
+            )
 
     def test_issue_invalid_severity_raises(self):
         """Test that invalid severity raises ValueError."""
         with pytest.raises(ValueError):
-            Issue.from_dict({
-                "type": "test_failure",
-                "severity": "invalid_severity",
-                "title": "Test",
-            })
+            Issue.from_dict(
+                {
+                    "type": "test_failure",
+                    "severity": "invalid_severity",
+                    "title": "Test",
+                }
+            )

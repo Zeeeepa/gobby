@@ -32,8 +32,8 @@ async def test_inject_context_previous_session_summary(mock_context):
     # Mock current session with parent
     current_session = MagicMock()
     current_session.parent_session_id = "parent-123"
-    mock_context.session_manager.get.side_effect = (
-        lambda sid: current_session if sid == "test-session" else parent_session
+    mock_context.session_manager.get.side_effect = lambda sid: (
+        current_session if sid == "test-session" else parent_session
     )
 
     # Mock parent session with summary

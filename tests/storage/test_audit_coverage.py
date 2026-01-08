@@ -13,7 +13,8 @@ def test_db(tmp_path):
     db_path = tmp_path / "test_audit.db"
     db = LocalDatabase(str(db_path))
     # Create the table manually as we don't have migrations in this test context
-    db.execute("""
+    db.execute(
+        """
         CREATE TABLE IF NOT EXISTS workflow_audit_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id TEXT NOT NULL,
@@ -27,7 +28,8 @@ def test_db(tmp_path):
             reason TEXT,
             context TEXT
         )
-    """)
+    """
+    )
     return db
 
 

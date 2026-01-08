@@ -1,4 +1,3 @@
-
 from gobby.config.app import TaskExpansionConfig
 from gobby.storage.tasks import Task
 from gobby.tasks.context import ExpansionContext

@@ -1,6 +1,5 @@
 """Tests for base executor types and utilities."""
 
-
 import pytest
 
 from gobby.llm.executor import (
@@ -327,6 +326,7 @@ class TestAgentExecutorRunWithCompleteTool:
 
     async def test_adds_complete_tool(self, executor, simple_tools):
         """run_with_complete_tool adds complete tool to tools list."""
+
         async def dummy_handler(name: str, args: dict) -> ToolResult:
             return ToolResult(tool_name=name, success=True)
 
@@ -346,6 +346,7 @@ class TestAgentExecutorRunWithCompleteTool:
 
     async def test_complete_tool_schema(self, executor, simple_tools):
         """Complete tool has correct schema."""
+
         async def dummy_handler(name: str, args: dict) -> ToolResult:
             return ToolResult(tool_name=name, success=True)
 
@@ -400,9 +401,7 @@ class TestAgentExecutorRunWithCompleteTool:
                 return AgentResult(
                     output="",
                     status="success",
-                    tool_calls=[
-                        ToolCallRecord(tool_name="complete", arguments={})
-                    ],
+                    tool_calls=[ToolCallRecord(tool_name="complete", arguments={})],
                     turns_used=1,
                 )
 
@@ -421,9 +420,7 @@ class TestAgentExecutorRunWithCompleteTool:
         assert result.next_steps == ["Review code"]
         assert result.turns_used == 1
 
-    async def test_returns_raw_result_without_complete_call(
-        self, executor, simple_tools
-    ):
+    async def test_returns_raw_result_without_complete_call(self, executor, simple_tools):
         """run_with_complete_tool returns raw result if complete() not called."""
         executor.mock_result = AgentResult(
             output="Raw output",
@@ -490,6 +487,7 @@ class TestAgentExecutorRunWithCompleteTool:
 
     async def test_passes_through_all_parameters(self, executor, simple_tools):
         """run_with_complete_tool passes all parameters to run()."""
+
         async def dummy_handler(name: str, args: dict) -> ToolResult:
             return ToolResult(tool_name=name, success=True)
 

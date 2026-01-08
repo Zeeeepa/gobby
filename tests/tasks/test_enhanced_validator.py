@@ -62,9 +62,7 @@ class TestEnhancedTaskValidator:
     """Tests for EnhancedTaskValidator core loop."""
 
     @pytest.mark.asyncio
-    async def test_returns_valid_immediately_on_first_pass(
-        self, validator, mock_llm_validator
-    ):
+    async def test_returns_valid_immediately_on_first_pass(self, validator, mock_llm_validator):
         """Test that validation returns valid immediately on first pass."""
         mock_llm_validator.validate.return_value = {
             "valid": True,
@@ -96,9 +94,7 @@ class TestEnhancedTaskValidator:
         assert mock_llm_validator.validate.call_count == 3
 
     @pytest.mark.asyncio
-    async def test_escalates_after_max_iterations(
-        self, validator, mock_llm_validator
-    ):
+    async def test_escalates_after_max_iterations(self, validator, mock_llm_validator):
         """Test that validation escalates after max_iterations exceeded."""
         # All calls return invalid
         mock_llm_validator.validate.return_value = {
@@ -115,9 +111,7 @@ class TestEnhancedTaskValidator:
         assert result.iterations == 3  # max_iterations
 
     @pytest.mark.asyncio
-    async def test_escalates_on_consecutive_errors(
-        self, validator, mock_llm_validator
-    ):
+    async def test_escalates_on_consecutive_errors(self, validator, mock_llm_validator):
         """Test that validation escalates on consecutive errors threshold."""
         # Raise errors on validation
         mock_llm_validator.validate.side_effect = Exception("LLM error")
@@ -176,9 +170,7 @@ class TestEnhancedTaskValidator:
         assert second_call.kwargs["status"] == "valid"
 
     @pytest.mark.asyncio
-    async def test_validation_result_includes_feedback(
-        self, validator, mock_llm_validator
-    ):
+    async def test_validation_result_includes_feedback(self, validator, mock_llm_validator):
         """Test that validation result includes feedback from validator."""
         mock_llm_validator.validate.return_value = {
             "valid": True,
@@ -191,9 +183,7 @@ class TestEnhancedTaskValidator:
         assert result.feedback == "All tests passing, code looks good"
 
     @pytest.mark.asyncio
-    async def test_validation_result_includes_issues(
-        self, validator, mock_llm_validator
-    ):
+    async def test_validation_result_includes_issues(self, validator, mock_llm_validator):
         """Test that validation result includes issues from validator."""
         issues = [
             {"type": "test_failure", "severity": "major", "title": "Test failed"},
@@ -224,9 +214,7 @@ class TestEnhancedTaskValidator:
         assert result.iterations == 2
 
     @pytest.mark.asyncio
-    async def test_validation_with_context(
-        self, validator, mock_llm_validator
-    ):
+    async def test_validation_with_context(self, validator, mock_llm_validator):
         """Test validation with additional context provided."""
         mock_llm_validator.validate.return_value = {
             "valid": True,

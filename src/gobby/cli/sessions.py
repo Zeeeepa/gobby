@@ -588,11 +588,13 @@ def create_handoff(
             click.echo(f"Error writing file: {e}", err=True)
 
     # Output summary
-    summary_type = (
-        "both"
-        if generate_compact and generate_full
-        else ("compact" if generate_compact else "full")
-    )
+    summary_type = "none"
+    if compact_markdown and full_markdown:
+        summary_type = "both"
+    elif compact_markdown:
+        summary_type = "compact"
+    elif full_markdown:
+        summary_type = "full"
     click.echo(f"\nCreated handoff context for session {session.id[:12]}")
     click.echo(f"  Type: {summary_type}")
     click.echo(f"  Output: {output}")

@@ -152,10 +152,7 @@ class TestSemanticToolSearch:
         assert retrieved.tool_id == sample_tool["id"]
         # Float precision: 32-bit storage vs 64-bit Python floats
         assert len(retrieved.embedding) == len(embedding)
-        assert all(
-            abs(a - b) < 1e-6
-            for a, b in zip(retrieved.embedding, embedding, strict=True)
-        )
+        assert all(abs(a - b) < 1e-6 for a, b in zip(retrieved.embedding, embedding, strict=True))
 
     def test_store_embedding_upsert(
         self,
@@ -186,10 +183,7 @@ class TestSemanticToolSearch:
         assert retrieved is not None
         # Float precision: 32-bit storage vs 64-bit Python floats
         assert len(retrieved.embedding) == len(embedding2)
-        assert all(
-            abs(a - b) < 1e-6
-            for a, b in zip(retrieved.embedding, embedding2, strict=True)
-        )
+        assert all(abs(a - b) < 1e-6 for a, b in zip(retrieved.embedding, embedding2, strict=True))
         assert retrieved.text_hash == "hash2"
 
     def test_get_embedding_nonexistent(self, semantic_search: SemanticToolSearch):
@@ -760,9 +754,7 @@ class TestSearchTools:
         )
 
         # Mock embed_text to return query embedding
-        with patch.object(
-            semantic_search, "embed_text", new_callable=AsyncMock
-        ) as mock_embed:
+        with patch.object(semantic_search, "embed_text", new_callable=AsyncMock) as mock_embed:
             mock_embed.return_value = [0.9] * 1536  # Query embedding
 
             results = await semantic_search.search_tools(
@@ -809,9 +801,7 @@ class TestSearchTools:
                 text_hash=f"hash-{tool.name}",
             )
 
-        with patch.object(
-            semantic_search, "embed_text", new_callable=AsyncMock
-        ) as mock_embed:
+        with patch.object(semantic_search, "embed_text", new_callable=AsyncMock) as mock_embed:
             mock_embed.return_value = [0.5] * 1536
 
             results = await semantic_search.search_tools(
@@ -865,9 +855,7 @@ class TestSearchTools:
             text_hash="hash2",
         )
 
-        with patch.object(
-            semantic_search, "embed_text", new_callable=AsyncMock
-        ) as mock_embed:
+        with patch.object(semantic_search, "embed_text", new_callable=AsyncMock) as mock_embed:
             mock_embed.return_value = [0.9] * 1536
 
             results = await semantic_search.search_tools(
@@ -925,9 +913,7 @@ class TestSearchTools:
                 text_hash="hash-b",
             )
 
-        with patch.object(
-            semantic_search, "embed_text", new_callable=AsyncMock
-        ) as mock_embed:
+        with patch.object(semantic_search, "embed_text", new_callable=AsyncMock) as mock_embed:
             mock_embed.return_value = [0.5] * 1536
 
             results = await semantic_search.search_tools(
@@ -946,9 +932,7 @@ class TestSearchTools:
         sample_project: dict,
     ):
         """Test search returns empty when no embeddings exist."""
-        with patch.object(
-            semantic_search, "embed_text", new_callable=AsyncMock
-        ) as mock_embed:
+        with patch.object(semantic_search, "embed_text", new_callable=AsyncMock) as mock_embed:
             mock_embed.return_value = [0.5] * 1536
 
             results = await semantic_search.search_tools(

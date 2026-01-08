@@ -62,17 +62,22 @@ class TestIsPortAvailable:
         assert is_port_available(port) is True
 
     def test_unavailable_port(self):
-        """Test checking an unavailable port."""
+        """Test that is_port_available returns False when port is used."""
         import socket
 
-        # Bind to a port
+        # Create a socket and bind it to a random port
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # MacOS/BSD needs SO_REUSEADDR to be FALSE for pure exclusivity in some cases,
+        # but standard behavior is if we bind AND listen, it should be unavailable.
+        # However, is_port_available uses SO_REUSEADDR.
+        # If we want to ensure it Returns False, we must ensure is_port_available's bind fails.
+        # If is_port_available uses SO_REUSEADDR, it CAN bind to a port that is TIME_WAIT,
+        # but typically NOT one that is LISTEN.
         sock.bind(("localhost", 0))
+        sock.listen(1)
         port = sock.getsockname()[1]
 
         try:
-            # Port is now in use
             assert is_port_available(port) is False
         finally:
             sock.close()
@@ -96,19 +101,18 @@ class TestWaitForPortAvailable:
         assert result is True
 
     def test_port_never_available_timeout(self):
-        """Test timeout when port never becomes available."""
+        """Test that wait_for_port_available returns False on timeout."""
         import socket
 
-        # Bind to a port and keep it bound
+        # Bind a port and keep it busy
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind(("localhost", 0))
+        sock.listen(1)
         port = sock.getsockname()[1]
 
         try:
-            # Should timeout and return False
-            result = wait_for_port_available(port, timeout=0.3)
-            assert result is False
+            # Should return False after timeout
+            assert wait_for_port_available(port, timeout=0.1) is False
         finally:
             sock.close()
 

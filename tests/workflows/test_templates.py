@@ -1,4 +1,3 @@
-
 import pytest
 from jinja2 import FileSystemLoader, TemplateNotFound
 

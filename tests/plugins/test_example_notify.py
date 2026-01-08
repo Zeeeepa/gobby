@@ -14,9 +14,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-sys.path.insert(
-    0, str(Path(__file__).parent.parent.parent / "examples" / "plugins")
-)
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "examples" / "plugins"))
 from example_notify import HTTP_NOTIFY_SCHEMA, LOG_METRIC_SCHEMA, ExampleNotifyPlugin
 
 
@@ -42,10 +40,12 @@ class TestPluginLoading:
     def test_on_load_with_custom_config(self):
         """on_load should apply custom configuration."""
         plugin = ExampleNotifyPlugin()
-        plugin.on_load({
-            "default_channel": "#alerts",
-            "log_file": "/tmp/custom_metrics.log",
-        })
+        plugin.on_load(
+            {
+                "default_channel": "#alerts",
+                "log_file": "/tmp/custom_metrics.log",
+            }
+        )
 
         assert plugin.default_channel == "#alerts"
         assert plugin.log_file == Path("/tmp/custom_metrics.log")
@@ -101,10 +101,12 @@ class TestSchemaValidation:
         assert "value" in error
 
         # All required present
-        is_valid, error = action.validate_input({
-            "metric_name": "test",
-            "value": 42,
-        })
+        is_valid, error = action.validate_input(
+            {
+                "metric_name": "test",
+                "value": 42,
+            }
+        )
         assert is_valid
 
     def test_validates_type_mismatch(self):
@@ -115,10 +117,12 @@ class TestSchemaValidation:
         action = plugin._actions["log_metric"]
 
         # value should be number, not string
-        is_valid, error = action.validate_input({
-            "metric_name": "test",
-            "value": "not a number",
-        })
+        is_valid, error = action.validate_input(
+            {
+                "metric_name": "test",
+                "value": "not a number",
+            }
+        )
         assert not is_valid
         assert "type" in error.lower()
 
@@ -130,12 +134,14 @@ class TestSchemaValidation:
         action = plugin._actions["http_notify"]
 
         # Valid with optional fields
-        is_valid, error = action.validate_input({
-            "url": "https://example.com",
-            "method": "POST",
-            "payload": {"key": "value"},
-            "headers": {"Authorization": "Bearer token"},
-        })
+        is_valid, error = action.validate_input(
+            {
+                "url": "https://example.com",
+                "method": "POST",
+                "payload": {"key": "value"},
+                "headers": {"Authorization": "Bearer token"},
+            }
+        )
         assert is_valid
 
 
@@ -261,12 +267,8 @@ class TestLogMetricAction:
             context.session_id = "test-session"
 
             # Log multiple metrics
-            await plugin._execute_log_metric(
-                context=context, metric_name="metric1", value=1
-            )
-            await plugin._execute_log_metric(
-                context=context, metric_name="metric2", value=2
-            )
+            await plugin._execute_log_metric(context=context, metric_name="metric1", value=1)
+            await plugin._execute_log_metric(context=context, metric_name="metric2", value=2)
 
             # Verify file has both entries
             with open(log_file) as f:
@@ -288,9 +290,7 @@ class TestLogMetricAction:
             context = MagicMock()
             context.session_id = None
 
-            result = await plugin._execute_log_metric(
-                context=context, metric_name="test", value=1
-            )
+            result = await plugin._execute_log_metric(context=context, metric_name="test", value=1)
 
             assert result["success"] is True
             assert log_file.exists()
@@ -309,9 +309,7 @@ class TestLogMetricAction:
 
             assert plugin._metrics_logged == 0
 
-            await plugin._execute_log_metric(
-                context=context, metric_name="test", value=1
-            )
+            await plugin._execute_log_metric(context=context, metric_name="test", value=1)
             assert plugin._metrics_logged == 1
 
 

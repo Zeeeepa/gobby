@@ -64,9 +64,7 @@ class TestGeminiExecutorInit:
         with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}):
             from gobby.llm.gemini_executor import GeminiExecutor
 
-            executor = GeminiExecutor(
-                auth_mode="api_key", default_model="gemini-1.5-pro"
-            )
+            executor = GeminiExecutor(auth_mode="api_key", default_model="gemini-1.5-pro")
 
             assert executor.default_model == "gemini-1.5-pro"
 
@@ -132,9 +130,7 @@ class TestGeminiExecutorRun:
             ),
         ]
 
-    async def test_run_returns_text_response(
-        self, executor, mock_google_module, simple_tools
-    ):
+    async def test_run_returns_text_response(self, executor, mock_google_module, simple_tools):
         """run() returns text response when no tools are called."""
         # Setup mock response
         mock_model = MagicMock()
@@ -167,9 +163,7 @@ class TestGeminiExecutorRun:
         assert result.output == "Hello, I'm Gemini!"
         assert len(result.tool_calls) == 0
 
-    async def test_run_handles_function_call(
-        self, executor, mock_google_module, simple_tools
-    ):
+    async def test_run_handles_function_call(self, executor, mock_google_module, simple_tools):
         """run() handles function calls and sends results back."""
         mock_model = MagicMock()
         mock_chat = MagicMock()
@@ -198,9 +192,7 @@ class TestGeminiExecutorRun:
         mock_response2 = MagicMock()
         mock_response2.candidates = [mock_candidate2]
 
-        mock_chat.send_message_async = AsyncMock(
-            side_effect=[mock_response1, mock_response2]
-        )
+        mock_chat.send_message_async = AsyncMock(side_effect=[mock_response1, mock_response2])
         mock_model.start_chat = MagicMock(return_value=mock_chat)
         mock_google_module.GenerativeModel = MagicMock(return_value=mock_model)
 
@@ -225,9 +217,7 @@ class TestGeminiExecutorRun:
         assert result.tool_calls[0].tool_name == "get_weather"
         assert result.tool_calls[0].arguments == {"location": "San Francisco"}
 
-    async def test_run_handles_tool_error(
-        self, executor, mock_google_module, simple_tools
-    ):
+    async def test_run_handles_tool_error(self, executor, mock_google_module, simple_tools):
         """run() handles tool execution errors gracefully."""
         mock_model = MagicMock()
         mock_chat = MagicMock()
@@ -256,9 +246,7 @@ class TestGeminiExecutorRun:
         mock_response2 = MagicMock()
         mock_response2.candidates = [mock_candidate2]
 
-        mock_chat.send_message_async = AsyncMock(
-            side_effect=[mock_response1, mock_response2]
-        )
+        mock_chat.send_message_async = AsyncMock(side_effect=[mock_response1, mock_response2])
         mock_model.start_chat = MagicMock(return_value=mock_chat)
         mock_google_module.GenerativeModel = MagicMock(return_value=mock_model)
 
@@ -277,9 +265,7 @@ class TestGeminiExecutorRun:
         assert result.tool_calls[0].result.success is False
         assert result.tool_calls[0].result.error == "Location not found"
 
-    async def test_run_respects_max_turns(
-        self, executor, mock_google_module, simple_tools
-    ):
+    async def test_run_respects_max_turns(self, executor, mock_google_module, simple_tools):
         """run() stops after max_turns is reached."""
         mock_model = MagicMock()
         mock_chat = MagicMock()
@@ -315,9 +301,7 @@ class TestGeminiExecutorRun:
         assert result.status == "partial"
         assert result.turns_used == 3
 
-    async def test_run_handles_timeout(
-        self, executor, mock_google_module, simple_tools
-    ):
+    async def test_run_handles_timeout(self, executor, mock_google_module, simple_tools):
         """run() returns timeout status when execution exceeds timeout."""
         import asyncio
 
@@ -345,15 +329,11 @@ class TestGeminiExecutorRun:
         assert result.status == "timeout"
         assert "timed out" in result.error.lower()
 
-    async def test_run_handles_api_error(
-        self, executor, mock_google_module, simple_tools
-    ):
+    async def test_run_handles_api_error(self, executor, mock_google_module, simple_tools):
         """run() returns error status on API error."""
         mock_model = MagicMock()
         mock_chat = MagicMock()
-        mock_chat.send_message_async = AsyncMock(
-            side_effect=Exception("API Error: Rate limited")
-        )
+        mock_chat.send_message_async = AsyncMock(side_effect=Exception("API Error: Rate limited"))
         mock_model.start_chat = MagicMock(return_value=mock_chat)
         mock_google_module.GenerativeModel = MagicMock(return_value=mock_model)
 
@@ -369,9 +349,7 @@ class TestGeminiExecutorRun:
         assert result.status == "error"
         assert "API Error" in result.error
 
-    async def test_run_uses_system_prompt(
-        self, executor, mock_google_module, simple_tools
-    ):
+    async def test_run_uses_system_prompt(self, executor, mock_google_module, simple_tools):
         """run() passes system prompt to model."""
         mock_model = MagicMock()
         mock_chat = MagicMock()
@@ -404,9 +382,7 @@ class TestGeminiExecutorRun:
         call_kwargs = mock_google_module.GenerativeModel.call_args.kwargs
         assert call_kwargs["system_instruction"] == "You are a weather assistant."
 
-    async def test_run_uses_model_override(
-        self, executor, mock_google_module, simple_tools
-    ):
+    async def test_run_uses_model_override(self, executor, mock_google_module, simple_tools):
         """run() uses model override when provided."""
         mock_model = MagicMock()
         mock_chat = MagicMock()

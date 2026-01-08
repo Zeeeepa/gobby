@@ -1,6 +1,5 @@
 """Tests for memory context building."""
 
-
 from gobby.memory.context import _strip_leading_bullet, build_memory_context
 from gobby.storage.memories import Memory
 

@@ -68,9 +68,7 @@ def context_config():
 class TestContextResolverIntegration:
     """Integration tests for ContextResolver with all source types."""
 
-    async def test_resolves_summary_markdown(
-        self, mock_session_manager, mock_message_manager
-    ):
+    async def test_resolves_summary_markdown(self, mock_session_manager, mock_message_manager):
         """Resolves summary_markdown from parent session."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,
@@ -82,9 +80,7 @@ class TestContextResolverIntegration:
         assert "Parent Summary" in result
         assert "This is context" in result
 
-    async def test_resolves_compact_markdown(
-        self, mock_session_manager, mock_message_manager
-    ):
+    async def test_resolves_compact_markdown(self, mock_session_manager, mock_message_manager):
         """Resolves compact_markdown from parent session."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,
@@ -96,9 +92,7 @@ class TestContextResolverIntegration:
         assert "Handoff" in result
         assert "Compact context" in result
 
-    async def test_resolves_transcript(
-        self, mock_session_manager, mock_message_manager
-    ):
+    async def test_resolves_transcript(self, mock_session_manager, mock_message_manager):
         """Resolves transcript from parent session."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,
@@ -110,9 +104,7 @@ class TestContextResolverIntegration:
         assert "**user**: Hello" in result
         assert "**assistant**: Hi there!" in result
 
-    async def test_resolves_file(
-        self, mock_session_manager, mock_message_manager, temp_project
-    ):
+    async def test_resolves_file(self, mock_session_manager, mock_message_manager, temp_project):
         """Resolves file content from project."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,
@@ -125,9 +117,7 @@ class TestContextResolverIntegration:
         assert "File Context" in result
         assert "Content from file" in result
 
-    async def test_resolves_session_id(
-        self, mock_session_manager, mock_message_manager
-    ):
+    async def test_resolves_session_id(self, mock_session_manager, mock_message_manager):
         """Resolves summary from specific session by ID."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,
@@ -215,9 +205,7 @@ class TestAgentsRegistryContextIntegration:
 class TestErrorHandling:
     """Tests for error handling in context injection flow."""
 
-    async def test_handles_missing_session(
-        self, mock_session_manager, mock_message_manager
-    ):
+    async def test_handles_missing_session(self, mock_session_manager, mock_message_manager):
         """Handles missing session gracefully."""
         mock_session_manager.get.return_value = None
 
@@ -233,9 +221,7 @@ class TestErrorHandling:
 
         assert "Session not found" in str(exc_info.value)
 
-    async def test_handles_invalid_source_format(
-        self, mock_session_manager, mock_message_manager
-    ):
+    async def test_handles_invalid_source_format(self, mock_session_manager, mock_message_manager):
         """Handles invalid source format gracefully."""
         resolver = ContextResolver(
             session_manager=mock_session_manager,

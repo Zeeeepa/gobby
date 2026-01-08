@@ -88,20 +88,24 @@ def create_workflows_registry(
             "type": definition.type,
             "description": definition.description,
             "version": definition.version,
-            "steps": [
-                {
-                    "name": s.name,
-                    "description": s.description,
-                    "allowed_tools": s.allowed_tools,
-                    "blocked_tools": s.blocked_tools,
-                }
-                for s in definition.steps
-            ]
-            if definition.steps
-            else [],
-            "triggers": {name: len(actions) for name, actions in definition.triggers.items()}
-            if definition.triggers
-            else {},
+            "steps": (
+                [
+                    {
+                        "name": s.name,
+                        "description": s.description,
+                        "allowed_tools": s.allowed_tools,
+                        "blocked_tools": s.blocked_tools,
+                    }
+                    for s in definition.steps
+                ]
+                if definition.steps
+                else []
+            ),
+            "triggers": (
+                {name: len(actions) for name, actions in definition.triggers.items()}
+                if definition.triggers
+                else {}
+            ),
             "settings": definition.settings,
         }
 
@@ -367,9 +371,11 @@ def create_workflows_registry(
             "reflection_pending": state.reflection_pending,
             "artifacts": list(state.artifacts.keys()) if state.artifacts else [],
             "variables": state.variables,
-            "task_progress": f"{state.current_task_index + 1}/{len(state.task_list)}"
-            if state.task_list
-            else None,
+            "task_progress": (
+                f"{state.current_task_index + 1}/{len(state.task_list)}"
+                if state.task_list
+                else None
+            ),
             "updated_at": state.updated_at.isoformat() if state.updated_at else None,
         }
 

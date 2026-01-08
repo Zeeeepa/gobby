@@ -27,9 +27,11 @@ class WorkflowStateManager:
                 session_id=row["session_id"],
                 workflow_name=row["workflow_name"],
                 step=row["step"],
-                step_entered_at=datetime.fromisoformat(row["step_entered_at"])
-                if row["step_entered_at"]
-                else datetime.now(UTC),
+                step_entered_at=(
+                    datetime.fromisoformat(row["step_entered_at"])
+                    if row["step_entered_at"]
+                    else datetime.now(UTC)
+                ),
                 step_action_count=row["step_action_count"],
                 total_action_count=row["total_action_count"],
                 artifacts=json.loads(row["artifacts"]) if row["artifacts"] else {},
@@ -40,9 +42,11 @@ class WorkflowStateManager:
                 task_list=json.loads(row["task_list"]) if row["task_list"] else None,
                 current_task_index=row["current_task_index"],
                 files_modified_this_task=row["files_modified_this_task"],
-                updated_at=datetime.fromisoformat(row["updated_at"])
-                if row["updated_at"]
-                else datetime.now(UTC),
+                updated_at=(
+                    datetime.fromisoformat(row["updated_at"])
+                    if row["updated_at"]
+                    else datetime.now(UTC)
+                ),
             )
         except Exception as e:
             logger.error(

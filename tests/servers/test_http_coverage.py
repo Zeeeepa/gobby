@@ -533,8 +533,8 @@ class TestAdminEndpoints:
         mock_daemon.uptime = 120.5
         basic_http_server._daemon = mock_daemon
 
-        client = TestClient(basic_http_server.app)
-        response = client.get("/admin/metrics")
+        with TestClient(basic_http_server.app) as client:
+            response = client.get("/admin/metrics")
 
         assert response.status_code == 200
         assert "text/plain" in response.headers["content-type"]

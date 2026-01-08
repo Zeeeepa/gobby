@@ -24,7 +24,8 @@ async def processor(mock_db: LocalDatabase) -> AsyncGenerator[SessionMessageProc
     # If not, we might need to apply schema manually.
     # Let's verify if LocalMessageManager requires tables created.
     # We'll apply the schema manually for the test to be safe.
-    mock_db.execute("""
+    mock_db.execute(
+        """
         CREATE TABLE IF NOT EXISTS session_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id TEXT NOT NULL,
@@ -40,8 +41,10 @@ async def processor(mock_db: LocalDatabase) -> AsyncGenerator[SessionMessageProc
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             UNIQUE(session_id, message_index)
         );
-    """)
-    mock_db.execute("""
+    """
+    )
+    mock_db.execute(
+        """
         CREATE TABLE IF NOT EXISTS session_message_state (
             session_id TEXT PRIMARY KEY,
             last_byte_offset INTEGER DEFAULT 0,
@@ -50,7 +53,8 @@ async def processor(mock_db: LocalDatabase) -> AsyncGenerator[SessionMessageProc
             processing_errors INTEGER DEFAULT 0,
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
-    """)
+    """
+    )
 
     yield proc
     if proc._running:
@@ -105,7 +109,9 @@ async def test_incremental_processing(processor, transcript_file, mock_db):
     processor.register_session("session-1", str(transcript_file))
 
     # Initial write
-    msg1 = json.dumps({"type": "user", "message": {"content": "msg1"}, "timestamp": "2024-01-01T10:00:00Z"})
+    msg1 = json.dumps(
+        {"type": "user", "message": {"content": "msg1"}, "timestamp": "2024-01-01T10:00:00Z"}
+    )
     with open(transcript_file, "w") as f:
         f.write(msg1 + "\n")
 
@@ -124,7 +130,9 @@ async def test_incremental_processing(processor, transcript_file, mock_db):
     assert state["last_message_index"] == 0
 
     # Append new msg
-    msg2 = json.dumps({"type": "agent", "message": {"content": "msg2"}, "timestamp": "2024-01-01T10:01:00Z"})
+    msg2 = json.dumps(
+        {"type": "agent", "message": {"content": "msg2"}, "timestamp": "2024-01-01T10:01:00Z"}
+    )
     with open(transcript_file, "a") as f:
         f.write(msg2 + "\n")
 
@@ -146,8 +154,12 @@ async def test_incremental_processing(processor, transcript_file, mock_db):
 async def test_recovery_after_restart(processor, transcript_file, mock_db):
     # Pre-seed file with 2 messages
     msgs = [
-        json.dumps({"type": "user", "message": {"content": "msg1"}, "timestamp": "2024-01-01T10:00:00Z"}),
-        json.dumps({"type": "agent", "message": {"content": "msg2"}, "timestamp": "2024-01-01T10:01:00Z"}),
+        json.dumps(
+            {"type": "user", "message": {"content": "msg1"}, "timestamp": "2024-01-01T10:00:00Z"}
+        ),
+        json.dumps(
+            {"type": "agent", "message": {"content": "msg2"}, "timestamp": "2024-01-01T10:01:00Z"}
+        ),
     ]
     with open(transcript_file, "w") as f:
         f.write(msgs[0] + "\n")
@@ -207,10 +219,28 @@ async def test_concurrent_sessions(processor, tmp_path, mock_db):
 
     # Write to both
     with open(file1, "w") as f:
-        f.write(json.dumps({"type": "user", "message": {"content": "s1_msg"}, "timestamp": "2024-01-01T10:00:00Z"}) + "\n")
+        f.write(
+            json.dumps(
+                {
+                    "type": "user",
+                    "message": {"content": "s1_msg"},
+                    "timestamp": "2024-01-01T10:00:00Z",
+                }
+            )
+            + "\n"
+        )
 
     with open(file2, "w") as f:
-        f.write(json.dumps({"type": "user", "message": {"content": "s2_msg"}, "timestamp": "2024-01-01T10:00:00Z"}) + "\n")
+        f.write(
+            json.dumps(
+                {
+                    "type": "user",
+                    "message": {"content": "s2_msg"},
+                    "timestamp": "2024-01-01T10:00:00Z",
+                }
+            )
+            + "\n"
+        )
 
     await asyncio.sleep(0.3)
 

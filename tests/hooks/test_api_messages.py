@@ -26,7 +26,8 @@ def mock_db():
     db._get_connection = lambda: shared_conn  # type: ignore
 
     # Create tables using the shared connection
-    db.execute("""
+    db.execute(
+        """
         CREATE TABLE IF NOT EXISTS sessions (
             id TEXT PRIMARY KEY,
             external_id TEXT NOT NULL,
@@ -52,8 +53,10 @@ def mock_db():
             transcript_processed BOOLEAN DEFAULT FALSE,
             UNIQUE(external_id, machine_id, source)
         );
-    """)
-    db.execute("""
+    """
+    )
+    db.execute(
+        """
         CREATE TABLE IF NOT EXISTS session_messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             session_id TEXT NOT NULL,
@@ -69,9 +72,11 @@ def mock_db():
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             UNIQUE(session_id, message_index)
         );
-    """)
+    """
+    )
     # Add session_message_state for completeness (though not used directly here)
-    db.execute("""
+    db.execute(
+        """
         CREATE TABLE IF NOT EXISTS session_message_state (
             session_id TEXT PRIMARY KEY,
             last_byte_offset INTEGER DEFAULT 0,
@@ -80,7 +85,8 @@ def mock_db():
             processing_errors INTEGER DEFAULT 0,
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
-    """)
+    """
+    )
     return db
 
 

@@ -13,7 +13,7 @@ import pytest
 from gobby.workflows.webhook_executor import WebhookExecutor, WebhookResult
 
 
-def create_mock_response(status=200, body='{}', headers=None):
+def create_mock_response(status=200, body="{}", headers=None):
     """Create a mock aiohttp response with proper async context manager support."""
     mock_response = MagicMock()
     mock_response.status = status
@@ -98,7 +98,9 @@ class TestWebhookExecutorSuccessPath:
         mock_response = create_mock_response(status=200, body='{"ok": true}')
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             await executor.execute(
                 url="https://api.example.com/events",
                 method="PUT",
@@ -117,7 +119,9 @@ class TestWebhookExecutorSuccessPath:
         mock_response = create_mock_response(status=200)
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             await executor.execute(
                 url="https://api.example.com/webhook",
                 method="POST",
@@ -139,7 +143,9 @@ class TestWebhookExecutorSuccessPath:
         mock_response = create_mock_response(status=200)
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             result = await executor.execute(
                 url="https://api.example.com/webhook",
                 method="POST",
@@ -161,7 +167,9 @@ class TestWebhookExecutorSuccessPath:
         )
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             result = await executor.execute(
                 url="https://api.example.com/webhook",
                 method="POST",
@@ -185,7 +193,9 @@ class TestWebhookExecutorFailureHandling:
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             result = await executor.execute(
                 url="https://api.example.com/webhook",
                 method="POST",
@@ -207,14 +217,20 @@ class TestWebhookExecutorFailureHandling:
         ]
         mock_session = create_mock_session(responses)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             result = await executor.execute(
                 url="https://api.example.com/webhook",
                 method="POST",
                 headers={},
                 payload={},
                 timeout=30,
-                retry_config={"max_attempts": 3, "backoff_seconds": 0.01, "retry_on_status": [500, 502]},
+                retry_config={
+                    "max_attempts": 3,
+                    "backoff_seconds": 0.01,
+                    "retry_on_status": [500, 502],
+                },
             )
 
             assert mock_session.request.call_count == 3
@@ -233,7 +249,9 @@ class TestWebhookExecutorFailureHandling:
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             await executor.execute(
                 url="https://api.example.com/webhook",
                 method="POST",
@@ -258,7 +276,9 @@ class TestWebhookExecutorFailureHandling:
         mock_response = create_mock_response(status=500, body="Internal Server Error")
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             on_failure_called = False
 
             async def on_failure_handler(result):
@@ -293,7 +313,9 @@ class TestWebhookExecutorFailureHandling:
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             result = await executor.execute(
                 url="https://api.example.com/webhook",
                 method="POST",
@@ -315,7 +337,9 @@ class TestWebhookExecutorEdgeCases:
         mock_response = create_mock_response(status=200)
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             result = await executor.execute_by_webhook_id(
                 webhook_id="slack_alerts",
                 payload={"text": "Hello"},
@@ -338,7 +362,9 @@ class TestWebhookExecutorEdgeCases:
         mock_response = create_mock_response(status=200)
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             result = await executor.execute(
                 url="https://api.example.com/webhook",
                 method="POST",
@@ -363,7 +389,9 @@ class TestWebhookExecutorEdgeCases:
         )
         mock_session = create_mock_session(mock_response)
 
-        with patch("gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session):
+        with patch(
+            "gobby.workflows.webhook_executor.aiohttp.ClientSession", return_value=mock_session
+        ):
             result = await executor.execute(
                 url="https://api.example.com/webhook",
                 method="POST",

@@ -179,7 +179,9 @@ class TestValidationHistoryManager:
         # Verify they're gone
         assert len(history_manager.get_iteration_history(sample_task["id"])) == 0
 
-    def test_clear_history_only_affects_target_task(self, history_manager, temp_db, sample_project, sample_task):
+    def test_clear_history_only_affects_target_task(
+        self, history_manager, temp_db, sample_project, sample_task
+    ):
         """Test that clear_history only affects the target task."""
         # Create a second task
         temp_db.execute(
@@ -219,6 +221,7 @@ class TestValidationHistoryManager:
 
     def test_concurrent_iteration_recording(self, history_manager, sample_task):
         """Test that concurrent iteration recording is safe."""
+
         def record_iteration(iteration_num):
             history_manager.record_iteration(
                 task_id=sample_task["id"],
@@ -324,7 +327,9 @@ class TestRecurringIssueDetection:
         """Test that fuzzy matching respects similarity threshold."""
         issues = [
             Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Test authentication failed"),
-            Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Test authorization failed"),  # Different
+            Issue(
+                IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Test authorization failed"
+            ),  # Different
         ]
 
         # With high threshold, these should be separate groups
@@ -338,9 +343,24 @@ class TestRecurringIssueDetection:
     def test_group_similar_issues_same_location_strong_match(self, history_manager):
         """Test that same location is a strong match signal."""
         issues = [
-            Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Authentication failed", location="src/auth.py:42"),
-            Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Password validation error", location="src/auth.py:42"),
-            Issue(IssueType.TEST_FAILURE, IssueSeverity.MAJOR, "Database connection timeout", location="src/db.py:100"),
+            Issue(
+                IssueType.TEST_FAILURE,
+                IssueSeverity.MAJOR,
+                "Authentication failed",
+                location="src/auth.py:42",
+            ),
+            Issue(
+                IssueType.TEST_FAILURE,
+                IssueSeverity.MAJOR,
+                "Password validation error",
+                location="src/auth.py:42",
+            ),
+            Issue(
+                IssueType.TEST_FAILURE,
+                IssueSeverity.MAJOR,
+                "Database connection timeout",
+                location="src/db.py:100",
+            ),
         ]
 
         groups = history_manager.group_similar_issues(issues)
@@ -401,23 +421,31 @@ class TestRecurringIssueDetection:
         result = history_manager.has_recurring_issues(sample_task["id"], threshold=2)
         assert result is False
 
-    def test_get_recurring_issue_summary_returns_grouped_analysis(self, history_manager, sample_task):
+    def test_get_recurring_issue_summary_returns_grouped_analysis(
+        self, history_manager, sample_task
+    ):
         """Test get_recurring_issue_summary returns grouped analysis."""
         # Record multiple iterations with recurring issues
         auth_issue = Issue(IssueType.TEST_FAILURE, IssueSeverity.BLOCKER, "Auth test failed")
         lint_issue = Issue(IssueType.LINT_ERROR, IssueSeverity.MINOR, "Unused import")
 
         history_manager.record_iteration(
-            task_id=sample_task["id"], iteration=1, status="invalid",
-            issues=[auth_issue, lint_issue]
+            task_id=sample_task["id"],
+            iteration=1,
+            status="invalid",
+            issues=[auth_issue, lint_issue],
         )
         history_manager.record_iteration(
-            task_id=sample_task["id"], iteration=2, status="invalid",
-            issues=[auth_issue]  # Auth issue recurs
+            task_id=sample_task["id"],
+            iteration=2,
+            status="invalid",
+            issues=[auth_issue],  # Auth issue recurs
         )
         history_manager.record_iteration(
-            task_id=sample_task["id"], iteration=3, status="invalid",
-            issues=[auth_issue]  # Auth issue recurs again
+            task_id=sample_task["id"],
+            iteration=3,
+            status="invalid",
+            issues=[auth_issue],  # Auth issue recurs again
         )
 
         summary = history_manager.get_recurring_issue_summary(sample_task["id"])
@@ -435,8 +463,7 @@ class TestRecurringIssueDetection:
 
         for i in range(1, 5):
             history_manager.record_iteration(
-                task_id=sample_task["id"], iteration=i, status="invalid",
-                issues=[issue]
+                task_id=sample_task["id"], iteration=i, status="invalid", issues=[issue]
             )
 
         summary = history_manager.get_recurring_issue_summary(sample_task["id"])

@@ -71,9 +71,10 @@ A valid skill must be:
 2. PROCEDURAL: A series of steps, not just a snippet.
 3. WORTH KEEPING: Something you would want to look up 6 months from now.
 """
-            full_prompt = f"{exclusion_criteria}\n\n{base_prompt}".format(
-                transcript=transcript_text
-            )
+            import collections
+
+            prompt_subs = collections.defaultdict(lambda: "", {"transcript": transcript_text})
+            full_prompt = f"{exclusion_criteria}\n\n{base_prompt}".format_map(prompt_subs)
 
             response = await provider.generate_text(
                 prompt=full_prompt,

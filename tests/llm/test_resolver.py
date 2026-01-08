@@ -520,17 +520,19 @@ class TestCreateCodexExecutorIntegration:
 
         with patch.dict(sys.modules, {"openai": mock_openai}):
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
-                from gobby.llm.resolver import _create_codex_executor
+                # Mock shutil.which to return a path for 'codex'
+                with patch("shutil.which", return_value="/usr/bin/codex"):
+                    from gobby.llm.resolver import _create_codex_executor
 
-                mock_config = MagicMock()
-                mock_config.auth_mode = "subscription"
-                mock_config.models = "gpt-4-turbo, gpt-4o"
+                    mock_config = MagicMock()
+                    mock_config.auth_mode = "subscription"
+                    mock_config.models = "gpt-4-turbo, gpt-4o"
 
-                executor = _create_codex_executor(mock_config, None)
+                    executor = _create_codex_executor(mock_config, None)
 
-                assert executor.provider_name == "codex"
-                assert executor.auth_mode == "subscription"
-                assert executor.default_model == "gpt-4-turbo"
+                    assert executor.provider_name == "codex"
+                    assert executor.auth_mode == "subscription"
+                    assert executor.default_model == "gpt-4-turbo"
 
 
 class TestResolveProviderAdvanced:

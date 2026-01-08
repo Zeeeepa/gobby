@@ -91,9 +91,7 @@ def test_commits_column_exists_after_migration(tmp_path):
     run_migrations(db)
 
     # Check that commits column exists in tasks table
-    row = db.fetchone(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'"
-    )
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
     assert row is not None
     assert "commits" in row["sql"].lower(), "commits column not found in tasks table"
 
@@ -139,6 +137,7 @@ def test_commits_column_accepts_json_array(tmp_path):
 
     # Insert task with commits as JSON array
     import json
+
     commits = json.dumps(["abc123", "def456", "789ghi"])
     db.execute(
         """INSERT INTO tasks (id, project_id, title, commits, created_at, updated_at)
@@ -167,9 +166,7 @@ def test_commits_migration_idempotent(tmp_path):
     assert applied == 0
 
     # commits column should still exist and work
-    row = db.fetchone(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'"
-    )
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
     assert row is not None
     # Count occurrences of 'commits' - should be exactly 1
     sql_lower = row["sql"].lower()
@@ -208,8 +205,16 @@ def test_validation_history_schema(tmp_path):
 
     # Verify required columns exist
     expected_columns = {
-        "id", "task_id", "iteration", "status", "feedback",
-        "issues", "context_type", "context_summary", "validator_type", "created_at"
+        "id",
+        "task_id",
+        "iteration",
+        "status",
+        "feedback",
+        "issues",
+        "context_type",
+        "context_summary",
+        "validator_type",
+        "created_at",
     }
     for col in expected_columns:
         assert col in columns, f"Column {col} missing from task_validation_history"
@@ -230,8 +235,9 @@ def test_validation_history_foreign_key(tmp_path):
     sql_lower = row["sql"].lower()
 
     # Check for foreign key reference to tasks
-    assert "references tasks" in sql_lower or "foreign key" in sql_lower, \
-        "task_validation_history missing foreign key to tasks"
+    assert (
+        "references tasks" in sql_lower or "foreign key" in sql_lower
+    ), "task_validation_history missing foreign key to tasks"
 
 
 def test_validation_history_index_exists(tmp_path):

@@ -143,9 +143,7 @@ class TestCheckPendingApproval:
 
     def test_needs_approval(self, evaluator, state):
         """Returns needs_approval when approval not yet requested."""
-        conditions = [
-            {"type": "user_approval", "id": "test", "prompt": "Ready to proceed?"}
-        ]
+        conditions = [{"type": "user_approval", "id": "test", "prompt": "Ready to proceed?"}]
         result = evaluator.check_pending_approval(conditions, state)
         assert result is not None
         assert result.needs_approval is True
