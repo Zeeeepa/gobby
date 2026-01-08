@@ -43,7 +43,12 @@ async def test_task_verbosity_reduction():
         "title": "Big Task",
         "description": "huge...",
     }
-    mock_manager.create_task.return_value = mock_task
+    # create_task now uses create_task_with_decomposition and get_task
+    mock_manager.create_task_with_decomposition.return_value = {
+        "task": {"id": "task-123"},
+        "auto_decomposed": False,
+    }
+    mock_manager.get_task.return_value = mock_task
     mock_manager.update_task.return_value = mock_task
 
     registry = create_task_registry(mock_manager, mock_sync)

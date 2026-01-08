@@ -77,11 +77,15 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
     """Test create_task tool execution."""
     registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
-    # Mock return value
+    # Mock return value for create_task_with_decomposition (returns dict with task key)
     mock_task = MagicMock()
     mock_task.id = "t1"
     mock_task.to_dict.return_value = {"id": "t1", "title": "Test Task"}
-    mock_task_manager.create_task.return_value = mock_task
+    mock_task_manager.create_task_with_decomposition.return_value = {
+        "task": {"id": "t1"},
+        "auto_decomposed": False,
+    }
+    mock_task_manager.get_task.return_value = mock_task
 
     # Mock get_project_context
     with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
@@ -89,7 +93,7 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
 
         result = await registry.call("create_task", {"title": "Test Task", "priority": 1})
 
-        mock_task_manager.create_task.assert_called_with(
+        mock_task_manager.create_task_with_decomposition.assert_called_with(
             project_id="test-project-id",
             title="Test Task",
             description=None,
@@ -109,11 +113,15 @@ async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager)
     """Test create_task tool captures session_id as created_in_session_id."""
     registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
-    # Mock return value
+    # Mock return value for create_task_with_decomposition (returns dict with task key)
     mock_task = MagicMock()
     mock_task.id = "t1"
     mock_task.to_dict.return_value = {"id": "t1", "title": "Test Task"}
-    mock_task_manager.create_task.return_value = mock_task
+    mock_task_manager.create_task_with_decomposition.return_value = {
+        "task": {"id": "t1"},
+        "auto_decomposed": False,
+    }
+    mock_task_manager.get_task.return_value = mock_task
 
     # Mock get_project_context
     with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
@@ -124,7 +132,7 @@ async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager)
             {"title": "Test Task", "session_id": "session-abc123"},
         )
 
-        mock_task_manager.create_task.assert_called_with(
+        mock_task_manager.create_task_with_decomposition.assert_called_with(
             project_id="test-project-id",
             title="Test Task",
             description=None,
