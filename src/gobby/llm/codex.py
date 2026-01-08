@@ -136,7 +136,7 @@ class CodexProvider(LLMProvider):
             return None
         else:
             # API key mode - read from environment
-            api_key = os.environ.get("OPENAI_API_KEY")
+            api_key: str | None = os.environ.get("OPENAI_API_KEY")
             if api_key:
                 self.logger.debug("Using OPENAI_API_KEY from environment")
             return api_key
