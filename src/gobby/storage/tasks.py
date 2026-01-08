@@ -94,7 +94,7 @@ class Task:
             title=row["title"],
             status=row["status"],
             priority=normalize_priority(row["priority"]),
-            task_type=row["type"],  # DB column is 'type'
+            task_type=row["task_type"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             description=row["description"],
@@ -326,7 +326,7 @@ class LocalTaskManager:
                         """
                         INSERT INTO tasks (
                             id, project_id, title, description, parent_task_id,
-                            created_in_session_id, priority, type, assignee,
+                            created_in_session_id, priority, task_type, assignee,
                             labels, status, created_at, updated_at,
                             validation_status, test_strategy, complexity_score,
                             estimated_subtasks, expansion_context,
@@ -342,7 +342,7 @@ class LocalTaskManager:
                             parent_task_id,
                             created_in_session_id,
                             priority,
-                            task_type,  # DB column is 'type'
+                            task_type,
                             assignee,
                             labels_json,
                             now,
@@ -495,7 +495,7 @@ class LocalTaskManager:
             updates.append("priority = ?")
             params.append(priority)
         if task_type is not UNSET:
-            updates.append("type = ?")  # DB column is 'type'
+            updates.append("task_type = ?")
             params.append(task_type)
         if assignee is not UNSET:
             updates.append("assignee = ?")
@@ -858,7 +858,7 @@ class LocalTaskManager:
             query += " AND assignee = ?"
             params.append(assignee)
         if task_type:
-            query += " AND type = ?"  # DB column is 'type'
+            query += " AND task_type = ?"
             params.append(task_type)
         if label:
             # tasks.labels is a JSON list. We use json_each to find if the label is in the list.
@@ -956,7 +956,7 @@ class LocalTaskManager:
             query += " AND t.priority = ?"
             params.append(priority)
         if task_type:
-            query += " AND t.type = ?"  # DB column is 'type'
+            query += " AND t.task_type = ?"
             params.append(task_type)
         if assignee:
             query += " AND t.assignee = ?"

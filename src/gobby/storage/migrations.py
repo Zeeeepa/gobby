@@ -913,6 +913,13 @@ MIGRATIONS: list[tuple[int, str, str]] = [
             ON task_selection_history(session_id, task_id, selected_at DESC);
         """,
     ),
+    (
+        40,
+        "Rename type column to task_type in tasks table",
+        """
+        ALTER TABLE tasks RENAME COLUMN type TO task_type;
+        """,
+    ),
 ]
 
 
