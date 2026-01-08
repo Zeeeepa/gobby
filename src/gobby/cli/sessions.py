@@ -607,5 +607,5 @@ def create_handoff(
 
     if notes:
         click.echo(f"  Notes: {notes[:50]}{'...' if len(notes) > 50 else ''}")
-    for f in files_written:
-        click.echo(f"  File: {f}")
+    for file_path in files_written:
+        click.echo(f"  File: {file_path}")
