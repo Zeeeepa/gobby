@@ -243,8 +243,9 @@ def create_workflows_registry(
             }
 
         # Check for existing workflow
+        # Allow replacing __lifecycle__ (placeholder) workflows
         existing = _state_manager.get_state(session_id)
-        if existing:
+        if existing and existing.workflow_name != "__lifecycle__":
             return {
                 "success": False,
                 "error": f"Session already has workflow '{existing.workflow_name}' active. Use end_workflow first.",
