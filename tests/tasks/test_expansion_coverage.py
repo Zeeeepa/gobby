@@ -209,7 +209,7 @@ class TestPatternCriteriaInjection:
                 verification_config=verification_config,
             )
 
-            result = await expander.expand_task("t1", "Main Task")
+            await expander.expand_task("t1", "Main Task")
 
             # Verify LLM was called (pattern criteria would be in the prompt)
             provider = mock_llm_service.get_provider.return_value
@@ -655,7 +655,7 @@ class TestCreateSubtasks:
         with patch("gobby.tasks.expansion.TaskDependencyManager") as MockDepMgr:
             mock_dep = MockDepMgr.return_value
 
-            subtask_ids = await expander._create_subtasks(
+            await expander._create_subtasks(
                 parent_task_id="parent-1",
                 project_id="p1",
                 subtask_specs=specs,
@@ -1197,7 +1197,7 @@ class TestFullExpansionFlow:
 
             expander = TaskExpander(config, mock_llm_service, mock_task_manager)
 
-            result = await expander.expand_task(
+            await expander.expand_task(
                 "t1",
                 "Main Task",
                 enable_web_research=True,
@@ -1232,7 +1232,7 @@ class TestFullExpansionFlow:
 
             expander = TaskExpander(config, mock_llm_service, mock_task_manager)
 
-            result = await expander.expand_task(
+            await expander.expand_task(
                 "t1",
                 "Main Task",
                 enable_code_context=False,

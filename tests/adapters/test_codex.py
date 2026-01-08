@@ -448,11 +448,11 @@ class TestCodexAppServerClientSendRequest:
         with patch.dict(client._pending_requests, {1: future}):
             # This should timeout but we want to check the written data
             try:
-                result = await asyncio.wait_for(
+                await asyncio.wait_for(
                     client._send_request("test/method", {"arg": "val"}), timeout=0.1
                 )
             except TimeoutError:
-                pass
+                pass  # Expected - we're testing request was written before timeout
 
         assert len(written_lines) > 0
         message = json.loads(written_lines[0].strip())

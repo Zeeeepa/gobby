@@ -759,7 +759,8 @@ class TestLocalAgentRunManager:
             provider="claude",
             prompt="Run 3",
         )
-        run4 = agent_manager.create(
+        # run4 stays pending (created but never started)
+        agent_manager.create(
             parent_session_id=sample_session["id"],
             provider="claude",
             prompt="Run 4",
@@ -774,8 +775,6 @@ class TestLocalAgentRunManager:
 
         agent_manager.start(run3.id)
         # run3 stays running
-
-        # run4 stays pending
 
         counts = agent_manager.count_by_session(sample_session["id"])
 

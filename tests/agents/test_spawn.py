@@ -1425,6 +1425,10 @@ class TestTerminalSpawnerSpawnAgent:
                 project_id="proj-abc",
             )
 
+            # Verify result was returned from spawn
+            assert result.success is True
+            assert result.pid == 123
+
             # Verify spawn was called
             mock_spawn.assert_called_once()
             call_kwargs = mock_spawn.call_args[1]

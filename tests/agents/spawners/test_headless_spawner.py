@@ -219,6 +219,10 @@ class TestHeadlessSpawnerSpawn:
                 env={"TEST": "value"},
             )
 
+            # Verify spawn result
+            assert result.success is True
+            assert result.pid == 12345
+
             # Verify Popen was called with correct arguments
             mock_popen.assert_called_once()
             call_args = mock_popen.call_args

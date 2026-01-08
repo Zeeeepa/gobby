@@ -329,11 +329,8 @@ class TestReadArtifact:
 
     def test_read_artifact_artifact_key_takes_precedence(self, workflow_state, temp_artifact_dir):
         """Artifact key lookup should take precedence over glob pattern."""
-        # Create a file with a name that could be interpreted as a glob pattern
-        pattern_file = temp_artifact_dir / "*.txt"
-        # pattern_file would be treated as a literal filename if it were an artifact key
-
-        # Store different file under that key
+        # Store a file path under an artifact key that looks like a glob pattern
+        # The key "*.txt" should be treated as a literal key, not a glob
         workflow_state.artifacts["*.txt"] = str(temp_artifact_dir / "plan.md")
 
         result = read_artifact(

@@ -1053,7 +1053,6 @@ class TestEdgeCases:
         # We need to let the file be read and backup created, but fail on final write
         # The final write uses open() in binary mode for tomli_w.dump
         original_open = open
-        call_count = [0]
 
         def mock_open_fn(path, mode="r", *args, **kwargs):
             # Count calls to open - we need to fail on the final write

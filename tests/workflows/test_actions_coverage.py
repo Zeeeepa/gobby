@@ -386,7 +386,7 @@ class TestHandleRequireTaskComplete:
         with patch("gobby.workflows.actions.require_task_complete") as mock_require:
             mock_require.return_value = {"decision": "block", "reason": "Task incomplete"}
 
-            result = await action_executor.execute(
+            await action_executor.execute(
                 "require_task_complete",
                 action_context,
                 task_id="*",
@@ -415,7 +415,7 @@ class TestHandleRequireTaskComplete:
         with patch("gobby.workflows.actions.require_task_complete") as mock_require:
             mock_require.return_value = None  # Allow
 
-            result = await action_executor.execute(
+            await action_executor.execute(
                 "require_task_complete",
                 action_context,
                 task_id=task_ids,
@@ -441,7 +441,7 @@ class TestHandleRequireTaskComplete:
         with patch("gobby.workflows.actions.require_task_complete") as mock_require:
             mock_require.return_value = None
 
-            result = await action_executor.execute(
+            await action_executor.execute(
                 "require_task_complete",
                 action_context,
                 task_id="gt-single-task",
@@ -471,7 +471,7 @@ class TestHandleRequireTaskComplete:
         with patch("gobby.workflows.actions.require_task_complete") as mock_require:
             mock_require.return_value = None
 
-            result = await action_executor.execute(
+            await action_executor.execute(
                 "require_task_complete",
                 action_context,
                 task_id="{{ variables.session_task }}",
@@ -613,7 +613,7 @@ class TestStopSignalActions:
         """Test clear_stop_signal for a different session."""
         mock_services["stop_registry"].clear.return_value = True
 
-        result = await action_executor.execute(
+        await action_executor.execute(
             "clear_stop_signal",
             action_context,
             session_id="other-session-id",
@@ -1318,7 +1318,7 @@ class TestHandleRequireActiveTask:
         with patch("gobby.workflows.actions.require_active_task") as mock_require:
             mock_require.return_value = None  # Allow
 
-            result = await action_executor.execute(
+            await action_executor.execute(
                 "require_active_task",
                 action_context,
             )
@@ -1344,7 +1344,7 @@ class TestHandleRequireCommitBeforeStop:
         with patch("gobby.workflows.actions.require_commit_before_stop") as mock_require:
             mock_require.return_value = None
 
-            result = await action_executor.execute(
+            await action_executor.execute(
                 "require_commit_before_stop",
                 action_context,
             )
@@ -1361,7 +1361,7 @@ class TestHandleRequireCommitBeforeStop:
         with patch("gobby.workflows.actions.require_commit_before_stop") as mock_require:
             mock_require.return_value = None
 
-            result = await action_executor.execute(
+            await action_executor.execute(
                 "require_commit_before_stop",
                 action_context,
             )
@@ -1385,7 +1385,7 @@ class TestHandleValidateSessionTaskScope:
         with patch("gobby.workflows.actions.validate_session_task_scope") as mock_validate:
             mock_validate.return_value = None
 
-            result = await action_executor.execute(
+            await action_executor.execute(
                 "validate_session_task_scope",
                 action_context,
             )
@@ -1551,7 +1551,7 @@ class TestHandleRestoreContext:
         with patch("gobby.workflows.actions.restore_context") as mock_restore:
             mock_restore.return_value = {"restored": True}
 
-            result = await action_executor.execute(
+            await action_executor.execute(
                 "restore_context",
                 action_context,
                 template="Test template",
@@ -1576,7 +1576,7 @@ class TestHandleExtractHandoffContext:
         with patch("gobby.workflows.actions.extract_handoff_context") as mock_extract:
             mock_extract.return_value = {"extracted": True}
 
-            result = await action_executor.execute(
+            await action_executor.execute(
                 "extract_handoff_context",
                 action_context,
             )
@@ -1639,7 +1639,7 @@ class TestGenerateHandoffCompactMode:
         with patch("gobby.workflows.actions.generate_handoff") as mock_handoff:
             mock_handoff.return_value = {"handoff_created": True}
 
-            result = await action_executor.execute(
+            await action_executor.execute(
                 "generate_handoff",
                 action_context,
             )

@@ -272,9 +272,7 @@ class TestProcessShutdown:
         task = asyncio.create_task(slow_task())
         server._background_tasks.add(task)
 
-        # Patch the max_wait inside _process_shutdown to a small value
-        original_shutdown = server._process_shutdown
-
+        # Use a custom fast shutdown with minimal wait time
         async def fast_shutdown() -> None:
             # Reduce wait time for test
             import time
@@ -511,13 +509,10 @@ class TestAdminEndpoints:
         """Test shutdown endpoint creates background task."""
         client = TestClient(basic_http_server.app)
 
-        # Before shutdown
-        initial_tasks = len(basic_http_server._background_tasks)
-
         response = client.post("/admin/shutdown")
         assert response.status_code == 200
 
-        # May have a pending task (depends on timing)
+        # Shutdown was initiated
         assert response.json()["status"] == "shutting_down"
 
     def test_shutdown_error_handling(self, basic_http_server: HTTPServer) -> None:
@@ -1060,7 +1055,7 @@ class TestLifespan:
 
         assert server._running is False
 
-        with TestClient(server.app) as client:
+        with TestClient(server.app):
             # During lifespan, _running should be True
             assert server._running is True
 

@@ -1017,7 +1017,6 @@ async def test_export_skills_sync_with_error(mock_skill_manager, tmp_path, monke
 
     # Make open fail for the first skill only
     original_open = open
-    call_count = [0]
 
     def selective_failing_open(path, *args, **kwargs):
         if "failing_skill.md" in str(path) and "w" in args:
@@ -1198,7 +1197,8 @@ async def test_trigger_export_creates_new_task_when_done(sync_manager):
     await asyncio.sleep(0.05)
 
     assert first_task.done()
-    # Second task may or may not be same object depending on timing
+    # Second task was created (may or may not be same object depending on timing)
+    assert second_task is not None
 
 
 @pytest.mark.asyncio
@@ -1226,7 +1226,8 @@ async def test_shutdown_cancels_running_task(sync_manager):
 async def test_get_sync_dir_non_stealth_with_valid_project(mock_skill_manager, tmp_path):
     """Test _get_sync_dir in non-stealth mode with valid project context."""
     config = SkillSyncConfig(enabled=True, stealth=False)
-    manager = SkillSyncManager(mock_skill_manager, config)
+    # Manager is created with non-stealth config to verify path construction
+    SkillSyncManager(mock_skill_manager, config)
 
     # Create a custom _get_sync_dir that exercises the project context path
     # by directly testing the path construction logic

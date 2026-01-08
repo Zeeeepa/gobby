@@ -460,6 +460,8 @@ class TestMCPClientManagerConnectAll:
         # Only preconnect-server should be connected
         assert "preconnect-server" in connect_calls
         assert "server1" not in connect_calls
+        # Results should show the preconnect server was connected
+        assert results.get("preconnect-server") is True
 
     @pytest.mark.asyncio
     async def test_connect_all_eager_mode_connects_all(self):
@@ -496,6 +498,9 @@ class TestMCPClientManagerConnectAll:
 
         assert "server1" in connect_calls
         assert "server2" in connect_calls
+        # Both servers should be connected successfully
+        assert results.get("server1") is True
+        assert results.get("server2") is True
 
     @pytest.mark.asyncio
     async def test_connect_all_handles_connection_errors(self):

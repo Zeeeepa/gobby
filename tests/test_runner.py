@@ -821,7 +821,7 @@ class TestAgentEventBroadcasting:
         with ExitStack() as stack:
             [stack.enter_context(p) for p in patches]
 
-            runner = GobbyRunner()
+            GobbyRunner()  # Constructor triggers event broadcasting setup
 
             # Verify callback was registered
             mock_registry.add_event_callback.assert_called_once()
@@ -843,7 +843,7 @@ class TestAgentEventBroadcasting:
         with ExitStack() as stack:
             [stack.enter_context(p) for p in patches]
 
-            runner = GobbyRunner()
+            GobbyRunner()  # Constructor runs without WebSocket
 
             # Callback should NOT be registered since no websocket
             mock_registry.add_event_callback.assert_not_called()
@@ -1348,7 +1348,7 @@ class TestAgentEventBroadcastingCallback:
         with ExitStack() as stack:
             [stack.enter_context(p) for p in patches]
 
-            runner = GobbyRunner()
+            GobbyRunner()  # Constructor sets up agent event broadcasting
 
             # Verify callback was captured
             assert captured_callback is not None
@@ -1404,7 +1404,7 @@ class TestAgentEventBroadcastingCallback:
         with ExitStack() as stack:
             [stack.enter_context(p) for p in patches]
 
-            runner = GobbyRunner()
+            GobbyRunner()  # Constructor sets up agent event broadcasting
 
             # Verify callback was captured
             assert captured_callback is not None
@@ -1451,7 +1451,7 @@ class TestAgentEventBroadcastingCallback:
         with ExitStack() as stack:
             [stack.enter_context(p) for p in patches]
 
-            runner = GobbyRunner()
+            GobbyRunner()  # Constructor sets up agent event broadcasting
 
             # Verify callback was captured
             assert captured_callback is not None

@@ -148,13 +148,14 @@ class TestWorkflowLoader:
 
         with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
             with patch("builtins.open", mock_open(read_data=yaml_content)):
-                # Load without project path
-                wf1 = loader.load_workflow("project_workflow")
+                # Load without project path (caches under "global:" key)
+                loader.load_workflow("project_workflow")
 
         # Different project should get separate cache entry
         with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
             with patch("builtins.open", mock_open(read_data=yaml_content)):
-                wf2 = loader.load_workflow("project_workflow", project_path="/project/a")
+                # Load with project path (caches under project-specific key)
+                loader.load_workflow("project_workflow", project_path="/project/a")
 
         # Verify both are cached separately
         assert "global:project_workflow" in loader._cache

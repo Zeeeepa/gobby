@@ -1250,7 +1250,7 @@ class TestSessionEdgeCases:
     ):
         """Test that register raises RuntimeError if session disappears during update."""
         # Create initial session
-        session = session_manager.register(
+        session_manager.register(
             external_id="disappearing-session",
             machine_id="machine",
             source="claude",
@@ -1351,7 +1351,7 @@ class TestSessionEdgeCases:
     ):
         """Test that register logs when creating a new session."""
         with patch("gobby.storage.sessions.logger") as mock_logger:
-            session = session_manager.register(
+            session_manager.register(
                 external_id="log-new-session",
                 machine_id="machine",
                 source="claude",

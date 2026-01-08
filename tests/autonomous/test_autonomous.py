@@ -932,6 +932,7 @@ class TestStopRegistryCleanup:
         count = stop_registry.cleanup_stale(max_age_hours=0)
 
         # Should not clean up pending signals
+        assert count == 0, "Pending signals should not be cleaned up"
         assert stop_registry.has_pending_signal(session_id) is True
 
 

@@ -305,6 +305,9 @@ class TestAlacrittySpawner:
         spawner = AlacrittySpawner()
         result = spawner.spawn(["echo", "test"], cwd="/tmp", title="My Terminal")
 
+        assert result.success is True
+        assert result.pid == 12345
+
         call_args = mock_popen.call_args[0][0]
         assert "--title" in call_args
         title_idx = call_args.index("--title")
@@ -323,6 +326,9 @@ class TestAlacrittySpawner:
 
         spawner = AlacrittySpawner()
         result = spawner.spawn(["echo", "test"], cwd="/tmp")
+
+        assert result.success is True
+        assert result.pid == 12345
 
         call_args = mock_popen.call_args[0][0]
         assert "--class" in call_args
@@ -498,6 +504,9 @@ class TestTmuxSpawner:
         spawner = TmuxSpawner()
         result = spawner.spawn(["echo", "test"], cwd="/tmp", title="test-session")
 
+        assert result.success is True
+        assert result.pid == 12345
+
         call_args = mock_popen.call_args[0][0]
         assert ";" in call_args
         semicolon_idx = call_args.index(";")
@@ -578,9 +587,11 @@ class TestTmuxSpawner:
 
         call_args = mock_popen.call_args[0][0]
         # Single command without env should be appended directly
-        idx = call_args.index("/tmp")  # After -c /tmp
+        tmp_idx = call_args.index("/tmp")  # After -c /tmp
         # The command should be somewhere after the directory
         assert "bash" in call_args
+        bash_idx = call_args.index("bash")
+        assert bash_idx > tmp_idx, "bash should come after /tmp in command"
 
     @patch("platform.system", return_value="Darwin")
     @patch("subprocess.Popen")

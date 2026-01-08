@@ -1814,7 +1814,7 @@ class TestMemoryInjectEdgeCases:
 
         mock_memory_manager.recall.return_value = []
 
-        result = await memory_inject(
+        await memory_inject(
             memory_manager=mock_memory_manager,
             session_manager=mock_session_manager,
             session_id="test-session",

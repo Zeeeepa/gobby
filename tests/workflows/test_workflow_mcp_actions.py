@@ -324,7 +324,7 @@ class TestCallMcpToolOutputStorage:
         mock_state = MagicMock()
         mock_state.variables = {"existing_var": "old_value"}
 
-        result = await call_mcp_tool(
+        await call_mcp_tool(
             mcp_manager=mock_mcp_manager,
             state=mock_state,
             server_name="test-server",
@@ -345,7 +345,7 @@ class TestCallMcpToolOutputStorage:
         mock_state = MagicMock()
         mock_state.variables = {"target_var": "initial_value"}
 
-        result = await call_mcp_tool(
+        await call_mcp_tool(
             mcp_manager=mock_mcp_manager,
             state=mock_state,
             server_name="test-server",
@@ -601,7 +601,7 @@ class TestCallMcpToolEdgeCases:
         mock_state = MagicMock()
         mock_state.variables = {}
 
-        result = await call_mcp_tool(
+        await call_mcp_tool(
             mcp_manager=mock_mcp_manager,
             state=mock_state,
             server_name="test-server",

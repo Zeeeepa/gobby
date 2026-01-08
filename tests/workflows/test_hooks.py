@@ -503,9 +503,7 @@ class TestHandleLifecycle:
                 context = {"task_id": "gt-123", "is_important": True}
                 handler.handle_lifecycle("task-workflow", event, context)
 
-                # Verify the coroutine was called with correct arguments
-                call_args = mock_run.call_args[0][0]
-                # The coroutine should have been created with the context data
+                # Verify the coroutine was called
                 assert mock_run.called
 
 

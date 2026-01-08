@@ -809,6 +809,8 @@ class TestEdgeCases:
         # Should not raise
         event = adapter.translate_to_hook_event(native_event)
 
+        # Translation succeeded - event was created
+        assert event is not None
         # None session_id becomes empty string via .get() default
         # This test documents current behavior - session_id would be None
         # since dict.get returns None for existing key with None value
