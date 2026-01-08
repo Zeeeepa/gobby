@@ -8,18 +8,18 @@ This document defines the implementation order across all Gobby planning documen
 
 ### Completed Plans
 
-| Document               | Location                                       | Focus                                                      |
-| ---------------------- | ---------------------------------------------- | ---------------------------------------------------------- |
-| WORKFLOWS              | `docs/plans/completed/WORKFLOWS.md`            | Step-based workflow enforcement                            |
-| TASKS                  | `docs/plans/completed/TASKS.md`                | Persistent task tracking system (includes V2 enhancements) |
-| SESSION_TRACKING       | `docs/plans/completed/SESSION_TRACKING.md`     | Async JSONL processing, multi-CLI message storage          |
-| SESSION_MANAGEMENT     | `docs/plans/completed/SESSION_MANAGEMENT.md`   | Session CRUD tools, handoff MCP tools                      |
-| SKILLS                 | `docs/plans/completed/SKILLS.md`               | Skills module decoupling (from memory)                     |
-| HOOK_EXTENSIONS        | `docs/plans/completed/HOOK_EXTENSIONS.md`      | WebSocket events, webhooks, plugins                        |
-| MCP_PROXY_IMPROVEMENTS | `docs/plans/completed/MCP_PROXY_IMPROVEMENTS.md` | Tool metrics, semantic search, self-healing                |
-| MEMORY                 | `docs/plans/completed/MEMORY.md`               | Persistent memory and skill learning                       |
-| AUTONOMOUS_HANDOFF     | `docs/plans/completed/AUTONOMOUS_HANDOFF.md`   | Pre-compact context extraction, session chaining           |
-| SUBAGENTS              | `docs/plans/completed/SUBAGENTS.md`            | Multi-provider agent spawning system                       |
+| Document               | Location                                           | Focus                                                      |
+| ---------------------- | -------------------------------------------------- | ---------------------------------------------------------- |
+| WORKFLOWS              | `docs/plans/completed/WORKFLOWS.md`                | Step-based workflow enforcement                            |
+| TASKS                  | `docs/plans/completed/TASKS.md`                    | Persistent task tracking system (includes V2 enhancements) |
+| SESSION_TRACKING       | `docs/plans/completed/SESSION_TRACKING.md`         | Async JSONL processing, multi-CLI message storage          |
+| SESSION_MANAGEMENT     | `docs/plans/completed/SESSION_MANAGEMENT.md`       | Session CRUD tools, handoff MCP tools                      |
+| SKILLS                 | `docs/plans/completed/SKILLS.md`                   | Skills module decoupling (from memory)                     |
+| HOOK_EXTENSIONS        | `docs/plans/completed/HOOK_EXTENSIONS.md`          | WebSocket events, webhooks, plugins                        |
+| MCP_PROXY_IMPROVEMENTS | `docs/plans/completed/MCP_PROXY_IMPROVEMENTS.md`   | Tool metrics, semantic search, self-healing                |
+| MEMORY                 | `docs/plans/completed/MEMORY.md`                   | Persistent memory and skill learning                       |
+| AUTONOMOUS_HANDOFF     | `docs/plans/completed/AUTONOMOUS_HANDOFF.md`       | Pre-compact context extraction, session chaining           |
+| SUBAGENTS              | `docs/plans/completed/SUBAGENTS.md`                | Multi-provider agent spawning system                       |
 
 ### Post-MVP Plans
 
