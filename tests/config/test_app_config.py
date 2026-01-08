@@ -1,7 +1,9 @@
 """Tests for the configuration system."""
 
 import json
+import os
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -29,11 +31,70 @@ from gobby.config.app import (
     WebSocketSettings,
     WorkflowConfig,
     apply_cli_overrides,
+    expand_env_vars,
     generate_default_config,
     load_config,
     load_yaml,
     save_config,
 )
+
+
+class TestExpandEnvVars:
+    """Tests for expand_env_vars function."""
+
+    def test_expand_simple_env_var(self):
+        """Test simple ${VAR} expansion."""
+        with patch.dict(os.environ, {"MY_VAR": "hello"}):
+            result = expand_env_vars("value: ${MY_VAR}")
+            assert result == "value: hello"
+
+    def test_expand_with_default_when_var_set(self):
+        """Test ${VAR:-default} uses VAR value when set."""
+        with patch.dict(os.environ, {"MY_VAR": "actual_value"}):
+            result = expand_env_vars("value: ${MY_VAR:-default_value}")
+            assert result == "value: actual_value"
+
+    def test_expand_with_default_when_var_unset(self):
+        """Test ${VAR:-default} uses default when VAR is unset."""
+        # Ensure the var is not set
+        env = os.environ.copy()
+        env.pop("UNSET_VAR", None)
+        with patch.dict(os.environ, env, clear=True):
+            result = expand_env_vars("value: ${UNSET_VAR:-fallback}")
+            assert result == "value: fallback"
+
+    def test_expand_with_default_when_var_empty(self):
+        """Test ${VAR:-default} uses default when VAR is empty string."""
+        with patch.dict(os.environ, {"EMPTY_VAR": ""}):
+            result = expand_env_vars("value: ${EMPTY_VAR:-fallback}")
+            assert result == "value: fallback"
+
+    def test_expand_simple_var_unset_leaves_unchanged(self):
+        """Test simple ${VAR} is left unchanged when VAR is unset."""
+        env = os.environ.copy()
+        env.pop("UNDEFINED_VAR", None)
+        with patch.dict(os.environ, env, clear=True):
+            result = expand_env_vars("value: ${UNDEFINED_VAR}")
+            assert result == "value: ${UNDEFINED_VAR}"
+
+    def test_expand_multiple_vars(self):
+        """Test expanding multiple variables in one string."""
+        with patch.dict(os.environ, {"VAR1": "first", "VAR2": "second"}):
+            result = expand_env_vars("a: ${VAR1}, b: ${VAR2:-def}")
+            assert result == "a: first, b: second"
+
+    def test_expand_no_vars(self):
+        """Test string without env vars is unchanged."""
+        result = expand_env_vars("plain text without variables")
+        assert result == "plain text without variables"
+
+    def test_expand_empty_default(self):
+        """Test ${VAR:-} uses empty string as default."""
+        env = os.environ.copy()
+        env.pop("UNSET_VAR", None)
+        with patch.dict(os.environ, env, clear=True):
+            result = expand_env_vars("value: ${UNSET_VAR:-}")
+            assert result == "value: "
 
 
 class TestWebSocketSettings:
@@ -258,6 +319,16 @@ class TestDaemonConfig:
         assert config.get_recommend_tools_config() == config.recommend_tools
         assert config.get_mcp_client_proxy_config() == config.mcp_client_proxy
 
+    def test_get_verification_defaults(self):
+        """Test get_verification_defaults returns verification_defaults config."""
+        config = DaemonConfig()
+        verification_config = config.get_verification_defaults()
+        assert verification_config is config.verification_defaults
+        # Verify it returns the correct type
+        from gobby.config.features import ProjectVerificationConfig
+
+        assert isinstance(verification_config, ProjectVerificationConfig)
+
 
 class TestLoadYaml:
     """Tests for load_yaml function."""
@@ -307,6 +378,30 @@ class TestLoadYaml:
 
         with pytest.raises(ValueError, match="Invalid YAML"):
             load_yaml(str(config_file))
+
+    def test_invalid_json(self, temp_dir: Path):
+        """Test invalid JSON raises error."""
+        config_file = temp_dir / "invalid.json"
+        config_file.write_text('{"key": "value"')  # Missing closing brace
+
+        with pytest.raises(ValueError, match="Invalid JSON"):
+            load_yaml(str(config_file))
+
+    def test_empty_json_file(self, temp_dir: Path):
+        """Test loading empty JSON file returns empty dict."""
+        config_file = temp_dir / "empty.json"
+        config_file.write_text("")
+
+        data = load_yaml(str(config_file))
+        assert data == {}
+
+    def test_env_var_expansion_in_yaml(self, temp_dir: Path):
+        """Test environment variable expansion in YAML files."""
+        config_file = temp_dir / "env_config.yaml"
+        config_file.write_text("daemon_port: ${TEST_PORT:-9999}")
+
+        data = load_yaml(str(config_file))
+        assert data["daemon_port"] == 9999
 
 
 class TestApplyCliOverrides:
@@ -379,6 +474,45 @@ class TestLoadConfig:
         load_config(config_file=str(config_file), create_default=True)
         assert config_file.exists()
 
+    def test_load_config_with_none_path_uses_default(self, temp_dir: Path, monkeypatch):
+        """Test loading config with config_file=None uses default path."""
+        # Mock the default path to point to our temp directory
+        default_path = temp_dir / ".gobby" / "config.yaml"
+        default_path.parent.mkdir(parents=True, exist_ok=True)
+        default_path.write_text(yaml.dump({"daemon_port": 7777}))
+
+        # Patch expanduser to redirect ~/.gobby to temp_dir/.gobby
+        original_expanduser = Path.expanduser
+
+        def mock_expanduser(self):
+            path_str = str(self)
+            if path_str.startswith("~/.gobby"):
+                return temp_dir / ".gobby" / path_str[9:]  # Remove ~/.gobby/
+            return original_expanduser(self)
+
+        monkeypatch.setattr(Path, "expanduser", mock_expanduser)
+
+        config = load_config(config_file=None)
+        assert config.daemon_port == 7777
+
+    def test_load_config_validation_error(self, temp_dir: Path):
+        """Test load_config raises ValueError on invalid configuration."""
+        config_file = temp_dir / "invalid_config.yaml"
+        # Write invalid port value (out of range)
+        config_file.write_text(yaml.dump({"daemon_port": 80}))
+
+        with pytest.raises(ValueError, match="Configuration validation failed"):
+            load_config(config_file=str(config_file))
+
+    def test_load_config_validation_error_invalid_type(self, temp_dir: Path):
+        """Test load_config raises ValueError on invalid type."""
+        config_file = temp_dir / "bad_type.yaml"
+        # Write string instead of int for port
+        config_file.write_text("daemon_port: not_a_number")
+
+        with pytest.raises(ValueError, match="Configuration validation failed"):
+            load_config(config_file=str(config_file))
+
 
 class TestGenerateDefaultConfig:
     """Tests for generate_default_config function."""
@@ -429,6 +563,27 @@ class TestSaveConfig:
         save_config(default_config, str(config_file))
 
         assert config_file.exists()
+
+    def test_save_config_with_none_path_uses_default(
+        self, temp_dir: Path, default_config: DaemonConfig, monkeypatch
+    ):
+        """Test saving config with config_file=None uses default path."""
+        # Patch expanduser to redirect ~/.gobby to temp_dir/.gobby
+        original_expanduser = Path.expanduser
+
+        def mock_expanduser(self):
+            path_str = str(self)
+            if path_str.startswith("~/.gobby"):
+                return temp_dir / ".gobby" / path_str[9:]  # Remove ~/.gobby/
+            return original_expanduser(self)
+
+        monkeypatch.setattr(Path, "expanduser", mock_expanduser)
+
+        save_config(default_config, config_file=None)
+
+        # Check the file was saved to the mocked default path
+        expected_path = temp_dir / ".gobby" / "config.yaml"
+        assert expected_path.exists()
 
 
 class TestRecommendToolsConfig:

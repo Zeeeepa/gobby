@@ -18,6 +18,9 @@ def mock_context():
     ctx.related_tasks = []
     ctx.web_research_results = []
     ctx.project_patterns = {}
+    ctx.verification_commands = {}
+    ctx.project_structure = ""
+    ctx.agent_findings = ""
     return ctx
 
 

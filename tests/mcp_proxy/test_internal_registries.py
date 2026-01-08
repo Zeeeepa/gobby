@@ -50,7 +50,7 @@ def test_skills_registry_creation(mock_skill_components):
 
     tools = registry.list_tools()
     tool_names = {t["name"] for t in tools}
-    assert "learn_skill_from_session" in tool_names
+    assert "learn_skills_from_session" in tool_names
     assert "list_skills" in tool_names
     assert "get_skill" in tool_names
     assert "delete_skill" in tool_names
@@ -70,4 +70,4 @@ async def test_skills_registry_llm_check(mock_skill_components):
 
     # LLM tools should raise RuntimeError
     with pytest.raises(RuntimeError, match="requires LLM"):
-        await registry.call("learn_skill_from_session", {"session_id": "sess_1"})
+        await registry.call("learn_skills_from_session", {"session_id": "sess_1"})

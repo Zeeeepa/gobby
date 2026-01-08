@@ -602,6 +602,148 @@ class TestRunningAgent:
         assert "started_at" in result
 
 
+class TestAgentRunnerGetAndListRuns:
+    """Tests for AgentRunner.get_run() and list_runs()."""
+
+    def test_get_run_returns_run(self, runner):
+        """get_run returns the run from storage."""
+        mock_run = MagicMock()
+        mock_run.id = "run-abc"
+        runner._run_storage.get = MagicMock(return_value=mock_run)
+
+        result = runner.get_run("run-abc")
+
+        assert result is mock_run
+        runner._run_storage.get.assert_called_once_with("run-abc")
+
+    def test_get_run_returns_none_for_missing(self, runner):
+        """get_run returns None when run not found."""
+        runner._run_storage.get = MagicMock(return_value=None)
+
+        result = runner.get_run("nonexistent")
+
+        assert result is None
+
+    def test_list_runs_returns_runs(self, runner):
+        """list_runs returns runs from storage."""
+        mock_runs = [MagicMock(), MagicMock()]
+        runner._run_storage.list_by_session = MagicMock(return_value=mock_runs)
+
+        result = runner.list_runs("sess-parent", status="running", limit=50)
+
+        assert result == mock_runs
+        runner._run_storage.list_by_session.assert_called_once_with(
+            "sess-parent",
+            status="running",
+            limit=50,
+        )
+
+    def test_list_runs_uses_defaults(self, runner):
+        """list_runs uses default values for status and limit."""
+        runner._run_storage.list_by_session = MagicMock(return_value=[])
+
+        runner.list_runs("sess-parent")
+
+        runner._run_storage.list_by_session.assert_called_once_with(
+            "sess-parent",
+            status=None,
+            limit=100,
+        )
+
+
+class TestAgentRunnerCancelRun:
+    """Tests for AgentRunner.cancel_run()."""
+
+    def test_cancel_run_success(self, runner, mock_session_storage):
+        """cancel_run cancels a running agent."""
+        mock_run = MagicMock()
+        mock_run.id = "run-cancel"
+        mock_run.status = "running"
+        mock_run.child_session_id = "sess-child"
+        runner._run_storage.get = MagicMock(return_value=mock_run)
+        runner._run_storage.cancel = MagicMock()
+
+        result = runner.cancel_run("run-cancel")
+
+        assert result is True
+        runner._run_storage.cancel.assert_called_once_with("run-cancel")
+        mock_session_storage.update_status.assert_called_once_with("sess-child", "cancelled")
+
+    def test_cancel_run_not_found(self, runner):
+        """cancel_run returns False when run not found."""
+        runner._run_storage.get = MagicMock(return_value=None)
+
+        result = runner.cancel_run("nonexistent")
+
+        assert result is False
+
+    def test_cancel_run_not_running(self, runner):
+        """cancel_run returns False when run is not in running status."""
+        mock_run = MagicMock()
+        mock_run.id = "run-done"
+        mock_run.status = "success"  # Not running
+        runner._run_storage.get = MagicMock(return_value=mock_run)
+
+        result = runner.cancel_run("run-done")
+
+        assert result is False
+
+    def test_cancel_run_removes_from_tracking(self, runner, mock_session_storage):
+        """cancel_run removes agent from in-memory tracking."""
+        mock_run = MagicMock()
+        mock_run.id = "run-tracked"
+        mock_run.status = "running"
+        mock_run.child_session_id = "sess-child"
+        runner._run_storage.get = MagicMock(return_value=mock_run)
+        runner._run_storage.cancel = MagicMock()
+
+        # Add to tracking first
+        runner._running_agents["run-tracked"] = MagicMock()
+        assert "run-tracked" in runner._running_agents
+
+        result = runner.cancel_run("run-tracked")
+
+        assert result is True
+        assert "run-tracked" not in runner._running_agents
+
+    def test_cancel_run_no_child_session(self, runner):
+        """cancel_run handles case where run has no child_session_id."""
+        mock_run = MagicMock()
+        mock_run.id = "run-no-child"
+        mock_run.status = "running"
+        mock_run.child_session_id = None
+        runner._run_storage.get = MagicMock(return_value=mock_run)
+        runner._run_storage.cancel = MagicMock()
+
+        result = runner.cancel_run("run-no-child")
+
+        assert result is True
+        runner._run_storage.cancel.assert_called_once_with("run-no-child")
+
+
+class TestAgentRunnerRegisterExecutor:
+    """Tests for AgentRunner.register_executor()."""
+
+    def test_register_executor(self, runner):
+        """register_executor adds executor for provider."""
+        mock_executor = MagicMock()
+
+        runner.register_executor("gemini", mock_executor)
+
+        assert runner._executors["gemini"] is mock_executor
+        assert runner.get_executor("gemini") is mock_executor
+
+    def test_register_executor_overwrites_existing(self, runner):
+        """register_executor overwrites existing executor."""
+        old_executor = MagicMock()
+        new_executor = MagicMock()
+        runner._executors["test"] = old_executor
+
+        runner.register_executor("test", new_executor)
+
+        assert runner.get_executor("test") is new_executor
+
+
 class TestAgentRunnerInMemoryTracking:
     """Tests for AgentRunner in-memory running agents tracking."""
 
@@ -759,3 +901,595 @@ class TestAgentRunnerInMemoryTracking:
         )
 
         assert runner.is_agent_running("run-check") is True
+
+
+class TestAgentRunnerExecuteRunStatusHandling:
+    """Tests for execute_run handling of different result statuses."""
+
+    async def test_execute_run_handles_timeout_status(self, runner, mock_executor):
+        """execute_run handles timeout status correctly."""
+        mock_session = MagicMock()
+        mock_session.id = "sess-timeout"
+        mock_run = MagicMock()
+        mock_run.id = "run-timeout"
+
+        # Make executor return timeout status
+        mock_executor.run = AsyncMock(
+            return_value=AgentResult(
+                output="Timed out",
+                status="timeout",
+                turns_used=5,
+                tool_calls=[],
+            )
+        )
+
+        runner._run_storage.start = MagicMock()
+        runner._run_storage.timeout = MagicMock()
+
+        context = AgentRunContext(session=mock_session, run=mock_run)
+        config = AgentConfig(prompt="Test", provider="claude")
+
+        result = await runner.execute_run(context, config)
+
+        assert result.status == "timeout"
+        runner._run_storage.timeout.assert_called_once_with("run-timeout", turns_used=5)
+
+    async def test_execute_run_handles_error_status(self, runner, mock_executor, mock_session_storage):
+        """execute_run handles error status correctly."""
+        mock_session = MagicMock()
+        mock_session.id = "sess-error"
+        mock_run = MagicMock()
+        mock_run.id = "run-error"
+
+        # Make executor return error status
+        mock_executor.run = AsyncMock(
+            return_value=AgentResult(
+                output="",
+                status="error",
+                error="Something went wrong",
+                turns_used=3,
+                tool_calls=[],
+            )
+        )
+
+        runner._run_storage.start = MagicMock()
+        runner._run_storage.fail = MagicMock()
+
+        context = AgentRunContext(session=mock_session, run=mock_run)
+        config = AgentConfig(prompt="Test", provider="claude")
+
+        result = await runner.execute_run(context, config)
+
+        assert result.status == "error"
+        assert result.error == "Something went wrong"
+        runner._run_storage.fail.assert_called_once_with(
+            "run-error",
+            error="Something went wrong",
+            tool_calls_count=0,
+            turns_used=3,
+        )
+        mock_session_storage.update_status.assert_called_once_with("sess-error", "failed")
+
+    async def test_execute_run_handles_partial_status(self, runner, mock_executor, mock_session_storage):
+        """execute_run handles partial status correctly."""
+        mock_session = MagicMock()
+        mock_session.id = "sess-partial"
+        mock_run = MagicMock()
+        mock_run.id = "run-partial"
+
+        # Make executor return partial status
+        mock_executor.run = AsyncMock(
+            return_value=AgentResult(
+                output="Partial result",
+                status="partial",
+                turns_used=2,
+                tool_calls=[],
+            )
+        )
+
+        runner._run_storage.start = MagicMock()
+        runner._run_storage.complete = MagicMock()
+
+        context = AgentRunContext(session=mock_session, run=mock_run)
+        config = AgentConfig(prompt="Test", provider="claude")
+
+        result = await runner.execute_run(context, config)
+
+        assert result.status == "partial"
+        runner._run_storage.complete.assert_called_once()
+        mock_session_storage.update_status.assert_called_once_with("sess-partial", "completed")
+
+    async def test_execute_run_handles_exception(self, runner, mock_executor, mock_session_storage):
+        """execute_run handles executor exceptions correctly."""
+        mock_session = MagicMock()
+        mock_session.id = "sess-exc"
+        mock_run = MagicMock()
+        mock_run.id = "run-exc"
+
+        # Make executor raise an exception
+        mock_executor.run = AsyncMock(side_effect=RuntimeError("LLM API Error"))
+
+        runner._run_storage.start = MagicMock()
+        runner._run_storage.fail = MagicMock()
+
+        context = AgentRunContext(session=mock_session, run=mock_run)
+        config = AgentConfig(prompt="Test", provider="claude")
+
+        result = await runner.execute_run(context, config)
+
+        assert result.status == "error"
+        assert "LLM API Error" in result.error
+        runner._run_storage.fail.assert_called_once_with(
+            "run-exc",
+            error="LLM API Error",
+            tool_calls_count=0,
+            turns_used=0,
+        )
+        mock_session_storage.update_status.assert_called_once_with("sess-exc", "failed")
+
+    async def test_execute_run_removes_from_tracking_on_exception(self, runner, mock_executor):
+        """execute_run removes agent from tracking on exception."""
+        mock_session = MagicMock()
+        mock_session.id = "sess-exc-track"
+        mock_run = MagicMock()
+        mock_run.id = "run-exc-track"
+
+        mock_executor.run = AsyncMock(side_effect=RuntimeError("Crash"))
+
+        runner._run_storage.start = MagicMock()
+        runner._run_storage.fail = MagicMock()
+
+        context = AgentRunContext(session=mock_session, run=mock_run)
+        config = AgentConfig(prompt="Test", provider="claude")
+
+        # Run should add to tracking, then remove on exception
+        await runner.execute_run(context, config)
+
+        # Verify not in tracking after exception
+        assert "run-exc-track" not in runner._running_agents
+
+
+class TestAgentRunnerPrepareRunWorkflows:
+    """Tests for AgentRunner.prepare_run() workflow handling."""
+
+    def test_prepare_run_rejects_lifecycle_workflow(self, runner, mock_session_storage):
+        """prepare_run returns error for lifecycle workflows."""
+        runner._child_session_manager.can_spawn_child = MagicMock(
+            return_value=(True, "OK", 0)
+        )
+
+        # Mock the workflow loader to return a lifecycle workflow
+        mock_workflow = MagicMock()
+        mock_workflow.type = "lifecycle"
+        runner._workflow_loader.load_workflow = MagicMock(return_value=mock_workflow)
+
+        config = AgentConfig(
+            prompt="Test prompt",
+            parent_session_id="sess-parent",
+            project_id="proj-123",
+            machine_id="machine-1",
+            workflow="lifecycle-workflow",
+        )
+
+        result = runner.prepare_run(config)
+
+        assert isinstance(result, AgentResult)
+        assert result.status == "error"
+        assert "lifecycle workflow" in result.error.lower()
+        assert "cannot use" in result.error.lower()
+
+    def test_prepare_run_handles_child_session_creation_failure(self, runner, mock_session_storage):
+        """prepare_run handles ValueError from create_child_session."""
+        runner._child_session_manager.can_spawn_child = MagicMock(
+            return_value=(True, "OK", 0)
+        )
+        runner._child_session_manager.create_child_session = MagicMock(
+            side_effect=ValueError("Session creation failed")
+        )
+
+        config = AgentConfig(
+            prompt="Test prompt",
+            parent_session_id="sess-parent",
+            project_id="proj-123",
+            machine_id="machine-1",
+        )
+
+        result = runner.prepare_run(config)
+
+        assert isinstance(result, AgentResult)
+        assert result.status == "error"
+        assert "Session creation failed" in result.error
+
+    def test_prepare_run_warns_on_workflow_not_found(self, runner, mock_session_storage, caplog):
+        """prepare_run logs warning when workflow not found."""
+        import logging
+
+        runner._child_session_manager.can_spawn_child = MagicMock(
+            return_value=(True, "OK", 0)
+        )
+
+        child_session = MagicMock()
+        child_session.id = "sess-child"
+        child_session.agent_depth = 1
+        runner._child_session_manager.create_child_session = MagicMock(
+            return_value=child_session
+        )
+
+        agent_run = MagicMock()
+        agent_run.id = "run-123"
+        runner._run_storage.create = MagicMock(return_value=agent_run)
+
+        # Mock workflow loader to return None (not found)
+        runner._workflow_loader.load_workflow = MagicMock(return_value=None)
+
+        config = AgentConfig(
+            prompt="Test prompt",
+            parent_session_id="sess-parent",
+            project_id="proj-123",
+            machine_id="machine-1",
+            workflow="nonexistent-workflow",
+        )
+
+        with caplog.at_level(logging.WARNING):
+            result = runner.prepare_run(config)
+
+        assert isinstance(result, AgentRunContext)
+        assert "not found" in caplog.text or result.workflow_config is None
+
+    def test_prepare_run_initializes_workflow_state(self, runner, mock_session_storage):
+        """prepare_run initializes workflow state for step workflows."""
+        runner._child_session_manager.can_spawn_child = MagicMock(
+            return_value=(True, "OK", 0)
+        )
+
+        child_session = MagicMock()
+        child_session.id = "sess-child"
+        child_session.agent_depth = 1
+        runner._child_session_manager.create_child_session = MagicMock(
+            return_value=child_session
+        )
+
+        agent_run = MagicMock()
+        agent_run.id = "run-123"
+        runner._run_storage.create = MagicMock(return_value=agent_run)
+
+        # Mock workflow loader to return a step workflow
+        mock_step = MagicMock()
+        mock_step.name = "plan"
+        mock_workflow = MagicMock()
+        mock_workflow.type = "step"
+        mock_workflow.steps = [mock_step]
+        mock_workflow.variables = {"initial_var": "value"}
+        runner._workflow_loader.load_workflow = MagicMock(return_value=mock_workflow)
+
+        # Mock the workflow state manager
+        runner._workflow_state_manager.save_state = MagicMock()
+
+        config = AgentConfig(
+            prompt="Test prompt",
+            parent_session_id="sess-parent",
+            project_id="proj-123",
+            machine_id="machine-1",
+            workflow="plan-execute",
+        )
+
+        result = runner.prepare_run(config)
+
+        assert isinstance(result, AgentRunContext)
+        assert result.workflow_config is mock_workflow
+        runner._workflow_state_manager.save_state.assert_called_once()
+
+    def test_prepare_run_handles_workflow_with_no_steps(self, runner, mock_session_storage):
+        """prepare_run handles workflow with empty steps list."""
+        runner._child_session_manager.can_spawn_child = MagicMock(
+            return_value=(True, "OK", 0)
+        )
+
+        child_session = MagicMock()
+        child_session.id = "sess-child"
+        child_session.agent_depth = 1
+        runner._child_session_manager.create_child_session = MagicMock(
+            return_value=child_session
+        )
+
+        agent_run = MagicMock()
+        agent_run.id = "run-123"
+        runner._run_storage.create = MagicMock(return_value=agent_run)
+
+        # Mock workflow loader to return a workflow with NO steps
+        mock_workflow = MagicMock()
+        mock_workflow.type = "step"
+        mock_workflow.steps = []  # Empty steps list
+        mock_workflow.variables = {}
+        runner._workflow_loader.load_workflow = MagicMock(return_value=mock_workflow)
+
+        runner._workflow_state_manager.save_state = MagicMock()
+
+        config = AgentConfig(
+            prompt="Test prompt",
+            parent_session_id="sess-parent",
+            project_id="proj-123",
+            machine_id="machine-1",
+            workflow="stepless-workflow",
+        )
+
+        result = runner.prepare_run(config)
+
+        assert isinstance(result, AgentRunContext)
+        # Verify workflow state was saved with empty step
+        runner._workflow_state_manager.save_state.assert_called_once()
+        saved_state = runner._workflow_state_manager.save_state.call_args[0][0]
+        assert saved_state.step == ""
+
+
+class TestAgentRunnerWorkflowFiltering:
+    """Tests for workflow-based tool filtering in execute_run."""
+
+    async def test_execute_run_with_workflow_filters_tools(self, runner, mock_executor, mock_session_storage):
+        """execute_run creates workflow-filtered handler when workflow is active."""
+        mock_session = MagicMock()
+        mock_session.id = "sess-workflow"
+        mock_run = MagicMock()
+        mock_run.id = "run-workflow"
+
+        # Create a mock workflow definition
+        mock_step = MagicMock()
+        mock_step.name = "plan"
+        mock_step.allowed_tools = ["create_task", "list_tasks"]
+        mock_step.blocked_tools = []
+        mock_workflow = MagicMock()
+        mock_workflow.get_step = MagicMock(return_value=mock_step)
+
+        runner._run_storage.start = MagicMock()
+        runner._run_storage.complete = MagicMock()
+
+        context = AgentRunContext(
+            session=mock_session,
+            run=mock_run,
+            workflow_config=mock_workflow,
+        )
+        config = AgentConfig(prompt="Test", provider="claude")
+
+        await runner.execute_run(context, config)
+
+        # Verify executor was called
+        mock_executor.run.assert_called_once()
+
+    async def test_execute_run_default_tool_handler(self, runner, mock_executor):
+        """execute_run uses default handler that returns not implemented."""
+        mock_session = MagicMock()
+        mock_session.id = "sess-default"
+        mock_run = MagicMock()
+        mock_run.id = "run-default"
+
+        runner._run_storage.start = MagicMock()
+        runner._run_storage.complete = MagicMock()
+
+        context = AgentRunContext(session=mock_session, run=mock_run)
+        config = AgentConfig(prompt="Test", provider="claude")
+
+        # Capture the tool handler passed to executor
+        captured_handler = None
+
+        async def capture_handler(**kwargs):
+            nonlocal captured_handler
+            captured_handler = kwargs.get("tool_handler")
+            return AgentResult(output="Done", status="success", turns_used=1, tool_calls=[])
+
+        mock_executor.run = capture_handler
+
+        await runner.execute_run(context, config)
+
+        # Now test the default handler behavior
+        assert captured_handler is not None
+        from gobby.llm.executor import ToolResult
+
+        result = await captured_handler("unknown_tool", {"arg": "value"})
+        assert result.success is False
+        assert "not implemented" in result.error.lower()
+
+    async def test_execute_run_tracking_handler_counts_tools(self, runner, mock_executor):
+        """execute_run tracking handler counts tool calls."""
+        mock_session = MagicMock()
+        mock_session.id = "sess-track"
+        mock_run = MagicMock()
+        mock_run.id = "run-track"
+
+        runner._run_storage.start = MagicMock()
+        runner._run_storage.complete = MagicMock()
+
+        context = AgentRunContext(session=mock_session, run=mock_run)
+        config = AgentConfig(prompt="Test", provider="claude")
+
+        # Create a custom tool handler
+        from gobby.llm.executor import ToolCallRecord, ToolResult
+
+        async def custom_handler(tool_name: str, arguments: dict):
+            return ToolResult(tool_name=tool_name, success=True, result="OK")
+
+        # Make executor call the tool handler
+        async def executor_that_calls_tools(**kwargs):
+            handler = kwargs.get("tool_handler")
+            await handler("tool1", {})
+            await handler("tool2", {})
+            return AgentResult(
+                output="Done",
+                status="success",
+                turns_used=1,
+                tool_calls=[
+                    ToolCallRecord(tool_name="tool1", arguments={}),
+                    ToolCallRecord(tool_name="tool2", arguments={}),
+                ],
+            )
+
+        mock_executor.run = executor_that_calls_tools
+
+        await runner.execute_run(context, config, tool_handler=custom_handler)
+
+        # Tool calls should have been counted (via _update_running_agent)
+        runner._run_storage.complete.assert_called_once()
+
+
+class TestWorkflowFilteredHandler:
+    """Tests for _create_workflow_filtered_handler."""
+
+    async def test_filtered_handler_blocks_blocked_tools(self, runner):
+        """Workflow filtered handler blocks tools in blocked_tools list."""
+        from gobby.llm.executor import ToolResult
+        from gobby.workflows.definitions import WorkflowState
+
+        # Create mocks
+        mock_step = MagicMock()
+        mock_step.name = "execute"
+        mock_step.allowed_tools = "all"
+        mock_step.blocked_tools = ["dangerous_tool"]
+
+        mock_workflow = MagicMock()
+        mock_workflow.get_step = MagicMock(return_value=mock_step)
+
+        mock_state = WorkflowState(
+            session_id="sess-test",
+            workflow_name="test-workflow",
+            step="execute",
+        )
+        runner._workflow_state_manager.get_state = MagicMock(return_value=mock_state)
+
+        async def base_handler(tool_name: str, arguments: dict) -> ToolResult:
+            return ToolResult(tool_name=tool_name, success=True, result="OK")
+
+        handler = runner._create_workflow_filtered_handler(
+            base_handler=base_handler,
+            session_id="sess-test",
+            workflow_definition=mock_workflow,
+        )
+
+        # Blocked tool should fail
+        result = await handler("dangerous_tool", {})
+        assert result.success is False
+        assert "blocked" in result.error.lower()
+
+    async def test_filtered_handler_allows_only_allowed_tools(self, runner):
+        """Workflow filtered handler only allows tools in allowed_tools list."""
+        from gobby.llm.executor import ToolResult
+        from gobby.workflows.definitions import WorkflowState
+
+        mock_step = MagicMock()
+        mock_step.name = "plan"
+        mock_step.allowed_tools = ["create_task", "list_tasks"]
+        mock_step.blocked_tools = []
+
+        mock_workflow = MagicMock()
+        mock_workflow.get_step = MagicMock(return_value=mock_step)
+
+        mock_state = WorkflowState(
+            session_id="sess-test",
+            workflow_name="test-workflow",
+            step="plan",
+        )
+        runner._workflow_state_manager.get_state = MagicMock(return_value=mock_state)
+
+        async def base_handler(tool_name: str, arguments: dict) -> ToolResult:
+            return ToolResult(tool_name=tool_name, success=True, result="OK")
+
+        handler = runner._create_workflow_filtered_handler(
+            base_handler=base_handler,
+            session_id="sess-test",
+            workflow_definition=mock_workflow,
+        )
+
+        # Allowed tool should succeed
+        result = await handler("create_task", {"title": "Test"})
+        assert result.success is True
+
+        # Not allowed tool should fail
+        result = await handler("delete_file", {})
+        assert result.success is False
+        assert "not allowed" in result.error.lower()
+
+    async def test_filtered_handler_passes_through_when_no_state(self, runner):
+        """Workflow filtered handler passes through when no workflow state."""
+        from gobby.llm.executor import ToolResult
+
+        mock_workflow = MagicMock()
+        runner._workflow_state_manager.get_state = MagicMock(return_value=None)
+
+        async def base_handler(tool_name: str, arguments: dict) -> ToolResult:
+            return ToolResult(tool_name=tool_name, success=True, result="passed through")
+
+        handler = runner._create_workflow_filtered_handler(
+            base_handler=base_handler,
+            session_id="sess-test",
+            workflow_definition=mock_workflow,
+        )
+
+        result = await handler("any_tool", {})
+        assert result.success is True
+        assert result.result == "passed through"
+
+    async def test_filtered_handler_passes_through_when_no_step(self, runner):
+        """Workflow filtered handler passes through when step not found."""
+        from gobby.llm.executor import ToolResult
+        from gobby.workflows.definitions import WorkflowState
+
+        mock_workflow = MagicMock()
+        mock_workflow.get_step = MagicMock(return_value=None)
+
+        mock_state = WorkflowState(
+            session_id="sess-test",
+            workflow_name="test-workflow",
+            step="nonexistent",
+        )
+        runner._workflow_state_manager.get_state = MagicMock(return_value=mock_state)
+
+        async def base_handler(tool_name: str, arguments: dict) -> ToolResult:
+            return ToolResult(tool_name=tool_name, success=True, result="passed through")
+
+        handler = runner._create_workflow_filtered_handler(
+            base_handler=base_handler,
+            session_id="sess-test",
+            workflow_definition=mock_workflow,
+        )
+
+        result = await handler("any_tool", {})
+        assert result.success is True
+
+    async def test_filtered_handler_handles_complete_tool(self, runner):
+        """Workflow filtered handler handles 'complete' tool as exit condition."""
+        from gobby.llm.executor import ToolResult
+        from gobby.workflows.definitions import WorkflowState
+
+        mock_step = MagicMock()
+        mock_step.name = "execute"
+        mock_step.allowed_tools = "all"
+        mock_step.blocked_tools = []
+
+        mock_workflow = MagicMock()
+        mock_workflow.get_step = MagicMock(return_value=mock_step)
+
+        mock_state = WorkflowState(
+            session_id="sess-test",
+            workflow_name="test-workflow",
+            step="execute",
+            variables={},
+        )
+        runner._workflow_state_manager.get_state = MagicMock(return_value=mock_state)
+        runner._workflow_state_manager.save_state = MagicMock()
+
+        async def base_handler(tool_name: str, arguments: dict) -> ToolResult:
+            return ToolResult(tool_name=tool_name, success=True, result="OK")
+
+        handler = runner._create_workflow_filtered_handler(
+            base_handler=base_handler,
+            session_id="sess-test",
+            workflow_definition=mock_workflow,
+        )
+
+        result = await handler("complete", {"result": "Task finished successfully"})
+
+        assert result.success is True
+        assert result.result["status"] == "completed"
+        assert result.result["message"] == "Task finished successfully"
+        # Verify workflow state was updated
+        runner._workflow_state_manager.save_state.assert_called_once()
+        saved_state = runner._workflow_state_manager.save_state.call_args[0][0]
+        assert saved_state.variables["workflow_completed"] is True

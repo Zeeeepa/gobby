@@ -489,3 +489,580 @@ class TestCreateLitellmExecutorIntegration:
             executor = _create_litellm_executor(None, None, None)
 
             assert executor.provider_name == "litellm"
+
+
+class TestCreateCodexExecutorIntegration:
+    """Integration tests for _create_codex_executor."""
+
+    def test_creates_executor_with_api_key(self):
+        """Test creating Codex executor with API key."""
+        import sys
+        from unittest.mock import MagicMock, patch
+
+        # Mock openai module
+        mock_openai = MagicMock()
+
+        with patch.dict(sys.modules, {"openai": mock_openai}):
+            with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+                from gobby.llm.resolver import _create_codex_executor
+
+                executor = _create_codex_executor(None, None)
+
+                assert executor.provider_name == "codex"
+                assert executor.auth_mode == "api_key"
+
+    def test_creates_executor_with_provider_config(self):
+        """Test creating Codex executor with provider config."""
+        import sys
+        from unittest.mock import MagicMock, patch
+
+        mock_openai = MagicMock()
+
+        with patch.dict(sys.modules, {"openai": mock_openai}):
+            with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+                from gobby.llm.resolver import _create_codex_executor
+
+                mock_config = MagicMock()
+                mock_config.auth_mode = "subscription"
+                mock_config.models = "gpt-4-turbo, gpt-4o"
+
+                executor = _create_codex_executor(mock_config, None)
+
+                assert executor.provider_name == "codex"
+                assert executor.auth_mode == "subscription"
+                assert executor.default_model == "gpt-4-turbo"
+
+
+class TestResolveProviderAdvanced:
+    """Advanced tests for resolve_provider covering edge cases."""
+
+    def test_workflow_provider_validates_against_config(self):
+        """Test that workflow provider is validated against config."""
+        mock_workflow = MagicMock()
+        mock_workflow.variables = {"provider": "litellm"}
+
+        mock_config = MagicMock()
+        mock_config.llm_providers.get_enabled_providers.return_value = ["claude"]
+
+        with pytest.raises(ProviderNotConfiguredError) as exc_info:
+            resolve_provider(
+                workflow=mock_workflow,
+                config=mock_config,
+                allow_unconfigured=False,
+            )
+
+        assert exc_info.value.provider == "litellm"
+        assert "claude" in exc_info.value.available
+
+    def test_workflow_with_non_string_model(self):
+        """Test that non-string workflow model is ignored."""
+        mock_workflow = MagicMock()
+        mock_workflow.variables = {"provider": "claude", "model": 123}  # Non-string model
+
+        result = resolve_provider(workflow=mock_workflow)
+
+        assert result.provider == "claude"
+        assert result.source == "workflow"
+        assert result.model is None  # Should be None for non-string
+
+    def test_workflow_with_none_model(self):
+        """Test that None workflow model is handled correctly."""
+        mock_workflow = MagicMock()
+        mock_workflow.variables = {"provider": "claude", "model": None}
+
+        result = resolve_provider(workflow=mock_workflow)
+
+        assert result.provider == "claude"
+        assert result.source == "workflow"
+        assert result.model is None
+
+    def test_workflow_without_provider(self):
+        """Test workflow without provider falls through to config."""
+        mock_workflow = MagicMock()
+        mock_workflow.variables = {"other_setting": "value"}  # No provider
+
+        mock_config = MagicMock()
+        mock_config.llm_providers.get_enabled_providers.return_value = ["gemini"]
+
+        result = resolve_provider(workflow=mock_workflow, config=mock_config)
+
+        assert result.provider == "gemini"
+        assert result.source == "config"
+
+    def test_config_with_empty_enabled_providers(self):
+        """Test config with empty enabled providers falls to default."""
+        mock_config = MagicMock()
+        mock_config.llm_providers.get_enabled_providers.return_value = []
+
+        result = resolve_provider(config=mock_config)
+
+        assert result.provider == DEFAULT_PROVIDER
+        assert result.source == "default"
+
+    def test_default_fallback_when_not_in_config(self):
+        """Test that default fallback uses first enabled when default not configured."""
+        mock_config = MagicMock()
+        # Default is "claude" but only gemini and litellm are enabled
+        mock_config.llm_providers.get_enabled_providers.return_value = ["gemini", "litellm"]
+
+        result = resolve_provider(config=mock_config, allow_unconfigured=False)
+
+        # Should return first enabled provider since default not available
+        assert result.provider == "gemini"
+        assert result.source == "config"
+
+    def test_config_with_none_llm_providers(self):
+        """Test config with None llm_providers falls to default."""
+        mock_config = MagicMock()
+        mock_config.llm_providers = None
+
+        result = resolve_provider(config=mock_config)
+
+        assert result.provider == DEFAULT_PROVIDER
+        assert result.source == "default"
+
+
+class TestCreateExecutorAdvanced:
+    """Advanced tests for create_executor covering edge cases."""
+
+    def test_create_codex_executor(self):
+        """Test creating a Codex executor."""
+        with patch("gobby.llm.resolver._create_codex_executor") as mock_create:
+            mock_executor = MagicMock()
+            mock_executor.provider_name = "codex"
+            mock_create.return_value = mock_executor
+
+            executor = create_executor("codex")
+
+            assert executor.provider_name == "codex"
+            mock_create.assert_called_once()
+
+    def test_non_provider_error_wrapped(self):
+        """Test that non-ProviderError exceptions are wrapped in ExecutorCreationError."""
+        with patch("gobby.llm.resolver._create_claude_executor") as mock_create:
+            mock_create.side_effect = RuntimeError("Unexpected error")
+
+            with pytest.raises(ExecutorCreationError) as exc_info:
+                create_executor("claude")
+
+            assert exc_info.value.provider == "claude"
+            assert "Unexpected error" in str(exc_info.value)
+            assert exc_info.value.__cause__ is not None
+
+    def test_provider_error_not_wrapped(self):
+        """Test that ProviderError exceptions are not wrapped."""
+        with patch("gobby.llm.resolver._create_claude_executor") as mock_create:
+            mock_create.side_effect = InvalidProviderError("claude", "test reason")
+
+            with pytest.raises(InvalidProviderError) as exc_info:
+                create_executor("claude")
+
+            assert exc_info.value.provider == "claude"
+            assert exc_info.value.reason == "test reason"
+
+    def test_create_executor_with_config_no_llm_providers(self):
+        """Test create_executor when config has no llm_providers."""
+        mock_config = MagicMock()
+        mock_config.llm_providers = None
+
+        with patch("gobby.llm.resolver._create_claude_executor") as mock_create:
+            mock_executor = MagicMock()
+            mock_create.return_value = mock_executor
+
+            create_executor("claude", config=mock_config)
+
+            # Should pass None as provider_config
+            call_args = mock_create.call_args
+            assert call_args[0][0] is None  # provider_config
+
+
+class TestExecutorCreationWithConfig:
+    """Tests for executor creation with provider config."""
+
+    def test_claude_executor_with_models_config(self):
+        """Test Claude executor uses first model from config."""
+        import sys
+        from unittest.mock import MagicMock, patch
+
+        mock_anthropic = MagicMock()
+
+        with patch.dict(sys.modules, {"anthropic": mock_anthropic, "anthropic.types": MagicMock()}):
+            with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
+                from gobby.llm.resolver import _create_claude_executor
+
+                mock_config = MagicMock()
+                mock_config.auth_mode = "api_key"
+                mock_config.models = "claude-opus-4-5, claude-sonnet-4-5"
+
+                executor = _create_claude_executor(mock_config, None)
+
+                assert executor.default_model == "claude-opus-4-5"
+
+    def test_claude_executor_model_override(self):
+        """Test Claude executor model override takes precedence."""
+        import sys
+        from unittest.mock import MagicMock, patch
+
+        mock_anthropic = MagicMock()
+
+        with patch.dict(sys.modules, {"anthropic": mock_anthropic, "anthropic.types": MagicMock()}):
+            with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
+                from gobby.llm.resolver import _create_claude_executor
+
+                mock_config = MagicMock()
+                mock_config.auth_mode = "api_key"
+                mock_config.models = "claude-sonnet-4-5"
+
+                executor = _create_claude_executor(mock_config, "claude-opus-4-20250514")
+
+                assert executor.default_model == "claude-opus-4-20250514"
+
+    def test_claude_executor_with_empty_models(self):
+        """Test Claude executor with empty models string uses default."""
+        import sys
+        from unittest.mock import MagicMock, patch
+
+        mock_anthropic = MagicMock()
+
+        with patch.dict(sys.modules, {"anthropic": mock_anthropic, "anthropic.types": MagicMock()}):
+            with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
+                from gobby.llm.resolver import _create_claude_executor
+
+                mock_config = MagicMock()
+                mock_config.auth_mode = "api_key"
+                mock_config.models = ""  # Empty string
+
+                executor = _create_claude_executor(mock_config, None)
+
+                assert executor.default_model == "claude-sonnet-4-20250514"
+
+    def test_claude_executor_with_whitespace_only_models(self):
+        """Test Claude executor with whitespace-only models uses default."""
+        import sys
+        from unittest.mock import MagicMock, patch
+
+        mock_anthropic = MagicMock()
+
+        with patch.dict(sys.modules, {"anthropic": mock_anthropic, "anthropic.types": MagicMock()}):
+            with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
+                from gobby.llm.resolver import _create_claude_executor
+
+                mock_config = MagicMock()
+                mock_config.auth_mode = "api_key"
+                mock_config.models = "  ,  ,  "  # Whitespace-only entries
+
+                executor = _create_claude_executor(mock_config, None)
+
+                assert executor.default_model == "claude-sonnet-4-20250514"
+
+    def test_claude_executor_with_none_auth_mode(self):
+        """Test Claude executor defaults auth_mode when None."""
+        import sys
+        from unittest.mock import MagicMock, patch
+
+        mock_anthropic = MagicMock()
+
+        with patch.dict(sys.modules, {"anthropic": mock_anthropic, "anthropic.types": MagicMock()}):
+            with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
+                from gobby.llm.resolver import _create_claude_executor
+
+                mock_config = MagicMock()
+                mock_config.auth_mode = None  # Explicitly None
+                mock_config.models = None
+
+                executor = _create_claude_executor(mock_config, None)
+
+                assert executor.auth_mode == "api_key"
+
+    def test_gemini_executor_with_models_config(self):
+        """Test Gemini executor uses first model from config."""
+        import sys
+        from unittest.mock import MagicMock, patch
+
+        mock_genai = MagicMock()
+
+        with patch.dict(
+            sys.modules,
+            {
+                "google": MagicMock(),
+                "google.generativeai": mock_genai,
+                "google.auth": MagicMock(),
+            },
+        ):
+            with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}):
+                from gobby.llm.resolver import _create_gemini_executor
+
+                mock_config = MagicMock()
+                mock_config.auth_mode = "api_key"
+                mock_config.models = "gemini-1.5-pro, gemini-2.0-flash"
+
+                executor = _create_gemini_executor(mock_config, None)
+
+                assert executor.default_model == "gemini-1.5-pro"
+
+    def test_gemini_executor_with_none_auth_mode(self):
+        """Test Gemini executor defaults auth_mode when None."""
+        import sys
+        from unittest.mock import MagicMock, patch
+
+        mock_genai = MagicMock()
+
+        with patch.dict(
+            sys.modules,
+            {
+                "google": MagicMock(),
+                "google.generativeai": mock_genai,
+                "google.auth": MagicMock(),
+            },
+        ):
+            with patch.dict("os.environ", {"GEMINI_API_KEY": "test-key"}):
+                from gobby.llm.resolver import _create_gemini_executor
+
+                mock_config = MagicMock()
+                mock_config.auth_mode = None
+                mock_config.models = None
+
+                executor = _create_gemini_executor(mock_config, None)
+
+                assert executor.auth_mode == "api_key"
+
+    def test_litellm_executor_with_models_config(self):
+        """Test LiteLLM executor uses first model from config."""
+        import sys
+        from unittest.mock import MagicMock, patch
+
+        mock_litellm = MagicMock()
+
+        with patch.dict(sys.modules, {"litellm": mock_litellm}):
+            from gobby.llm.resolver import _create_litellm_executor
+
+            mock_provider_config = MagicMock()
+            mock_provider_config.models = "gpt-4, gpt-4o-mini"
+            mock_provider_config.api_base = None
+
+            executor = _create_litellm_executor(mock_provider_config, None, None)
+
+            assert executor.default_model == "gpt-4"
+
+    def test_litellm_executor_with_api_base(self):
+        """Test LiteLLM executor with api_base from config."""
+        import sys
+        from unittest.mock import MagicMock, patch
+
+        mock_litellm = MagicMock()
+
+        with patch.dict(sys.modules, {"litellm": mock_litellm}):
+            from gobby.llm.resolver import _create_litellm_executor
+
+            mock_provider_config = MagicMock()
+            mock_provider_config.models = None
+            mock_provider_config.api_base = "https://my-proxy.example.com"
+
+            executor = _create_litellm_executor(mock_provider_config, None, None)
+
+            assert executor.api_base == "https://my-proxy.example.com"
+
+    def test_litellm_executor_with_api_keys(self):
+        """Test LiteLLM executor with api_keys from config."""
+        import sys
+        from unittest.mock import MagicMock, patch
+
+        mock_litellm = MagicMock()
+
+        with patch.dict(sys.modules, {"litellm": mock_litellm}):
+            from gobby.llm.resolver import _create_litellm_executor
+
+            mock_provider_config = MagicMock()
+            mock_provider_config.models = None
+            mock_provider_config.api_base = None
+
+            mock_config = MagicMock()
+            mock_config.llm_providers.api_keys = {"OPENAI_API_KEY": "sk-test"}
+
+            # Clear existing env var to test setting it
+            with patch.dict("os.environ", {}, clear=True):
+                executor = _create_litellm_executor(mock_provider_config, mock_config, None)
+
+                # Verify executor was created (api_keys are set in env, not stored)
+                assert executor.provider_name == "litellm"
+
+    def test_litellm_executor_with_none_api_keys(self):
+        """Test LiteLLM executor with None api_keys from config."""
+        import sys
+        from unittest.mock import MagicMock, patch
+
+        mock_litellm = MagicMock()
+
+        with patch.dict(sys.modules, {"litellm": mock_litellm}):
+            from gobby.llm.resolver import _create_litellm_executor
+
+            mock_provider_config = MagicMock()
+            mock_provider_config.models = None
+            mock_provider_config.api_base = None
+
+            mock_config = MagicMock()
+            mock_config.llm_providers.api_keys = None
+
+            executor = _create_litellm_executor(mock_provider_config, mock_config, None)
+
+            # Verify executor was created (None api_keys means no env vars set)
+            assert executor.provider_name == "litellm"
+
+    def test_codex_executor_with_none_auth_mode(self):
+        """Test Codex executor defaults auth_mode when None."""
+        import sys
+        from unittest.mock import MagicMock, patch
+
+        mock_openai = MagicMock()
+
+        with patch.dict(sys.modules, {"openai": mock_openai}):
+            with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+                from gobby.llm.resolver import _create_codex_executor
+
+                mock_config = MagicMock()
+                mock_config.auth_mode = None
+                mock_config.models = None
+
+                executor = _create_codex_executor(mock_config, None)
+
+                assert executor.auth_mode == "api_key"
+
+
+class TestExecutorRegistryAdvanced:
+    """Advanced tests for ExecutorRegistry class."""
+
+    def test_cache_key_includes_model(self):
+        """Test that cache key includes model for separate caching."""
+        with patch("gobby.llm.resolver.create_executor") as mock_create:
+            executor1 = MagicMock()
+            executor2 = MagicMock()
+            mock_create.side_effect = [executor1, executor2]
+
+            registry = ExecutorRegistry()
+            result1 = registry.get(provider="claude", model="claude-opus-4-5")
+            result2 = registry.get(provider="claude", model="claude-sonnet-4-5")
+
+            assert result1 is not result2
+            assert mock_create.call_count == 2
+
+    def test_cache_key_with_workflow_model(self):
+        """Test that workflow model is included in cache key."""
+        with patch("gobby.llm.resolver.create_executor") as mock_create:
+            executor1 = MagicMock()
+            executor2 = MagicMock()
+            mock_create.side_effect = [executor1, executor2]
+
+            mock_workflow1 = MagicMock()
+            mock_workflow1.variables = {"provider": "claude", "model": "claude-opus-4-5"}
+
+            mock_workflow2 = MagicMock()
+            mock_workflow2.variables = {"provider": "claude", "model": "claude-sonnet-4-5"}
+
+            registry = ExecutorRegistry()
+            result1 = registry.get(workflow=mock_workflow1)
+            result2 = registry.get(workflow=mock_workflow2)
+
+            assert result1 is not result2
+            assert mock_create.call_count == 2
+
+    def test_explicit_model_overrides_workflow_model(self):
+        """Test that explicit model override takes precedence over workflow model."""
+        with patch("gobby.llm.resolver.create_executor") as mock_create:
+            mock_executor = MagicMock()
+            mock_create.return_value = mock_executor
+
+            mock_workflow = MagicMock()
+            mock_workflow.variables = {"provider": "claude", "model": "workflow-model"}
+
+            registry = ExecutorRegistry()
+            registry.get(workflow=mock_workflow, model="explicit-model")
+
+            # Check that explicit model was passed to create_executor
+            call_kwargs = mock_create.call_args
+            assert call_kwargs[1]["model"] == "explicit-model"
+
+    def test_get_with_config(self):
+        """Test that registry passes config to create_executor."""
+        with patch("gobby.llm.resolver.create_executor") as mock_create:
+            mock_executor = MagicMock()
+            mock_create.return_value = mock_executor
+
+            mock_config = MagicMock()
+            mock_config.llm_providers = None
+
+            registry = ExecutorRegistry(config=mock_config)
+            registry.get(provider="claude")
+
+            # Verify config was passed
+            call_kwargs = mock_create.call_args
+            assert call_kwargs[1]["config"] is mock_config
+
+    def test_get_all_returns_copy(self):
+        """Test that get_all returns a copy of the cache."""
+        with patch("gobby.llm.resolver.create_executor") as mock_create:
+            mock_executor = MagicMock()
+            mock_create.return_value = mock_executor
+
+            registry = ExecutorRegistry()
+            registry.get(provider="claude")
+
+            all_executors = registry.get_all()
+            # Modifying the returned dict should not affect the cache
+            all_executors["new_key"] = "new_value"
+
+            # Original cache should be unchanged
+            assert "new_key" not in registry.get_all()
+
+
+class TestValidateProviderConfigured:
+    """Tests for _validate_provider_configured function."""
+
+    def test_provider_configured(self):
+        """Test no error when provider is configured."""
+        from gobby.llm.resolver import _validate_provider_configured
+
+        mock_llm_providers = MagicMock()
+        mock_llm_providers.get_enabled_providers.return_value = ["claude", "gemini"]
+
+        # Should not raise
+        _validate_provider_configured("claude", mock_llm_providers)
+
+    def test_provider_not_configured(self):
+        """Test error when provider is not configured."""
+        from gobby.llm.resolver import _validate_provider_configured
+
+        mock_llm_providers = MagicMock()
+        mock_llm_providers.get_enabled_providers.return_value = ["claude"]
+
+        with pytest.raises(ProviderNotConfiguredError) as exc_info:
+            _validate_provider_configured("gemini", mock_llm_providers)
+
+        assert exc_info.value.provider == "gemini"
+        assert "claude" in exc_info.value.available
+
+
+class TestResolvedProviderDataclass:
+    """Tests for ResolvedProvider dataclass."""
+
+    def test_default_model_is_none(self):
+        """Test that model defaults to None."""
+        result = ResolvedProvider(provider="claude", source="explicit")
+        assert result.model is None
+
+    def test_all_fields_set(self):
+        """Test creating ResolvedProvider with all fields."""
+        result = ResolvedProvider(
+            provider="claude",
+            source="workflow",
+            model="claude-opus-4-5",
+        )
+        assert result.provider == "claude"
+        assert result.source == "workflow"
+        assert result.model == "claude-opus-4-5"
+
+    def test_resolution_sources(self):
+        """Test all valid resolution sources."""
+        sources = ["explicit", "workflow", "config", "default"]
+        for source in sources:
+            result = ResolvedProvider(provider="claude", source=source)  # type: ignore
+            assert result.source == source

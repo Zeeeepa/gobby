@@ -951,10 +951,10 @@ async def test_close_task_falls_back_to_smart_context_when_no_commits(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_close_task_commit_diff_with_uncommitted_changes(
+async def test_close_task_commit_diff_excludes_uncommitted_changes(
     mock_task_manager, mock_task_validator
 ):
-    """Test that close_task includes uncommitted changes in diff when available."""
+    """Test that close_task excludes uncommitted changes (linked commits are the work)."""
     task = Task(
         id="t1",
         title="Task with commits",
@@ -999,18 +999,23 @@ async def test_close_task_commit_diff_with_uncommitted_changes(
 
         await registry.call("close_task", {"task_id": "t1"})
 
-        # get_task_diff should have been called with include_uncommitted=True
+        # get_task_diff should have been called with include_uncommitted=False
+        # (uncommitted changes are unrelated to the task - linked commits are the work)
         mock_diff.assert_called_once()
         call_kwargs = mock_diff.call_args.kwargs
-        assert call_kwargs.get("include_uncommitted") is True
+        assert call_kwargs.get("include_uncommitted") is False
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_close_task_commit_diff_empty_falls_back_to_smart_context(
+async def test_close_task_with_commits_does_not_fallback_to_smart_context(
     mock_task_manager, mock_task_validator
 ):
-    """Test that close_task falls back when commit diff is empty."""
+    """Test that close_task with linked commits doesn't fall back to smart context.
+
+    When a task has linked commits, those commits ARE the work, so we don't
+    fall back to smart context even if the diff is empty.
+    """
     task = Task(
         id="t1",
         title="Task with commits but empty diff",
@@ -1058,10 +1063,9 @@ async def test_close_task_commit_diff_empty_falls_back_to_smart_context(
 
         await registry.call("close_task", {"task_id": "t1"})
 
-        # Should have tried get_task_diff first
+        # Should have tried get_task_diff
         mock_diff.assert_called_once()
-        # But then fallen back to smart context because diff was empty
-        mock_smart_context.assert_called_once()
-        # Validator should have received smart context
-        validator_call = mock_task_validator.validate_task.call_args
-        assert "Smart context as fallback" in validator_call.kwargs["changes_summary"]
+        # Should NOT fall back to smart context when commits are linked
+        mock_smart_context.assert_not_called()
+        # Validator should not be called (no validation context available)
+        mock_task_validator.validate_task.assert_not_called()

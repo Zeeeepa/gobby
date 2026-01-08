@@ -101,7 +101,7 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
             validation_criteria=None,
             created_in_session_id=None,
         )
-    assert result == {"id": "t1"}
+    assert result == {"success": True, "id": "t1"}
 
 
 @pytest.mark.asyncio
@@ -136,7 +136,7 @@ async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager)
             validation_criteria=None,
             created_in_session_id="session-abc123",
         )
-    assert result == {"id": "t1"}
+    assert result == {"success": True, "id": "t1"}
 
 
 @pytest.mark.asyncio

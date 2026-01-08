@@ -825,3 +825,714 @@ class TestWorktreeGitManagerUnlock:
 
         assert result.success is False
         assert "Failed to unlock" in result.message
+
+    @patch("subprocess.run")
+    def test_unlock_handles_exception(self, mock_run, manager, tmp_path):
+        """Unlock handles generic exception gracefully."""
+        worktree_path = tmp_path / "worktree"
+        mock_run.side_effect = Exception("Unexpected error")
+
+        result = manager.unlock_worktree(worktree_path)
+
+        assert result.success is False
+        assert "Error unlocking worktree" in result.message
+        assert result.error == "Unexpected error"
+
+
+class TestWorktreeGitManagerRunGitCalledProcessError:
+    """Tests for _run_git CalledProcessError handling."""
+
+    @pytest.fixture
+    def manager(self, tmp_path):
+        """Create manager with temp directory."""
+        return WorktreeGitManager(tmp_path)
+
+    @patch("subprocess.run")
+    def test_run_git_called_process_error(self, mock_run, manager):
+        """_run_git raises CalledProcessError when check=True."""
+        mock_run.side_effect = subprocess.CalledProcessError(
+            returncode=128,
+            cmd=["git", "status"],
+            stderr="fatal: not a git repository",
+        )
+
+        with pytest.raises(subprocess.CalledProcessError):
+            manager._run_git(["status"], check=True)
+
+
+class TestWorktreeGitManagerCreateWorktreeFetchFailure:
+    """Tests for create_worktree fetch failure scenarios."""
+
+    @pytest.fixture
+    def manager(self, tmp_path):
+        """Create manager with temp directory."""
+        return WorktreeGitManager(tmp_path)
+
+    @patch("subprocess.run")
+    def test_create_worktree_fetch_failure(self, mock_run, manager, tmp_path):
+        """Create worktree fails when fetch fails."""
+        worktree_path = tmp_path / "worktrees" / "feature-test"
+
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git", "fetch"],
+            returncode=128,
+            stdout="",
+            stderr="fatal: could not fetch origin/main",
+        )
+
+        result = manager.create_worktree(
+            worktree_path, "feature/test", base_branch="main", create_branch=True
+        )
+
+        assert result.success is False
+        assert "Failed to fetch" in result.message
+        assert result.error == "fatal: could not fetch origin/main"
+
+    @patch("subprocess.run")
+    def test_create_worktree_generic_exception(self, mock_run, manager, tmp_path):
+        """Create worktree handles generic exception."""
+        worktree_path = tmp_path / "worktrees" / "feature-test"
+
+        mock_run.side_effect = Exception("Unexpected git error")
+
+        result = manager.create_worktree(
+            worktree_path, "feature/test", base_branch="main", create_branch=True
+        )
+
+        assert result.success is False
+        assert "Error creating worktree" in result.message
+        assert result.error == "Unexpected git error"
+
+
+class TestWorktreeGitManagerDeleteWorktreeEdgeCases:
+    """Tests for delete_worktree edge cases."""
+
+    @pytest.fixture
+    def manager(self, tmp_path):
+        """Create manager with temp directory."""
+        return WorktreeGitManager(tmp_path)
+
+    @patch("subprocess.run")
+    def test_delete_branch_deletion_failure(self, mock_run, manager, tmp_path):
+        """Delete worktree succeeds but branch deletion fails."""
+        worktree_path = tmp_path / "worktrees" / "feature-test"
+        worktree_path.mkdir(parents=True)
+
+        # Mock sequence: get status, worktree remove success, branch delete fails
+        mock_run.side_effect = [
+            # branch --show-current
+            subprocess.CompletedProcess(
+                args=["git", "branch"], returncode=0, stdout="feature/test\n", stderr=""
+            ),
+            # rev-parse --short HEAD
+            subprocess.CompletedProcess(
+                args=["git", "rev-parse"], returncode=0, stdout="abc1234\n", stderr=""
+            ),
+            # status --porcelain
+            subprocess.CompletedProcess(args=["git", "status"], returncode=0, stdout="", stderr=""),
+            # rev-list (ahead/behind)
+            subprocess.CompletedProcess(
+                args=["git", "rev-list"], returncode=0, stdout="0\t0\n", stderr=""
+            ),
+            # worktree remove - success
+            subprocess.CompletedProcess(
+                args=["git", "worktree", "remove"], returncode=0, stdout="", stderr=""
+            ),
+            # branch -d - failure (not fully merged)
+            subprocess.CompletedProcess(
+                args=["git", "branch", "-d"],
+                returncode=1,
+                stdout="",
+                stderr="error: branch not fully merged",
+            ),
+        ]
+
+        result = manager.delete_worktree(worktree_path, delete_branch=True)
+
+        # Worktree was removed, so success is True, but message indicates branch issue
+        assert result.success is True
+        assert "failed to delete branch" in result.message
+
+    @patch("subprocess.run")
+    def test_delete_branch_with_no_status(self, mock_run, manager, tmp_path):
+        """Delete worktree with delete_branch=True but no status found."""
+        worktree_path = tmp_path / "worktrees" / "feature-test"
+        # Path doesn't exist, so get_worktree_status returns None
+
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git", "worktree", "remove"], returncode=0, stdout="", stderr=""
+        )
+
+        result = manager.delete_worktree(worktree_path, delete_branch=True)
+
+        assert result.success is True
+        # No branch was deleted since we couldn't determine the branch
+        assert "branch" not in result.message.lower() or "and branch" not in result.message
+
+    @patch("subprocess.run")
+    def test_delete_timeout(self, mock_run, manager, tmp_path):
+        """Delete worktree handles timeout."""
+        worktree_path = tmp_path / "worktrees" / "feature-test"
+
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=30)
+
+        result = manager.delete_worktree(worktree_path)
+
+        assert result.success is False
+        assert "timed out" in result.message
+
+    @patch("subprocess.run")
+    def test_delete_generic_exception(self, mock_run, manager, tmp_path):
+        """Delete worktree handles generic exception."""
+        worktree_path = tmp_path / "worktrees" / "feature-test"
+
+        mock_run.side_effect = Exception("Unexpected error during delete")
+
+        result = manager.delete_worktree(worktree_path)
+
+        assert result.success is False
+        assert "Error deleting worktree" in result.message
+        assert result.error == "Unexpected error during delete"
+
+
+class TestWorktreeGitManagerSyncEdgeCases:
+    """Tests for sync_from_main edge cases."""
+
+    @pytest.fixture
+    def manager(self, tmp_path):
+        """Create manager with temp directory."""
+        return WorktreeGitManager(tmp_path)
+
+    @patch("subprocess.run")
+    def test_sync_rebase_failure_no_conflict(self, mock_run, manager, tmp_path):
+        """Sync fails with rebase error but no conflict."""
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        mock_run.side_effect = [
+            # fetch success
+            subprocess.CompletedProcess(args=["git", "fetch"], returncode=0, stdout="", stderr=""),
+            # rebase failure (not a conflict)
+            subprocess.CompletedProcess(
+                args=["git", "rebase"],
+                returncode=1,
+                stdout="",
+                stderr="error: cannot rebase: dirty index",
+            ),
+        ]
+
+        result = manager.sync_from_main(worktree_path)
+
+        assert result.success is False
+        assert "Failed to rebase" in result.message
+        assert "dirty index" in result.error
+
+    @patch("subprocess.run")
+    def test_sync_merge_failure_no_conflict(self, mock_run, manager, tmp_path):
+        """Sync fails with merge error but no conflict."""
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        mock_run.side_effect = [
+            # fetch success
+            subprocess.CompletedProcess(args=["git", "fetch"], returncode=0, stdout="", stderr=""),
+            # merge failure (not a conflict)
+            subprocess.CompletedProcess(
+                args=["git", "merge"],
+                returncode=1,
+                stdout="",
+                stderr="error: You have unstaged changes",
+            ),
+        ]
+
+        result = manager.sync_from_main(worktree_path, strategy="merge")
+
+        assert result.success is False
+        assert "Failed to merge" in result.message
+
+    @patch("subprocess.run")
+    def test_sync_conflict_in_stderr(self, mock_run, manager, tmp_path):
+        """Sync detects conflict in stderr."""
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        mock_run.side_effect = [
+            # fetch success
+            subprocess.CompletedProcess(args=["git", "fetch"], returncode=0, stdout="", stderr=""),
+            # merge with conflict in stderr
+            subprocess.CompletedProcess(
+                args=["git", "merge"],
+                returncode=1,
+                stdout="",
+                stderr="CONFLICT (content): Merge conflict in file.py",
+            ),
+        ]
+
+        result = manager.sync_from_main(worktree_path, strategy="merge")
+
+        assert result.success is False
+        assert "conflicts" in result.message.lower()
+        assert "abort" in result.message.lower()
+
+    @patch("subprocess.run")
+    def test_sync_timeout(self, mock_run, manager, tmp_path):
+        """Sync handles timeout."""
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=120)
+
+        result = manager.sync_from_main(worktree_path)
+
+        assert result.success is False
+        assert "timed out" in result.message
+
+    @patch("subprocess.run")
+    def test_sync_generic_exception(self, mock_run, manager, tmp_path):
+        """Sync handles generic exception."""
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        mock_run.side_effect = Exception("Network error")
+
+        result = manager.sync_from_main(worktree_path)
+
+        assert result.success is False
+        assert "Error syncing worktree" in result.message
+        assert result.error == "Network error"
+
+
+class TestWorktreeGitManagerGetStatusEdgeCases:
+    """Tests for get_worktree_status edge cases."""
+
+    @pytest.fixture
+    def manager(self, tmp_path):
+        """Create manager with temp directory."""
+        return WorktreeGitManager(tmp_path)
+
+    @patch("subprocess.run")
+    def test_get_status_no_upstream(self, mock_run, manager, tmp_path):
+        """Get status when branch has no upstream."""
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        mock_run.side_effect = [
+            # branch --show-current
+            subprocess.CompletedProcess(
+                args=["git", "branch"], returncode=0, stdout="feature/test\n", stderr=""
+            ),
+            # rev-parse --short HEAD
+            subprocess.CompletedProcess(
+                args=["git", "rev-parse"], returncode=0, stdout="abc1234\n", stderr=""
+            ),
+            # status --porcelain (clean)
+            subprocess.CompletedProcess(args=["git", "status"], returncode=0, stdout="", stderr=""),
+            # rev-list fails (no upstream)
+            subprocess.CompletedProcess(
+                args=["git", "rev-list"],
+                returncode=128,
+                stdout="",
+                stderr="fatal: no upstream branch",
+            ),
+        ]
+
+        status = manager.get_worktree_status(worktree_path)
+
+        assert status is not None
+        # Without upstream, ahead/behind defaults to 0
+        assert status.ahead == 0
+        assert status.behind == 0
+
+    @patch("subprocess.run")
+    def test_get_status_detached_head(self, mock_run, manager, tmp_path):
+        """Get status with detached HEAD (no branch)."""
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        mock_run.side_effect = [
+            # branch --show-current returns empty (detached)
+            subprocess.CompletedProcess(args=["git", "branch"], returncode=0, stdout="", stderr=""),
+            # rev-parse --short HEAD
+            subprocess.CompletedProcess(
+                args=["git", "rev-parse"], returncode=0, stdout="abc1234\n", stderr=""
+            ),
+            # status --porcelain (clean)
+            subprocess.CompletedProcess(args=["git", "status"], returncode=0, stdout="", stderr=""),
+            # No rev-list call since branch is empty
+        ]
+
+        status = manager.get_worktree_status(worktree_path)
+
+        assert status is not None
+        assert status.branch == ""
+        assert status.commit == "abc1234"
+        # Without branch, upstream check is skipped
+        assert status.ahead == 0
+        assert status.behind == 0
+
+    @patch("subprocess.run")
+    def test_get_status_branch_command_failure(self, mock_run, manager, tmp_path):
+        """Get status when branch command fails."""
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        mock_run.side_effect = [
+            # branch --show-current fails
+            subprocess.CompletedProcess(
+                args=["git", "branch"],
+                returncode=128,
+                stdout="",
+                stderr="fatal: not a git repo",
+            ),
+            # rev-parse fails
+            subprocess.CompletedProcess(
+                args=["git", "rev-parse"],
+                returncode=128,
+                stdout="",
+                stderr="fatal: not a git repo",
+            ),
+            # status --porcelain
+            subprocess.CompletedProcess(args=["git", "status"], returncode=0, stdout="", stderr=""),
+        ]
+
+        status = manager.get_worktree_status(worktree_path)
+
+        assert status is not None
+        assert status.branch is None
+        assert status.commit is None
+
+    @patch("subprocess.run")
+    def test_get_status_ahead_behind_parsing(self, mock_run, manager, tmp_path):
+        """Get status parses ahead/behind correctly."""
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        mock_run.side_effect = [
+            # branch --show-current
+            subprocess.CompletedProcess(
+                args=["git", "branch"], returncode=0, stdout="main\n", stderr=""
+            ),
+            # rev-parse --short HEAD
+            subprocess.CompletedProcess(
+                args=["git", "rev-parse"], returncode=0, stdout="abc1234\n", stderr=""
+            ),
+            # status --porcelain
+            subprocess.CompletedProcess(args=["git", "status"], returncode=0, stdout="", stderr=""),
+            # rev-list with single tab (malformed output) - should not crash
+            subprocess.CompletedProcess(
+                args=["git", "rev-list"], returncode=0, stdout="5\t", stderr=""
+            ),
+        ]
+
+        status = manager.get_worktree_status(worktree_path)
+
+        assert status is not None
+        # With malformed output, should not parse correctly
+        assert status.ahead == 0
+        assert status.behind == 0
+
+    @patch("subprocess.run")
+    def test_get_status_status_porcelain_parsing(self, mock_run, manager, tmp_path):
+        """Get status correctly parses various porcelain status formats."""
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        mock_run.side_effect = [
+            # branch --show-current
+            subprocess.CompletedProcess(
+                args=["git", "branch"], returncode=0, stdout="main\n", stderr=""
+            ),
+            # rev-parse --short HEAD
+            subprocess.CompletedProcess(
+                args=["git", "rev-parse"], returncode=0, stdout="abc1234\n", stderr=""
+            ),
+            # status --porcelain with various statuses:
+            # A  = staged new file
+            # AM = staged new file with modifications
+            # MM = staged and modified
+            # D  = staged deletion
+            #  D = deleted in worktree
+            # ?? = untracked
+            subprocess.CompletedProcess(
+                args=["git", "status"],
+                returncode=0,
+                stdout="A  new_file.py\nAM modified_staged.py\nMM both.py\nD  deleted.py\n D removed.py\n?? untracked.txt\n",
+                stderr="",
+            ),
+            # rev-list (no upstream)
+            subprocess.CompletedProcess(
+                args=["git", "rev-list"], returncode=128, stdout="", stderr=""
+            ),
+        ]
+
+        status = manager.get_worktree_status(worktree_path)
+
+        assert status is not None
+        assert status.has_staged_changes is True
+        assert status.has_uncommitted_changes is True
+        assert status.has_untracked_files is True
+
+
+class TestWorktreeGitManagerListWorktreesEdgeCases:
+    """Tests for list_worktrees edge cases."""
+
+    @pytest.fixture
+    def manager(self, tmp_path):
+        """Create manager with temp directory."""
+        return WorktreeGitManager(tmp_path)
+
+    @patch("subprocess.run")
+    def test_list_worktrees_bare_repo(self, mock_run, manager):
+        """List worktrees parses bare repository."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git", "worktree", "list"],
+            returncode=0,
+            stdout=(
+                "worktree /path/to/repo.git\n" "HEAD abc1234567890\n" "bare\n" "\n"
+            ),
+            stderr="",
+        )
+
+        worktrees = manager.list_worktrees()
+
+        assert len(worktrees) == 1
+        assert worktrees[0].is_bare is True
+        assert worktrees[0].path == "/path/to/repo.git"
+
+    @patch("subprocess.run")
+    def test_list_worktrees_non_refs_heads_branch(self, mock_run, manager):
+        """List worktrees parses branches without refs/heads prefix."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git", "worktree", "list"],
+            returncode=0,
+            stdout=(
+                "worktree /path/to/worktree\n"
+                "HEAD abc1234567890\n"
+                "branch feature/direct-branch\n"
+                "\n"
+            ),
+            stderr="",
+        )
+
+        worktrees = manager.list_worktrees()
+
+        assert len(worktrees) == 1
+        # Branch without refs/heads/ prefix should be used as-is
+        assert worktrees[0].branch == "feature/direct-branch"
+
+    @patch("subprocess.run")
+    def test_list_worktrees_locked_with_reason(self, mock_run, manager):
+        """List worktrees parses locked with reason."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git", "worktree", "list"],
+            returncode=0,
+            stdout=(
+                "worktree /path/to/worktree\n"
+                "HEAD abc1234567890\n"
+                "branch refs/heads/feature\n"
+                "locked reason: important work\n"
+                "\n"
+            ),
+            stderr="",
+        )
+
+        worktrees = manager.list_worktrees()
+
+        assert len(worktrees) == 1
+        assert worktrees[0].locked is True
+
+    @patch("subprocess.run")
+    def test_list_worktrees_prunable_with_reason(self, mock_run, manager):
+        """List worktrees parses prunable with reason."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git", "worktree", "list"],
+            returncode=0,
+            stdout=(
+                "worktree /path/to/worktree\n"
+                "HEAD abc1234567890\n"
+                "branch refs/heads/feature\n"
+                "prunable gitdir file points to non-existent location\n"
+                "\n"
+            ),
+            stderr="",
+        )
+
+        worktrees = manager.list_worktrees()
+
+        assert len(worktrees) == 1
+        assert worktrees[0].prunable is True
+
+    @patch("subprocess.run")
+    def test_list_worktrees_exception(self, mock_run, manager):
+        """List worktrees handles exception gracefully."""
+        mock_run.side_effect = Exception("Git process crashed")
+
+        worktrees = manager.list_worktrees()
+
+        assert worktrees == []
+
+    @patch("subprocess.run")
+    def test_list_worktrees_no_trailing_newline(self, mock_run, manager):
+        """List worktrees handles output without trailing newline."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git", "worktree", "list"],
+            returncode=0,
+            stdout="worktree /path/to/repo\nHEAD abc1234567890\nbranch refs/heads/main",
+            stderr="",
+        )
+
+        worktrees = manager.list_worktrees()
+
+        # Should handle last entry without trailing newline
+        assert len(worktrees) == 1
+        assert worktrees[0].path == "/path/to/repo"
+        assert worktrees[0].branch == "main"
+
+
+class TestWorktreeGitManagerPruneEdgeCases:
+    """Tests for prune_worktrees edge cases."""
+
+    @pytest.fixture
+    def manager(self, tmp_path):
+        """Create manager with temp directory."""
+        return WorktreeGitManager(tmp_path)
+
+    @patch("subprocess.run")
+    def test_prune_exception(self, mock_run, manager):
+        """Prune handles exception gracefully."""
+        mock_run.side_effect = Exception("Git process crashed")
+
+        result = manager.prune_worktrees()
+
+        assert result.success is False
+        assert "Error pruning worktrees" in result.message
+        assert result.error == "Git process crashed"
+
+
+class TestWorktreeGitManagerLockEdgeCases:
+    """Tests for lock_worktree edge cases."""
+
+    @pytest.fixture
+    def manager(self, tmp_path):
+        """Create manager with temp directory."""
+        return WorktreeGitManager(tmp_path)
+
+    @patch("subprocess.run")
+    def test_lock_exception(self, mock_run, manager, tmp_path):
+        """Lock handles exception gracefully."""
+        worktree_path = tmp_path / "worktree"
+        mock_run.side_effect = Exception("Permission denied")
+
+        result = manager.lock_worktree(worktree_path)
+
+        assert result.success is False
+        assert "Error locking worktree" in result.message
+        assert result.error == "Permission denied"
+
+
+class TestWorktreeGitManagerBranchCoverage:
+    """Tests specifically for branch coverage gaps."""
+
+    @pytest.fixture
+    def manager(self, tmp_path):
+        """Create manager with temp directory."""
+        return WorktreeGitManager(tmp_path)
+
+    @patch("subprocess.run")
+    def test_get_status_porcelain_failure(self, mock_run, manager, tmp_path):
+        """Get status when status --porcelain command fails."""
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        mock_run.side_effect = [
+            # branch --show-current
+            subprocess.CompletedProcess(
+                args=["git", "branch"], returncode=0, stdout="main\n", stderr=""
+            ),
+            # rev-parse --short HEAD
+            subprocess.CompletedProcess(
+                args=["git", "rev-parse"], returncode=0, stdout="abc1234\n", stderr=""
+            ),
+            # status --porcelain fails
+            subprocess.CompletedProcess(
+                args=["git", "status"],
+                returncode=128,
+                stdout="",
+                stderr="fatal: not a git repository",
+            ),
+            # rev-list (ahead/behind)
+            subprocess.CompletedProcess(
+                args=["git", "rev-list"], returncode=0, stdout="0\t0\n", stderr=""
+            ),
+        ]
+
+        status = manager.get_worktree_status(worktree_path)
+
+        assert status is not None
+        # When porcelain fails, flags should remain False (defaults)
+        assert status.has_uncommitted_changes is False
+        assert status.has_staged_changes is False
+        assert status.has_untracked_files is False
+        assert status.branch == "main"
+        assert status.commit == "abc1234"
+
+    @patch("subprocess.run")
+    def test_list_worktrees_unknown_line_format(self, mock_run, manager):
+        """List worktrees ignores unknown line formats."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git", "worktree", "list"],
+            returncode=0,
+            stdout=(
+                "worktree /path/to/repo\n"
+                "HEAD abc1234567890\n"
+                "branch refs/heads/main\n"
+                "unknown_field some_value\n"  # Unknown field
+                "another_unknown\n"  # Another unknown
+                "\n"
+            ),
+            stderr="",
+        )
+
+        worktrees = manager.list_worktrees()
+
+        # Should still parse the worktree correctly, ignoring unknown fields
+        assert len(worktrees) == 1
+        assert worktrees[0].path == "/path/to/repo"
+        assert worktrees[0].branch == "main"
+        assert worktrees[0].commit == "abc1234567890"
+
+    @patch("subprocess.run")
+    def test_get_status_single_char_status_line(self, mock_run, manager, tmp_path):
+        """Get status handles single character status line (edge case)."""
+        worktree_path = tmp_path / "worktree"
+        worktree_path.mkdir()
+
+        mock_run.side_effect = [
+            # branch --show-current
+            subprocess.CompletedProcess(
+                args=["git", "branch"], returncode=0, stdout="main\n", stderr=""
+            ),
+            # rev-parse --short HEAD
+            subprocess.CompletedProcess(
+                args=["git", "rev-parse"], returncode=0, stdout="abc1234\n", stderr=""
+            ),
+            # status --porcelain with edge case single character line
+            subprocess.CompletedProcess(
+                args=["git", "status"],
+                returncode=0,
+                stdout="M\n",  # Single char line (malformed but should not crash)
+                stderr="",
+            ),
+            # rev-list (ahead/behind)
+            subprocess.CompletedProcess(
+                args=["git", "rev-list"], returncode=0, stdout="0\t0\n", stderr=""
+            ),
+        ]
+
+        status = manager.get_worktree_status(worktree_path)
+
+        assert status is not None
+        # Single char 'M' in index position means staged
+        assert status.has_staged_changes is True
+        # The line[1] access will return " " since there's only 1 char
+        assert status.has_uncommitted_changes is False

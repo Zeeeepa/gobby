@@ -2,6 +2,7 @@
 
 import tempfile
 from datetime import UTC, datetime
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -1036,6 +1037,30 @@ class TestRegisterWorkflowAction:
         assert is_valid is True
         assert error is None
 
+    def test_validate_input_optional_field_not_provided(self):
+        """Test validation skips optional fields when not provided."""
+        plugin = SamplePlugin()
+
+        async def my_action(context, **kwargs):
+            return {}
+
+        schema = {
+            "type": "object",
+            "properties": {
+                "required_field": {"type": "string"},
+                "optional_field": {"type": "integer"},  # Not required
+            },
+            "required": ["required_field"],
+        }
+
+        plugin.register_workflow_action("test_optional", schema, my_action)
+        action = plugin._actions["test_optional"]
+
+        # Only provide required field, optional field not provided
+        is_valid, error = action.validate_input({"required_field": "hello"})
+        assert is_valid is True
+        assert error is None
+
     def test_get_action(self):
         """Test get_action retrieves registered action."""
         plugin = SamplePlugin()
@@ -1278,3 +1303,795 @@ class TestPluginActionRegistrationOnLoad:
 
         # Actions still in plugin's dict (registry cleanup is separate)
         assert len(plugin._actions) == 5
+
+
+# =============================================================================
+# Test _check_type Helper Function
+# =============================================================================
+
+
+class TestCheckTypeFunction:
+    """Tests for _check_type helper function."""
+
+    def test_boolean_rejected_for_integer(self):
+        """Test that boolean values are rejected for integer type."""
+        from gobby.hooks.plugins import _check_type
+
+        # Boolean should NOT be accepted as integer (even though bool is subclass of int)
+        assert _check_type(True, "integer") is False
+        assert _check_type(False, "integer") is False
+
+        # Actual integers should work
+        assert _check_type(42, "integer") is True
+        assert _check_type(-5, "integer") is True
+
+    def test_boolean_rejected_for_number(self):
+        """Test that boolean values are rejected for number type."""
+        from gobby.hooks.plugins import _check_type
+
+        assert _check_type(True, "number") is False
+        assert _check_type(False, "number") is False
+
+        # Actual numbers should work
+        assert _check_type(3.14, "number") is True
+        assert _check_type(42, "number") is True
+
+    def test_unknown_type_returns_true(self):
+        """Test that unknown types return True (skip validation)."""
+        from gobby.hooks.plugins import _check_type
+
+        assert _check_type("anything", "unknown_type") is True
+        assert _check_type(123, "custom") is True
+        assert _check_type(None, "nonexistent") is True
+
+    def test_null_type(self):
+        """Test null type checking."""
+        from gobby.hooks.plugins import _check_type
+
+        assert _check_type(None, "null") is True
+        assert _check_type("not none", "null") is False
+
+    def test_array_type(self):
+        """Test array type checking."""
+        from gobby.hooks.plugins import _check_type
+
+        assert _check_type([1, 2, 3], "array") is True
+        assert _check_type([], "array") is True
+        assert _check_type("not array", "array") is False
+
+    def test_object_type(self):
+        """Test object type checking."""
+        from gobby.hooks.plugins import _check_type
+
+        assert _check_type({"key": "value"}, "object") is True
+        assert _check_type({}, "object") is True
+        assert _check_type([1, 2], "object") is False
+
+    def test_boolean_type(self):
+        """Test boolean type checking."""
+        from gobby.hooks.plugins import _check_type
+
+        assert _check_type(True, "boolean") is True
+        assert _check_type(False, "boolean") is True
+        assert _check_type(1, "boolean") is False
+        assert _check_type("true", "boolean") is False
+
+    def test_string_type(self):
+        """Test string type checking."""
+        from gobby.hooks.plugins import _check_type
+
+        assert _check_type("hello", "string") is True
+        assert _check_type("", "string") is True
+        assert _check_type(123, "string") is False
+
+
+# =============================================================================
+# Test PluginRegistry Additional Coverage
+# =============================================================================
+
+
+class TestPluginRegistryAdditional:
+    """Additional tests for PluginRegistry edge cases."""
+
+    def test_unregister_nonexistent_plugin(self):
+        """Test unregistering a plugin that doesn't exist logs warning."""
+        registry = PluginRegistry()
+
+        # Should not raise, just log warning
+        registry.unregister_plugin("nonexistent-plugin")
+
+        # Verify plugin is not in registry
+        assert registry.get_plugin("nonexistent-plugin") is None
+
+    def test_get_plugin_action_success(self):
+        """Test get_plugin_action returns action when found."""
+        registry = PluginRegistry()
+        plugin = SamplePlugin()
+        plugin.on_load({})
+
+        async def my_action(context, **kwargs):
+            return {}
+
+        plugin.register_action("test_action", my_action)
+        registry.register_plugin(plugin)
+
+        action = registry.get_plugin_action("sample-plugin", "test_action")
+        assert action is not None
+        assert action.name == "test_action"
+
+    def test_get_plugin_action_plugin_not_found(self):
+        """Test get_plugin_action returns None when plugin not found."""
+        registry = PluginRegistry()
+
+        action = registry.get_plugin_action("nonexistent", "some_action")
+        assert action is None
+
+    def test_get_plugin_action_action_not_found(self):
+        """Test get_plugin_action returns None when action not found."""
+        registry = PluginRegistry()
+        plugin = SamplePlugin()
+        plugin.on_load({})
+        registry.register_plugin(plugin)
+
+        action = registry.get_plugin_action("sample-plugin", "nonexistent_action")
+        assert action is None
+
+    def test_unregister_removes_handlers_and_cleans_empty_lists(self):
+        """Test that unregistering plugin removes handlers and cleans up empty lists."""
+        registry = PluginRegistry()
+
+        # Register a plugin with handlers
+        plugin = SamplePlugin()
+        plugin.on_load({})
+        registry.register_plugin(plugin)
+
+        # Verify handlers exist
+        assert len(registry.get_handlers(HookEventType.BEFORE_TOOL)) == 1
+        assert len(registry.get_handlers(HookEventType.AFTER_TOOL)) == 1
+
+        # Unregister
+        registry.unregister_plugin("sample-plugin")
+
+        # Handlers should be gone
+        assert len(registry.get_handlers(HookEventType.BEFORE_TOOL)) == 0
+        assert len(registry.get_handlers(HookEventType.AFTER_TOOL)) == 0
+
+
+# =============================================================================
+# Test PluginLoader Discovery and Loading
+# =============================================================================
+
+
+class TestPluginLoaderDiscovery:
+    """Tests for PluginLoader discovery functionality."""
+
+    def test_discover_path_is_file_not_directory(self, plugins_config):
+        """Test discovery when path is a file instead of directory."""
+        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as f:
+            f.write(b"# test file")
+            file_path = f.name
+
+        try:
+            plugins_config.plugin_dirs = [file_path]
+            loader = PluginLoader(plugins_config)
+
+            discovered = loader.discover_plugins()
+            assert discovered == []
+        finally:
+            Path(file_path).unlink()
+
+    def test_discover_skips_underscore_files(self, plugins_config):
+        """Test that files starting with underscore are skipped."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create __init__.py
+            (Path(tmpdir) / "__init__.py").write_text("# init file")
+            # Create _private.py
+            (Path(tmpdir) / "_private.py").write_text("# private file")
+
+            plugins_config.plugin_dirs = [tmpdir]
+            loader = PluginLoader(plugins_config)
+
+            discovered = loader.discover_plugins()
+            assert discovered == []
+
+    def test_discover_handles_module_load_error(self, plugins_config):
+        """Test discovery continues when module fails to load."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a plugin file with syntax error
+            bad_plugin = Path(tmpdir) / "bad_plugin.py"
+            bad_plugin.write_text("def broken(:\n    pass")  # Syntax error
+
+            plugins_config.plugin_dirs = [tmpdir]
+            loader = PluginLoader(plugins_config)
+
+            # Should not raise, returns empty list
+            discovered = loader.discover_plugins()
+            assert discovered == []
+
+    def test_discover_and_load_real_plugin(self, plugins_config):
+        """Test discovering and loading a real plugin from file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a valid plugin file
+            plugin_file = Path(tmpdir) / "my_plugin.py"
+            plugin_file.write_text('''
+from gobby.hooks.plugins import HookPlugin, hook_handler
+from gobby.hooks.events import HookEventType
+
+class MyTestPlugin(HookPlugin):
+    name = "my-test-plugin"
+    version = "2.0.0"
+    description = "A test plugin from file"
+
+    def on_load(self, config):
+        self.config = config
+
+    @hook_handler(HookEventType.BEFORE_TOOL, priority=30)
+    def check_tool(self, event):
+        return None
+''')
+
+            plugins_config.plugin_dirs = [tmpdir]
+            loader = PluginLoader(plugins_config)
+
+            discovered = loader.discover_plugins()
+            assert len(discovered) == 1
+            assert discovered[0].name == "my-test-plugin"
+
+            # Load the plugin
+            plugin = loader.load_plugin(discovered[0], {"key": "value"})
+            assert plugin.name == "my-test-plugin"
+            assert plugin.version == "2.0.0"
+            assert plugin.config == {"key": "value"}
+
+    def test_load_module_already_cached(self, plugins_config):
+        """Test that _load_module uses cached module."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plugin_file = Path(tmpdir) / "cached_plugin.py"
+            plugin_file.write_text('''
+from gobby.hooks.plugins import HookPlugin
+
+class CachedPlugin(HookPlugin):
+    name = "cached-plugin"
+''')
+
+            plugins_config.plugin_dirs = [tmpdir]
+            loader = PluginLoader(plugins_config)
+
+            # Load module first time
+            classes1 = loader._load_module(plugin_file)
+            assert len(classes1) == 1
+
+            # Load same module again - should use cache
+            classes2 = loader._load_module(plugin_file)
+            assert len(classes2) == 1
+
+            # Verify cache was used (same module object)
+            module_name = f"gobby_plugin_{plugin_file.stem}"
+            assert module_name in loader._loaded_modules
+
+
+class TestPluginLoaderLoadPlugin:
+    """Tests for PluginLoader.load_plugin method."""
+
+    def test_load_plugin_uses_config_from_plugins_config(self, plugins_config):
+        """Test that plugin config is taken from PluginsConfig if available."""
+        plugins_config.plugins["sample-plugin"] = PluginItemConfig(
+            enabled=True,
+            config={"from_config": True, "value": 42}
+        )
+        loader = PluginLoader(plugins_config)
+
+        plugin = loader.load_plugin(SamplePlugin)
+
+        # Should use config from PluginsConfig
+        assert plugin.loaded_config == {"from_config": True, "value": 42}
+
+    def test_load_plugin_on_load_exception(self, plugins_config):
+        """Test that on_load exception is propagated."""
+
+        class FailingPlugin(HookPlugin):
+            name = "failing-plugin"
+
+            def on_load(self, config):
+                raise RuntimeError("on_load failed!")
+
+        loader = PluginLoader(plugins_config)
+
+        with pytest.raises(RuntimeError, match="on_load failed"):
+            loader.load_plugin(FailingPlugin)
+
+    def test_load_plugin_tracks_source_path(self, plugins_config):
+        """Test that source path is tracked when available."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plugin_file = Path(tmpdir) / "tracked_plugin.py"
+            plugin_file.write_text('''
+from gobby.hooks.plugins import HookPlugin
+
+class TrackedPlugin(HookPlugin):
+    name = "tracked-plugin"
+''')
+
+            plugins_config.plugin_dirs = [tmpdir]
+            loader = PluginLoader(plugins_config)
+
+            discovered = loader.discover_plugins()
+            assert len(discovered) == 1
+
+            loader.load_plugin(discovered[0])
+
+            # Source path should be tracked
+            assert "tracked-plugin" in loader._plugin_sources
+            # Compare resolved paths to handle symlinks (e.g., /var -> /private/var on macOS)
+            assert loader._plugin_sources["tracked-plugin"].resolve() == plugin_file.resolve()
+
+
+class TestPluginLoaderUnload:
+    """Tests for PluginLoader.unload_plugin method."""
+
+    def test_unload_nonexistent_plugin(self, plugins_config):
+        """Test unloading a plugin that doesn't exist."""
+        loader = PluginLoader(plugins_config)
+
+        # Should not raise, just return
+        loader.unload_plugin("nonexistent")
+
+    def test_unload_plugin_on_unload_exception(self, plugins_config):
+        """Test that on_unload exception doesn't prevent unregistration."""
+
+        class FailingUnloadPlugin(HookPlugin):
+            name = "failing-unload"
+
+            def on_unload(self):
+                raise RuntimeError("on_unload failed!")
+
+        loader = PluginLoader(plugins_config)
+        loader.load_plugin(FailingUnloadPlugin)
+
+        # Verify plugin is loaded
+        assert loader.registry.get_plugin("failing-unload") is not None
+
+        # Unload should not raise (error is caught)
+        loader.unload_plugin("failing-unload")
+
+        # Plugin should still be unregistered despite exception
+        assert loader.registry.get_plugin("failing-unload") is None
+
+
+class TestPluginLoaderLoadAll:
+    """Tests for PluginLoader.load_all method."""
+
+    def test_load_all_with_auto_discover(self):
+        """Test load_all with auto_discover enabled."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a plugin file
+            plugin_file = Path(tmpdir) / "auto_plugin.py"
+            plugin_file.write_text('''
+from gobby.hooks.plugins import HookPlugin
+
+class AutoPlugin(HookPlugin):
+    name = "auto-plugin"
+''')
+
+            config = PluginsConfig(
+                enabled=True,
+                plugin_dirs=[tmpdir],
+                auto_discover=True,
+            )
+            loader = PluginLoader(config)
+
+            loaded = loader.load_all()
+            assert len(loaded) == 1
+            assert loaded[0].name == "auto-plugin"
+
+    def test_load_all_skips_disabled_plugin(self):
+        """Test load_all skips explicitly disabled plugins."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plugin_file = Path(tmpdir) / "disabled_plugin.py"
+            plugin_file.write_text('''
+from gobby.hooks.plugins import HookPlugin
+
+class DisabledPlugin(HookPlugin):
+    name = "disabled-plugin"
+''')
+
+            config = PluginsConfig(
+                enabled=True,
+                plugin_dirs=[tmpdir],
+                auto_discover=True,
+                plugins={
+                    "disabled-plugin": PluginItemConfig(enabled=False)
+                }
+            )
+            loader = PluginLoader(config)
+
+            loaded = loader.load_all()
+            assert len(loaded) == 0
+
+    def test_load_all_continues_on_error(self):
+        """Test load_all continues loading when one plugin fails."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a failing plugin
+            failing = Path(tmpdir) / "failing.py"
+            failing.write_text('''
+from gobby.hooks.plugins import HookPlugin
+
+class FailingLoadPlugin(HookPlugin):
+    name = "failing-load"
+
+    def on_load(self, config):
+        raise RuntimeError("Load failed!")
+''')
+
+            # Create a working plugin
+            working = Path(tmpdir) / "working.py"
+            working.write_text('''
+from gobby.hooks.plugins import HookPlugin
+
+class WorkingPlugin(HookPlugin):
+    name = "working-plugin"
+''')
+
+            config = PluginsConfig(
+                enabled=True,
+                plugin_dirs=[tmpdir],
+                auto_discover=True,
+            )
+            loader = PluginLoader(config)
+
+            loaded = loader.load_all()
+            # Only working plugin should be loaded
+            assert len(loaded) == 1
+            assert loaded[0].name == "working-plugin"
+
+
+class TestPluginLoaderUnloadAll:
+    """Tests for PluginLoader.unload_all method."""
+
+    def test_unload_all(self, plugins_config):
+        """Test unload_all unloads all plugins."""
+        loader = PluginLoader(plugins_config)
+
+        # Load multiple plugins
+        loader.load_plugin(SamplePlugin)
+        loader.load_plugin(HighPriorityPlugin)
+        loader.load_plugin(LowPriorityPlugin)
+
+        assert len(loader.registry._plugins) == 3
+
+        loader.unload_all()
+
+        assert len(loader.registry._plugins) == 0
+
+    def test_unload_all_handles_exception(self, plugins_config):
+        """Test unload_all continues when one unload fails."""
+
+        class FailUnloadPlugin1(HookPlugin):
+            name = "fail-unload-1"
+
+            def on_unload(self):
+                raise RuntimeError("Unload failed!")
+
+        class NormalPlugin(HookPlugin):
+            name = "normal-plugin"
+            unloaded = False
+
+            def on_unload(self):
+                NormalPlugin.unloaded = True
+
+        loader = PluginLoader(plugins_config)
+        loader.load_plugin(FailUnloadPlugin1)
+        loader.load_plugin(NormalPlugin)
+
+        # Should not raise
+        loader.unload_all()
+
+        # All plugins should be unregistered
+        assert len(loader.registry._plugins) == 0
+        assert NormalPlugin.unloaded is True
+
+    def test_unload_all_catches_unload_plugin_exception(self, plugins_config):
+        """Test unload_all catches exception from unload_plugin itself."""
+        from unittest.mock import patch
+
+        loader = PluginLoader(plugins_config)
+        loader.load_plugin(SamplePlugin)
+        loader.load_plugin(HighPriorityPlugin)
+
+        # Mock unload_plugin to raise an exception
+        with patch.object(loader, "unload_plugin", side_effect=RuntimeError("Unload error")):
+            # Should not raise
+            loader.unload_all()
+
+        # Plugins are still registered because the mock prevented actual unloading,
+        # but the test verifies unload_all caught the exception gracefully
+
+
+class TestPluginLoaderReload:
+    """Tests for PluginLoader.reload_plugin method."""
+
+    def test_reload_nonexistent_plugin(self, plugins_config):
+        """Test reloading a plugin that doesn't exist."""
+        loader = PluginLoader(plugins_config)
+
+        result = loader.reload_plugin("nonexistent")
+        assert result is None
+
+    def test_reload_plugin_success(self, plugins_config):
+        """Test successfully reloading a plugin from file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plugin_file = Path(tmpdir) / "reloadable.py"
+            plugin_file.write_text('''
+from gobby.hooks.plugins import HookPlugin
+
+class ReloadablePlugin(HookPlugin):
+    name = "reloadable"
+    version = "1.0.0"
+''')
+
+            plugins_config.plugin_dirs = [tmpdir]
+            loader = PluginLoader(plugins_config)
+
+            # Discover and load
+            discovered = loader.discover_plugins()
+            loader.load_plugin(discovered[0])
+
+            # Modify the plugin file
+            plugin_file.write_text('''
+from gobby.hooks.plugins import HookPlugin
+
+class ReloadablePlugin(HookPlugin):
+    name = "reloadable"
+    version = "2.0.0"  # Version changed
+''')
+
+            # Reload
+            reloaded = loader.reload_plugin("reloadable")
+
+            assert reloaded is not None
+            assert reloaded.version == "2.0.0"
+
+    def test_reload_plugin_no_source_path(self, plugins_config):
+        """Test reloading a plugin when source path is not available."""
+        loader = PluginLoader(plugins_config)
+
+        # Load plugin directly (no source path)
+        loader.load_plugin(SamplePlugin)
+
+        result = loader.reload_plugin("sample-plugin")
+        assert result is None
+
+    def test_reload_plugin_source_file_deleted(self, plugins_config):
+        """Test reloading when source file has been deleted."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plugin_file = Path(tmpdir) / "deletable.py"
+            plugin_file.write_text('''
+from gobby.hooks.plugins import HookPlugin
+
+class DeletablePlugin(HookPlugin):
+    name = "deletable"
+''')
+
+            plugins_config.plugin_dirs = [tmpdir]
+            loader = PluginLoader(plugins_config)
+
+            discovered = loader.discover_plugins()
+            loader.load_plugin(discovered[0])
+
+            # Delete the file
+            plugin_file.unlink()
+
+            result = loader.reload_plugin("deletable")
+            assert result is None
+
+    def test_reload_plugin_class_name_changed(self, plugins_config):
+        """Test reloading when plugin class name changes (different class)."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plugin_file = Path(tmpdir) / "changeable.py"
+            plugin_file.write_text('''
+from gobby.hooks.plugins import HookPlugin
+
+class ChangeablePlugin(HookPlugin):
+    name = "changeable"
+''')
+
+            plugins_config.plugin_dirs = [tmpdir]
+            loader = PluginLoader(plugins_config)
+
+            discovered = loader.discover_plugins()
+            loader.load_plugin(discovered[0])
+
+            # Modify file to have different plugin name
+            plugin_file.write_text('''
+from gobby.hooks.plugins import HookPlugin
+
+class DifferentPlugin(HookPlugin):
+    name = "different-name"  # Name changed!
+''')
+
+            # Reload should fail because plugin name no longer matches
+            result = loader.reload_plugin("changeable")
+            assert result is None
+
+    def test_reload_plugin_load_error(self, plugins_config):
+        """Test reloading when loading the reloaded module fails."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plugin_file = Path(tmpdir) / "errorprone.py"
+            plugin_file.write_text('''
+from gobby.hooks.plugins import HookPlugin
+
+class ErrorPronePlugin(HookPlugin):
+    name = "errorprone"
+''')
+
+            plugins_config.plugin_dirs = [tmpdir]
+            loader = PluginLoader(plugins_config)
+
+            discovered = loader.discover_plugins()
+            loader.load_plugin(discovered[0])
+
+            # Modify file to have syntax error
+            plugin_file.write_text('''
+def broken(  # Syntax error
+    pass
+''')
+
+            result = loader.reload_plugin("errorprone")
+            assert result is None
+
+    def test_reload_clears_module_caches(self, plugins_config):
+        """Test that reload clears module caches properly."""
+        import sys
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plugin_file = Path(tmpdir) / "cached.py"
+            plugin_file.write_text('''
+from gobby.hooks.plugins import HookPlugin
+
+class CachedPlugin(HookPlugin):
+    name = "cached"
+''')
+
+            plugins_config.plugin_dirs = [tmpdir]
+            loader = PluginLoader(plugins_config)
+
+            discovered = loader.discover_plugins()
+            loader.load_plugin(discovered[0])
+
+            module_name = f"gobby_plugin_{plugin_file.stem}"
+
+            # Verify module is cached
+            assert module_name in loader._loaded_modules
+            assert module_name in sys.modules
+            assert "cached" in loader._plugin_sources
+
+            # Update file content
+            plugin_file.write_text('''
+from gobby.hooks.plugins import HookPlugin
+
+class CachedPlugin(HookPlugin):
+    name = "cached"
+    version = "2.0.0"
+''')
+
+            # Reload
+            reloaded = loader.reload_plugin("cached")
+
+            # Verify new version
+            assert reloaded is not None
+            assert reloaded.version == "2.0.0"
+
+
+# =============================================================================
+# Test run_plugin_handlers Additional Coverage
+# =============================================================================
+
+
+class TestRunPluginHandlersAdditional:
+    """Additional tests for run_plugin_handlers edge cases."""
+
+    def test_post_handler_exception_continues(self):
+        """Test that post-handler errors don't stop processing."""
+
+        class PostErrorPlugin(HookPlugin):
+            name = "post-error"
+
+            @hook_handler(HookEventType.AFTER_TOOL, priority=60)
+            def will_error(self, event, response):
+                raise RuntimeError("Post-handler error")
+
+        class PostObserverPlugin(HookPlugin):
+            name = "post-observer"
+            observed = False
+
+            @hook_handler(HookEventType.AFTER_TOOL, priority=70)
+            def observe(self, event, response):
+                PostObserverPlugin.observed = True
+
+        registry = PluginRegistry()
+        registry.register_plugin(PostErrorPlugin())
+        registry.register_plugin(PostObserverPlugin())
+
+        event = HookEvent(
+            event_type=HookEventType.AFTER_TOOL,
+            session_id="test",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC).isoformat(),
+            data={},
+        )
+        core_response = HookResponse(decision="allow")
+
+        # Should not raise
+        result = run_plugin_handlers(
+            registry, event, pre=False, core_response=core_response
+        )
+
+        assert result is None
+        assert PostObserverPlugin.observed is True
+
+    def test_pre_handler_returns_block_decision(self):
+        """Test that pre-handler can return 'block' decision."""
+
+        class BlockPlugin(HookPlugin):
+            name = "block-plugin"
+
+            @hook_handler(HookEventType.BEFORE_TOOL, priority=10)
+            def block_it(self, event):
+                return HookResponse(
+                    decision="block",
+                    reason="Blocked for safety",
+                    metadata={"blocked_by": "block-plugin"}
+                )
+
+        registry = PluginRegistry()
+        registry.register_plugin(BlockPlugin())
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="test",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC).isoformat(),
+            data={},
+        )
+
+        result = run_plugin_handlers(registry, event, pre=True)
+
+        assert result is not None
+        assert result.decision == "block"
+        assert result.reason == "Blocked for safety"
+        assert result.metadata == {"blocked_by": "block-plugin"}
+
+    def test_pre_handler_non_blocking_response_continues(self):
+        """Test that pre-handler returning allow continues processing."""
+
+        class AllowPlugin(HookPlugin):
+            name = "allow-plugin"
+
+            @hook_handler(HookEventType.BEFORE_TOOL, priority=10)
+            def allow_it(self, event):
+                return HookResponse(decision="allow")
+
+        class SecondPlugin(HookPlugin):
+            name = "second-plugin"
+            checked = False
+
+            @hook_handler(HookEventType.BEFORE_TOOL, priority=20)
+            def check_it(self, event):
+                SecondPlugin.checked = True
+                return None
+
+        registry = PluginRegistry()
+        registry.register_plugin(AllowPlugin())
+        registry.register_plugin(SecondPlugin())
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="test",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.now(UTC).isoformat(),
+            data={},
+        )
+
+        result = run_plugin_handlers(registry, event, pre=True)
+
+        assert result is None
+        assert SecondPlugin.checked is True

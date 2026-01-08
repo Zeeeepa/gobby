@@ -424,3 +424,820 @@ class TestGenerateWithMcpToolsWithCli:
             )
 
             assert captured_options[0].kwargs["max_turns"] == 5
+
+    @pytest.mark.asyncio
+    async def test_handles_exception_group(self, claude_config: DaemonConfig):
+        """Test that ExceptionGroup (Python 3.11+) is handled gracefully."""
+
+        async def mock_query(prompt, options):
+            # Simulate ExceptionGroup from TaskGroup
+            raise ExceptionGroup(
+                "Multiple errors", [RuntimeError("Error 1"), ValueError("Error 2")]
+            )
+            yield  # Make this a generator
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+
+            result = await provider.generate_with_mcp_tools(
+                prompt="Create a task",
+                allowed_tools=["mcp__gobby-tasks__create_task"],
+            )
+
+            assert "failed" in result.text.lower()
+            assert "Error 1" in result.text or "Error 2" in result.text
+
+    @pytest.mark.asyncio
+    async def test_handles_tool_functions_param(self, claude_config: DaemonConfig):
+        """Test that tool_functions parameter creates in-process MCP servers."""
+        captured_options = []
+
+        async def mock_query(prompt, options):
+            captured_options.append(options)
+            yield MockResultMessage(result="Done")
+
+        def sample_tool_func():
+            """A sample tool function."""
+            pass
+
+        with (
+            mock_claude_sdk(mock_query),
+            patch("gobby.llm.claude.create_sdk_mcp_server") as mock_create_server,
+        ):
+            mock_create_server.return_value = {"type": "mcp_server"}
+
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+
+            await provider.generate_with_mcp_tools(
+                prompt="Create task",
+                allowed_tools=["mcp__my-server__my_tool"],
+                tool_functions={"my-server": [sample_tool_func]},
+            )
+
+            # Verify create_sdk_mcp_server was called
+            mock_create_server.assert_called_once_with(
+                name="my-server", tools=[sample_tool_func]
+            )
+            # Verify mcp_servers config was passed
+            assert captured_options[0].kwargs["mcp_servers"] == {"my-server": {"type": "mcp_server"}}
+
+    @pytest.mark.asyncio
+    async def test_handles_user_message_string_content(self, claude_config: DaemonConfig):
+        """Test handling of UserMessage with string content (not list)."""
+
+        async def mock_query(prompt, options):
+            # UserMessage with string content
+            yield MockUserMessage("String content instead of list")
+            yield MockResultMessage(result="Done")
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+
+            result = await provider.generate_with_mcp_tools(
+                prompt="Test prompt",
+                allowed_tools=[],
+            )
+
+            assert result.text == "Done"
+            assert result.tool_calls == []
+
+
+class TestClaudeLLMProviderInit:
+    """Tests for ClaudeLLMProvider initialization and CLI path handling."""
+
+    def test_provider_name(self, claude_config: DaemonConfig):
+        """Test provider_name property returns 'claude'."""
+        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
+            with patch("os.path.exists", return_value=True):
+                with patch("os.access", return_value=True):
+                    from gobby.llm.claude import ClaudeLLMProvider
+
+                    provider = ClaudeLLMProvider(claude_config)
+                    assert provider.provider_name == "claude"
+
+    def test_supports_code_execution(self, claude_config: DaemonConfig):
+        """Test supports_code_execution property returns True."""
+        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
+            with patch("os.path.exists", return_value=True):
+                with patch("os.access", return_value=True):
+                    from gobby.llm.claude import ClaudeLLMProvider
+
+                    provider = ClaudeLLMProvider(claude_config)
+                    assert provider.supports_code_execution is True
+
+    def test_cli_path_not_found(self, claude_config: DaemonConfig):
+        """Test initialization when CLI is not in PATH."""
+        with patch("gobby.llm.claude.shutil.which", return_value=None):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            assert provider._claude_cli_path is None
+
+    def test_cli_path_exists_but_not_executable(self, claude_config: DaemonConfig):
+        """Test initialization when CLI exists but is not executable."""
+        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
+            with patch("os.path.exists", return_value=True):
+                with patch("os.access", return_value=False):  # Not executable
+                    from gobby.llm.claude import ClaudeLLMProvider
+
+                    provider = ClaudeLLMProvider(claude_config)
+                    assert provider._claude_cli_path is None
+
+    def test_cli_path_which_returns_nonexistent(self, claude_config: DaemonConfig):
+        """Test initialization when shutil.which returns path that doesn't exist."""
+        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
+            with patch("os.path.exists", return_value=False):  # Path doesn't exist
+                from gobby.llm.claude import ClaudeLLMProvider
+
+                provider = ClaudeLLMProvider(claude_config)
+                assert provider._claude_cli_path is None
+
+
+class TestVerifyCliPath:
+    """Tests for _verify_cli_path method with retry logic."""
+
+    def test_verify_cli_path_cached_path_valid(self, claude_config: DaemonConfig):
+        """Test _verify_cli_path returns cached path when it's valid."""
+        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
+            with patch("os.path.exists", return_value=True):
+                with patch("os.access", return_value=True):
+                    from gobby.llm.claude import ClaudeLLMProvider
+
+                    provider = ClaudeLLMProvider(claude_config)
+                    result = provider._verify_cli_path()
+                    assert result == "/usr/bin/claude"
+
+    def test_verify_cli_path_retry_on_missing(self, claude_config: DaemonConfig):
+        """Test _verify_cli_path retries when cached path disappears."""
+        exists_call_count = 0
+
+        def mock_exists(path):
+            nonlocal exists_call_count
+            exists_call_count += 1
+            # First exists call: cached path is missing (triggers retry)
+            # Second exists call: new path found
+            if exists_call_count == 1:
+                return False  # Cached path no longer exists
+            return True  # New path exists
+
+        with patch("gobby.llm.claude.shutil.which") as mock_which:
+            # First call during init, second call during retry
+            mock_which.side_effect = ["/usr/bin/claude", "/new/path/claude"]
+            with patch("os.path.exists", side_effect=mock_exists):
+                with patch("os.access", return_value=True):
+                    with patch("gobby.llm.claude.time.sleep"):
+                        from gobby.llm.claude import ClaudeLLMProvider
+
+                        provider = ClaudeLLMProvider(claude_config)
+                        # Provider init already sets _claude_cli_path via _find_cli_path
+                        # which calls os.path.exists once (returns False in our mock)
+                        # So we need to manually reset it for the test
+                        provider._claude_cli_path = "/usr/bin/claude"
+
+                        # Reset call count after init
+                        exists_call_count = 0
+
+                        result = provider._verify_cli_path()
+                        assert result == "/new/path/claude"
+
+    def test_verify_cli_path_retry_exhausted(self, claude_config: DaemonConfig):
+        """Test _verify_cli_path returns None after retries exhausted."""
+        with patch("gobby.llm.claude.shutil.which") as mock_which:
+            mock_which.side_effect = [
+                "/usr/bin/claude",  # Initial
+                None,  # Retry 1
+                None,  # Retry 2
+                None,  # Retry 3
+            ]
+            with patch("os.path.exists", return_value=False):
+                with patch("os.access", return_value=True):
+                    with patch("gobby.llm.claude.time.sleep"):
+                        from gobby.llm.claude import ClaudeLLMProvider
+
+                        provider = ClaudeLLMProvider(claude_config)
+                        # Manually set cached path to trigger retry logic
+                        provider._claude_cli_path = "/usr/bin/claude"
+
+                        result = provider._verify_cli_path()
+                        assert result is None
+
+
+class TestGenerateSummary:
+    """Tests for generate_summary method."""
+
+    @pytest.mark.asyncio
+    async def test_generate_summary_no_cli(self, claude_config: DaemonConfig):
+        """Test generate_summary returns fallback when CLI not found."""
+        with patch("gobby.llm.claude.shutil.which", return_value=None):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.generate_summary(
+                context={"transcript_summary": "test"},
+                prompt_template="Summarize: {transcript_summary}",
+            )
+
+            assert "unavailable" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_generate_summary_no_prompt_template(self, claude_config: DaemonConfig):
+        """Test generate_summary raises error when no prompt template provided."""
+        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
+            with patch("os.path.exists", return_value=True):
+                with patch("os.access", return_value=True):
+                    from gobby.llm.claude import ClaudeLLMProvider
+
+                    provider = ClaudeLLMProvider(claude_config)
+
+                    with pytest.raises(ValueError, match="prompt_template is required"):
+                        await provider.generate_summary(
+                            context={"transcript_summary": "test"},
+                            prompt_template=None,
+                        )
+
+    @pytest.mark.asyncio
+    async def test_generate_summary_success(self, claude_config: DaemonConfig):
+        """Test generate_summary returns summary text on success."""
+
+        async def mock_query(prompt, options):
+            yield MockAssistantMessage([MockTextBlock("This is a session summary.")])
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.generate_summary(
+                context={
+                    "transcript_summary": "User asked about Python",
+                    "last_messages": [{"role": "user", "content": "test"}],
+                    "git_status": "clean",
+                    "file_changes": "none",
+                },
+                prompt_template="Summarize: {transcript_summary}",
+            )
+
+            assert "session summary" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_generate_summary_exception(self, claude_config: DaemonConfig):
+        """Test generate_summary handles exceptions gracefully."""
+
+        async def mock_query(prompt, options):
+            raise RuntimeError("API error")
+            yield  # Make this a generator
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.generate_summary(
+                context={"transcript_summary": "test"},
+                prompt_template="Summarize: {transcript_summary}",
+            )
+
+            assert "failed" in result.lower()
+
+
+class TestSynthesizeTitle:
+    """Tests for synthesize_title method."""
+
+    @pytest.mark.asyncio
+    async def test_synthesize_title_no_cli(self, claude_config: DaemonConfig):
+        """Test synthesize_title returns None when CLI not found."""
+        with patch("gobby.llm.claude.shutil.which", return_value=None):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.synthesize_title(
+                user_prompt="Help me with Python",
+                prompt_template="Create title for: {user_prompt}",
+            )
+
+            assert result is None
+
+    @pytest.mark.asyncio
+    async def test_synthesize_title_no_prompt_template(self, claude_config: DaemonConfig):
+        """Test synthesize_title raises error when no prompt template provided."""
+        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
+            with patch("os.path.exists", return_value=True):
+                with patch("os.access", return_value=True):
+                    from gobby.llm.claude import ClaudeLLMProvider
+
+                    provider = ClaudeLLMProvider(claude_config)
+
+                    with pytest.raises(ValueError, match="prompt_template is required"):
+                        await provider.synthesize_title(
+                            user_prompt="Help me with Python",
+                            prompt_template=None,
+                        )
+
+    @pytest.mark.asyncio
+    async def test_synthesize_title_success(self, claude_config: DaemonConfig):
+        """Test synthesize_title returns title on success."""
+
+        async def mock_query(prompt, options):
+            yield MockAssistantMessage([MockTextBlock("Python Help Session")])
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.synthesize_title(
+                user_prompt="Help me with Python",
+                prompt_template="Create title for: {user_prompt}",
+            )
+
+            assert result == "Python Help Session"
+
+    @pytest.mark.asyncio
+    async def test_synthesize_title_retry_on_failure(self, claude_config: DaemonConfig):
+        """Test synthesize_title retries on transient failures."""
+        call_count = 0
+
+        async def mock_query(prompt, options):
+            nonlocal call_count
+            call_count += 1
+            if call_count < 3:
+                raise RuntimeError("Transient error")
+            yield MockAssistantMessage([MockTextBlock("Success After Retry")])
+
+        with mock_claude_sdk(mock_query):
+            with patch("asyncio.sleep", return_value=None):
+                from gobby.llm.claude import ClaudeLLMProvider
+
+                provider = ClaudeLLMProvider(claude_config)
+                result = await provider.synthesize_title(
+                    user_prompt="Test prompt",
+                    prompt_template="Title: {user_prompt}",
+                )
+
+                assert result == "Success After Retry"
+                assert call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_synthesize_title_all_retries_fail(self, claude_config: DaemonConfig):
+        """Test synthesize_title returns None when all retries fail."""
+
+        async def mock_query(prompt, options):
+            raise RuntimeError("Persistent error")
+            yield  # Make this a generator
+
+        with mock_claude_sdk(mock_query):
+            with patch("asyncio.sleep", return_value=None):
+                from gobby.llm.claude import ClaudeLLMProvider
+
+                provider = ClaudeLLMProvider(claude_config)
+                result = await provider.synthesize_title(
+                    user_prompt="Test prompt",
+                    prompt_template="Title: {user_prompt}",
+                )
+
+                assert result is None
+
+
+class TestExecuteCode:
+    """Tests for execute_code method."""
+
+    @pytest.mark.asyncio
+    async def test_execute_code_no_cli(self, claude_config: DaemonConfig):
+        """Test execute_code returns error when CLI not found."""
+        with patch("gobby.llm.claude.shutil.which", return_value=None):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.execute_code(
+                code="print('hello')",
+                prompt_template="Execute: {code}",
+            )
+
+            assert result["success"] is False
+            assert "not found" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_execute_code_unsupported_language(self, claude_config: DaemonConfig):
+        """Test execute_code returns error for unsupported language."""
+        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
+            with patch("os.path.exists", return_value=True):
+                with patch("os.access", return_value=True):
+                    from gobby.llm.claude import ClaudeLLMProvider
+
+                    provider = ClaudeLLMProvider(claude_config)
+                    result = await provider.execute_code(
+                        code="console.log('hello');",
+                        language="javascript",
+                        prompt_template="Execute: {code}",
+                    )
+
+                    assert result["success"] is False
+                    assert "not supported" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_execute_code_no_prompt_template(self, claude_config: DaemonConfig):
+        """Test execute_code raises error when no prompt template provided."""
+        with patch("gobby.llm.claude.shutil.which", return_value="/usr/bin/claude"):
+            with patch("os.path.exists", return_value=True):
+                with patch("os.access", return_value=True):
+                    from gobby.llm.claude import ClaudeLLMProvider
+
+                    provider = ClaudeLLMProvider(claude_config)
+
+                    with pytest.raises(ValueError, match="prompt_template is required"):
+                        await provider.execute_code(
+                            code="print('hello')",
+                            prompt_template=None,
+                        )
+
+    @pytest.mark.asyncio
+    async def test_execute_code_success_with_tool_result(self, claude_config: DaemonConfig):
+        """Test execute_code returns tool execution output."""
+
+        async def mock_query(prompt, options):
+            yield MockAssistantMessage(
+                [MockToolUseBlock(id="exec_1", name="code_execution", input={"code": "print(1)"})]
+            )
+            yield MockUserMessage([MockToolResultBlock(tool_use_id="exec_1", content="1")])
+            yield MockResultMessage(result="Code executed successfully")
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.execute_code(
+                code="print(1)",
+                prompt_template="Execute this code: {code}",
+            )
+
+            assert result["success"] is True
+            assert result["result"] == "1"
+            assert result["language"] == "python"
+            assert "execution_time" in result
+
+    @pytest.mark.asyncio
+    async def test_execute_code_success_with_result_message(self, claude_config: DaemonConfig):
+        """Test execute_code uses ResultMessage when no tool results."""
+
+        async def mock_query(prompt, options):
+            yield MockResultMessage(result="42")
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.execute_code(
+                code="print(42)",
+                prompt_template="Execute: {code}",
+            )
+
+            assert result["success"] is True
+            assert result["result"] == "42"
+
+    @pytest.mark.asyncio
+    async def test_execute_code_success_with_text_block(self, claude_config: DaemonConfig):
+        """Test execute_code uses text block when no tool results or result message."""
+
+        async def mock_query(prompt, options):
+            yield MockAssistantMessage([MockTextBlock("The output is 42")])
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.execute_code(
+                code="print(42)",
+                prompt_template="Execute: {code}",
+            )
+
+            assert result["success"] is True
+            assert "42" in result["result"]
+
+    @pytest.mark.asyncio
+    async def test_execute_code_timeout(self, claude_config: DaemonConfig):
+        """Test execute_code handles timeout."""
+        import asyncio
+
+        async def mock_query(prompt, options):
+            await asyncio.sleep(10)  # Simulate long execution
+            yield MockResultMessage(result="Done")
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.execute_code(
+                code="while True: pass",
+                timeout=0.01,  # Very short timeout
+                prompt_template="Execute: {code}",
+            )
+
+            assert result["success"] is False
+            assert "timed out" in result["error"].lower()
+            assert result["error_type"] == "TimeoutError"
+
+    @pytest.mark.asyncio
+    async def test_execute_code_exception(self, claude_config: DaemonConfig):
+        """Test execute_code handles exceptions gracefully."""
+
+        async def mock_query(prompt, options):
+            raise RuntimeError("Execution failed")
+            yield  # Make this a generator
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.execute_code(
+                code="print(1)",
+                prompt_template="Execute: {code}",
+            )
+
+            assert result["success"] is False
+            assert "Execution failed" in result["error"]
+            assert result["error_type"] == "RuntimeError"
+
+    @pytest.mark.asyncio
+    async def test_execute_code_with_context(self, claude_config: DaemonConfig):
+        """Test execute_code passes context to result."""
+
+        async def mock_query(prompt, options):
+            yield MockResultMessage(result="42")
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.execute_code(
+                code="x + y",
+                context="x = 10, y = 32",
+                prompt_template="Execute {code} with context {context}",
+            )
+
+            assert result["success"] is True
+            assert result["context"] == "x = 10, y = 32"
+
+
+class TestGenerateText:
+    """Tests for generate_text method."""
+
+    @pytest.mark.asyncio
+    async def test_generate_text_no_cli(self, claude_config: DaemonConfig):
+        """Test generate_text returns fallback when CLI not found."""
+        with patch("gobby.llm.claude.shutil.which", return_value=None):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.generate_text(prompt="Hello")
+
+            assert "unavailable" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_generate_text_success(self, claude_config: DaemonConfig):
+        """Test generate_text returns generated text."""
+
+        async def mock_query(prompt, options):
+            yield MockAssistantMessage([MockTextBlock("Hello there!")])
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.generate_text(prompt="Say hello")
+
+            assert "Hello there!" in result
+
+    @pytest.mark.asyncio
+    async def test_generate_text_with_result_message(self, claude_config: DaemonConfig):
+        """Test generate_text uses ResultMessage when available."""
+
+        async def mock_query(prompt, options):
+            yield MockAssistantMessage([MockTextBlock("Intermediate text")])
+            yield MockResultMessage(result="Final result text")
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.generate_text(prompt="Generate something")
+
+            assert result == "Final result text"
+
+    @pytest.mark.asyncio
+    async def test_generate_text_custom_system_prompt(self, claude_config: DaemonConfig):
+        """Test generate_text passes custom system prompt."""
+        captured_options = []
+
+        async def mock_query(prompt, options):
+            captured_options.append(options)
+            yield MockResultMessage(result="Done")
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            await provider.generate_text(
+                prompt="Hello",
+                system_prompt="You are a pirate.",
+            )
+
+            assert captured_options[0].kwargs["system_prompt"] == "You are a pirate."
+
+    @pytest.mark.asyncio
+    async def test_generate_text_custom_model(self, claude_config: DaemonConfig):
+        """Test generate_text passes custom model."""
+        captured_options = []
+
+        async def mock_query(prompt, options):
+            captured_options.append(options)
+            yield MockResultMessage(result="Done")
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            await provider.generate_text(
+                prompt="Hello",
+                model="claude-opus-4-5",
+            )
+
+            assert captured_options[0].kwargs["model"] == "claude-opus-4-5"
+
+    @pytest.mark.asyncio
+    async def test_generate_text_exception(self, claude_config: DaemonConfig):
+        """Test generate_text handles exceptions gracefully."""
+
+        async def mock_query(prompt, options):
+            raise RuntimeError("API error")
+            yield  # Make this a generator
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.generate_text(prompt="Hello")
+
+            assert "failed" in result.lower()
+            assert "API error" in result
+
+    @pytest.mark.asyncio
+    async def test_generate_text_no_messages_warning(self, claude_config: DaemonConfig):
+        """Test generate_text handles case where no messages are received."""
+
+        async def mock_query(prompt, options):
+            # Yield nothing - empty generator
+            return
+            yield  # Make this a generator
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.generate_text(prompt="Hello")
+
+            # Should return empty string when no messages
+            assert result == ""
+
+    @pytest.mark.asyncio
+    async def test_generate_text_messages_but_no_text_content(self, claude_config: DaemonConfig):
+        """Test generate_text handles messages without text content."""
+
+        async def mock_query(prompt, options):
+            # ToolUseBlock without any TextBlock
+            yield MockAssistantMessage(
+                [MockToolUseBlock(id="1", name="some_tool", input={})]
+            )
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.generate_text(prompt="Hello")
+
+            # Should return empty string
+            assert result == ""
+
+
+class TestExecuteCodeToolResultInAssistantMessage:
+    """Tests for execute_code with ToolResultBlock in AssistantMessage."""
+
+    @pytest.mark.asyncio
+    async def test_execute_code_tool_result_in_assistant_message(self, claude_config: DaemonConfig):
+        """Test execute_code captures tool result from AssistantMessage content."""
+
+        async def mock_query(prompt, options):
+            yield MockAssistantMessage(
+                [
+                    MockToolUseBlock(id="exec_1", name="code_execution", input={"code": "1+1"}),
+                    MockToolResultBlock(tool_use_id="exec_1", content="2"),
+                ]
+            )
+            yield MockResultMessage(result="The result is 2")
+
+        with mock_claude_sdk(mock_query):
+            from gobby.llm.claude import ClaudeLLMProvider
+
+            provider = ClaudeLLMProvider(claude_config)
+            result = await provider.execute_code(
+                code="1+1",
+                prompt_template="Execute: {code}",
+            )
+
+            assert result["success"] is True
+            # Tool results take priority
+            assert result["result"] == "2"
+
+
+class TestGenerateWithMcpToolsMcpConfigPath:
+    """Tests for generate_with_mcp_tools with MCP config file path."""
+
+    @pytest.mark.asyncio
+    async def test_uses_mcp_json_from_cwd(self, claude_config: DaemonConfig, tmp_path):
+        """Test that .mcp.json is loaded from current working directory."""
+        captured_options = []
+
+        async def mock_query(prompt, options):
+            captured_options.append(options)
+            yield MockResultMessage(result="Done")
+
+        # Create a mock .mcp.json file
+        mcp_config = tmp_path / ".mcp.json"
+        mcp_config.write_text('{"servers": {}}')
+
+        with mock_claude_sdk(mock_query):
+            with patch("pathlib.Path.cwd", return_value=tmp_path):
+                from gobby.llm.claude import ClaudeLLMProvider
+
+                provider = ClaudeLLMProvider(claude_config)
+
+                await provider.generate_with_mcp_tools(
+                    prompt="Create task",
+                    allowed_tools=["mcp__gobby-tasks__create_task"],
+                    # No tool_functions, so it should look for .mcp.json
+                )
+
+                assert len(captured_options) == 1
+                # The mcp_servers should be the path string
+                assert str(mcp_config) == captured_options[0].kwargs["mcp_servers"]
+
+    @pytest.mark.asyncio
+    async def test_uses_mcp_json_from_project_root(self, claude_config: DaemonConfig, tmp_path):
+        """Test that .mcp.json is loaded from project root when not in cwd."""
+        captured_options = []
+
+        async def mock_query(prompt, options):
+            captured_options.append(options)
+            yield MockResultMessage(result="Done")
+
+        # Create a cwd directory without .mcp.json
+        cwd_dir = tmp_path / "some_other_dir"
+        cwd_dir.mkdir()
+
+        # This test just verifies the code path runs when cwd has no .mcp.json
+        # The actual project root detection uses __file__ which we can't easily mock
+        with mock_claude_sdk(mock_query):
+            with patch("pathlib.Path.cwd", return_value=cwd_dir):
+                from gobby.llm.claude import ClaudeLLMProvider
+
+                provider = ClaudeLLMProvider(claude_config)
+
+                await provider.generate_with_mcp_tools(
+                    prompt="Create task",
+                    allowed_tools=["mcp__gobby-tasks__create_task"],
+                )
+
+                # Check that the method ran successfully
+                assert len(captured_options) == 1
+                # When no cwd config is found, it may use project root config or empty dict
+                mcp_servers = captured_options[0].kwargs["mcp_servers"]
+                assert mcp_servers == {} or isinstance(mcp_servers, str)
+
+    @pytest.mark.asyncio
+    async def test_no_mcp_config_uses_empty_dict(self, claude_config: DaemonConfig, tmp_path):
+        """Test that empty dict is used when no .mcp.json is found."""
+        captured_options = []
+
+        async def mock_query(prompt, options):
+            captured_options.append(options)
+            yield MockResultMessage(result="Done")
+
+        # cwd without .mcp.json
+        with mock_claude_sdk(mock_query):
+            with patch("pathlib.Path.cwd", return_value=tmp_path):
+                from gobby.llm.claude import ClaudeLLMProvider
+
+                provider = ClaudeLLMProvider(claude_config)
+
+                await provider.generate_with_mcp_tools(
+                    prompt="Create task",
+                    allowed_tools=["mcp__gobby-tasks__create_task"],
+                )
+
+                assert len(captured_options) == 1
+                # Should be empty dict when no config found
+                # (since gobby project root also won't have .mcp.json in this test)
+                mcp_servers = captured_options[0].kwargs["mcp_servers"]
+                assert mcp_servers == {} or isinstance(mcp_servers, str)

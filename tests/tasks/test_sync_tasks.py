@@ -259,3 +259,705 @@ class TestTaskSyncManager:
 
         assert final_meta["last_exported"] == initial_timestamp
         assert final_meta["content_hash"] == initial_meta["content_hash"]
+
+
+class TestGetSyncStatus:
+    """Tests for the get_sync_status method."""
+
+    @pytest.mark.integration
+    def test_get_sync_status_no_file(self, sync_manager):
+        """Test sync status when export file doesn't exist."""
+        result = sync_manager.get_sync_status()
+
+        assert result["status"] == "no_file"
+        assert result["synced"] is False
+
+    @pytest.mark.integration
+    def test_get_sync_status_no_meta_file(self, sync_manager):
+        """Test sync status when export file exists but meta file doesn't."""
+        # Create export file without meta
+        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
+        sync_manager.export_path.write_text("{}\n")
+
+        result = sync_manager.get_sync_status()
+
+        assert result["status"] == "no_meta"
+        assert result["synced"] is False
+
+    @pytest.mark.integration
+    def test_get_sync_status_available(self, sync_manager, task_manager, sample_project):
+        """Test sync status when both files exist."""
+        # Create and export a task
+        task_manager.create_task(sample_project["id"], "Test Task")
+        sync_manager.export_to_jsonl()
+
+        result = sync_manager.get_sync_status()
+
+        assert result["status"] == "available"
+        assert result["synced"] is True
+        assert "last_exported" in result
+        assert "hash" in result
+        assert result["hash"] is not None
+
+    @pytest.mark.integration
+    def test_get_sync_status_error_on_corrupt_meta(self, sync_manager):
+        """Test sync status when meta file is corrupted."""
+        # Create export file
+        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
+        sync_manager.export_path.write_text("{}\n")
+
+        # Create corrupted meta file
+        meta_path = sync_manager.export_path.parent / "tasks_meta.json"
+        meta_path.write_text("not valid json{{{")
+
+        result = sync_manager.get_sync_status()
+
+        assert result["status"] == "error"
+        assert result["synced"] is False
+
+
+class TestImportEdgeCases:
+    """Tests for import edge cases and error handling."""
+
+    @pytest.mark.integration
+    def test_import_no_file_exists(self, sync_manager):
+        """Test import when file doesn't exist - should just return."""
+        # Ensure file doesn't exist
+        assert not sync_manager.export_path.exists()
+
+        # Should not raise
+        sync_manager.import_from_jsonl()
+
+    @pytest.mark.integration
+    def test_import_with_empty_lines(self, sync_manager, task_manager, sample_project):
+        """Test import handles empty lines in JSONL file."""
+        now = "2023-01-02T00:00:00+00:00"
+
+        tasks_data = {
+            "id": "task-empty-lines",
+            "title": "Test Task",
+            "description": "Desc",
+            "status": "todo",
+            "created_at": now,
+            "updated_at": now,
+            "project_id": sample_project["id"],
+            "parent_id": None,
+            "deps_on": [],
+        }
+
+        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(sync_manager.export_path, "w") as f:
+            f.write("\n")  # Empty line at start
+            f.write(json.dumps(tasks_data) + "\n")
+            f.write("\n")  # Empty line in middle
+            f.write("   \n")  # Whitespace-only line
+
+        sync_manager.import_from_jsonl()
+
+        task = task_manager.get_task("task-empty-lines")
+        assert task is not None
+        assert task.title == "Test Task"
+
+    @pytest.mark.integration
+    def test_import_with_validation_data(self, sync_manager, task_manager, sample_project):
+        """Test import handles validation object."""
+        now = "2023-01-02T00:00:00+00:00"
+
+        tasks_data = {
+            "id": "task-validation",
+            "title": "Task with Validation",
+            "description": "Desc",
+            "status": "todo",
+            "created_at": now,
+            "updated_at": now,
+            "project_id": sample_project["id"],
+            "parent_id": None,
+            "deps_on": [],
+            "validation": {
+                "status": "valid",  # Must be 'pending', 'valid', or 'invalid'
+                "feedback": "All tests passed",
+                "fail_count": 0,
+                "criteria": "Must pass unit tests",
+                "override_reason": None,
+            },
+        }
+
+        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(sync_manager.export_path, "w") as f:
+            f.write(json.dumps(tasks_data) + "\n")
+
+        sync_manager.import_from_jsonl()
+
+        task = task_manager.get_task("task-validation")
+        assert task is not None
+        assert task.validation_status == "valid"
+        assert task.validation_feedback == "All tests passed"
+        assert task.validation_criteria == "Must pass unit tests"
+
+    @pytest.mark.integration
+    def test_import_with_commits(self, sync_manager, task_manager, sample_project):
+        """Test import handles commits array."""
+        now = "2023-01-02T00:00:00+00:00"
+
+        tasks_data = {
+            "id": "task-commits",
+            "title": "Task with Commits",
+            "description": "Desc",
+            "status": "completed",
+            "created_at": now,
+            "updated_at": now,
+            "project_id": sample_project["id"],
+            "parent_id": None,
+            "deps_on": [],
+            "commits": ["abc123", "def456"],
+        }
+
+        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(sync_manager.export_path, "w") as f:
+            f.write(json.dumps(tasks_data) + "\n")
+
+        sync_manager.import_from_jsonl()
+
+        task = task_manager.get_task("task-commits")
+        assert task is not None
+        assert task.commits == ["abc123", "def456"]
+
+    @pytest.mark.integration
+    def test_import_with_escalation_data(self, sync_manager, task_manager, sample_project):
+        """Test import handles escalation fields."""
+        now = "2023-01-02T00:00:00+00:00"
+
+        tasks_data = {
+            "id": "task-escalated",
+            "title": "Escalated Task",
+            "description": "Desc",
+            "status": "todo",
+            "created_at": now,
+            "updated_at": now,
+            "project_id": sample_project["id"],
+            "parent_id": None,
+            "deps_on": [],
+            "escalated_at": now,
+            "escalation_reason": "Blocked by external dependency",
+        }
+
+        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(sync_manager.export_path, "w") as f:
+            f.write(json.dumps(tasks_data) + "\n")
+
+        sync_manager.import_from_jsonl()
+
+        task = task_manager.get_task("task-escalated")
+        assert task is not None
+        assert task.escalated_at == now
+        assert task.escalation_reason == "Blocked by external dependency"
+
+    @pytest.mark.integration
+    def test_import_with_null_validation(self, sync_manager, task_manager, sample_project):
+        """Test import handles null validation object."""
+        now = "2023-01-02T00:00:00+00:00"
+
+        tasks_data = {
+            "id": "task-null-validation",
+            "title": "Task without Validation",
+            "description": "Desc",
+            "status": "todo",
+            "created_at": now,
+            "updated_at": now,
+            "project_id": sample_project["id"],
+            "parent_id": None,
+            "deps_on": [],
+            "validation": None,
+        }
+
+        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(sync_manager.export_path, "w") as f:
+            f.write(json.dumps(tasks_data) + "\n")
+
+        sync_manager.import_from_jsonl()
+
+        task = task_manager.get_task("task-null-validation")
+        assert task is not None
+        assert task.validation_status is None
+
+    @pytest.mark.integration
+    def test_import_error_handling(self, sync_manager, task_manager, sample_project):
+        """Test import raises exception on invalid JSON."""
+        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(sync_manager.export_path, "w") as f:
+            f.write("invalid json {{{")
+
+        with pytest.raises(json.JSONDecodeError):
+            sync_manager.import_from_jsonl()
+
+
+class TestExportEdgeCases:
+    """Tests for export edge cases and error handling."""
+
+    @pytest.mark.integration
+    def test_export_multiple_dependencies(self, sync_manager, task_manager, sample_project):
+        """Test export with task having multiple dependencies."""
+        t1 = task_manager.create_task(sample_project["id"], "Dependency 1")
+        t2 = task_manager.create_task(sample_project["id"], "Dependency 2")
+        t3 = task_manager.create_task(sample_project["id"], "Task with multiple deps")
+
+        # Add multiple dependencies to t3
+        now = "2023-01-01T00:00:00"
+        sync_manager.db.execute(
+            "INSERT INTO task_dependencies (task_id, depends_on, dep_type, created_at) VALUES (?, ?, ?, ?)",
+            (t3.id, t1.id, "blocking", now),
+        )
+        sync_manager.db.execute(
+            "INSERT INTO task_dependencies (task_id, depends_on, dep_type, created_at) VALUES (?, ?, ?, ?)",
+            (t3.id, t2.id, "blocking", now),
+        )
+
+        sync_manager.export_to_jsonl()
+
+        lines = sync_manager.export_path.read_text().strip().split("\n")
+        data = [json.loads(line) for line in lines]
+
+        task3_data = next(d for d in data if d["id"] == t3.id)
+        # deps_on should be sorted
+        assert sorted(task3_data["deps_on"]) == sorted([t1.id, t2.id])
+
+    @pytest.mark.integration
+    def test_export_with_validation_data(self, sync_manager, task_manager, sample_project):
+        """Test export includes validation data."""
+        task = task_manager.create_task(sample_project["id"], "Task with validation")
+
+        # Add validation data directly to DB (status must be 'pending', 'valid', or 'invalid')
+        sync_manager.db.execute(
+            """UPDATE tasks SET
+                validation_status = ?,
+                validation_feedback = ?,
+                validation_fail_count = ?,
+                validation_criteria = ?
+            WHERE id = ?""",
+            ("invalid", "Test failed", 2, "Must pass CI", task.id),
+        )
+
+        sync_manager.export_to_jsonl()
+
+        lines = sync_manager.export_path.read_text().strip().split("\n")
+        data = json.loads(lines[0])
+
+        assert data["validation"] is not None
+        assert data["validation"]["status"] == "invalid"
+        assert data["validation"]["feedback"] == "Test failed"
+        assert data["validation"]["fail_count"] == 2
+        assert data["validation"]["criteria"] == "Must pass CI"
+
+    @pytest.mark.integration
+    def test_export_with_commits(self, sync_manager, task_manager, sample_project):
+        """Test export includes commits array."""
+        task = task_manager.create_task(sample_project["id"], "Task with commits")
+
+        # Link commits
+        commits_json = json.dumps(["commit1", "commit2"])
+        sync_manager.db.execute(
+            "UPDATE tasks SET commits = ? WHERE id = ?",
+            (commits_json, task.id),
+        )
+
+        sync_manager.export_to_jsonl()
+
+        lines = sync_manager.export_path.read_text().strip().split("\n")
+        data = json.loads(lines[0])
+
+        assert data["commits"] == ["commit1", "commit2"]
+
+    @pytest.mark.integration
+    def test_export_with_corrupted_meta_file(self, sync_manager, task_manager, sample_project):
+        """Test export handles corrupted meta file."""
+        task_manager.create_task(sample_project["id"], "Task 1")
+
+        # Create corrupted meta file first
+        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
+        meta_path = sync_manager.export_path.parent / "tasks_meta.json"
+        meta_path.write_text("not valid json{{{")
+
+        # Export should work despite corrupted meta
+        sync_manager.export_to_jsonl()
+
+        assert sync_manager.export_path.exists()
+
+        # Meta should now be valid
+        with open(meta_path) as f:
+            meta = json.load(f)
+        assert "content_hash" in meta
+        assert "last_exported" in meta
+
+    @pytest.mark.integration
+    def test_export_error_propagates(self, sync_manager, task_manager, sample_project):
+        """Test that export errors are propagated."""
+        task_manager.create_task(sample_project["id"], "Task 1")
+
+        # Make the export path a directory to cause write error
+        sync_manager.export_path.parent.mkdir(parents=True, exist_ok=True)
+        sync_manager.export_path.mkdir()
+
+        with pytest.raises(IsADirectoryError):
+            sync_manager.export_to_jsonl()
+
+    @pytest.mark.integration
+    def test_export_empty_tasks(self, sync_manager):
+        """Test export with no tasks creates empty file."""
+        sync_manager.export_to_jsonl()
+
+        assert sync_manager.export_path.exists()
+        content = sync_manager.export_path.read_text()
+        assert content == ""
+
+
+class TestStopMethod:
+    """Tests for the stop method."""
+
+    @pytest.mark.integration
+    def test_stop_cancels_timer(self, sync_manager):
+        """Test stop cancels pending debounce timer."""
+        sync_manager._debounce_interval = 10  # Long interval
+
+        with patch.object(sync_manager, "export_to_jsonl") as mock_export:
+            sync_manager.trigger_export()
+            assert sync_manager._debounce_timer is not None
+
+            sync_manager.stop()
+
+            # Wait a bit to ensure timer would have fired if not cancelled
+            time.sleep(0.1)
+
+            # Export should not have been called because timer was cancelled
+            assert mock_export.call_count == 0
+
+    @pytest.mark.integration
+    def test_stop_without_timer(self, sync_manager):
+        """Test stop when no timer is running."""
+        assert sync_manager._debounce_timer is None
+
+        # Should not raise
+        sync_manager.stop()
+
+
+class TestImportFromGitHubIssues:
+    """Tests for import_from_github_issues async method."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_import_invalid_github_url(self, sync_manager):
+        """Test import with invalid GitHub URL."""
+        result = await sync_manager.import_from_github_issues("not-a-url")
+
+        assert result["success"] is False
+        assert "Invalid GitHub URL" in result["error"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_import_github_url_with_git_suffix(self, sync_manager):
+        """Test import handles .git suffix in URL."""
+        with patch("subprocess.run") as mock_run:
+            # Mock gh --version check
+            mock_run.side_effect = [
+                MagicMock(returncode=0),  # gh --version
+                MagicMock(returncode=0, stdout="[]"),  # gh issue list
+            ]
+
+            result = await sync_manager.import_from_github_issues(
+                "https://github.com/owner/repo.git"
+            )
+
+            assert result["success"] is True
+            assert result["count"] == 0
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_import_gh_not_installed(self, sync_manager):
+        """Test import when gh CLI is not installed."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = FileNotFoundError()
+
+            result = await sync_manager.import_from_github_issues("https://github.com/owner/repo")
+
+            assert result["success"] is False
+            assert "GitHub CLI (gh) not found" in result["error"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_import_gh_command_fails(self, sync_manager):
+        """Test import when gh command fails."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),  # gh --version
+                MagicMock(returncode=1, stderr="auth required"),  # gh issue list
+            ]
+
+            result = await sync_manager.import_from_github_issues("https://github.com/owner/repo")
+
+            assert result["success"] is False
+            assert "gh command failed" in result["error"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_import_no_open_issues(self, sync_manager):
+        """Test import when there are no open issues."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),  # gh --version
+                MagicMock(returncode=0, stdout="[]"),  # gh issue list
+            ]
+
+            result = await sync_manager.import_from_github_issues("https://github.com/owner/repo")
+
+            assert result["success"] is True
+            assert result["count"] == 0
+            assert result["imported"] == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_import_issues_without_project_context(self, sync_manager):
+        """Test import fails without project context."""
+        issues_json = json.dumps(
+            [
+                {
+                    "number": 1,
+                    "title": "Issue 1",
+                    "body": "Body 1",
+                    "labels": [],
+                    "createdAt": "2023-01-01T00:00:00Z",
+                }
+            ]
+        )
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),  # gh --version
+                MagicMock(returncode=0, stdout=issues_json),  # gh issue list
+            ]
+
+            with patch("gobby.utils.project_context.get_project_context", return_value=None):
+                result = await sync_manager.import_from_github_issues(
+                    "https://github.com/owner/repo"
+                )
+
+        assert result["success"] is False
+        assert "Could not determine project ID" in result["error"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_import_issues_with_project_id(self, sync_manager, sample_project):
+        """Test import with explicit project_id."""
+        issues_json = json.dumps(
+            [
+                {
+                    "number": 1,
+                    "title": "Issue 1",
+                    "body": "Body 1",
+                    "labels": [],
+                    "createdAt": "2023-01-01T00:00:00Z",
+                },
+                {
+                    "number": 2,
+                    "title": "Issue 2",
+                    "body": None,
+                    "labels": [{"name": "bug"}],
+                    "createdAt": "2023-01-02T00:00:00Z",
+                },
+            ]
+        )
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),  # gh --version
+                MagicMock(returncode=0, stdout=issues_json),  # gh issue list
+            ]
+
+            result = await sync_manager.import_from_github_issues(
+                "https://github.com/owner/repo",
+                project_id=sample_project["id"],
+            )
+
+        assert result["success"] is True
+        assert result["count"] == 2
+        assert "gh-1" in result["imported"]
+        assert "gh-2" in result["imported"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_import_issues_updates_existing(self, sync_manager, sample_project):
+        """Test import updates existing issues."""
+        # First import
+        issues_json = json.dumps(
+            [
+                {
+                    "number": 1,
+                    "title": "Issue 1",
+                    "body": "Original body",
+                    "labels": [],
+                    "createdAt": "2023-01-01T00:00:00Z",
+                }
+            ]
+        )
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),
+                MagicMock(returncode=0, stdout=issues_json),
+            ]
+
+            result1 = await sync_manager.import_from_github_issues(
+                "https://github.com/owner/repo",
+                project_id=sample_project["id"],
+            )
+
+        assert result1["count"] == 1
+
+        # Second import with updated issue
+        issues_json_updated = json.dumps(
+            [
+                {
+                    "number": 1,
+                    "title": "Updated Title",
+                    "body": "Updated body",
+                    "labels": [{"name": "enhancement"}],
+                    "createdAt": "2023-01-01T00:00:00Z",
+                }
+            ]
+        )
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),
+                MagicMock(returncode=0, stdout=issues_json_updated),
+            ]
+
+            result2 = await sync_manager.import_from_github_issues(
+                "https://github.com/owner/repo",
+                project_id=sample_project["id"],
+            )
+
+        # Should update, not import
+        assert result2["count"] == 0
+        assert "gh-1" in result2["imported"]
+        assert "updated 1 existing" in result2["message"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_import_issues_skip_no_number(self, sync_manager, sample_project):
+        """Test import skips issues without number."""
+        issues_json = json.dumps(
+            [
+                {
+                    "title": "Issue without number",
+                    "body": "Body",
+                    "labels": [],
+                    "createdAt": "2023-01-01T00:00:00Z",
+                }
+            ]
+        )
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),
+                MagicMock(returncode=0, stdout=issues_json),
+            ]
+
+            result = await sync_manager.import_from_github_issues(
+                "https://github.com/owner/repo",
+                project_id=sample_project["id"],
+            )
+
+        assert result["success"] is True
+        assert result["count"] == 0
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_import_issues_json_decode_error(self, sync_manager):
+        """Test import handles invalid JSON from gh."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),
+                MagicMock(returncode=0, stdout="not valid json"),
+            ]
+
+            result = await sync_manager.import_from_github_issues("https://github.com/owner/repo")
+
+        assert result["success"] is False
+        assert "Failed to parse GitHub response" in result["error"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_import_issues_finds_project_by_url(self, sync_manager, sample_project):
+        """Test import finds project by matching github_url."""
+        issues_json = json.dumps(
+            [
+                {
+                    "number": 1,
+                    "title": "Issue 1",
+                    "body": "Body",
+                    "labels": [],
+                    "createdAt": "2023-01-01T00:00:00Z",
+                }
+            ]
+        )
+
+        # The sample_project fixture has github_url set
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),
+                MagicMock(returncode=0, stdout=issues_json),
+            ]
+
+            result = await sync_manager.import_from_github_issues(
+                repo_url=sample_project["github_url"],
+            )
+
+        assert result["success"] is True
+        assert result["count"] == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_import_issues_general_exception(self, sync_manager):
+        """Test import handles general exceptions."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),
+                Exception("Unexpected error"),
+            ]
+
+            result = await sync_manager.import_from_github_issues("https://github.com/owner/repo")
+
+        assert result["success"] is False
+        assert "Unexpected error" in result["error"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.integration
+    async def test_import_issues_with_project_context(self, sync_manager, sample_project):
+        """Test import uses project context when project_id not provided."""
+        issues_json = json.dumps(
+            [
+                {
+                    "number": 1,
+                    "title": "Issue 1",
+                    "body": "Body",
+                    "labels": [],
+                    "createdAt": "2023-01-01T00:00:00Z",
+                }
+            ]
+        )
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=0),
+                MagicMock(returncode=0, stdout=issues_json),
+            ]
+
+            # Mock project context to return sample project
+            with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
+                mock_ctx.return_value = {"id": sample_project["id"]}
+
+                result = await sync_manager.import_from_github_issues(
+                    "https://github.com/different/repo"
+                )
+
+        assert result["success"] is True
+        assert result["count"] == 1

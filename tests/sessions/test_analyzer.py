@@ -3,9 +3,12 @@ Tests for TranscriptAnalyzer in gobby.sessions.analyzer.
 """
 
 
+from unittest.mock import Mock
+
 import pytest
 
-from gobby.sessions.analyzer import TranscriptAnalyzer
+from gobby.sessions.analyzer import HandoffContext, TranscriptAnalyzer
+from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 
 
 @pytest.fixture
@@ -531,6 +534,170 @@ def test_mcp_call_tool_gobby_tasks_extracts_task():
     assert ctx.active_gobby_task["action"] == "update_task"
 
 
+def test_gobby_tasks_without_task_id():
+    """Test gobby-tasks calls without task_id don't set active_gobby_task."""
+    turns = [
+        {"type": "user", "message": {"content": "list tasks"}},
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "mcp_call_tool",
+                        "input": {
+                            "server_name": "gobby-tasks",
+                            "tool_name": "list_tasks",
+                            "arguments": {},  # No task_id
+                        },
+                    },
+                ]
+            },
+        },
+    ]
+
+    analyzer = TranscriptAnalyzer()
+    ctx = analyzer.extract_handoff_context(turns)
+
+    # Should not set active task since no task_id was provided
+    assert ctx.active_gobby_task is None
+
+
+def test_gobby_tasks_uses_id_field():
+    """Test gobby-tasks calls with 'id' instead of 'task_id' are recognized."""
+    turns = [
+        {"type": "user", "message": {"content": "work on task"}},
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "mcp_call_tool",
+                        "input": {
+                            "server_name": "gobby-tasks",
+                            "tool_name": "get_task",
+                            "arguments": {"id": "gt-def456"},  # Using 'id' instead of 'task_id'
+                        },
+                    },
+                ]
+            },
+        },
+    ]
+
+    analyzer = TranscriptAnalyzer()
+    ctx = analyzer.extract_handoff_context(turns)
+
+    assert ctx.active_gobby_task is not None
+    assert ctx.active_gobby_task["id"] == "gt-def456"
+
+
+def test_gobby_tasks_only_first_task_captured():
+    """Test that only the most recent (first in reverse) task is captured."""
+    # Since we iterate in reverse, the "latest" turn comes first
+    # and sets active_gobby_task. Subsequent turns shouldn't overwrite it.
+    turns = [
+        {"type": "user", "message": {"content": "work on tasks"}},
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "mcp_call_tool",
+                        "input": {
+                            "server_name": "gobby-tasks",
+                            "tool_name": "get_task",
+                            "arguments": {"task_id": "gt-first"},
+                        },
+                    },
+                ]
+            },
+        },
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "mcp_call_tool",
+                        "input": {
+                            "server_name": "gobby-tasks",
+                            "tool_name": "update_task",
+                            "arguments": {"task_id": "gt-latest"},
+                        },
+                    },
+                ]
+            },
+        },
+    ]
+
+    analyzer = TranscriptAnalyzer()
+    ctx = analyzer.extract_handoff_context(turns)
+
+    # Should get the latest task (gt-latest) since we iterate in reverse
+    assert ctx.active_gobby_task is not None
+    assert ctx.active_gobby_task["id"] == "gt-latest"
+
+
+def test_gobby_tasks_with_title():
+    """Test gobby-tasks calls with title include it in the active task."""
+    turns = [
+        {"type": "user", "message": {"content": "create task"}},
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "mcp_call_tool",
+                        "input": {
+                            "server_name": "gobby-tasks",
+                            "tool_name": "create_task",
+                            "arguments": {"task_id": "gt-new", "title": "Fix the login bug"},
+                        },
+                    },
+                ]
+            },
+        },
+    ]
+
+    analyzer = TranscriptAnalyzer()
+    ctx = analyzer.extract_handoff_context(turns)
+
+    assert ctx.active_gobby_task is not None
+    assert ctx.active_gobby_task["title"] == "Fix the login bug"
+
+
+def test_non_gobby_tasks_mcp_calls():
+    """Test that MCP calls to other servers don't affect active_gobby_task."""
+    turns = [
+        {"type": "user", "message": {"content": "do something"}},
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "mcp_call_tool",
+                        "input": {
+                            "server_name": "gobby-memory",  # Not gobby-tasks
+                            "tool_name": "remember",
+                            "arguments": {"key": "value"},
+                        },
+                    },
+                ]
+            },
+        },
+    ]
+
+    analyzer = TranscriptAnalyzer()
+    ctx = analyzer.extract_handoff_context(turns)
+
+    # Should not set active task
+    assert ctx.active_gobby_task is None
+
+
 def test_alternative_file_path_keys():
     """Test that alternative file path keys are recognized (TargetFile, path)."""
     turns = [
@@ -678,3 +845,340 @@ class TestFormatToolDescription:
         block = {"input": {"command": "ls"}}  # No name key
         result = analyzer._format_tool_description(block)
         assert result == "Called unknown"
+
+    def test_read_without_path(self):
+        """Test Read tool without file_path falls back to generic message."""
+        analyzer = TranscriptAnalyzer()
+        block = {"name": "Read", "input": {}}  # No file_path
+        result = analyzer._format_tool_description(block)
+        assert result == "Called Read"
+
+    def test_glob_without_pattern(self):
+        """Test Glob tool without pattern falls back to generic message."""
+        analyzer = TranscriptAnalyzer()
+        block = {"name": "Glob", "input": {}}  # No pattern
+        result = analyzer._format_tool_description(block)
+        assert result == "Called Glob"
+
+    def test_grep_without_pattern(self):
+        """Test Grep tool without pattern falls back to generic message."""
+        analyzer = TranscriptAnalyzer()
+        block = {"name": "Grep", "input": {}}  # No pattern
+        result = analyzer._format_tool_description(block)
+        assert result == "Called Grep"
+
+    def test_task_with_description_no_subagent(self):
+        """Test Task with description but no subagent type."""
+        analyzer = TranscriptAnalyzer()
+        block = {"name": "Task", "input": {"description": "Find auth code"}}
+        result = analyzer._format_tool_description(block)
+        assert result == "Task: Find auth code"
+
+    def test_task_without_description_or_subagent(self):
+        """Test Task without description or subagent type."""
+        analyzer = TranscriptAnalyzer()
+        block = {"name": "Task", "input": {}}
+        result = analyzer._format_tool_description(block)
+        assert result == "Called Task"
+
+    def test_edit_without_path(self):
+        """Test Edit tool without file_path falls back to generic message."""
+        analyzer = TranscriptAnalyzer()
+        block = {"name": "Edit", "input": {}}  # No file_path
+        result = analyzer._format_tool_description(block)
+        assert result == "Called Edit"
+
+    def test_write_without_path(self):
+        """Test Write tool without file_path falls back to generic message."""
+        analyzer = TranscriptAnalyzer()
+        block = {"name": "Write", "input": {}}  # No file_path
+        result = analyzer._format_tool_description(block)
+        assert result == "Called Write"
+
+
+class TestHandoffContext:
+    """Tests for HandoffContext dataclass."""
+
+    def test_default_values(self):
+        """Test HandoffContext has correct default values."""
+        ctx = HandoffContext()
+        assert ctx.active_gobby_task is None
+        assert ctx.todo_state == []
+        assert ctx.files_modified == []
+        assert ctx.git_commits == []
+        assert ctx.git_status == ""
+        assert ctx.initial_goal == ""
+        assert ctx.recent_activity == []
+        assert ctx.key_decisions is None
+        assert ctx.active_worktree is None
+
+    def test_custom_values(self):
+        """Test HandoffContext with custom values."""
+        ctx = HandoffContext(
+            active_gobby_task={"id": "gt-123", "title": "Test task"},
+            todo_state=[{"content": "Do something", "status": "pending"}],
+            files_modified=["/path/to/file.py"],
+            git_commits=[{"command": "git commit -m 'test'"}],
+            git_status="On branch main",
+            initial_goal="Implement feature X",
+            recent_activity=["Called Read", "Called Write"],
+            key_decisions=["Decision 1"],
+            active_worktree={"path": "/worktree/path"},
+        )
+        assert ctx.active_gobby_task["id"] == "gt-123"
+        assert len(ctx.todo_state) == 1
+        assert ctx.files_modified == ["/path/to/file.py"]
+        assert len(ctx.git_commits) == 1
+        assert ctx.git_status == "On branch main"
+        assert ctx.initial_goal == "Implement feature X"
+        assert len(ctx.recent_activity) == 2
+        assert ctx.key_decisions == ["Decision 1"]
+        assert ctx.active_worktree["path"] == "/worktree/path"
+
+
+class TestTranscriptAnalyzerInit:
+    """Tests for TranscriptAnalyzer initialization."""
+
+    def test_default_parser(self):
+        """Test that TranscriptAnalyzer uses ClaudeTranscriptParser by default."""
+        analyzer = TranscriptAnalyzer()
+        assert isinstance(analyzer.parser, ClaudeTranscriptParser)
+
+    def test_custom_parser(self):
+        """Test that TranscriptAnalyzer accepts a custom parser."""
+        mock_parser = Mock()
+        analyzer = TranscriptAnalyzer(parser=mock_parser)
+        assert analyzer.parser is mock_parser
+
+
+class TestAnalyzerEdgeCases:
+    """Additional edge case tests for comprehensive coverage."""
+
+    def test_mcp_call_tool_missing_server_name(self):
+        """Test mcp_call_tool blocks with missing server_name."""
+        turns = [
+            {"type": "user", "message": {"content": "do something"}},
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "mcp_call_tool",
+                            "input": {
+                                "tool_name": "some_tool",  # Missing server_name
+                                "arguments": {},
+                            },
+                        },
+                    ]
+                },
+            },
+        ]
+
+        analyzer = TranscriptAnalyzer()
+        ctx = analyzer.extract_handoff_context(turns)
+
+        # Should not crash, active_gobby_task should be None
+        assert ctx.active_gobby_task is None
+
+    def test_mcp_call_tool_missing_tool_name(self):
+        """Test MCP format description with missing tool_name."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp_call_tool",
+            "input": {"server_name": "gobby-tasks"},  # Missing tool_name
+        }
+        result = analyzer._format_tool_description(block)
+        assert result == "Called gobby-tasks.unknown"
+
+    def test_mcp_call_tool_missing_server_name_format(self):
+        """Test MCP format description with missing server_name."""
+        analyzer = TranscriptAnalyzer()
+        block = {
+            "name": "mcp_call_tool",
+            "input": {"tool_name": "some_tool"},  # Missing server_name
+        }
+        result = analyzer._format_tool_description(block)
+        assert result == "Called unknown.some_tool"
+
+    def test_todowrite_with_missing_todos_key(self):
+        """Test TodoWrite extraction when todos key is missing."""
+        turns = [
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "TodoWrite",
+                            "input": {},  # Missing todos key entirely
+                        },
+                    ]
+                },
+            },
+        ]
+
+        analyzer = TranscriptAnalyzer()
+        ctx = analyzer.extract_handoff_context(turns)
+
+        # Should return empty list when todos key is missing
+        assert ctx.todo_state == []
+
+    def test_replace_tool_for_file_modification(self):
+        """Test that Replace tool captures file modifications."""
+        turns = [
+            {"type": "user", "message": {"content": "refactor code"}},
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "Replace",
+                            "input": {"file_path": "/replaced.py"},
+                        },
+                    ]
+                },
+            },
+        ]
+
+        analyzer = TranscriptAnalyzer()
+        ctx = analyzer.extract_handoff_context(turns)
+
+        assert "/replaced.py" in ctx.files_modified
+
+    def test_turns_without_message_key(self):
+        """Test handling of turns missing the message key."""
+        turns = [
+            {"type": "user"},  # No message key - becomes first user, with empty content
+            {"type": "assistant", "message": {}},  # Empty message
+            {"type": "user", "message": {"content": "later goal"}},
+        ]
+
+        analyzer = TranscriptAnalyzer()
+        ctx = analyzer.extract_handoff_context(turns)
+
+        # First user message is captured even if it has no content
+        # (The code breaks on first user message found)
+        assert ctx.initial_goal == ""
+
+    def test_first_user_message_with_content_captured(self):
+        """Test that initial goal is extracted from first user message with content."""
+        turns = [
+            {"type": "assistant", "message": {"content": "Hello!"}},  # Not a user turn
+            {"type": "user", "message": {"content": "My actual goal"}},
+            {"type": "user", "message": {"content": "Follow-up question"}},
+        ]
+
+        analyzer = TranscriptAnalyzer()
+        ctx = analyzer.extract_handoff_context(turns)
+
+        # Should get the first user message, not the second
+        assert ctx.initial_goal == "My actual goal"
+
+    def test_initial_goal_with_dict_content(self):
+        """Test initial goal extraction when content is a dict."""
+        turns = [
+            {"type": "user", "message": {"content": {"key": "value"}}},
+        ]
+
+        analyzer = TranscriptAnalyzer()
+        ctx = analyzer.extract_handoff_context(turns)
+
+        # str() of a dict
+        assert "key" in ctx.initial_goal
+        assert "value" in ctx.initial_goal
+
+    def test_bash_without_git_commit(self):
+        """Test Bash commands without git commit don't add to git_commits."""
+        turns = [
+            {"type": "user", "message": {"content": "run commands"}},
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "tool_use", "name": "Bash", "input": {"command": "ls -la"}},
+                        {"type": "tool_use", "name": "Bash", "input": {"command": "git status"}},
+                        {"type": "tool_use", "name": "Bash", "input": {"command": "npm install"}},
+                    ]
+                },
+            },
+        ]
+
+        analyzer = TranscriptAnalyzer()
+        ctx = analyzer.extract_handoff_context(turns)
+
+        assert ctx.git_commits == []
+
+    def test_gobby_tasks_with_empty_arguments(self):
+        """Test gobby-tasks calls with missing arguments key."""
+        turns = [
+            {"type": "user", "message": {"content": "work on task"}},
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "mcp_call_tool",
+                            "input": {
+                                "server_name": "gobby-tasks",
+                                "tool_name": "list_tasks",
+                                # No arguments key at all
+                            },
+                        },
+                    ]
+                },
+            },
+        ]
+
+        analyzer = TranscriptAnalyzer()
+        ctx = analyzer.extract_handoff_context(turns)
+
+        # Should handle gracefully
+        assert ctx.active_gobby_task is None
+
+    def test_multiple_tool_calls_in_single_turn(self):
+        """Test extraction when multiple tool calls are in a single turn."""
+        turns = [
+            {"type": "user", "message": {"content": "do many things"}},
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "tool_use", "name": "Read", "input": {"file_path": "/a.py"}},
+                        {"type": "tool_use", "name": "Edit", "input": {"file_path": "/b.py"}},
+                        {"type": "tool_use", "name": "Write", "input": {"file_path": "/c.py"}},
+                        {
+                            "type": "tool_use",
+                            "name": "Bash",
+                            "input": {"command": "git commit -m 'changes'"},
+                        },
+                        {
+                            "type": "tool_use",
+                            "name": "mcp_call_tool",
+                            "input": {
+                                "server_name": "gobby-tasks",
+                                "tool_name": "update_task",
+                                "arguments": {"task_id": "gt-multi"},
+                            },
+                        },
+                    ]
+                },
+            },
+        ]
+
+        analyzer = TranscriptAnalyzer()
+        ctx = analyzer.extract_handoff_context(turns)
+
+        # Read doesn't modify files
+        assert "/a.py" not in ctx.files_modified
+        # Edit and Write do
+        assert "/b.py" in ctx.files_modified
+        assert "/c.py" in ctx.files_modified
+        # Git commit captured
+        assert len(ctx.git_commits) == 1
+        # Task captured
+        assert ctx.active_gobby_task["id"] == "gt-multi"
+        # Recent activity should have 5 items
+        assert len(ctx.recent_activity) == 5

@@ -380,3 +380,1451 @@ class TestMainFunction:
                     main()
 
             assert exc_info.value.code == 1
+
+
+class TestGobbyRunnerInitialization:
+    """Tests for component initialization during GobbyRunner.__init__."""
+
+    def test_init_with_memory_manager(self):
+        """Test that MemoryManager is initialized when memory config exists."""
+        mock_config = MagicMock()
+        mock_config.daemon_port = 8765
+        mock_config.websocket = None
+        mock_config.session_lifecycle = MagicMock()
+        mock_config.message_tracking = None
+        mock_config.memory_sync = MagicMock()
+        mock_config.memory_sync.enabled = False
+        mock_config.memory = MagicMock()  # Has memory config
+
+        mock_memory_manager = MagicMock()
+
+        patches = create_base_patches(mock_config=mock_config)
+        # Replace MemoryManager patch to return our mock
+        patches = [p for p in patches if "MemoryManager" not in str(p)]
+        patches.append(patch("gobby.runner.MemoryManager", return_value=mock_memory_manager))
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            assert runner.memory_manager == mock_memory_manager
+
+    def test_init_memory_manager_exception(self):
+        """Test that MemoryManager initialization exception is handled."""
+        mock_config = MagicMock()
+        mock_config.daemon_port = 8765
+        mock_config.websocket = None
+        mock_config.session_lifecycle = MagicMock()
+        mock_config.message_tracking = None
+        mock_config.memory_sync = MagicMock()
+        mock_config.memory_sync.enabled = False
+        mock_config.memory = MagicMock()
+
+        patches = create_base_patches(mock_config=mock_config)
+        patches = [p for p in patches if "MemoryManager" not in str(p)]
+        patches.append(
+            patch("gobby.runner.MemoryManager", side_effect=Exception("Memory init error"))
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            # Should not raise - error is logged
+            runner = GobbyRunner()
+            assert runner.memory_manager is None
+
+    def test_init_with_skill_learner(self):
+        """Test that SkillLearner is initialized when skills config and LLM exist."""
+        mock_config = MagicMock()
+        mock_config.daemon_port = 8765
+        mock_config.websocket = None
+        mock_config.session_lifecycle = MagicMock()
+        mock_config.message_tracking = None
+        mock_config.memory_sync = MagicMock()
+        mock_config.memory_sync.enabled = False
+        mock_config.skills = MagicMock()
+
+        mock_llm_service = MagicMock()
+        mock_llm_service.enabled_providers = ["test"]
+        mock_skill_learner = MagicMock()
+
+        patches = create_base_patches(mock_config=mock_config)
+        patches = [p for p in patches if "create_llm_service" not in str(p)]
+        patches = [p for p in patches if "SkillLearner" not in str(p)]
+        patches.append(patch("gobby.runner.create_llm_service", return_value=mock_llm_service))
+        patches.append(patch("gobby.runner.SkillLearner", return_value=mock_skill_learner))
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            assert runner.llm_service == mock_llm_service
+            assert runner.skill_learner == mock_skill_learner
+
+    def test_init_skill_learner_exception(self):
+        """Test that SkillLearner initialization exception is handled."""
+        mock_config = MagicMock()
+        mock_config.daemon_port = 8765
+        mock_config.websocket = None
+        mock_config.session_lifecycle = MagicMock()
+        mock_config.message_tracking = None
+        mock_config.memory_sync = MagicMock()
+        mock_config.memory_sync.enabled = False
+        mock_config.skills = MagicMock()
+
+        mock_llm_service = MagicMock()
+        mock_llm_service.enabled_providers = ["test"]
+
+        patches = create_base_patches(mock_config=mock_config)
+        patches = [p for p in patches if "create_llm_service" not in str(p)]
+        patches = [p for p in patches if "SkillLearner" not in str(p)]
+        patches.append(patch("gobby.runner.create_llm_service", return_value=mock_llm_service))
+        patches.append(
+            patch("gobby.runner.SkillLearner", side_effect=Exception("Skill learner error"))
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            assert runner.skill_learner is None
+
+    def test_init_with_memory_sync_manager(self):
+        """Test MemorySyncManager initialization when enabled."""
+        mock_config = MagicMock()
+        mock_config.daemon_port = 8765
+        mock_config.websocket = None
+        mock_config.session_lifecycle = MagicMock()
+        mock_config.message_tracking = None
+        mock_config.memory = MagicMock()
+        mock_config.memory_sync = MagicMock()
+        mock_config.memory_sync.enabled = True
+
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.storage = MagicMock()
+        mock_memory_sync_manager = MagicMock()
+
+        patches = create_base_patches(mock_config=mock_config)
+        patches = [p for p in patches if "MemoryManager" not in str(p)]
+        patches = [p for p in patches if "MemorySyncManager" not in str(p)]
+        patches.append(patch("gobby.runner.MemoryManager", return_value=mock_memory_manager))
+        patches.append(
+            patch("gobby.runner.MemorySyncManager", return_value=mock_memory_sync_manager)
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            assert runner.memory_sync_manager == mock_memory_sync_manager
+            mock_memory_manager.storage.add_change_listener.assert_called_once()
+
+    def test_init_memory_sync_manager_exception(self):
+        """Test MemorySyncManager initialization exception is handled."""
+        mock_config = MagicMock()
+        mock_config.daemon_port = 8765
+        mock_config.websocket = None
+        mock_config.session_lifecycle = MagicMock()
+        mock_config.message_tracking = None
+        mock_config.memory = MagicMock()
+        mock_config.memory_sync = MagicMock()
+        mock_config.memory_sync.enabled = True
+
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.storage = MagicMock()
+
+        patches = create_base_patches(mock_config=mock_config)
+        patches = [p for p in patches if "MemoryManager" not in str(p)]
+        patches = [p for p in patches if "MemorySyncManager" not in str(p)]
+        patches.append(patch("gobby.runner.MemoryManager", return_value=mock_memory_manager))
+        patches.append(
+            patch("gobby.runner.MemorySyncManager", side_effect=Exception("Sync manager error"))
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            assert runner.memory_sync_manager is None
+
+    def test_init_with_skill_sync_manager(self):
+        """Test SkillSyncManager initialization when enabled."""
+        mock_config = MagicMock()
+        mock_config.daemon_port = 8765
+        mock_config.websocket = None
+        mock_config.session_lifecycle = MagicMock()
+        mock_config.message_tracking = None
+        mock_config.memory_sync = MagicMock()
+        mock_config.memory_sync.enabled = False
+        mock_config.skill_sync = MagicMock()
+        mock_config.skill_sync.enabled = True
+
+        mock_skill_sync_manager = MagicMock()
+
+        patches = create_base_patches(mock_config=mock_config)
+        patches.append(patch("gobby.runner.SkillSyncManager", return_value=mock_skill_sync_manager))
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            assert runner.skill_sync_manager == mock_skill_sync_manager
+
+    def test_init_skill_sync_manager_exception(self):
+        """Test SkillSyncManager initialization exception is handled."""
+        mock_config = MagicMock()
+        mock_config.daemon_port = 8765
+        mock_config.websocket = None
+        mock_config.session_lifecycle = MagicMock()
+        mock_config.message_tracking = None
+        mock_config.memory_sync = MagicMock()
+        mock_config.memory_sync.enabled = False
+        mock_config.skill_sync = MagicMock()
+        mock_config.skill_sync.enabled = True
+
+        patches = create_base_patches(mock_config=mock_config)
+        patches.append(
+            patch("gobby.runner.SkillSyncManager", side_effect=Exception("Skill sync error"))
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            assert runner.skill_sync_manager is None
+
+    def test_init_with_message_processor(self):
+        """Test SessionMessageProcessor initialization when message_tracking enabled."""
+        mock_config = MagicMock()
+        mock_config.daemon_port = 8765
+        mock_config.websocket = None
+        mock_config.session_lifecycle = MagicMock()
+        mock_config.memory_sync = MagicMock()
+        mock_config.memory_sync.enabled = False
+        mock_config.message_tracking = MagicMock()
+        mock_config.message_tracking.enabled = True
+        mock_config.message_tracking.poll_interval = 5.0
+
+        mock_message_processor = AsyncMock()
+
+        patches = create_base_patches(mock_config=mock_config)
+        patches = [p for p in patches if "SessionMessageProcessor" not in str(p)]
+        patches.append(
+            patch("gobby.runner.SessionMessageProcessor", return_value=mock_message_processor)
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            assert runner.message_processor == mock_message_processor
+
+    def test_init_with_task_expander(self):
+        """Test TaskExpander initialization when LLM service and expansion enabled."""
+        mock_config = MagicMock()
+        mock_config.daemon_port = 8765
+        mock_config.websocket = None
+        mock_config.session_lifecycle = MagicMock()
+        mock_config.message_tracking = None
+        mock_config.memory_sync = MagicMock()
+        mock_config.memory_sync.enabled = False
+        mock_config.gobby_tasks = MagicMock()
+        mock_config.gobby_tasks.expansion = MagicMock()
+        mock_config.gobby_tasks.expansion.enabled = True
+        mock_config.gobby_tasks.validation = MagicMock()
+        mock_config.gobby_tasks.validation.enabled = False
+
+        mock_llm_service = MagicMock()
+        mock_llm_service.enabled_providers = ["test"]
+        mock_task_expander = MagicMock()
+
+        patches = create_base_patches(mock_config=mock_config)
+        patches = [p for p in patches if "create_llm_service" not in str(p)]
+        patches = [p for p in patches if "TaskExpander" not in str(p)]
+        patches.append(patch("gobby.runner.create_llm_service", return_value=mock_llm_service))
+        patches.append(patch("gobby.runner.TaskExpander", return_value=mock_task_expander))
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            assert runner.task_expander == mock_task_expander
+
+    def test_init_task_expander_exception(self):
+        """Test TaskExpander initialization exception is handled."""
+        mock_config = MagicMock()
+        mock_config.daemon_port = 8765
+        mock_config.websocket = None
+        mock_config.session_lifecycle = MagicMock()
+        mock_config.message_tracking = None
+        mock_config.memory_sync = MagicMock()
+        mock_config.memory_sync.enabled = False
+        mock_config.gobby_tasks = MagicMock()
+        mock_config.gobby_tasks.expansion = MagicMock()
+        mock_config.gobby_tasks.expansion.enabled = True
+        mock_config.gobby_tasks.validation = MagicMock()
+        mock_config.gobby_tasks.validation.enabled = False
+
+        mock_llm_service = MagicMock()
+        mock_llm_service.enabled_providers = ["test"]
+
+        patches = create_base_patches(mock_config=mock_config)
+        patches = [p for p in patches if "create_llm_service" not in str(p)]
+        patches = [p for p in patches if "TaskExpander" not in str(p)]
+        patches.append(patch("gobby.runner.create_llm_service", return_value=mock_llm_service))
+        patches.append(
+            patch("gobby.runner.TaskExpander", side_effect=Exception("Expander error"))
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            assert runner.task_expander is None
+
+    def test_init_with_task_validator(self):
+        """Test TaskValidator initialization when LLM service and validation enabled."""
+        mock_config = MagicMock()
+        mock_config.daemon_port = 8765
+        mock_config.websocket = None
+        mock_config.session_lifecycle = MagicMock()
+        mock_config.message_tracking = None
+        mock_config.memory_sync = MagicMock()
+        mock_config.memory_sync.enabled = False
+        mock_config.gobby_tasks = MagicMock()
+        mock_config.gobby_tasks.expansion = MagicMock()
+        mock_config.gobby_tasks.expansion.enabled = False
+        mock_config.gobby_tasks.validation = MagicMock()
+        mock_config.gobby_tasks.validation.enabled = True
+
+        mock_llm_service = MagicMock()
+        mock_llm_service.enabled_providers = ["test"]
+        mock_task_validator = MagicMock()
+
+        patches = create_base_patches(mock_config=mock_config)
+        patches = [p for p in patches if "create_llm_service" not in str(p)]
+        patches = [p for p in patches if "TaskValidator" not in str(p)]
+        patches.append(patch("gobby.runner.create_llm_service", return_value=mock_llm_service))
+        patches.append(patch("gobby.runner.TaskValidator", return_value=mock_task_validator))
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            assert runner.task_validator == mock_task_validator
+
+    def test_init_task_validator_exception(self):
+        """Test TaskValidator initialization exception is handled."""
+        mock_config = MagicMock()
+        mock_config.daemon_port = 8765
+        mock_config.websocket = None
+        mock_config.session_lifecycle = MagicMock()
+        mock_config.message_tracking = None
+        mock_config.memory_sync = MagicMock()
+        mock_config.memory_sync.enabled = False
+        mock_config.gobby_tasks = MagicMock()
+        mock_config.gobby_tasks.expansion = MagicMock()
+        mock_config.gobby_tasks.expansion.enabled = False
+        mock_config.gobby_tasks.validation = MagicMock()
+        mock_config.gobby_tasks.validation.enabled = True
+
+        mock_llm_service = MagicMock()
+        mock_llm_service.enabled_providers = ["test"]
+
+        patches = create_base_patches(mock_config=mock_config)
+        patches = [p for p in patches if "create_llm_service" not in str(p)]
+        patches = [p for p in patches if "TaskValidator" not in str(p)]
+        patches.append(patch("gobby.runner.create_llm_service", return_value=mock_llm_service))
+        patches.append(
+            patch("gobby.runner.TaskValidator", side_effect=Exception("Validator error"))
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            assert runner.task_validator is None
+
+    def test_init_agent_runner_exception(self):
+        """Test AgentRunner initialization exception is handled."""
+        mock_config = MagicMock()
+        mock_config.daemon_port = 8765
+        mock_config.websocket = None
+        mock_config.session_lifecycle = MagicMock()
+        mock_config.message_tracking = None
+        mock_config.memory_sync = MagicMock()
+        mock_config.memory_sync.enabled = False
+
+        patches = create_base_patches(mock_config=mock_config)
+        patches.append(
+            patch("gobby.runner.AgentRunner", side_effect=Exception("Agent runner error"))
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            assert runner.agent_runner is None
+
+    def test_init_llm_service_exception(self):
+        """Test LLM service initialization exception is handled."""
+        mock_config = MagicMock()
+        mock_config.daemon_port = 8765
+        mock_config.websocket = None
+        mock_config.session_lifecycle = MagicMock()
+        mock_config.message_tracking = None
+        mock_config.memory_sync = MagicMock()
+        mock_config.memory_sync.enabled = False
+
+        patches = create_base_patches(mock_config=mock_config)
+        patches = [p for p in patches if "create_llm_service" not in str(p)]
+        patches.append(
+            patch("gobby.runner.create_llm_service", side_effect=Exception("LLM init error"))
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            assert runner.llm_service is None
+
+
+class TestAgentEventBroadcasting:
+    """Tests for _setup_agent_event_broadcasting method."""
+
+    def test_setup_agent_event_broadcasting_with_websocket(self, mock_config_with_websocket):
+        """Test agent event broadcasting setup when WebSocket is enabled."""
+        mock_ws_server = AsyncMock()
+        mock_ws_server.start = AsyncMock()
+        mock_ws_server.broadcast_agent_event = AsyncMock()
+
+        mock_registry = MagicMock()
+        mock_registry.add_event_callback = MagicMock()
+
+        patches = create_base_patches(
+            mock_config=mock_config_with_websocket,
+            mock_ws_server=mock_ws_server,
+        )
+        # Patch at the source module (it's imported inside the method)
+        patches.append(
+            patch(
+                "gobby.agents.registry.get_running_agent_registry",
+                return_value=mock_registry,
+            )
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            # Verify callback was registered
+            mock_registry.add_event_callback.assert_called_once()
+
+    def test_setup_agent_event_broadcasting_without_websocket(self, mock_config):
+        """Test agent event broadcasting is skipped without WebSocket."""
+        mock_registry = MagicMock()
+        mock_registry.add_event_callback = MagicMock()
+
+        patches = create_base_patches(mock_config=mock_config)
+        # Patch at the source module (it's imported inside the method)
+        patches.append(
+            patch(
+                "gobby.agents.registry.get_running_agent_registry",
+                return_value=mock_registry,
+            )
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            # Callback should NOT be registered since no websocket
+            mock_registry.add_event_callback.assert_not_called()
+
+    def test_setup_agent_event_broadcasting_direct_call_without_websocket(self, mock_config):
+        """Test _setup_agent_event_broadcasting returns early when websocket_server is None."""
+        mock_registry = MagicMock()
+        mock_registry.add_event_callback = MagicMock()
+
+        patches = create_base_patches(mock_config=mock_config)
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            # Ensure websocket_server is None
+            runner.websocket_server = None
+
+            # Call the method directly - should return early without error
+            with patch(
+                "gobby.agents.registry.get_running_agent_registry",
+                return_value=mock_registry,
+            ):
+                runner._setup_agent_event_broadcasting()
+
+            # Registry should NOT have been accessed since we returned early
+            mock_registry.add_event_callback.assert_not_called()
+
+
+class TestMetricsCleanupLoop:
+    """Tests for _metrics_cleanup_loop method."""
+
+    @pytest.mark.asyncio
+    async def test_metrics_cleanup_loop_runs_cleanup(self, mock_config):
+        """Test that metrics cleanup loop runs cleanup."""
+        import asyncio
+
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connect_all = AsyncMock()
+        mock_mcp_manager.disconnect_all = AsyncMock()
+
+        patches = create_base_patches(
+            mock_config=mock_config,
+            mock_mcp_manager=mock_mcp_manager,
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            runner.metrics_manager.cleanup_old_metrics = MagicMock(return_value=5)
+
+            # Start the loop and cancel it after a short time
+            task = asyncio.create_task(runner._metrics_cleanup_loop())
+
+            # Give it a tiny bit of time then request shutdown
+            await asyncio.sleep(0.01)
+            runner._shutdown_requested = True
+
+            # Wait for the task to finish
+            try:
+                await asyncio.wait_for(task, timeout=1.0)
+            except asyncio.CancelledError:
+                pass
+
+    @pytest.mark.asyncio
+    async def test_metrics_cleanup_loop_handles_exception(self, mock_config):
+        """Test that metrics cleanup loop handles exceptions gracefully."""
+        import asyncio
+
+        patches = create_base_patches(mock_config=mock_config)
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            runner.metrics_manager.cleanup_old_metrics = MagicMock(
+                side_effect=Exception("Cleanup error")
+            )
+
+            # Start the loop
+            task = asyncio.create_task(runner._metrics_cleanup_loop())
+
+            # Request shutdown after a very brief moment
+            await asyncio.sleep(0.01)
+            runner._shutdown_requested = True
+
+            # Wait for the task
+            try:
+                await asyncio.wait_for(task, timeout=1.0)
+            except asyncio.CancelledError:
+                pass
+
+    @pytest.mark.asyncio
+    async def test_metrics_cleanup_loop_cancelled(self, mock_config):
+        """Test that metrics cleanup loop handles cancellation."""
+        import asyncio
+
+        patches = create_base_patches(mock_config=mock_config)
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            task = asyncio.create_task(runner._metrics_cleanup_loop())
+            await asyncio.sleep(0.01)
+            task.cancel()
+
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+
+class TestGobbyRunnerShutdown:
+    """Tests for shutdown handling in run method."""
+
+    @pytest.mark.asyncio
+    async def test_run_handles_http_server_shutdown_timeout(self, mock_config):
+        """Test that run handles HTTP server shutdown timeout."""
+        import asyncio
+
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connect_all = AsyncMock()
+        mock_mcp_manager.disconnect_all = AsyncMock()
+
+        patches = create_base_patches(
+            mock_config=mock_config,
+            mock_mcp_manager=mock_mcp_manager,
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            runner._shutdown_requested = True
+
+            with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
+                mock_server = MagicMock()
+
+                # Create a task that hangs to simulate timeout
+                async def hanging_serve():
+                    await asyncio.sleep(100)
+
+                mock_server.serve = hanging_serve
+                mock_server.should_exit = False
+                mock_server_cls.return_value = mock_server
+
+                with patch.object(runner, "_setup_signal_handlers"):
+                    # Should complete without hanging due to timeout handling
+                    await asyncio.wait_for(runner.run(), timeout=10.0)
+
+    @pytest.mark.asyncio
+    async def test_run_handles_lifecycle_manager_shutdown_timeout(self, mock_config):
+        """Test that run handles lifecycle manager shutdown timeout."""
+        import asyncio
+
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connect_all = AsyncMock()
+        mock_mcp_manager.disconnect_all = AsyncMock()
+
+        mock_lifecycle_manager = AsyncMock()
+        mock_lifecycle_manager.start = AsyncMock()
+
+        async def hanging_stop():
+            await asyncio.sleep(100)
+
+        mock_lifecycle_manager.stop = hanging_stop
+
+        patches = create_base_patches(
+            mock_config=mock_config,
+            mock_mcp_manager=mock_mcp_manager,
+        )
+        patches = [p for p in patches if "SessionLifecycleManager" not in str(p)]
+        patches.append(
+            patch("gobby.runner.SessionLifecycleManager", return_value=mock_lifecycle_manager)
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            runner._shutdown_requested = True
+
+            with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
+                mock_server = AsyncMock()
+                mock_server.serve = AsyncMock()
+                mock_server_cls.return_value = mock_server
+
+                with patch.object(runner, "_setup_signal_handlers"):
+                    await asyncio.wait_for(runner.run(), timeout=10.0)
+
+    @pytest.mark.asyncio
+    async def test_run_handles_message_processor_shutdown_timeout(self, mock_config):
+        """Test that run handles message processor shutdown timeout."""
+        import asyncio
+
+        mock_config.message_tracking = MagicMock()
+        mock_config.message_tracking.enabled = True
+        mock_config.message_tracking.poll_interval = 5.0
+
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connect_all = AsyncMock()
+        mock_mcp_manager.disconnect_all = AsyncMock()
+
+        mock_message_processor = AsyncMock()
+        mock_message_processor.start = AsyncMock()
+
+        async def hanging_stop():
+            await asyncio.sleep(100)
+
+        mock_message_processor.stop = hanging_stop
+
+        patches = create_base_patches(
+            mock_config=mock_config,
+            mock_mcp_manager=mock_mcp_manager,
+        )
+        patches = [p for p in patches if "SessionMessageProcessor" not in str(p)]
+        patches.append(
+            patch("gobby.runner.SessionMessageProcessor", return_value=mock_message_processor)
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            runner._shutdown_requested = True
+
+            with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
+                mock_server = AsyncMock()
+                mock_server.serve = AsyncMock()
+                mock_server_cls.return_value = mock_server
+
+                with patch.object(runner, "_setup_signal_handlers"):
+                    await asyncio.wait_for(runner.run(), timeout=10.0)
+
+    @pytest.mark.asyncio
+    async def test_run_handles_mcp_disconnect_timeout(self, mock_config):
+        """Test that run handles MCP disconnect timeout."""
+        import asyncio
+
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connect_all = AsyncMock()
+
+        async def hanging_disconnect():
+            await asyncio.sleep(100)
+
+        mock_mcp_manager.disconnect_all = hanging_disconnect
+
+        patches = create_base_patches(
+            mock_config=mock_config,
+            mock_mcp_manager=mock_mcp_manager,
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            runner._shutdown_requested = True
+
+            with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
+                mock_server = AsyncMock()
+                mock_server.serve = AsyncMock()
+                mock_server_cls.return_value = mock_server
+
+                with patch.object(runner, "_setup_signal_handlers"):
+                    await asyncio.wait_for(runner.run(), timeout=10.0)
+
+    @pytest.mark.asyncio
+    async def test_run_starts_message_processor(self, mock_config):
+        """Test that run starts the message processor when enabled."""
+        mock_config.message_tracking = MagicMock()
+        mock_config.message_tracking.enabled = True
+        mock_config.message_tracking.poll_interval = 5.0
+
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connect_all = AsyncMock()
+        mock_mcp_manager.disconnect_all = AsyncMock()
+
+        mock_message_processor = AsyncMock()
+        mock_message_processor.start = AsyncMock()
+        mock_message_processor.stop = AsyncMock()
+
+        patches = create_base_patches(
+            mock_config=mock_config,
+            mock_mcp_manager=mock_mcp_manager,
+        )
+        patches = [p for p in patches if "SessionMessageProcessor" not in str(p)]
+        patches.append(
+            patch("gobby.runner.SessionMessageProcessor", return_value=mock_message_processor)
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            runner._shutdown_requested = True
+
+            with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
+                mock_server = AsyncMock()
+                mock_server.serve = AsyncMock()
+                mock_server_cls.return_value = mock_server
+
+                with patch.object(runner, "_setup_signal_handlers"):
+                    await runner.run()
+
+            mock_message_processor.start.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_runs_startup_metrics_cleanup(self, mock_config):
+        """Test that run performs startup metrics cleanup."""
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connect_all = AsyncMock()
+        mock_mcp_manager.disconnect_all = AsyncMock()
+
+        patches = create_base_patches(
+            mock_config=mock_config,
+            mock_mcp_manager=mock_mcp_manager,
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            runner.metrics_manager.cleanup_old_metrics = MagicMock(return_value=10)
+            runner._shutdown_requested = True
+
+            with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
+                mock_server = AsyncMock()
+                mock_server.serve = AsyncMock()
+                mock_server_cls.return_value = mock_server
+
+                with patch.object(runner, "_setup_signal_handlers"):
+                    await runner.run()
+
+            runner.metrics_manager.cleanup_old_metrics.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_run_handles_startup_metrics_cleanup_error(self, mock_config):
+        """Test that run handles startup metrics cleanup errors."""
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connect_all = AsyncMock()
+        mock_mcp_manager.disconnect_all = AsyncMock()
+
+        patches = create_base_patches(
+            mock_config=mock_config,
+            mock_mcp_manager=mock_mcp_manager,
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            runner.metrics_manager.cleanup_old_metrics = MagicMock(
+                side_effect=Exception("Cleanup failed")
+            )
+            runner._shutdown_requested = True
+
+            with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
+                mock_server = AsyncMock()
+                mock_server.serve = AsyncMock()
+                mock_server_cls.return_value = mock_server
+
+                with patch.object(runner, "_setup_signal_handlers"):
+                    # Should not raise - error is logged
+                    await runner.run()
+
+    @pytest.mark.asyncio
+    async def test_run_fatal_error_exits(self, mock_config):
+        """Test that run exits on fatal error."""
+        import sys
+
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connect_all = AsyncMock()
+        mock_mcp_manager.disconnect_all = AsyncMock()
+
+        patches = create_base_patches(
+            mock_config=mock_config,
+            mock_mcp_manager=mock_mcp_manager,
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            # Make signal handler setup raise an exception
+            with (
+                patch.object(
+                    runner, "_setup_signal_handlers", side_effect=Exception("Fatal error")
+                ),
+                pytest.raises(SystemExit) as exc_info,
+            ):
+                await runner.run()
+
+            assert exc_info.value.code == 1
+
+    @pytest.mark.asyncio
+    async def test_run_cancels_metrics_cleanup_task_on_shutdown(self, mock_config):
+        """Test that metrics cleanup task is cancelled on shutdown."""
+        import asyncio
+
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connect_all = AsyncMock()
+        mock_mcp_manager.disconnect_all = AsyncMock()
+
+        patches = create_base_patches(
+            mock_config=mock_config,
+            mock_mcp_manager=mock_mcp_manager,
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            runner._shutdown_requested = True
+
+            with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
+                mock_server = AsyncMock()
+                mock_server.serve = AsyncMock()
+                mock_server_cls.return_value = mock_server
+
+                with patch.object(runner, "_setup_signal_handlers"):
+                    await runner.run()
+
+            # The cleanup task should have been created and then cancelled
+            # Since shutdown was immediate, task should be done or cancelled
+            assert (
+                runner._metrics_cleanup_task is None
+                or runner._metrics_cleanup_task.done()
+                or runner._metrics_cleanup_task.cancelled()
+            )
+
+
+class TestSignalHandlerBehavior:
+    """Tests for signal handler behavior."""
+
+    def test_signal_handler_sets_shutdown_flag(self, mock_config):
+        """Test that the signal handler sets the shutdown flag."""
+        patches = create_base_patches(mock_config)
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            # Create mock loop
+            mock_loop = MagicMock()
+            captured_handler = None
+
+            def capture_handler(sig, handler):
+                nonlocal captured_handler
+                if sig == signal.SIGTERM:
+                    captured_handler = handler
+
+            mock_loop.add_signal_handler = capture_handler
+
+            with patch("asyncio.get_running_loop", return_value=mock_loop):
+                runner._setup_signal_handlers()
+
+            # Verify handler was captured
+            assert captured_handler is not None
+
+            # Call the handler
+            assert runner._shutdown_requested is False
+            captured_handler()
+            assert runner._shutdown_requested is True
+
+
+class TestAgentEventBroadcastingCallback:
+    """Tests for the broadcast_agent_event callback function."""
+
+    @pytest.mark.asyncio
+    async def test_broadcast_callback_invoked(self, mock_config_with_websocket):
+        """Test that the broadcast callback is properly invoked."""
+        import asyncio
+
+        mock_ws_server = AsyncMock()
+        mock_ws_server.start = AsyncMock()
+        mock_ws_server.broadcast_agent_event = AsyncMock()
+
+        mock_registry = MagicMock()
+        captured_callback = None
+
+        def capture_callback(callback):
+            nonlocal captured_callback
+            captured_callback = callback
+
+        mock_registry.add_event_callback = capture_callback
+
+        patches = create_base_patches(
+            mock_config=mock_config_with_websocket,
+            mock_ws_server=mock_ws_server,
+        )
+        patches.append(
+            patch(
+                "gobby.agents.registry.get_running_agent_registry",
+                return_value=mock_registry,
+            )
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            # Verify callback was captured
+            assert captured_callback is not None
+
+            # Invoke the callback with test data
+            captured_callback(
+                "agent_started",
+                "run-123",
+                {
+                    "parent_session_id": "sess-456",
+                    "session_id": "sess-789",
+                    "mode": "terminal",
+                    "provider": "claude",
+                    "pid": 12345,
+                },
+            )
+
+            # Allow the async task to run
+            await asyncio.sleep(0.01)
+
+            # Verify broadcast was called
+            mock_ws_server.broadcast_agent_event.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_broadcast_callback_handles_exception(self, mock_config_with_websocket):
+        """Test that the broadcast callback handles exceptions gracefully."""
+        import asyncio
+
+        mock_ws_server = AsyncMock()
+        mock_ws_server.start = AsyncMock()
+        mock_ws_server.broadcast_agent_event = AsyncMock(
+            side_effect=Exception("Broadcast failed")
+        )
+
+        mock_registry = MagicMock()
+        captured_callback = None
+
+        def capture_callback(callback):
+            nonlocal captured_callback
+            captured_callback = callback
+
+        mock_registry.add_event_callback = capture_callback
+
+        patches = create_base_patches(
+            mock_config=mock_config_with_websocket,
+            mock_ws_server=mock_ws_server,
+        )
+        patches.append(
+            patch(
+                "gobby.agents.registry.get_running_agent_registry",
+                return_value=mock_registry,
+            )
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            # Verify callback was captured
+            assert captured_callback is not None
+
+            # Invoke the callback - should not raise despite exception
+            captured_callback(
+                "agent_started",
+                "run-123",
+                {"parent_session_id": "sess-456"},
+            )
+
+            # Allow the async task to run and handle exception
+            await asyncio.sleep(0.1)
+
+    @pytest.mark.asyncio
+    async def test_broadcast_callback_handles_cancelled_error(self, mock_config_with_websocket):
+        """Test that the broadcast callback handles CancelledError gracefully."""
+        import asyncio
+
+        mock_ws_server = AsyncMock()
+        mock_ws_server.start = AsyncMock()
+        mock_ws_server.broadcast_agent_event = AsyncMock(
+            side_effect=asyncio.CancelledError()
+        )
+
+        mock_registry = MagicMock()
+        captured_callback = None
+
+        def capture_callback(callback):
+            nonlocal captured_callback
+            captured_callback = callback
+
+        mock_registry.add_event_callback = capture_callback
+
+        patches = create_base_patches(
+            mock_config=mock_config_with_websocket,
+            mock_ws_server=mock_ws_server,
+        )
+        patches.append(
+            patch(
+                "gobby.agents.registry.get_running_agent_registry",
+                return_value=mock_registry,
+            )
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            # Verify callback was captured
+            assert captured_callback is not None
+
+            # Invoke the callback - should not raise
+            captured_callback(
+                "agent_started",
+                "run-123",
+                {},
+            )
+
+            # Allow the async task to run
+            await asyncio.sleep(0.1)
+
+    @pytest.mark.asyncio
+    async def test_broadcast_callback_returns_early_when_websocket_becomes_none(
+        self, mock_config_with_websocket
+    ):
+        """Test callback returns early if websocket_server becomes None after setup."""
+        import asyncio
+
+        mock_ws_server = AsyncMock()
+        mock_ws_server.start = AsyncMock()
+        mock_ws_server.broadcast_agent_event = AsyncMock()
+
+        mock_registry = MagicMock()
+        captured_callback = None
+
+        def capture_callback(callback):
+            nonlocal captured_callback
+            captured_callback = callback
+
+        mock_registry.add_event_callback = capture_callback
+
+        patches = create_base_patches(
+            mock_config=mock_config_with_websocket,
+            mock_ws_server=mock_ws_server,
+        )
+        patches.append(
+            patch(
+                "gobby.agents.registry.get_running_agent_registry",
+                return_value=mock_registry,
+            )
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            # Verify callback was captured
+            assert captured_callback is not None
+
+            # Set websocket_server to None to simulate disconnection
+            runner.websocket_server = None
+
+            # Invoke the callback - should return early without error
+            captured_callback(
+                "agent_started",
+                "run-123",
+                {"parent_session_id": "sess-456"},
+            )
+
+            # Allow some time for any async operations
+            await asyncio.sleep(0.01)
+
+            # Broadcast should NOT have been called since websocket_server is None
+            mock_ws_server.broadcast_agent_event.assert_not_called()
+
+
+class TestMessageProcessorWebSocketIntegration:
+    """Tests for message processor and WebSocket server integration."""
+
+    def test_message_processor_gets_websocket_server(self, mock_config_with_websocket):
+        """Test that message processor receives the WebSocket server reference."""
+        mock_config_with_websocket.message_tracking = MagicMock()
+        mock_config_with_websocket.message_tracking.enabled = True
+        mock_config_with_websocket.message_tracking.poll_interval = 5.0
+
+        mock_ws_server = AsyncMock()
+        mock_ws_server.start = AsyncMock()
+
+        mock_message_processor = MagicMock()
+
+        patches = create_base_patches(
+            mock_config=mock_config_with_websocket,
+            mock_ws_server=mock_ws_server,
+        )
+        patches = [p for p in patches if "SessionMessageProcessor" not in str(p)]
+        patches.append(
+            patch("gobby.runner.SessionMessageProcessor", return_value=mock_message_processor)
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            # Verify websocket server was passed to message processor
+            assert runner.message_processor.websocket_server == mock_ws_server
+
+
+class TestWebSocketServerShutdown:
+    """Tests for WebSocket server shutdown handling."""
+
+    @pytest.mark.asyncio
+    async def test_run_with_websocket_shutdown(self, mock_config_with_websocket):
+        """Test run properly shuts down WebSocket server."""
+        import asyncio
+
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connect_all = AsyncMock()
+        mock_mcp_manager.disconnect_all = AsyncMock()
+
+        mock_ws_server = AsyncMock()
+
+        async def ws_start():
+            # Simulate a running websocket server
+            await asyncio.sleep(100)
+
+        mock_ws_server.start = ws_start
+
+        patches = create_base_patches(
+            mock_config=mock_config_with_websocket,
+            mock_mcp_manager=mock_mcp_manager,
+            mock_ws_server=mock_ws_server,
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            runner._shutdown_requested = True
+
+            with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
+                mock_server = AsyncMock()
+                mock_server.serve = AsyncMock()
+                mock_server_cls.return_value = mock_server
+
+                with patch.object(runner, "_setup_signal_handlers"):
+                    await asyncio.wait_for(runner.run(), timeout=10.0)
+
+    @pytest.mark.asyncio
+    async def test_run_websocket_shutdown_timeout(self, mock_config_with_websocket):
+        """Test run handles WebSocket server shutdown timeout."""
+        import asyncio
+
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connect_all = AsyncMock()
+        mock_mcp_manager.disconnect_all = AsyncMock()
+
+        mock_ws_server = AsyncMock()
+
+        async def ws_start_hang():
+            try:
+                await asyncio.sleep(1000)
+            except asyncio.CancelledError:
+                # Hang on cancellation to trigger timeout
+                await asyncio.sleep(1000)
+
+        mock_ws_server.start = ws_start_hang
+
+        patches = create_base_patches(
+            mock_config=mock_config_with_websocket,
+            mock_mcp_manager=mock_mcp_manager,
+            mock_ws_server=mock_ws_server,
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            runner._shutdown_requested = True
+
+            with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
+                mock_server = AsyncMock()
+                mock_server.serve = AsyncMock()
+                mock_server_cls.return_value = mock_server
+
+                with patch.object(runner, "_setup_signal_handlers"):
+                    # Should complete without hanging due to timeout handling
+                    await asyncio.wait_for(runner.run(), timeout=15.0)
+
+
+class TestShutdownLoop:
+    """Tests for the shutdown waiting loop."""
+
+    @pytest.mark.asyncio
+    async def test_run_waits_for_shutdown_signal(self, mock_config):
+        """Test that run waits for shutdown signal in the main loop."""
+        import asyncio
+
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connect_all = AsyncMock()
+        mock_mcp_manager.disconnect_all = AsyncMock()
+
+        patches = create_base_patches(
+            mock_config=mock_config,
+            mock_mcp_manager=mock_mcp_manager,
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
+                mock_server = AsyncMock()
+                mock_server.serve = AsyncMock()
+                mock_server_cls.return_value = mock_server
+
+                with patch.object(runner, "_setup_signal_handlers"):
+                    # Create a task that will set shutdown flag after a short delay
+                    async def trigger_shutdown():
+                        await asyncio.sleep(0.1)
+                        runner._shutdown_requested = True
+
+                    shutdown_task = asyncio.create_task(trigger_shutdown())
+
+                    # Run should wait until shutdown is triggered
+                    await asyncio.wait_for(runner.run(), timeout=5.0)
+
+                    await shutdown_task
+
+
+class TestMetricsCleanupTaskShutdown:
+    """Tests for metrics cleanup task shutdown behavior."""
+
+    @pytest.mark.asyncio
+    async def test_run_handles_metrics_cleanup_task_cancelled_error(self, mock_config):
+        """Test run handles CancelledError from metrics cleanup task cancellation."""
+        import asyncio
+
+        mock_mcp_manager = AsyncMock()
+        mock_mcp_manager.connect_all = AsyncMock()
+        mock_mcp_manager.disconnect_all = AsyncMock()
+
+        patches = create_base_patches(
+            mock_config=mock_config,
+            mock_mcp_manager=mock_mcp_manager,
+        )
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+
+            with patch("uvicorn.Config"), patch("uvicorn.Server") as mock_server_cls:
+                mock_server = AsyncMock()
+                mock_server.serve = AsyncMock()
+                mock_server_cls.return_value = mock_server
+
+                with patch.object(runner, "_setup_signal_handlers"):
+                    # Create a delayed shutdown that gives time for metrics task to start
+                    async def delayed_shutdown():
+                        await asyncio.sleep(0.1)
+                        runner._shutdown_requested = True
+
+                    shutdown_task = asyncio.create_task(delayed_shutdown())
+
+                    await asyncio.wait_for(runner.run(), timeout=10.0)
+                    await shutdown_task
+
+
+class TestMetricsCleanupLoopDetailed:
+    """Detailed tests for the metrics cleanup loop."""
+
+    @pytest.mark.asyncio
+    async def test_metrics_cleanup_loop_performs_cleanup_after_sleep(self, mock_config):
+        """Test that metrics cleanup loop performs cleanup after sleep interval."""
+        import asyncio
+
+        patches = create_base_patches(mock_config=mock_config)
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            cleanup_call_count = 0
+
+            def mock_cleanup():
+                nonlocal cleanup_call_count
+                cleanup_call_count += 1
+                return 5 if cleanup_call_count == 1 else 0
+
+            runner.metrics_manager.cleanup_old_metrics = mock_cleanup
+
+            # Patch asyncio.sleep to complete immediately
+            original_sleep = asyncio.sleep
+
+            async def fast_sleep(seconds):
+                if seconds > 1:  # Only intercept the 24-hour sleep
+                    runner._shutdown_requested = True  # Trigger shutdown after one iteration
+                    return
+                await original_sleep(seconds)
+
+            with patch("asyncio.sleep", side_effect=fast_sleep):
+                task = asyncio.create_task(runner._metrics_cleanup_loop())
+                await asyncio.wait_for(task, timeout=2.0)
+
+            # Cleanup should have been called once
+            assert cleanup_call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_metrics_cleanup_loop_logs_deleted_entries(self, mock_config):
+        """Test that metrics cleanup loop logs when entries are deleted."""
+        import asyncio
+
+        patches = create_base_patches(mock_config=mock_config)
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            runner.metrics_manager.cleanup_old_metrics = MagicMock(return_value=10)
+
+            original_sleep = asyncio.sleep
+
+            async def fast_sleep(seconds):
+                if seconds > 1:
+                    runner._shutdown_requested = True
+                    return
+                await original_sleep(seconds)
+
+            with patch("asyncio.sleep", side_effect=fast_sleep):
+                task = asyncio.create_task(runner._metrics_cleanup_loop())
+                await asyncio.wait_for(task, timeout=2.0)
+
+    @pytest.mark.asyncio
+    async def test_metrics_cleanup_loop_continues_on_error(self, mock_config):
+        """Test that metrics cleanup loop continues after an error."""
+        import asyncio
+
+        patches = create_base_patches(mock_config=mock_config)
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            runner = GobbyRunner()
+            call_count = 0
+
+            def mock_cleanup():
+                nonlocal call_count
+                call_count += 1
+                if call_count == 1:
+                    raise Exception("First call error")
+                return 0
+
+            runner.metrics_manager.cleanup_old_metrics = mock_cleanup
+
+            original_sleep = asyncio.sleep
+            iteration = 0
+
+            async def fast_sleep(seconds):
+                nonlocal iteration
+                if seconds > 1:
+                    iteration += 1
+                    if iteration >= 2:  # Allow 2 iterations then stop
+                        runner._shutdown_requested = True
+                    return
+                await original_sleep(seconds)
+
+            with patch("asyncio.sleep", side_effect=fast_sleep):
+                task = asyncio.create_task(runner._metrics_cleanup_loop())
+                await asyncio.wait_for(task, timeout=2.0)
+
+            # Cleanup should have been called twice (once erroring, once successful)
+            assert call_count == 2

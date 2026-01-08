@@ -127,12 +127,10 @@ class TestGetValidationHistoryTool:
         """Test get_validation_history with non-existent task."""
         mock_task_manager.get_task.return_value = None
 
-        result = await registry_with_patches.call(
-            "get_validation_history", {"task_id": "nonexistent"}
-        )
-
-        assert "error" in result
-        assert "not found" in result["error"].lower()
+        with pytest.raises(ValueError, match="not found"):
+            await registry_with_patches.call(
+                "get_validation_history", {"task_id": "nonexistent"}
+            )
 
     @pytest.mark.integration
     @pytest.mark.asyncio

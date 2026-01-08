@@ -69,11 +69,10 @@ async def test_get_session_messages(mock_message_manager, session_messages_regis
 
     mock_message_manager.count_messages.assert_called_with("sess-123")
     mock_message_manager.get_messages.assert_called_with(
-        session_id="sess-123", limit=5, offset=0, role=None
+        session_id="sess-123", limit=5, offset=0
     )
 
-    assert "session_id" in result
-    assert result["session_id"] == "sess-123"
+    assert result["success"] is True
     assert result["total_count"] == 10
     assert len(result["messages"]) == 1
 
@@ -102,7 +101,7 @@ async def test_search_messages(mock_message_manager, session_messages_registry):
     result = await session_messages_registry.call("search_messages", {"query": "found"})
 
     mock_message_manager.search_messages.assert_called_with(
-        query_text="found", project_id=None, limit=20
+        query_text="found", session_id=None, limit=20
     )
 
     assert result["count"] == 1
@@ -110,18 +109,18 @@ async def test_search_messages(mock_message_manager, session_messages_registry):
 
 
 @pytest.mark.asyncio
-async def test_search_messages_with_project_context(
+async def test_search_messages_with_session_filter(
     mock_message_manager, session_messages_registry
 ):
-    """Test search_messages tool execution WITH project id."""
+    """Test search_messages tool execution WITH session filter."""
     mock_message_manager.search_messages.return_value = []
 
     await session_messages_registry.call(
-        "search_messages", {"query": "found", "project_id": "proj-123"}
+        "search_messages", {"query": "found", "session_id": "sess-123"}
     )
 
     mock_message_manager.search_messages.assert_called_with(
-        query_text="found", project_id="proj-123", limit=20
+        query_text="found", session_id="sess-123", limit=20
     )
 
 

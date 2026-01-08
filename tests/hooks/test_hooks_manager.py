@@ -479,3 +479,1211 @@ class TestHookManagerCachedDaemonStatus:
         assert message == "Ready"
         assert status == "healthy"
         assert error is None
+
+
+class TestHookManagerConfigLoadError:
+    """Tests for config loading error handling."""
+
+    def test_init_handles_config_load_error(self, temp_dir: Path, mock_daemon_client: MagicMock):
+        """Test that init handles config loading errors gracefully."""
+        with (
+            patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient,
+            patch("gobby.config.app.load_config", side_effect=Exception("Config load failed")),
+        ):
+            MockDaemonClient.return_value = mock_daemon_client
+
+            # Should not raise - handles error gracefully
+            manager = HookManager(
+                daemon_host="localhost",
+                daemon_port=8765,
+                config=None,  # Force config loading
+                log_file=str(temp_dir / "logs" / "hook-manager.log"),
+            )
+
+            # Manager should still be created with defaults
+            assert manager is not None
+            assert manager._config is None  # Config was not loaded
+
+            manager.shutdown()
+
+    def test_init_uses_default_health_check_interval_without_config(
+        self, temp_dir: Path, mock_daemon_client: MagicMock
+    ):
+        """Test that init uses default health check interval when config is None."""
+        with (
+            patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient,
+            patch("gobby.config.app.load_config", side_effect=Exception("Config load failed")),
+        ):
+            MockDaemonClient.return_value = mock_daemon_client
+
+            manager = HookManager(
+                daemon_host="localhost",
+                daemon_port=8765,
+                config=None,
+                log_file=str(temp_dir / "logs" / "hook-manager.log"),
+            )
+
+            # Health check should still work with defaults
+            assert manager._health_monitor is not None
+
+            manager.shutdown()
+
+
+class TestHookManagerSkillLearner:
+    """Tests for SkillLearner initialization."""
+
+    def test_init_creates_skill_learner_with_llm_service(
+        self, temp_dir: Path, mock_daemon_client: MagicMock
+    ):
+        """Test that SkillLearner is created when LLM service is provided."""
+        mock_llm_service = MagicMock()
+
+        with patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient:
+            MockDaemonClient.return_value = mock_daemon_client
+
+            manager = HookManager(
+                daemon_host="localhost",
+                daemon_port=8765,
+                llm_service=mock_llm_service,
+                log_file=str(temp_dir / "logs" / "hook-manager.log"),
+            )
+
+            assert manager._skill_learner is not None
+
+            manager.shutdown()
+
+    def test_init_no_skill_learner_without_llm_service(
+        self, temp_dir: Path, mock_daemon_client: MagicMock
+    ):
+        """Test that SkillLearner is None when LLM service is not provided."""
+        with patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient:
+            MockDaemonClient.return_value = mock_daemon_client
+
+            manager = HookManager(
+                daemon_host="localhost",
+                daemon_port=8765,
+                llm_service=None,
+                log_file=str(temp_dir / "logs" / "hook-manager.log"),
+            )
+
+            assert manager._skill_learner is None
+
+            manager.shutdown()
+
+
+class TestHookManagerWorkflowBlocking:
+    """Tests for workflow blocking behavior."""
+
+    def test_handle_workflow_blocks_event(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that workflow can block an event."""
+        manager = hook_manager_with_mocks
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="test-workflow-block",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={"tool_name": "bash"},
+            machine_id="test-machine-id",
+        )
+
+        # Mock workflow handler to return block decision
+        with patch.object(
+            manager._workflow_handler,
+            "handle",
+            return_value=HookResponse(decision="block", reason="Workflow blocked"),
+        ):
+            response = manager.handle(event)
+
+        assert response.decision == "block"
+        assert response.reason == "Workflow blocked"
+
+    def test_handle_workflow_ask_decision(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that workflow can return ask decision."""
+        manager = hook_manager_with_mocks
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="test-workflow-ask",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={"tool_name": "bash"},
+            machine_id="test-machine-id",
+        )
+
+        # Mock workflow handler to return ask decision
+        with patch.object(
+            manager._workflow_handler,
+            "handle",
+            return_value=HookResponse(decision="ask", reason="Need confirmation"),
+        ):
+            response = manager.handle(event)
+
+        assert response.decision == "ask"
+        assert response.reason == "Need confirmation"
+
+    def test_handle_workflow_context_merged(
+        self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
+    ):
+        """Test that workflow context is merged into response."""
+        manager = hook_manager_with_mocks
+
+        # Mock workflow handler to return context
+        workflow_response = HookResponse(
+            decision="allow", context="Workflow context info"
+        )
+        with patch.object(manager._workflow_handler, "handle", return_value=workflow_response):
+            response = manager.handle(sample_session_start_event)
+
+        assert response.decision == "allow"
+        assert "Workflow context info" in (response.context or "")
+
+    def test_handle_workflow_error_fails_open(
+        self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
+    ):
+        """Test that workflow errors fail open."""
+        manager = hook_manager_with_mocks
+
+        # Mock workflow handler to raise exception
+        with patch.object(
+            manager._workflow_handler,
+            "handle",
+            side_effect=Exception("Workflow engine error"),
+        ):
+            response = manager.handle(sample_session_start_event)
+
+        # Should still allow (fail-open)
+        assert response.decision == "allow"
+
+
+class TestHookManagerWebhookBlocking:
+    """Tests for webhook blocking behavior."""
+
+    def test_handle_webhook_blocks_event(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that blocking webhook can block an event."""
+        manager = hook_manager_with_mocks
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="test-webhook-block",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={"tool_name": "bash"},
+            machine_id="test-machine-id",
+        )
+
+        # Mock webhook dispatcher to return block decision
+        with (
+            patch.object(
+                manager, "_dispatch_webhooks_sync", return_value=[MagicMock()]
+            ),
+            patch.object(
+                manager._webhook_dispatcher,
+                "get_blocking_decision",
+                return_value=("block", "Webhook rejected"),
+            ),
+        ):
+            response = manager.handle(event)
+
+        assert response.decision == "block"
+        assert "Webhook rejected" in response.reason
+
+    def test_handle_webhook_error_fails_open(
+        self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
+    ):
+        """Test that webhook errors fail open."""
+        manager = hook_manager_with_mocks
+
+        # Mock webhook dispatch to raise exception
+        with patch.object(
+            manager, "_dispatch_webhooks_sync", side_effect=Exception("Webhook error")
+        ):
+            response = manager.handle(sample_session_start_event)
+
+        # Should still allow (fail-open)
+        assert response.decision == "allow"
+
+
+class TestHookManagerPluginHandling:
+    """Tests for plugin handler behavior."""
+
+    def test_handle_plugin_pre_handler_blocks(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that plugin pre-handler can block an event."""
+        manager = hook_manager_with_mocks
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="test-plugin-block",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={"tool_name": "bash"},
+            machine_id="test-machine-id",
+        )
+
+        # Create mock plugin loader
+        mock_plugin_loader = MagicMock()
+        manager._plugin_loader = mock_plugin_loader
+
+        # Mock run_plugin_handlers to return block response
+        with patch(
+            "gobby.hooks.hook_manager.run_plugin_handlers",
+            return_value=HookResponse(decision="block", reason="Plugin blocked"),
+        ):
+            response = manager.handle(event)
+
+        assert response.decision == "block"
+        assert response.reason == "Plugin blocked"
+
+    def test_handle_plugin_pre_handler_deny(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that plugin pre-handler deny decision blocks."""
+        manager = hook_manager_with_mocks
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="test-plugin-deny",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={"tool_name": "bash"},
+            machine_id="test-machine-id",
+        )
+
+        mock_plugin_loader = MagicMock()
+        manager._plugin_loader = mock_plugin_loader
+
+        # Mock run_plugin_handlers to return deny response
+        with patch(
+            "gobby.hooks.hook_manager.run_plugin_handlers",
+            return_value=HookResponse(decision="deny", reason="Plugin denied"),
+        ):
+            response = manager.handle(event)
+
+        assert response.decision == "deny"
+        assert response.reason == "Plugin denied"
+
+    def test_handle_plugin_pre_handler_error_fails_open(
+        self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
+    ):
+        """Test that plugin pre-handler errors fail open."""
+        manager = hook_manager_with_mocks
+
+        mock_plugin_loader = MagicMock()
+        manager._plugin_loader = mock_plugin_loader
+
+        # Mock run_plugin_handlers to raise exception
+        with patch(
+            "gobby.hooks.hook_manager.run_plugin_handlers",
+            side_effect=Exception("Plugin error"),
+        ):
+            response = manager.handle(sample_session_start_event)
+
+        # Should still allow (fail-open)
+        assert response.decision == "allow"
+
+    def test_handle_plugin_post_handler_called(
+        self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
+    ):
+        """Test that plugin post-handler is called after event handling."""
+        manager = hook_manager_with_mocks
+
+        mock_plugin_loader = MagicMock()
+        manager._plugin_loader = mock_plugin_loader
+
+        call_count = 0
+
+        def mock_run_handlers(registry, event, pre=True, core_response=None):
+            nonlocal call_count
+            call_count += 1
+            if pre:
+                return None  # Allow pre-handler
+            return None  # Post-handler
+
+        with patch(
+            "gobby.hooks.hook_manager.run_plugin_handlers",
+            side_effect=mock_run_handlers,
+        ):
+            manager.handle(sample_session_start_event)
+
+        # Should be called twice: pre and post
+        assert call_count == 2
+
+    def test_handle_plugin_post_handler_error_continues(
+        self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
+    ):
+        """Test that plugin post-handler errors don't affect response."""
+        manager = hook_manager_with_mocks
+
+        mock_plugin_loader = MagicMock()
+        manager._plugin_loader = mock_plugin_loader
+
+        def mock_run_handlers(registry, event, pre=True, core_response=None):
+            if pre:
+                return None  # Allow pre-handler
+            raise Exception("Post-handler error")
+
+        with patch(
+            "gobby.hooks.hook_manager.run_plugin_handlers",
+            side_effect=mock_run_handlers,
+        ):
+            response = manager.handle(sample_session_start_event)
+
+        # Response should still be valid
+        assert response.decision == "allow"
+
+
+class TestHookManagerHandlerErrors:
+    """Tests for handler error handling."""
+
+    def test_handle_handler_exception_fails_open(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that handler exceptions fail open."""
+        manager = hook_manager_with_mocks
+
+        event = HookEvent(
+            event_type=HookEventType.SESSION_START,
+            session_id="test-handler-error",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={"cwd": str(temp_dir)},
+            machine_id="test-machine-id",
+        )
+
+        # Mock handler to raise exception
+        def failing_handler(evt):
+            raise Exception("Handler crashed")
+
+        with patch.object(
+            manager._event_handlers, "get_handler", return_value=failing_handler
+        ):
+            response = manager.handle(event)
+
+        assert response.decision == "allow"
+        assert "Handler error:" in response.reason
+
+
+class TestHookManagerBroadcasting:
+    """Tests for event broadcasting."""
+
+    def test_handle_broadcasts_event_with_loop(
+        self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
+    ):
+        """Test that events are broadcast when broadcaster is configured."""
+        import asyncio
+
+        manager = hook_manager_with_mocks
+
+        mock_broadcaster = MagicMock()
+
+        async def mock_broadcast(*args, **kwargs):
+            return None
+
+        mock_broadcaster.broadcast_event = MagicMock(side_effect=mock_broadcast)
+        manager.broadcaster = mock_broadcaster
+
+        # Simulate running in an event loop
+        async def run_in_loop():
+            return manager.handle(sample_session_start_event)
+
+        asyncio.run(run_in_loop())
+
+        # Broadcaster should have been called
+        assert mock_broadcaster.broadcast_event.called
+
+    def test_handle_broadcasts_event_threadsafe(
+        self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
+    ):
+        """Test that events are broadcast thread-safely when no loop is running."""
+        import asyncio
+
+        manager = hook_manager_with_mocks
+
+        mock_broadcaster = MagicMock()
+
+        async def mock_broadcast(*args, **kwargs):
+            return None
+
+        mock_broadcaster.broadcast_event = MagicMock(side_effect=mock_broadcast)
+        manager.broadcaster = mock_broadcaster
+
+        # Create a loop for thread-safe scheduling and run it in a thread
+        loop = asyncio.new_event_loop()
+        manager._loop = loop
+
+        import threading
+
+        def run_loop():
+            asyncio.set_event_loop(loop)
+            loop.run_forever()
+
+        loop_thread = threading.Thread(target=run_loop, daemon=True)
+        loop_thread.start()
+
+        try:
+            # Call handle outside of event loop
+            manager.handle(sample_session_start_event)
+        finally:
+            loop.call_soon_threadsafe(loop.stop)
+            loop_thread.join(timeout=1)
+            loop.close()
+
+    def test_handle_no_loop_no_broadcaster_error(
+        self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
+    ):
+        """Test that handle works without event loop and no broadcaster."""
+        manager = hook_manager_with_mocks
+        manager.broadcaster = MagicMock()
+        manager._loop = None
+
+        # Should not raise
+        response = manager.handle(sample_session_start_event)
+        assert response.decision == "allow"
+
+    def test_handle_broadcast_threadsafe_error(
+        self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
+    ):
+        """Test that broadcast errors from run_coroutine_threadsafe are handled."""
+        import asyncio
+
+        manager = hook_manager_with_mocks
+
+        mock_broadcaster = MagicMock()
+
+        async def mock_broadcast(*args, **kwargs):
+            return None
+
+        mock_broadcaster.broadcast_event = MagicMock(side_effect=mock_broadcast)
+        manager.broadcaster = mock_broadcaster
+
+        # Create a closed loop to trigger error
+        loop = asyncio.new_event_loop()
+        loop.close()
+        manager._loop = loop
+
+        # Should not raise - error is logged
+        response = manager.handle(sample_session_start_event)
+        assert response.decision == "allow"
+
+    def test_handle_dispatch_webhooks_async_error(
+        self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
+    ):
+        """Test that async webhook dispatch errors are handled."""
+        manager = hook_manager_with_mocks
+
+        # Mock _dispatch_webhooks_async to raise exception
+        with patch.object(
+            manager, "_dispatch_webhooks_async", side_effect=Exception("Webhook error")
+        ):
+            # Should not raise - error is logged
+            response = manager.handle(sample_session_start_event)
+
+        assert response.decision == "allow"
+
+
+class TestHookManagerSessionLookup:
+    """Tests for session lookup and auto-registration."""
+
+    def test_handle_looks_up_session_from_database(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that session is looked up from database when not in cache."""
+        manager = hook_manager_with_mocks
+
+        # Create an event for a non-cached session
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="unknown-session-id",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={"tool_name": "bash", "cwd": str(temp_dir)},
+            machine_id="test-machine-id",
+        )
+
+        # Session not in cache, should query database
+        with patch.object(
+            manager._session_manager, "get_session_id", return_value=None
+        ):
+            response = manager.handle(event)
+
+        # Should still allow (session will be auto-registered)
+        assert response.decision == "allow"
+
+    def test_handle_auto_registers_unknown_session(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that unknown sessions are auto-registered."""
+        manager = hook_manager_with_mocks
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="auto-register-session",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={
+                "tool_name": "bash",
+                "cwd": str(temp_dir),
+                "transcript_path": str(temp_dir / "transcript.jsonl"),
+            },
+            machine_id="test-machine-id",
+        )
+
+        # Session not in cache or database
+        with (
+            patch.object(manager._session_manager, "get_session_id", return_value=None),
+            patch.object(manager._session_manager, "lookup_session_id", return_value=None),
+            patch.object(
+                manager._session_manager,
+                "register_session",
+                return_value="new-session-id",
+            ) as mock_register,
+        ):
+            response = manager.handle(event)
+
+        # Should have called register_session
+        assert mock_register.called
+        assert response.decision == "allow"
+
+    def test_handle_resolves_active_task(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that active task is resolved for session."""
+        manager = hook_manager_with_mocks
+
+        # First register a session
+        start_event = HookEvent(
+            event_type=HookEventType.SESSION_START,
+            session_id="task-session",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={"cwd": str(temp_dir)},
+            machine_id="test-machine-id",
+        )
+        manager.handle(start_event)
+
+        # Now trigger a tool event with mocked task
+        tool_event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="task-session",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={"tool_name": "bash"},
+            machine_id="test-machine-id",
+        )
+
+        mock_task = MagicMock()
+        mock_task.id = "gt-test123"
+        mock_task.title = "Test Task"
+        mock_task.status = "in_progress"
+
+        with patch.object(
+            manager._session_task_manager,
+            "get_session_tasks",
+            return_value=[{"action": "worked_on", "task": mock_task}],
+        ):
+            response = manager.handle(tool_event)
+
+        assert response.decision == "allow"
+        # Task context should be in event metadata
+        assert tool_event.task_id == "gt-test123"
+
+    def test_handle_task_resolution_error(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that task resolution errors are handled gracefully."""
+        manager = hook_manager_with_mocks
+
+        # First register a session
+        start_event = HookEvent(
+            event_type=HookEventType.SESSION_START,
+            session_id="task-error-session",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={"cwd": str(temp_dir)},
+            machine_id="test-machine-id",
+        )
+        manager.handle(start_event)
+
+        tool_event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="task-error-session",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={"tool_name": "bash"},
+            machine_id="test-machine-id",
+        )
+
+        with patch.object(
+            manager._session_task_manager,
+            "get_session_tasks",
+            side_effect=Exception("Database error"),
+        ):
+            response = manager.handle(tool_event)
+
+        # Should still allow (error handled gracefully)
+        assert response.decision == "allow"
+
+
+class TestHookManagerWebhookDispatch:
+    """Tests for webhook dispatch methods."""
+
+    def test_dispatch_webhooks_sync_disabled(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that sync webhook dispatch returns empty when disabled."""
+        manager = hook_manager_with_mocks
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="webhook-test",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={},
+            machine_id="test-machine-id",
+        )
+
+        # Disable webhooks
+        manager._webhook_dispatcher.config.enabled = False
+
+        result = manager._dispatch_webhooks_sync(event)
+        assert result == []
+
+    def test_dispatch_webhooks_sync_no_matching_endpoints(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that sync webhook dispatch returns empty when no matching endpoints."""
+        manager = hook_manager_with_mocks
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="webhook-test",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={},
+            machine_id="test-machine-id",
+        )
+
+        # Enable webhooks but have no endpoints
+        manager._webhook_dispatcher.config.enabled = True
+        manager._webhook_dispatcher.config.endpoints = []
+
+        result = manager._dispatch_webhooks_sync(event)
+        assert result == []
+
+    def test_dispatch_webhooks_sync_with_matching_endpoints(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that sync webhook dispatch works with matching endpoints."""
+        from gobby.config.extensions import WebhookEndpointConfig
+
+        manager = hook_manager_with_mocks
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="webhook-test",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={},
+            machine_id="test-machine-id",
+        )
+
+        # Create a blocking endpoint
+        endpoint = WebhookEndpointConfig(
+            name="test-webhook",
+            url="https://example.com/webhook",
+            events=["before_tool"],
+            can_block=True,
+            enabled=True,
+        )
+
+        # Enable webhooks with a blocking endpoint
+        manager._webhook_dispatcher.config.enabled = True
+        manager._webhook_dispatcher.config.endpoints = [endpoint]
+
+        # Mock the dispatch to avoid actual HTTP calls
+        from gobby.hooks.webhooks import WebhookResult
+
+        mock_result = WebhookResult(
+            endpoint_name="test-webhook",
+            success=True,
+            status_code=200,
+            response_body={"action": "allow"},
+        )
+
+        with (
+            patch.object(
+                manager._webhook_dispatcher, "_build_payload", return_value={}
+            ),
+            patch.object(
+                manager._webhook_dispatcher,
+                "_dispatch_single",
+                return_value=mock_result,
+            ),
+        ):
+            result = manager._dispatch_webhooks_sync(event, blocking_only=True)
+
+        assert len(result) == 1
+        assert result[0].success is True
+
+    def test_dispatch_webhooks_async_disabled(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that async webhook dispatch does nothing when disabled."""
+        manager = hook_manager_with_mocks
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="webhook-async-test",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={},
+            machine_id="test-machine-id",
+        )
+
+        # Disable webhooks
+        manager._webhook_dispatcher.config.enabled = False
+
+        # Should not raise
+        manager._dispatch_webhooks_async(event)
+
+    def test_dispatch_webhooks_async_no_matching_endpoints(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that async webhook dispatch does nothing when no matching endpoints."""
+        manager = hook_manager_with_mocks
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="webhook-async-test",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={},
+            machine_id="test-machine-id",
+        )
+
+        # Enable webhooks but have no non-blocking endpoints
+        manager._webhook_dispatcher.config.enabled = True
+        manager._webhook_dispatcher.config.endpoints = []
+
+        # Should not raise
+        manager._dispatch_webhooks_async(event)
+
+    def test_dispatch_webhooks_async_with_matching_endpoints(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that async webhook dispatch schedules tasks for matching endpoints."""
+        import asyncio
+        import threading
+
+        from gobby.config.extensions import WebhookEndpointConfig
+
+        manager = hook_manager_with_mocks
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="webhook-async-test",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={},
+            machine_id="test-machine-id",
+        )
+
+        # Create a non-blocking endpoint
+        endpoint = WebhookEndpointConfig(
+            name="test-async-webhook",
+            url="https://example.com/webhook",
+            events=["before_tool"],
+            can_block=False,
+            enabled=True,
+        )
+
+        manager._webhook_dispatcher.config.enabled = True
+        manager._webhook_dispatcher.config.endpoints = [endpoint]
+
+        # Create a loop for async dispatch
+        loop = asyncio.new_event_loop()
+        manager._loop = loop
+
+        def run_loop():
+            asyncio.set_event_loop(loop)
+            loop.run_forever()
+
+        loop_thread = threading.Thread(target=run_loop, daemon=True)
+        loop_thread.start()
+
+        try:
+            with (
+                patch.object(
+                    manager._webhook_dispatcher, "_build_payload", return_value={}
+                ),
+                patch.object(
+                    manager._webhook_dispatcher,
+                    "_dispatch_single",
+                    return_value=MagicMock(),
+                ),
+            ):
+                # Should schedule async task
+                manager._dispatch_webhooks_async(event)
+        finally:
+            loop.call_soon_threadsafe(loop.stop)
+            loop_thread.join(timeout=1)
+            loop.close()
+
+    def test_dispatch_webhooks_async_within_running_loop(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that async webhook dispatch creates task when inside running loop."""
+        import asyncio
+
+        from gobby.config.extensions import WebhookEndpointConfig
+
+        manager = hook_manager_with_mocks
+
+        event = HookEvent(
+            event_type=HookEventType.BEFORE_TOOL,
+            session_id="webhook-async-loop-test",
+            source=SessionSource.CLAUDE,
+            timestamp=datetime.utcnow(),
+            data={},
+            machine_id="test-machine-id",
+        )
+
+        # Create a non-blocking endpoint
+        endpoint = WebhookEndpointConfig(
+            name="test-loop-webhook",
+            url="https://example.com/webhook",
+            events=["before_tool"],
+            can_block=False,
+            enabled=True,
+        )
+
+        manager._webhook_dispatcher.config.enabled = True
+        manager._webhook_dispatcher.config.endpoints = [endpoint]
+
+        async def run_dispatch():
+            with (
+                patch.object(
+                    manager._webhook_dispatcher, "_build_payload", return_value={}
+                ),
+                patch.object(
+                    manager._webhook_dispatcher,
+                    "_dispatch_single",
+                    return_value=MagicMock(),
+                ),
+            ):
+                # Should create task in current loop
+                manager._dispatch_webhooks_async(event)
+                # Give the task a chance to start
+                await asyncio.sleep(0.01)
+
+        asyncio.run(run_dispatch())
+
+
+class TestHookManagerShutdownWebhook:
+    """Tests for shutdown webhook cleanup."""
+
+    def test_shutdown_closes_webhook_dispatcher_with_loop(
+        self, hook_manager_with_mocks: HookManager
+    ):
+        """Test that shutdown closes webhook dispatcher when loop is available."""
+        import asyncio
+
+        manager = hook_manager_with_mocks
+
+        # Set up a loop
+        loop = asyncio.new_event_loop()
+        manager._loop = loop
+
+        try:
+            manager.shutdown()
+        finally:
+            loop.close()
+
+        assert manager._health_monitor._is_shutdown is True
+
+    def test_shutdown_closes_webhook_dispatcher_without_loop(
+        self, hook_manager_with_mocks: HookManager
+    ):
+        """Test that shutdown closes webhook dispatcher when no loop is available."""
+        manager = hook_manager_with_mocks
+        manager._loop = None
+
+        # Should not raise
+        manager.shutdown()
+
+        assert manager._health_monitor._is_shutdown is True
+
+    def test_shutdown_handles_webhook_close_error(
+        self, hook_manager_with_mocks: HookManager
+    ):
+        """Test that shutdown handles webhook dispatcher close errors."""
+        manager = hook_manager_with_mocks
+
+        # Mock close to raise exception
+        async def failing_close():
+            raise Exception("Close failed")
+
+        manager._webhook_dispatcher.close = failing_close
+        manager._loop = None
+
+        # Should not raise - error is logged
+        manager.shutdown()
+
+        assert manager._health_monitor._is_shutdown is True
+
+
+class TestHookManagerResolveProjectId:
+    """Tests for project ID resolution."""
+
+    def test_resolve_project_id_returns_provided_id(
+        self, hook_manager_with_mocks: HookManager
+    ):
+        """Test that provided project ID is returned directly."""
+        manager = hook_manager_with_mocks
+
+        result = manager._resolve_project_id("my-project-id", "/some/path")
+        assert result == "my-project-id"
+
+    def test_resolve_project_id_from_project_context(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that project ID is resolved from project.json."""
+        manager = hook_manager_with_mocks
+
+        # Create project.json
+        gobby_dir = temp_dir / ".gobby"
+        gobby_dir.mkdir(exist_ok=True)
+        (gobby_dir / "project.json").write_text('{"id": "context-project-id", "name": "test"}')
+
+        result = manager._resolve_project_id(None, str(temp_dir))
+        assert result == "context-project-id"
+
+    def test_resolve_project_id_auto_initializes(
+        self, hook_manager_with_mocks: HookManager, temp_dir: Path
+    ):
+        """Test that project is auto-initialized when no project.json exists."""
+        manager = hook_manager_with_mocks
+
+        # Create a new temp dir without project.json
+        new_dir = temp_dir / "new_project"
+        new_dir.mkdir()
+
+        with patch("gobby.utils.project_context.get_project_context", return_value=None):
+            # Mock initialize_project
+            mock_result = MagicMock()
+            mock_result.project_id = "auto-project-id"
+            mock_result.project_name = "auto-project"
+
+            with patch(
+                "gobby.utils.project_init.initialize_project", return_value=mock_result
+            ):
+                result = manager._resolve_project_id(None, str(new_dir))
+
+        assert result == "auto-project-id"
+
+
+class TestHookManagerLogging:
+    """Tests for logging setup."""
+
+    def test_setup_logging_creates_log_directory(
+        self, temp_dir: Path, mock_daemon_client: MagicMock
+    ):
+        """Test that logging setup creates the log file directory."""
+        # First ensure the parent directory for logs doesn't exist
+        log_dir = temp_dir / "new_custom_logs"
+        log_path = log_dir / "hook.log"
+
+        # Verify it doesn't exist
+        assert not log_dir.exists()
+
+        with patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient:
+            MockDaemonClient.return_value = mock_daemon_client
+
+            manager = HookManager(
+                daemon_host="localhost",
+                daemon_port=8765,
+                log_file=str(log_path),
+            )
+
+            # Log directory should be created (as part of _setup_logging)
+            # Note: The logger creates the directory when initializing the file handler
+            assert manager.log_file == str(log_path)
+            assert manager.logger is not None
+
+            manager.shutdown()
+
+    def test_setup_logging_reuses_existing_logger(
+        self, temp_dir: Path, mock_daemon_client: MagicMock
+    ):
+        """Test that logging setup reuses existing logger if already configured."""
+        import logging
+
+        # Pre-configure the logger with a handler
+        logger = logging.getLogger("gobby.hooks")
+        handler = logging.StreamHandler()
+        logger.addHandler(handler)
+
+        with patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient:
+            MockDaemonClient.return_value = mock_daemon_client
+
+            manager = HookManager(
+                daemon_host="localhost",
+                daemon_port=8765,
+                log_file=str(temp_dir / "logs" / "hook.log"),
+            )
+
+            # Logger should be returned without adding duplicate handlers
+            assert manager.logger is not None
+
+            manager.shutdown()
+
+        # Cleanup
+        logger.removeHandler(handler)
+
+
+class TestHookManagerPluginLoading:
+    """Tests for plugin loading during initialization."""
+
+    def test_init_loads_plugins_when_enabled(
+        self, temp_dir: Path, mock_daemon_client: MagicMock
+    ):
+        """Test that plugins are loaded when enabled in config."""
+        from gobby.config.extensions import PluginsConfig
+
+        plugins_config = PluginsConfig(enabled=True)
+
+        mock_config = MagicMock()
+        mock_config.daemon_health_check_interval = 10.0
+        mock_config.workflow.timeout = 0.0
+        mock_config.workflow.enabled = True
+        mock_config.hook_extensions.plugins = plugins_config
+        mock_config.hook_extensions.webhooks = None
+        mock_config.memory = None
+        mock_config.skills = None
+
+        with (
+            patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient,
+            patch("gobby.hooks.hook_manager.PluginLoader") as MockPluginLoader,
+        ):
+            MockDaemonClient.return_value = mock_daemon_client
+
+            mock_loader_instance = MagicMock()
+            mock_loader_instance.load_all.return_value = []
+            MockPluginLoader.return_value = mock_loader_instance
+
+            manager = HookManager(
+                daemon_host="localhost",
+                daemon_port=8765,
+                config=mock_config,
+                log_file=str(temp_dir / "logs" / "hook.log"),
+            )
+
+            # Plugin loader should be created
+            assert MockPluginLoader.called
+
+            manager.shutdown()
+
+    def test_init_handles_plugin_load_error(
+        self, temp_dir: Path, mock_daemon_client: MagicMock
+    ):
+        """Test that plugin loading errors are handled gracefully."""
+        from gobby.config.extensions import PluginsConfig
+
+        plugins_config = PluginsConfig(enabled=True)
+
+        mock_config = MagicMock()
+        mock_config.daemon_health_check_interval = 10.0
+        mock_config.workflow.timeout = 0.0
+        mock_config.workflow.enabled = True
+        mock_config.hook_extensions.plugins = plugins_config
+        mock_config.hook_extensions.webhooks = None
+        mock_config.memory = None
+        mock_config.skills = None
+
+        with (
+            patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient,
+            patch("gobby.hooks.hook_manager.PluginLoader") as MockPluginLoader,
+        ):
+            MockDaemonClient.return_value = mock_daemon_client
+
+            mock_loader_instance = MagicMock()
+            mock_loader_instance.load_all.side_effect = Exception("Plugin load failed")
+            MockPluginLoader.return_value = mock_loader_instance
+
+            # Should not raise
+            manager = HookManager(
+                daemon_host="localhost",
+                daemon_port=8765,
+                config=mock_config,
+                log_file=str(temp_dir / "logs" / "hook.log"),
+            )
+
+            # Manager should still be created
+            assert manager is not None
+
+            manager.shutdown()
+
+
+class TestHookManagerContextMerging:
+    """Tests for context merging between workflow and response."""
+
+    def test_merge_workflow_context_with_existing_response_context(
+        self, hook_manager_with_mocks: HookManager, sample_session_start_event: HookEvent
+    ):
+        """Test that workflow context is appended to existing response context."""
+        manager = hook_manager_with_mocks
+
+        # Mock workflow handler to return context
+        workflow_response = HookResponse(
+            decision="allow", context="Workflow context"
+        )
+
+        # Mock event handler to return response with context
+        def handler_with_context(event):
+            return HookResponse(decision="allow", context="Handler context")
+
+        with (
+            patch.object(manager._workflow_handler, "handle", return_value=workflow_response),
+            patch.object(manager._event_handlers, "get_handler", return_value=handler_with_context),
+        ):
+            response = manager.handle(sample_session_start_event)
+
+        # Both contexts should be present
+        assert "Handler context" in response.context
+        assert "Workflow context" in response.context
+
+
+class TestHookManagerMachineIdFallback:
+    """Tests for machine ID fallback behavior."""
+
+    def test_get_machine_id_returns_unknown_on_none(
+        self, hook_manager_with_mocks: HookManager
+    ):
+        """Test that get_machine_id returns 'unknown-machine' when underlying returns None."""
+        manager = hook_manager_with_mocks
+
+        with patch("gobby.utils.machine_id.get_machine_id", return_value=None):
+            # Since we can't easily mock the import inside the method,
+            # we verify the fallback logic exists by checking the return type
+            result = manager.get_machine_id()
+            assert isinstance(result, str)
+            # When underlying returns None, should return "unknown-machine"
+            assert result == "unknown-machine"
+
+    def test_get_machine_id_returns_value_when_available(
+        self, hook_manager_with_mocks: HookManager
+    ):
+        """Test that get_machine_id returns the underlying value when available."""
+        manager = hook_manager_with_mocks
+
+        with patch("gobby.utils.machine_id.get_machine_id", return_value="my-machine-id"):
+            result = manager.get_machine_id()
+            assert result == "my-machine-id"

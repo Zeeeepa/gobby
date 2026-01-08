@@ -3,22 +3,31 @@
 import os
 import platform
 import sys
+import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from gobby.agents.spawn import (
+    MAX_ENV_PROMPT_LENGTH,
     EmbeddedPTYResult,
     EmbeddedSpawner,
     HeadlessResult,
     HeadlessSpawner,
     PowerShellSpawner,
+    PreparedSpawn,
     SpawnResult,
     TerminalSpawner,
     TerminalType,
     TmuxSpawner,
     WSLSpawner,
+    _cleanup_all_prompt_files,
+    _create_prompt_file,
+    _prompt_files_to_cleanup,
     build_cli_command,
+    prepare_terminal_spawn,
+    read_prompt_from_env,
 )
 
 # Skip PTY tests on Windows
@@ -1097,3 +1106,934 @@ class TestHeadlessSpawnerAsync:
         # Both stdout and stderr should be in output (stderr is merged)
         assert "stdout_msg" in output
         assert "stderr_msg" in output
+
+
+class TestPromptFileManagement:
+    """Tests for prompt file creation and cleanup."""
+
+    def test_create_prompt_file_basic(self):
+        """_create_prompt_file creates file with correct content."""
+        prompt = "Test prompt content"
+        session_id = "test-session-123"
+
+        path = _create_prompt_file(prompt, session_id)
+        try:
+            # Verify file was created
+            prompt_path = Path(path)
+            assert prompt_path.exists()
+            # Verify content
+            assert prompt_path.read_text(encoding="utf-8") == prompt
+            # Verify it's in the cleanup set
+            assert prompt_path in _prompt_files_to_cleanup
+        finally:
+            # Clean up
+            Path(path).unlink(missing_ok=True)
+            _prompt_files_to_cleanup.discard(Path(path))
+
+    def test_create_prompt_file_secure_permissions(self):
+        """_create_prompt_file creates file with mode 0o600."""
+        prompt = "Secret prompt"
+        session_id = "secure-session"
+
+        path = _create_prompt_file(prompt, session_id)
+        try:
+            prompt_path = Path(path)
+            # Check file permissions (only owner can read/write)
+            mode = prompt_path.stat().st_mode & 0o777
+            assert mode == 0o600
+        finally:
+            Path(path).unlink(missing_ok=True)
+            _prompt_files_to_cleanup.discard(Path(path))
+
+    def test_create_prompt_file_in_gobby_prompts_dir(self):
+        """_create_prompt_file creates file in gobby-prompts directory."""
+        prompt = "Directory test"
+        session_id = "dir-session"
+
+        path = _create_prompt_file(prompt, session_id)
+        try:
+            prompt_path = Path(path)
+            assert prompt_path.parent.name == "gobby-prompts"
+            assert prompt_path.name == f"prompt-{session_id}.txt"
+        finally:
+            Path(path).unlink(missing_ok=True)
+            _prompt_files_to_cleanup.discard(Path(path))
+
+    def test_cleanup_all_prompt_files_removes_existing(self):
+        """_cleanup_all_prompt_files removes tracked files."""
+        # Create test files manually
+        temp_dir = Path(tempfile.gettempdir()) / "gobby-prompts-test"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        test_file1 = temp_dir / "test1.txt"
+        test_file2 = temp_dir / "test2.txt"
+
+        test_file1.write_text("content1")
+        test_file2.write_text("content2")
+
+        # Add to cleanup set
+        _prompt_files_to_cleanup.add(test_file1)
+        _prompt_files_to_cleanup.add(test_file2)
+
+        # Run cleanup
+        _cleanup_all_prompt_files()
+
+        # Verify files were removed
+        assert not test_file1.exists()
+        assert not test_file2.exists()
+        # Verify set was cleared
+        assert test_file1 not in _prompt_files_to_cleanup
+        assert test_file2 not in _prompt_files_to_cleanup
+
+        # Cleanup temp dir
+        temp_dir.rmdir()
+
+    def test_cleanup_all_prompt_files_handles_missing_file(self):
+        """_cleanup_all_prompt_files handles already-deleted files."""
+        # Add a non-existent file to the cleanup set
+        fake_path = Path("/nonexistent/path/to/prompt.txt")
+        _prompt_files_to_cleanup.add(fake_path)
+
+        # Should not raise
+        _cleanup_all_prompt_files()
+
+        # Set should be cleared
+        assert fake_path not in _prompt_files_to_cleanup
+
+    def test_cleanup_all_prompt_files_handles_oserror(self):
+        """_cleanup_all_prompt_files handles OSError gracefully."""
+        temp_dir = Path(tempfile.gettempdir()) / "gobby-prompts-oserror"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        test_file = temp_dir / "test.txt"
+        test_file.write_text("content")
+
+        _prompt_files_to_cleanup.add(test_file)
+
+        # Mock unlink to raise OSError
+        with patch.object(Path, "unlink", side_effect=OSError("Permission denied")):
+            with patch.object(Path, "exists", return_value=True):
+                # Should not raise
+                _cleanup_all_prompt_files()
+
+        # Set should still be cleared
+        assert test_file not in _prompt_files_to_cleanup
+
+        # Manual cleanup
+        if test_file.exists():
+            test_file.unlink()
+        temp_dir.rmdir()
+
+
+class TestBuildCliCommandExtended:
+    """Extended tests for build_cli_command covering all branches."""
+
+    def test_claude_full_command(self):
+        """Claude CLI with all options."""
+        cmd = build_cli_command(
+            "claude",
+            prompt="Do something",
+            session_id="sess-123",
+            auto_approve=True,
+        )
+        assert cmd == [
+            "claude",
+            "--session-id",
+            "sess-123",
+            "--dangerously-skip-permissions",
+            "-p",
+            "Do something",
+        ]
+
+    def test_gemini_with_prompt(self):
+        """Gemini CLI with prompt."""
+        cmd = build_cli_command("gemini", prompt="Hello gemini")
+        assert cmd == ["gemini", "Hello gemini"]
+
+    def test_gemini_full_command(self):
+        """Gemini CLI with all applicable options."""
+        cmd = build_cli_command("gemini", prompt="Hello", auto_approve=True)
+        assert "--approval-mode" in cmd
+        assert "yolo" in cmd
+        assert "Hello" in cmd
+
+    def test_codex_full_command(self):
+        """Codex CLI with all options."""
+        cmd = build_cli_command(
+            "codex",
+            prompt="Codex prompt",
+            auto_approve=True,
+            working_directory="/projects/myapp",
+        )
+        assert "--full-auto" in cmd
+        assert "-C" in cmd
+        assert "/projects/myapp" in cmd
+        assert "Codex prompt" in cmd
+
+    def test_codex_without_working_dir(self):
+        """Codex CLI without working directory."""
+        cmd = build_cli_command("codex", auto_approve=True)
+        assert "-C" not in cmd
+
+    def test_unknown_cli(self):
+        """Unknown CLI just returns base command with prompt."""
+        cmd = build_cli_command("unknown_cli", prompt="hello")
+        assert cmd == ["unknown_cli", "hello"]
+
+    def test_no_prompt_no_flags(self):
+        """CLI with no prompt or flags returns minimal command."""
+        cmd = build_cli_command("gemini")
+        assert cmd == ["gemini"]
+
+
+class TestTerminalSpawnerMethods:
+    """Tests for TerminalSpawner methods."""
+
+    def test_get_available_terminals(self):
+        """get_available_terminals returns available terminal list."""
+        spawner = TerminalSpawner()
+
+        # Mock some spawners as available
+        with patch.object(spawner._spawners[TerminalType.TMUX], "is_available", return_value=True):
+            with patch.object(
+                spawner._spawners[TerminalType.KITTY], "is_available", return_value=True
+            ):
+                available = spawner.get_available_terminals()
+                assert TerminalType.TMUX in available
+                assert TerminalType.KITTY in available
+
+    def test_get_preferred_terminal_returns_first_available(self):
+        """get_preferred_terminal returns first available from preferences."""
+        spawner = TerminalSpawner()
+
+        with patch("gobby.agents.spawn.get_tty_config") as mock_config:
+            mock_config.return_value.get_preferences.return_value = ["ghostty", "kitty", "tmux"]
+
+            # Mock ghostty as unavailable, kitty as available
+            with patch.object(
+                spawner.SPAWNER_CLASSES["ghostty"],
+                "is_available",
+                return_value=False,
+            ):
+                with patch.object(
+                    spawner.SPAWNER_CLASSES["kitty"],
+                    "is_available",
+                    return_value=True,
+                ):
+                    # Need to patch the instance method
+                    mock_ghostty = MagicMock()
+                    mock_ghostty.is_available.return_value = False
+                    mock_kitty = MagicMock()
+                    mock_kitty.is_available.return_value = True
+                    mock_kitty.terminal_type = TerminalType.KITTY
+
+                    with patch.object(
+                        spawner.SPAWNER_CLASSES["ghostty"], "__call__", return_value=mock_ghostty
+                    ):
+                        with patch.object(
+                            spawner.SPAWNER_CLASSES["kitty"], "__call__", return_value=mock_kitty
+                        ):
+                            result = spawner.get_preferred_terminal()
+                            assert result == TerminalType.KITTY
+
+    def test_get_preferred_terminal_returns_none_if_none_available(self):
+        """get_preferred_terminal returns None if no terminals available."""
+        spawner = TerminalSpawner()
+
+        with patch("gobby.agents.spawn.get_tty_config") as mock_config:
+            mock_config.return_value.get_preferences.return_value = ["nonexistent_terminal"]
+            result = spawner.get_preferred_terminal()
+            assert result is None
+
+    def test_get_preferred_terminal_skips_unknown_terminals(self):
+        """get_preferred_terminal skips terminals not in SPAWNER_CLASSES."""
+        spawner = TerminalSpawner()
+
+        with patch("gobby.agents.spawn.get_tty_config") as mock_config:
+            # First preference is unknown, second is tmux
+            mock_config.return_value.get_preferences.return_value = ["unknown_terminal", "tmux"]
+
+            mock_tmux = MagicMock()
+            mock_tmux.is_available.return_value = True
+            mock_tmux.terminal_type = TerminalType.TMUX
+
+            with patch.object(spawner.SPAWNER_CLASSES["tmux"], "__call__", return_value=mock_tmux):
+                result = spawner.get_preferred_terminal()
+                assert result == TerminalType.TMUX
+
+    def test_spawn_auto_detect_no_terminals(self):
+        """spawn with AUTO returns error when no terminals available."""
+        spawner = TerminalSpawner()
+
+        with patch.object(spawner, "get_preferred_terminal", return_value=None):
+            result = spawner.spawn(["echo", "test"], cwd="/tmp", terminal=TerminalType.AUTO)
+            assert result.success is False
+            assert "No supported terminal found" in result.message
+
+    def test_spawn_unregistered_terminal(self):
+        """spawn returns error for unregistered terminal type."""
+        spawner = TerminalSpawner()
+
+        # Create a fake terminal type (won't actually work but tests the path)
+        # Since we can't easily create a new enum value, we test this path
+        # by removing a spawner from the dict
+        del spawner._spawners[TerminalType.TMUX]
+
+        result = spawner.spawn(["echo", "test"], cwd="/tmp", terminal=TerminalType.TMUX)
+        assert result.success is False
+        assert "No spawner registered" in result.message
+
+    def test_spawn_terminal_not_available(self):
+        """spawn returns error when terminal not available."""
+        spawner = TerminalSpawner()
+
+        with patch.object(spawner._spawners[TerminalType.TMUX], "is_available", return_value=False):
+            result = spawner.spawn(["echo", "test"], cwd="/tmp", terminal=TerminalType.TMUX)
+            assert result.success is False
+            assert "not available" in result.message
+
+    def test_spawn_string_to_enum_conversion(self):
+        """spawn converts string terminal type to enum."""
+        spawner = TerminalSpawner()
+
+        with patch.object(spawner._spawners[TerminalType.TMUX], "is_available", return_value=True):
+            with patch.object(
+                spawner._spawners[TerminalType.TMUX],
+                "spawn",
+                return_value=SpawnResult(success=True, message="OK", pid=123),
+            ):
+                result = spawner.spawn(["echo", "test"], cwd="/tmp", terminal="tmux")
+                assert result.success is True
+
+
+class TestTerminalSpawnerSpawnAgent:
+    """Tests for TerminalSpawner.spawn_agent method."""
+
+    def test_spawn_agent_basic(self):
+        """spawn_agent builds correct command and env."""
+        spawner = TerminalSpawner()
+
+        with patch.object(spawner, "spawn") as mock_spawn:
+            mock_spawn.return_value = SpawnResult(success=True, message="OK", pid=123)
+
+            result = spawner.spawn_agent(
+                cli="claude",
+                cwd="/projects/test",
+                session_id="sess-123",
+                parent_session_id="parent-456",
+                agent_run_id="run-789",
+                project_id="proj-abc",
+            )
+
+            # Verify spawn was called
+            mock_spawn.assert_called_once()
+            call_kwargs = mock_spawn.call_args[1]
+
+            # Verify command includes Claude flags
+            assert call_kwargs["command"][0] == "claude"
+            assert "--dangerously-skip-permissions" in call_kwargs["command"]
+            assert "--session-id" in call_kwargs["command"]
+
+            # Verify env was passed
+            assert "GOBBY_SESSION_ID" in call_kwargs["env"]
+            assert call_kwargs["env"]["GOBBY_SESSION_ID"] == "sess-123"
+
+    def test_spawn_agent_with_short_prompt(self):
+        """spawn_agent passes short prompt via env var."""
+        spawner = TerminalSpawner()
+
+        short_prompt = "Short task"
+        assert len(short_prompt) <= MAX_ENV_PROMPT_LENGTH
+
+        with patch.object(spawner, "spawn") as mock_spawn:
+            mock_spawn.return_value = SpawnResult(success=True, message="OK", pid=123)
+
+            spawner.spawn_agent(
+                cli="claude",
+                cwd="/tmp",
+                session_id="sess-123",
+                parent_session_id="parent-456",
+                agent_run_id="run-789",
+                project_id="proj-abc",
+                prompt=short_prompt,
+            )
+
+            call_kwargs = mock_spawn.call_args[1]
+            assert "GOBBY_PROMPT" in call_kwargs["env"]
+            assert call_kwargs["env"]["GOBBY_PROMPT"] == short_prompt
+
+    def test_spawn_agent_with_long_prompt(self):
+        """spawn_agent writes long prompt to file."""
+        spawner = TerminalSpawner()
+
+        long_prompt = "x" * (MAX_ENV_PROMPT_LENGTH + 100)
+
+        with patch.object(spawner, "spawn") as mock_spawn:
+            with patch.object(spawner, "_write_prompt_file", return_value="/tmp/prompt.txt") as mock_write:
+                mock_spawn.return_value = SpawnResult(success=True, message="OK", pid=123)
+
+                spawner.spawn_agent(
+                    cli="claude",
+                    cwd="/tmp",
+                    session_id="sess-123",
+                    parent_session_id="parent-456",
+                    agent_run_id="run-789",
+                    project_id="proj-abc",
+                    prompt=long_prompt,
+                )
+
+                # Verify prompt file was written
+                mock_write.assert_called_once_with(long_prompt, "sess-123")
+
+                call_kwargs = mock_spawn.call_args[1]
+                assert "GOBBY_PROMPT_FILE" in call_kwargs["env"]
+
+    def test_spawn_agent_with_workflow(self):
+        """spawn_agent passes workflow name in env."""
+        spawner = TerminalSpawner()
+
+        with patch.object(spawner, "spawn") as mock_spawn:
+            mock_spawn.return_value = SpawnResult(success=True, message="OK", pid=123)
+
+            spawner.spawn_agent(
+                cli="claude",
+                cwd="/tmp",
+                session_id="sess-123",
+                parent_session_id="parent-456",
+                agent_run_id="run-789",
+                project_id="proj-abc",
+                workflow_name="plan-execute",
+            )
+
+            call_kwargs = mock_spawn.call_args[1]
+            assert call_kwargs["env"]["GOBBY_WORKFLOW_NAME"] == "plan-execute"
+
+    def test_spawn_agent_codex_working_directory(self):
+        """spawn_agent passes working directory for Codex."""
+        spawner = TerminalSpawner()
+
+        with patch.object(spawner, "spawn") as mock_spawn:
+            mock_spawn.return_value = SpawnResult(success=True, message="OK", pid=123)
+
+            spawner.spawn_agent(
+                cli="codex",
+                cwd="/projects/app",
+                session_id="sess-123",
+                parent_session_id="parent-456",
+                agent_run_id="run-789",
+                project_id="proj-abc",
+            )
+
+            call_kwargs = mock_spawn.call_args[1]
+            # Codex command should have -C flag
+            assert "-C" in call_kwargs["command"]
+            assert "/projects/app" in call_kwargs["command"]
+
+    def test_spawn_agent_sets_title(self):
+        """spawn_agent sets appropriate window title."""
+        spawner = TerminalSpawner()
+
+        with patch.object(spawner, "spawn") as mock_spawn:
+            mock_spawn.return_value = SpawnResult(success=True, message="OK", pid=123)
+
+            spawner.spawn_agent(
+                cli="claude",
+                cwd="/tmp",
+                session_id="sess-123",
+                parent_session_id="parent-456",
+                agent_run_id="run-789",
+                project_id="proj-abc",
+                agent_depth=2,
+            )
+
+            call_kwargs = mock_spawn.call_args[1]
+            assert call_kwargs["title"] == "gobby-claude-d2"
+
+
+class TestPrepareTerminalSpawn:
+    """Tests for prepare_terminal_spawn function."""
+
+    def test_prepare_terminal_spawn_basic(self):
+        """prepare_terminal_spawn creates child session and returns PreparedSpawn."""
+        # Mock session manager
+        mock_session_manager = MagicMock()
+        mock_child_session = MagicMock()
+        mock_child_session.id = "child-sess-123"
+        mock_child_session.agent_depth = 1
+        mock_session_manager.create_child_session.return_value = mock_child_session
+
+        result = prepare_terminal_spawn(
+            session_manager=mock_session_manager,
+            parent_session_id="parent-456",
+            project_id="proj-abc",
+            machine_id="machine-xyz",
+        )
+
+        assert isinstance(result, PreparedSpawn)
+        assert result.session_id == "child-sess-123"
+        assert result.parent_session_id == "parent-456"
+        assert result.project_id == "proj-abc"
+        assert result.agent_depth == 1
+        assert "GOBBY_SESSION_ID" in result.env_vars
+
+    def test_prepare_terminal_spawn_with_workflow(self):
+        """prepare_terminal_spawn includes workflow in env."""
+        mock_session_manager = MagicMock()
+        mock_child_session = MagicMock()
+        mock_child_session.id = "child-sess-123"
+        mock_child_session.agent_depth = 1
+        mock_session_manager.create_child_session.return_value = mock_child_session
+
+        result = prepare_terminal_spawn(
+            session_manager=mock_session_manager,
+            parent_session_id="parent-456",
+            project_id="proj-abc",
+            machine_id="machine-xyz",
+            workflow_name="test-workflow",
+        )
+
+        assert result.workflow_name == "test-workflow"
+        assert result.env_vars["GOBBY_WORKFLOW_NAME"] == "test-workflow"
+
+    def test_prepare_terminal_spawn_short_prompt(self):
+        """prepare_terminal_spawn passes short prompt via env var."""
+        mock_session_manager = MagicMock()
+        mock_child_session = MagicMock()
+        mock_child_session.id = "child-sess-123"
+        mock_child_session.agent_depth = 1
+        mock_session_manager.create_child_session.return_value = mock_child_session
+
+        short_prompt = "Do something"
+
+        result = prepare_terminal_spawn(
+            session_manager=mock_session_manager,
+            parent_session_id="parent-456",
+            project_id="proj-abc",
+            machine_id="machine-xyz",
+            prompt=short_prompt,
+        )
+
+        assert "GOBBY_PROMPT" in result.env_vars
+        assert result.env_vars["GOBBY_PROMPT"] == short_prompt
+
+    def test_prepare_terminal_spawn_long_prompt(self):
+        """prepare_terminal_spawn writes long prompt to file."""
+        mock_session_manager = MagicMock()
+        mock_child_session = MagicMock()
+        mock_child_session.id = "child-sess-123"
+        mock_child_session.agent_depth = 1
+        mock_session_manager.create_child_session.return_value = mock_child_session
+
+        long_prompt = "x" * (MAX_ENV_PROMPT_LENGTH + 100)
+
+        with patch("gobby.agents.spawn._create_prompt_file") as mock_create:
+            mock_create.return_value = "/tmp/gobby-prompts/prompt-child-sess-123.txt"
+
+            result = prepare_terminal_spawn(
+                session_manager=mock_session_manager,
+                parent_session_id="parent-456",
+                project_id="proj-abc",
+                machine_id="machine-xyz",
+                prompt=long_prompt,
+            )
+
+            mock_create.assert_called_once_with(long_prompt, "child-sess-123")
+            assert "GOBBY_PROMPT_FILE" in result.env_vars
+
+    def test_prepare_terminal_spawn_generates_agent_run_id(self):
+        """prepare_terminal_spawn generates unique agent run ID."""
+        mock_session_manager = MagicMock()
+        mock_child_session = MagicMock()
+        mock_child_session.id = "child-sess-123"
+        mock_child_session.agent_depth = 1
+        mock_session_manager.create_child_session.return_value = mock_child_session
+
+        result = prepare_terminal_spawn(
+            session_manager=mock_session_manager,
+            parent_session_id="parent-456",
+            project_id="proj-abc",
+            machine_id="machine-xyz",
+        )
+
+        assert result.agent_run_id.startswith("run-")
+        assert len(result.agent_run_id) == 16  # "run-" + 12 hex chars
+
+
+class TestReadPromptFromEnv:
+    """Tests for read_prompt_from_env function."""
+
+    def test_read_prompt_from_env_inline(self):
+        """read_prompt_from_env reads from GOBBY_PROMPT."""
+        with patch.dict(os.environ, {"GOBBY_PROMPT": "Inline prompt"}, clear=False):
+            # Clear GOBBY_PROMPT_FILE if set
+            with patch.dict(os.environ, {"GOBBY_PROMPT_FILE": ""}, clear=False):
+                result = read_prompt_from_env()
+                assert result == "Inline prompt"
+
+    def test_read_prompt_from_env_file(self):
+        """read_prompt_from_env reads from file when GOBBY_PROMPT_FILE set."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            f.write("File prompt content")
+            temp_path = f.name
+
+        try:
+            with patch.dict(os.environ, {"GOBBY_PROMPT_FILE": temp_path}, clear=False):
+                result = read_prompt_from_env()
+                assert result == "File prompt content"
+        finally:
+            os.unlink(temp_path)
+
+    def test_read_prompt_from_env_file_not_found(self):
+        """read_prompt_from_env handles missing file gracefully."""
+        with patch.dict(
+            os.environ,
+            {"GOBBY_PROMPT_FILE": "/nonexistent/prompt.txt"},
+            clear=False,
+        ):
+            # Should fall back to GOBBY_PROMPT
+            with patch.dict(os.environ, {"GOBBY_PROMPT": "Fallback"}, clear=False):
+                result = read_prompt_from_env()
+                assert result == "Fallback"
+
+    def test_read_prompt_from_env_file_read_error(self):
+        """read_prompt_from_env handles file read errors."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            temp_path = f.name
+
+        try:
+            with patch.dict(os.environ, {"GOBBY_PROMPT_FILE": temp_path}, clear=False):
+                with patch.object(Path, "read_text", side_effect=PermissionError("denied")):
+                    with patch.dict(os.environ, {"GOBBY_PROMPT": "Fallback"}, clear=False):
+                        result = read_prompt_from_env()
+                        # Should fall back to GOBBY_PROMPT
+                        assert result == "Fallback"
+        finally:
+            os.unlink(temp_path)
+
+    def test_read_prompt_from_env_nothing_set(self):
+        """read_prompt_from_env returns None when nothing set."""
+        with patch.dict(os.environ, {}, clear=True):
+            # Need to ensure the env vars are not set
+            os.environ.pop("GOBBY_PROMPT", None)
+            os.environ.pop("GOBBY_PROMPT_FILE", None)
+            result = read_prompt_from_env()
+            assert result is None
+
+    def test_read_prompt_from_env_file_priority(self):
+        """read_prompt_from_env prioritizes file over inline."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+            f.write("From file")
+            temp_path = f.name
+
+        try:
+            with patch.dict(
+                os.environ,
+                {"GOBBY_PROMPT_FILE": temp_path, "GOBBY_PROMPT": "From inline"},
+                clear=False,
+            ):
+                result = read_prompt_from_env()
+                assert result == "From file"
+        finally:
+            os.unlink(temp_path)
+
+
+class TestPreparedSpawnDataclass:
+    """Tests for PreparedSpawn dataclass."""
+
+    def test_prepared_spawn_fields(self):
+        """PreparedSpawn has correct fields."""
+        spawn = PreparedSpawn(
+            session_id="sess-123",
+            agent_run_id="run-456",
+            parent_session_id="parent-789",
+            project_id="proj-abc",
+            workflow_name="test-workflow",
+            agent_depth=2,
+            env_vars={"KEY": "value"},
+        )
+
+        assert spawn.session_id == "sess-123"
+        assert spawn.agent_run_id == "run-456"
+        assert spawn.parent_session_id == "parent-789"
+        assert spawn.project_id == "proj-abc"
+        assert spawn.workflow_name == "test-workflow"
+        assert spawn.agent_depth == 2
+        assert spawn.env_vars == {"KEY": "value"}
+
+    def test_prepared_spawn_no_workflow(self):
+        """PreparedSpawn works with None workflow."""
+        spawn = PreparedSpawn(
+            session_id="sess-123",
+            agent_run_id="run-456",
+            parent_session_id="parent-789",
+            project_id="proj-abc",
+            workflow_name=None,
+            agent_depth=1,
+            env_vars={},
+        )
+
+        assert spawn.workflow_name is None
+
+
+class TestMaxEnvPromptLength:
+    """Tests for MAX_ENV_PROMPT_LENGTH constant."""
+
+    def test_max_env_prompt_length_value(self):
+        """MAX_ENV_PROMPT_LENGTH has expected value."""
+        assert MAX_ENV_PROMPT_LENGTH == 4096
+
+    def test_prompt_length_boundary(self):
+        """Test behavior at prompt length boundary."""
+        spawner = TerminalSpawner()
+
+        # Test prompt exactly at limit
+        exact_prompt = "x" * MAX_ENV_PROMPT_LENGTH
+
+        with patch.object(spawner, "spawn") as mock_spawn:
+            with patch.object(spawner, "_write_prompt_file") as mock_write:
+                mock_spawn.return_value = SpawnResult(success=True, message="OK", pid=123)
+
+                spawner.spawn_agent(
+                    cli="claude",
+                    cwd="/tmp",
+                    session_id="sess-123",
+                    parent_session_id="parent-456",
+                    agent_run_id="run-789",
+                    project_id="proj-abc",
+                    prompt=exact_prompt,
+                )
+
+                # At exactly MAX, should NOT write to file
+                mock_write.assert_not_called()
+
+                call_kwargs = mock_spawn.call_args[1]
+                assert "GOBBY_PROMPT" in call_kwargs["env"]
+
+    def test_prompt_length_one_over_boundary(self):
+        """Test behavior with prompt one character over limit."""
+        spawner = TerminalSpawner()
+
+        over_prompt = "x" * (MAX_ENV_PROMPT_LENGTH + 1)
+
+        with patch.object(spawner, "spawn") as mock_spawn:
+            with patch.object(spawner, "_write_prompt_file", return_value="/tmp/p.txt") as mock_write:
+                mock_spawn.return_value = SpawnResult(success=True, message="OK", pid=123)
+
+                spawner.spawn_agent(
+                    cli="claude",
+                    cwd="/tmp",
+                    session_id="sess-123",
+                    parent_session_id="parent-456",
+                    agent_run_id="run-789",
+                    project_id="proj-abc",
+                    prompt=over_prompt,
+                )
+
+                # Over MAX, should write to file
+                mock_write.assert_called_once()
+
+
+class TestTerminalSpawnerWritePromptFile:
+    """Tests for TerminalSpawner._write_prompt_file method."""
+
+    def test_write_prompt_file_delegates(self):
+        """_write_prompt_file delegates to _create_prompt_file."""
+        spawner = TerminalSpawner()
+
+        with patch("gobby.agents.spawn._create_prompt_file") as mock_create:
+            mock_create.return_value = "/tmp/prompt.txt"
+
+            result = spawner._write_prompt_file("test prompt", "sess-123")
+
+            mock_create.assert_called_once_with("test prompt", "sess-123")
+            assert result == "/tmp/prompt.txt"
+
+
+class TestCreatePromptFileExceptionHandling:
+    """Tests for exception handling in _create_prompt_file."""
+
+    def test_create_prompt_file_registers_atexit_handler(self):
+        """_create_prompt_file registers atexit handler on first call."""
+        import gobby.agents.spawn as spawn_module
+
+        # Reset the atexit registration flag
+        original_flag = spawn_module._atexit_registered
+        spawn_module._atexit_registered = False
+
+        try:
+            with patch("atexit.register") as mock_atexit:
+                prompt = "Test prompt"
+                session_id = "atexit-test-session"
+
+                path = _create_prompt_file(prompt, session_id)
+                try:
+                    # Verify atexit was registered
+                    mock_atexit.assert_called_once_with(_cleanup_all_prompt_files)
+                    # Verify flag was set
+                    assert spawn_module._atexit_registered is True
+                finally:
+                    Path(path).unlink(missing_ok=True)
+                    _prompt_files_to_cleanup.discard(Path(path))
+        finally:
+            # Restore original flag
+            spawn_module._atexit_registered = original_flag
+
+    def test_create_prompt_file_does_not_reregister_atexit(self):
+        """_create_prompt_file does not re-register atexit handler."""
+        import gobby.agents.spawn as spawn_module
+
+        # Ensure atexit is already registered
+        original_flag = spawn_module._atexit_registered
+        spawn_module._atexit_registered = True
+
+        try:
+            with patch("atexit.register") as mock_atexit:
+                prompt = "Test prompt 2"
+                session_id = "no-reregister-session"
+
+                path = _create_prompt_file(prompt, session_id)
+                try:
+                    # Verify atexit was NOT called
+                    mock_atexit.assert_not_called()
+                finally:
+                    Path(path).unlink(missing_ok=True)
+                    _prompt_files_to_cleanup.discard(Path(path))
+        finally:
+            spawn_module._atexit_registered = original_flag
+
+    def test_create_prompt_file_handles_write_exception(self):
+        """_create_prompt_file propagates write exceptions."""
+        with patch("os.open", return_value=99):
+            with patch("os.fdopen", side_effect=OSError("Write failed")):
+                with patch("os.close") as mock_close:
+                    with pytest.raises(OSError, match="Write failed"):
+                        _create_prompt_file("test", "exc-session")
+
+                    # Verify fd was closed
+                    mock_close.assert_called_once_with(99)
+
+    def test_create_prompt_file_fd_close_error_suppressed(self):
+        """_create_prompt_file suppresses fd close errors."""
+        with patch("os.open", return_value=99):
+            with patch("os.fdopen", side_effect=OSError("Write failed")):
+                with patch("os.close", side_effect=OSError("Close failed")):
+                    # Should still raise the original error, not the close error
+                    with pytest.raises(OSError, match="Write failed"):
+                        _create_prompt_file("test", "close-error-session")
+
+
+class TestTerminalSpawnerAutoDetect:
+    """Tests for terminal auto-detection."""
+
+    def test_spawn_auto_uses_preferred_terminal(self):
+        """spawn with AUTO uses get_preferred_terminal result."""
+        spawner = TerminalSpawner()
+
+        # Mock preferred terminal as TMUX
+        with patch.object(spawner, "get_preferred_terminal", return_value=TerminalType.TMUX):
+            with patch.object(
+                spawner._spawners[TerminalType.TMUX], "is_available", return_value=True
+            ):
+                with patch.object(
+                    spawner._spawners[TerminalType.TMUX],
+                    "spawn",
+                    return_value=SpawnResult(success=True, message="OK", pid=123),
+                ) as mock_spawn:
+                    result = spawner.spawn(
+                        ["echo", "test"], cwd="/tmp", terminal=TerminalType.AUTO
+                    )
+
+                    assert result.success is True
+                    mock_spawn.assert_called_once()
+
+
+class TestPrepareTerminalSpawnAllParams:
+    """Tests for prepare_terminal_spawn with all parameters."""
+
+    def test_prepare_terminal_spawn_all_params(self):
+        """prepare_terminal_spawn with all parameters."""
+        mock_session_manager = MagicMock()
+        mock_child_session = MagicMock()
+        mock_child_session.id = "child-full"
+        mock_child_session.agent_depth = 2
+        mock_session_manager.create_child_session.return_value = mock_child_session
+
+        result = prepare_terminal_spawn(
+            session_manager=mock_session_manager,
+            parent_session_id="parent-full",
+            project_id="proj-full",
+            machine_id="machine-full",
+            source="gemini",
+            agent_id="agent-full",
+            workflow_name="full-workflow",
+            title="Full Test Session",
+            git_branch="feature/full",
+            prompt="Full test prompt",
+            max_agent_depth=5,
+        )
+
+        # Verify create_child_session was called with correct config
+        call_args = mock_session_manager.create_child_session.call_args
+        config = call_args[0][0]
+
+        assert config.parent_session_id == "parent-full"
+        assert config.project_id == "proj-full"
+        assert config.machine_id == "machine-full"
+        assert config.source == "gemini"
+        assert config.agent_id == "agent-full"
+        assert config.workflow_name == "full-workflow"
+        assert config.title == "Full Test Session"
+        assert config.git_branch == "feature/full"
+
+        # Verify result
+        assert result.agent_depth == 2
+        assert result.env_vars["GOBBY_MAX_AGENT_DEPTH"] == "5"
+
+
+class TestSpawnAgentGemini:
+    """Tests for spawn_agent with Gemini CLI."""
+
+    def test_spawn_agent_gemini(self):
+        """spawn_agent with Gemini CLI."""
+        spawner = TerminalSpawner()
+
+        with patch.object(spawner, "spawn") as mock_spawn:
+            mock_spawn.return_value = SpawnResult(success=True, message="OK", pid=123)
+
+            spawner.spawn_agent(
+                cli="gemini",
+                cwd="/tmp",
+                session_id="sess-gemini",
+                parent_session_id="parent-gemini",
+                agent_run_id="run-gemini",
+                project_id="proj-gemini",
+                prompt="Hello Gemini",
+            )
+
+            call_kwargs = mock_spawn.call_args[1]
+            # Gemini command should have yolo mode
+            assert "--approval-mode" in call_kwargs["command"]
+            assert "yolo" in call_kwargs["command"]
+            assert "Hello Gemini" in call_kwargs["command"]
+
+    def test_spawn_agent_no_prompt(self):
+        """spawn_agent without prompt."""
+        spawner = TerminalSpawner()
+
+        with patch.object(spawner, "spawn") as mock_spawn:
+            mock_spawn.return_value = SpawnResult(success=True, message="OK", pid=123)
+
+            spawner.spawn_agent(
+                cli="claude",
+                cwd="/tmp",
+                session_id="sess-123",
+                parent_session_id="parent-456",
+                agent_run_id="run-789",
+                project_id="proj-abc",
+                # No prompt
+            )
+
+            call_kwargs = mock_spawn.call_args[1]
+            # No GOBBY_PROMPT or GOBBY_PROMPT_FILE
+            assert "GOBBY_PROMPT" not in call_kwargs["env"]
+            assert "GOBBY_PROMPT_FILE" not in call_kwargs["env"]

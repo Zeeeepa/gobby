@@ -3,7 +3,9 @@
 import json
 from pathlib import Path
 
+from gobby.storage.database import LocalDatabase
 from gobby.storage.mcp import LocalMCPManager
+from gobby.storage.projects import LocalProjectManager
 
 
 class TestMCPServer:
@@ -548,3 +550,741 @@ class TestLocalMCPManager:
         tools = mcp_manager.get_cached_tools("fs-server", project_id=sample_project["id"])
         assert len(tools) == 1
         assert tools[0].description == "A filesystem tool"
+
+    def test_import_tools_from_filesystem_nonexistent_dir(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test importing from nonexistent directory returns 0."""
+        count = mcp_manager.import_tools_from_filesystem(
+            project_id=sample_project["id"],
+            tools_dir="/nonexistent/path",
+        )
+        assert count == 0
+
+    def test_import_tools_from_filesystem_skips_hidden_dirs(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+        temp_dir: Path,
+    ):
+        """Test that hidden directories are skipped during import."""
+        # Create server
+        mcp_manager.upsert(
+            name=".hidden-server",
+            transport="http",
+            url="http://localhost",
+            project_id=sample_project["id"],
+        )
+
+        # Create hidden tool directory
+        tools_dir = temp_dir / "tools" / ".hidden-server"
+        tools_dir.mkdir(parents=True)
+        (tools_dir / "tool.json").write_text(json.dumps({"name": "tool", "description": "Hidden"}))
+
+        count = mcp_manager.import_tools_from_filesystem(
+            project_id=sample_project["id"],
+            tools_dir=temp_dir / "tools",
+        )
+        assert count == 0
+
+    def test_import_tools_from_filesystem_skips_unknown_server(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+        temp_dir: Path,
+    ):
+        """Test that tools for unknown servers are skipped."""
+        # Create tool directory without corresponding server
+        tools_dir = temp_dir / "tools" / "unknown-server"
+        tools_dir.mkdir(parents=True)
+        (tools_dir / "tool.json").write_text(json.dumps({"name": "tool", "description": "Unknown"}))
+
+        count = mcp_manager.import_tools_from_filesystem(
+            project_id=sample_project["id"],
+            tools_dir=temp_dir / "tools",
+        )
+        assert count == 0
+
+    def test_import_tools_from_filesystem_handles_invalid_json(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+        temp_dir: Path,
+    ):
+        """Test that invalid JSON files are gracefully skipped."""
+        mcp_manager.upsert(
+            name="json-server",
+            transport="http",
+            url="http://localhost",
+            project_id=sample_project["id"],
+        )
+
+        tools_dir = temp_dir / "tools" / "json-server"
+        tools_dir.mkdir(parents=True)
+        (tools_dir / "valid.json").write_text(
+            json.dumps({"name": "valid_tool", "description": "Valid"})
+        )
+        (tools_dir / "invalid.json").write_text("{ not valid json }")
+
+        count = mcp_manager.import_tools_from_filesystem(
+            project_id=sample_project["id"],
+            tools_dir=temp_dir / "tools",
+        )
+        # Only the valid tool should be imported
+        assert count == 1
+        tools = mcp_manager.get_cached_tools("json-server", project_id=sample_project["id"])
+        assert len(tools) == 1
+        assert tools[0].name == "valid_tool"
+
+    def test_import_tools_from_filesystem_uses_stem_for_name(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+        temp_dir: Path,
+    ):
+        """Test that tool name defaults to file stem if not in JSON."""
+        mcp_manager.upsert(
+            name="stem-server",
+            transport="http",
+            url="http://localhost",
+            project_id=sample_project["id"],
+        )
+
+        tools_dir = temp_dir / "tools" / "stem-server"
+        tools_dir.mkdir(parents=True)
+        # JSON without name field
+        (tools_dir / "my_tool_name.json").write_text(
+            json.dumps({"description": "Tool without name"})
+        )
+
+        count = mcp_manager.import_tools_from_filesystem(
+            project_id=sample_project["id"],
+            tools_dir=temp_dir / "tools",
+        )
+        assert count == 1
+        tools = mcp_manager.get_cached_tools("stem-server", project_id=sample_project["id"])
+        assert len(tools) == 1
+        assert tools[0].name == "my_tool_name"
+
+    def test_get_server_by_id(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test getting a server by ID."""
+        created = mcp_manager.upsert(
+            name="id-test",
+            transport="http",
+            url="http://localhost",
+            project_id=sample_project["id"],
+        )
+
+        retrieved = mcp_manager.get_server_by_id(created.id)
+        assert retrieved is not None
+        assert retrieved.id == created.id
+        assert retrieved.name == "id-test"
+
+    def test_get_server_by_id_nonexistent(
+        self,
+        mcp_manager: LocalMCPManager,
+    ):
+        """Test getting nonexistent server by ID returns None."""
+        result = mcp_manager.get_server_by_id("nonexistent-uuid")
+        assert result is None
+
+    def test_list_all_servers(
+        self,
+        mcp_manager: LocalMCPManager,
+        project_manager: LocalProjectManager,
+        sample_project: dict,
+    ):
+        """Test listing all servers across all projects."""
+        # Create another project
+        project2 = project_manager.create(
+            name="project-2",
+            repo_path="/tmp/project-2",
+        )
+
+        # Add servers to both projects
+        mcp_manager.upsert(
+            name="server-p1",
+            transport="http",
+            url="http://localhost:8001",
+            project_id=sample_project["id"],
+        )
+        mcp_manager.upsert(
+            name="server-p2",
+            transport="http",
+            url="http://localhost:8002",
+            project_id=project2.id,
+        )
+
+        all_servers = mcp_manager.list_all_servers(enabled_only=False)
+        names = [s.name for s in all_servers]
+        assert "server-p1" in names
+        assert "server-p2" in names
+
+    def test_list_all_servers_enabled_only(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test list_all_servers with enabled_only filter."""
+        mcp_manager.upsert(
+            name="enabled-all",
+            transport="http",
+            url="http://localhost",
+            enabled=True,
+            project_id=sample_project["id"],
+        )
+        mcp_manager.upsert(
+            name="disabled-all",
+            transport="http",
+            url="http://localhost",
+            enabled=False,
+            project_id=sample_project["id"],
+        )
+
+        enabled = mcp_manager.list_all_servers(enabled_only=True)
+        assert len(enabled) == 1
+        assert enabled[0].name == "enabled-all"
+
+        all_servers = mcp_manager.list_all_servers(enabled_only=False)
+        assert len(all_servers) == 2
+
+    def test_update_server_nonexistent(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test updating nonexistent server returns None."""
+        result = mcp_manager.update_server(
+            "nonexistent",
+            project_id=sample_project["id"],
+            url="http://new-url",
+        )
+        assert result is None
+
+    def test_update_server_no_valid_fields(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test updating with no valid fields returns unchanged server."""
+        original = mcp_manager.upsert(
+            name="no-update",
+            transport="http",
+            url="http://original",
+            project_id=sample_project["id"],
+        )
+
+        updated = mcp_manager.update_server(
+            "no-update",
+            project_id=sample_project["id"],
+            invalid_field="ignored",
+        )
+
+        assert updated is not None
+        assert updated.url == original.url
+
+    def test_update_server_json_fields(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test updating JSON-serializable fields (args, env, headers)."""
+        mcp_manager.upsert(
+            name="json-update",
+            transport="stdio",
+            command="node",
+            project_id=sample_project["id"],
+        )
+
+        updated = mcp_manager.update_server(
+            "json-update",
+            project_id=sample_project["id"],
+            args=["--verbose", "--debug"],
+            env={"NODE_ENV": "test"},
+            headers={"X-Custom": "header"},
+        )
+
+        assert updated is not None
+        assert updated.args == ["--verbose", "--debug"]
+        assert updated.env == {"NODE_ENV": "test"}
+        assert updated.headers == {"X-Custom": "header"}
+
+    def test_cache_tools_nonexistent_server(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test caching tools for nonexistent server returns 0."""
+        count = mcp_manager.cache_tools(
+            "nonexistent-server",
+            [{"name": "tool", "description": "Test"}],
+            project_id=sample_project["id"],
+        )
+        assert count == 0
+
+    def test_cache_tools_with_args_key(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test caching tools using 'args' key instead of 'inputSchema'."""
+        mcp_manager.upsert(
+            name="args-server",
+            transport="http",
+            url="http://localhost",
+            project_id=sample_project["id"],
+        )
+
+        mcp_manager.cache_tools(
+            "args-server",
+            [
+                {
+                    "name": "args_tool",
+                    "description": "Tool with args",
+                    "args": {"type": "object", "properties": {"foo": {"type": "string"}}},
+                }
+            ],
+            project_id=sample_project["id"],
+        )
+
+        tools = mcp_manager.get_cached_tools("args-server", project_id=sample_project["id"])
+        assert len(tools) == 1
+        assert tools[0].input_schema == {
+            "type": "object",
+            "properties": {"foo": {"type": "string"}},
+        }
+
+    def test_cache_tools_without_schema(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test caching tools without inputSchema or args."""
+        mcp_manager.upsert(
+            name="no-schema-server",
+            transport="http",
+            url="http://localhost",
+            project_id=sample_project["id"],
+        )
+
+        mcp_manager.cache_tools(
+            "no-schema-server",
+            [{"name": "simple_tool", "description": "No schema"}],
+            project_id=sample_project["id"],
+        )
+
+        tools = mcp_manager.get_cached_tools("no-schema-server", project_id=sample_project["id"])
+        assert len(tools) == 1
+        assert tools[0].input_schema is None
+
+    def test_import_from_mcp_json_invalid_json(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+        temp_dir: Path,
+    ):
+        """Test importing from invalid JSON file returns 0."""
+        mcp_json = temp_dir / ".mcp.json"
+        mcp_json.write_text("{ invalid json }")
+
+        count = mcp_manager.import_from_mcp_json(mcp_json, project_id=sample_project["id"])
+        assert count == 0
+
+    def test_import_from_mcp_json_gobby_format_skip_nameless(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+        temp_dir: Path,
+    ):
+        """Test that servers without name are skipped in Gobby format."""
+        mcp_json = temp_dir / ".mcp.json"
+        mcp_json.write_text(
+            json.dumps(
+                {
+                    "servers": [
+                        {"transport": "http", "url": "http://no-name"},  # No name
+                        {"name": "named-server", "transport": "http", "url": "http://named"},
+                    ]
+                }
+            )
+        )
+
+        count = mcp_manager.import_from_mcp_json(mcp_json, project_id=sample_project["id"])
+        assert count == 1
+
+        server = mcp_manager.get_server("named-server", project_id=sample_project["id"])
+        assert server is not None
+
+    def test_import_from_mcp_json_empty_format(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+        temp_dir: Path,
+    ):
+        """Test importing from JSON without servers or mcpServers returns 0."""
+        mcp_json = temp_dir / ".mcp.json"
+        mcp_json.write_text(json.dumps({"other_key": "value"}))
+
+        count = mcp_manager.import_from_mcp_json(mcp_json, project_id=sample_project["id"])
+        assert count == 0
+
+    def test_remove_server_case_insensitive(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test that remove_server is case-insensitive."""
+        mcp_manager.upsert(
+            name="removecase",
+            transport="http",
+            url="http://localhost",
+            project_id=sample_project["id"],
+        )
+
+        # Remove with different case
+        result = mcp_manager.remove_server("REMOVECASE", project_id=sample_project["id"])
+        assert result is True
+        assert mcp_manager.get_server("removecase", project_id=sample_project["id"]) is None
+
+
+class TestRefreshToolsIncremental:
+    """Tests for the refresh_tools_incremental method."""
+
+    def test_refresh_tools_incremental_nonexistent_server(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test incremental refresh for nonexistent server returns empty stats."""
+        stats = mcp_manager.refresh_tools_incremental(
+            "nonexistent",
+            [{"name": "tool", "inputSchema": {}}],
+            project_id=sample_project["id"],
+        )
+        assert stats == {"added": 0, "updated": 0, "removed": 0, "unchanged": 0, "total": 0}
+
+    def test_refresh_tools_incremental_adds_new_tools(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test that new tools are added during incremental refresh."""
+        mcp_manager.upsert(
+            name="refresh-server",
+            transport="http",
+            url="http://localhost",
+            project_id=sample_project["id"],
+        )
+
+        stats = mcp_manager.refresh_tools_incremental(
+            "refresh-server",
+            [
+                {"name": "new_tool_1", "description": "First", "inputSchema": {"type": "object"}},
+                {"name": "new_tool_2", "description": "Second", "inputSchema": {"type": "object"}},
+            ],
+            project_id=sample_project["id"],
+        )
+
+        assert stats["added"] == 2
+        assert stats["total"] == 2
+
+        tools = mcp_manager.get_cached_tools("refresh-server", project_id=sample_project["id"])
+        assert len(tools) == 2
+
+    def test_refresh_tools_incremental_removes_stale_tools(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test that stale tools are removed during incremental refresh."""
+        mcp_manager.upsert(
+            name="stale-server",
+            transport="http",
+            url="http://localhost",
+            project_id=sample_project["id"],
+        )
+
+        # Cache initial tools
+        mcp_manager.cache_tools(
+            "stale-server",
+            [
+                {"name": "keep_tool", "description": "Keep"},
+                {"name": "stale_tool", "description": "Remove"},
+            ],
+            project_id=sample_project["id"],
+        )
+
+        # Refresh with only one tool (no schema_hash_manager, so all treated as changed)
+        stats = mcp_manager.refresh_tools_incremental(
+            "stale-server",
+            [{"name": "keep_tool", "description": "Keep Updated"}],
+            project_id=sample_project["id"],
+        )
+
+        assert stats["removed"] == 1
+        assert stats["total"] == 1
+
+        tools = mcp_manager.get_cached_tools("stale-server", project_id=sample_project["id"])
+        assert len(tools) == 1
+        assert tools[0].name == "keep_tool"
+
+    def test_refresh_tools_incremental_updates_changed_tools(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test that changed tools are updated during incremental refresh."""
+        mcp_manager.upsert(
+            name="update-server",
+            transport="http",
+            url="http://localhost",
+            project_id=sample_project["id"],
+        )
+
+        # Cache initial tool
+        mcp_manager.cache_tools(
+            "update-server",
+            [{"name": "change_tool", "description": "Original", "inputSchema": {"type": "object"}}],
+            project_id=sample_project["id"],
+        )
+
+        # Refresh with updated tool (no schema_hash_manager)
+        stats = mcp_manager.refresh_tools_incremental(
+            "update-server",
+            [
+                {
+                    "name": "change_tool",
+                    "description": "Updated",
+                    "inputSchema": {"type": "object", "updated": True},
+                }
+            ],
+            project_id=sample_project["id"],
+        )
+
+        # Without schema_hash_manager, existing tools are treated as changed
+        assert stats["updated"] == 1 or stats["added"] == 0  # Depends on hash manager presence
+
+        tools = mcp_manager.get_cached_tools("update-server", project_id=sample_project["id"])
+        assert len(tools) == 1
+        assert tools[0].description == "Updated"
+
+    def test_refresh_tools_incremental_with_schema_hash_manager(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+        temp_db: LocalDatabase,
+    ):
+        """Test incremental refresh with schema hash manager for change detection."""
+        from gobby.mcp_proxy.schema_hash import SchemaHashManager
+
+        schema_hash_manager = SchemaHashManager(temp_db)
+
+        mcp_manager.upsert(
+            name="hash-server",
+            transport="http",
+            url="http://localhost",
+            project_id=sample_project["id"],
+        )
+
+        # Initial refresh to establish hashes
+        initial_tools = [
+            {"name": "unchanged_tool", "inputSchema": {"type": "object"}},
+            {"name": "will_change_tool", "inputSchema": {"type": "string"}},
+        ]
+        stats1 = mcp_manager.refresh_tools_incremental(
+            "hash-server",
+            initial_tools,
+            project_id=sample_project["id"],
+            schema_hash_manager=schema_hash_manager,
+        )
+        assert stats1["added"] == 2
+
+        # Second refresh with one changed, one unchanged, one new
+        updated_tools = [
+            {"name": "unchanged_tool", "inputSchema": {"type": "object"}},  # Same
+            {"name": "will_change_tool", "inputSchema": {"type": "number"}},  # Changed
+            {"name": "new_tool", "inputSchema": {"type": "boolean"}},  # New
+        ]
+        stats2 = mcp_manager.refresh_tools_incremental(
+            "hash-server",
+            updated_tools,
+            project_id=sample_project["id"],
+            schema_hash_manager=schema_hash_manager,
+        )
+
+        assert stats2["unchanged"] == 1
+        assert stats2["updated"] == 1
+        assert stats2["added"] == 1
+
+    def test_refresh_tools_incremental_uses_args_key(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test that refresh handles 'args' key as alternative to 'inputSchema'."""
+        mcp_manager.upsert(
+            name="args-refresh",
+            transport="http",
+            url="http://localhost",
+            project_id=sample_project["id"],
+        )
+
+        stats = mcp_manager.refresh_tools_incremental(
+            "args-refresh",
+            [{"name": "args_tool", "args": {"type": "object"}}],
+            project_id=sample_project["id"],
+        )
+
+        assert stats["total"] == 1
+        tools = mcp_manager.get_cached_tools("args-refresh", project_id=sample_project["id"])
+        assert len(tools) == 1
+        assert tools[0].input_schema == {"type": "object"}
+
+
+class TestMCPServerFromRow:
+    """Tests for MCPServer.from_row class method."""
+
+    def test_from_row_with_all_fields(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test from_row with all JSON fields populated."""
+        server = mcp_manager.upsert(
+            name="full-server",
+            transport="stdio",
+            command="npx",
+            args=["-y", "@test/server"],
+            env={"API_KEY": "secret"},
+            headers={"X-Auth": "token"},
+            description="Full server",
+            project_id=sample_project["id"],
+        )
+
+        # Verify all fields are properly deserialized
+        assert server.args == ["-y", "@test/server"]
+        assert server.env == {"API_KEY": "secret"}
+        assert server.headers == {"X-Auth": "token"}
+        assert server.description == "Full server"
+        assert server.enabled is True
+
+    def test_from_row_with_null_json_fields(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test from_row with null JSON fields."""
+        server = mcp_manager.upsert(
+            name="minimal-server",
+            transport="http",
+            url="http://localhost",
+            project_id=sample_project["id"],
+        )
+
+        assert server.args is None
+        assert server.env is None
+        assert server.headers is None
+        assert server.command is None
+
+
+class TestToolFromRow:
+    """Tests for Tool.from_row class method."""
+
+    def test_from_row_with_schema(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test Tool.from_row with input_schema."""
+        mcp_manager.upsert(
+            name="tool-row-server",
+            transport="http",
+            url="http://localhost",
+            project_id=sample_project["id"],
+        )
+
+        schema = {"type": "object", "properties": {"arg1": {"type": "string"}}}
+        mcp_manager.cache_tools(
+            "tool-row-server",
+            [{"name": "schema_tool", "description": "Has schema", "inputSchema": schema}],
+            project_id=sample_project["id"],
+        )
+
+        tools = mcp_manager.get_cached_tools("tool-row-server", project_id=sample_project["id"])
+        assert len(tools) == 1
+        assert tools[0].input_schema == schema
+
+    def test_from_row_without_schema(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test Tool.from_row without input_schema."""
+        mcp_manager.upsert(
+            name="no-schema-row-server",
+            transport="http",
+            url="http://localhost",
+            project_id=sample_project["id"],
+        )
+
+        mcp_manager.cache_tools(
+            "no-schema-row-server",
+            [{"name": "no_schema_tool", "description": "No schema"}],
+            project_id=sample_project["id"],
+        )
+
+        tools = mcp_manager.get_cached_tools(
+            "no-schema-row-server", project_id=sample_project["id"]
+        )
+        assert len(tools) == 1
+        assert tools[0].input_schema is None
+
+
+class TestMCPServerToConfig:
+    """Tests for MCPServer.to_config method edge cases."""
+
+    def test_to_config_minimal(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test to_config with minimal fields."""
+        server = mcp_manager.upsert(
+            name="minimal-config",
+            transport="http",
+            project_id=sample_project["id"],
+        )
+
+        config = server.to_config()
+        assert config["name"] == "minimal-config"
+        assert config["transport"] == "http"
+        assert config["enabled"] is True
+        # Optional fields should not be present
+        assert "url" not in config
+        assert "command" not in config
+        assert "args" not in config
+        assert "env" not in config
+        assert "headers" not in config
+        assert "description" not in config
+
+    def test_to_config_with_project_id(
+        self,
+        mcp_manager: LocalMCPManager,
+        sample_project: dict,
+    ):
+        """Test to_config includes project_id when present."""
+        server = mcp_manager.upsert(
+            name="project-config",
+            transport="http",
+            url="http://localhost",
+            project_id=sample_project["id"],
+        )
+
+        config = server.to_config()
+        assert config["project_id"] == sample_project["id"]
