@@ -204,38 +204,43 @@ This document defines the implementation order across all Gobby planning documen
 ═══════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 8: Webhooks                                                           │
+│ Sprint 8: Webhooks ✅ COMPLETED                                              │
 │ HOOK_EXTENSIONS Phase 2                                                      │
 │                                                                              │
 │ Deliverable: Config-driven HTTP callouts on hook events                     │
 │ Dependencies: Sprint 1 (broadcaster pattern)                                 │
+│ Done: WebhookDispatcher with retry logic, blocking webhooks, fire-and-forget│
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 9: Python Plugins                                                     │
+│ Sprint 9: Python Plugins ✅ COMPLETED                                        │
 │ HOOK_EXTENSIONS Phase 3                                                      │
 │                                                                              │
 │ Deliverable: Dynamic plugin loading, custom hook handlers                   │
 │ Dependencies: Sprint 1                                                       │
+│ Done: PluginLoader, HookPlugin base class, @hook_handler, action/condition  │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 10: Workflow CLI & MCP Tools                                          │
+│ Sprint 10: Workflow CLI & MCP Tools ✅ COMPLETED                             │
 │ WORKFLOWS Phases 7-8                                                         │
 │                                                                              │
 │ Deliverable: gobby workflows commands, workflow MCP tools                   │
 │ Dependencies: Sprint 7                                                       │
+│ Done: All 8 CLI commands + 8 MCP tools implemented and tested               │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 11: Workflow-Task Integration                                         │
+│ Sprint 11: Workflow-Task Integration ✅ COMPLETED                            │
 │ TASKS Phases 11-13                                                           │
 │                                                                              │
-│ Deliverable: Tasks linked to workflows, LLM expansion, agent instructions   │
+│ Deliverable: Tasks linked to workflows, LLM expansion, spec parsing         │
 │ Dependencies: Sprint 3 + Sprint 7                                            │
+│ Done: Schema updates, task-workflow bridge, LLM expansion, spec parser      │
+│ Note: Agent instructions covered by gobby-skills system                      │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -243,20 +248,22 @@ This document defines the implementation order across all Gobby planning documen
 ═══════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 12: Tool Metrics                                                      │
+│ Sprint 12: Tool Metrics ✅ COMPLETED                                         │
 │ MCP_PROXY_IMPROVEMENTS Phase 1                                               │
 │                                                                              │
 │ Deliverable: Track tool call/success rates, expose in recommendations       │
 │ Dependencies: None                                                           │
+│ Done: ToolMetricsManager, get_failing_tools, include_metrics in list_tools  │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 13: Lazy Server Init                                                  │
+│ Sprint 13: Lazy Server Init ✅ COMPLETED                                     │
 │ MCP_PROXY_IMPROVEMENTS Phase 2                                               │
 │                                                                              │
 │ Deliverable: Deferred MCP server connections, faster startup                │
 │ Dependencies: None                                                           │
+│ Done: LazyServerConnector with circuit breaker, preconnect_servers config   │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -271,11 +278,12 @@ This document defines the implementation order across all Gobby planning documen
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 15: Self-Healing & Incremental Indexing                               │
+│ Sprint 15: Self-Healing & Incremental Indexing ✅ COMPLETED                  │
 │ MCP_PROXY_IMPROVEMENTS Phases 4-5                                            │
 │                                                                              │
 │ Deliverable: Fallback suggestions on failure, hash-based schema refresh     │
 │ Dependencies: Sprint 14                                                      │
+│ Done: ToolFallbackResolver, SchemaHashManager, gobby mcp refresh CLI        │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -283,11 +291,14 @@ This document defines the implementation order across all Gobby planning documen
 ═══════════════════════════════════════════════════════════════════════════════
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ Sprint 16: Hook Extensions CLI & Workflow Integration                        │
+│ Sprint 16: Hook Extensions CLI & Workflow Integration ✅ COMPLETED           │
 │ HOOK_EXTENSIONS Phases 4-5                                                   │
 │                                                                              │
 │ Deliverable: Webhook as workflow action, plugin-defined actions/conditions  │
 │ Dependencies: Sprint 9 + Sprint 7                                            │
+│ Done: WebhookAction, WebhookExecutor, plugin actions/conditions, CLI (6/6)  │
+│ Polish: MCP tools, metrics, tests, docs tracked in gt-84d0d2                │
+│ Future: Webhook as workflow condition (gt-bbe107)                            │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -354,14 +365,14 @@ This document defines the implementation order across all Gobby planning documen
 
 | Sprint | Focus | Plan Reference | Dependencies | Status |
 |--------|-------|----------------|--------------|--------|
-| 8 | Webhooks | HOOK_EXTENSIONS Phase 2 | Sprint 1 | Pending |
-| 9 | Python Plugins | HOOK_EXTENSIONS Phase 3 | Sprint 1 | Pending |
+| 8 | Webhooks | HOOK_EXTENSIONS Phase 2 | Sprint 1 | ✅ Complete |
+| 9 | Python Plugins | HOOK_EXTENSIONS Phase 3 | Sprint 1 | ✅ Complete |
 | 10 | Workflow CLI/MCP | WORKFLOWS Phases 7-8 | Sprint 7 | ✅ Complete |
-| 11 | Workflow-Task Integration | TASKS Phases 11-13 | Sprints 3, 7 | Pending |
+| 11 | Workflow-Task Integration | TASKS Phases 11-13 | Sprints 3, 7 | ✅ Complete |
 | 12 | Tool Metrics | MCP_PROXY Phase 1 | None | ✅ Complete |
-| 13 | Lazy Init | MCP_PROXY Phase 2 | None | Pending |
-| 15 | Self-Healing MCP | MCP_PROXY Phases 4-5 | Sprint 14 | Pending |
-| 16 | Hook Workflow Integration | HOOK_EXTENSIONS Phases 4-5 | Sprints 7, 9 | Pending |
+| 13 | Lazy Init | MCP_PROXY Phase 2 | None | ✅ Complete |
+| 15 | Self-Healing MCP | MCP_PROXY Phases 4-5 | Sprint 14 | ✅ Complete |
+| 16 | Hook Workflow Integration | HOOK_EXTENSIONS Phases 4-5 | Sprints 7, 9 | ✅ Complete |
 | 18 | Testing & Recovery | WORKFLOWS Phases 9-11, AUTONOMOUS_HANDOFF tests | Sprint 17 | Pending |
 | 19 | Documentation | All Plans, AUTONOMOUS_HANDOFF docs | Sprint 18 | Pending |
 
@@ -463,26 +474,29 @@ Sprint 31 (Web Dashboard - can start after Sprint 1)
 - [x] Cross-CLI memory sharing via unified storage
 - **Value**: Agents that learn and remember like coworkers, not contractors
 
-### Milestone 4: "Extensible Gobby" (Sprints 8-9)
+### Milestone 4: "Extensible Gobby" (Sprints 8-9) 🔶 MOSTLY COMPLETE
 
-- Webhook integrations
-- Python plugin system
+- [x] Webhook integrations (WebhookDispatcher with retry, blocking/non-blocking)
+- [x] Python plugin system (PluginLoader, HookPlugin, @hook_handler decorator)
+- [x] Plugin-defined workflow actions and conditions
+- [ ] Webhook as workflow condition (conditional branching based on response) → gt-bbe107
 - **Value**: Infinite customization without forking
 
-### Milestone 5: "Smart MCP Proxy" (Sprints 12-15) 🔶 PARTIAL
+### Milestone 5: "Smart MCP Proxy" (Sprints 12-15) ✅ COMPLETE
 
 - [x] Tool metrics and recommendations (Sprint 12) ✅
-- [ ] Lazy server initialization (Sprint 13)
+- [x] Lazy server initialization (Sprint 13) ✅
 - [x] Semantic search with OpenAI embeddings (Sprint 14) ✅
-- [ ] Self-healing fallbacks (Sprint 15)
+- [x] Self-healing fallbacks (Sprint 15) ✅
 - **Value**: Intelligent tool orchestration across MCP servers
-- **Done**: `search_tools` MCP/CLI, `recommend_tools` with semantic/hybrid/llm modes, `gobby-metrics` tools
+- **Done**: `search_tools` MCP/CLI, `recommend_tools` with semantic/hybrid/llm modes, `gobby-metrics` tools, LazyServerConnector with circuit breaker, ToolFallbackResolver, SchemaHashManager, `gobby mcp refresh` CLI
 
-### Milestone 6: "Production Ready" (Sprints 16-18)
+### Milestone 6: "Production Ready" (Sprints 16-18) 🔶 PARTIAL
 
-- Full integration
-- Comprehensive testing
-- Documentation
+- [x] Sprint 16: Hook workflow integration (WebhookAction, plugin actions/conditions, CLI)
+- [ ] Sprint 16 Polish: MCP tools, metrics, tests, docs (gt-84d0d2)
+- [ ] Sprint 18: Comprehensive testing, crash recovery
+- [ ] Sprint 19: Documentation
 - **Value**: Ship it!
 
 ---
@@ -503,9 +517,9 @@ Sprint 31 (Web Dashboard - can start after Sprint 1)
 - **Value**: Production-grade QA loops with traceability
 - **Remaining**:
   - [x] Git hook integration (via `gobby install`, pre-commit/post-merge hooks)
-  - [ ] External validator agent (separate agent when `use_external_validator=true`)
-  - [ ] Agent instructions (CLAUDE.md injection templates)
-  - [ ] CLI commands: `gobby tasks reopen`, `gobby tasks dep add/remove/tree/cycles`, `gobby tasks ready/blocked`, `gobby tasks stats`
+  - [x] CLI commands: `gobby tasks reopen`, `gobby tasks dep add/remove/tree/cycles`, `gobby tasks ready/blocked`, `gobby tasks stats`
+  - [x] Agent instructions → Covered by gobby-skills system
+  - [ ] External validator agent (spawn separate agent, not just different LLM) → gt-4881c8
   - [ ] GitHub Issues sync (moved to Sprint 24)
 
 ### Milestone 8: "Worktree Orchestration" (Sprints 22-23) 🔶 MOSTLY COMPLETE

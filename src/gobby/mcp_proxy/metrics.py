@@ -289,6 +289,59 @@ class ToolMetricsManager:
             return float(row["success_count"]) / float(row["call_count"])
         return None
 
+    def get_failing_tools(
+        self,
+        project_id: str | None = None,
+        threshold: float = 0.5,
+        limit: int = 10,
+    ) -> list[dict[str, Any]]:
+        """
+        Get tools with failure rate above a threshold.
+
+        Args:
+            project_id: Filter by project ID
+            threshold: Minimum failure rate (0.0-1.0) to include a tool (default: 0.5)
+            limit: Maximum number of tools to return
+
+        Returns:
+            List of tool metrics sorted by failure rate descending
+        """
+        if project_id:
+            rows = self.db.fetchall(
+                """
+                SELECT *,
+                    CAST(failure_count AS REAL) / CAST(call_count AS REAL) as failure_rate
+                FROM tool_metrics
+                WHERE project_id = ?
+                    AND call_count > 0
+                    AND CAST(failure_count AS REAL) / CAST(call_count AS REAL) >= ?
+                ORDER BY failure_rate DESC
+                LIMIT ?
+                """,
+                (project_id, threshold, limit),
+            )
+        else:
+            rows = self.db.fetchall(
+                """
+                SELECT *,
+                    CAST(failure_count AS REAL) / CAST(call_count AS REAL) as failure_rate
+                FROM tool_metrics
+                WHERE call_count > 0
+                    AND CAST(failure_count AS REAL) / CAST(call_count AS REAL) >= ?
+                ORDER BY failure_rate DESC
+                LIMIT ?
+                """,
+                (threshold, limit),
+            )
+
+        result = []
+        for row in rows:
+            tool_dict = ToolMetrics.from_row(row).to_dict()
+            tool_dict["failure_rate"] = row["failure_rate"]
+            result.append(tool_dict)
+
+        return result
+
     def reset_metrics(
         self,
         project_id: str | None = None,

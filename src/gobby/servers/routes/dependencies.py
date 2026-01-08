@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
     from gobby.llm import LLMService
     from gobby.mcp_proxy.manager import MCPClientManager
+    from gobby.mcp_proxy.metrics import ToolMetricsManager
     from gobby.mcp_proxy.registry_manager import InternalToolRegistryManager
     from gobby.servers.http import HTTPServer
     from gobby.storage.mcp_db import MCPDatabaseManager
@@ -30,6 +31,7 @@ __all__ = [
     "get_config",
     "get_mcp_db_manager",
     "get_llm_service",
+    "get_metrics_manager",
     "resolve_project_id",
 ]
 
@@ -108,3 +110,9 @@ async def resolve_project_id(request: Request, project_id: str | None = None) ->
     if resolved is None:
         raise HTTPException(status_code=400, detail="No project ID provided or detected")
     return resolved
+
+
+async def get_metrics_manager(request: Request) -> ToolMetricsManager | None:
+    """Get the tool metrics manager for tracking tool call statistics."""
+    server = await get_server(request)
+    return server.metrics_manager

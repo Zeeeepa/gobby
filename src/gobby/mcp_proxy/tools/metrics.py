@@ -98,6 +98,41 @@ def create_metrics_registry(metrics_manager: ToolMetricsManager) -> InternalTool
             return {"success": False, "error": str(e)}
 
     @registry.tool(
+        name="get_failing_tools",
+        description="Get tools with high failure rates above a threshold.",
+    )
+    def get_failing_tools(
+        project_id: str | None = None,
+        threshold: float = 0.5,
+        limit: int = 10,
+    ) -> dict[str, Any]:
+        """
+        Get tools with failure rate above a threshold.
+
+        Args:
+            project_id: Optional project ID to filter by
+            threshold: Minimum failure rate (0.0-1.0) to include a tool (default: 0.5)
+            limit: Maximum number of tools to return (default: 10)
+
+        Returns:
+            List of failing tools sorted by failure rate descending
+        """
+        try:
+            tools = metrics_manager.get_failing_tools(
+                project_id=project_id,
+                threshold=threshold,
+                limit=limit,
+            )
+            return {
+                "success": True,
+                "tools": tools,
+                "count": len(tools),
+                "threshold": threshold,
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
         name="get_tool_success_rate",
         description="Get success rate for a specific tool.",
     )

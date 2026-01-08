@@ -16,12 +16,14 @@ from gobby.mcp_proxy.services.code_execution import CodeExecutionService
 from gobby.servers.routes.dependencies import (
     get_internal_manager,
     get_mcp_manager,
+    get_metrics_manager,
     get_server,
 )
 from gobby.utils.metrics import get_metrics_collector
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.manager import MCPClientManager
+    from gobby.mcp_proxy.metrics import ToolMetricsManager
     from gobby.mcp_proxy.registry_manager import InternalToolRegistryManager
     from gobby.servers.http import HTTPServer
 
@@ -216,13 +218,18 @@ def create_mcp_router() -> APIRouter:
     @router.get("/tools")
     async def list_all_mcp_tools(
         server_filter: str | None = None,
+        include_metrics: bool = False,
+        project_id: str | None = None,
         server: "HTTPServer" = Depends(get_server),
+        metrics_manager: "ToolMetricsManager | None" = Depends(get_metrics_manager),
     ) -> dict[str, Any]:
         """
         List tools from MCP servers.
 
         Args:
             server_filter: Optional server name to filter by
+            include_metrics: When True, include call_count, success_rate, avg_latency for each tool
+            project_id: Project ID for metrics lookup (uses current project if not specified)
 
         Returns:
             Dict of server names to tool lists
@@ -232,6 +239,11 @@ def create_mcp_router() -> APIRouter:
 
         try:
             tools_by_server: dict[str, list[dict[str, Any]]] = {}
+
+            # Resolve project_id for metrics lookup
+            resolved_project_id = None
+            if include_metrics:
+                resolved_project_id = server._resolve_project_id(project_id, cwd=None)
 
             # If specific server requested
             if server_filter:
@@ -290,6 +302,28 @@ def create_mcp_router() -> APIRouter:
                             except Exception as e:
                                 logger.warning(f"Failed to list tools from {config.name}: {e}")
                                 tools_by_server[config.name] = []
+
+            # Enrich with metrics if requested
+            if include_metrics and metrics_manager and resolved_project_id:
+                # Get all metrics for this project
+                metrics_data = metrics_manager.get_metrics(project_id=resolved_project_id)
+                metrics_by_key = {
+                    (m["server_name"], m["tool_name"]): m for m in metrics_data.get("tools", [])
+                }
+
+                for server_name, tools_list in tools_by_server.items():
+                    for tool in tools_list:
+                        tool_name = tool.get("name")
+                        key = (server_name, tool_name)
+                        if key in metrics_by_key:
+                            m = metrics_by_key[key]
+                            tool["call_count"] = m.get("call_count", 0)
+                            tool["success_rate"] = m.get("success_rate")
+                            tool["avg_latency_ms"] = m.get("avg_latency_ms")
+                        else:
+                            tool["call_count"] = 0
+                            tool["success_rate"] = None
+                            tool["avg_latency_ms"] = None
 
             response_time_ms = (time.perf_counter() - start_time) * 1000
 
