@@ -115,7 +115,7 @@ def _generate_machine_id() -> str:
     try:
         import machineid
 
-        return machineid.id()
+        return str(machineid.id())
     except ImportError:
         # Library not available, use UUID fallback
         return str(uuid.uuid4())

@@ -141,7 +141,7 @@ def mock_template_engine():
         if isinstance(template, str):
             result = template
             for key, value in context.items():
-                if isinstance(value, (str, int, float)):
+                if isinstance(value, str | int | float):
                     result = result.replace(f"${{{key}}}", str(value))
             return result
         return template
@@ -565,7 +565,7 @@ class TestChainedWebhooks:
                 result = await action_executor.execute(
                     "webhook",
                     context,
-                    url=f"https://api.example.com/step-{i+1}",
+                    url=f"https://api.example.com/step-{i + 1}",
                     method="POST",
                     payload={"step": i + 1},
                 )
@@ -664,7 +664,7 @@ class TestChainedWebhooks:
                 result = await action_executor.execute(
                     "webhook",
                     context,
-                    url=f"https://api.example.com/step-{i+1}",
+                    url=f"https://api.example.com/step-{i + 1}",
                     method="POST",
                     payload={},
                 )

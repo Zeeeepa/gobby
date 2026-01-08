@@ -235,7 +235,7 @@ class ConditionEvaluator:
 
                 def _task_tree_complete_wrapper(task_id: str | list[str] | None) -> bool:
                     # Helper wrapper to match types
-                    return task_tree_complete(self._task_manager, task_id)  # type: ignore
+                    return task_tree_complete(self._task_manager, task_id)
 
                 allowed_globals["task_tree_complete"] = _task_tree_complete_wrapper
             else:

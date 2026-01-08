@@ -190,6 +190,8 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
+    assert session_id is not None
+
     state = state_manager.get_state(session_id)
 
     if not state:
@@ -280,6 +282,8 @@ def set_workflow(
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
+    assert session_id is not None
+
     # Check for existing workflow
     existing = state_manager.get_state(session_id)
     if existing:
@@ -339,6 +343,8 @@ def clear_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
+    assert session_id is not None
+
     state = state_manager.get_state(session_id)
     if not state:
         click.echo(f"No workflow active for session: {session_id[:12]}...")
@@ -377,6 +383,8 @@ def set_step(ctx: click.Context, step_name: str, session_id: str | None, force: 
         else:
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
+
+    assert session_id is not None
 
     state = state_manager.get_state(session_id)
     if not state:
@@ -428,6 +436,8 @@ def reset_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
+    assert session_id is not None
+
     state = state_manager.get_state(session_id)
     if not state:
         click.echo(f"No workflow active for session: {session_id[:12]}...", err=True)
@@ -477,6 +487,8 @@ def disable_workflow(ctx: click.Context, session_id: str | None, reason: str | N
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
+    assert session_id is not None
+
     state = state_manager.get_state(session_id)
     if not state:
         click.echo(f"No workflow active for session: {session_id[:12]}...", err=True)
@@ -512,6 +524,8 @@ def enable_workflow(ctx: click.Context, session_id: str | None) -> None:
         else:
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
+
+    assert session_id is not None
 
     state = state_manager.get_state(session_id)
     if not state:
@@ -551,6 +565,8 @@ def mark_artifact(
         else:
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
+
+    assert session_id is not None
 
     state = state_manager.get_state(session_id)
     if not state:
@@ -667,6 +683,8 @@ def audit_workflow(
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
+    assert session_id is not None
+
     entries = audit_manager.get_entries(
         session_id=session_id,
         event_type=event_type,
@@ -769,6 +787,8 @@ def set_variable(
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
+    assert session_id is not None
+
     # Parse value type
     parsed_value: str | int | float | bool | None
     if value.lower() == "null" or value.lower() == "none":
@@ -852,6 +872,8 @@ def get_variable(
         else:
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
+
+    assert session_id is not None
 
     state = state_manager.get_state(session_id)
     variables = state.variables if state else {}

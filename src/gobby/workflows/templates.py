@@ -30,7 +30,7 @@ class TemplateEngine:
         """
         try:
             template = self.env.from_string(template_str)
-            return template.render(**context)
+            return str(template.render(**context))
         except Exception as e:
             logger.error(f"Error rendering template: {e}", exc_info=True)
             # Fallback to original string or raise?
@@ -44,7 +44,7 @@ class TemplateEngine:
         """
         try:
             template = self.env.get_template(template_name)
-            return template.render(**context)
+            return str(template.render(**context))
         except Exception as e:
             logger.error(f"Error rendering template file '{template_name}': {e}", exc_info=True)
             raise e

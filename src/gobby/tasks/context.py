@@ -122,7 +122,7 @@ class ExpansionContextGatherer:
                     web_research_data = research_result.get("web_research", [])
                     if web_research_data:
                         web_research = web_research_data
-                        logger.info(f"Captured {len(web_research)} web search results")
+                        logger.info(f"Captured {len(web_research_data)} web search results")
 
                     logger.info(
                         f"Agentic research added {len(research_result.get('relevant_files', []))} files"
