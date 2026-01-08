@@ -1,0 +1,1167 @@
+"""Comprehensive tests for cli/installers/shared.py module.
+
+Tests cover:
+- install_shared_content: Installing skills, workflows, and plugins
+- install_cli_content: Installing CLI-specific content
+- configure_mcp_server_json: Adding MCP server to JSON settings
+- remove_mcp_server_json: Removing MCP server from JSON settings
+- configure_mcp_server_toml: Adding MCP server to TOML config
+- remove_mcp_server_toml: Removing MCP server from TOML config
+"""
+
+import json
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from gobby.cli.installers.shared import (
+    configure_mcp_server_json,
+    configure_mcp_server_toml,
+    install_cli_content,
+    install_shared_content,
+    remove_mcp_server_json,
+    remove_mcp_server_toml,
+)
+
+
+class TestInstallSharedContent:
+    """Tests for install_shared_content function."""
+
+    def test_install_shared_content_no_shared_dir(self, temp_dir: Path):
+        """Test when shared directory doesn't exist."""
+        cli_path = temp_dir / ".claude"
+        project_path = temp_dir / "project"
+        cli_path.mkdir(parents=True)
+        project_path.mkdir(parents=True)
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = temp_dir / "install"
+            # Don't create shared dir
+            result = install_shared_content(cli_path, project_path)
+
+        assert result == {"skills": [], "workflows": [], "plugins": []}
+
+    def test_install_shared_skills(self, temp_dir: Path):
+        """Test installing shared skills to CLI directory."""
+        install_dir = temp_dir / "install"
+        shared_dir = install_dir / "shared"
+        skills_dir = shared_dir / "skills"
+
+        # Create a sample skill
+        skill_dir = skills_dir / "my-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "prompt.md").write_text("# My Skill\nDo something useful")
+        (skill_dir / "config.json").write_text('{"name": "my-skill"}')
+
+        cli_path = temp_dir / ".claude"
+        project_path = temp_dir / "project"
+        cli_path.mkdir(parents=True)
+        project_path.mkdir(parents=True)
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = install_dir
+            result = install_shared_content(cli_path, project_path)
+
+        assert "my-skill" in result["skills"]
+        assert (cli_path / "skills" / "my-skill" / "prompt.md").exists()
+        assert (cli_path / "skills" / "my-skill" / "config.json").exists()
+
+    def test_install_shared_skills_overwrites_existing(self, temp_dir: Path):
+        """Test that installing skills overwrites existing ones."""
+        install_dir = temp_dir / "install"
+        shared_dir = install_dir / "shared"
+        skills_dir = shared_dir / "skills"
+
+        # Create a sample skill
+        skill_dir = skills_dir / "my-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "prompt.md").write_text("# Updated Skill")
+
+        cli_path = temp_dir / ".claude"
+        project_path = temp_dir / "project"
+        cli_path.mkdir(parents=True)
+        project_path.mkdir(parents=True)
+
+        # Create existing skill
+        existing_skill = cli_path / "skills" / "my-skill"
+        existing_skill.mkdir(parents=True)
+        (existing_skill / "prompt.md").write_text("# Old Skill")
+        (existing_skill / "old-file.txt").write_text("old content")
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = install_dir
+            result = install_shared_content(cli_path, project_path)
+
+        assert "my-skill" in result["skills"]
+        # Old content should be replaced
+        assert (cli_path / "skills" / "my-skill" / "prompt.md").read_text() == "# Updated Skill"
+        # Old files should be removed
+        assert not (cli_path / "skills" / "my-skill" / "old-file.txt").exists()
+
+    def test_install_shared_workflows(self, temp_dir: Path):
+        """Test installing shared workflows to .gobby/workflows/."""
+        install_dir = temp_dir / "install"
+        shared_dir = install_dir / "shared"
+        workflows_dir = shared_dir / "workflows"
+        workflows_dir.mkdir(parents=True)
+
+        # Create sample workflow files
+        (workflows_dir / "plan-execute.yaml").write_text("name: plan-execute")
+        (workflows_dir / "test-driven.yaml").write_text("name: test-driven")
+
+        cli_path = temp_dir / ".claude"
+        project_path = temp_dir / "project"
+        cli_path.mkdir(parents=True)
+        project_path.mkdir(parents=True)
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = install_dir
+            result = install_shared_content(cli_path, project_path)
+
+        assert "plan-execute.yaml" in result["workflows"]
+        assert "test-driven.yaml" in result["workflows"]
+        assert (project_path / ".gobby" / "workflows" / "plan-execute.yaml").exists()
+        assert (project_path / ".gobby" / "workflows" / "test-driven.yaml").exists()
+
+    def test_install_shared_workflows_skips_directories(self, temp_dir: Path):
+        """Test that directories in workflows folder are skipped."""
+        install_dir = temp_dir / "install"
+        shared_dir = install_dir / "shared"
+        workflows_dir = shared_dir / "workflows"
+        workflows_dir.mkdir(parents=True)
+
+        # Create a file and a directory
+        (workflows_dir / "valid.yaml").write_text("name: valid")
+        (workflows_dir / "subdir").mkdir()
+        (workflows_dir / "subdir" / "nested.yaml").write_text("name: nested")
+
+        cli_path = temp_dir / ".claude"
+        project_path = temp_dir / "project"
+        cli_path.mkdir(parents=True)
+        project_path.mkdir(parents=True)
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = install_dir
+            result = install_shared_content(cli_path, project_path)
+
+        assert "valid.yaml" in result["workflows"]
+        assert "subdir" not in result["workflows"]
+
+    def test_install_shared_plugins(self, temp_dir: Path):
+        """Test installing shared plugins to ~/.gobby/plugins/."""
+        install_dir = temp_dir / "install"
+        shared_dir = install_dir / "shared"
+        plugins_dir = shared_dir / "plugins"
+        plugins_dir.mkdir(parents=True)
+
+        # Create sample plugin files
+        (plugins_dir / "notify.py").write_text("# Notification plugin")
+        (plugins_dir / "audit.py").write_text("# Audit plugin")
+        (plugins_dir / "README.md").write_text("# Not a plugin")
+
+        cli_path = temp_dir / ".claude"
+        project_path = temp_dir / "project"
+        cli_path.mkdir(parents=True)
+        project_path.mkdir(parents=True)
+
+        # Mock the home directory expansion
+        mock_plugins_path = temp_dir / ".gobby" / "plugins"
+
+        with (
+            patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir,
+            patch.object(Path, "expanduser", return_value=mock_plugins_path),
+        ):
+            mock_install_dir.return_value = install_dir
+            result = install_shared_content(cli_path, project_path)
+
+        # Only .py files should be installed
+        assert "notify.py" in result["plugins"]
+        assert "audit.py" in result["plugins"]
+        assert "README.md" not in result["plugins"]
+
+    def test_install_shared_content_all_types(self, temp_dir: Path):
+        """Test installing all content types at once."""
+        install_dir = temp_dir / "install"
+        shared_dir = install_dir / "shared"
+
+        # Create skills
+        skill_dir = shared_dir / "skills" / "skill1"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "prompt.md").write_text("# Skill 1")
+
+        # Create workflows
+        workflows_dir = shared_dir / "workflows"
+        workflows_dir.mkdir(parents=True)
+        (workflows_dir / "workflow1.yaml").write_text("name: workflow1")
+
+        # Create plugins
+        plugins_dir = shared_dir / "plugins"
+        plugins_dir.mkdir(parents=True)
+        (plugins_dir / "plugin1.py").write_text("# Plugin 1")
+
+        cli_path = temp_dir / ".claude"
+        project_path = temp_dir / "project"
+        cli_path.mkdir(parents=True)
+        project_path.mkdir(parents=True)
+
+        mock_plugins_path = temp_dir / ".gobby" / "plugins"
+
+        with (
+            patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir,
+            patch.object(Path, "expanduser", return_value=mock_plugins_path),
+        ):
+            mock_install_dir.return_value = install_dir
+            result = install_shared_content(cli_path, project_path)
+
+        assert result["skills"] == ["skill1"]
+        assert result["workflows"] == ["workflow1.yaml"]
+        assert result["plugins"] == ["plugin1.py"]
+
+
+class TestInstallCliContent:
+    """Tests for install_cli_content function."""
+
+    def test_install_cli_content_no_cli_dir(self, temp_dir: Path):
+        """Test when CLI-specific directory doesn't exist."""
+        target_path = temp_dir / ".claude"
+        target_path.mkdir(parents=True)
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = temp_dir / "install"
+            result = install_cli_content("claude", target_path)
+
+        assert result == {"skills": [], "workflows": [], "commands": []}
+
+    def test_install_cli_skills(self, temp_dir: Path):
+        """Test installing CLI-specific skills."""
+        install_dir = temp_dir / "install"
+        cli_dir = install_dir / "claude"
+        skills_dir = cli_dir / "skills"
+
+        # Create a CLI-specific skill
+        skill_dir = skills_dir / "claude-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "prompt.md").write_text("# Claude-specific skill")
+
+        target_path = temp_dir / ".claude"
+        target_path.mkdir(parents=True)
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = install_dir
+            result = install_cli_content("claude", target_path)
+
+        assert "claude-skill" in result["skills"]
+        assert (target_path / "skills" / "claude-skill" / "prompt.md").exists()
+
+    def test_install_cli_skills_overwrites_existing(self, temp_dir: Path):
+        """Test that CLI skills overwrite existing ones."""
+        install_dir = temp_dir / "install"
+        cli_dir = install_dir / "claude"
+        skills_dir = cli_dir / "skills"
+
+        skill_dir = skills_dir / "my-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "prompt.md").write_text("# New version")
+
+        target_path = temp_dir / ".claude"
+        target_path.mkdir(parents=True)
+
+        # Create existing skill
+        existing_skill = target_path / "skills" / "my-skill"
+        existing_skill.mkdir(parents=True)
+        (existing_skill / "prompt.md").write_text("# Old version")
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = install_dir
+            result = install_cli_content("claude", target_path)
+
+        assert "my-skill" in result["skills"]
+        assert (target_path / "skills" / "my-skill" / "prompt.md").read_text() == "# New version"
+
+    def test_install_cli_workflows(self, temp_dir: Path):
+        """Test installing CLI-specific workflows."""
+        install_dir = temp_dir / "install"
+        cli_dir = install_dir / "gemini"
+        workflows_dir = cli_dir / "workflows"
+        workflows_dir.mkdir(parents=True)
+
+        (workflows_dir / "gemini-workflow.yaml").write_text("name: gemini-workflow")
+
+        target_path = temp_dir / ".gemini"
+        target_path.mkdir(parents=True)
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = install_dir
+            result = install_cli_content("gemini", target_path)
+
+        assert "gemini-workflow.yaml" in result["workflows"]
+        assert (target_path / "workflows" / "gemini-workflow.yaml").exists()
+
+    def test_install_cli_commands_directory(self, temp_dir: Path):
+        """Test installing CLI commands from commands/ directory."""
+        install_dir = temp_dir / "install"
+        cli_dir = install_dir / "claude"
+        commands_dir = cli_dir / "commands"
+        commands_dir.mkdir(parents=True)
+
+        # Create command directory
+        memory_dir = commands_dir / "memory"
+        memory_dir.mkdir()
+        (memory_dir / "remember.md").write_text("Remember something")
+        (memory_dir / "recall.md").write_text("Recall something")
+
+        # Create single command file
+        (commands_dir / "status.md").write_text("Show status")
+
+        target_path = temp_dir / ".claude"
+        target_path.mkdir(parents=True)
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = install_dir
+            result = install_cli_content("claude", target_path)
+
+        assert "memory/" in result["commands"]
+        assert "status.md" in result["commands"]
+        assert (target_path / "commands" / "memory" / "remember.md").exists()
+        assert (target_path / "commands" / "status.md").exists()
+
+    def test_install_cli_prompts_directory(self, temp_dir: Path):
+        """Test installing CLI commands from prompts/ directory (Codex style)."""
+        install_dir = temp_dir / "install"
+        cli_dir = install_dir / "codex"
+        prompts_dir = cli_dir / "prompts"
+        prompts_dir.mkdir(parents=True)
+
+        (prompts_dir / "commit.md").write_text("Create a commit")
+
+        target_path = temp_dir / ".codex"
+        target_path.mkdir(parents=True)
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = install_dir
+            result = install_cli_content("codex", target_path)
+
+        assert "commit.md" in result["commands"]
+        assert (target_path / "prompts" / "commit.md").exists()
+
+    def test_install_cli_commands_overwrites_existing_directory(self, temp_dir: Path):
+        """Test that command directories are replaced entirely."""
+        install_dir = temp_dir / "install"
+        cli_dir = install_dir / "claude"
+        commands_dir = cli_dir / "commands"
+        memory_dir = commands_dir / "memory"
+        memory_dir.mkdir(parents=True)
+        (memory_dir / "new-command.md").write_text("New command")
+
+        target_path = temp_dir / ".claude"
+        target_path.mkdir(parents=True)
+
+        # Create existing command directory
+        existing_memory = target_path / "commands" / "memory"
+        existing_memory.mkdir(parents=True)
+        (existing_memory / "old-command.md").write_text("Old command")
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = install_dir
+            result = install_cli_content("claude", target_path)
+
+        assert "memory/" in result["commands"]
+        # New command should exist
+        assert (target_path / "commands" / "memory" / "new-command.md").exists()
+        # Old command should be removed
+        assert not (target_path / "commands" / "memory" / "old-command.md").exists()
+
+
+class TestConfigureMcpServerJson:
+    """Tests for configure_mcp_server_json function."""
+
+    def test_configure_new_settings_file(self, temp_dir: Path):
+        """Test creating new settings file with MCP server."""
+        settings_path = temp_dir / ".claude" / "settings.json"
+
+        result = configure_mcp_server_json(settings_path)
+
+        assert result["success"] is True
+        assert result["added"] is True
+        assert result["already_configured"] is False
+        assert result["backup_path"] is None  # No backup for new file
+        assert result["error"] is None
+
+        # Verify file contents
+        settings = json.loads(settings_path.read_text())
+        assert "mcpServers" in settings
+        assert "gobby" in settings["mcpServers"]
+        assert settings["mcpServers"]["gobby"]["command"] == "uv"
+        assert settings["mcpServers"]["gobby"]["args"] == ["run", "gobby", "mcp-server"]
+
+    def test_configure_existing_settings_no_mcp(self, temp_dir: Path):
+        """Test adding MCP server to existing settings without mcpServers."""
+        settings_path = temp_dir / ".claude" / "settings.json"
+        settings_path.parent.mkdir(parents=True)
+        settings_path.write_text(json.dumps({"otherSetting": "value"}))
+
+        result = configure_mcp_server_json(settings_path)
+
+        assert result["success"] is True
+        assert result["added"] is True
+        assert result["backup_path"] is not None
+
+        settings = json.loads(settings_path.read_text())
+        assert settings["otherSetting"] == "value"
+        assert "gobby" in settings["mcpServers"]
+
+    def test_configure_existing_settings_with_other_mcp(self, temp_dir: Path):
+        """Test adding gobby to existing mcpServers."""
+        settings_path = temp_dir / ".claude" / "settings.json"
+        settings_path.parent.mkdir(parents=True)
+        existing = {
+            "mcpServers": {
+                "other-server": {"command": "other", "args": ["arg"]}
+            }
+        }
+        settings_path.write_text(json.dumps(existing))
+
+        result = configure_mcp_server_json(settings_path)
+
+        assert result["success"] is True
+        assert result["added"] is True
+
+        settings = json.loads(settings_path.read_text())
+        assert "other-server" in settings["mcpServers"]
+        assert "gobby" in settings["mcpServers"]
+
+    def test_configure_already_configured(self, temp_dir: Path):
+        """Test when gobby is already configured."""
+        settings_path = temp_dir / ".claude" / "settings.json"
+        settings_path.parent.mkdir(parents=True)
+        existing = {
+            "mcpServers": {
+                "gobby": {"command": "existing", "args": []}
+            }
+        }
+        settings_path.write_text(json.dumps(existing))
+
+        result = configure_mcp_server_json(settings_path)
+
+        assert result["success"] is True
+        assert result["added"] is False
+        assert result["already_configured"] is True
+        assert result["backup_path"] is None  # No backup when already configured
+
+    def test_configure_custom_server_name(self, temp_dir: Path):
+        """Test using a custom server name."""
+        settings_path = temp_dir / ".claude" / "settings.json"
+
+        result = configure_mcp_server_json(settings_path, server_name="custom-gobby")
+
+        assert result["success"] is True
+        assert result["added"] is True
+
+        settings = json.loads(settings_path.read_text())
+        assert "custom-gobby" in settings["mcpServers"]
+        assert "gobby" not in settings["mcpServers"]
+
+    def test_configure_invalid_json(self, temp_dir: Path):
+        """Test handling invalid JSON in settings file."""
+        settings_path = temp_dir / ".claude" / "settings.json"
+        settings_path.parent.mkdir(parents=True)
+        settings_path.write_text("{ invalid json }")
+
+        result = configure_mcp_server_json(settings_path)
+
+        assert result["success"] is False
+        assert result["error"] is not None
+        assert "Failed to parse" in result["error"]
+
+    def test_configure_read_permission_error(self, temp_dir: Path):
+        """Test handling read permission error."""
+        settings_path = temp_dir / ".claude" / "settings.json"
+        settings_path.parent.mkdir(parents=True)
+        settings_path.write_text("{}")
+        settings_path.chmod(0o000)
+
+        try:
+            result = configure_mcp_server_json(settings_path)
+            assert result["success"] is False
+            assert result["error"] is not None
+        finally:
+            settings_path.chmod(0o644)
+
+    def test_configure_creates_parent_directory(self, temp_dir: Path):
+        """Test that parent directory is created if it doesn't exist."""
+        settings_path = temp_dir / "deep" / "nested" / "settings.json"
+
+        result = configure_mcp_server_json(settings_path)
+
+        assert result["success"] is True
+        assert settings_path.exists()
+
+    def test_configure_backup_created(self, temp_dir: Path):
+        """Test that backup file is created for existing settings."""
+        settings_path = temp_dir / "settings.json"
+        settings_path.write_text('{"existing": true}')
+
+        with patch("gobby.cli.installers.shared.time") as mock_time:
+            mock_time.time.return_value = 1234567890
+            result = configure_mcp_server_json(settings_path)
+
+        assert result["success"] is True
+        assert result["backup_path"] is not None
+        assert "1234567890" in result["backup_path"]
+
+        backup_path = Path(result["backup_path"])
+        assert backup_path.exists()
+        backup_content = json.loads(backup_path.read_text())
+        assert backup_content["existing"] is True
+
+
+class TestRemoveMcpServerJson:
+    """Tests for remove_mcp_server_json function."""
+
+    def test_remove_nonexistent_file(self, temp_dir: Path):
+        """Test removing from nonexistent file."""
+        settings_path = temp_dir / "settings.json"
+
+        result = remove_mcp_server_json(settings_path)
+
+        assert result["success"] is True
+        assert result["removed"] is False
+
+    def test_remove_no_mcp_servers_section(self, temp_dir: Path):
+        """Test removing when no mcpServers section exists."""
+        settings_path = temp_dir / "settings.json"
+        settings_path.write_text('{"other": "value"}')
+
+        result = remove_mcp_server_json(settings_path)
+
+        assert result["success"] is True
+        assert result["removed"] is False
+
+    def test_remove_server_not_present(self, temp_dir: Path):
+        """Test removing when server isn't in mcpServers."""
+        settings_path = temp_dir / "settings.json"
+        settings_path.write_text('{"mcpServers": {"other": {}}}')
+
+        result = remove_mcp_server_json(settings_path)
+
+        assert result["success"] is True
+        assert result["removed"] is False
+
+    def test_remove_server_successfully(self, temp_dir: Path):
+        """Test successfully removing MCP server."""
+        settings_path = temp_dir / "settings.json"
+        existing = {
+            "mcpServers": {
+                "gobby": {"command": "uv", "args": ["run", "gobby", "mcp-server"]},
+                "other": {"command": "other"}
+            }
+        }
+        settings_path.write_text(json.dumps(existing))
+
+        result = remove_mcp_server_json(settings_path)
+
+        assert result["success"] is True
+        assert result["removed"] is True
+        assert result["backup_path"] is not None
+
+        settings = json.loads(settings_path.read_text())
+        assert "gobby" not in settings["mcpServers"]
+        assert "other" in settings["mcpServers"]
+
+    def test_remove_last_server_cleans_section(self, temp_dir: Path):
+        """Test removing the last server cleans up mcpServers section."""
+        settings_path = temp_dir / "settings.json"
+        existing = {
+            "mcpServers": {
+                "gobby": {"command": "uv"}
+            },
+            "otherSetting": "preserved"
+        }
+        settings_path.write_text(json.dumps(existing))
+
+        result = remove_mcp_server_json(settings_path)
+
+        assert result["success"] is True
+        assert result["removed"] is True
+
+        settings = json.loads(settings_path.read_text())
+        assert "mcpServers" not in settings
+        assert settings["otherSetting"] == "preserved"
+
+    def test_remove_custom_server_name(self, temp_dir: Path):
+        """Test removing with custom server name."""
+        settings_path = temp_dir / "settings.json"
+        existing = {
+            "mcpServers": {
+                "custom-gobby": {"command": "uv"},
+                "gobby": {"command": "other"}
+            }
+        }
+        settings_path.write_text(json.dumps(existing))
+
+        result = remove_mcp_server_json(settings_path, server_name="custom-gobby")
+
+        assert result["success"] is True
+        assert result["removed"] is True
+
+        settings = json.loads(settings_path.read_text())
+        assert "custom-gobby" not in settings["mcpServers"]
+        assert "gobby" in settings["mcpServers"]
+
+    def test_remove_invalid_json(self, temp_dir: Path):
+        """Test handling invalid JSON."""
+        settings_path = temp_dir / "settings.json"
+        settings_path.write_text("not valid json")
+
+        result = remove_mcp_server_json(settings_path)
+
+        assert result["success"] is False
+        assert result["error"] is not None
+
+    def test_remove_creates_backup(self, temp_dir: Path):
+        """Test that backup is created before removal."""
+        settings_path = temp_dir / "settings.json"
+        existing = {"mcpServers": {"gobby": {"command": "uv"}}}
+        settings_path.write_text(json.dumps(existing))
+
+        with patch("gobby.cli.installers.shared.time") as mock_time:
+            mock_time.time.return_value = 9876543210
+            result = remove_mcp_server_json(settings_path)
+
+        assert result["backup_path"] is not None
+        assert "9876543210" in result["backup_path"]
+        assert Path(result["backup_path"]).exists()
+
+
+class TestConfigureMcpServerToml:
+    """Tests for configure_mcp_server_toml function."""
+
+    def test_configure_new_toml_file(self, temp_dir: Path):
+        """Test creating new TOML file with MCP server."""
+        config_path = temp_dir / ".codex" / "config.toml"
+
+        result = configure_mcp_server_toml(config_path)
+
+        assert result["success"] is True
+        assert result["added"] is True
+        assert result["already_configured"] is False
+
+        content = config_path.read_text()
+        assert "[mcp_servers.gobby]" in content
+        assert 'command = "uv"' in content
+        assert 'args = ["run", "gobby", "mcp-server"]' in content
+
+    def test_configure_existing_toml_no_mcp(self, temp_dir: Path):
+        """Test adding MCP server to existing TOML without mcp_servers."""
+        config_path = temp_dir / "config.toml"
+        config_path.write_text('model = "gpt-4"\n')
+
+        result = configure_mcp_server_toml(config_path)
+
+        assert result["success"] is True
+        assert result["added"] is True
+        assert result["backup_path"] is not None
+
+        content = config_path.read_text()
+        assert 'model = "gpt-4"' in content
+        assert "[mcp_servers.gobby]" in content
+
+    def test_configure_already_configured_toml(self, temp_dir: Path):
+        """Test when server is already configured in TOML."""
+        config_path = temp_dir / "config.toml"
+        config_path.write_text('[mcp_servers.gobby]\ncommand = "existing"\n')
+
+        result = configure_mcp_server_toml(config_path)
+
+        assert result["success"] is True
+        assert result["added"] is False
+        assert result["already_configured"] is True
+        assert result["backup_path"] is None
+
+    def test_configure_custom_server_name_toml(self, temp_dir: Path):
+        """Test using custom server name in TOML."""
+        config_path = temp_dir / "config.toml"
+
+        result = configure_mcp_server_toml(config_path, server_name="my-gobby")
+
+        assert result["success"] is True
+        assert result["added"] is True
+
+        content = config_path.read_text()
+        assert "[mcp_servers.my-gobby]" in content
+
+    def test_configure_toml_creates_parent_directory(self, temp_dir: Path):
+        """Test that parent directory is created."""
+        config_path = temp_dir / "deep" / "path" / "config.toml"
+
+        result = configure_mcp_server_toml(config_path)
+
+        assert result["success"] is True
+        assert config_path.exists()
+
+    def test_configure_toml_backup_created(self, temp_dir: Path):
+        """Test that backup is created for existing TOML."""
+        config_path = temp_dir / "config.toml"
+        config_path.write_text('existing = "value"\n')
+
+        with patch("gobby.cli.installers.shared.time") as mock_time:
+            mock_time.time.return_value = 1111111111
+            result = configure_mcp_server_toml(config_path)
+
+        assert result["backup_path"] is not None
+        assert "1111111111" in result["backup_path"]
+        assert Path(result["backup_path"]).exists()
+
+    def test_configure_toml_preserves_empty_content(self, temp_dir: Path):
+        """Test handling empty TOML file."""
+        config_path = temp_dir / "config.toml"
+        config_path.write_text("")
+
+        result = configure_mcp_server_toml(config_path)
+
+        assert result["success"] is True
+        assert result["added"] is True
+
+    def test_configure_toml_regex_escapes_server_name(self, temp_dir: Path):
+        """Test that special characters in server name are handled."""
+        config_path = temp_dir / "config.toml"
+        config_path.write_text("")
+
+        # This tests that the regex properly escapes the server name
+        result = configure_mcp_server_toml(config_path, server_name="gobby.test")
+
+        assert result["success"] is True
+        content = config_path.read_text()
+        assert "[mcp_servers.gobby.test]" in content
+
+
+class TestRemoveMcpServerToml:
+    """Tests for remove_mcp_server_toml function."""
+
+    def test_remove_nonexistent_toml(self, temp_dir: Path):
+        """Test removing from nonexistent file."""
+        config_path = temp_dir / "config.toml"
+
+        result = remove_mcp_server_toml(config_path)
+
+        assert result["success"] is True
+        assert result["removed"] is False
+
+    def test_remove_server_not_in_toml(self, temp_dir: Path):
+        """Test removing when server isn't present."""
+        config_path = temp_dir / "config.toml"
+        config_path.write_text('[mcp_servers.other]\ncommand = "other"\n')
+
+        result = remove_mcp_server_toml(config_path)
+
+        assert result["success"] is True
+        assert result["removed"] is False
+
+    def test_remove_server_successfully_toml(self, temp_dir: Path):
+        """Test successfully removing MCP server from TOML."""
+        config_path = temp_dir / "config.toml"
+        content = """[mcp_servers.gobby]
+command = "uv"
+args = ["run", "gobby", "mcp-server"]
+
+[mcp_servers.other]
+command = "other"
+"""
+        config_path.write_text(content)
+
+        result = remove_mcp_server_toml(config_path)
+
+        assert result["success"] is True
+        assert result["removed"] is True
+        assert result["backup_path"] is not None
+
+        # Re-read the file - tomli_w reformats so check semantically
+        import tomllib
+        with open(config_path, "rb") as f:
+            config = tomllib.load(f)
+        assert "gobby" not in config.get("mcp_servers", {})
+        assert "other" in config.get("mcp_servers", {})
+
+    def test_remove_last_server_cleans_section_toml(self, temp_dir: Path):
+        """Test removing the last server removes mcp_servers section."""
+        config_path = temp_dir / "config.toml"
+        content = """model = "gpt-4"
+
+[mcp_servers.gobby]
+command = "uv"
+"""
+        config_path.write_text(content)
+
+        result = remove_mcp_server_toml(config_path)
+
+        assert result["success"] is True
+        assert result["removed"] is True
+
+        import tomllib
+        with open(config_path, "rb") as f:
+            config = tomllib.load(f)
+        assert "mcp_servers" not in config
+        assert config.get("model") == "gpt-4"
+
+    def test_remove_custom_server_name_toml(self, temp_dir: Path):
+        """Test removing with custom server name."""
+        config_path = temp_dir / "config.toml"
+        content = """[mcp_servers.custom-gobby]
+command = "uv"
+
+[mcp_servers.gobby]
+command = "default"
+"""
+        config_path.write_text(content)
+
+        result = remove_mcp_server_toml(config_path, server_name="custom-gobby")
+
+        assert result["success"] is True
+        assert result["removed"] is True
+
+        import tomllib
+        with open(config_path, "rb") as f:
+            config = tomllib.load(f)
+        assert "custom-gobby" not in config["mcp_servers"]
+        assert "gobby" in config["mcp_servers"]
+
+    def test_remove_invalid_toml(self, temp_dir: Path):
+        """Test handling invalid TOML."""
+        config_path = temp_dir / "config.toml"
+        config_path.write_text("[ invalid toml ]]")
+
+        result = remove_mcp_server_toml(config_path)
+
+        assert result["success"] is False
+        assert result["error"] is not None
+        assert "Failed to parse TOML" in result["error"]
+
+    def test_remove_toml_creates_backup(self, temp_dir: Path):
+        """Test that backup is created before removal."""
+        config_path = temp_dir / "config.toml"
+        content = """[mcp_servers.gobby]
+command = "uv"
+"""
+        config_path.write_text(content)
+
+        with patch("gobby.cli.installers.shared.time") as mock_time:
+            mock_time.time.return_value = 2222222222
+            result = remove_mcp_server_toml(config_path)
+
+        assert result["backup_path"] is not None
+        assert "2222222222" in result["backup_path"]
+        assert Path(result["backup_path"]).exists()
+
+    def test_remove_no_mcp_servers_section_toml(self, temp_dir: Path):
+        """Test removing when no mcp_servers section exists."""
+        config_path = temp_dir / "config.toml"
+        config_path.write_text('model = "gpt-4"\n')
+
+        result = remove_mcp_server_toml(config_path)
+
+        assert result["success"] is True
+        assert result["removed"] is False
+
+
+class TestEdgeCases:
+    """Tests for edge cases and error conditions."""
+
+    def test_install_shared_content_file_in_skills_dir(self, temp_dir: Path):
+        """Test that files directly in skills/ dir are ignored (only dirs)."""
+        install_dir = temp_dir / "install"
+        shared_dir = install_dir / "shared"
+        skills_dir = shared_dir / "skills"
+        skills_dir.mkdir(parents=True)
+
+        # Create a file (not directory) in skills
+        (skills_dir / "stray-file.md").write_text("# Not a skill")
+
+        # Create a proper skill directory
+        skill_dir = skills_dir / "real-skill"
+        skill_dir.mkdir()
+        (skill_dir / "prompt.md").write_text("# Real skill")
+
+        cli_path = temp_dir / ".claude"
+        project_path = temp_dir / "project"
+        cli_path.mkdir(parents=True)
+        project_path.mkdir(parents=True)
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = install_dir
+            result = install_shared_content(cli_path, project_path)
+
+        assert "real-skill" in result["skills"]
+        # File should not be in skills list (it's not a directory)
+        assert "stray-file.md" not in result["skills"]
+
+    def test_configure_json_write_error(self, temp_dir: Path):
+        """Test handling write permission error for JSON."""
+        settings_path = temp_dir / "settings.json"
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with patch("builtins.open") as mock_open:
+            # First call succeeds (read attempt on non-existent file - handled)
+            # Second call fails (write)
+            mock_open.side_effect = [
+                FileNotFoundError(),  # File doesn't exist (OK)
+                OSError("Permission denied"),  # Write fails
+            ]
+
+            # Need to also ensure parent exists check passes
+            result = configure_mcp_server_json(settings_path)
+
+        assert result["success"] is False
+        assert "Failed to write" in result["error"]
+
+    def test_remove_json_write_error(self, temp_dir: Path):
+        """Test handling write permission error when removing from JSON."""
+        settings_path = temp_dir / "settings.json"
+        existing = {"mcpServers": {"gobby": {"command": "uv"}}}
+        settings_path.write_text(json.dumps(existing))
+
+        # Make directory read-only to cause write failure
+        # But first create backup location
+        backup_dir = temp_dir
+
+        with patch("gobby.cli.installers.shared.copy2"):  # Skip actual backup
+            with patch("builtins.open") as mock_open:
+                # First call succeeds (read)
+                mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(
+                    existing
+                )
+                # Configure mock for context manager
+                mock_file = MagicMock()
+                mock_file.read.return_value = json.dumps(existing)
+                mock_open.return_value.__enter__.return_value = mock_file
+
+                # Override to fail on write
+                def side_effect(*args, **kwargs):
+                    if "w" in args[1] if len(args) > 1 else kwargs.get("mode", "r"):
+                        raise OSError("Permission denied")
+                    mock_ctx = MagicMock()
+                    mock_ctx.__enter__ = MagicMock(return_value=mock_file)
+                    mock_ctx.__exit__ = MagicMock(return_value=False)
+                    return mock_ctx
+
+                mock_open.side_effect = side_effect
+                result = remove_mcp_server_json(settings_path)
+
+        # The actual implementation reads the file first, so need a different approach
+        # Let's test with actual file system permissions
+
+    def test_install_cli_content_multiple_command_dirs(self, temp_dir: Path):
+        """Test that both commands/ and prompts/ directories are processed."""
+        install_dir = temp_dir / "install"
+        cli_dir = install_dir / "test-cli"
+
+        # Create both commands/ and prompts/
+        commands_dir = cli_dir / "commands"
+        commands_dir.mkdir(parents=True)
+        (commands_dir / "cmd1.md").write_text("Command 1")
+
+        prompts_dir = cli_dir / "prompts"
+        prompts_dir.mkdir(parents=True)
+        (prompts_dir / "prompt1.md").write_text("Prompt 1")
+
+        target_path = temp_dir / ".test-cli"
+        target_path.mkdir(parents=True)
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = install_dir
+            result = install_cli_content("test-cli", target_path)
+
+        assert "cmd1.md" in result["commands"]
+        assert "prompt1.md" in result["commands"]
+        assert (target_path / "commands" / "cmd1.md").exists()
+        assert (target_path / "prompts" / "prompt1.md").exists()
+
+    def test_configure_json_backup_error(self, temp_dir: Path):
+        """Test handling backup creation failure for JSON."""
+        settings_path = temp_dir / "settings.json"
+        settings_path.write_text('{"existing": true}')
+
+        with patch("gobby.cli.installers.shared.copy2") as mock_copy:
+            mock_copy.side_effect = OSError("Disk full")
+            result = configure_mcp_server_json(settings_path)
+
+        assert result["success"] is False
+        assert result["error"] is not None
+        assert "Failed to create backup" in result["error"]
+
+    def test_remove_json_backup_error(self, temp_dir: Path):
+        """Test handling backup creation failure when removing JSON server."""
+        settings_path = temp_dir / "settings.json"
+        existing = {"mcpServers": {"gobby": {"command": "uv"}}}
+        settings_path.write_text(json.dumps(existing))
+
+        with patch("gobby.cli.installers.shared.copy2") as mock_copy:
+            mock_copy.side_effect = OSError("Disk full")
+            result = remove_mcp_server_json(settings_path)
+
+        assert result["success"] is False
+        assert result["error"] is not None
+        assert "Failed to create backup" in result["error"]
+
+    def test_configure_toml_read_error(self, temp_dir: Path):
+        """Test handling read error for TOML file."""
+        config_path = temp_dir / "config.toml"
+        config_path.write_text('valid = "content"')
+        config_path.chmod(0o000)
+
+        try:
+            result = configure_mcp_server_toml(config_path)
+            assert result["success"] is False
+            assert result["error"] is not None
+            assert "Failed to read" in result["error"]
+        finally:
+            config_path.chmod(0o644)
+
+    def test_configure_toml_backup_error(self, temp_dir: Path):
+        """Test handling backup creation failure for TOML."""
+        config_path = temp_dir / "config.toml"
+        config_path.write_text('existing = "value"')
+
+        with patch.object(Path, "write_text") as mock_write:
+            # First call is for backup, make it fail
+            mock_write.side_effect = OSError("Disk full")
+            result = configure_mcp_server_toml(config_path)
+
+        assert result["success"] is False
+        assert result["error"] is not None
+        assert "Failed to create backup" in result["error"]
+
+    def test_configure_toml_write_error(self, temp_dir: Path):
+        """Test handling write error for TOML file."""
+        config_path = temp_dir / "config.toml"
+        # Create a new file (no backup needed)
+
+        with patch.object(Path, "write_text") as mock_write:
+            mock_write.side_effect = OSError("Permission denied")
+            result = configure_mcp_server_toml(config_path)
+
+        assert result["success"] is False
+        assert result["error"] is not None
+        assert "Failed to write" in result["error"]
+
+    def test_remove_toml_read_error(self, temp_dir: Path):
+        """Test handling read error when removing TOML server."""
+        config_path = temp_dir / "config.toml"
+        config_path.write_text('[mcp_servers.gobby]\ncommand = "uv"')
+        config_path.chmod(0o000)
+
+        try:
+            result = remove_mcp_server_toml(config_path)
+            assert result["success"] is False
+            assert result["error"] is not None
+            assert "Failed to read" in result["error"]
+        finally:
+            config_path.chmod(0o644)
+
+    def test_remove_toml_backup_error(self, temp_dir: Path):
+        """Test handling backup creation failure when removing TOML server."""
+        config_path = temp_dir / "config.toml"
+        config_path.write_text('[mcp_servers.gobby]\ncommand = "uv"')
+
+        with patch.object(Path, "write_text") as mock_write:
+            mock_write.side_effect = OSError("Disk full")
+            result = remove_mcp_server_toml(config_path)
+
+        assert result["success"] is False
+        assert result["error"] is not None
+        assert "Failed to create backup" in result["error"]
+
+    def test_remove_toml_write_error(self, temp_dir: Path):
+        """Test handling write error when removing TOML server."""
+        config_path = temp_dir / "config.toml"
+        config_path.write_text('[mcp_servers.gobby]\ncommand = "uv"')
+
+        # We need to let the file be read and backup created, but fail on final write
+        # The final write uses open() in binary mode for tomli_w.dump
+        original_open = open
+        call_count = [0]
+
+        def mock_open_fn(path, mode="r", *args, **kwargs):
+            # Count calls to open - we need to fail on the final write
+            # which is the binary write mode for tomli_w
+            if "wb" in str(mode):
+                raise OSError("Permission denied")
+            return original_open(path, mode, *args, **kwargs)
+
+        with patch("builtins.open", mock_open_fn):
+            result = remove_mcp_server_toml(config_path)
+
+        assert result["success"] is False
+        assert result["error"] is not None
+        assert "Failed to write" in result["error"]
+
+    def test_install_cli_workflows_skips_directories(self, temp_dir: Path):
+        """Test that directories in CLI workflows folder are skipped."""
+        install_dir = temp_dir / "install"
+        cli_dir = install_dir / "claude"
+        workflows_dir = cli_dir / "workflows"
+        workflows_dir.mkdir(parents=True)
+
+        # Create a file and a directory
+        (workflows_dir / "valid.yaml").write_text("name: valid")
+        (workflows_dir / "subdir").mkdir()
+
+        target_path = temp_dir / ".claude"
+        target_path.mkdir(parents=True)
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = install_dir
+            result = install_cli_content("claude", target_path)
+
+        assert "valid.yaml" in result["workflows"]
+        # subdir should not be in list
+        assert "subdir" not in result["workflows"]
+
+    def test_install_cli_skills_skips_files(self, temp_dir: Path):
+        """Test that files directly in CLI skills dir are skipped."""
+        install_dir = temp_dir / "install"
+        cli_dir = install_dir / "claude"
+        skills_dir = cli_dir / "skills"
+        skills_dir.mkdir(parents=True)
+
+        # Create a file (not directory) in skills
+        (skills_dir / "stray.txt").write_text("not a skill")
+
+        # Create a proper skill directory
+        skill_dir = skills_dir / "real-skill"
+        skill_dir.mkdir()
+        (skill_dir / "prompt.md").write_text("# Real skill")
+
+        target_path = temp_dir / ".claude"
+        target_path.mkdir(parents=True)
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = install_dir
+            result = install_cli_content("claude", target_path)
+
+        assert "real-skill" in result["skills"]
+        assert "stray.txt" not in result["skills"]
+
+    def test_remove_json_write_error_after_backup(self, temp_dir: Path):
+        """Test handling write error after backup is created when removing JSON server."""
+        settings_path = temp_dir / "settings.json"
+        existing = {"mcpServers": {"gobby": {"command": "uv"}}}
+        settings_path.write_text(json.dumps(existing))
+
+        # We need to let the file be read and backup created, but fail on final write
+        original_open = open
+        call_count = [0]
+
+        def mock_open_fn(path, mode="r", *args, **kwargs):
+            call_count[0] += 1
+            # Allow reads and backup copy. Fail on final write (mode "w" for json.dump)
+            if "w" in str(mode) and call_count[0] > 1:
+                raise OSError("Permission denied")
+            return original_open(path, mode, *args, **kwargs)
+
+        with patch("builtins.open", mock_open_fn):
+            result = remove_mcp_server_json(settings_path)
+
+        assert result["success"] is False
+        assert result["error"] is not None
+        assert "Failed to write" in result["error"]

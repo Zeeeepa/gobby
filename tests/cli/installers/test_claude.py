@@ -1,0 +1,1268 @@
+"""Tests for the Claude Code installer module.
+
+This module tests install_claude() and uninstall_claude() functions
+which handle installing and uninstalling Gobby hooks for Claude Code CLI.
+"""
+
+import json
+import os
+import tempfile
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+
+class TestInstallClaude:
+    """Tests for the install_claude function."""
+
+    @pytest.fixture
+    def temp_project(self, temp_dir: Path) -> Path:
+        """Create a temporary project directory."""
+        project = temp_dir / "test-project"
+        project.mkdir()
+        return project
+
+    @pytest.fixture
+    def mock_install_dir(self, temp_dir: Path) -> Path:
+        """Create a mock install directory with required files."""
+        install_dir = temp_dir / "install"
+        claude_dir = install_dir / "claude"
+        hooks_dir = claude_dir / "hooks"
+        hooks_dir.mkdir(parents=True)
+
+        # Create mock hook files
+        (hooks_dir / "hook_dispatcher.py").write_text("# mock hook dispatcher")
+        (hooks_dir / "validate_settings.py").write_text("# mock validate settings")
+
+        # Create hooks-template.json
+        hooks_template = {
+            "hooks": {
+                "SessionStart": [{"hooks": [{"type": "command", "command": "test"}]}],
+                "PreToolUse": [
+                    {"matcher": "*", "hooks": [{"type": "command", "command": "test"}]}
+                ],
+            }
+        }
+        (claude_dir / "hooks-template.json").write_text(json.dumps(hooks_template))
+
+        return install_dir
+
+    @pytest.fixture
+    def mock_home_dir(self, temp_dir: Path) -> Path:
+        """Create a mock home directory."""
+        home = temp_dir / "home"
+        home.mkdir()
+        return home
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_shared_content")
+    @patch("gobby.cli.installers.claude.install_cli_content")
+    @patch("gobby.cli.installers.claude.configure_mcp_server_json")
+    def test_install_claude_success(
+        self,
+        mock_mcp_config: MagicMock,
+        mock_cli_content: MagicMock,
+        mock_shared_content: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+        mock_home_dir: Path,
+    ):
+        """Test successful Claude Code installation."""
+        from gobby.cli.installers.claude import install_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_shared_content.return_value = {
+            "skills": ["shared-skill"],
+            "workflows": ["workflow.yaml"],
+            "plugins": [],
+        }
+        mock_cli_content.return_value = {
+            "skills": ["claude-skill"],
+            "workflows": [],
+            "commands": ["memory/"],
+        }
+        mock_mcp_config.return_value = {"success": True, "added": True}
+
+        with patch.object(Path, "home", return_value=mock_home_dir):
+            result = install_claude(temp_project)
+
+        assert result["success"] is True
+        assert result["error"] is None
+        assert "SessionStart" in result["hooks_installed"]
+        assert "PreToolUse" in result["hooks_installed"]
+        assert "shared-skill" in result["skills_installed"]
+        assert "claude-skill" in result["skills_installed"]
+        assert "workflow.yaml" in result["workflows_installed"]
+        assert "memory/" in result["commands_installed"]
+        assert result["mcp_configured"] is True
+
+        # Verify .claude directory structure was created
+        assert (temp_project / ".claude").exists()
+        assert (temp_project / ".claude" / "hooks").exists()
+        assert (temp_project / ".claude" / "settings.json").exists()
+
+        # Verify hook files were copied
+        assert (temp_project / ".claude" / "hooks" / "hook_dispatcher.py").exists()
+        assert (temp_project / ".claude" / "hooks" / "validate_settings.py").exists()
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    def test_install_claude_missing_source_files(
+        self,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        temp_dir: Path,
+    ):
+        """Test installation fails when source files are missing."""
+        from gobby.cli.installers.claude import install_claude
+
+        # Create empty install dir without required files
+        install_dir = temp_dir / "empty_install"
+        (install_dir / "claude" / "hooks").mkdir(parents=True)
+        mock_get_install_dir.return_value = install_dir
+
+        result = install_claude(temp_project)
+
+        assert result["success"] is False
+        assert "Missing source files" in result["error"]
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    def test_install_claude_missing_hooks_template(
+        self,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        temp_dir: Path,
+    ):
+        """Test installation fails when hooks-template.json is missing."""
+        from gobby.cli.installers.claude import install_claude
+
+        install_dir = temp_dir / "partial_install"
+        hooks_dir = install_dir / "claude" / "hooks"
+        hooks_dir.mkdir(parents=True)
+
+        # Create hook files but not template
+        (hooks_dir / "hook_dispatcher.py").write_text("# mock")
+        (hooks_dir / "validate_settings.py").write_text("# mock")
+
+        mock_get_install_dir.return_value = install_dir
+
+        result = install_claude(temp_project)
+
+        assert result["success"] is False
+        assert "Missing source files" in result["error"]
+        assert "hooks-template.json" in result["error"]
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_shared_content")
+    @patch("gobby.cli.installers.claude.install_cli_content")
+    @patch("gobby.cli.installers.claude.configure_mcp_server_json")
+    def test_install_claude_merges_existing_settings(
+        self,
+        mock_mcp_config: MagicMock,
+        mock_cli_content: MagicMock,
+        mock_shared_content: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+        mock_home_dir: Path,
+    ):
+        """Test installation merges with existing settings.json."""
+        from gobby.cli.installers.claude import install_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_mcp_config.return_value = {"success": True, "added": False}
+
+        # Create existing settings.json with custom config
+        claude_path = temp_project / ".claude"
+        claude_path.mkdir(parents=True)
+        existing_settings = {
+            "allowedTools": ["tool1", "tool2"],
+            "hooks": {"CustomHook": [{"hooks": [{"type": "command", "command": "custom"}]}]},
+        }
+        (claude_path / "settings.json").write_text(json.dumps(existing_settings))
+
+        with patch.object(Path, "home", return_value=mock_home_dir):
+            result = install_claude(temp_project)
+
+        assert result["success"] is True
+
+        # Load merged settings
+        with open(claude_path / "settings.json") as f:
+            merged = json.load(f)
+
+        # Verify existing content is preserved
+        assert merged["allowedTools"] == ["tool1", "tool2"]
+        # Verify gobby hooks were added
+        assert "SessionStart" in merged["hooks"]
+        assert "PreToolUse" in merged["hooks"]
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_shared_content")
+    @patch("gobby.cli.installers.claude.install_cli_content")
+    @patch("gobby.cli.installers.claude.configure_mcp_server_json")
+    def test_install_claude_creates_backup(
+        self,
+        mock_mcp_config: MagicMock,
+        mock_cli_content: MagicMock,
+        mock_shared_content: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+        mock_home_dir: Path,
+    ):
+        """Test installation creates backup of existing settings.json."""
+        from gobby.cli.installers.claude import install_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_mcp_config.return_value = {"success": True, "added": False}
+
+        # Create existing settings.json
+        claude_path = temp_project / ".claude"
+        claude_path.mkdir(parents=True)
+        original_content = {"original": "content"}
+        (claude_path / "settings.json").write_text(json.dumps(original_content))
+
+        with patch.object(Path, "home", return_value=mock_home_dir):
+            result = install_claude(temp_project)
+
+        assert result["success"] is True
+
+        # Verify backup was created
+        backup_files = list(claude_path.glob("settings.json.*.backup"))
+        assert len(backup_files) == 1
+
+        # Verify backup content matches original
+        with open(backup_files[0]) as f:
+            backup_content = json.load(f)
+        assert backup_content == original_content
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_shared_content")
+    @patch("gobby.cli.installers.claude.install_cli_content")
+    @patch("gobby.cli.installers.claude.configure_mcp_server_json")
+    def test_install_claude_invalid_existing_json(
+        self,
+        mock_mcp_config: MagicMock,
+        mock_cli_content: MagicMock,
+        mock_shared_content: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+    ):
+        """Test installation fails gracefully with invalid existing JSON."""
+        from gobby.cli.installers.claude import install_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+
+        # Create invalid JSON settings file
+        claude_path = temp_project / ".claude"
+        claude_path.mkdir(parents=True)
+        (claude_path / "settings.json").write_text("{ invalid json }")
+
+        result = install_claude(temp_project)
+
+        assert result["success"] is False
+        assert "Failed to parse settings.json" in result["error"]
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_shared_content")
+    def test_install_claude_shared_content_error(
+        self,
+        mock_shared_content: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+    ):
+        """Test installation handles shared content installation errors."""
+        from gobby.cli.installers.claude import install_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_shared_content.side_effect = Exception("Shared content error")
+
+        result = install_claude(temp_project)
+
+        assert result["success"] is False
+        assert "Failed to install shared content" in result["error"]
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_shared_content")
+    @patch("gobby.cli.installers.claude.install_cli_content")
+    def test_install_claude_cli_content_error(
+        self,
+        mock_cli_content: MagicMock,
+        mock_shared_content: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+    ):
+        """Test installation handles CLI content installation errors."""
+        from gobby.cli.installers.claude import install_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
+        mock_cli_content.side_effect = Exception("CLI content error")
+
+        result = install_claude(temp_project)
+
+        assert result["success"] is False
+        assert "Failed to install CLI content" in result["error"]
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_shared_content")
+    @patch("gobby.cli.installers.claude.install_cli_content")
+    @patch("gobby.cli.installers.claude.configure_mcp_server_json")
+    def test_install_claude_mcp_config_failure_non_fatal(
+        self,
+        mock_mcp_config: MagicMock,
+        mock_cli_content: MagicMock,
+        mock_shared_content: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+        mock_home_dir: Path,
+    ):
+        """Test MCP configuration failure is non-fatal."""
+        from gobby.cli.installers.claude import install_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_mcp_config.return_value = {"success": False, "error": "MCP config failed"}
+
+        with patch.object(Path, "home", return_value=mock_home_dir):
+            result = install_claude(temp_project)
+
+        # Installation should still succeed
+        assert result["success"] is True
+        assert result["mcp_configured"] is False
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_shared_content")
+    @patch("gobby.cli.installers.claude.install_cli_content")
+    @patch("gobby.cli.installers.claude.configure_mcp_server_json")
+    def test_install_claude_mcp_already_configured(
+        self,
+        mock_mcp_config: MagicMock,
+        mock_cli_content: MagicMock,
+        mock_shared_content: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+        mock_home_dir: Path,
+    ):
+        """Test handling when MCP is already configured."""
+        from gobby.cli.installers.claude import install_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_mcp_config.return_value = {
+            "success": True,
+            "added": False,
+            "already_configured": True,
+        }
+
+        with patch.object(Path, "home", return_value=mock_home_dir):
+            result = install_claude(temp_project)
+
+        assert result["success"] is True
+        assert result["mcp_configured"] is False
+        assert result["mcp_already_configured"] is True
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.copy2")
+    def test_install_claude_copy_error(
+        self,
+        mock_copy2: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+    ):
+        """Test installation handles file copy errors."""
+        from gobby.cli.installers.claude import install_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_copy2.side_effect = OSError("Permission denied")
+
+        result = install_claude(temp_project)
+
+        assert result["success"] is False
+        assert "Failed to copy hook files" in result["error"]
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_shared_content")
+    @patch("gobby.cli.installers.claude.install_cli_content")
+    @patch("gobby.cli.installers.claude.configure_mcp_server_json")
+    def test_install_claude_project_path_replacement(
+        self,
+        mock_mcp_config: MagicMock,
+        mock_cli_content: MagicMock,
+        mock_shared_content: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_home_dir: Path,
+        temp_dir: Path,
+    ):
+        """Test that $PROJECT_PATH is replaced in hooks template."""
+        from gobby.cli.installers.claude import install_claude
+
+        # Create install dir with $PROJECT_PATH in template
+        install_dir = temp_dir / "install"
+        claude_dir = install_dir / "claude"
+        hooks_dir = claude_dir / "hooks"
+        hooks_dir.mkdir(parents=True)
+
+        (hooks_dir / "hook_dispatcher.py").write_text("# mock")
+        (hooks_dir / "validate_settings.py").write_text("# mock")
+
+        hooks_template = {
+            "hooks": {
+                "SessionStart": [
+                    {
+                        "hooks": [
+                            {"type": "command", "command": 'python "$PROJECT_PATH/hook.py"'}
+                        ]
+                    }
+                ]
+            }
+        }
+        (claude_dir / "hooks-template.json").write_text(json.dumps(hooks_template))
+
+        mock_get_install_dir.return_value = install_dir
+        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_mcp_config.return_value = {"success": True, "added": False}
+
+        with patch.object(Path, "home", return_value=mock_home_dir):
+            result = install_claude(temp_project)
+
+        assert result["success"] is True
+
+        # Verify $PROJECT_PATH was replaced
+        with open(temp_project / ".claude" / "settings.json") as f:
+            settings = json.load(f)
+
+        command = settings["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+        assert str(temp_project.resolve()) in command
+        assert "$PROJECT_PATH" not in command
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_shared_content")
+    @patch("gobby.cli.installers.claude.install_cli_content")
+    def test_install_claude_invalid_hooks_template_json(
+        self,
+        mock_cli_content: MagicMock,
+        mock_shared_content: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        temp_dir: Path,
+    ):
+        """Test installation handles invalid hooks template JSON."""
+        from gobby.cli.installers.claude import install_claude
+
+        install_dir = temp_dir / "install"
+        claude_dir = install_dir / "claude"
+        hooks_dir = claude_dir / "hooks"
+        hooks_dir.mkdir(parents=True)
+
+        (hooks_dir / "hook_dispatcher.py").write_text("# mock")
+        (hooks_dir / "validate_settings.py").write_text("# mock")
+        (claude_dir / "hooks-template.json").write_text("{ invalid json }")
+
+        mock_get_install_dir.return_value = install_dir
+        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+
+        result = install_claude(temp_project)
+
+        assert result["success"] is False
+        assert "Failed to parse hooks template" in result["error"]
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_shared_content")
+    @patch("gobby.cli.installers.claude.install_cli_content")
+    @patch("gobby.cli.installers.claude.configure_mcp_server_json")
+    def test_install_claude_hook_file_overwrite(
+        self,
+        mock_mcp_config: MagicMock,
+        mock_cli_content: MagicMock,
+        mock_shared_content: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+        mock_home_dir: Path,
+    ):
+        """Test that existing hook files are overwritten."""
+        from gobby.cli.installers.claude import install_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_mcp_config.return_value = {"success": True, "added": False}
+
+        # Create existing hook file
+        hooks_dir = temp_project / ".claude" / "hooks"
+        hooks_dir.mkdir(parents=True)
+        existing_hook = hooks_dir / "hook_dispatcher.py"
+        existing_hook.write_text("# old content")
+
+        with patch.object(Path, "home", return_value=mock_home_dir):
+            result = install_claude(temp_project)
+
+        assert result["success"] is True
+
+        # Verify file was overwritten
+        new_content = existing_hook.read_text()
+        assert new_content == "# mock hook dispatcher"
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_shared_content")
+    @patch("gobby.cli.installers.claude.install_cli_content")
+    @patch("gobby.cli.installers.claude.configure_mcp_server_json")
+    def test_install_claude_hook_file_permissions(
+        self,
+        mock_mcp_config: MagicMock,
+        mock_cli_content: MagicMock,
+        mock_shared_content: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+        mock_home_dir: Path,
+    ):
+        """Test that hook files are made executable."""
+        from gobby.cli.installers.claude import install_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_mcp_config.return_value = {"success": True, "added": False}
+
+        with patch.object(Path, "home", return_value=mock_home_dir):
+            result = install_claude(temp_project)
+
+        assert result["success"] is True
+
+        # Check file permissions (0o755 = rwxr-xr-x)
+        hook_file = temp_project / ".claude" / "hooks" / "hook_dispatcher.py"
+        mode = hook_file.stat().st_mode & 0o777
+        assert mode == 0o755
+
+
+class TestUninstallClaude:
+    """Tests for the uninstall_claude function."""
+
+    @pytest.fixture
+    def temp_project(self, temp_dir: Path) -> Path:
+        """Create a temporary project directory."""
+        project = temp_dir / "test-project"
+        project.mkdir()
+        return project
+
+    @pytest.fixture
+    def mock_install_dir(self, temp_dir: Path) -> Path:
+        """Create a mock install directory with skill directories."""
+        install_dir = temp_dir / "install"
+        skills_dir = install_dir / "claude" / "skills"
+        skills_dir.mkdir(parents=True)
+
+        # Create mock skill directories
+        (skills_dir / "skill1").mkdir()
+        (skills_dir / "skill1" / "config.yaml").write_text("name: skill1")
+        (skills_dir / "skill2").mkdir()
+        (skills_dir / "skill2" / "config.yaml").write_text("name: skill2")
+
+        return install_dir
+
+    @pytest.fixture
+    def installed_claude_project(self, temp_project: Path) -> Path:
+        """Create a project with Claude hooks installed."""
+        claude_path = temp_project / ".claude"
+        hooks_dir = claude_path / "hooks"
+        skills_dir = claude_path / "skills"
+        hooks_dir.mkdir(parents=True)
+        skills_dir.mkdir(parents=True)
+
+        # Create settings.json with hooks
+        settings = {
+            "hooks": {
+                "SessionStart": [{"hooks": [{"type": "command", "command": "test"}]}],
+                "SessionEnd": [{"hooks": [{"type": "command", "command": "test"}]}],
+                "PreToolUse": [
+                    {"matcher": "*", "hooks": [{"type": "command", "command": "test"}]}
+                ],
+                "PostToolUse": [
+                    {"matcher": "*", "hooks": [{"type": "command", "command": "test"}]}
+                ],
+                "PreCompact": [{"hooks": [{"type": "command", "command": "test"}]}],
+                "Stop": [{"hooks": [{"type": "command", "command": "test"}]}],
+                "CustomUserHook": [{"hooks": [{"type": "command", "command": "user"}]}],
+            },
+            "allowedTools": ["tool1"],
+        }
+        (claude_path / "settings.json").write_text(json.dumps(settings))
+
+        # Create hook files
+        (hooks_dir / "hook_dispatcher.py").write_text("# hook")
+        (hooks_dir / "validate_settings.py").write_text("# validate")
+        (hooks_dir / "README.md").write_text("# readme")
+        (hooks_dir / "HOOK_SCHEMAS.md").write_text("# schemas")
+
+        # Create skill directories
+        (skills_dir / "skill1").mkdir()
+        (skills_dir / "skill1" / "config.yaml").write_text("name: skill1")
+        (skills_dir / "skill2").mkdir()
+        (skills_dir / "skill2" / "config.yaml").write_text("name: skill2")
+
+        return temp_project
+
+    @pytest.fixture
+    def mock_home_dir(self, temp_dir: Path) -> Path:
+        """Create a mock home directory."""
+        home = temp_dir / "home"
+        home.mkdir()
+        return home
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.remove_mcp_server_json")
+    def test_uninstall_claude_success(
+        self,
+        mock_remove_mcp: MagicMock,
+        mock_get_install_dir: MagicMock,
+        installed_claude_project: Path,
+        mock_install_dir: Path,
+        mock_home_dir: Path,
+    ):
+        """Test successful Claude Code uninstallation."""
+        from gobby.cli.installers.claude import uninstall_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_remove_mcp.return_value = {"success": True, "removed": True}
+
+        with patch.object(Path, "home", return_value=mock_home_dir):
+            result = uninstall_claude(installed_claude_project)
+
+        assert result["success"] is True
+        assert result["error"] is None
+
+        # Verify Gobby hooks were removed
+        assert "SessionStart" in result["hooks_removed"]
+        assert "SessionEnd" in result["hooks_removed"]
+        assert "PreToolUse" in result["hooks_removed"]
+        assert "PostToolUse" in result["hooks_removed"]
+
+        # Verify files were removed
+        assert "hook_dispatcher.py" in result["files_removed"]
+        assert "validate_settings.py" in result["files_removed"]
+        assert "README.md" in result["files_removed"]
+        assert "HOOK_SCHEMAS.md" in result["files_removed"]
+
+        # Verify skills were removed
+        assert "skill1" in result["skills_removed"]
+        assert "skill2" in result["skills_removed"]
+
+        assert result["mcp_removed"] is True
+
+        # Verify settings.json still exists but without Gobby hooks
+        settings_file = installed_claude_project / ".claude" / "settings.json"
+        assert settings_file.exists()
+
+        with open(settings_file) as f:
+            settings = json.load(f)
+
+        # Gobby hooks should be removed
+        assert "SessionStart" not in settings.get("hooks", {})
+        assert "PreToolUse" not in settings.get("hooks", {})
+
+        # User's custom content should be preserved
+        assert settings["allowedTools"] == ["tool1"]
+
+    def test_uninstall_claude_no_settings_file(self, temp_project: Path):
+        """Test uninstallation when no settings.json exists."""
+        from gobby.cli.installers.claude import uninstall_claude
+
+        result = uninstall_claude(temp_project)
+
+        assert result["success"] is False
+        assert "Settings file not found" in result["error"]
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.remove_mcp_server_json")
+    def test_uninstall_claude_invalid_json(
+        self,
+        mock_remove_mcp: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+    ):
+        """Test uninstallation handles invalid settings.json."""
+        from gobby.cli.installers.claude import uninstall_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+
+        # Create invalid JSON settings file
+        claude_path = temp_project / ".claude"
+        claude_path.mkdir(parents=True)
+        (claude_path / "settings.json").write_text("{ invalid json }")
+
+        result = uninstall_claude(temp_project)
+
+        assert result["success"] is False
+        assert "Failed to parse settings.json" in result["error"]
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.remove_mcp_server_json")
+    def test_uninstall_claude_creates_backup(
+        self,
+        mock_remove_mcp: MagicMock,
+        mock_get_install_dir: MagicMock,
+        installed_claude_project: Path,
+        mock_install_dir: Path,
+        mock_home_dir: Path,
+    ):
+        """Test uninstallation creates backup of settings.json."""
+        from gobby.cli.installers.claude import uninstall_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_remove_mcp.return_value = {"success": True, "removed": True}
+
+        # Store original content
+        settings_file = installed_claude_project / ".claude" / "settings.json"
+        with open(settings_file) as f:
+            original_content = json.load(f)
+
+        with patch.object(Path, "home", return_value=mock_home_dir):
+            result = uninstall_claude(installed_claude_project)
+
+        assert result["success"] is True
+
+        # Verify backup was created
+        claude_path = installed_claude_project / ".claude"
+        backup_files = list(claude_path.glob("settings.json.*.backup"))
+        assert len(backup_files) == 1
+
+        # Verify backup content matches original
+        with open(backup_files[0]) as f:
+            backup_content = json.load(f)
+        assert backup_content == original_content
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.remove_mcp_server_json")
+    def test_uninstall_claude_no_hooks_section(
+        self,
+        mock_remove_mcp: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+        mock_home_dir: Path,
+    ):
+        """Test uninstallation when settings has no hooks section."""
+        from gobby.cli.installers.claude import uninstall_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_remove_mcp.return_value = {"success": True, "removed": False}
+
+        # Create settings.json without hooks
+        claude_path = temp_project / ".claude"
+        claude_path.mkdir(parents=True)
+        (claude_path / "settings.json").write_text(json.dumps({"allowedTools": []}))
+
+        with patch.object(Path, "home", return_value=mock_home_dir):
+            result = uninstall_claude(temp_project)
+
+        assert result["success"] is True
+        assert result["hooks_removed"] == []
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.remove_mcp_server_json")
+    def test_uninstall_claude_removes_all_hook_types(
+        self,
+        mock_remove_mcp: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+        mock_home_dir: Path,
+    ):
+        """Test that all supported hook types are removed."""
+        from gobby.cli.installers.claude import uninstall_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_remove_mcp.return_value = {"success": True, "removed": True}
+
+        # Create settings with all hook types
+        claude_path = temp_project / ".claude"
+        claude_path.mkdir(parents=True)
+
+        all_hook_types = [
+            "SessionStart",
+            "SessionEnd",
+            "UserPromptSubmit",
+            "PreToolUse",
+            "PostToolUse",
+            "PreCompact",
+            "Notification",
+            "Stop",
+            "SubagentStart",
+            "SubagentStop",
+            "PermissionRequest",
+        ]
+
+        settings = {"hooks": {hook: [{}] for hook in all_hook_types}}
+        (claude_path / "settings.json").write_text(json.dumps(settings))
+
+        with patch.object(Path, "home", return_value=mock_home_dir):
+            result = uninstall_claude(temp_project)
+
+        assert result["success"] is True
+
+        # Verify all hook types were removed
+        for hook_type in all_hook_types:
+            assert hook_type in result["hooks_removed"]
+
+        # Verify settings file is updated
+        with open(claude_path / "settings.json") as f:
+            updated_settings = json.load(f)
+        assert updated_settings["hooks"] == {}
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.remove_mcp_server_json")
+    def test_uninstall_claude_partial_hook_files(
+        self,
+        mock_remove_mcp: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+        mock_home_dir: Path,
+    ):
+        """Test uninstallation handles partial hook file presence."""
+        from gobby.cli.installers.claude import uninstall_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_remove_mcp.return_value = {"success": True, "removed": True}
+
+        # Create minimal installation (only some hook files)
+        claude_path = temp_project / ".claude"
+        hooks_dir = claude_path / "hooks"
+        hooks_dir.mkdir(parents=True)
+
+        (claude_path / "settings.json").write_text(json.dumps({"hooks": {}}))
+        (hooks_dir / "hook_dispatcher.py").write_text("# hook")
+        # validate_settings.py is missing
+
+        with patch.object(Path, "home", return_value=mock_home_dir):
+            result = uninstall_claude(temp_project)
+
+        assert result["success"] is True
+        assert "hook_dispatcher.py" in result["files_removed"]
+        # Should not fail even though validate_settings.py is missing
+        assert "validate_settings.py" not in result["files_removed"]
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.remove_mcp_server_json")
+    def test_uninstall_claude_mcp_removal_failure(
+        self,
+        mock_remove_mcp: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+        mock_home_dir: Path,
+    ):
+        """Test that MCP removal failure is handled gracefully."""
+        from gobby.cli.installers.claude import uninstall_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_remove_mcp.return_value = {"success": False, "error": "MCP removal failed"}
+
+        # Create minimal installation
+        claude_path = temp_project / ".claude"
+        claude_path.mkdir(parents=True)
+        (claude_path / "settings.json").write_text(json.dumps({"hooks": {}}))
+
+        with patch.object(Path, "home", return_value=mock_home_dir):
+            result = uninstall_claude(temp_project)
+
+        # Uninstallation should still succeed
+        assert result["success"] is True
+        assert result["mcp_removed"] is False
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.copy2")
+    def test_uninstall_claude_backup_failure(
+        self,
+        mock_copy2: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+    ):
+        """Test uninstallation handles backup creation failure."""
+        from gobby.cli.installers.claude import uninstall_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_copy2.side_effect = OSError("Permission denied")
+
+        # Create minimal installation
+        claude_path = temp_project / ".claude"
+        claude_path.mkdir(parents=True)
+        (claude_path / "settings.json").write_text(json.dumps({"hooks": {}}))
+
+        result = uninstall_claude(temp_project)
+
+        assert result["success"] is False
+        assert "Failed to create backup" in result["error"]
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.remove_mcp_server_json")
+    def test_uninstall_claude_no_install_skills_dir(
+        self,
+        mock_remove_mcp: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        temp_dir: Path,
+        mock_home_dir: Path,
+    ):
+        """Test uninstallation when install skills directory doesn't exist."""
+        from gobby.cli.installers.claude import uninstall_claude
+
+        # Create install dir without skills
+        install_dir = temp_dir / "install"
+        (install_dir / "claude").mkdir(parents=True)
+        mock_get_install_dir.return_value = install_dir
+        mock_remove_mcp.return_value = {"success": True, "removed": False}
+
+        # Create minimal installation
+        claude_path = temp_project / ".claude"
+        claude_path.mkdir(parents=True)
+        (claude_path / "settings.json").write_text(json.dumps({"hooks": {}}))
+
+        with patch.object(Path, "home", return_value=mock_home_dir):
+            result = uninstall_claude(temp_project)
+
+        assert result["success"] is True
+        assert result["skills_removed"] == []
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.remove_mcp_server_json")
+    @patch("gobby.cli.installers.claude.os.fdopen")
+    @patch("gobby.cli.installers.claude.tempfile.mkstemp")
+    def test_uninstall_claude_atomic_write_failure(
+        self,
+        mock_mkstemp: MagicMock,
+        mock_fdopen: MagicMock,
+        mock_remove_mcp: MagicMock,
+        mock_get_install_dir: MagicMock,
+        installed_claude_project: Path,
+        mock_install_dir: Path,
+        mock_home_dir: Path,
+    ):
+        """Test that write failures trigger backup restoration."""
+        from gobby.cli.installers.claude import uninstall_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_remove_mcp.return_value = {"success": True, "removed": True}
+
+        # Create a temp file path (doesn't need to exist)
+        temp_path = str(installed_claude_project / ".claude" / "temp_settings.tmp")
+
+        # Make mkstemp return a fake fd and path
+        mock_mkstemp.return_value = (999, temp_path)
+
+        # Make fdopen raise OSError
+        mock_fdopen.side_effect = OSError("Failed to open file")
+
+        with patch.object(Path, "home", return_value=mock_home_dir):
+            result = uninstall_claude(installed_claude_project)
+
+        assert result["success"] is False
+        assert "Failed to write settings.json" in result["error"]
+
+
+class TestInstallClaudeEdgeCases:
+    """Edge case tests for install_claude."""
+
+    @pytest.fixture
+    def temp_project(self, temp_dir: Path) -> Path:
+        """Create a temporary project directory."""
+        project = temp_dir / "test-project"
+        project.mkdir()
+        return project
+
+    @pytest.fixture
+    def mock_install_dir(self, temp_dir: Path) -> Path:
+        """Create a mock install directory with required files."""
+        install_dir = temp_dir / "install"
+        claude_dir = install_dir / "claude"
+        hooks_dir = claude_dir / "hooks"
+        hooks_dir.mkdir(parents=True)
+
+        (hooks_dir / "hook_dispatcher.py").write_text("# mock hook dispatcher")
+        (hooks_dir / "validate_settings.py").write_text("# mock validate settings")
+
+        hooks_template = {"hooks": {"SessionStart": [{"hooks": []}]}}
+        (claude_dir / "hooks-template.json").write_text(json.dumps(hooks_template))
+
+        return install_dir
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_shared_content")
+    @patch("gobby.cli.installers.claude.install_cli_content")
+    @patch("gobby.cli.installers.claude.configure_mcp_server_json")
+    def test_install_claude_empty_hooks_section_in_existing(
+        self,
+        mock_mcp_config: MagicMock,
+        mock_cli_content: MagicMock,
+        mock_shared_content: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+        temp_dir: Path,
+    ):
+        """Test installation with existing empty hooks section."""
+        from gobby.cli.installers.claude import install_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_mcp_config.return_value = {"success": True, "added": False}
+
+        # Create existing settings with empty hooks
+        claude_path = temp_project / ".claude"
+        claude_path.mkdir(parents=True)
+        (claude_path / "settings.json").write_text(json.dumps({"hooks": {}}))
+
+        mock_home = temp_dir / "home"
+        mock_home.mkdir()
+
+        with patch.object(Path, "home", return_value=mock_home):
+            result = install_claude(temp_project)
+
+        assert result["success"] is True
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_shared_content")
+    @patch("gobby.cli.installers.claude.install_cli_content")
+    @patch("gobby.cli.installers.claude.configure_mcp_server_json")
+    def test_install_claude_with_unicode_path(
+        self,
+        mock_mcp_config: MagicMock,
+        mock_cli_content: MagicMock,
+        mock_shared_content: MagicMock,
+        mock_get_install_dir: MagicMock,
+        mock_install_dir: Path,
+        temp_dir: Path,
+    ):
+        """Test installation with unicode characters in project path."""
+        from gobby.cli.installers.claude import install_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_mcp_config.return_value = {"success": True, "added": False}
+
+        # Create project with unicode path
+        unicode_project = temp_dir / "test-project-unicode"
+        unicode_project.mkdir()
+
+        mock_home = temp_dir / "home"
+        mock_home.mkdir()
+
+        with patch.object(Path, "home", return_value=mock_home):
+            result = install_claude(unicode_project)
+
+        assert result["success"] is True
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.install_shared_content")
+    @patch("gobby.cli.installers.claude.install_cli_content")
+    @patch("gobby.cli.installers.claude.configure_mcp_server_json")
+    def test_install_claude_result_structure(
+        self,
+        mock_mcp_config: MagicMock,
+        mock_cli_content: MagicMock,
+        mock_shared_content: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+        temp_dir: Path,
+    ):
+        """Test that result dictionary has expected structure."""
+        from gobby.cli.installers.claude import install_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_mcp_config.return_value = {"success": True, "added": False}
+
+        mock_home = temp_dir / "home"
+        mock_home.mkdir()
+
+        with patch.object(Path, "home", return_value=mock_home):
+            result = install_claude(temp_project)
+
+        # Verify all expected keys are present
+        expected_keys = {
+            "success",
+            "hooks_installed",
+            "skills_installed",
+            "workflows_installed",
+            "commands_installed",
+            "mcp_configured",
+            "mcp_already_configured",
+            "error",
+            "plugins_installed",
+        }
+        assert set(result.keys()) == expected_keys
+
+        # Verify types
+        assert isinstance(result["success"], bool)
+        assert isinstance(result["hooks_installed"], list)
+        assert isinstance(result["skills_installed"], list)
+        assert isinstance(result["workflows_installed"], list)
+        assert isinstance(result["commands_installed"], list)
+        assert isinstance(result["mcp_configured"], bool)
+        assert isinstance(result["mcp_already_configured"], bool)
+
+
+class TestUninstallClaudeEdgeCases:
+    """Edge case tests for uninstall_claude."""
+
+    @pytest.fixture
+    def temp_project(self, temp_dir: Path) -> Path:
+        """Create a temporary project directory."""
+        project = temp_dir / "test-project"
+        project.mkdir()
+        return project
+
+    @pytest.fixture
+    def mock_install_dir(self, temp_dir: Path) -> Path:
+        """Create a mock install directory."""
+        install_dir = temp_dir / "install"
+        (install_dir / "claude" / "skills").mkdir(parents=True)
+        return install_dir
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.remove_mcp_server_json")
+    def test_uninstall_claude_result_structure(
+        self,
+        mock_remove_mcp: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+        temp_dir: Path,
+    ):
+        """Test that uninstall result dictionary has expected structure."""
+        from gobby.cli.installers.claude import uninstall_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_remove_mcp.return_value = {"success": True, "removed": False}
+
+        # Create minimal installation
+        claude_path = temp_project / ".claude"
+        claude_path.mkdir(parents=True)
+        (claude_path / "settings.json").write_text(json.dumps({"hooks": {}}))
+
+        mock_home = temp_dir / "home"
+        mock_home.mkdir()
+
+        with patch.object(Path, "home", return_value=mock_home):
+            result = uninstall_claude(temp_project)
+
+        # Verify all expected keys are present
+        expected_keys = {
+            "success",
+            "hooks_removed",
+            "files_removed",
+            "skills_removed",
+            "mcp_removed",
+            "error",
+        }
+        assert set(result.keys()) == expected_keys
+
+        # Verify types
+        assert isinstance(result["success"], bool)
+        assert isinstance(result["hooks_removed"], list)
+        assert isinstance(result["files_removed"], list)
+        assert isinstance(result["skills_removed"], list)
+        assert isinstance(result["mcp_removed"], bool)
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    @patch("gobby.cli.installers.claude.remove_mcp_server_json")
+    def test_uninstall_claude_preserves_custom_hooks(
+        self,
+        mock_remove_mcp: MagicMock,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+        temp_dir: Path,
+    ):
+        """Test that custom user hooks are preserved during uninstall."""
+        from gobby.cli.installers.claude import uninstall_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+        mock_remove_mcp.return_value = {"success": True, "removed": True}
+
+        # Create settings with both Gobby and custom hooks
+        claude_path = temp_project / ".claude"
+        claude_path.mkdir(parents=True)
+        settings = {
+            "hooks": {
+                "SessionStart": [{"hooks": []}],  # Gobby hook
+                "CustomHook": [{"hooks": []}],  # User's custom hook
+                "AnotherCustom": [{"hooks": []}],  # Another user hook
+            }
+        }
+        (claude_path / "settings.json").write_text(json.dumps(settings))
+
+        mock_home = temp_dir / "home"
+        mock_home.mkdir()
+
+        with patch.object(Path, "home", return_value=mock_home):
+            result = uninstall_claude(temp_project)
+
+        assert result["success"] is True
+
+        # Verify custom hooks are preserved
+        with open(claude_path / "settings.json") as f:
+            updated = json.load(f)
+
+        # Gobby hook should be removed
+        assert "SessionStart" not in updated["hooks"]
+        # Custom hooks should remain
+        assert "CustomHook" in updated["hooks"]
+        assert "AnotherCustom" in updated["hooks"]
+
+    @patch("gobby.cli.installers.claude.get_install_dir")
+    def test_uninstall_claude_read_error(
+        self,
+        mock_get_install_dir: MagicMock,
+        temp_project: Path,
+        mock_install_dir: Path,
+    ):
+        """Test uninstallation handles file read errors."""
+        from gobby.cli.installers.claude import uninstall_claude
+
+        mock_get_install_dir.return_value = mock_install_dir
+
+        # Create settings file but make it unreadable
+        claude_path = temp_project / ".claude"
+        claude_path.mkdir(parents=True)
+        settings_file = claude_path / "settings.json"
+        settings_file.write_text(json.dumps({"hooks": {}}))
+        settings_file.chmod(0o000)
+
+        try:
+            result = uninstall_claude(temp_project)
+            assert result["success"] is False
+            # The error can be either "Failed to read" or "Failed to create backup"
+            # depending on where the permission error is caught
+            assert (
+                "Failed to read settings.json" in result["error"]
+                or "Failed to create backup" in result["error"]
+            )
+        finally:
+            settings_file.chmod(0o644)
