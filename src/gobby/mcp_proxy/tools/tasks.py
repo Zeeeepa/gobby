@@ -50,6 +50,7 @@ from gobby.utils.project_init import initialize_project
 __all__ = ["create_task_registry"]
 
 if TYPE_CHECKING:
+    from gobby.agents.runner import AgentRunner
     from gobby.config.app import DaemonConfig
 
 # Reasons for which commit linking and validation are skipped when closing tasks
@@ -107,6 +108,7 @@ def create_task_registry(
     task_expander: TaskExpander | None = None,
     task_validator: TaskValidator | None = None,
     config: "DaemonConfig | None" = None,
+    agent_runner: "AgentRunner | None" = None,
 ) -> InternalToolRegistry:
     """
     Create a task tool registry with all task-related tools.
@@ -117,14 +119,18 @@ def create_task_registry(
         task_expander: TaskExpander instance (optional)
         task_validator: TaskValidator instance (optional)
         config: DaemonConfig instance (optional)
+        agent_runner: AgentRunner instance for external validator agent mode (optional)
 
     Returns:
         InternalToolRegistry with all task tools registered
     """
     # Get config settings
+    from gobby.config.tasks import TaskValidationConfig
+
     show_result_on_create = False
     auto_generate_on_create = True
     auto_generate_on_expand = True
+    validation_config: TaskValidationConfig | None = None
     if config is not None:
         show_result_on_create = config.get_gobby_tasks_config().show_result_on_create
         validation_config = config.get_gobby_tasks_config().validation
@@ -681,6 +687,36 @@ def create_task_registry(
                             "message": result.feedback or "Validation did not pass",
                             "validation_status": result.status,
                         }
+
+                    # Run external validation if enabled (after internal validation passes)
+                    if (
+                        validation_config
+                        and validation_config.use_external_validator
+                        and validation_context
+                    ):
+                        from gobby.tasks.external_validator import run_external_validation
+
+                        external_result = await run_external_validation(
+                            config=validation_config,
+                            llm_service=task_validator.llm_service,
+                            task={
+                                "id": task.id,
+                                "title": task.title,
+                                "description": task.description,
+                                "validation_criteria": task.validation_criteria,
+                            },
+                            changes_context=validation_context,
+                            agent_runner=agent_runner,
+                        )
+
+                        if external_result.status not in ("valid", "skipped"):
+                            # Block closing on external validation failure
+                            return {
+                                "error": "external_validation_failed",
+                                "message": external_result.summary,
+                                "validation_status": external_result.status,
+                                "issues": [issue.to_dict() for issue in external_result.issues],
+                            }
 
         # Get git commit SHA (best-effort)
         from gobby.utils.git import run_git_command

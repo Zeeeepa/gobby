@@ -236,6 +236,11 @@ class TaskValidationConfig(BaseModel):
         default=None,
         description="Model for external validation (defaults to validation.model)",
     )
+    external_validator_mode: Literal["llm", "agent"] = Field(
+        default="llm",
+        description="External validator mode: 'llm' uses direct API calls, "
+        "'agent' spawns a full agent instance with tools for validation",
+    )
     # Escalation settings
     escalation_enabled: bool = Field(
         default=True,

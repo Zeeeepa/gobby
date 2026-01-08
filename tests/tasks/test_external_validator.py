@@ -518,3 +518,183 @@ class TestExternalValidatorPrompt:
         assert "json" in prompt.lower()
         assert "status" in prompt.lower()
         assert "issues" in prompt.lower()
+
+
+class TestAgentModeValidation:
+    """Tests for agent mode external validation."""
+
+    @pytest.fixture
+    def validation_config(self):
+        """Create a validation config with agent mode enabled."""
+        return TaskValidationConfig(
+            enabled=True,
+            provider="claude",
+            model="claude-haiku-4-5",
+            use_external_validator=True,
+            external_validator_mode="agent",
+        )
+
+    @pytest.fixture
+    def mock_llm_service(self):
+        """Create a mock LLM service."""
+        from gobby.llm import LLMProvider, LLMService
+
+        service = MagicMock(spec=LLMService)
+        provider = AsyncMock(spec=LLMProvider)
+        service.get_provider.return_value = provider
+        return service
+
+    @pytest.fixture
+    def mock_agent_runner(self):
+        """Create a mock AgentRunner."""
+        from gobby.llm.executor import AgentResult
+
+        runner = MagicMock()
+        runner.run = AsyncMock(
+            return_value=AgentResult(
+                output='```json\n{"status": "valid", "summary": "All criteria met", "issues": []}\n```',
+                status="completed",
+                turns_used=3,
+            )
+        )
+        return runner
+
+    @pytest.fixture
+    def sample_task(self):
+        """Create a sample task for validation."""
+        return {
+            "id": "gt-test123",
+            "title": "Implement user authentication",
+            "description": "Add OAuth2 login flow",
+            "validation_criteria": "- [ ] Users can log in with OAuth\n- [ ] Tokens are stored securely",
+        }
+
+    @pytest.mark.asyncio
+    async def test_agent_mode_uses_agent_runner(
+        self, validation_config, mock_llm_service, mock_agent_runner, sample_task
+    ):
+        """Test that agent mode uses AgentRunner instead of direct LLM calls."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        changes_context = "diff --git a/src/auth.py b/src/auth.py"
+
+        result = await run_external_validation(
+            config=validation_config,
+            llm_service=mock_llm_service,
+            task=sample_task,
+            changes_context=changes_context,
+            agent_runner=mock_agent_runner,
+        )
+
+        # Agent runner should be called
+        mock_agent_runner.run.assert_called_once()
+
+        # LLM service should NOT be called directly
+        mock_llm_service.get_provider.assert_not_called()
+
+        # Result should be parsed from agent output
+        assert result.status == "valid"
+
+    @pytest.mark.asyncio
+    async def test_agent_mode_without_runner_returns_error(
+        self, validation_config, mock_llm_service, sample_task
+    ):
+        """Test that agent mode returns error when no runner is provided."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        result = await run_external_validation(
+            config=validation_config,
+            llm_service=mock_llm_service,
+            task=sample_task,
+            changes_context="diff",
+            agent_runner=None,  # No runner provided
+        )
+
+        assert result.status == "error"
+        assert "agent runner" in result.summary.lower() or "not available" in result.summary.lower()
+
+    @pytest.mark.asyncio
+    async def test_agent_mode_handles_agent_error(
+        self, validation_config, mock_llm_service, mock_agent_runner, sample_task
+    ):
+        """Test that agent mode handles agent execution errors."""
+        from gobby.llm.executor import AgentResult
+        from gobby.tasks.external_validator import run_external_validation
+
+        # Make agent return an error
+        mock_agent_runner.run.return_value = AgentResult(
+            output="",
+            status="error",
+            error="Agent execution failed",
+            turns_used=0,
+        )
+
+        result = await run_external_validation(
+            config=validation_config,
+            llm_service=mock_llm_service,
+            task=sample_task,
+            changes_context="diff",
+            agent_runner=mock_agent_runner,
+        )
+
+        assert result.status == "error"
+        assert "failed" in result.summary.lower()
+
+    @pytest.mark.asyncio
+    async def test_agent_mode_parses_invalid_result(
+        self, validation_config, mock_llm_service, mock_agent_runner, sample_task
+    ):
+        """Test that agent mode correctly parses 'invalid' validation result."""
+        from gobby.llm.executor import AgentResult
+        from gobby.tasks.external_validator import run_external_validation
+
+        mock_agent_runner.run.return_value = AgentResult(
+            output='{"status": "invalid", "summary": "Tests failing", "issues": [{"type": "test_failure", "severity": "blocker", "title": "Unit tests fail"}]}',
+            status="completed",
+            turns_used=5,
+        )
+
+        result = await run_external_validation(
+            config=validation_config,
+            llm_service=mock_llm_service,
+            task=sample_task,
+            changes_context="diff",
+            agent_runner=mock_agent_runner,
+        )
+
+        assert result.status == "invalid"
+        assert "tests" in result.summary.lower() or len(result.issues) > 0
+
+    @pytest.mark.asyncio
+    async def test_agent_config_uses_correct_settings(
+        self, mock_llm_service, mock_agent_runner, sample_task
+    ):
+        """Test that AgentConfig is created with correct settings from config."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        config = TaskValidationConfig(
+            enabled=True,
+            provider="claude",
+            model="claude-haiku-4-5",
+            use_external_validator=True,
+            external_validator_mode="agent",
+            external_validator_model="claude-sonnet-4-5",
+        )
+
+        await run_external_validation(
+            config=config,
+            llm_service=mock_llm_service,
+            task=sample_task,
+            changes_context="diff",
+            agent_runner=mock_agent_runner,
+        )
+
+        # Check that agent was called with correct config
+        call_args = mock_agent_runner.run.call_args
+        agent_config = call_args[0][0]  # First positional argument
+
+        assert agent_config.model == "claude-sonnet-4-5"
+        assert agent_config.provider == "claude"
+        assert agent_config.mode == "in_process"
+        assert agent_config.max_turns == 20
+        assert agent_config.timeout == 120.0

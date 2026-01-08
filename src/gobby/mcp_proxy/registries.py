@@ -105,6 +105,7 @@ def setup_internal_registries(
                 task_expander=task_expander,
                 task_validator=task_validator,
                 config=_config,
+                agent_runner=agent_runner,
             )
             manager.add_registry(tasks_registry)
             logger.debug("Tasks registry initialized")
