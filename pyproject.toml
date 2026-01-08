@@ -1,7 +1,21 @@
 [project]
 name = "gobby"
-version = "0.1.1"
+version = "0.2.0"
 description = "Gobby is a local daemon that unifies Claude Code, Gemini CLI, and Codex through a hook interface for session tracking, and provides an MCP proxy with progressive tool discovery for efficient access to downstream servers."
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Josh Peak", email = "josh@joshpeak.net" }
+]
+keywords = ["cli", "mcp", "claude", "gemini", "codex", "daemon", "session-management"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.75.0",
@@ -27,6 +41,12 @@ dependencies = [
 
 [project.scripts]
 gobby = "gobby.cli:cli"
+
+[project.urls]
+Homepage = "https://github.com/neozenith/gobby"
+Repository = "https://github.com/neozenith/gobby"
+Documentation = "https://github.com/neozenith/gobby#readme"
+Issues = "https://github.com/neozenith/gobby/issues"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
@@ -94,6 +114,9 @@ plugins = ["pydantic.mypy"]
 strict = true
 warn_return_any = true
 warn_unused_configs = true
+# Disabled: pre-commit mypy runs on individual files with different type inference,
+# causing type: ignore comments needed for partial context to be flagged as unused
+warn_unused_ignores = false
 disallow_untyped_defs = true
 disallow_any_generics = false
 ignore_missing_imports = true

@@ -1427,9 +1427,9 @@ class TestExpandAllTool:
 
         # Verify list_tasks was called with task_type filter in at least one call
         call_args_list = mock_task_manager.list_tasks.call_args_list
-        assert any(call.kwargs.get("task_type") == "feature" for call in call_args_list), (
-            f"Expected task_type='feature' in one of the calls: {call_args_list}"
-        )
+        assert any(
+            call.kwargs.get("task_type") == "feature" for call in call_args_list
+        ), f"Expected task_type='feature' in one of the calls: {call_args_list}"
 
     @pytest.mark.asyncio
     async def test_expand_all_filters_by_min_complexity(
