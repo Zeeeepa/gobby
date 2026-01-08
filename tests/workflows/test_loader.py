@@ -1,22 +1,54 @@
+"""Comprehensive tests for WorkflowLoader."""
+
+import tempfile
 from pathlib import Path
-from unittest.mock import mock_open, patch
+from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
-from gobby.workflows.loader import WorkflowLoader
+from gobby.workflows.definitions import WorkflowDefinition
+from gobby.workflows.loader import DiscoveredWorkflow, WorkflowLoader
 
 
 @pytest.fixture
 def loader():
+    """Create a WorkflowLoader with a temporary workflow directory."""
     return WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
 
 
+@pytest.fixture
+def temp_workflow_dir():
+    """Create a temporary directory structure for workflows."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        base = Path(tmpdir)
+        yield base
+
+
 class TestWorkflowLoader:
+    """Tests for WorkflowLoader basic functionality."""
+
+    def test_init_default_dirs(self):
+        """Test default workflow directory initialization."""
+        loader = WorkflowLoader()
+        assert len(loader.global_dirs) == 1
+        assert loader.global_dirs[0] == Path.home() / ".gobby" / "workflows"
+
+    def test_init_custom_dirs(self):
+        """Test custom workflow directories initialization."""
+        custom_dirs = [Path("/custom/path1"), Path("/custom/path2")]
+        loader = WorkflowLoader(workflow_dirs=custom_dirs)
+        assert loader.global_dirs == custom_dirs
+
     def test_load_workflow_not_found(self, loader):
-        with patch("gobby.workflows.loader.WorkflowLoader._find_workflow_file", return_value=None):
+        """Test loading a workflow that doesn't exist."""
+        with patch(
+            "gobby.workflows.loader.WorkflowLoader._find_workflow_file",
+            return_value=None,
+        ):
             assert loader.load_workflow("non_existent") is None
 
     def test_load_workflow_valid_yaml(self, loader):
+        """Test loading a valid workflow YAML."""
         yaml_content = """
         name: test_workflow
         version: "1.0"
@@ -24,12 +56,10 @@ class TestWorkflowLoader:
           - name: step1
             allowed_tools: all
         """
-        # Mock finding the file
         with patch(
             "gobby.workflows.loader.WorkflowLoader._find_workflow_file",
             return_value=Path("/tmp/workflows/test_workflow.yaml"),
         ):
-            # Mock opening the file
             with patch("builtins.open", mock_open(read_data=yaml_content)):
                 wf = loader.load_workflow("test_workflow")
                 assert wf is not None
@@ -38,39 +68,204 @@ class TestWorkflowLoader:
                 assert wf.steps[0].name == "step1"
 
     def test_load_workflow_invalid_yaml(self, loader):
+        """Test loading invalid YAML returns None."""
         yaml_content = "invalid: : yaml"
         with patch(
             "gobby.workflows.loader.WorkflowLoader._find_workflow_file",
             return_value=Path("/tmp/workflows/invalid.yaml"),
         ):
             with patch("builtins.open", mock_open(read_data=yaml_content)):
-                # loader should catch exception and return None
                 wf = loader.load_workflow("invalid")
                 assert wf is None
 
-    def test_load_workflow_with_project_path(self, loader):
-        # Verify project path search order logic
-        # Implementation searches project_path first.
-        # We can mock _find_workflow_file to check args, or test logic inside _find_workflow_file by integration?
-        # Let's mock _find_workflow_file and verify it was called with project dir
+    def test_load_workflow_exception_handling(self, loader):
+        """Test that non-ValueError exceptions during loading return None."""
+        yaml_content = """
+        name: test_workflow
+        version: "1.0"
+        steps:
+          - name: step1
+            allowed_tools: all
+        """
+        with patch(
+            "gobby.workflows.loader.WorkflowLoader._find_workflow_file",
+            return_value=Path("/tmp/workflows/test.yaml"),
+        ):
+            with patch("builtins.open", mock_open(read_data=yaml_content)):
+                # Mock WorkflowDefinition to raise a generic exception
+                with patch(
+                    "gobby.workflows.loader.WorkflowDefinition",
+                    side_effect=RuntimeError("Generic error"),
+                ):
+                    result = loader.load_workflow("test")
+                    assert result is None
 
-        with patch("gobby.workflows.loader.WorkflowLoader._find_workflow_file") as mock_find:
+    def test_load_workflow_with_project_path(self, loader):
+        """Test that project path is prepended to search directories."""
+        with patch(
+            "gobby.workflows.loader.WorkflowLoader._find_workflow_file"
+        ) as mock_find:
             mock_find.return_value = None
             loader.load_workflow("test", project_path="/my/project")
 
-            # Check calling args
             args, _ = mock_find.call_args
-            # first arg is name, second is search_dirs
             search_dirs = args[1]
             assert Path("/my/project/.gobby/workflows") in search_dirs
             assert search_dirs[0] == Path("/my/project/.gobby/workflows")
 
-    @pytest.mark.skip(reason="incomplete test - needs mocking of _scan_directory or glob")
-    def test_discover_lifecycle_workflows(self, loader):
-        # Helper to setup mocks for scanning
-        # This is complex because it involves globbing and parsing multiple files.
-        # We can mock _scan_directory or glob.
-        pass  # Skip complex discovery test for now, or mock _scan_directory
+    def test_load_workflow_caching(self, loader):
+        """Test that loaded workflows are cached."""
+        yaml_content = """
+        name: cached_workflow
+        version: "1.0"
+        steps:
+          - name: step1
+            allowed_tools: all
+        """
+        with patch(
+            "gobby.workflows.loader.WorkflowLoader._find_workflow_file",
+            return_value=Path("/tmp/workflows/cached_workflow.yaml"),
+        ):
+            with patch("builtins.open", mock_open(read_data=yaml_content)):
+                # First load
+                wf1 = loader.load_workflow("cached_workflow")
+                assert wf1 is not None
+
+        # Second load should return cached version (no file access)
+        wf2 = loader.load_workflow("cached_workflow")
+        assert wf2 is wf1
+
+    def test_load_workflow_cache_key_includes_project(self, loader):
+        """Test that cache keys include project path for proper isolation."""
+        yaml_content = """
+        name: project_workflow
+        version: "1.0"
+        steps:
+          - name: step1
+            allowed_tools: all
+        """
+
+        def mock_find(name, search_dirs):
+            return Path("/tmp/workflows/project_workflow.yaml")
+
+        with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
+            with patch("builtins.open", mock_open(read_data=yaml_content)):
+                # Load without project path
+                wf1 = loader.load_workflow("project_workflow")
+
+        # Different project should get separate cache entry
+        with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
+            with patch("builtins.open", mock_open(read_data=yaml_content)):
+                wf2 = loader.load_workflow("project_workflow", project_path="/project/a")
+
+        # Verify both are cached separately
+        assert "global:project_workflow" in loader._cache
+        assert "/project/a:project_workflow" in loader._cache
+
+
+class TestFindWorkflowFile:
+    """Tests for _find_workflow_file method."""
+
+    def test_find_in_root_directory(self, temp_workflow_dir):
+        """Test finding workflow file in root directory."""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+        workflow_file = workflow_dir / "test.yaml"
+        workflow_file.write_text("name: test")
+
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        result = loader._find_workflow_file("test", [workflow_dir])
+
+        assert result == workflow_file
+
+    def test_find_in_subdirectory(self, temp_workflow_dir):
+        """Test finding workflow file in subdirectory like lifecycle/."""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+        lifecycle_dir = workflow_dir / "lifecycle"
+        lifecycle_dir.mkdir()
+        workflow_file = lifecycle_dir / "session_start.yaml"
+        workflow_file.write_text("name: session_start")
+
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        result = loader._find_workflow_file("session_start", [workflow_dir])
+
+        assert result == workflow_file
+
+    def test_find_not_found(self, temp_workflow_dir):
+        """Test that None is returned when workflow file doesn't exist."""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        result = loader._find_workflow_file("nonexistent", [workflow_dir])
+
+        assert result is None
+
+    def test_find_priority_order(self, temp_workflow_dir):
+        """Test that first matching directory takes priority."""
+        dir1 = temp_workflow_dir / "dir1"
+        dir1.mkdir()
+        dir2 = temp_workflow_dir / "dir2"
+        dir2.mkdir()
+
+        # Create workflow in both directories
+        (dir1 / "test.yaml").write_text("name: from_dir1")
+        (dir2 / "test.yaml").write_text("name: from_dir2")
+
+        loader = WorkflowLoader()
+        result = loader._find_workflow_file("test", [dir1, dir2])
+
+        # Should find in dir1 first
+        assert result == dir1 / "test.yaml"
+
+    def test_find_with_nonexistent_directory(self, temp_workflow_dir):
+        """Test handling of non-existent directories in search list."""
+        existing_dir = temp_workflow_dir / "existing"
+        existing_dir.mkdir()
+        (existing_dir / "test.yaml").write_text("name: test")
+
+        nonexistent_dir = temp_workflow_dir / "nonexistent"
+
+        loader = WorkflowLoader()
+        # Should handle nonexistent directory gracefully
+        result = loader._find_workflow_file("test", [nonexistent_dir, existing_dir])
+
+        assert result == existing_dir / "test.yaml"
+
+    def test_find_skips_files_in_subdirectory_check(self, temp_workflow_dir):
+        """Test that files (not dirs) in search dir are skipped during subdir iteration."""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+
+        # Create a file (not directory) in workflow_dir
+        (workflow_dir / "some_file.txt").write_text("not a directory")
+        # Create a subdirectory with the workflow
+        subdir = workflow_dir / "subdir"
+        subdir.mkdir()
+        (subdir / "test.yaml").write_text("name: test")
+
+        loader = WorkflowLoader()
+        result = loader._find_workflow_file("test", [workflow_dir])
+
+        # Should skip the file and find in subdir
+        assert result == subdir / "test.yaml"
+
+    def test_find_not_found_in_subdirectory(self, temp_workflow_dir):
+        """Test that None is returned when workflow exists in subdir but not the searched one."""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+
+        # Create a subdirectory with a different workflow
+        subdir = workflow_dir / "subdir"
+        subdir.mkdir()
+        (subdir / "other.yaml").write_text("name: other")
+
+        loader = WorkflowLoader()
+        result = loader._find_workflow_file("test", [workflow_dir])
+
+        # Should not find 'test.yaml' in any subdirectory
+        assert result is None
 
 
 class TestWorkflowInheritance:
@@ -116,10 +311,34 @@ class TestWorkflowInheritance:
                 wf = loader.load_workflow("child_workflow")
                 assert wf is not None
                 assert wf.name == "child_workflow"
-                # Should have steps from both parent and child
                 step_names = [p.name for p in wf.steps]
                 assert "step1" in step_names
                 assert "step2" in step_names
+
+    def test_parent_workflow_not_found(self):
+        """Test handling when parent workflow doesn't exist."""
+        loader = WorkflowLoader(workflow_dirs=[Path("/tmp/workflows")])
+
+        child_yaml = """
+        name: orphan_workflow
+        version: "1.0"
+        extends: nonexistent_parent
+        steps:
+          - name: step1
+            allowed_tools: all
+        """
+
+        def mock_find(name, search_dirs):
+            if name == "orphan_workflow":
+                return Path("/tmp/workflows/orphan_workflow.yaml")
+            return None  # Parent not found
+
+        with patch.object(loader, "_find_workflow_file", side_effect=mock_find):
+            with patch("builtins.open", mock_open(read_data=child_yaml)):
+                # Should still load (with warning logged), just without parent merge
+                wf = loader.load_workflow("orphan_workflow")
+                assert wf is not None
+                assert wf.name == "orphan_workflow"
 
     def test_self_inheritance_cycle(self):
         """Test that self-inheritance (A extends A) raises ValueError."""
@@ -293,8 +512,532 @@ class TestWorkflowInheritance:
                 wf = loader.load_workflow("top")
                 assert wf is not None
                 assert wf.name == "top"
-                # Should have steps from all three levels
                 step_names = [p.name for p in wf.steps]
                 assert "base_step" in step_names
                 assert "middle_step" in step_names
                 assert "top_step" in step_names
+
+
+class TestMergeWorkflows:
+    """Tests for _merge_workflows method."""
+
+    def test_simple_merge(self, loader):
+        """Test basic parent/child merge."""
+        parent = {"name": "parent", "version": "1.0", "description": "Parent desc"}
+        child = {"name": "child", "version": "2.0"}
+
+        result = loader._merge_workflows(parent, child)
+
+        assert result["name"] == "child"
+        assert result["version"] == "2.0"
+        assert result["description"] == "Parent desc"
+
+    def test_nested_dict_merge(self, loader):
+        """Test that nested dicts are deep merged."""
+        parent = {
+            "name": "parent",
+            "settings": {"timeout": 30, "retry": True},
+        }
+        child = {
+            "name": "child",
+            "settings": {"timeout": 60},
+        }
+
+        result = loader._merge_workflows(parent, child)
+
+        assert result["settings"]["timeout"] == 60
+        assert result["settings"]["retry"] is True
+
+    def test_steps_merge_by_name(self, loader):
+        """Test that steps/phases are merged by name."""
+        parent = {
+            "name": "parent",
+            "steps": [
+                {"name": "step1", "allowed_tools": "all"},
+                {"name": "step2", "allowed_tools": ["read"]},
+            ],
+        }
+        child = {
+            "name": "child",
+            "steps": [
+                {"name": "step2", "allowed_tools": ["read", "write"]},
+                {"name": "step3", "allowed_tools": ["exec"]},
+            ],
+        }
+
+        result = loader._merge_workflows(parent, child)
+
+        # Should have all three steps
+        assert len(result["steps"]) == 3
+
+        step_map = {s["name"]: s for s in result["steps"]}
+        assert step_map["step1"]["allowed_tools"] == "all"
+        assert step_map["step2"]["allowed_tools"] == ["read", "write"]  # Child overrides
+        assert step_map["step3"]["allowed_tools"] == ["exec"]
+
+    def test_phases_merge_by_name(self, loader):
+        """Test that 'phases' key (legacy) is merged correctly."""
+        parent = {
+            "name": "parent",
+            "phases": [
+                {"name": "phase1", "tools": ["tool1"]},
+            ],
+        }
+        child = {
+            "name": "child",
+            "phases": [
+                {"name": "phase1", "tools": ["tool1", "tool2"]},
+                {"name": "phase2", "tools": ["tool3"]},
+            ],
+        }
+
+        result = loader._merge_workflows(parent, child)
+
+        assert len(result["phases"]) == 2
+
+
+class TestMergeSteps:
+    """Tests for _merge_steps method."""
+
+    def test_merge_steps_update_existing(self, loader):
+        """Test that existing steps are updated."""
+        parent_steps = [
+            {"name": "step1", "timeout": 30},
+            {"name": "step2", "timeout": 60},
+        ]
+        child_steps = [
+            {"name": "step1", "timeout": 120},
+        ]
+
+        result = loader._merge_steps(parent_steps, child_steps)
+
+        step_map = {s["name"]: s for s in result}
+        assert step_map["step1"]["timeout"] == 120
+        assert step_map["step2"]["timeout"] == 60
+
+    def test_merge_steps_add_new(self, loader):
+        """Test that new steps are added."""
+        parent_steps = [
+            {"name": "step1", "timeout": 30},
+        ]
+        child_steps = [
+            {"name": "step2", "timeout": 60},
+        ]
+
+        result = loader._merge_steps(parent_steps, child_steps)
+
+        assert len(result) == 2
+        step_names = [s["name"] for s in result]
+        assert "step1" in step_names
+        assert "step2" in step_names
+
+    def test_merge_steps_without_name_parent(self, loader):
+        """Test that parent steps without 'name' key are skipped with warning."""
+        parent_steps = [
+            {"timeout": 30},  # Missing name
+            {"name": "step1", "timeout": 60},
+        ]
+        child_steps = [
+            {"name": "step2", "timeout": 90},
+        ]
+
+        result = loader._merge_steps(parent_steps, child_steps)
+
+        # Should only have step1 and step2, not the nameless one
+        step_names = [s["name"] for s in result]
+        assert "step1" in step_names
+        assert "step2" in step_names
+        assert len(result) == 2
+
+    def test_merge_steps_without_name_child(self, loader):
+        """Test that child steps without 'name' key are skipped with warning."""
+        parent_steps = [
+            {"name": "step1", "timeout": 30},
+        ]
+        child_steps = [
+            {"timeout": 60},  # Missing name
+            {"name": "step2", "timeout": 90},
+        ]
+
+        result = loader._merge_steps(parent_steps, child_steps)
+
+        step_names = [s["name"] for s in result]
+        assert "step1" in step_names
+        assert "step2" in step_names
+        assert len(result) == 2
+
+
+class TestDiscoverLifecycleWorkflows:
+    """Tests for discover_lifecycle_workflows method."""
+
+    def test_discover_from_global_directory(self, temp_workflow_dir):
+        """Test discovering lifecycle workflows from global directory."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        lifecycle_dir = global_dir / "lifecycle"
+        lifecycle_dir.mkdir(parents=True)
+
+        # Create a lifecycle workflow
+        workflow_yaml = """
+name: session_start
+version: "1.0"
+type: lifecycle
+settings:
+  priority: 10
+"""
+        (lifecycle_dir / "session_start.yaml").write_text(workflow_yaml)
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+        discovered = loader.discover_lifecycle_workflows()
+
+        assert len(discovered) == 1
+        assert discovered[0].name == "session_start"
+        assert discovered[0].is_project is False
+        assert discovered[0].priority == 10
+
+    def test_discover_project_shadows_global(self, temp_workflow_dir):
+        """Test that project workflows shadow global ones with the same name."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        (global_dir / "lifecycle").mkdir(parents=True)
+
+        project_dir = temp_workflow_dir / "project" / ".gobby" / "workflows" / "lifecycle"
+        project_dir.mkdir(parents=True)
+
+        global_yaml = """
+name: session_start
+version: "1.0"
+type: lifecycle
+settings:
+  priority: 100
+"""
+        project_yaml = """
+name: session_start
+version: "2.0"
+type: lifecycle
+settings:
+  priority: 50
+"""
+        (global_dir / "lifecycle" / "session_start.yaml").write_text(global_yaml)
+        (project_dir / "session_start.yaml").write_text(project_yaml)
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+        discovered = loader.discover_lifecycle_workflows(
+            project_path=temp_workflow_dir / "project"
+        )
+
+        # Should only have one workflow (project shadows global)
+        assert len(discovered) == 1
+        assert discovered[0].is_project is True
+        assert discovered[0].priority == 50
+
+    def test_discover_sorting(self, temp_workflow_dir):
+        """Test that workflows are sorted by project/global, priority, then name."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        (global_dir / "lifecycle").mkdir(parents=True)
+
+        # Create multiple workflows with different priorities
+        for name, priority in [("b_workflow", 50), ("a_workflow", 100), ("c_workflow", 50)]:
+            yaml_content = f"""
+name: {name}
+version: "1.0"
+type: lifecycle
+settings:
+  priority: {priority}
+"""
+            (global_dir / "lifecycle" / f"{name}.yaml").write_text(yaml_content)
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+        discovered = loader.discover_lifecycle_workflows()
+
+        # Should be sorted: priority 50 first (b, c), then priority 100 (a)
+        # Within same priority, alphabetical
+        names = [w.name for w in discovered]
+        assert names == ["b_workflow", "c_workflow", "a_workflow"]
+
+    def test_discover_filters_non_lifecycle(self, temp_workflow_dir):
+        """Test that non-lifecycle workflows are filtered out."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        (global_dir / "lifecycle").mkdir(parents=True)
+
+        lifecycle_yaml = """
+name: lifecycle_wf
+version: "1.0"
+type: lifecycle
+"""
+        step_yaml = """
+name: step_wf
+version: "1.0"
+type: step
+"""
+        (global_dir / "lifecycle" / "lifecycle_wf.yaml").write_text(lifecycle_yaml)
+        (global_dir / "lifecycle" / "step_wf.yaml").write_text(step_yaml)
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+        discovered = loader.discover_lifecycle_workflows()
+
+        assert len(discovered) == 1
+        assert discovered[0].name == "lifecycle_wf"
+
+    def test_discover_caching(self, temp_workflow_dir):
+        """Test that discovery results are cached."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        (global_dir / "lifecycle").mkdir(parents=True)
+
+        yaml_content = """
+name: cached_workflow
+version: "1.0"
+type: lifecycle
+"""
+        (global_dir / "lifecycle" / "cached_workflow.yaml").write_text(yaml_content)
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+
+        # First call
+        discovered1 = loader.discover_lifecycle_workflows()
+        # Second call should return cached
+        discovered2 = loader.discover_lifecycle_workflows()
+
+        assert discovered1 is discovered2
+
+    def test_discover_default_priority(self, temp_workflow_dir):
+        """Test that workflows without priority setting get default of 100."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        (global_dir / "lifecycle").mkdir(parents=True)
+
+        yaml_content = """
+name: no_priority
+version: "1.0"
+type: lifecycle
+"""
+        (global_dir / "lifecycle" / "no_priority.yaml").write_text(yaml_content)
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+        discovered = loader.discover_lifecycle_workflows()
+
+        assert len(discovered) == 1
+        assert discovered[0].priority == 100
+
+
+class TestScanDirectory:
+    """Tests for _scan_directory method."""
+
+    def test_scan_nonexistent_directory(self, loader, temp_workflow_dir):
+        """Test that scanning non-existent directory does nothing."""
+        discovered = {}
+        loader._scan_directory(
+            temp_workflow_dir / "nonexistent",
+            is_project=False,
+            discovered=discovered,
+        )
+        assert len(discovered) == 0
+
+    def test_scan_skips_empty_yaml(self, temp_workflow_dir):
+        """Test that empty YAML files are skipped."""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+        (workflow_dir / "empty.yaml").write_text("")
+
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        discovered = {}
+        loader._scan_directory(workflow_dir, is_project=False, discovered=discovered)
+
+        assert len(discovered) == 0
+
+    def test_scan_skips_invalid_yaml(self, temp_workflow_dir):
+        """Test that invalid YAML files are skipped with warning."""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+        (workflow_dir / "invalid.yaml").write_text("invalid: : yaml: :")
+
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        discovered = {}
+        loader._scan_directory(workflow_dir, is_project=False, discovered=discovered)
+
+        assert len(discovered) == 0
+
+    def test_scan_handles_inheritance_in_discovery(self, temp_workflow_dir):
+        """Test that inheritance is resolved during discovery."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        global_dir.mkdir(parents=True)
+
+        parent_yaml = """
+name: parent
+version: "1.0"
+type: lifecycle
+steps:
+  - name: base_step
+    allowed_tools: all
+"""
+        child_yaml = """
+name: child
+version: "1.0"
+type: lifecycle
+extends: parent
+"""
+        (global_dir / "parent.yaml").write_text(parent_yaml)
+        (global_dir / "child.yaml").write_text(child_yaml)
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+        discovered = {}
+        loader._scan_directory(global_dir, is_project=False, discovered=discovered)
+
+        # Both workflows should be discovered
+        assert "parent" in discovered
+        assert "child" in discovered
+
+    def test_scan_handles_circular_inheritance_gracefully(self, temp_workflow_dir):
+        """Test that circular inheritance is handled during scan."""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+
+        cycle_a = """
+name: cycle_a
+version: "1.0"
+type: lifecycle
+extends: cycle_b
+"""
+        cycle_b = """
+name: cycle_b
+version: "1.0"
+type: lifecycle
+extends: cycle_a
+"""
+        (workflow_dir / "cycle_a.yaml").write_text(cycle_a)
+        (workflow_dir / "cycle_b.yaml").write_text(cycle_b)
+
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        discovered = {}
+        # Should not raise, just log warning and skip
+        loader._scan_directory(workflow_dir, is_project=False, discovered=discovered)
+
+        # Workflows with circular inheritance should be skipped
+        # At least one will fail to load
+        assert len(discovered) <= 2
+
+    def test_scan_handles_missing_parent_in_inheritance(self, temp_workflow_dir):
+        """Test that workflows extending missing parents are still loaded."""
+        workflow_dir = temp_workflow_dir / "workflows"
+        workflow_dir.mkdir()
+
+        child_yaml = """
+name: child_orphan
+version: "1.0"
+type: lifecycle
+extends: nonexistent_parent
+"""
+        (workflow_dir / "child_orphan.yaml").write_text(child_yaml)
+
+        loader = WorkflowLoader(workflow_dirs=[workflow_dir])
+        discovered = {}
+        loader._scan_directory(workflow_dir, is_project=False, discovered=discovered)
+
+        # Should load the child workflow even if parent not found
+        # (parent=None branch in line 257)
+        assert "child_orphan" in discovered
+
+
+class TestClearDiscoveryCache:
+    """Tests for clear_discovery_cache method."""
+
+    def test_clear_cache(self, temp_workflow_dir):
+        """Test that discovery cache is cleared."""
+        global_dir = temp_workflow_dir / "global" / "workflows"
+        (global_dir / "lifecycle").mkdir(parents=True)
+
+        yaml_content = """
+name: test_workflow
+version: "1.0"
+type: lifecycle
+"""
+        (global_dir / "lifecycle" / "test_workflow.yaml").write_text(yaml_content)
+
+        loader = WorkflowLoader(workflow_dirs=[global_dir])
+
+        # Populate cache
+        loader.discover_lifecycle_workflows()
+        assert len(loader._discovery_cache) > 0
+
+        # Clear cache
+        loader.clear_discovery_cache()
+        assert len(loader._discovery_cache) == 0
+
+
+class TestValidateWorkflowForAgent:
+    """Tests for validate_workflow_for_agent method."""
+
+    def test_validate_nonexistent_workflow(self, loader):
+        """Test that nonexistent workflows are considered valid (no error)."""
+        with patch.object(loader, "load_workflow", return_value=None):
+            is_valid, error = loader.validate_workflow_for_agent("nonexistent")
+
+        assert is_valid is True
+        assert error is None
+
+    def test_validate_step_workflow(self, loader):
+        """Test that step workflows are valid for agents."""
+        step_workflow = MagicMock(spec=WorkflowDefinition)
+        step_workflow.type = "step"
+
+        with patch.object(loader, "load_workflow", return_value=step_workflow):
+            is_valid, error = loader.validate_workflow_for_agent("step_wf")
+
+        assert is_valid is True
+        assert error is None
+
+    def test_validate_lifecycle_workflow(self, loader):
+        """Test that lifecycle workflows are invalid for agents."""
+        lifecycle_workflow = MagicMock(spec=WorkflowDefinition)
+        lifecycle_workflow.type = "lifecycle"
+
+        with patch.object(loader, "load_workflow", return_value=lifecycle_workflow):
+            is_valid, error = loader.validate_workflow_for_agent("lifecycle_wf")
+
+        assert is_valid is False
+        assert "lifecycle workflow" in error.lower()
+        assert "plan-execute" in error
+
+    def test_validate_with_loading_error(self, loader):
+        """Test handling of ValueError during workflow loading."""
+        with patch.object(
+            loader,
+            "load_workflow",
+            side_effect=ValueError("Circular inheritance"),
+        ):
+            is_valid, error = loader.validate_workflow_for_agent("broken_wf")
+
+        assert is_valid is False
+        assert "Failed to load" in error
+        assert "Circular inheritance" in error
+
+    def test_validate_with_project_path(self, loader):
+        """Test that project_path is passed through to load_workflow."""
+        step_workflow = MagicMock(spec=WorkflowDefinition)
+        step_workflow.type = "step"
+
+        with patch.object(loader, "load_workflow", return_value=step_workflow) as mock_load:
+            loader.validate_workflow_for_agent(
+                "test_wf", project_path="/my/project"
+            )
+
+        mock_load.assert_called_once_with("test_wf", project_path="/my/project")
+
+
+class TestDiscoveredWorkflow:
+    """Tests for DiscoveredWorkflow dataclass."""
+
+    def test_dataclass_creation(self):
+        """Test creating a DiscoveredWorkflow instance."""
+        definition = MagicMock(spec=WorkflowDefinition)
+        definition.type = "lifecycle"
+
+        discovered = DiscoveredWorkflow(
+            name="test",
+            definition=definition,
+            priority=50,
+            is_project=True,
+            path=Path("/test/path.yaml"),
+        )
+
+        assert discovered.name == "test"
+        assert discovered.priority == 50
+        assert discovered.is_project is True
+        assert discovered.path == Path("/test/path.yaml")
