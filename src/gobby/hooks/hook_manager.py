@@ -33,6 +33,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from gobby.autonomous.stop_registry import StopRegistry
 from gobby.hooks.event_handlers import EventHandlers
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.hooks.health_monitor import HealthMonitor
@@ -185,6 +186,9 @@ class HookManager:
         self._agent_run_manager = LocalAgentRunManager(self._database)
         self._worktree_manager = LocalWorktreeManager(self._database)
 
+        # Initialize Stop Registry for autonomous execution
+        self._stop_registry = StopRegistry(self._database)
+
         # Use config or defaults
         memory_config = (
             self._config.memory if self._config and hasattr(self._config, "memory") else None
@@ -250,6 +254,7 @@ class HookManager:
             skill_sync_manager=self.skill_sync_manager,
             task_manager=self._task_manager,
             session_task_manager=self._session_task_manager,
+            stop_registry=self._stop_registry,
         )
         self._workflow_engine = WorkflowEngine(
             loader=self._workflow_loader,
@@ -259,6 +264,9 @@ class HookManager:
         # Register task_manager with evaluator for task_tree_complete() condition helper
         if self._task_manager and self._workflow_engine.evaluator:
             self._workflow_engine.evaluator.register_task_manager(self._task_manager)
+        # Register stop_registry with evaluator for has_stop_signal() condition helper
+        if self._stop_registry and self._workflow_engine.evaluator:
+            self._workflow_engine.evaluator.register_stop_registry(self._stop_registry)
         workflow_timeout: float = 0.0  # 0 = no timeout
         workflow_enabled = True
         if self._config:

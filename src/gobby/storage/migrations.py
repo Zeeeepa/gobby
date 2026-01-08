@@ -860,6 +860,22 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE UNIQUE INDEX IF NOT EXISTS idx_worktrees_path ON worktrees(worktree_path);
         """,
     ),
+    (
+        37,
+        "Create session_stop_signals table for autonomous stop infrastructure",
+        """
+        CREATE TABLE IF NOT EXISTS session_stop_signals (
+            session_id TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+            source TEXT NOT NULL,
+            reason TEXT,
+            requested_at TEXT NOT NULL,
+            acknowledged_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_stop_signals_pending
+            ON session_stop_signals(acknowledged_at)
+            WHERE acknowledged_at IS NULL;
+        """,
+    ),
 ]
 
 

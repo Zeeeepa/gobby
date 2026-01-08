@@ -126,6 +126,7 @@ class ConditionEvaluator:
         """Initialize the condition evaluator."""
         self._plugin_conditions: dict[str, Any] = {}
         self._task_manager: Any = None
+        self._stop_registry: Any = None
 
     def register_task_manager(self, task_manager: Any) -> None:
         """
@@ -138,6 +139,18 @@ class ConditionEvaluator:
         """
         self._task_manager = task_manager
         logger.debug("ConditionEvaluator: task_manager registered")
+
+    def register_stop_registry(self, stop_registry: Any) -> None:
+        """
+        Register a stop registry for stop signal condition helpers.
+
+        This enables the has_stop_signal() function in workflow conditions.
+
+        Args:
+            stop_registry: StopRegistry instance
+        """
+        self._stop_registry = stop_registry
+        logger.debug("ConditionEvaluator: stop_registry registered")
 
     def register_plugin_conditions(self, plugin_registry: Any) -> None:
         """
@@ -207,6 +220,15 @@ class ConditionEvaluator:
             else:
                 # Provide a no-op that returns True when no task_manager
                 allowed_globals["task_tree_complete"] = lambda task_id: True
+
+            # Add stop signal helpers (bind stop_registry via closure)
+            if self._stop_registry:
+                allowed_globals["has_stop_signal"] = lambda session_id: (
+                    self._stop_registry.has_pending_signal(session_id)
+                )
+            else:
+                # Provide a no-op that returns False when no stop_registry
+                allowed_globals["has_stop_signal"] = lambda session_id: False
 
             return bool(eval(condition, allowed_globals, context))
         except Exception as e:

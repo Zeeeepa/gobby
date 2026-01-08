@@ -37,6 +37,11 @@ from gobby.workflows.state_actions import (
     save_workflow_state,
     set_variable,
 )
+from gobby.workflows.stop_signal_actions import (
+    check_stop_signal,
+    clear_stop_signal,
+    request_stop,
+)
 from gobby.workflows.summary_actions import (
     format_turns_for_llm,
     generate_handoff,
@@ -100,6 +105,7 @@ class ActionExecutor:
         skill_sync_manager: Any | None = None,
         task_manager: Any | None = None,
         session_task_manager: Any | None = None,
+        stop_registry: Any | None = None,
     ):
         self.db = db
         self.session_manager = session_manager
@@ -114,6 +120,7 @@ class ActionExecutor:
         self.skill_sync_manager = skill_sync_manager
         self.task_manager = task_manager
         self.session_task_manager = session_task_manager
+        self.stop_registry = stop_registry
         self._handlers: dict[str, ActionHandler] = {}
         self._register_defaults()
 
@@ -218,6 +225,10 @@ class ActionExecutor:
         self.register("validate_session_task_scope", self._handle_validate_session_task_scope)
         # Webhook
         self.register("webhook", self._handle_webhook)
+        # Stop signal actions
+        self.register("check_stop_signal", self._handle_check_stop_signal)
+        self.register("request_stop", self._handle_request_stop)
+        self.register("clear_stop_signal", self._handle_clear_stop_signal)
 
     async def execute(
         self, action_type: str, context: ActionContext, **kwargs: Any
@@ -1019,3 +1030,61 @@ class ActionExecutor:
             "error": result.error,
             "body": result.body if result.success else None,
         }
+
+    # --- Stop Signal Actions ---
+
+    async def _handle_check_stop_signal(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Check if a stop signal has been sent for this session.
+
+        Args (via kwargs):
+            acknowledge: If True, acknowledge the signal (session will stop)
+
+        Returns:
+            Dict with has_signal, signal details, and optional inject_context
+        """
+        return check_stop_signal(
+            stop_registry=self.stop_registry,
+            session_id=context.session_id,
+            state=context.state,
+            acknowledge=kwargs.get("acknowledge", False),
+        )
+
+    async def _handle_request_stop(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Request a session to stop (used by stuck detection, etc.).
+
+        Args (via kwargs):
+            session_id: The session to signal (defaults to current session)
+            source: Source of the request (default: "workflow")
+            reason: Optional reason for the stop request
+
+        Returns:
+            Dict with success status and signal details
+        """
+        target_session = kwargs.get("session_id", context.session_id)
+        return request_stop(
+            stop_registry=self.stop_registry,
+            session_id=target_session,
+            source=kwargs.get("source", "workflow"),
+            reason=kwargs.get("reason"),
+        )
+
+    async def _handle_clear_stop_signal(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Clear any stop signal for a session.
+
+        Args (via kwargs):
+            session_id: The session to clear (defaults to current session)
+
+        Returns:
+            Dict with success status
+        """
+        target_session = kwargs.get("session_id", context.session_id)
+        return clear_stop_signal(
+            stop_registry=self.stop_registry,
+            session_id=target_session,
+        )
