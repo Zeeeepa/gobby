@@ -315,6 +315,15 @@ class HTTPServer:
                 app.state.hook_manager = HookManager(**hook_manager_kwargs)
             logger.debug("HookManager initialized in daemon")
 
+            # Wire up stop_registry to WebSocket server for stop_request handling
+            if (
+                self.websocket_server
+                and hasattr(app.state, "hook_manager")
+                and hasattr(app.state.hook_manager, "_stop_registry")
+            ):
+                self.websocket_server.stop_registry = app.state.hook_manager._stop_registry
+                logger.debug("Stop registry connected to WebSocket server")
+
             # Store server instance for dependency injection
             app.state.server = self
 

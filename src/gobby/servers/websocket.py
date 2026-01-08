@@ -76,6 +76,7 @@ class WebSocketServer:
         config: WebSocketConfig,
         mcp_manager: MCPClientManager,
         auth_callback: Callable[[str], Coroutine[Any, Any, str | None]] | None = None,
+        stop_registry: Any = None,
     ):
         """
         Initialize WebSocket server.
@@ -85,10 +86,12 @@ class WebSocketServer:
             mcp_manager: MCP client manager for tool routing
             auth_callback: Optional async function that validates token and returns user_id.
                           If None, all connections are accepted (local-first mode).
+            stop_registry: Optional StopRegistry for handling stop requests from clients.
         """
         self.config = config
         self.mcp_manager = mcp_manager
         self.auth_callback = auth_callback
+        self.stop_registry = stop_registry
 
         # Connected clients: {websocket: client_metadata}
         self.clients: dict[Any, dict[str, Any]] = {}
@@ -249,6 +252,9 @@ class WebSocketServer:
 
         elif msg_type == "unsubscribe":
             await self._handle_unsubscribe(websocket, data)
+
+        elif msg_type == "stop_request":
+            await self._handle_stop_request(websocket, data)
 
         else:
             logger.warning(f"Unknown message type: {msg_type}")
@@ -425,6 +431,78 @@ class WebSocketServer:
             )
         )
 
+    async def _handle_stop_request(self, websocket: Any, data: dict[str, Any]) -> None:
+        """
+        Handle stop_request message to signal a session to stop.
+
+        Message format:
+        {
+            "type": "stop_request",
+            "session_id": "uuid",
+            "reason": "optional reason string"
+        }
+
+        Response format:
+        {
+            "type": "stop_response",
+            "session_id": "uuid",
+            "success": true,
+            "signal_id": "uuid"
+        }
+
+        Args:
+            websocket: Client WebSocket connection
+            data: Parsed stop request message
+        """
+        session_id = data.get("session_id")
+        reason = data.get("reason", "WebSocket stop request")
+
+        if not session_id:
+            await self._send_error(websocket, "Missing required field: session_id")
+            return
+
+        if not self.stop_registry:
+            await self._send_error(
+                websocket, "Stop registry not available", code="UNAVAILABLE"
+            )
+            return
+
+        try:
+            # Signal the stop
+            signal = self.stop_registry.signal_stop(
+                session_id=session_id,
+                reason=reason,
+                source="websocket",
+            )
+
+            # Send acknowledgment
+            await websocket.send(
+                json.dumps(
+                    {
+                        "type": "stop_response",
+                        "session_id": session_id,
+                        "success": True,
+                        "signal_id": signal.signal_id,
+                        "signaled_at": signal.signaled_at.isoformat(),
+                    }
+                )
+            )
+
+            # Broadcast the stop_requested event to all clients
+            await self.broadcast_autonomous_event(
+                event="stop_requested",
+                session_id=session_id,
+                reason=reason,
+                source="websocket",
+                signal_id=signal.signal_id,
+            )
+
+            logger.info(f"Stop requested for session {session_id} via WebSocket")
+
+        except Exception as e:
+            logger.error(f"Error handling stop request: {e}")
+            await self._send_error(websocket, f"Failed to signal stop: {str(e)}")
+
     async def broadcast(self, message: dict[str, Any]) -> None:
         """
         Broadcast message to all connected clients.
@@ -553,6 +631,40 @@ class WebSocketServer:
             "type": "worktree_event",
             "event": event,
             "worktree_id": worktree_id,
+            "timestamp": datetime.now(UTC).isoformat(),
+            **kwargs,
+        }
+
+        await self.broadcast(message)
+
+    async def broadcast_autonomous_event(
+        self,
+        event: str,
+        session_id: str,
+        **kwargs: Any,
+    ) -> None:
+        """
+        Broadcast autonomous execution event to all clients.
+
+        Used for autonomous loop lifecycle and progress events:
+        - task_started: A task was selected for work
+        - task_completed: A task was completed
+        - validation_failed: Task validation failed
+        - stuck_detected: Loop detected stuck condition
+        - stop_requested: External stop signal received
+        - progress_recorded: Progress event recorded
+        - loop_started: Autonomous loop started
+        - loop_stopped: Autonomous loop stopped
+
+        Args:
+            event: Event type
+            session_id: Session ID of the autonomous loop
+            **kwargs: Additional event data (task_id, reason, details, etc.)
+        """
+        message = {
+            "type": "autonomous_event",
+            "event": event,
+            "session_id": session_id,
             "timestamp": datetime.now(UTC).isoformat(),
             **kwargs,
         }

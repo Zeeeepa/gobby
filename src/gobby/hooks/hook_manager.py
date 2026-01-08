@@ -246,6 +246,11 @@ class HookManager:
         # But 'TemplateEngine' constructor takes optional dirs.
         self._template_engine = TemplateEngine()
 
+        # Get websocket_server from broadcaster if available
+        websocket_server = None
+        if self.broadcaster and hasattr(self.broadcaster, "websocket_server"):
+            websocket_server = self.broadcaster.websocket_server
+
         self._action_executor = ActionExecutor(
             db=self._database,
             session_manager=self._session_storage,
@@ -263,6 +268,7 @@ class HookManager:
             stop_registry=self._stop_registry,
             progress_tracker=self._progress_tracker,
             stuck_detector=self._stuck_detector,
+            websocket_server=websocket_server,
         )
         self._workflow_engine = WorkflowEngine(
             loader=self._workflow_loader,

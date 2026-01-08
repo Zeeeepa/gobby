@@ -117,6 +117,7 @@ class ActionExecutor:
         stop_registry: Any | None = None,
         progress_tracker: Any | None = None,
         stuck_detector: Any | None = None,
+        websocket_server: Any | None = None,
     ):
         self.db = db
         self.session_manager = session_manager
@@ -134,6 +135,7 @@ class ActionExecutor:
         self.stop_registry = stop_registry
         self.progress_tracker = progress_tracker
         self.stuck_detector = stuck_detector
+        self.websocket_server = websocket_server
         self._handlers: dict[str, ActionHandler] = {}
         self._register_defaults()
 
@@ -1112,32 +1114,86 @@ class ActionExecutor:
 
     # --- Autonomous Execution Actions ---
 
+    async def _broadcast_autonomous_event(
+        self, event: str, session_id: str, **kwargs: Any
+    ) -> None:
+        """Helper to broadcast autonomous events via WebSocket.
+
+        Non-blocking fire-and-forget broadcast.
+
+        Args:
+            event: Event type (task_started, stuck_detected, etc.)
+            session_id: Session ID
+            **kwargs: Additional event data
+        """
+        import asyncio
+
+        if not self.websocket_server:
+            return
+
+        try:
+            # Create non-blocking task for broadcast
+            task = asyncio.create_task(
+                self.websocket_server.broadcast_autonomous_event(
+                    event=event,
+                    session_id=session_id,
+                    **kwargs,
+                )
+            )
+            # Add callback to log errors silently
+            task.add_done_callback(
+                lambda t: logger.debug(f"Broadcast {event} failed: {t.exception()}")
+                if t.exception()
+                else None
+            )
+        except Exception as e:
+            logger.debug(f"Failed to schedule broadcast for {event}: {e}")
+
     async def _handle_start_progress_tracking(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Start progress tracking for a session."""
-        return start_progress_tracking(
+        result = start_progress_tracking(
             progress_tracker=self.progress_tracker,
             session_id=context.session_id,
             state=context.state,
         )
 
+        # Broadcast loop_started event
+        if result and result.get("success"):
+            await self._broadcast_autonomous_event(
+                event="loop_started",
+                session_id=context.session_id,
+            )
+
+        return result
+
     async def _handle_stop_progress_tracking(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Stop progress tracking for a session."""
-        return stop_progress_tracking(
+        result = stop_progress_tracking(
             progress_tracker=self.progress_tracker,
             session_id=context.session_id,
             state=context.state,
             keep_data=kwargs.get("keep_data", False),
         )
 
+        # Broadcast loop_stopped event
+        if result and result.get("success"):
+            await self._broadcast_autonomous_event(
+                event="loop_stopped",
+                session_id=context.session_id,
+                final_summary=result.get("final_summary"),
+            )
+
+        return result
+
     async def _handle_record_progress(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Record a progress event."""
-        return record_progress(
+        result = record_progress(
             progress_tracker=self.progress_tracker,
             session_id=context.session_id,
             progress_type=kwargs.get("progress_type", "tool_call"),
@@ -1145,36 +1201,82 @@ class ActionExecutor:
             details=kwargs.get("details"),
         )
 
+        # Broadcast progress_recorded event for high-value events
+        if result and result.get("success") and result.get("event", {}).get("is_high_value"):
+            await self._broadcast_autonomous_event(
+                event="progress_recorded",
+                session_id=context.session_id,
+                progress_type=result.get("event", {}).get("type"),
+                is_high_value=True,
+            )
+
+        return result
+
     async def _handle_detect_task_loop(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Detect task selection loops."""
-        return detect_task_loop(
+        result = detect_task_loop(
             stuck_detector=self.stuck_detector,
             session_id=context.session_id,
             state=context.state,
         )
+
+        # Broadcast stuck_detected if stuck
+        if result and result.get("is_stuck"):
+            await self._broadcast_autonomous_event(
+                event="stuck_detected",
+                session_id=context.session_id,
+                layer="task_loop",
+                reason=result.get("reason"),
+                details=result.get("details"),
+            )
+
+        return result
 
     async def _handle_detect_stuck(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Run full stuck detection (all layers)."""
-        return detect_stuck(
+        result = detect_stuck(
             stuck_detector=self.stuck_detector,
             session_id=context.session_id,
             state=context.state,
         )
 
+        # Broadcast stuck_detected if stuck
+        if result and result.get("is_stuck"):
+            await self._broadcast_autonomous_event(
+                event="stuck_detected",
+                session_id=context.session_id,
+                layer=result.get("layer"),
+                reason=result.get("reason"),
+                suggested_action=result.get("suggested_action"),
+            )
+
+        return result
+
     async def _handle_record_task_selection(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Record a task selection for loop detection."""
-        return record_task_selection(
+        task_id = kwargs.get("task_id", "")
+        result = record_task_selection(
             stuck_detector=self.stuck_detector,
             session_id=context.session_id,
-            task_id=kwargs.get("task_id", ""),
+            task_id=task_id,
             context=kwargs.get("context"),
         )
+
+        # Broadcast task_started event
+        if result and result.get("success"):
+            await self._broadcast_autonomous_event(
+                event="task_started",
+                session_id=context.session_id,
+                task_id=task_id,
+            )
+
+        return result
 
     async def _handle_get_progress_summary(
         self, context: ActionContext, **kwargs: Any
