@@ -1287,9 +1287,7 @@ class TestWorktreeGitManagerListWorktreesEdgeCases:
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "worktree", "list"],
             returncode=0,
-            stdout=(
-                "worktree /path/to/repo.git\n" "HEAD abc1234567890\n" "bare\n" "\n"
-            ),
+            stdout=("worktree /path/to/repo.git\n" "HEAD abc1234567890\n" "bare\n" "\n"),
             stderr="",
         )
 

@@ -497,9 +497,7 @@ class TestProgressTrackerSummary:
 class TestProgressTrackerStagnation:
     """Tests for ProgressTracker stagnation detection."""
 
-    def test_not_stagnant_with_no_events(
-        self, progress_tracker: ProgressTracker, session_id: str
-    ):
+    def test_not_stagnant_with_no_events(self, progress_tracker: ProgressTracker, session_id: str):
         """Test that session with no events is not stagnant."""
         assert progress_tracker.is_stagnant(session_id) is False
 
@@ -607,9 +605,7 @@ class TestProgressTrackerClearSession:
         test_project: dict,
     ):
         """Test that clear_session only removes events for specified session."""
-        other_session = create_session(
-            session_manager, test_project["id"], "ext-other-session-456"
-        )
+        other_session = create_session(session_manager, test_project["id"], "ext-other-session-456")
 
         progress_tracker.record_event(session_id, ProgressType.FILE_MODIFIED)
         progress_tracker.record_event(other_session, ProgressType.FILE_MODIFIED)
@@ -677,10 +673,7 @@ class TestProgressTrackerThreadSafety:
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=record_events, args=(i,))
-            for i in range(num_threads)
-        ]
+        threads = [threading.Thread(target=record_events, args=(i,)) for i in range(num_threads)]
 
         for t in threads:
             t.start()
@@ -863,9 +856,7 @@ class TestStopRegistry:
         assert result is True
         assert stop_registry.get_signal(session_id) is None
 
-    def test_clear_returns_false_for_no_signal(
-        self, stop_registry: StopRegistry, session_id: str
-    ):
+    def test_clear_returns_false_for_no_signal(self, stop_registry: StopRegistry, session_id: str):
         """Test clear returns False when no signal exists."""
         result = stop_registry.clear(session_id)
         assert result is False
@@ -934,9 +925,7 @@ class TestStopRegistryCleanup:
         # Verify signal is gone
         assert stop_registry.has_pending_signal(session_id) is False
 
-    def test_cleanup_stale_preserves_pending(
-        self, stop_registry: StopRegistry, session_id: str
-    ):
+    def test_cleanup_stale_preserves_pending(self, stop_registry: StopRegistry, session_id: str):
         """Test that cleanup preserves pending (unacknowledged) signals."""
         stop_registry.signal_stop(session_id, source="test")
 
@@ -1096,9 +1085,7 @@ class TestStuckDetectorTaskLoop:
 
         assert result.is_stuck is False
 
-    def test_no_task_loop_with_varied_tasks(
-        self, stuck_detector: StuckDetector, session_id: str
-    ):
+    def test_no_task_loop_with_varied_tasks(self, stuck_detector: StuckDetector, session_id: str):
         """Test no task loop with varied task selections."""
         for i in range(5):
             stuck_detector.record_task_selection(session_id, f"task-{i}")
@@ -1139,9 +1126,7 @@ class TestStuckDetectorTaskLoop:
 class TestStuckDetectorProgressStagnation:
     """Tests for StuckDetector progress stagnation detection."""
 
-    def test_no_stagnation_without_progress_tracker(
-        self, test_db: LocalDatabase, session_id: str
-    ):
+    def test_no_stagnation_without_progress_tracker(self, test_db: LocalDatabase, session_id: str):
         """Test no stagnation detection without progress tracker."""
         detector = StuckDetector(test_db, progress_tracker=None)
 
@@ -1159,9 +1144,7 @@ class TestStuckDetectorProgressStagnation:
 
         assert result.is_stuck is False
 
-    def test_stagnation_detected(
-        self, test_db: LocalDatabase, session_id: str
-    ):
+    def test_stagnation_detected(self, test_db: LocalDatabase, session_id: str):
         """Test stagnation detection."""
         tracker = ProgressTracker(
             test_db,
@@ -1189,9 +1172,7 @@ class TestStuckDetectorProgressStagnation:
 class TestStuckDetectorToolLoop:
     """Tests for StuckDetector tool loop detection."""
 
-    def test_no_tool_loop_without_progress_tracker(
-        self, test_db: LocalDatabase, session_id: str
-    ):
+    def test_no_tool_loop_without_progress_tracker(self, test_db: LocalDatabase, session_id: str):
         """Test no tool loop detection without progress tracker."""
         detector = StuckDetector(test_db, progress_tracker=None)
 
@@ -1258,9 +1239,7 @@ class TestStuckDetectorIsStuck:
 
         assert result.is_stuck is False
 
-    def test_is_stuck_returns_first_detected_issue(
-        self, test_db: LocalDatabase, session_id: str
-    ):
+    def test_is_stuck_returns_first_detected_issue(self, test_db: LocalDatabase, session_id: str):
         """Test is_stuck returns first detected stuck state."""
         tracker = ProgressTracker(test_db)
         detector = StuckDetector(
@@ -1333,9 +1312,7 @@ class TestStuckDetectorSelectionHistory:
 
         assert len(history) == 5
 
-    def test_get_selection_history_empty(
-        self, stuck_detector: StuckDetector, session_id: str
-    ):
+    def test_get_selection_history_empty(self, stuck_detector: StuckDetector, session_id: str):
         """Test history for empty session."""
         history = stuck_detector.get_selection_history(session_id)
         assert history == []
@@ -1344,9 +1321,7 @@ class TestStuckDetectorSelectionHistory:
 class TestStuckDetectorThreadSafety:
     """Tests for StuckDetector thread safety."""
 
-    def test_concurrent_task_selections(
-        self, stuck_detector: StuckDetector, session_id: str
-    ):
+    def test_concurrent_task_selections(self, stuck_detector: StuckDetector, session_id: str):
         """Test concurrent task selection recording is thread-safe."""
         num_threads = 5
         selections_per_thread = 10
@@ -1364,8 +1339,7 @@ class TestStuckDetectorThreadSafety:
                 errors.append(e)
 
         threads = [
-            threading.Thread(target=record_selections, args=(i,))
-            for i in range(num_threads)
+            threading.Thread(target=record_selections, args=(i,)) for i in range(num_threads)
         ]
 
         for t in threads:

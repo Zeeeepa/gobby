@@ -133,7 +133,9 @@ class TestSummaryFileGeneratorWrite:
         assert Path(result).exists()
         assert Path(result).read_text() == summary
 
-    def test_write_summary_creates_directory(self, mock_transcript_processor, mock_llm_service, temp_dir):
+    def test_write_summary_creates_directory(
+        self, mock_transcript_processor, mock_llm_service, temp_dir
+    ):
         """Test that write_summary creates directory if it doesn't exist."""
         new_dir = temp_dir / "new_summaries"
         gen = SummaryFileGenerator(
@@ -247,9 +249,7 @@ class TestSummaryFileGeneratorGenerate:
         from gobby.config.app import DaemonConfig
         from gobby.config.sessions import SessionSummaryConfig
 
-        config = DaemonConfig(
-            session_summary=SessionSummaryConfig(enabled=False)
-        )
+        config = DaemonConfig(session_summary=SessionSummaryConfig(enabled=False))
 
         gen = SummaryFileGenerator(
             transcript_processor=mock_transcript_processor,
@@ -323,7 +323,9 @@ class TestSummaryFileGeneratorGenerate:
             f.write(json.dumps({"message": {"role": "user", "content": "Hello"}}) + "\n")
 
         # Make transcript processor raise an exception
-        mock_transcript_processor.extract_turns_since_clear.side_effect = Exception("Processing error")
+        mock_transcript_processor.extract_turns_since_clear.side_effect = Exception(
+            "Processing error"
+        )
 
         result = gen.generate_session_summary(
             session_id="db-session-id",
@@ -567,9 +569,7 @@ class TestGetProviderForFeature:
         from gobby.config.app import DaemonConfig
         from gobby.config.sessions import SessionSummaryConfig
 
-        config = DaemonConfig(
-            session_summary=SessionSummaryConfig(enabled=False)
-        )
+        config = DaemonConfig(session_summary=SessionSummaryConfig(enabled=False))
 
         gen = SummaryFileGenerator(
             transcript_processor=mock_transcript_processor,
@@ -750,9 +750,7 @@ class TestGenerateSummaryWithLLM:
 
         assert "LLM provider not initialized" in result
 
-    def test_generate_summary_with_custom_prompt(
-        self, mock_transcript_processor, mock_llm_service
-    ):
+    def test_generate_summary_with_custom_prompt(self, mock_transcript_processor, mock_llm_service):
         """Test summary generation with custom prompt."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(return_value="Custom summary")
@@ -780,9 +778,7 @@ class TestGenerateSummaryWithLLM:
         call_kwargs = mock_provider.generate_summary.call_args
         assert call_kwargs[1]["prompt_template"] == "Custom template"
 
-    def test_generate_summary_llm_returns_empty(
-        self, mock_transcript_processor, mock_llm_service
-    ):
+    def test_generate_summary_llm_returns_empty(self, mock_transcript_processor, mock_llm_service):
         """Test summary generation when LLM returns empty string."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(return_value="")
@@ -792,9 +788,7 @@ class TestGenerateSummaryWithLLM:
             llm_service=mock_llm_service,
         )
 
-        with patch.object(
-            gen, "_get_provider_for_feature", return_value=(mock_provider, None)
-        ):
+        with patch.object(gen, "_get_provider_for_feature", return_value=(mock_provider, None)):
             result = gen._generate_summary_with_llm(
                 last_turns=[],
                 last_messages=[],
@@ -808,9 +802,7 @@ class TestGenerateSummaryWithLLM:
         # Should produce error summary
         assert "Error" in result
 
-    def test_generate_summary_llm_exception(
-        self, mock_transcript_processor, mock_llm_service
-    ):
+    def test_generate_summary_llm_exception(self, mock_transcript_processor, mock_llm_service):
         """Test summary generation handles LLM exceptions."""
         mock_provider = MagicMock()
         mock_provider.generate_summary = AsyncMock(side_effect=Exception("LLM API error"))
@@ -820,9 +812,7 @@ class TestGenerateSummaryWithLLM:
             llm_service=mock_llm_service,
         )
 
-        with patch.object(
-            gen, "_get_provider_for_feature", return_value=(mock_provider, None)
-        ):
+        with patch.object(gen, "_get_provider_for_feature", return_value=(mock_provider, None)):
             result = gen._generate_summary_with_llm(
                 last_turns=[],
                 last_messages=[],
@@ -848,9 +838,7 @@ class TestGenerateSummaryWithLLM:
             llm_service=mock_llm_service,
         )
 
-        with patch.object(
-            gen, "_get_provider_for_feature", return_value=(mock_provider, None)
-        ):
+        with patch.object(gen, "_get_provider_for_feature", return_value=(mock_provider, None)):
             result = gen._generate_summary_with_llm(
                 last_turns=[],
                 last_messages=[],
@@ -876,9 +864,7 @@ class TestGenerateSummaryWithLLM:
             llm_service=mock_llm_service,
         )
 
-        with patch.object(
-            gen, "_get_provider_for_feature", return_value=(mock_provider, None)
-        ):
+        with patch.object(gen, "_get_provider_for_feature", return_value=(mock_provider, None)):
             result = gen._generate_summary_with_llm(
                 last_turns=[],
                 last_messages=[],
@@ -909,9 +895,7 @@ class TestGenerateSummaryWithLLM:
 
         todowrite_list = "- [ ] Task 1 (pending)\n- [x] Task 2 (completed)"
 
-        with patch.object(
-            gen, "_get_provider_for_feature", return_value=(mock_provider, None)
-        ):
+        with patch.object(gen, "_get_provider_for_feature", return_value=(mock_provider, None)):
             result = gen._generate_summary_with_llm(
                 last_turns=[],
                 last_messages=[],
@@ -944,9 +928,7 @@ class TestGenerateSummaryWithLLM:
 
         todowrite_list = "- [ ] Task 1 (pending)"
 
-        with patch.object(
-            gen, "_get_provider_for_feature", return_value=(mock_provider, None)
-        ):
+        with patch.object(gen, "_get_provider_for_feature", return_value=(mock_provider, None)):
             result = gen._generate_summary_with_llm(
                 last_turns=[],
                 last_messages=[],
@@ -977,9 +959,7 @@ class TestGenerateSummaryWithLLM:
 
         todowrite_list = "- [ ] Task 1 (pending)"
 
-        with patch.object(
-            gen, "_get_provider_for_feature", return_value=(mock_provider, None)
-        ):
+        with patch.object(gen, "_get_provider_for_feature", return_value=(mock_provider, None)):
             result = gen._generate_summary_with_llm(
                 last_turns=[],
                 last_messages=[],
@@ -1000,9 +980,7 @@ class TestGenerateSummaryWithLLM:
     ):
         """Test todowrite appended to end when no markers exist."""
         mock_provider = MagicMock()
-        mock_provider.generate_summary = AsyncMock(
-            return_value="## Summary\n\nJust some content"
-        )
+        mock_provider.generate_summary = AsyncMock(return_value="## Summary\n\nJust some content")
 
         gen = SummaryFileGenerator(
             transcript_processor=mock_transcript_processor,
@@ -1011,9 +989,7 @@ class TestGenerateSummaryWithLLM:
 
         todowrite_list = "- [ ] Task 1 (pending)"
 
-        with patch.object(
-            gen, "_get_provider_for_feature", return_value=(mock_provider, None)
-        ):
+        with patch.object(gen, "_get_provider_for_feature", return_value=(mock_provider, None)):
             result = gen._generate_summary_with_llm(
                 last_turns=[],
                 last_messages=[],
@@ -1042,9 +1018,7 @@ class TestGenerateSummaryWithLLM:
 
         todowrite_list = "- [ ] Task 1 (pending)"
 
-        with patch.object(
-            gen, "_get_provider_for_feature", return_value=(mock_provider, None)
-        ):
+        with patch.object(gen, "_get_provider_for_feature", return_value=(mock_provider, None)):
             result = gen._generate_summary_with_llm(
                 last_turns=[],
                 last_messages=[],
@@ -1074,9 +1048,7 @@ class TestGenerateSummaryWithLLM:
         )
 
         # Test with session_id but no session_source
-        with patch.object(
-            gen, "_get_provider_for_feature", return_value=(mock_provider, None)
-        ):
+        with patch.object(gen, "_get_provider_for_feature", return_value=(mock_provider, None)):
             result = gen._generate_summary_with_llm(
                 last_turns=[],
                 last_messages=[],
@@ -1091,9 +1063,7 @@ class TestGenerateSummaryWithLLM:
         assert "Claude Code ID: ext-123" in result
 
         # Test with no session_id
-        with patch.object(
-            gen, "_get_provider_for_feature", return_value=(mock_provider, None)
-        ):
+        with patch.object(gen, "_get_provider_for_feature", return_value=(mock_provider, None)):
             result = gen._generate_summary_with_llm(
                 last_turns=[],
                 last_messages=[],

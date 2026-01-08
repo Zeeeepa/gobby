@@ -57,7 +57,9 @@ class TestRunExternalValidation:
         from gobby.tasks.external_validator import run_external_validation
 
         mock_provider = mock_llm_service.get_provider.return_value
-        mock_provider.generate_text.return_value = '{"status": "valid", "feedback": "All criteria met", "issues": []}'
+        mock_provider.generate_text.return_value = (
+            '{"status": "valid", "feedback": "All criteria met", "issues": []}'
+        )
 
         changes_context = """
         diff --git a/src/auth.py b/src/auth.py
@@ -96,7 +98,9 @@ class TestRunExternalValidation:
         from gobby.tasks.external_validator import run_external_validation
 
         mock_provider = mock_llm_service.get_provider.return_value
-        mock_provider.generate_text.return_value = '{"status": "valid", "feedback": "OK", "issues": []}'
+        mock_provider.generate_text.return_value = (
+            '{"status": "valid", "feedback": "OK", "issues": []}'
+        )
 
         await run_external_validation(
             config=validation_config,
@@ -125,7 +129,9 @@ class TestRunExternalValidation:
         )
 
         mock_provider = mock_llm_service.get_provider.return_value
-        mock_provider.generate_text.return_value = '{"status": "valid", "feedback": "OK", "issues": []}'
+        mock_provider.generate_text.return_value = (
+            '{"status": "valid", "feedback": "OK", "issues": []}'
+        )
 
         await run_external_validation(
             config=config,
@@ -146,7 +152,7 @@ class TestRunExternalValidation:
         from gobby.tasks.external_validator import ExternalValidationResult, run_external_validation
 
         mock_provider = mock_llm_service.get_provider.return_value
-        mock_provider.generate_text.return_value = '''
+        mock_provider.generate_text.return_value = """
         {
             "status": "invalid",
             "summary": "Missing test coverage",
@@ -161,7 +167,7 @@ class TestRunExternalValidation:
                 }
             ]
         }
-        '''
+        """
 
         result = await run_external_validation(
             config=validation_config,
@@ -454,9 +460,7 @@ class TestExternalValidatorPrompt:
         return service
 
     @pytest.mark.asyncio
-    async def test_prompt_includes_objective_validator_instruction(
-        self, mock_llm_service
-    ):
+    async def test_prompt_includes_objective_validator_instruction(self, mock_llm_service):
         """Test that prompt instructs the validator to be objective."""
         from gobby.tasks.external_validator import run_external_validation
 
@@ -486,9 +490,7 @@ class TestExternalValidatorPrompt:
         assert "objective" in system_prompt.lower() or "validator" in system_prompt.lower()
 
     @pytest.mark.asyncio
-    async def test_prompt_requests_structured_json_output(
-        self, mock_llm_service
-    ):
+    async def test_prompt_requests_structured_json_output(self, mock_llm_service):
         """Test that prompt requests structured JSON output format."""
         from gobby.tasks.external_validator import run_external_validation
 

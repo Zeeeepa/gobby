@@ -226,23 +226,17 @@ class TestGatherContext:
         assert context.project_patterns == {}
 
     @pytest.mark.asyncio
-    async def test_gather_context_code_context_disabled(
-        self, gatherer, sample_task, tmp_project
-    ):
+    async def test_gather_context_code_context_disabled(self, gatherer, sample_task, tmp_project):
         """Test gather_context with enable_code_context=False."""
         gatherer.task_manager.list_tasks.return_value = []
 
         with patch("gobby.tasks.context.find_project_root", return_value=tmp_project):
-            context = await gatherer.gather_context(
-                sample_task, enable_code_context=False
-            )
+            context = await gatherer.gather_context(sample_task, enable_code_context=False)
 
         assert context.relevant_files == []
 
     @pytest.mark.asyncio
-    async def test_gather_context_with_research_timeout(
-        self, mock_task_manager, sample_task
-    ):
+    async def test_gather_context_with_research_timeout(self, mock_task_manager, sample_task):
         """Test gather_context handles research timeout."""
         import asyncio
 
@@ -273,9 +267,7 @@ class TestGatherContext:
             assert context.agent_findings == ""
 
     @pytest.mark.asyncio
-    async def test_gather_context_with_research_error(
-        self, mock_task_manager, sample_task
-    ):
+    async def test_gather_context_with_research_error(self, mock_task_manager, sample_task):
         """Test gather_context handles research exceptions."""
         mock_config = MagicMock()
         mock_config.codebase_research_enabled = True
@@ -460,9 +452,7 @@ class TestFindRelevantFiles:
         assert files == []
 
     @pytest.mark.asyncio
-    async def test_find_relevant_files_ignores_non_code_extensions(
-        self, gatherer, tmp_project
-    ):
+    async def test_find_relevant_files_ignores_non_code_extensions(self, gatherer, tmp_project):
         """Test that non-code file extensions are ignored."""
         # Create files with various extensions
         (tmp_project / "file.txt").write_text("text")  # Not in extension list
@@ -613,9 +603,7 @@ class TestGetVerificationCommands:
 
     def test_get_verification_commands_no_config(self, gatherer):
         """Test when no verification config exists."""
-        with patch(
-            "gobby.utils.project_context.get_verification_config", return_value=None
-        ):
+        with patch("gobby.utils.project_context.get_verification_config", return_value=None):
             commands = gatherer._get_verification_commands()
         assert commands == {}
 
@@ -628,9 +616,7 @@ class TestGetVerificationCommands:
         mock_config.integration = "pytest -m integration"
         mock_config.custom = {"format": "black ."}
 
-        with patch(
-            "gobby.utils.project_context.get_verification_config", return_value=mock_config
-        ):
+        with patch("gobby.utils.project_context.get_verification_config", return_value=mock_config):
             commands = gatherer._get_verification_commands()
 
         assert commands["unit_tests"] == "pytest"
@@ -648,9 +634,7 @@ class TestGetVerificationCommands:
         mock_config.integration = None
         mock_config.custom = None
 
-        with patch(
-            "gobby.utils.project_context.get_verification_config", return_value=mock_config
-        ):
+        with patch("gobby.utils.project_context.get_verification_config", return_value=mock_config):
             commands = gatherer._get_verification_commands()
 
         assert commands == {"unit_tests": "pytest"}
@@ -1042,9 +1026,7 @@ class TestGenerateProjectStructure:
         assert "## Project Structure" in result
         assert "tree content" in result
 
-    def test_generate_project_structure_gitingest_import_error(
-        self, gatherer, tmp_project
-    ):
+    def test_generate_project_structure_gitingest_import_error(self, gatherer, tmp_project):
         """Test fallback when gitingest not installed."""
         with patch("gobby.tasks.context.find_project_root", return_value=tmp_project):
             # The actual import might fail, which triggers fallback
@@ -1054,9 +1036,7 @@ class TestGenerateProjectStructure:
         if result:
             assert "## Project Structure" in result
 
-    def test_generate_project_structure_gitingest_exception(
-        self, gatherer, tmp_project
-    ):
+    def test_generate_project_structure_gitingest_exception(self, gatherer, tmp_project):
         """Test fallback when gitingest raises exception."""
         # Create a mock module that raises an exception
         mock_gitingest = MagicMock()
@@ -1129,9 +1109,7 @@ class TestBuildTreeRecursive:
     def test_build_tree_recursive_basic(self, gatherer, tmp_project):
         """Test basic recursive tree building."""
         lines = []
-        gatherer._build_tree_recursive(
-            tmp_project / "src", tmp_project, lines, max_depth=3
-        )
+        gatherer._build_tree_recursive(tmp_project / "src", tmp_project, lines, max_depth=3)
         assert len(lines) > 0
         assert any("src/" in line for line in lines)
 
@@ -1142,9 +1120,7 @@ class TestBuildTreeRecursive:
         deep.mkdir(parents=True)
 
         lines = []
-        gatherer._build_tree_recursive(
-            tmp_project / "src", tmp_project, lines, max_depth=2
-        )
+        gatherer._build_tree_recursive(tmp_project / "src", tmp_project, lines, max_depth=2)
 
         # Should not contain level3 or level4
         line_str = "\n".join(lines)
@@ -1396,9 +1372,7 @@ class TestEdgeCases:
         # Invalid path should be skipped
         assert files == []
 
-    def test_discover_existing_tests_skips_non_convertible_paths(
-        self, gatherer, tmp_project
-    ):
+    def test_discover_existing_tests_skips_non_convertible_paths(self, gatherer, tmp_project):
         """Test discover_existing_tests skips paths that can't convert to imports."""
         with patch("gobby.tasks.context.find_project_root", return_value=tmp_project):
             # Pass a non-.py file which _path_to_import returns None for

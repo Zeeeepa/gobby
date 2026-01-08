@@ -176,9 +176,7 @@ class TestLocalTaskManager:
         """
         # Create parent and child
         parent = task_manager.create_task(project_id, "Parent Epic")
-        child = task_manager.create_task(
-            project_id, "Child Task", parent_task_id=parent.id
-        )
+        child = task_manager.create_task(project_id, "Child Task", parent_task_id=parent.id)
 
         # Create the dependency: parent depends_on child with type "blocks"
         # This means child blocks parent (parent can't close until child is done)
@@ -446,9 +444,7 @@ class TestLocalTaskManager:
 
     def test_reopen_task_with_reason(self, task_manager, project_id):
         """Test reopening a task with a reason adds note to description."""
-        task = task_manager.create_task(
-            project_id, "To Reopen", description="Original description"
-        )
+        task = task_manager.create_task(project_id, "To Reopen", description="Original description")
         task_manager.close_task(task.id)
 
         reopened = task_manager.reopen_task(task.id, reason="Bug found")
@@ -489,9 +485,7 @@ class TestLocalTaskManager:
         closed = task_manager.close_task(parent.id, force=True)
         assert closed.status == "closed"
 
-    def test_close_task_with_session_and_commit(
-        self, task_manager, project_id, session_manager
-    ):
+    def test_close_task_with_session_and_commit(self, task_manager, project_id, session_manager):
         """Test closing task records session ID and commit SHA."""
         # Create a session first (foreign key constraint)
         session = session_manager.register(
@@ -686,9 +680,7 @@ class TestLocalTaskManager:
         task_manager.close_task(t3.id)
 
         # Filter by list of statuses
-        tasks = task_manager.list_tasks(
-            project_id=project_id, status=["open", "in_progress"]
-        )
+        tasks = task_manager.list_tasks(project_id=project_id, status=["open", "in_progress"])
 
         task_ids = {t.id for t in tasks}
         assert t1.id in task_ids
@@ -743,9 +735,7 @@ class TestLocalTaskManager:
     # List Ready Tasks Filter Tests
     # =========================================================================
 
-    def test_list_ready_tasks_with_task_type_filter(
-        self, task_manager, dep_manager, project_id
-    ):
+    def test_list_ready_tasks_with_task_type_filter(self, task_manager, dep_manager, project_id):
         """Test filtering ready tasks by type."""
         task_manager.create_task(project_id, "Bug 1", task_type="bug")
         task_manager.create_task(project_id, "Feature 1", task_type="feature")
@@ -782,9 +772,7 @@ class TestLocalTaskManager:
         task_manager.create_task(project_id, "Child 2", parent_task_id=parent.id)
         task_manager.create_task(project_id, "Orphan")
 
-        tasks = task_manager.list_ready_tasks(
-            project_id=project_id, parent_task_id=parent.id
-        )
+        tasks = task_manager.list_ready_tasks(project_id=project_id, parent_task_id=parent.id)
 
         assert len(tasks) == 2
         for t in tasks:
@@ -803,37 +791,27 @@ class TestLocalTaskManager:
     # List Blocked Tasks Filter Tests
     # =========================================================================
 
-    def test_list_blocked_tasks_with_parent_filter(
-        self, task_manager, dep_manager, project_id
-    ):
+    def test_list_blocked_tasks_with_parent_filter(self, task_manager, dep_manager, project_id):
         """Test filtering blocked tasks by parent."""
         parent = task_manager.create_task(project_id, "Parent")
-        child1 = task_manager.create_task(
-            project_id, "Child 1", parent_task_id=parent.id
-        )
+        child1 = task_manager.create_task(project_id, "Child 1", parent_task_id=parent.id)
         blocker = task_manager.create_task(project_id, "Blocker")
 
         dep_manager.add_dependency(child1.id, blocker.id, "blocks")
 
-        blocked = task_manager.list_blocked_tasks(
-            project_id=project_id, parent_task_id=parent.id
-        )
+        blocked = task_manager.list_blocked_tasks(project_id=project_id, parent_task_id=parent.id)
 
         assert len(blocked) == 1
         assert blocked[0].id == child1.id
 
-    def test_list_blocked_tasks_with_limit_offset(
-        self, task_manager, dep_manager, project_id
-    ):
+    def test_list_blocked_tasks_with_limit_offset(self, task_manager, dep_manager, project_id):
         """Test pagination in blocked tasks."""
         blocker = task_manager.create_task(project_id, "Blocker")
         for i in range(5):
             task = task_manager.create_task(project_id, f"Blocked {i}")
             dep_manager.add_dependency(task.id, blocker.id, "blocks")
 
-        blocked = task_manager.list_blocked_tasks(
-            project_id=project_id, limit=2, offset=1
-        )
+        blocked = task_manager.list_blocked_tasks(project_id=project_id, limit=2, offset=1)
 
         assert len(blocked) == 2
 
@@ -866,9 +844,7 @@ class TestLocalTaskManager:
         t2 = task_manager.create_task(project_id, "Closed", workflow_name="wf")
         task_manager.close_task(t2.id)
 
-        tasks = task_manager.list_workflow_tasks(
-            "wf", project_id=project_id, status="open"
-        )
+        tasks = task_manager.list_workflow_tasks("wf", project_id=project_id, status="open")
 
         assert len(tasks) == 1
         assert tasks[0].status == "open"
@@ -1027,9 +1003,7 @@ class TestLocalTaskManager:
 
         assert len(listener_called) == 1
 
-    def test_change_listener_error_does_not_break_operation(
-        self, task_manager, project_id
-    ):
+    def test_change_listener_error_does_not_break_operation(self, task_manager, project_id):
         """Test that listener errors don't break task operations."""
 
         def failing_listener():
@@ -1045,9 +1019,7 @@ class TestLocalTaskManager:
     # Create Task with All Fields Tests
     # =========================================================================
 
-    def test_create_task_with_all_fields(
-        self, task_manager, project_id, session_manager
-    ):
+    def test_create_task_with_all_fields(self, task_manager, project_id, session_manager):
         """Test creating task with all possible fields."""
         # Create a session first (foreign key constraint)
         session = session_manager.register(
@@ -1168,9 +1140,7 @@ class TestOrderTasksHierarchically:
         from gobby.storage.tasks import order_tasks_hierarchically
 
         parent = task_manager.create_task(project_id, "Parent")
-        child = task_manager.create_task(
-            project_id, "Child", parent_task_id=parent.id
-        )
+        child = task_manager.create_task(project_id, "Child", parent_task_id=parent.id)
 
         # Only pass child, not parent - child should be treated as root
         result = order_tasks_hierarchically([child])
@@ -1256,9 +1226,7 @@ class TestCreateTaskWithDecomposition:
         assert result["auto_decomposed"] is False
         assert result["task"]["status"] == "needs_decomposition"
 
-    def test_create_task_explicit_param_overrides_workflow_state(
-        self, task_manager, project_id
-    ):
+    def test_create_task_explicit_param_overrides_workflow_state(self, task_manager, project_id):
         """Test explicit auto_decompose param overrides workflow state."""
         from unittest.mock import MagicMock
 
@@ -1291,9 +1259,7 @@ class TestUpdateTaskWithStepDetection:
         """Test updating with description that has no steps."""
         task = task_manager.create_task(project_id, "Task")
 
-        result = task_manager.update_task_with_step_detection(
-            task.id, description="Simple update"
-        )
+        result = task_manager.update_task_with_step_detection(task.id, description="Simple update")
 
         assert result["steps_detected"] is False
         assert result["step_count"] == 0
@@ -1419,9 +1385,7 @@ class TestListTasksBranchCoverage:
 class TestCreateTaskWithDecompositionDefaults:
     """Test default behavior for create_task_with_decomposition."""
 
-    def test_create_default_auto_decompose_with_multi_step(
-        self, task_manager, project_id
-    ):
+    def test_create_default_auto_decompose_with_multi_step(self, task_manager, project_id):
         """Test default auto_decompose=True when no explicit param or workflow state."""
         # No explicit auto_decompose param, no workflow_state
         # Default should be True

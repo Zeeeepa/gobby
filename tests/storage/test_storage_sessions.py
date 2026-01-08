@@ -1,6 +1,6 @@
 """Tests for the LocalSessionManager storage layer."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -1264,9 +1264,7 @@ class TestSessionEdgeCases:
 
         # Mock find_by_external_id to return the existing session (so we go into update path)
         # and mock get to return None (simulating the session disappearing)
-        with patch.object(
-            session_manager, "find_by_external_id", return_value=existing
-        ):
+        with patch.object(session_manager, "find_by_external_id", return_value=existing):
             with patch.object(session_manager, "get", return_value=None):
                 with pytest.raises(RuntimeError, match="disappeared during update"):
                     session_manager.register(

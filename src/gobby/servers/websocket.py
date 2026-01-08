@@ -462,9 +462,7 @@ class WebSocketServer:
             return
 
         if not self.stop_registry:
-            await self._send_error(
-                websocket, "Stop registry not available", code="UNAVAILABLE"
-            )
+            await self._send_error(websocket, "Stop registry not available", code="UNAVAILABLE")
             return
 
         try:

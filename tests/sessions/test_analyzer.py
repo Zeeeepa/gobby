@@ -2,7 +2,6 @@
 Tests for TranscriptAnalyzer in gobby.sessions.analyzer.
 """
 
-
 from unittest.mock import Mock
 
 import pytest
@@ -306,7 +305,11 @@ def test_multiple_edit_write_calls():
             "message": {
                 "content": [
                     {"type": "tool_use", "name": "Edit", "input": {"file_path": "/src/baz.py"}},
-                    {"type": "tool_use", "name": "Edit", "input": {"file_path": "/src/foo.py"}},  # Duplicate
+                    {
+                        "type": "tool_use",
+                        "name": "Edit",
+                        "input": {"file_path": "/src/foo.py"},
+                    },  # Duplicate
                 ]
             },
         },
@@ -398,7 +401,11 @@ def test_large_transcript_max_turns_limits_scanning():
                 "type": "assistant",
                 "message": {
                     "content": [
-                        {"type": "tool_use", "name": "Edit", "input": {"file_path": f"/file_{i}.py"}},
+                        {
+                            "type": "tool_use",
+                            "name": "Edit",
+                            "input": {"file_path": f"/file_{i}.py"},
+                        },
                     ]
                 },
             }
@@ -411,7 +418,11 @@ def test_large_transcript_max_turns_limits_scanning():
                 "type": "assistant",
                 "message": {
                     "content": [
-                        {"type": "tool_use", "name": "Write", "input": {"file_path": f"/late_{i}.py"}},
+                        {
+                            "type": "tool_use",
+                            "name": "Write",
+                            "input": {"file_path": f"/late_{i}.py"},
+                        },
                     ]
                 },
             }
@@ -709,7 +720,11 @@ def test_alternative_file_path_keys():
                     # Standard file_path
                     {"type": "tool_use", "name": "Edit", "input": {"file_path": "/a.py"}},
                     # Alternative TargetFile (Antigravity-style)
-                    {"type": "tool_use", "name": "replace_file_content", "input": {"TargetFile": "/b.py"}},
+                    {
+                        "type": "tool_use",
+                        "name": "replace_file_content",
+                        "input": {"TargetFile": "/b.py"},
+                    },
                     # Alternative path
                     {"type": "tool_use", "name": "write_to_file", "input": {"path": "/c.py"}},
                 ]

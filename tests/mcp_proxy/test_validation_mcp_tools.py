@@ -77,9 +77,7 @@ class TestGetValidationHistoryTool:
         )
         mock_task_manager.get_task.return_value = task
 
-        result = await registry_with_patches.call(
-            "get_validation_history", {"task_id": "t1"}
-        )
+        result = await registry_with_patches.call("get_validation_history", {"task_id": "t1"})
 
         assert "history" in result
         assert isinstance(result["history"], list)
@@ -104,9 +102,7 @@ class TestGetValidationHistoryTool:
         )
         mock_task_manager.get_task.return_value = task
 
-        result = await registry_with_patches.call(
-            "get_validation_history", {"task_id": "t1"}
-        )
+        result = await registry_with_patches.call("get_validation_history", {"task_id": "t1"})
 
         # If history exists, each item should have these fields
         if result["history"]:
@@ -128,9 +124,7 @@ class TestGetValidationHistoryTool:
         mock_task_manager.get_task.return_value = None
 
         with pytest.raises(ValueError, match="not found"):
-            await registry_with_patches.call(
-                "get_validation_history", {"task_id": "nonexistent"}
-            )
+            await registry_with_patches.call("get_validation_history", {"task_id": "nonexistent"})
 
     @pytest.mark.integration
     @pytest.mark.asyncio
@@ -150,9 +144,7 @@ class TestGetValidationHistoryTool:
         )
         mock_task_manager.get_task.return_value = task
 
-        result = await registry_with_patches.call(
-            "get_validation_history", {"task_id": "t1"}
-        )
+        result = await registry_with_patches.call("get_validation_history", {"task_id": "t1"})
 
         assert "history" in result
         assert result["history"] == []
@@ -175,9 +167,7 @@ class TestGetValidationHistoryTool:
         )
         mock_task_manager.get_task.return_value = task
 
-        result = await registry_with_patches.call(
-            "get_validation_history", {"task_id": "t1"}
-        )
+        result = await registry_with_patches.call("get_validation_history", {"task_id": "t1"})
 
         # Even empty history should be a list
         assert isinstance(result.get("history", []), list)
@@ -209,9 +199,7 @@ class TestGetRecurringIssuesTool:
         )
         mock_task_manager.get_task.return_value = task
 
-        result = await registry_with_patches.call(
-            "get_recurring_issues", {"task_id": "t1"}
-        )
+        result = await registry_with_patches.call("get_recurring_issues", {"task_id": "t1"})
 
         assert "recurring_issues" in result
         assert "total_iterations" in result
@@ -235,9 +223,7 @@ class TestGetRecurringIssuesTool:
         )
         mock_task_manager.get_task.return_value = task
 
-        result = await registry_with_patches.call(
-            "get_recurring_issues", {"task_id": "t1"}
-        )
+        result = await registry_with_patches.call("get_recurring_issues", {"task_id": "t1"})
 
         # If there are recurring issues, each should have count
         if result["recurring_issues"]:
@@ -287,9 +273,7 @@ class TestGetRecurringIssuesTool:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_get_recurring_issues_no_history(
-        self, mock_task_manager, registry_with_patches
-    ):
+    async def test_get_recurring_issues_no_history(self, mock_task_manager, registry_with_patches):
         """Test get_recurring_issues with task that has no validation history."""
         task = Task(
             id="t1",
@@ -303,9 +287,7 @@ class TestGetRecurringIssuesTool:
         )
         mock_task_manager.get_task.return_value = task
 
-        result = await registry_with_patches.call(
-            "get_recurring_issues", {"task_id": "t1"}
-        )
+        result = await registry_with_patches.call("get_recurring_issues", {"task_id": "t1"})
 
         assert result["recurring_issues"] == []
         assert result["total_iterations"] == 0
@@ -328,9 +310,7 @@ class TestGetRecurringIssuesTool:
         )
         mock_task_manager.get_task.return_value = task
 
-        result = await registry_with_patches.call(
-            "get_recurring_issues", {"task_id": "t1"}
-        )
+        result = await registry_with_patches.call("get_recurring_issues", {"task_id": "t1"})
 
         assert "has_recurring" in result
         assert isinstance(result["has_recurring"], bool)
@@ -362,9 +342,7 @@ class TestClearValidationHistoryTool:
         )
         mock_task_manager.get_task.return_value = task
 
-        result = await registry_with_patches.call(
-            "clear_validation_history", {"task_id": "t1"}
-        )
+        result = await registry_with_patches.call("clear_validation_history", {"task_id": "t1"})
 
         assert "cleared" in result
         assert result["cleared"] is True
@@ -404,9 +382,7 @@ class TestClearValidationHistoryTool:
         )
         mock_task_manager.get_task.return_value = task
 
-        result = await registry_with_patches.call(
-            "clear_validation_history", {"task_id": "t1"}
-        )
+        result = await registry_with_patches.call("clear_validation_history", {"task_id": "t1"})
 
         # Should reset fail count as well
         assert result["cleared"] is True
@@ -458,9 +434,7 @@ class TestClearValidationHistoryTool:
         )
         mock_task_manager.get_task.return_value = task
 
-        result = await registry_with_patches.call(
-            "clear_validation_history", {"task_id": "t1"}
-        )
+        result = await registry_with_patches.call("clear_validation_history", {"task_id": "t1"})
 
         assert "iterations_cleared" in result
         assert isinstance(result["iterations_cleared"], int)
@@ -518,9 +492,7 @@ class TestDeEscalateTaskTool:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_de_escalate_task_requires_reason(
-        self, mock_task_manager, registry_with_patches
-    ):
+    async def test_de_escalate_task_requires_reason(self, mock_task_manager, registry_with_patches):
         """Test that de_escalate_task requires a reason."""
         escalated_task = Task(
             id="t1",
@@ -565,9 +537,7 @@ class TestDeEscalateTaskTool:
 
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_de_escalate_task_task_not_found(
-        self, mock_task_manager, registry_with_patches
-    ):
+    async def test_de_escalate_task_task_not_found(self, mock_task_manager, registry_with_patches):
         """Test de_escalate_task with non-existent task."""
         mock_task_manager.get_task.return_value = None
 

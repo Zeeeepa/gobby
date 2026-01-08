@@ -903,9 +903,7 @@ class TestListSessions:
         registry = create_test_registry(session_manager=session_manager)
         list_sessions = registry.get_tool("list_sessions")
 
-        result = list_sessions(
-            project_id="proj-1", status="active", source="claude_code", limit=10
-        )
+        result = list_sessions(project_id="proj-1", status="active", source="claude_code", limit=10)
 
         assert result["filters"]["project_id"] == "proj-1"
         assert result["filters"]["status"] == "active"
@@ -1009,9 +1007,7 @@ class TestGetSessionCommits:
         get_commits = registry.get_tool("get_session_commits")
 
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=1, stderr="fatal: not a git repository"
-            )
+            mock_run.return_value = MagicMock(returncode=1, stderr="fatal: not a git repository")
 
             result = get_commits(session_id="sess-123")
 
@@ -1126,12 +1122,8 @@ class TestMarkLoopComplete:
 
         with (
             patch("gobby.storage.database.LocalDatabase"),
-            patch(
-                "gobby.workflows.state_manager.WorkflowStateManager"
-            ) as mock_wsm_class,
-            patch(
-                "gobby.workflows.state_actions.mark_loop_complete"
-            ) as mock_action,
+            patch("gobby.workflows.state_manager.WorkflowStateManager") as mock_wsm_class,
+            patch("gobby.workflows.state_actions.mark_loop_complete") as mock_action,
         ):
             mock_wsm_class.return_value = mock_state_manager
 
@@ -1171,12 +1163,8 @@ class TestMarkLoopComplete:
 
         with (
             patch("gobby.storage.database.LocalDatabase"),
-            patch(
-                "gobby.workflows.state_manager.WorkflowStateManager"
-            ) as mock_wsm_class,
-            patch(
-                "gobby.workflows.definitions.WorkflowState"
-            ) as mock_ws_class,
+            patch("gobby.workflows.state_manager.WorkflowStateManager") as mock_wsm_class,
+            patch("gobby.workflows.definitions.WorkflowState") as mock_ws_class,
             patch("gobby.workflows.state_actions.mark_loop_complete"),
         ):
             mock_wsm_class.return_value = mock_state_manager

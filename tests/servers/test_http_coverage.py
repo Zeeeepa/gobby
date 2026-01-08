@@ -110,9 +110,7 @@ class TestHTTPServerInit:
         server = HTTPServer(port=8000, test_mode=True)
         assert server.broadcaster is not None
 
-    def test_init_with_session_manager(
-        self, session_storage: LocalSessionManager
-    ) -> None:
+    def test_init_with_session_manager(self, session_storage: LocalSessionManager) -> None:
         """Test HTTPServer with session manager."""
         server = HTTPServer(
             port=8000,
@@ -191,9 +189,7 @@ class TestHTTPServerInit:
 class TestResolveProjectId:
     """Tests for _resolve_project_id method."""
 
-    def test_resolve_with_explicit_project_id(
-        self, basic_http_server: HTTPServer
-    ) -> None:
+    def test_resolve_with_explicit_project_id(self, basic_http_server: HTTPServer) -> None:
         """Test that explicit project_id is returned directly."""
         result = basic_http_server._resolve_project_id("explicit-id", None)
         assert result == "explicit-id"
@@ -219,9 +215,7 @@ class TestResolveProjectId:
         assert "No .gobby/project.json found" in str(exc_info.value)
         assert "gobby init" in str(exc_info.value)
 
-    def test_resolve_with_cwd_default(
-        self, basic_http_server: HTTPServer
-    ) -> None:
+    def test_resolve_with_cwd_default(self, basic_http_server: HTTPServer) -> None:
         """Test resolution uses current directory when cwd is None."""
         with patch("gobby.utils.project_context.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "default-project-id", "name": "test"}
@@ -284,6 +278,7 @@ class TestProcessShutdown:
         async def fast_shutdown() -> None:
             # Reduce wait time for test
             import time
+
             start = time.perf_counter()
             max_wait = 0.1  # Very short timeout
             while len(server._background_tasks) > 0 and (time.perf_counter() - start) < max_wait:
@@ -359,9 +354,7 @@ class TestCreateServer:
         assert server.test_mode is True
 
     @pytest.mark.asyncio
-    async def test_create_server_with_all_args(
-        self, session_storage: LocalSessionManager
-    ) -> None:
+    async def test_create_server_with_all_args(self, session_storage: LocalSessionManager) -> None:
         """Test create_server with all arguments."""
         mock_mcp_manager = MagicMock()
         mock_config = MagicMock()
@@ -411,9 +404,7 @@ class TestAdminEndpoints:
         data = response.json()
         assert data["daemon"] == {"state": "running", "uptime": 100}
 
-    def test_status_check_daemon_status_failure(
-        self, basic_http_server: HTTPServer
-    ) -> None:
+    def test_status_check_daemon_status_failure(self, basic_http_server: HTTPServer) -> None:
         """Test status check handles daemon status failure."""
         mock_daemon = MagicMock()
         mock_daemon.status.side_effect = RuntimeError("Daemon error")
@@ -496,9 +487,7 @@ class TestAdminEndpoints:
         data = response.json()
         assert data["memory"]["count"] == 0
 
-    def test_status_check_with_skill_learner(
-        self, session_storage: LocalSessionManager
-    ) -> None:
+    def test_status_check_with_skill_learner(self, session_storage: LocalSessionManager) -> None:
         """Test status check includes skill stats."""
         mock_skill_learner = MagicMock()
         mock_skill_learner.storage = MagicMock()
@@ -518,9 +507,7 @@ class TestAdminEndpoints:
         data = response.json()
         assert data["skills"]["count"] == 5
 
-    def test_shutdown_creates_background_task(
-        self, basic_http_server: HTTPServer
-    ) -> None:
+    def test_shutdown_creates_background_task(self, basic_http_server: HTTPServer) -> None:
         """Test shutdown endpoint creates background task."""
         client = TestClient(basic_http_server.app)
 
@@ -545,9 +532,7 @@ class TestAdminEndpoints:
             data = response.json()
             assert data["status"] == "error"
 
-    def test_metrics_endpoint_with_daemon(
-        self, basic_http_server: HTTPServer
-    ) -> None:
+    def test_metrics_endpoint_with_daemon(self, basic_http_server: HTTPServer) -> None:
         """Test metrics endpoint updates daemon metrics."""
         mock_daemon = MagicMock()
         mock_daemon.uptime = 120.5
@@ -559,9 +544,7 @@ class TestAdminEndpoints:
         assert response.status_code == 200
         assert "text/plain" in response.headers["content-type"]
 
-    def test_config_endpoint_error_handling(
-        self, session_storage: LocalSessionManager
-    ) -> None:
+    def test_config_endpoint_error_handling(self, session_storage: LocalSessionManager) -> None:
         """Test config endpoint handles errors."""
         server = HTTPServer(
             port=8765,
@@ -737,9 +720,7 @@ class TestMCPEndpointsWithManager:
         return server
 
     @pytest.fixture
-    def mcp_client(
-        self, http_server_with_mcp: HTTPServer
-    ) -> Generator[TestClient, None, None]:
+    def mcp_client(self, http_server_with_mcp: HTTPServer) -> Generator[TestClient, None, None]:
         """Create test client with MCP manager."""
         with TestClient(http_server_with_mcp.app) as c:
             yield c
@@ -843,9 +824,7 @@ class TestHooksEndpoints:
         assert response.status_code == 503
         assert "HookManager not initialized" in response.json()["detail"]
 
-    def test_execute_hook_with_mock_manager(
-        self, session_storage: LocalSessionManager
-    ) -> None:
+    def test_execute_hook_with_mock_manager(self, session_storage: LocalSessionManager) -> None:
         """Test execute hook with mocked hook manager."""
         server = HTTPServer(
             port=8765,
@@ -895,9 +874,7 @@ class TestPluginsEndpoints:
         )
 
     @pytest.fixture
-    def plugins_client(
-        self, plugins_server: HTTPServer
-    ) -> Generator[TestClient, None, None]:
+    def plugins_client(self, plugins_server: HTTPServer) -> Generator[TestClient, None, None]:
         """Create test client that runs lifespan."""
         with TestClient(plugins_server.app) as c:
             yield c
@@ -961,9 +938,7 @@ class TestWebhooksEndpoints:
         )
 
     @pytest.fixture
-    def webhooks_client(
-        self, webhooks_server: HTTPServer
-    ) -> Generator[TestClient, None, None]:
+    def webhooks_client(self, webhooks_server: HTTPServer) -> Generator[TestClient, None, None]:
         """Create test client that runs lifespan."""
         with TestClient(webhooks_server.app) as c:
             yield c
@@ -977,9 +952,7 @@ class TestWebhooksEndpoints:
         assert data["enabled"] is False
         assert data["endpoints"] == []
 
-    def test_list_webhooks_endpoint_exists(
-        self, session_storage: LocalSessionManager
-    ) -> None:
+    def test_list_webhooks_endpoint_exists(self, session_storage: LocalSessionManager) -> None:
         """Test webhooks endpoint works with minimal config."""
         server = HTTPServer(
             port=8765,
@@ -1077,9 +1050,7 @@ class TestExceptionHandlers:
 class TestLifespan:
     """Tests for FastAPI lifespan management."""
 
-    def test_lifespan_sets_running_flag(
-        self, session_storage: LocalSessionManager
-    ) -> None:
+    def test_lifespan_sets_running_flag(self, session_storage: LocalSessionManager) -> None:
         """Test that lifespan sets _running flag."""
         server = HTTPServer(
             port=8765,
@@ -1093,9 +1064,7 @@ class TestLifespan:
             # During lifespan, _running should be True
             assert server._running is True
 
-    def test_lifespan_initializes_hook_manager(
-        self, session_storage: LocalSessionManager
-    ) -> None:
+    def test_lifespan_initializes_hook_manager(self, session_storage: LocalSessionManager) -> None:
         """Test that lifespan initializes HookManager."""
         mock_config = MagicMock()
         mock_config.logging.hook_manager = "/tmp/hooks.log"
@@ -1197,17 +1166,13 @@ class TestRunServer:
 class TestInternalRegistries:
     """Tests for internal registry handling."""
 
-    def test_list_tools_internal_server(
-        self, session_storage: LocalSessionManager
-    ) -> None:
+    def test_list_tools_internal_server(self, session_storage: LocalSessionManager) -> None:
         """Test listing tools from internal server."""
         mock_internal_manager = MagicMock()
         mock_internal_manager.is_internal.return_value = True
         mock_internal_manager.get_all_registries.return_value = []
         mock_registry = MagicMock()
-        mock_registry.list_tools.return_value = [
-            {"name": "tool1", "description": "Test tool"}
-        ]
+        mock_registry.list_tools.return_value = [{"name": "tool1", "description": "Test tool"}]
         mock_internal_manager.get_registry.return_value = mock_registry
 
         server = HTTPServer(
@@ -1246,9 +1211,7 @@ class TestInternalRegistries:
 
         assert response.status_code == 404
 
-    def test_call_tool_internal_server(
-        self, session_storage: LocalSessionManager
-    ) -> None:
+    def test_call_tool_internal_server(self, session_storage: LocalSessionManager) -> None:
         """Test calling tool on internal server."""
         mock_internal_manager = MagicMock()
         mock_internal_manager.is_internal.return_value = True
@@ -1275,9 +1238,7 @@ class TestInternalRegistries:
         assert data["success"] is True
         assert data["result"] == {"result": "success"}
 
-    def test_call_tool_internal_server_error(
-        self, session_storage: LocalSessionManager
-    ) -> None:
+    def test_call_tool_internal_server_error(self, session_storage: LocalSessionManager) -> None:
         """Test calling tool on internal server with error."""
         mock_internal_manager = MagicMock()
         mock_internal_manager.is_internal.return_value = True
@@ -1301,9 +1262,7 @@ class TestInternalRegistries:
 
         assert response.status_code == 500
 
-    def test_get_tool_schema_internal_server(
-        self, session_storage: LocalSessionManager
-    ) -> None:
+    def test_get_tool_schema_internal_server(self, session_storage: LocalSessionManager) -> None:
         """Test getting tool schema from internal server."""
         mock_internal_manager = MagicMock()
         mock_internal_manager.is_internal.return_value = True

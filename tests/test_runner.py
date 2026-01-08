@@ -678,9 +678,7 @@ class TestGobbyRunnerInitialization:
         patches = [p for p in patches if "create_llm_service" not in str(p)]
         patches = [p for p in patches if "TaskExpander" not in str(p)]
         patches.append(patch("gobby.runner.create_llm_service", return_value=mock_llm_service))
-        patches.append(
-            patch("gobby.runner.TaskExpander", side_effect=Exception("Expander error"))
-        )
+        patches.append(patch("gobby.runner.TaskExpander", side_effect=Exception("Expander error")))
 
         with ExitStack() as stack:
             [stack.enter_context(p) for p in patches]
@@ -1218,7 +1216,6 @@ class TestGobbyRunnerShutdown:
     @pytest.mark.asyncio
     async def test_run_fatal_error_exits(self, mock_config):
         """Test that run exits on fatal error."""
-        import sys
 
         mock_mcp_manager = AsyncMock()
         mock_mcp_manager.connect_all = AsyncMock()
@@ -1248,7 +1245,6 @@ class TestGobbyRunnerShutdown:
     @pytest.mark.asyncio
     async def test_run_cancels_metrics_cleanup_task_on_shutdown(self, mock_config):
         """Test that metrics cleanup task is cancelled on shutdown."""
-        import asyncio
 
         mock_mcp_manager = AsyncMock()
         mock_mcp_manager.connect_all = AsyncMock()
@@ -1383,9 +1379,7 @@ class TestAgentEventBroadcastingCallback:
 
         mock_ws_server = AsyncMock()
         mock_ws_server.start = AsyncMock()
-        mock_ws_server.broadcast_agent_event = AsyncMock(
-            side_effect=Exception("Broadcast failed")
-        )
+        mock_ws_server.broadcast_agent_event = AsyncMock(side_effect=Exception("Broadcast failed"))
 
         mock_registry = MagicMock()
         captured_callback = None
@@ -1432,9 +1426,7 @@ class TestAgentEventBroadcastingCallback:
 
         mock_ws_server = AsyncMock()
         mock_ws_server.start = AsyncMock()
-        mock_ws_server.broadcast_agent_event = AsyncMock(
-            side_effect=asyncio.CancelledError()
-        )
+        mock_ws_server.broadcast_agent_event = AsyncMock(side_effect=asyncio.CancelledError())
 
         mock_registry = MagicMock()
         captured_callback = None

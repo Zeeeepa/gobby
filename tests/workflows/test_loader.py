@@ -102,9 +102,7 @@ class TestWorkflowLoader:
 
     def test_load_workflow_with_project_path(self, loader):
         """Test that project path is prepended to search directories."""
-        with patch(
-            "gobby.workflows.loader.WorkflowLoader._find_workflow_file"
-        ) as mock_find:
+        with patch("gobby.workflows.loader.WorkflowLoader._find_workflow_file") as mock_find:
             mock_find.return_value = None
             loader.load_workflow("test", project_path="/my/project")
 
@@ -720,9 +718,7 @@ settings:
         (project_dir / "session_start.yaml").write_text(project_yaml)
 
         loader = WorkflowLoader(workflow_dirs=[global_dir])
-        discovered = loader.discover_lifecycle_workflows(
-            project_path=temp_workflow_dir / "project"
-        )
+        discovered = loader.discover_lifecycle_workflows(project_path=temp_workflow_dir / "project")
 
         # Should only have one workflow (project shadows global)
         assert len(discovered) == 1
@@ -1014,9 +1010,7 @@ class TestValidateWorkflowForAgent:
         step_workflow.type = "step"
 
         with patch.object(loader, "load_workflow", return_value=step_workflow) as mock_load:
-            loader.validate_workflow_for_agent(
-                "test_wf", project_path="/my/project"
-            )
+            loader.validate_workflow_for_agent("test_wf", project_path="/my/project")
 
         mock_load.assert_called_once_with("test_wf", project_path="/my/project")
 

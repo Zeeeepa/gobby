@@ -83,9 +83,7 @@ class TestCallMcpToolBasic:
         )
 
         assert result["result"] == {"status": "ok"}
-        mock_mcp_manager.call_tool.assert_called_once_with(
-            "test-server", "no-args-tool", {}
-        )
+        mock_mcp_manager.call_tool.assert_called_once_with("test-server", "no-args-tool", {})
 
 
 class TestCallMcpToolMissingParameters:
@@ -234,9 +232,7 @@ class TestCallMcpToolExceptionHandling:
         """Test error handling when call_tool raises an exception."""
         mock_mcp_manager = AsyncMock()
         mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(
-            side_effect=Exception("Network timeout")
-        )
+        mock_mcp_manager.call_tool = AsyncMock(side_effect=Exception("Network timeout"))
 
         mock_state = MagicMock()
         mock_state.variables = {}
@@ -255,9 +251,7 @@ class TestCallMcpToolExceptionHandling:
         """Test error handling when call_tool raises ValueError."""
         mock_mcp_manager = AsyncMock()
         mock_mcp_manager.connections = {"test-server": MagicMock()}
-        mock_mcp_manager.call_tool = AsyncMock(
-            side_effect=ValueError("Invalid argument format")
-        )
+        mock_mcp_manager.call_tool = AsyncMock(side_effect=ValueError("Invalid argument format"))
 
         mock_state = MagicMock()
         mock_state.variables = {}
@@ -394,11 +388,7 @@ class TestCallMcpToolComplexArguments:
         mock_state.variables = {}
 
         complex_args = {
-            "level1": {
-                "level2": {
-                    "level3": {"value": 123}
-                }
-            },
+            "level1": {"level2": {"level3": {"value": 123}}},
             "list": [1, 2, {"nested": "item"}],
         }
 
@@ -599,9 +589,7 @@ class TestCallMcpToolEdgeCases:
         )
 
         assert result["result"] == {"ok": True}
-        mock_mcp_manager.call_tool.assert_called_once_with(
-            "test-server", "my_tool.v2-beta", {}
-        )
+        mock_mcp_manager.call_tool.assert_called_once_with("test-server", "my_tool.v2-beta", {})
 
     @pytest.mark.asyncio
     async def test_output_as_with_special_characters(self):

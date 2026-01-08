@@ -4,6 +4,7 @@ Consolidated from individual files.
 """
 
 import json
+
 import pytest
 
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser

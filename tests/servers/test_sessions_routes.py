@@ -18,7 +18,6 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.sessions import LocalSessionManager
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================
@@ -174,9 +173,7 @@ class TestRegisterSessionEdgeCases:
 
         with (
             patch("gobby.utils.machine_id.get_machine_id", return_value="test-machine"),
-            patch.object(
-                session_storage, "register", side_effect=RuntimeError("Database error")
-            ),
+            patch.object(session_storage, "register", side_effect=RuntimeError("Database error")),
         ):
             response = test_client.post(
                 "/sessions/register",
@@ -271,9 +268,7 @@ class TestListSessionsEdgeCases:
         )
         test_client = TestClient(server.app)
 
-        with patch.object(
-            session_storage, "list", side_effect=RuntimeError("Database error")
-        ):
+        with patch.object(session_storage, "list", side_effect=RuntimeError("Database error")):
             response = test_client.get("/sessions")
 
         assert response.status_code == 500
@@ -299,9 +294,7 @@ class TestGetSessionEdgeCases:
         )
         test_client = TestClient(server.app)
 
-        with patch.object(
-            session_storage, "get", side_effect=RuntimeError("Database error")
-        ):
+        with patch.object(session_storage, "get", side_effect=RuntimeError("Database error")):
             response = test_client.get("/sessions/some-session-id")
 
         assert response.status_code == 500
@@ -356,9 +349,7 @@ class TestGetMessagesEdgeCases:
 
         test_client = TestClient(server.app)
 
-        response = test_client.get(
-            f"/sessions/{session.id}/messages?limit=50&offset=10&role=user"
-        )
+        response = test_client.get(f"/sessions/{session.id}/messages?limit=50&offset=10&role=user")
 
         assert response.status_code == 200
         data = response.json()
@@ -393,9 +384,7 @@ class TestGetMessagesEdgeCases:
 
         # Add a failing message_manager
         mock_message_manager = AsyncMock()
-        mock_message_manager.get_messages = AsyncMock(
-            side_effect=RuntimeError("Database error")
-        )
+        mock_message_manager.get_messages = AsyncMock(side_effect=RuntimeError("Database error"))
         server.message_manager = mock_message_manager
 
         test_client = TestClient(server.app)
@@ -503,9 +492,7 @@ class TestFindParentSessionEdgeCases:
         )
         session_storage.update_status(session.id, "handoff_ready")
 
-        with patch(
-            "gobby.utils.machine_id.get_machine_id", return_value="test-machine-fallback"
-        ):
+        with patch("gobby.utils.machine_id.get_machine_id", return_value="test-machine-fallback"):
             response = client.post(
                 "/sessions/find_parent",
                 json={
@@ -769,8 +756,8 @@ class TestStopSignalEdgeCases:
     ) -> None:
         """Test that internal errors during stop signal return 500."""
         # Make the stop registry raise an error
-        server_with_stop_registry.app.state.hook_manager._stop_registry.signal_stop = (
-            MagicMock(side_effect=RuntimeError("Signal error"))
+        server_with_stop_registry.app.state.hook_manager._stop_registry.signal_stop = MagicMock(
+            side_effect=RuntimeError("Signal error")
         )
 
         test_client = TestClient(server_with_stop_registry.app)
@@ -787,8 +774,8 @@ class TestStopSignalEdgeCases:
     ) -> None:
         """Test that internal errors during get stop signal return 500."""
         # Make the stop registry raise an error
-        server_with_stop_registry.app.state.hook_manager._stop_registry.get_signal = (
-            MagicMock(side_effect=RuntimeError("Signal lookup error"))
+        server_with_stop_registry.app.state.hook_manager._stop_registry.get_signal = MagicMock(
+            side_effect=RuntimeError("Signal lookup error")
         )
 
         test_client = TestClient(server_with_stop_registry.app)

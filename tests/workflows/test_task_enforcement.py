@@ -68,9 +68,7 @@ class TestRequireCommitBeforeStop:
         )
         assert result is None
 
-    async def test_task_no_longer_in_progress_clears_state(
-        self, workflow_state, mock_task_manager
-    ):
+    async def test_task_no_longer_in_progress_clears_state(self, workflow_state, mock_task_manager):
         """When task status changed, clear workflow state and allow."""
         workflow_state.variables["claimed_task_id"] = "gt-abc123"
         workflow_state.variables["task_claimed"] = True

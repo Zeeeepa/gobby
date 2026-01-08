@@ -692,11 +692,7 @@ class TestInstallAntigravityEdgeCases:
         hooks_dir.mkdir(parents=True)
 
         (hooks_dir / "hook_dispatcher.py").write_text("# dispatcher")
-        template_content = {
-            "hooks": {
-                "Test": [{"hooks": [{"command": "$PROJECT_PATH/test"}]}]
-            }
-        }
+        template_content = {"hooks": {"Test": [{"hooks": [{"command": "$PROJECT_PATH/test"}]}]}}
         (antigravity_dir / "hooks-template.json").write_text(json.dumps(template_content))
 
         mock_which.return_value = "/usr/bin/uv"

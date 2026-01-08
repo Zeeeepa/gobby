@@ -326,7 +326,9 @@ def session_stats(project_id: str | None) -> None:
 @sessions.command("create-handoff")
 @click.option("--session-id", "-s", help="Session ID (defaults to current active session)")
 @click.option("--compact", is_flag=True, default=False, help="Generate compact summary only")
-@click.option("--full", "full_summary", is_flag=True, default=False, help="Generate full LLM summary only")
+@click.option(
+    "--full", "full_summary", is_flag=True, default=False, help="Generate full LLM summary only"
+)
 @click.option(
     "--output",
     type=click.Choice(["db", "file", "all"]),
@@ -585,7 +587,11 @@ def create_handoff(
             click.echo(f"Error writing file: {e}", err=True)
 
     # Output summary
-    summary_type = "both" if generate_compact and generate_full else ("compact" if generate_compact else "full")
+    summary_type = (
+        "both"
+        if generate_compact and generate_full
+        else ("compact" if generate_compact else "full")
+    )
     click.echo(f"\nCreated handoff context for session {session.id[:12]}")
     click.echo(f"  Type: {summary_type}")
     click.echo(f"  Output: {output}")

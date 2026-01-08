@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.tasks import (
     SKIP_REASONS,
     _infer_test_strategy,
@@ -251,9 +250,7 @@ class TestCreateTaskTool:
         with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
-            await registry.call(
-                "create_task", {"title": "Verify that the feature works correctly"}
-            )
+            await registry.call("create_task", {"title": "Verify that the feature works correctly"})
 
             call_kwargs = mock_task_manager.create_task.call_args.kwargs
             assert call_kwargs["test_strategy"] == "manual"
@@ -283,9 +280,7 @@ class TestCreateTaskTool:
             assert call_kwargs["test_strategy"] == "automated"
 
     @pytest.mark.asyncio
-    async def test_create_task_with_all_optional_fields(
-        self, mock_task_manager, mock_sync_manager
-    ):
+    async def test_create_task_with_all_optional_fields(self, mock_task_manager, mock_sync_manager):
         """Test create_task with all optional fields."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -355,9 +350,7 @@ class TestCreateTaskTool:
         """Test create_task returns full result when show_result_on_create is True."""
         mock_config.get_gobby_tasks_config.return_value.show_result_on_create = True
 
-        registry = create_task_registry(
-            mock_task_manager, mock_sync_manager, config=mock_config
-        )
+        registry = create_task_registry(mock_task_manager, mock_sync_manager, config=mock_config)
 
         mock_task = MagicMock()
         mock_task.id = "gt-full"
@@ -429,9 +422,7 @@ class TestCreateTaskTool:
         with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
-            result = await registry.call(
-                "create_task", {"title": "Epic", "task_type": "epic"}
-            )
+            result = await registry.call("create_task", {"title": "Epic", "task_type": "epic"})
 
             mock_task_validator.generate_criteria.assert_not_called()
             assert "validation_generated" not in result
@@ -620,9 +611,7 @@ class TestLabelTools:
         updated_task.to_dict.return_value = {"id": "gt-abc123", "labels": ["test", "new"]}
         mock_task_manager.add_label.return_value = updated_task
 
-        result = await registry.call(
-            "add_label", {"task_id": "gt-abc123", "label": "new"}
-        )
+        result = await registry.call("add_label", {"task_id": "gt-abc123", "label": "new"})
 
         mock_task_manager.add_label.assert_called_with("gt-abc123", "new")
         assert "new" in result["labels"]
@@ -634,9 +623,7 @@ class TestLabelTools:
 
         mock_task_manager.add_label.return_value = None
 
-        result = await registry.call(
-            "add_label", {"task_id": "gt-nonexistent", "label": "new"}
-        )
+        result = await registry.call("add_label", {"task_id": "gt-nonexistent", "label": "new"})
 
         assert "error" in result
 
@@ -649,9 +636,7 @@ class TestLabelTools:
         updated_task.to_dict.return_value = {"id": "gt-abc123", "labels": []}
         mock_task_manager.remove_label.return_value = updated_task
 
-        result = await registry.call(
-            "remove_label", {"task_id": "gt-abc123", "label": "old"}
-        )
+        result = await registry.call("remove_label", {"task_id": "gt-abc123", "label": "old"})
 
         mock_task_manager.remove_label.assert_called_with("gt-abc123", "old")
         assert result["labels"] == []
@@ -663,9 +648,7 @@ class TestLabelTools:
 
         mock_task_manager.remove_label.return_value = None
 
-        result = await registry.call(
-            "remove_label", {"task_id": "gt-nonexistent", "label": "old"}
-        )
+        result = await registry.call("remove_label", {"task_id": "gt-nonexistent", "label": "old"})
 
         assert "error" in result
 
@@ -701,9 +684,7 @@ class TestCloseTaskTool:
         mock_task.project_id = "proj-1"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch(
-            "gobby.mcp_proxy.tools.tasks.LocalProjectManager"
-        ) as MockProjManager:
+        with patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as MockProjManager:
             mock_proj_instance = MagicMock()
             mock_proj_instance.get.return_value = None
             MockProjManager.return_value = mock_proj_instance
@@ -726,9 +707,7 @@ class TestCloseTaskTool:
         mock_task.project_id = "proj-1"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch(
-            "gobby.mcp_proxy.tools.tasks.LocalProjectManager"
-        ) as MockProjManager:
+        with patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as MockProjManager:
             mock_proj_instance = MagicMock()
             mock_proj_instance.get.return_value = None
             MockProjManager.return_value = mock_proj_instance
@@ -772,9 +751,7 @@ class TestCloseTaskTool:
             mock_task_manager.close_task.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_close_task_parent_with_open_children(
-        self, mock_task_manager, mock_sync_manager
-    ):
+    async def test_close_task_parent_with_open_children(self, mock_task_manager, mock_sync_manager):
         """Test close_task fails for parent with open children."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -798,9 +775,7 @@ class TestCloseTaskTool:
 
         mock_task_manager.list_tasks.return_value = [child1, child2]
 
-        with patch(
-            "gobby.mcp_proxy.tools.tasks.LocalProjectManager"
-        ) as MockProjManager:
+        with patch("gobby.mcp_proxy.tools.tasks.LocalProjectManager") as MockProjManager:
             mock_proj_instance = MagicMock()
             mock_proj_instance.get.return_value = None
             MockProjManager.return_value = mock_proj_instance
@@ -812,9 +787,7 @@ class TestCloseTaskTool:
             assert "open_children" in result
 
     @pytest.mark.asyncio
-    async def test_close_task_success_with_commits(
-        self, mock_task_manager, mock_sync_manager
-    ):
+    async def test_close_task_success_with_commits(self, mock_task_manager, mock_sync_manager):
         """Test close_task succeeds when commits are linked."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -869,16 +842,12 @@ class TestCloseTaskTool:
             MockProjManager.return_value = mock_proj_instance
             mock_git.return_value = "abc123"
 
-            await registry.call(
-                "close_task", {"task_id": "gt-abc123", "commit_sha": "new-commit"}
-            )
+            await registry.call("close_task", {"task_id": "gt-abc123", "commit_sha": "new-commit"})
 
             mock_task_manager.link_commit.assert_called_with("gt-abc123", "new-commit")
 
     @pytest.mark.asyncio
-    async def test_close_task_with_skip_validation(
-        self, mock_task_manager, mock_sync_manager
-    ):
+    async def test_close_task_with_skip_validation(self, mock_task_manager, mock_sync_manager):
         """Test close_task with skip_validation bypasses LLM validation."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -944,13 +913,9 @@ class TestReopenTaskTool:
         reopened_task.to_dict.return_value = {"id": "gt-abc123", "status": "open"}
         mock_task_manager.reopen_task.return_value = reopened_task
 
-        await registry.call(
-            "reopen_task", {"task_id": "gt-abc123", "reason": "Needs more work"}
-        )
+        await registry.call("reopen_task", {"task_id": "gt-abc123", "reason": "Needs more work"})
 
-        mock_task_manager.reopen_task.assert_called_with(
-            "gt-abc123", reason="Needs more work"
-        )
+        mock_task_manager.reopen_task.assert_called_with("gt-abc123", reason="Needs more work")
 
     @pytest.mark.asyncio
     async def test_reopen_task_error(self, mock_task_manager, mock_sync_manager):
@@ -964,13 +929,9 @@ class TestReopenTaskTool:
         assert "error" in result
 
     @pytest.mark.asyncio
-    async def test_reopen_task_reactivates_worktree(
-        self, mock_task_manager, mock_sync_manager
-    ):
+    async def test_reopen_task_reactivates_worktree(self, mock_task_manager, mock_sync_manager):
         """Test reopen_task reactivates associated worktrees."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks.LocalWorktreeManager"
-        ) as MockWorktreeManager:
+        with patch("gobby.mcp_proxy.tools.tasks.LocalWorktreeManager") as MockWorktreeManager:
             mock_wt_instance = MagicMock()
             mock_worktree = MagicMock()
             mock_worktree.id = "wt-123"
@@ -1029,9 +990,7 @@ class TestDeleteTaskTool:
 
         mock_task_manager.delete_task.return_value = True
 
-        await registry.call(
-            "delete_task", {"task_id": "gt-abc123", "cascade": False}
-        )
+        await registry.call("delete_task", {"task_id": "gt-abc123", "cascade": False})
 
         mock_task_manager.delete_task.assert_called_with("gt-abc123", cascade=False)
 
@@ -1116,9 +1075,7 @@ class TestListTasksTool:
             assert call_kwargs["project_id"] is None
 
     @pytest.mark.asyncio
-    async def test_list_tasks_comma_separated_status(
-        self, mock_task_manager, mock_sync_manager
-    ):
+    async def test_list_tasks_comma_separated_status(self, mock_task_manager, mock_sync_manager):
         """Test list_tasks handles comma-separated status strings."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
@@ -1144,9 +1101,7 @@ class TestSessionIntegrationTools:
     @pytest.mark.asyncio
     async def test_link_task_to_session_success(self, mock_task_manager, mock_sync_manager):
         """Test link_task_to_session creates a link."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager") as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             MockSessionTaskManager.return_value = mock_st_instance
 
@@ -1157,9 +1112,7 @@ class TestSessionIntegrationTools:
                 {"task_id": "gt-abc123", "session_id": "sess-123", "action": "worked_on"},
             )
 
-            mock_st_instance.link_task.assert_called_with(
-                "sess-123", "gt-abc123", "worked_on"
-            )
+            mock_st_instance.link_task.assert_called_with("sess-123", "gt-abc123", "worked_on")
             assert result["linked"] is True
 
     @pytest.mark.asyncio
@@ -1169,18 +1122,14 @@ class TestSessionIntegrationTools:
         """Test link_task_to_session requires session_id."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
-        result = await registry.call(
-            "link_task_to_session", {"task_id": "gt-abc123"}
-        )
+        result = await registry.call("link_task_to_session", {"task_id": "gt-abc123"})
 
         assert "error" in result
 
     @pytest.mark.asyncio
     async def test_link_task_to_session_error(self, mock_task_manager, mock_sync_manager):
         """Test link_task_to_session handles errors."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager") as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             mock_st_instance.link_task.side_effect = ValueError("Invalid task")
             MockSessionTaskManager.return_value = mock_st_instance
@@ -1197,9 +1146,7 @@ class TestSessionIntegrationTools:
     @pytest.mark.asyncio
     async def test_get_session_tasks(self, mock_task_manager, mock_sync_manager):
         """Test get_session_tasks returns tasks for a session."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager") as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             mock_st_instance.get_session_tasks.return_value = [
                 {"task_id": "t1", "action": "worked_on"}
@@ -1208,9 +1155,7 @@ class TestSessionIntegrationTools:
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
-            result = await registry.call(
-                "get_session_tasks", {"session_id": "sess-123"}
-            )
+            result = await registry.call("get_session_tasks", {"session_id": "sess-123"})
 
             assert result["session_id"] == "sess-123"
             assert len(result["tasks"]) == 1
@@ -1218,9 +1163,7 @@ class TestSessionIntegrationTools:
     @pytest.mark.asyncio
     async def test_get_task_sessions(self, mock_task_manager, mock_sync_manager):
         """Test get_task_sessions returns sessions for a task."""
-        with patch(
-            "gobby.mcp_proxy.tools.tasks.SessionTaskManager"
-        ) as MockSessionTaskManager:
+        with patch("gobby.mcp_proxy.tools.tasks.SessionTaskManager") as MockSessionTaskManager:
             mock_st_instance = MagicMock()
             mock_st_instance.get_task_sessions.return_value = [
                 {"session_id": "sess-1", "action": "created"}
@@ -1229,9 +1172,7 @@ class TestSessionIntegrationTools:
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
-            result = await registry.call(
-                "get_task_sessions", {"task_id": "gt-abc123"}
-            )
+            result = await registry.call("get_task_sessions", {"task_id": "gt-abc123"})
 
             assert result["task_id"] == "gt-abc123"
             assert len(result["sessions"]) == 1

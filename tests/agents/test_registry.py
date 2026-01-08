@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 import time
 from datetime import UTC, datetime, timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -13,8 +13,6 @@ from gobby.agents.registry import (
     EventCallback,
     RunningAgent,
     RunningAgentRegistry,
-    _default_registry,
-    _registry_lock,
     get_running_agent_registry,
 )
 
@@ -915,9 +913,7 @@ class TestRunningAgentRegistryThreadSafety:
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=add_agents, args=(i,)) for i in range(num_threads)
-        ]
+        threads = [threading.Thread(target=add_agents, args=(i,)) for i in range(num_threads)]
         for t in threads:
             t.start()
         for t in threads:
@@ -1178,9 +1174,7 @@ class TestEventCallbackType:
         """EventCallback data parameter accepts dict with Any values."""
         from typing import Any
 
-        def callback_with_any(
-            event_type: str, run_id: str, data: dict[str, Any]
-        ) -> None:
+        def callback_with_any(event_type: str, run_id: str, data: dict[str, Any]) -> None:
             pass
 
         callback: EventCallback = callback_with_any

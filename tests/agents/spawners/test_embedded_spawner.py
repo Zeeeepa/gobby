@@ -11,7 +11,6 @@ Tests for:
 from __future__ import annotations
 
 import os
-import platform
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -24,7 +23,6 @@ from gobby.agents.spawners.embedded import (
     EmbeddedSpawner,
     _get_spawn_utils,
 )
-
 
 # =============================================================================
 # Test Fixtures
@@ -252,7 +250,9 @@ class TestEmbeddedSpawnerSpawnAgent:
         """spawn_agent() creates command with correct parameters."""
         mock_pty.openpty.return_value = (10, 11)
 
-        def mock_build_cli_command(cli, prompt=None, session_id=None, auto_approve=False, working_directory=None):
+        def mock_build_cli_command(
+            cli, prompt=None, session_id=None, auto_approve=False, working_directory=None
+        ):
             cmd = [cli]
             if session_id:
                 cmd.extend(["--session-id", session_id])
@@ -280,7 +280,9 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("os.fork", return_value=12345)
     @patch("os.close")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_spawn_agent_with_short_prompt(self, mock_utils, mock_close, mock_fork, mock_pty, spawner):
+    def test_spawn_agent_with_short_prompt(
+        self, mock_utils, mock_close, mock_fork, mock_pty, spawner
+    ):
         """spawn_agent() passes short prompt via environment variable."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -306,7 +308,9 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("os.fork", return_value=12345)
     @patch("os.close")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_spawn_agent_with_long_prompt(self, mock_utils, mock_close, mock_fork, mock_pty, spawner):
+    def test_spawn_agent_with_long_prompt(
+        self, mock_utils, mock_close, mock_fork, mock_pty, spawner
+    ):
         """spawn_agent() writes long prompt to file."""
         mock_pty.openpty.return_value = (10, 11)
 
@@ -422,9 +426,7 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("os.fork", return_value=12345)
     @patch("os.close")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_spawn_agent_with_workflow(
-        self, mock_utils, mock_close, mock_fork, mock_pty, spawner
-    ):
+    def test_spawn_agent_with_workflow(self, mock_utils, mock_close, mock_fork, mock_pty, spawner):
         """spawn_agent() passes workflow name correctly."""
         mock_pty.openpty.return_value = (10, 11)
         mock_utils.return_value = (MagicMock(return_value=["claude"]), MagicMock(), 4096)
@@ -495,9 +497,7 @@ class TestEmbeddedSpawnerSpawnAgent:
     @patch("os.fork", return_value=12345)
     @patch("os.close")
     @patch("gobby.agents.spawners.embedded._get_spawn_utils")
-    def test_spawn_agent_without_prompt(
-        self, mock_utils, mock_close, mock_fork, mock_pty, spawner
-    ):
+    def test_spawn_agent_without_prompt(self, mock_utils, mock_close, mock_fork, mock_pty, spawner):
         """spawn_agent() works without a prompt."""
         mock_pty.openpty.return_value = (10, 11)
 

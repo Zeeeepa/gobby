@@ -4,8 +4,6 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from gobby.utils.project_context import (
     find_project_root,
     get_project_context,
@@ -436,9 +434,7 @@ class TestEdgeCases:
             "id": "test-id",
             "name": "My Project with emoji and unicode characters",
         }
-        (gobby_dir / "project.json").write_text(
-            json.dumps(project_data, ensure_ascii=False)
-        )
+        (gobby_dir / "project.json").write_text(json.dumps(project_data, ensure_ascii=False))
 
         result = get_project_context(tmp_path)
         assert result is not None

@@ -132,9 +132,7 @@ class TestGetGithubUrl:
             result = get_github_url(temp_dir)
 
             assert result == "https://github.com/user/repo.git"
-            mock_run.assert_called_once_with(
-                ["git", "remote", "get-url", "origin"], temp_dir
-            )
+            mock_run.assert_called_once_with(["git", "remote", "get-url", "origin"], temp_dir)
 
     def test_fallback_to_first_remote(self, temp_dir: Path) -> None:
         """Test falls back to first remote when origin doesn't exist."""
@@ -228,9 +226,7 @@ class TestGetGitBranch:
             result = get_git_branch(temp_dir)
 
             assert result == "feature/my-branch"
-            mock_run.assert_called_once_with(
-                ["git", "branch", "--show-current"], temp_dir
-            )
+            mock_run.assert_called_once_with(["git", "branch", "--show-current"], temp_dir)
 
     def test_detached_head_state(self, temp_dir: Path) -> None:
         """Test returns None in detached HEAD state."""
@@ -496,9 +492,7 @@ class TestGitMetadataTypeDict:
 class TestEdgeCases:
     """Edge case tests for git utilities."""
 
-    def test_run_git_command_with_special_characters_in_output(
-        self, temp_dir: Path
-    ) -> None:
+    def test_run_git_command_with_special_characters_in_output(self, temp_dir: Path) -> None:
         """Test handling output with special characters."""
         with patch("subprocess.run") as mock_run:
             mock_result = MagicMock()

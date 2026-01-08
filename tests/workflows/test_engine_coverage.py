@@ -660,7 +660,9 @@ class TestLogApproval:
             result="rejected",
         )
 
-    def test_log_approval_no_audit_manager(self, mock_loader, mock_state_manager, mock_action_executor):
+    def test_log_approval_no_audit_manager(
+        self, mock_loader, mock_state_manager, mock_action_executor
+    ):
         """_log_approval does nothing when audit_manager is None."""
         engine = WorkflowEngine(
             mock_loader,

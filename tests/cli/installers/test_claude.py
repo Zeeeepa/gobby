@@ -5,8 +5,6 @@ which handle installing and uninstalling Gobby hooks for Claude Code CLI.
 """
 
 import json
-import os
-import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -39,9 +37,7 @@ class TestInstallClaude:
         hooks_template = {
             "hooks": {
                 "SessionStart": [{"hooks": [{"type": "command", "command": "test"}]}],
-                "PreToolUse": [
-                    {"matcher": "*", "hooks": [{"type": "command", "command": "test"}]}
-                ],
+                "PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "test"}]}],
             }
         }
         (claude_dir / "hooks-template.json").write_text(json.dumps(hooks_template))
@@ -425,11 +421,7 @@ class TestInstallClaude:
         hooks_template = {
             "hooks": {
                 "SessionStart": [
-                    {
-                        "hooks": [
-                            {"type": "command", "command": 'python "$PROJECT_PATH/hook.py"'}
-                        ]
-                    }
+                    {"hooks": [{"type": "command", "command": 'python "$PROJECT_PATH/hook.py"'}]}
                 ]
             }
         }
@@ -594,9 +586,7 @@ class TestUninstallClaude:
             "hooks": {
                 "SessionStart": [{"hooks": [{"type": "command", "command": "test"}]}],
                 "SessionEnd": [{"hooks": [{"type": "command", "command": "test"}]}],
-                "PreToolUse": [
-                    {"matcher": "*", "hooks": [{"type": "command", "command": "test"}]}
-                ],
+                "PreToolUse": [{"matcher": "*", "hooks": [{"type": "command", "command": "test"}]}],
                 "PostToolUse": [
                     {"matcher": "*", "hooks": [{"type": "command", "command": "test"}]}
                 ],

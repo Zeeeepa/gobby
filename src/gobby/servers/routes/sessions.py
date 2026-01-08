@@ -509,7 +509,9 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                 "source": signal.source,
                 "signaled_at": signal.signaled_at.isoformat(),
                 "acknowledged": signal.acknowledged,
-                "acknowledged_at": signal.acknowledged_at.isoformat() if signal.acknowledged_at else None,
+                "acknowledged_at": signal.acknowledged_at.isoformat()
+                if signal.acknowledged_at
+                else None,
             }
 
         except HTTPException:

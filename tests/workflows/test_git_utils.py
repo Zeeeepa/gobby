@@ -7,8 +7,6 @@ pure utility functions for git operations without ActionContext dependency.
 import subprocess
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from gobby.workflows.git_utils import (
     get_file_changes,
     get_git_status,
@@ -84,9 +82,7 @@ class TestGetGitStatus:
     def test_handles_not_a_git_repo(self):
         """Test handling when directory is not a git repository."""
         with patch("subprocess.run") as mock_run:
-            mock_run.side_effect = subprocess.CalledProcessError(
-                returncode=128, cmd="git status"
-            )
+            mock_run.side_effect = subprocess.CalledProcessError(returncode=128, cmd="git status")
             result = get_git_status()
 
             assert result == "Not a git repository or git not available"
@@ -232,9 +228,7 @@ class TestGetRecentGitCommits:
     def test_handles_single_commit(self):
         """Test handling of single commit."""
         with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=0, stdout="abc123|initial commit"
-            )
+            mock_run.return_value = MagicMock(returncode=0, stdout="abc123|initial commit")
             result = get_recent_git_commits()
 
             assert len(result) == 1

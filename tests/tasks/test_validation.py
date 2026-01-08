@@ -73,6 +73,7 @@ class TestRunGitCommand:
     def test_run_git_command_timeout_exception(self, mock_run):
         """Test timeout exception handling."""
         import subprocess
+
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=10)
         result = run_git_command(["git", "log"])
         assert result is None
@@ -84,9 +85,7 @@ class TestGetLastCommitDiff:
     @patch("gobby.tasks.validation.run_git_command")
     def test_get_last_commit_diff_success(self, mock_run):
         """Test successful retrieval of last commit diff."""
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout="diff --git\n+line added"
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout="diff --git\n+line added")
         result = get_last_commit_diff()
         assert result is not None
         assert "diff --git" in result
@@ -364,9 +363,7 @@ class TestGetValidationContextSmartEdgeCases:
 
     @patch("gobby.tasks.validation.run_git_command")
     @patch("gobby.tasks.validation.get_multi_commit_diff")
-    def test_context_limited_remaining_chars_skips_commit_diff(
-        self, mock_diff, mock_run
-    ):
+    def test_context_limited_remaining_chars_skips_commit_diff(self, mock_diff, mock_run):
         """Test that commit diff is skipped when remaining_chars < 5000.
 
         Strategy 2 (multi-commit) only runs if remaining_chars > 5000.
@@ -390,9 +387,7 @@ class TestGetValidationContextSmartEdgeCases:
     @patch("gobby.tasks.validation.run_git_command")
     @patch("gobby.tasks.validation.get_multi_commit_diff")
     @patch("gobby.tasks.validation.find_matching_files")
-    def test_context_skips_file_analysis_when_low_remaining(
-        self, mock_find, mock_diff, mock_run
-    ):
+    def test_context_skips_file_analysis_when_low_remaining(self, mock_find, mock_diff, mock_run):
         """Test that file analysis is skipped when remaining_chars < 2000."""
         # Large content from earlier strategies
         mock_run.return_value = MagicMock(returncode=0, stdout="x" * 48000)
@@ -790,9 +785,7 @@ class TestIntegrationScenarios:
             elif "diff" in cmd:
                 return MagicMock(returncode=0, stdout="+ unstaged change")
             elif "log" in cmd:
-                return MagicMock(
-                    returncode=0, stdout="abc123|feat: add feature\ndef456|fix: bug"
-                )
+                return MagicMock(returncode=0, stdout="abc123|feat: add feature\ndef456|fix: bug")
             return MagicMock(returncode=0, stdout="")
 
         mock_run.side_effect = mock_run_side_effect

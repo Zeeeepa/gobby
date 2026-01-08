@@ -42,9 +42,11 @@ from gobby.agents.spawners.macos import (
 @pytest.fixture
 def mock_tty_config():
     """Create a mock TTY config for testing."""
-    with patch("gobby.agents.spawners.cross_platform.get_tty_config") as mock_cp, \
-         patch("gobby.agents.spawners.macos.get_tty_config") as mock_macos, \
-         patch("gobby.agents.spawners.linux.get_tty_config") as mock_linux:
+    with (
+        patch("gobby.agents.spawners.cross_platform.get_tty_config") as mock_cp,
+        patch("gobby.agents.spawners.macos.get_tty_config") as mock_macos,
+        patch("gobby.agents.spawners.linux.get_tty_config") as mock_linux,
+    ):
 
         def create_mock_config(enabled=True, command=None, app_path=None, options=None):
             config = MagicMock()
@@ -141,7 +143,7 @@ class TestKittySpawner:
             enabled=True,
             app_path="/Applications/kitty.app",
             command=None,
-            options=["-o", "confirm_os_window_close=0"]
+            options=["-o", "confirm_os_window_close=0"],
         )
         mock_process = MagicMock()
         mock_process.pid = 12345
@@ -168,10 +170,7 @@ class TestKittySpawner:
     def test_spawn_linux(self, mock_config, mock_popen, mock_system):
         """Spawn on Linux uses command with --detach."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True,
-            command="kitty",
-            app_path=None,
-            options=[]
+            enabled=True, command="kitty", app_path=None, options=[]
         )
         mock_process = MagicMock()
         mock_process.pid = 12345
@@ -202,11 +201,7 @@ class TestKittySpawner:
         mock_popen.return_value = mock_process
 
         spawner = KittySpawner()
-        result = spawner.spawn(
-            ["echo", "test"],
-            cwd="/tmp",
-            env={"MY_VAR": "my_value"}
-        )
+        result = spawner.spawn(["echo", "test"], cwd="/tmp", env={"MY_VAR": "my_value"})
 
         assert result.success is True
         call_kwargs = mock_popen.call_args[1]
@@ -465,7 +460,9 @@ class TestTmuxSpawner:
     @patch("subprocess.Popen")
     @patch("time.time", return_value=1234567890)
     @patch("gobby.agents.spawners.cross_platform.get_tty_config")
-    def test_spawn_generates_session_name_without_title(self, mock_config, mock_time, mock_popen, mock_system):
+    def test_spawn_generates_session_name_without_title(
+        self, mock_config, mock_time, mock_popen, mock_system
+    ):
         """Spawn generates session name from timestamp when no title."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command="tmux", options=[]
@@ -504,7 +501,7 @@ class TestTmuxSpawner:
         call_args = mock_popen.call_args[0][0]
         assert ";" in call_args
         semicolon_idx = call_args.index(";")
-        chained_args = call_args[semicolon_idx + 1:]
+        chained_args = call_args[semicolon_idx + 1 :]
         assert "set-option" in chained_args
         assert "destroy-unattached" in chained_args
         assert "off" in chained_args
@@ -738,11 +735,7 @@ class TestEmbeddedSpawner:
         mock_pty.openpty.return_value = (10, 11)
 
         spawner = EmbeddedSpawner()
-        result = spawner.spawn(
-            ["echo", "test"],
-            cwd="/tmp",
-            env={"MY_VAR": "my_value"}
-        )
+        result = spawner.spawn(["echo", "test"], cwd="/tmp", env={"MY_VAR": "my_value"})
 
         assert result.success is True
 
@@ -770,7 +763,9 @@ class TestEmbeddedSpawner:
         """spawn_agent creates command with correct flags."""
         mock_pty.openpty.return_value = (10, 11)
 
-        def mock_build_cli_command(cli, prompt=None, session_id=None, auto_approve=False, working_directory=None):
+        def mock_build_cli_command(
+            cli, prompt=None, session_id=None, auto_approve=False, working_directory=None
+        ):
             cmd = [cli]
             if session_id:
                 cmd.extend(["--session-id", session_id])
@@ -808,7 +803,7 @@ class TestEmbeddedSpawner:
         mock_utils.return_value = (
             MagicMock(return_value=["claude"]),
             mock_create_prompt_file,
-            100  # Low threshold to trigger file creation
+            100,  # Low threshold to trigger file creation
         )
 
         spawner = EmbeddedSpawner()
@@ -977,10 +972,7 @@ class TestGhosttySpawner:
     def test_spawn_macos(self, mock_config, mock_popen, mock_system):
         """Spawn on macOS uses 'open -na' command."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True,
-            app_path="/Applications/Ghostty.app",
-            command=None,
-            options=[]
+            enabled=True, app_path="/Applications/Ghostty.app", command=None, options=[]
         )
         mock_process = MagicMock()
         mock_process.pid = 12345
@@ -1008,10 +1000,7 @@ class TestGhosttySpawner:
     def test_spawn_linux(self, mock_config, mock_popen, mock_system):
         """Spawn on Linux uses ghostty command directly."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True,
-            command="ghostty",
-            app_path=None,
-            options=[]
+            enabled=True, command="ghostty", app_path=None, options=[]
         )
         mock_process = MagicMock()
         mock_process.pid = 12345
@@ -1150,11 +1139,7 @@ class TestITermSpawner:
                 with patch.object(Path, "write_text") as mock_write:
                     with patch.object(Path, "chmod"):
                         spawner = ITermSpawner()
-                        spawner.spawn(
-                            ["echo", "test"],
-                            cwd="/tmp",
-                            env={"MY_VAR": "my_value"}
-                        )
+                        spawner.spawn(["echo", "test"], cwd="/tmp", env={"MY_VAR": "my_value"})
 
                         # Check script content includes env export
                         script_content = mock_write.call_args[0][0]
@@ -1182,8 +1167,8 @@ class TestITermSpawner:
                             env={
                                 "VALID_VAR": "value",
                                 "123invalid": "ignored",
-                                "with-dash": "ignored"
-                            }
+                                "with-dash": "ignored",
+                            },
                         )
 
                         script_content = mock_write.call_args[0][0]
@@ -1282,7 +1267,7 @@ class TestTerminalAppSpawner:
         mock_popen.return_value = mock_process
 
         spawner = TerminalAppSpawner()
-        spawner.spawn(["echo", "hello world", "with\"quotes"], cwd="/tmp")
+        spawner.spawn(["echo", "hello world", 'with"quotes'], cwd="/tmp")
 
         call_args = mock_popen.call_args[0][0]
         script = call_args[2]  # The AppleScript content
@@ -1325,7 +1310,7 @@ class TestTerminalAppSpawner:
             env={
                 "VALID_VAR": "value",
                 "123invalid": "ignored",
-            }
+            },
         )
 
         call_args = mock_popen.call_args[0][0]

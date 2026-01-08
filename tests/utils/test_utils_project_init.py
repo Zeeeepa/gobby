@@ -4,8 +4,6 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from gobby.utils.project_init import (
     InitResult,
     VerificationCommands,
@@ -235,12 +233,7 @@ class TestDetectVerificationCommands:
     def test_nodejs_project_with_test_script(self, tmp_path: Path):
         """Test detection for Node.js project with test script."""
         package_json = tmp_path / "package.json"
-        package_json.write_text(json.dumps({
-            "name": "test-project",
-            "scripts": {
-                "test": "jest"
-            }
-        }))
+        package_json.write_text(json.dumps({"name": "test-project", "scripts": {"test": "jest"}}))
 
         result = detect_verification_commands(tmp_path)
 
@@ -251,12 +244,9 @@ class TestDetectVerificationCommands:
     def test_nodejs_project_with_lint_script(self, tmp_path: Path):
         """Test detection for Node.js project with lint script."""
         package_json = tmp_path / "package.json"
-        package_json.write_text(json.dumps({
-            "name": "test-project",
-            "scripts": {
-                "lint": "eslint ."
-            }
-        }))
+        package_json.write_text(
+            json.dumps({"name": "test-project", "scripts": {"lint": "eslint ."}})
+        )
 
         result = detect_verification_commands(tmp_path)
 
@@ -265,12 +255,9 @@ class TestDetectVerificationCommands:
     def test_nodejs_project_with_type_check_script(self, tmp_path: Path):
         """Test detection for Node.js project with type-check script."""
         package_json = tmp_path / "package.json"
-        package_json.write_text(json.dumps({
-            "name": "test-project",
-            "scripts": {
-                "type-check": "tsc --noEmit"
-            }
-        }))
+        package_json.write_text(
+            json.dumps({"name": "test-project", "scripts": {"type-check": "tsc --noEmit"}})
+        )
 
         result = detect_verification_commands(tmp_path)
 
@@ -279,12 +266,9 @@ class TestDetectVerificationCommands:
     def test_nodejs_project_with_typecheck_script(self, tmp_path: Path):
         """Test detection for Node.js project with typecheck script (no hyphen)."""
         package_json = tmp_path / "package.json"
-        package_json.write_text(json.dumps({
-            "name": "test-project",
-            "scripts": {
-                "typecheck": "tsc --noEmit"
-            }
-        }))
+        package_json.write_text(
+            json.dumps({"name": "test-project", "scripts": {"typecheck": "tsc --noEmit"}})
+        )
 
         result = detect_verification_commands(tmp_path)
 
@@ -293,12 +277,9 @@ class TestDetectVerificationCommands:
     def test_nodejs_project_with_types_script(self, tmp_path: Path):
         """Test detection for Node.js project with types script."""
         package_json = tmp_path / "package.json"
-        package_json.write_text(json.dumps({
-            "name": "test-project",
-            "scripts": {
-                "types": "tsc --noEmit"
-            }
-        }))
+        package_json.write_text(
+            json.dumps({"name": "test-project", "scripts": {"types": "tsc --noEmit"}})
+        )
 
         result = detect_verification_commands(tmp_path)
 
@@ -307,12 +288,7 @@ class TestDetectVerificationCommands:
     def test_nodejs_project_with_tsc_script(self, tmp_path: Path):
         """Test detection for Node.js project with tsc script."""
         package_json = tmp_path / "package.json"
-        package_json.write_text(json.dumps({
-            "name": "test-project",
-            "scripts": {
-                "tsc": "tsc"
-            }
-        }))
+        package_json.write_text(json.dumps({"name": "test-project", "scripts": {"tsc": "tsc"}}))
 
         result = detect_verification_commands(tmp_path)
 
@@ -321,14 +297,14 @@ class TestDetectVerificationCommands:
     def test_nodejs_project_with_all_scripts(self, tmp_path: Path):
         """Test detection for Node.js project with all relevant scripts."""
         package_json = tmp_path / "package.json"
-        package_json.write_text(json.dumps({
-            "name": "test-project",
-            "scripts": {
-                "test": "jest",
-                "lint": "eslint .",
-                "type-check": "tsc --noEmit"
-            }
-        }))
+        package_json.write_text(
+            json.dumps(
+                {
+                    "name": "test-project",
+                    "scripts": {"test": "jest", "lint": "eslint .", "type-check": "tsc --noEmit"},
+                }
+            )
+        )
 
         result = detect_verification_commands(tmp_path)
 
@@ -339,9 +315,7 @@ class TestDetectVerificationCommands:
     def test_nodejs_project_no_scripts(self, tmp_path: Path):
         """Test detection for Node.js project without scripts."""
         package_json = tmp_path / "package.json"
-        package_json.write_text(json.dumps({
-            "name": "test-project"
-        }))
+        package_json.write_text(json.dumps({"name": "test-project"}))
 
         result = detect_verification_commands(tmp_path)
 
@@ -352,10 +326,7 @@ class TestDetectVerificationCommands:
     def test_nodejs_project_empty_scripts(self, tmp_path: Path):
         """Test detection for Node.js project with empty scripts object."""
         package_json = tmp_path / "package.json"
-        package_json.write_text(json.dumps({
-            "name": "test-project",
-            "scripts": {}
-        }))
+        package_json.write_text(json.dumps({"name": "test-project", "scripts": {}}))
 
         result = detect_verification_commands(tmp_path)
 
@@ -378,15 +349,19 @@ class TestDetectVerificationCommands:
     def test_nodejs_project_type_check_script_priority(self, tmp_path: Path):
         """Test that type-check script has priority over other type check scripts."""
         package_json = tmp_path / "package.json"
-        package_json.write_text(json.dumps({
-            "name": "test-project",
-            "scripts": {
-                "tsc": "tsc",
-                "types": "tsc --noEmit",
-                "typecheck": "tsc --noEmit --watch",
-                "type-check": "tsc --noEmit --strict"
-            }
-        }))
+        package_json.write_text(
+            json.dumps(
+                {
+                    "name": "test-project",
+                    "scripts": {
+                        "tsc": "tsc",
+                        "types": "tsc --noEmit",
+                        "typecheck": "tsc --noEmit --watch",
+                        "type-check": "tsc --noEmit --strict",
+                    },
+                }
+            )
+        )
 
         result = detect_verification_commands(tmp_path)
 
@@ -522,9 +497,7 @@ class TestWriteProjectJson:
         cwd = tmp_path / "project"
         cwd.mkdir()
 
-        verification = VerificationCommands(
-            custom={"build": "make build", "deploy": "make deploy"}
-        )
+        verification = VerificationCommands(custom={"build": "make build", "deploy": "make deploy"})
 
         _write_project_json(cwd, "proj-123", "my-project", "2024-01-01", verification)
 

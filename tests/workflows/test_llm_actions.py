@@ -16,7 +16,6 @@ from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.llm_actions import call_llm
 from gobby.workflows.templates import TemplateEngine
 
-
 # --- Fixtures ---
 
 
@@ -662,10 +661,9 @@ class TestCallLlmEdgeCases:
         self, mock_llm_service, mock_template_engine, workflow_state, mock_session
     ):
         """Test call_llm handles timeout errors from LLM service."""
-        import asyncio
 
         provider = mock_llm_service.get_default_provider.return_value
-        provider.generate_text = AsyncMock(side_effect=asyncio.TimeoutError("Request timed out"))
+        provider.generate_text = AsyncMock(side_effect=TimeoutError("Request timed out"))
 
         result = await call_llm(
             llm_service=mock_llm_service,

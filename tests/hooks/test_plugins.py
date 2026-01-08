@@ -130,9 +130,7 @@ class TestPluginsConfig:
             enabled=True,
             plugin_dirs=["/custom/path"],
             auto_discover=False,
-            plugins={
-                "my-plugin": PluginItemConfig(enabled=True, config={"key": "value"})
-            },
+            plugins={"my-plugin": PluginItemConfig(enabled=True, config={"key": "value"})},
         )
         assert config.enabled is True
         assert config.plugin_dirs == ["/custom/path"]
@@ -461,9 +459,7 @@ class TestRunPluginHandlers:
         core_response = HookResponse(decision="allow")
 
         # Post-handlers always return None
-        result = run_plugin_handlers(
-            registry, after_event, pre=False, core_response=core_response
-        )
+        result = run_plugin_handlers(registry, after_event, pre=False, core_response=core_response)
         assert result is None
 
     def test_handler_error_continues(self, sample_event):
@@ -511,9 +507,7 @@ class TestWorkflowIntegration:
         plugin.register_action("test_action", my_action)
         registry.register_plugin(plugin)
 
-        executor = ActionExecutor(
-            db=None, session_manager=None, template_engine=None
-        )
+        executor = ActionExecutor(db=None, session_manager=None, template_engine=None)
         executor.register_plugin_actions(registry)
 
         assert "plugin:sample-plugin:test_action" in executor._handlers
@@ -596,6 +590,7 @@ class PluginWithActions(HookPlugin):
     async def _async_action(self, context, **kwargs):
         """Async action with await."""
         import asyncio
+
         await asyncio.sleep(0.01)
         return {"async": True, "value": kwargs.get("value", "default")}
 
@@ -682,6 +677,7 @@ class TestPluginActionExecution:
     def workflow_state(self):
         """Create a WorkflowState with all required fields."""
         from gobby.workflows.definitions import WorkflowState
+
         return WorkflowState(
             session_id="test-session",
             workflow_name="test-workflow",
@@ -811,7 +807,9 @@ class TestPluginActionExecution:
         assert "Intentional error" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_multiple_plugins_namespace_isolation(self, executor_with_plugins, workflow_state):
+    async def test_multiple_plugins_namespace_isolation(
+        self, executor_with_plugins, workflow_state
+    ):
         """Test that actions from different plugins are properly namespaced."""
         from gobby.workflows.actions import ActionContext
 
@@ -1513,7 +1511,7 @@ class TestPluginLoaderDiscovery:
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create a valid plugin file
             plugin_file = Path(tmpdir) / "my_plugin.py"
-            plugin_file.write_text('''
+            plugin_file.write_text("""
 from gobby.hooks.plugins import HookPlugin, hook_handler
 from gobby.hooks.events import HookEventType
 
@@ -1528,7 +1526,7 @@ class MyTestPlugin(HookPlugin):
     @hook_handler(HookEventType.BEFORE_TOOL, priority=30)
     def check_tool(self, event):
         return None
-''')
+""")
 
             plugins_config.plugin_dirs = [tmpdir]
             loader = PluginLoader(plugins_config)
@@ -1547,12 +1545,12 @@ class MyTestPlugin(HookPlugin):
         """Test that _load_module uses cached module."""
         with tempfile.TemporaryDirectory() as tmpdir:
             plugin_file = Path(tmpdir) / "cached_plugin.py"
-            plugin_file.write_text('''
+            plugin_file.write_text("""
 from gobby.hooks.plugins import HookPlugin
 
 class CachedPlugin(HookPlugin):
     name = "cached-plugin"
-''')
+""")
 
             plugins_config.plugin_dirs = [tmpdir]
             loader = PluginLoader(plugins_config)
@@ -1576,8 +1574,7 @@ class TestPluginLoaderLoadPlugin:
     def test_load_plugin_uses_config_from_plugins_config(self, plugins_config):
         """Test that plugin config is taken from PluginsConfig if available."""
         plugins_config.plugins["sample-plugin"] = PluginItemConfig(
-            enabled=True,
-            config={"from_config": True, "value": 42}
+            enabled=True, config={"from_config": True, "value": 42}
         )
         loader = PluginLoader(plugins_config)
 
@@ -1604,12 +1601,12 @@ class TestPluginLoaderLoadPlugin:
         """Test that source path is tracked when available."""
         with tempfile.TemporaryDirectory() as tmpdir:
             plugin_file = Path(tmpdir) / "tracked_plugin.py"
-            plugin_file.write_text('''
+            plugin_file.write_text("""
 from gobby.hooks.plugins import HookPlugin
 
 class TrackedPlugin(HookPlugin):
     name = "tracked-plugin"
-''')
+""")
 
             plugins_config.plugin_dirs = [tmpdir]
             loader = PluginLoader(plugins_config)
@@ -1665,12 +1662,12 @@ class TestPluginLoaderLoadAll:
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create a plugin file
             plugin_file = Path(tmpdir) / "auto_plugin.py"
-            plugin_file.write_text('''
+            plugin_file.write_text("""
 from gobby.hooks.plugins import HookPlugin
 
 class AutoPlugin(HookPlugin):
     name = "auto-plugin"
-''')
+""")
 
             config = PluginsConfig(
                 enabled=True,
@@ -1687,20 +1684,18 @@ class AutoPlugin(HookPlugin):
         """Test load_all skips explicitly disabled plugins."""
         with tempfile.TemporaryDirectory() as tmpdir:
             plugin_file = Path(tmpdir) / "disabled_plugin.py"
-            plugin_file.write_text('''
+            plugin_file.write_text("""
 from gobby.hooks.plugins import HookPlugin
 
 class DisabledPlugin(HookPlugin):
     name = "disabled-plugin"
-''')
+""")
 
             config = PluginsConfig(
                 enabled=True,
                 plugin_dirs=[tmpdir],
                 auto_discover=True,
-                plugins={
-                    "disabled-plugin": PluginItemConfig(enabled=False)
-                }
+                plugins={"disabled-plugin": PluginItemConfig(enabled=False)},
             )
             loader = PluginLoader(config)
 
@@ -1712,7 +1707,7 @@ class DisabledPlugin(HookPlugin):
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create a failing plugin
             failing = Path(tmpdir) / "failing.py"
-            failing.write_text('''
+            failing.write_text("""
 from gobby.hooks.plugins import HookPlugin
 
 class FailingLoadPlugin(HookPlugin):
@@ -1720,16 +1715,16 @@ class FailingLoadPlugin(HookPlugin):
 
     def on_load(self, config):
         raise RuntimeError("Load failed!")
-''')
+""")
 
             # Create a working plugin
             working = Path(tmpdir) / "working.py"
-            working.write_text('''
+            working.write_text("""
 from gobby.hooks.plugins import HookPlugin
 
 class WorkingPlugin(HookPlugin):
     name = "working-plugin"
-''')
+""")
 
             config = PluginsConfig(
                 enabled=True,
@@ -1820,13 +1815,13 @@ class TestPluginLoaderReload:
         """Test successfully reloading a plugin from file."""
         with tempfile.TemporaryDirectory() as tmpdir:
             plugin_file = Path(tmpdir) / "reloadable.py"
-            plugin_file.write_text('''
+            plugin_file.write_text("""
 from gobby.hooks.plugins import HookPlugin
 
 class ReloadablePlugin(HookPlugin):
     name = "reloadable"
     version = "1.0.0"
-''')
+""")
 
             plugins_config.plugin_dirs = [tmpdir]
             loader = PluginLoader(plugins_config)
@@ -1836,13 +1831,13 @@ class ReloadablePlugin(HookPlugin):
             loader.load_plugin(discovered[0])
 
             # Modify the plugin file
-            plugin_file.write_text('''
+            plugin_file.write_text("""
 from gobby.hooks.plugins import HookPlugin
 
 class ReloadablePlugin(HookPlugin):
     name = "reloadable"
     version = "2.0.0"  # Version changed
-''')
+""")
 
             # Reload
             reloaded = loader.reload_plugin("reloadable")
@@ -1864,12 +1859,12 @@ class ReloadablePlugin(HookPlugin):
         """Test reloading when source file has been deleted."""
         with tempfile.TemporaryDirectory() as tmpdir:
             plugin_file = Path(tmpdir) / "deletable.py"
-            plugin_file.write_text('''
+            plugin_file.write_text("""
 from gobby.hooks.plugins import HookPlugin
 
 class DeletablePlugin(HookPlugin):
     name = "deletable"
-''')
+""")
 
             plugins_config.plugin_dirs = [tmpdir]
             loader = PluginLoader(plugins_config)
@@ -1887,12 +1882,12 @@ class DeletablePlugin(HookPlugin):
         """Test reloading when plugin class name changes (different class)."""
         with tempfile.TemporaryDirectory() as tmpdir:
             plugin_file = Path(tmpdir) / "changeable.py"
-            plugin_file.write_text('''
+            plugin_file.write_text("""
 from gobby.hooks.plugins import HookPlugin
 
 class ChangeablePlugin(HookPlugin):
     name = "changeable"
-''')
+""")
 
             plugins_config.plugin_dirs = [tmpdir]
             loader = PluginLoader(plugins_config)
@@ -1901,12 +1896,12 @@ class ChangeablePlugin(HookPlugin):
             loader.load_plugin(discovered[0])
 
             # Modify file to have different plugin name
-            plugin_file.write_text('''
+            plugin_file.write_text("""
 from gobby.hooks.plugins import HookPlugin
 
 class DifferentPlugin(HookPlugin):
     name = "different-name"  # Name changed!
-''')
+""")
 
             # Reload should fail because plugin name no longer matches
             result = loader.reload_plugin("changeable")
@@ -1916,12 +1911,12 @@ class DifferentPlugin(HookPlugin):
         """Test reloading when loading the reloaded module fails."""
         with tempfile.TemporaryDirectory() as tmpdir:
             plugin_file = Path(tmpdir) / "errorprone.py"
-            plugin_file.write_text('''
+            plugin_file.write_text("""
 from gobby.hooks.plugins import HookPlugin
 
 class ErrorPronePlugin(HookPlugin):
     name = "errorprone"
-''')
+""")
 
             plugins_config.plugin_dirs = [tmpdir]
             loader = PluginLoader(plugins_config)
@@ -1930,10 +1925,10 @@ class ErrorPronePlugin(HookPlugin):
             loader.load_plugin(discovered[0])
 
             # Modify file to have syntax error
-            plugin_file.write_text('''
+            plugin_file.write_text("""
 def broken(  # Syntax error
     pass
-''')
+""")
 
             result = loader.reload_plugin("errorprone")
             assert result is None
@@ -1944,12 +1939,12 @@ def broken(  # Syntax error
 
         with tempfile.TemporaryDirectory() as tmpdir:
             plugin_file = Path(tmpdir) / "cached.py"
-            plugin_file.write_text('''
+            plugin_file.write_text("""
 from gobby.hooks.plugins import HookPlugin
 
 class CachedPlugin(HookPlugin):
     name = "cached"
-''')
+""")
 
             plugins_config.plugin_dirs = [tmpdir]
             loader = PluginLoader(plugins_config)
@@ -1965,13 +1960,13 @@ class CachedPlugin(HookPlugin):
             assert "cached" in loader._plugin_sources
 
             # Update file content
-            plugin_file.write_text('''
+            plugin_file.write_text("""
 from gobby.hooks.plugins import HookPlugin
 
 class CachedPlugin(HookPlugin):
     name = "cached"
     version = "2.0.0"
-''')
+""")
 
             # Reload
             reloaded = loader.reload_plugin("cached")
@@ -2021,9 +2016,7 @@ class TestRunPluginHandlersAdditional:
         core_response = HookResponse(decision="allow")
 
         # Should not raise
-        result = run_plugin_handlers(
-            registry, event, pre=False, core_response=core_response
-        )
+        result = run_plugin_handlers(registry, event, pre=False, core_response=core_response)
 
         assert result is None
         assert PostObserverPlugin.observed is True
@@ -2039,7 +2032,7 @@ class TestRunPluginHandlersAdditional:
                 return HookResponse(
                     decision="block",
                     reason="Blocked for safety",
-                    metadata={"blocked_by": "block-plugin"}
+                    metadata={"blocked_by": "block-plugin"},
                 )
 
         registry = PluginRegistry()

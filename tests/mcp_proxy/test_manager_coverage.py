@@ -11,7 +11,6 @@ Focuses on MCP client management operations including:
 
 import asyncio
 from datetime import datetime
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -155,9 +154,7 @@ class TestLoadToolsFromDB:
         mock_db = MagicMock()
         mock_db.get_cached_tools.return_value = []
 
-        result = MCPClientManager._load_tools_from_db(
-            mock_db, "test-server", "test-project"
-        )
+        result = MCPClientManager._load_tools_from_db(mock_db, "test-server", "test-project")
 
         assert result is None
 
@@ -166,9 +163,7 @@ class TestLoadToolsFromDB:
         mock_db = MagicMock()
         mock_db.get_cached_tools.side_effect = Exception("Database error")
 
-        result = MCPClientManager._load_tools_from_db(
-            mock_db, "test-server", "test-project"
-        )
+        result = MCPClientManager._load_tools_from_db(mock_db, "test-server", "test-project")
 
         assert result is None
 
@@ -179,9 +174,7 @@ class TestLoadToolsFromDB:
             MockCachedTool("tool1", None),
         ]
 
-        result = MCPClientManager._load_tools_from_db(
-            mock_db, "test-server", "test-project"
-        )
+        result = MCPClientManager._load_tools_from_db(mock_db, "test-server", "test-project")
 
         assert result is not None
         assert result[0]["brief"] == ""
@@ -882,9 +875,7 @@ class TestMCPClientManagerCallTool:
 
         with patch.object(manager, "get_session", return_value=mock_session):
             with pytest.raises(asyncio.TimeoutError):
-                await manager.call_tool(
-                    "test-server", "slow-tool", None, timeout=0.01
-                )
+                await manager.call_tool("test-server", "slow-tool", None, timeout=0.01)
 
     @pytest.mark.asyncio
     async def test_call_tool_records_metrics(self):
@@ -1493,7 +1484,9 @@ class TestMCPClientManagerMonitorHealth:
             pass
 
         # Should not have called health_check since not connected
-        assert not hasattr(mock_connection, "health_check") or not mock_connection.health_check.called
+        assert (
+            not hasattr(mock_connection, "health_check") or not mock_connection.health_check.called
+        )
 
     @pytest.mark.asyncio
     async def test_monitor_health_handles_exceptions(self):

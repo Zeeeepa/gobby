@@ -23,7 +23,6 @@ from gobby.agents.spawners.windows import (
     WSLSpawner,
 )
 
-
 # =============================================================================
 # Helper Fixtures
 # =============================================================================
@@ -128,9 +127,7 @@ class TestWindowsTerminalSpawner:
     @patch("platform.system", return_value="Windows")
     @patch("shutil.which", return_value="C:\\wt.exe")
     @patch("gobby.agents.spawners.windows.get_tty_config")
-    def test_is_available_default_command_when_none(
-        self, mock_config, mock_which, mock_system
-    ):
+    def test_is_available_default_command_when_none(self, mock_config, mock_which, mock_system):
         """Windows Terminal uses 'wt' as default command when config.command is None."""
         mock_config.return_value.get_terminal_config.return_value = MagicMock(
             enabled=True, command=None
@@ -178,9 +175,7 @@ class TestWindowsTerminalSpawner:
         mock_popen.return_value = mock_process
 
         spawner = WindowsTerminalSpawner()
-        result = spawner.spawn(
-            ["echo", "test"], cwd="C:\\Projects", title="My Terminal"
-        )
+        result = spawner.spawn(["echo", "test"], cwd="C:\\Projects", title="My Terminal")
 
         assert result.success is True
         call_args = mock_popen.call_args[0][0]
@@ -359,9 +354,7 @@ class TestCmdSpawner:
     @patch("gobby.agents.spawners.windows.get_tty_config")
     def test_is_available_disabled(self, mock_config, mock_system):
         """cmd.exe not available when disabled in config."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=False
-        )
+        mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=False)
         spawner = CmdSpawner()
         assert spawner.is_available() is False
 
@@ -369,9 +362,7 @@ class TestCmdSpawner:
     @patch("gobby.agents.spawners.windows.get_tty_config")
     def test_is_available_enabled(self, mock_config, mock_system):
         """cmd.exe available when enabled on Windows (built-in, no which check)."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True
-        )
+        mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         spawner = CmdSpawner()
         assert spawner.is_available() is True
 
@@ -379,9 +370,7 @@ class TestCmdSpawner:
     @patch("gobby.agents.spawners.windows.get_tty_config")
     def test_spawn_basic(self, mock_config, mock_popen):
         """Spawn creates correct cmd.exe command."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True
-        )
+        mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_popen.return_value = mock_process
@@ -403,17 +392,13 @@ class TestCmdSpawner:
     @patch("gobby.agents.spawners.windows.get_tty_config")
     def test_spawn_with_title(self, mock_config, mock_popen):
         """Spawn includes title in start command."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True
-        )
+        mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_popen.return_value = mock_process
 
         spawner = CmdSpawner()
-        result = spawner.spawn(
-            ["echo", "test"], cwd="C:\\Projects", title="My CMD Window"
-        )
+        result = spawner.spawn(["echo", "test"], cwd="C:\\Projects", title="My CMD Window")
 
         assert result.success is True
         call_args = mock_popen.call_args[0][0]
@@ -424,9 +409,7 @@ class TestCmdSpawner:
     @patch("gobby.agents.spawners.windows.get_tty_config")
     def test_spawn_without_title_uses_empty_quotes(self, mock_config, mock_popen):
         """Spawn uses empty title quotes when no title provided."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True
-        )
+        mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_popen.return_value = mock_process
@@ -442,17 +425,13 @@ class TestCmdSpawner:
     @patch("gobby.agents.spawners.windows.get_tty_config")
     def test_spawn_with_env_vars(self, mock_config, mock_popen):
         """Spawn passes environment variables."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True
-        )
+        mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_popen.return_value = mock_process
 
         spawner = CmdSpawner()
-        result = spawner.spawn(
-            ["dir"], cwd="C:\\", env={"MY_VAR": "value"}
-        )
+        result = spawner.spawn(["dir"], cwd="C:\\", env={"MY_VAR": "value"})
 
         assert result.success is True
         call_kwargs = mock_popen.call_args[1]
@@ -463,9 +442,7 @@ class TestCmdSpawner:
     @patch("gobby.agents.spawners.windows.get_tty_config")
     def test_spawn_uses_cmd_k_for_keeping_window_open(self, mock_config, mock_popen):
         """Spawn uses cmd /k to keep window open after command."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True
-        )
+        mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_popen.return_value = mock_process
@@ -481,19 +458,14 @@ class TestCmdSpawner:
     @patch("gobby.agents.spawners.windows.get_tty_config")
     def test_spawn_properly_escapes_command(self, mock_config, mock_popen):
         """Spawn uses list2cmdline for proper escaping."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True
-        )
+        mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_popen.return_value = mock_process
 
         spawner = CmdSpawner()
         # Command with special characters
-        spawner.spawn(
-            ["python", "-c", 'print("hello world")'],
-            cwd="C:\\Program Files\\Python"
-        )
+        spawner.spawn(["python", "-c", 'print("hello world")'], cwd="C:\\Program Files\\Python")
 
         call_args = mock_popen.call_args[0][0]
         # Verify command structure is correct
@@ -505,9 +477,7 @@ class TestCmdSpawner:
     @patch("gobby.agents.spawners.windows.get_tty_config")
     def test_spawn_uses_create_new_process_group(self, mock_config, mock_popen):
         """Spawn uses CREATE_NEW_PROCESS_GROUP creationflags."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True
-        )
+        mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_popen.return_value = mock_process
@@ -523,9 +493,7 @@ class TestCmdSpawner:
     @patch("gobby.agents.spawners.windows.get_tty_config")
     def test_spawn_handles_file_not_found(self, mock_config, mock_popen):
         """Spawn handles FileNotFoundError gracefully."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True
-        )
+        mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
 
         spawner = CmdSpawner()
         result = spawner.spawn(["dir"], cwd="C:\\")
@@ -538,9 +506,7 @@ class TestCmdSpawner:
     @patch("gobby.agents.spawners.windows.get_tty_config")
     def test_spawn_handles_invalid_path(self, mock_config, mock_popen):
         """Spawn handles invalid path errors gracefully."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True
-        )
+        mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
 
         spawner = CmdSpawner()
         result = spawner.spawn(["cmd"], cwd="Z:\\NonExistent")
@@ -552,9 +518,7 @@ class TestCmdSpawner:
     @patch("gobby.agents.spawners.windows.get_tty_config")
     def test_spawn_handles_generic_exception(self, mock_config, mock_popen):
         """Spawn handles generic exceptions gracefully."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True
-        )
+        mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
 
         spawner = CmdSpawner()
         result = spawner.spawn(["cmd"], cwd="C:\\")
@@ -622,7 +586,9 @@ class TestPowerShellSpawner:
         )
         # pwsh not found, but powershell is
         mock_which.side_effect = lambda cmd: (
-            None if cmd == "pwsh" else "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+            None
+            if cmd == "pwsh"
+            else "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
         )
 
         spawner = PowerShellSpawner()
@@ -716,9 +682,7 @@ class TestPowerShellSpawner:
         mock_popen.return_value = mock_process
 
         spawner = PowerShellSpawner()
-        result = spawner.spawn(
-            ["echo", "test"], cwd="C:\\Projects", title="My PowerShell"
-        )
+        result = spawner.spawn(["echo", "test"], cwd="C:\\Projects", title="My PowerShell")
 
         assert result.success is True
         call_args = mock_popen.call_args[0][0]
@@ -802,9 +766,7 @@ class TestPowerShellSpawner:
         mock_popen.return_value = mock_process
 
         spawner = PowerShellSpawner()
-        result = spawner.spawn(
-            ["echo", "$env:MY_VAR"], cwd="C:\\", env={"MY_VAR": "value"}
-        )
+        result = spawner.spawn(["echo", "$env:MY_VAR"], cwd="C:\\", env={"MY_VAR": "value"})
 
         assert result.success is True
         call_kwargs = mock_popen.call_args[1]
@@ -1098,9 +1060,7 @@ class TestWSLSpawner:
 
         spawner = WSLSpawner()
         spawner.spawn(
-            ["echo", "$MY_VAR"],
-            cwd="/home/user",
-            env={"MY_VAR": "my_value", "OTHER_VAR": "other"}
+            ["echo", "$MY_VAR"], cwd="/home/user", env={"MY_VAR": "my_value", "OTHER_VAR": "other"}
         )
 
         call_args = mock_popen.call_args[0][0]
@@ -1125,11 +1085,7 @@ class TestWSLSpawner:
         spawner.spawn(
             ["env"],
             cwd="/home/user",
-            env={
-                "VALID_VAR": "value",
-                "123invalid": "ignored",
-                "with-dash": "ignored"
-            }
+            env={"VALID_VAR": "value", "123invalid": "ignored", "with-dash": "ignored"},
         )
 
         call_args = mock_popen.call_args[0][0]
@@ -1152,10 +1108,7 @@ class TestWSLSpawner:
 
         spawner = WSLSpawner()
         # Command with special characters
-        spawner.spawn(
-            ["echo", "hello world", "test'quote"],
-            cwd="/home/user"
-        )
+        spawner.spawn(["echo", "hello world", "test'quote"], cwd="/home/user")
 
         call_args = mock_popen.call_args[0][0]
         bash_idx = call_args.index("bash")
@@ -1223,9 +1176,7 @@ class TestWindowsSpawnerSecurity:
     @patch("gobby.agents.spawners.windows.get_tty_config")
     def test_cmd_injection_prevention(self, mock_config, mock_popen):
         """CmdSpawner properly escapes commands to prevent injection."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True
-        )
+        mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_popen.return_value = mock_process
@@ -1310,9 +1261,7 @@ class TestWindowsSpawnerEdgeCases:
     @patch("gobby.agents.spawners.windows.get_tty_config")
     def test_cmd_path_with_special_chars(self, mock_config, mock_popen):
         """CmdSpawner handles paths with special characters."""
-        mock_config.return_value.get_terminal_config.return_value = MagicMock(
-            enabled=True
-        )
+        mock_config.return_value.get_terminal_config.return_value = MagicMock(enabled=True)
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_popen.return_value = mock_process
@@ -1421,10 +1370,7 @@ class TestSpawnResultDataclass:
 # =============================================================================
 
 
-@pytest.mark.skipif(
-    os.name != "nt",
-    reason="Windows-specific integration tests"
-)
+@pytest.mark.skipif(os.name != "nt", reason="Windows-specific integration tests")
 class TestWindowsIntegration:
     """Integration tests that only run on Windows."""
 

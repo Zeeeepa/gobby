@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -33,9 +33,10 @@ class TestInstallCodexNotify:
     @pytest.fixture
     def mock_shared_content(self):
         """Mock the shared content installation functions."""
-        with patch("gobby.cli.installers.codex.install_shared_content") as mock_shared, patch(
-            "gobby.cli.installers.codex.install_cli_content"
-        ) as mock_cli:
+        with (
+            patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
+            patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
+        ):
             mock_shared.return_value = {
                 "skills": ["skill1", "skill2"],
                 "workflows": ["workflow1.yaml"],
@@ -226,9 +227,10 @@ class TestInstallCodexNotify:
         """Test that shared and CLI-specific skills/workflows are merged."""
         from gobby.cli.installers.codex import install_codex_notify
 
-        with patch("gobby.cli.installers.codex.install_shared_content") as mock_shared, patch(
-            "gobby.cli.installers.codex.install_cli_content"
-        ) as mock_cli:
+        with (
+            patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
+            patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
+        ):
             mock_shared.return_value = {
                 "skills": ["shared-skill"],
                 "workflows": ["shared-workflow"],
@@ -545,9 +547,11 @@ class TestNotifyLineFormat:
     @pytest.fixture
     def mock_deps(self):
         """Mock shared content and MCP configuration."""
-        with patch("gobby.cli.installers.codex.install_shared_content") as mock_shared, patch(
-            "gobby.cli.installers.codex.install_cli_content"
-        ) as mock_cli, patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp:
+        with (
+            patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
+            patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
+            patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
+        ):
             mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
             mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
@@ -623,11 +627,12 @@ class TestEdgeCases:
         hook_dispatcher = codex_hooks / "hook_dispatcher.py"
         hook_dispatcher.write_text("# Hook with unicode comment")
 
-        with patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir), patch(
-            "gobby.cli.installers.codex.install_shared_content"
-        ) as mock_shared, patch("gobby.cli.installers.codex.install_cli_content") as mock_cli, patch(
-            "gobby.cli.installers.codex.configure_mcp_server_toml"
-        ) as mock_mcp:
+        with (
+            patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir),
+            patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
+            patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
+            patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
+        ):
             mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
             mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
@@ -652,11 +657,12 @@ class TestEdgeCases:
         config_path = codex_dir / "config.toml"
         config_path.write_text("")
 
-        with patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir), patch(
-            "gobby.cli.installers.codex.install_shared_content"
-        ) as mock_shared, patch("gobby.cli.installers.codex.install_cli_content") as mock_cli, patch(
-            "gobby.cli.installers.codex.configure_mcp_server_toml"
-        ) as mock_mcp:
+        with (
+            patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir),
+            patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
+            patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
+            patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
+        ):
             mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
             mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
@@ -686,11 +692,12 @@ class TestEdgeCases:
         config_path = codex_dir / "config.toml"
         config_path.write_text("   \n\n  \n")
 
-        with patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir), patch(
-            "gobby.cli.installers.codex.install_shared_content"
-        ) as mock_shared, patch("gobby.cli.installers.codex.install_cli_content") as mock_cli, patch(
-            "gobby.cli.installers.codex.configure_mcp_server_toml"
-        ) as mock_mcp:
+        with (
+            patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir),
+            patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
+            patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
+            patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
+        ):
             mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
             mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
@@ -776,11 +783,12 @@ debug = true
 """
         config_path.write_text(original_config)
 
-        with patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir), patch(
-            "gobby.cli.installers.codex.install_shared_content"
-        ) as mock_shared, patch("gobby.cli.installers.codex.install_cli_content") as mock_cli, patch(
-            "gobby.cli.installers.codex.configure_mcp_server_toml"
-        ) as mock_mcp:
+        with (
+            patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir),
+            patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
+            patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
+            patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
+        ):
             mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
             mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
@@ -829,11 +837,12 @@ debug = true
         notify_line = f"notify = {json.dumps(notify_command)}\n"
         config_path.write_text(notify_line)
 
-        with patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir), patch(
-            "gobby.cli.installers.codex.install_shared_content"
-        ) as mock_shared, patch("gobby.cli.installers.codex.install_cli_content") as mock_cli, patch(
-            "gobby.cli.installers.codex.configure_mcp_server_toml"
-        ) as mock_mcp:
+        with (
+            patch("gobby.cli.installers.codex.get_install_dir", return_value=install_dir),
+            patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
+            patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
+            patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
+        ):
             mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
             mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
@@ -875,9 +884,7 @@ debug = true
         # Config not updated since there was no notify line to remove
         assert result["config_updated"] is False
 
-    def test_uninstall_notify_removal_produces_identical_content(
-        self, mock_home: Path
-    ):
+    def test_uninstall_notify_removal_produces_identical_content(self, mock_home: Path):
         """Test edge case where regex matches but substitution produces same content.
 
         This tests the branch at line 166 where updated == existing after substitution.
@@ -911,8 +918,10 @@ debug = true
                 return MockPattern()
             return original_compile(pattern, *args, **kwargs)
 
-        with patch("gobby.cli.installers.codex.remove_mcp_server_toml") as mock_mcp, \
-             patch("gobby.cli.installers.codex.re.compile", side_effect=mock_compile):
+        with (
+            patch("gobby.cli.installers.codex.remove_mcp_server_toml") as mock_mcp,
+            patch("gobby.cli.installers.codex.re.compile", side_effect=mock_compile),
+        ):
             mock_mcp.return_value = {"success": True, "removed": True}
 
             result = uninstall_codex_notify()
@@ -947,9 +956,11 @@ class TestResultStructure:
         """Test that install result contains all expected keys."""
         from gobby.cli.installers.codex import install_codex_notify
 
-        with patch("gobby.cli.installers.codex.install_shared_content") as mock_shared, patch(
-            "gobby.cli.installers.codex.install_cli_content"
-        ) as mock_cli, patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp:
+        with (
+            patch("gobby.cli.installers.codex.install_shared_content") as mock_shared,
+            patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
+            patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
+        ):
             mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
             mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}

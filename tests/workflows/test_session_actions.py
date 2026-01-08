@@ -20,7 +20,6 @@ from gobby.workflows.session_actions import (
     switch_mode,
 )
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -136,9 +135,7 @@ class TestStartNewSession:
             args, _ = mock_popen.call_args
             assert args[0][0] == "claude"
 
-    def test_auto_detect_missing_source_attribute(
-        self, mock_session_manager, mock_session
-    ):
+    def test_auto_detect_missing_source_attribute(self, mock_session_manager, mock_session):
         """Test when session has no source attribute."""
         # Remove the source attribute to trigger getattr fallback
         del mock_session.source
@@ -158,9 +155,7 @@ class TestStartNewSession:
             # Default is "claude" when source attribute is missing
             assert args[0][0] == "claude"
 
-    def test_explicit_command_overrides_source(
-        self, mock_session_manager, mock_session
-    ):
+    def test_explicit_command_overrides_source(self, mock_session_manager, mock_session):
         """Test that explicit command overrides auto-detection."""
         mock_session.source = "claude"
 
@@ -353,9 +348,7 @@ class TestStartNewSession:
             _, kwargs = mock_popen.call_args
             assert kwargs["cwd"] == "."
 
-    def test_cwd_missing_project_path_attribute(
-        self, mock_session_manager, mock_session
-    ):
+    def test_cwd_missing_project_path_attribute(self, mock_session_manager, mock_session):
         """Test cwd when session has no project_path attribute."""
         del mock_session.project_path
 
@@ -531,13 +524,9 @@ class TestMarkSessionStatus:
 
         assert result["status_updated"] is True
         assert result["session_id"] == "sess_123"
-        mock_session_manager.update_status.assert_called_once_with(
-            "sess_123", "completed"
-        )
+        mock_session_manager.update_status.assert_called_once_with("sess_123", "completed")
 
-    def test_mark_parent_session_status_success(
-        self, mock_session_manager, mock_session
-    ):
+    def test_mark_parent_session_status_success(self, mock_session_manager, mock_session):
         """Test marking parent session status when parent exists."""
         mock_session.parent_session_id = "parent_sess_456"
 
@@ -551,9 +540,7 @@ class TestMarkSessionStatus:
         assert result["status_updated"] is True
         assert result["session_id"] == "parent_sess_456"
         assert result["status"] == "waiting"
-        mock_session_manager.update_status.assert_called_once_with(
-            "parent_sess_456", "waiting"
-        )
+        mock_session_manager.update_status.assert_called_once_with("parent_sess_456", "waiting")
 
     def test_mark_parent_session_no_parent(self, mock_session_manager, mock_session):
         """Test error when marking parent but no parent session exists."""
@@ -598,9 +585,7 @@ class TestMarkSessionStatus:
 
             assert result["status_updated"] is True
             assert result["status"] == status
-            mock_session_manager.update_status.assert_called_once_with(
-                "sess_123", status
-            )
+            mock_session_manager.update_status.assert_called_once_with("sess_123", status)
 
     def test_empty_string_status(self, mock_session_manager):
         """Test that empty string status is treated as missing."""
@@ -705,9 +690,7 @@ class TestActionExecutorIntegration:
             template_engine=MagicMock(),
         )
 
-        with patch(
-            "gobby.workflows.session_actions.subprocess.Popen"
-        ) as mock_popen:
+        with patch("gobby.workflows.session_actions.subprocess.Popen") as mock_popen:
             mock_proc = MagicMock()
             mock_proc.pid = 12345
             mock_popen.return_value = mock_proc
@@ -779,9 +762,7 @@ class TestActionExecutorIntegration:
         )
 
         # Session source is 'claude' from fixture
-        with patch(
-            "gobby.workflows.session_actions.subprocess.Popen"
-        ) as mock_popen:
+        with patch("gobby.workflows.session_actions.subprocess.Popen") as mock_popen:
             mock_proc = MagicMock()
             mock_proc.pid = 11111
             mock_popen.return_value = mock_proc
@@ -794,9 +775,7 @@ class TestActionExecutorIntegration:
 
         # Change to gemini
         mock_context.session_manager.get.return_value.source = "gemini"
-        with patch(
-            "gobby.workflows.session_actions.subprocess.Popen"
-        ) as mock_popen:
+        with patch("gobby.workflows.session_actions.subprocess.Popen") as mock_popen:
             mock_proc = MagicMock()
             mock_proc.pid = 22222
             mock_popen.return_value = mock_proc
@@ -816,16 +795,12 @@ class TestActionExecutorIntegration:
             template_engine=MagicMock(),
         )
 
-        with patch(
-            "gobby.workflows.session_actions.subprocess.Popen"
-        ) as mock_popen:
+        with patch("gobby.workflows.session_actions.subprocess.Popen") as mock_popen:
             mock_proc = MagicMock()
             mock_proc.pid = 12345
             mock_popen.return_value = mock_proc
 
-            result = await executor._handle_start_new_session(
-                mock_context, cwd="/custom/path"
-            )
+            result = await executor._handle_start_new_session(mock_context, cwd="/custom/path")
 
             assert result["started_new_session"] is True
             _, kwargs = mock_popen.call_args

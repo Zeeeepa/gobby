@@ -17,15 +17,6 @@ from click.testing import CliRunner
 from gobby.cli import cli
 from gobby.cli.extensions import (
     _get_hook_description,
-    hooks,
-    hooks_list,
-    hooks_test,
-    plugins,
-    plugins_list,
-    plugins_reload,
-    webhooks,
-    webhooks_list,
-    webhooks_test,
 )
 from gobby.hooks.events import HookEventType
 
@@ -1182,9 +1173,7 @@ class TestWebhooksTestCommand:
         mock_check_daemon.return_value = True
         mock_call_api.return_value = {"success": True, "status_code": 200}
 
-        result = runner.invoke(
-            cli, ["webhooks", "test", "my-webhook", "-e", "session_start"]
-        )
+        result = runner.invoke(cli, ["webhooks", "test", "my-webhook", "-e", "session_start"])
 
         assert result.exit_code == 0
 

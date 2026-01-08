@@ -1,7 +1,7 @@
 """Comprehensive tests for the metrics collection module."""
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import psutil
 import pytest
@@ -11,7 +11,6 @@ from gobby.utils.metrics import (
     Gauge,
     Histogram,
     MetricsCollector,
-    _metrics_collector,
     get_metrics_collector,
 )
 
@@ -134,9 +133,7 @@ class TestHistogram:
     def test_histogram_initialization_custom_buckets(self):
         """Test histogram initializes with custom buckets."""
         custom_buckets = [0.1, 0.5, 1.0, 5.0]
-        histogram = Histogram(
-            name="latency", help_text="Request latency", buckets=custom_buckets
-        )
+        histogram = Histogram(name="latency", help_text="Request latency", buckets=custom_buckets)
         assert histogram.buckets == custom_buckets
 
     def test_histogram_post_init_initializes_bucket_counts(self):
@@ -326,9 +323,7 @@ class TestMetricsCollector:
     def test_register_histogram_with_custom_buckets(self, collector):
         """Test registering histogram with custom buckets."""
         custom_buckets = [0.1, 1.0, 10.0]
-        histogram = collector.register_histogram(
-            "custom_histogram", "Test", buckets=custom_buckets
-        )
+        histogram = collector.register_histogram("custom_histogram", "Test", buckets=custom_buckets)
         assert histogram.buckets == custom_buckets
 
     def test_register_histogram_with_labels(self, collector):

@@ -930,7 +930,7 @@ class FakeStopSignal:
         reason: str = "Test stop",
         source: str = "http_api",
     ) -> None:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         self.signal_id = signal_id
         self.reason = reason
@@ -1079,9 +1079,7 @@ class TestStopSignalEndpoints:
         assert response.status_code == 503
         assert "Hook manager not available" in response.json()["detail"]
 
-    def test_stop_signal_without_stop_registry(
-        self, session_storage: LocalSessionManager
-    ) -> None:
+    def test_stop_signal_without_stop_registry(self, session_storage: LocalSessionManager) -> None:
         """Test stop signal endpoints when stop registry not available."""
         server = HTTPServer(
             port=8765,

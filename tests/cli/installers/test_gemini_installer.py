@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -35,8 +35,12 @@ class TestInstallGemini:
         template = gemini_dir / "hooks-template.json"
         template_content = {
             "hooks": {
-                "SessionStart": {"command": "uv run python $PROJECT_PATH/.gemini/hooks/hook_dispatcher.py"},
-                "SessionEnd": {"command": "uv run python $PROJECT_PATH/.gemini/hooks/hook_dispatcher.py"},
+                "SessionStart": {
+                    "command": "uv run python $PROJECT_PATH/.gemini/hooks/hook_dispatcher.py"
+                },
+                "SessionEnd": {
+                    "command": "uv run python $PROJECT_PATH/.gemini/hooks/hook_dispatcher.py"
+                },
             }
         }
         template.write_text(json.dumps(template_content))
@@ -51,7 +55,11 @@ class TestInstallGemini:
     @pytest.fixture
     def mock_cli_content(self) -> dict:
         """Mock return value for install_cli_content."""
-        return {"skills": ["cli_skill"], "workflows": ["cli_workflow.yaml"], "commands": ["command1.md"]}
+        return {
+            "skills": ["cli_skill"],
+            "workflows": ["cli_workflow.yaml"],
+            "commands": ["command1.md"],
+        }
 
     def test_install_gemini_success(
         self,
@@ -223,7 +231,9 @@ class TestInstallGemini:
         template = mock_install_dir / "gemini" / "hooks-template.json"
         template_content = {
             "hooks": {
-                "SessionStart": {"command": "uv run python $PROJECT_PATH/.gemini/hooks/hook_dispatcher.py"},
+                "SessionStart": {
+                    "command": "uv run python $PROJECT_PATH/.gemini/hooks/hook_dispatcher.py"
+                },
             }
         }
         template.write_text(json.dumps(template_content))
@@ -755,7 +765,9 @@ class TestUninstallGemini:
             assert updated["general"]["theme"] == "dark"
             assert "enableHooks" not in updated["general"]
 
-    def test_uninstall_gemini_removes_empty_hooks_directory(self, project_path: Path, temp_dir: Path):
+    def test_uninstall_gemini_removes_empty_hooks_directory(
+        self, project_path: Path, temp_dir: Path
+    ):
         """Test that empty hooks directory is removed."""
         gemini_path = project_path / ".gemini"
         hooks_dir = gemini_path / "hooks"
@@ -783,7 +795,9 @@ class TestUninstallGemini:
             assert result["success"] is True
             assert not hooks_dir.exists()
 
-    def test_uninstall_gemini_keeps_nonempty_hooks_directory(self, project_path: Path, temp_dir: Path):
+    def test_uninstall_gemini_keeps_nonempty_hooks_directory(
+        self, project_path: Path, temp_dir: Path
+    ):
         """Test that hooks directory with other files is preserved."""
         gemini_path = project_path / ".gemini"
         hooks_dir = gemini_path / "hooks"
@@ -912,7 +926,9 @@ class TestInstallGeminiEdgeCases:
         template = gemini_dir / "hooks-template.json"
         template_content = {
             "hooks": {
-                "SessionStart": {"command": "uv run python $PROJECT_PATH/.gemini/hooks/hook_dispatcher.py"},
+                "SessionStart": {
+                    "command": "uv run python $PROJECT_PATH/.gemini/hooks/hook_dispatcher.py"
+                },
             }
         }
         template.write_text(json.dumps(template_content))

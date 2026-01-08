@@ -214,7 +214,9 @@ class StuckDetector:
                     "high_value_events": summary.high_value_events,
                     "stagnation_duration": summary.stagnation_duration_seconds,
                     "last_high_value_at": (
-                        summary.last_high_value_at.isoformat() if summary.last_high_value_at else None
+                        summary.last_high_value_at.isoformat()
+                        if summary.last_high_value_at
+                        else None
                     ),
                 },
                 suggested_action="stop",
@@ -253,8 +255,7 @@ class StuckDetector:
             if count >= self.tool_loop_threshold:
                 tool_name = key.split(":")[0]
                 logger.info(
-                    f"Session {session_id} stuck in tool loop: "
-                    f"{tool_name} called {count} times"
+                    f"Session {session_id} stuck in tool loop: " f"{tool_name} called {count} times"
                 )
                 return StuckDetectionResult(
                     is_stuck=True,
@@ -318,13 +319,13 @@ class StuckDetector:
             )
 
         if result.rowcount > 0:
-            logger.debug(f"Cleared {result.rowcount} task selection record(s) for session {session_id}")
+            logger.debug(
+                f"Cleared {result.rowcount} task selection record(s) for session {session_id}"
+            )
 
         return result.rowcount
 
-    def get_selection_history(
-        self, session_id: str, limit: int = 20
-    ) -> list[TaskSelectionEvent]:
+    def get_selection_history(self, session_id: str, limit: int = 20) -> list[TaskSelectionEvent]:
         """Get recent task selection history.
 
         Args:
@@ -355,7 +356,9 @@ class StuckDetector:
                     try:
                         context = json.loads(row["context"])
                     except json.JSONDecodeError:
-                        logger.warning(f"Failed to parse context for task selection: {row['context'][:100]}")
+                        logger.warning(
+                            f"Failed to parse context for task selection: {row['context'][:100]}"
+                        )
                         context = None
             events.append(
                 TaskSelectionEvent(

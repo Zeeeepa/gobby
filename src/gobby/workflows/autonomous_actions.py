@@ -162,7 +162,9 @@ def detect_task_loop(
     # Update workflow state
     state.variables["_task_loop_detected"] = result.is_stuck
     if result.is_stuck:
-        state.variables["_task_loop_task_id"] = result.details.get("task_id") if result.details else None
+        state.variables["_task_loop_task_id"] = (
+            result.details.get("task_id") if result.details else None
+        )
 
     return {
         "is_stuck": result.is_stuck,
@@ -279,8 +281,6 @@ def get_progress_summary(
         "last_high_value_at": (
             summary.last_high_value_at.isoformat() if summary.last_high_value_at else None
         ),
-        "last_event_at": (
-            summary.last_event_at.isoformat() if summary.last_event_at else None
-        ),
+        "last_event_at": (summary.last_event_at.isoformat() if summary.last_event_at else None),
         "events_by_type": {k.value: v for k, v in summary.events_by_type.items()},
     }

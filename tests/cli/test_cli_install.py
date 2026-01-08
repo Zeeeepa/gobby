@@ -3,8 +3,6 @@
 Tests for install.py using Click's CliRunner to test all commands and options.
 """
 
-import json
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 

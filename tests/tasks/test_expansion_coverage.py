@@ -145,15 +145,11 @@ class TestTaskExpanderInit:
         assert expander.criteria_injector is not None
         assert expander.criteria_injector.verification_config == verification_config
 
-    def test_init_without_verification_config(
-        self, mock_task_manager, mock_llm_service
-    ):
+    def test_init_without_verification_config(self, mock_task_manager, mock_llm_service):
         """Test initialization without verification config (gets from project)."""
         config = TaskExpansionConfig(enabled=True)
 
-        with patch(
-            "gobby.tasks.expansion.get_verification_config", return_value=None
-        ):
+        with patch("gobby.tasks.expansion.get_verification_config", return_value=None):
             expander = TaskExpander(
                 config=config,
                 llm_service=mock_llm_service,
@@ -315,9 +311,7 @@ class TestErrorHandling:
     """Tests for error handling in task expansion."""
 
     @pytest.mark.asyncio
-    async def test_llm_exception_handled(
-        self, mock_task_manager, mock_llm_service, sample_task
-    ):
+    async def test_llm_exception_handled(self, mock_task_manager, mock_llm_service, sample_task):
         """Test that LLM exceptions are handled gracefully."""
         config = TaskExpansionConfig(enabled=True)
         mock_task_manager.get_task.return_value = sample_task
@@ -514,9 +508,7 @@ class TestCreateSubtasks:
     """Tests for _create_subtasks method."""
 
     @pytest.mark.asyncio
-    async def test_create_subtasks_with_test_strategy(
-        self, mock_task_manager, mock_llm_service
-    ):
+    async def test_create_subtasks_with_test_strategy(self, mock_task_manager, mock_llm_service):
         """Test that test strategy is added to description."""
         config = TaskExpansionConfig(enabled=True)
         expander = TaskExpander(config, mock_llm_service, mock_task_manager)
@@ -707,9 +699,7 @@ class TestCreateSubtasks:
 class TestSaveExpansionContext:
     """Tests for _save_expansion_context method."""
 
-    def test_save_context_with_web_research(
-        self, mock_task_manager, mock_llm_service
-    ):
+    def test_save_context_with_web_research(self, mock_task_manager, mock_llm_service):
         """Test saving context with web research data."""
         config = TaskExpansionConfig(enabled=True)
         expander = TaskExpander(config, mock_llm_service, mock_task_manager)
@@ -749,9 +739,7 @@ class TestSaveExpansionContext:
 
         mock_task_manager.update_task.assert_not_called()
 
-    def test_save_context_exception_handled(
-        self, mock_task_manager, mock_llm_service
-    ):
+    def test_save_context_exception_handled(self, mock_task_manager, mock_llm_service):
         """Test that exceptions during save are handled."""
         config = TaskExpansionConfig(enabled=True)
         expander = TaskExpander(config, mock_llm_service, mock_task_manager)

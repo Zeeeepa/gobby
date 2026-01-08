@@ -9,7 +9,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from unittest.mock import MagicMock, call, mock_open, patch
+from unittest.mock import MagicMock, patch
 
 import httpx
 import psutil
@@ -17,7 +17,6 @@ import pytest
 from click.testing import CliRunner
 
 from gobby.cli import cli
-from gobby.cli.daemon import restart, start, status, stop
 
 
 class TestStartCommand:
@@ -205,12 +204,13 @@ class TestStartCommand:
 
             # The test will proceed to try starting the daemon after removing
             # stale PID - mock the remaining calls to prevent actual daemon start
-            with patch("gobby.cli.daemon.is_port_available", return_value=True), \
-                 patch("gobby.cli.daemon.subprocess.Popen") as mock_popen, \
-                 patch("gobby.cli.daemon.httpx.get") as mock_httpx_get, \
-                 patch("gobby.cli.daemon.fetch_rich_status", return_value={}), \
-                 patch("gobby.cli.daemon.time.sleep"):
-
+            with (
+                patch("gobby.cli.daemon.is_port_available", return_value=True),
+                patch("gobby.cli.daemon.subprocess.Popen") as mock_popen,
+                patch("gobby.cli.daemon.httpx.get") as mock_httpx_get,
+                patch("gobby.cli.daemon.fetch_rich_status", return_value={}),
+                patch("gobby.cli.daemon.time.sleep"),
+            ):
                 mock_process = MagicMock()
                 mock_process.pid = 12345
                 mock_process.poll.return_value = None
@@ -399,11 +399,12 @@ class TestStartCommand:
             gobby_dir.mkdir(parents=True, exist_ok=True)
             (gobby_dir / "logs").mkdir(parents=True, exist_ok=True)
 
-            with patch("gobby.cli.daemon.is_port_available", return_value=True), \
-                 patch("gobby.cli.daemon.subprocess.Popen") as mock_popen, \
-                 patch("gobby.cli.daemon.httpx.get") as mock_httpx_get, \
-                 patch("gobby.cli.daemon.fetch_rich_status", return_value={}):
-
+            with (
+                patch("gobby.cli.daemon.is_port_available", return_value=True),
+                patch("gobby.cli.daemon.subprocess.Popen") as mock_popen,
+                patch("gobby.cli.daemon.httpx.get") as mock_httpx_get,
+                patch("gobby.cli.daemon.fetch_rich_status", return_value={}),
+            ):
                 mock_process = MagicMock()
                 mock_process.pid = 12345
                 mock_process.poll.return_value = None

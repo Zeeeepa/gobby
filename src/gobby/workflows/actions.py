@@ -1114,9 +1114,7 @@ class ActionExecutor:
 
     # --- Autonomous Execution Actions ---
 
-    async def _broadcast_autonomous_event(
-        self, event: str, session_id: str, **kwargs: Any
-    ) -> None:
+    async def _broadcast_autonomous_event(self, event: str, session_id: str, **kwargs: Any) -> None:
         """Helper to broadcast autonomous events via WebSocket.
 
         Non-blocking fire-and-forget broadcast.

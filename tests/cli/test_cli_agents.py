@@ -13,14 +13,12 @@ Uses Click's CliRunner and mocks external dependencies.
 """
 
 import json
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
 
 from gobby.cli import cli
-from gobby.cli.agents import agents
 
 # ==============================================================================
 # Fixtures
@@ -610,9 +608,7 @@ class TestAgentsListCommand:
         mock_manager.list_by_session.return_value = [mock_agent_run]
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["agents", "list", "--session", "sess-parent123"]
-        )
+        result = runner.invoke(cli, ["agents", "list", "--session", "sess-parent123"])
 
         assert result.exit_code == 0
         assert "Found 1 agent run" in result.output
@@ -695,9 +691,7 @@ class TestAgentsListCommand:
         )
 
         assert result.exit_code == 0
-        mock_manager.list_by_session.assert_called_once_with(
-            "sess-123", status="success", limit=20
-        )
+        mock_manager.list_by_session.assert_called_once_with("sess-123", status="success", limit=20)
 
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_list_with_limit(
@@ -776,11 +770,11 @@ class TestAgentsListCommand:
 
         # Create runs with different statuses
         statuses = [
-            ("pending", "\u25cb"),    # Empty circle
-            ("running", "\u25d0"),    # Half circle
-            ("success", "\u2713"),    # Check mark
-            ("error", "\u2717"),      # X mark
-            ("timeout", "\u23f1"),    # Stopwatch
+            ("pending", "\u25cb"),  # Empty circle
+            ("running", "\u25d0"),  # Half circle
+            ("success", "\u2713"),  # Check mark
+            ("error", "\u2717"),  # X mark
+            ("timeout", "\u23f1"),  # Stopwatch
             ("cancelled", "\u2298"),  # Circled slash
         ]
 
@@ -1309,9 +1303,7 @@ class TestAgentsCancelCommand:
         mock_manager.get.return_value = mock_agent_run
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["agents", "cancel", mock_agent_run.id, "--yes"]
-        )
+        result = runner.invoke(cli, ["agents", "cancel", mock_agent_run.id, "--yes"])
 
         assert result.exit_code == 0
         assert "Cancelled agent run" in result.output
@@ -1332,9 +1324,7 @@ class TestAgentsCancelCommand:
         mock_manager.get.return_value = pending_run
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["agents", "cancel", "ar-pending123", "--yes"]
-        )
+        result = runner.invoke(cli, ["agents", "cancel", "ar-pending123", "--yes"])
 
         assert result.exit_code == 0
         assert "Cancelled agent run" in result.output
@@ -1351,9 +1341,7 @@ class TestAgentsCancelCommand:
         mock_manager.get.return_value = mock_completed_run
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["agents", "cancel", mock_completed_run.id, "--yes"]
-        )
+        result = runner.invoke(cli, ["agents", "cancel", mock_completed_run.id, "--yes"])
 
         assert result.exit_code == 0
         assert "Cannot cancel agent in status" in result.output
@@ -1375,9 +1363,7 @@ class TestAgentsCancelCommand:
         mock_db.fetchall.return_value = []
         mock_db_cls.return_value = mock_db
 
-        result = runner.invoke(
-            cli, ["agents", "cancel", "ar-nonexistent", "--yes"]
-        )
+        result = runner.invoke(cli, ["agents", "cancel", "ar-nonexistent", "--yes"])
 
         assert result.exit_code == 0
         assert "Agent run not found" in result.output
@@ -1492,9 +1478,7 @@ class TestAgentsStatsCommand:
         }
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["agents", "stats", "--session", "sess-test123"]
-        )
+        result = runner.invoke(cli, ["agents", "stats", "--session", "sess-test123"])
 
         assert result.exit_code == 0
         assert "Agent Statistics for session sess-test123" in result.output

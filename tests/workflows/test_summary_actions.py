@@ -9,7 +9,6 @@ Tests cover:
 """
 
 import json
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -20,7 +19,6 @@ from gobby.workflows.summary_actions import (
     generate_summary,
     synthesize_title,
 )
-
 
 # =============================================================================
 # Fixtures
@@ -73,9 +71,7 @@ def sample_transcript_file(tmp_path):
         {
             "message": {
                 "role": "assistant",
-                "content": [
-                    {"type": "text", "text": "Of course! How can I assist you today?"}
-                ],
+                "content": [{"type": "text", "text": "Of course! How can I assist you today?"}],
             }
         },
         {"message": {"role": "user", "content": "I need to refactor some code."}},
@@ -571,10 +567,7 @@ class TestSynthesizeTitle:
         # Create 30 turns
         with open(transcript_file, "w") as f:
             for i in range(30):
-                f.write(
-                    json.dumps({"message": {"role": "user", "content": f"Message {i}"}})
-                    + "\n"
-                )
+                f.write(json.dumps({"message": {"role": "user", "content": f"Message {i}"}}) + "\n")
 
         session = MagicMock()
         session.jsonl_path = str(transcript_file)
@@ -1145,9 +1138,7 @@ class TestGenerateHandoff:
         assert result is not None
         assert result["handoff_created"] is True
         assert result["summary_length"] == len("Generated Summary Content")
-        mock_session_manager.update_status.assert_called_once_with(
-            "test-session", "handoff_ready"
-        )
+        mock_session_manager.update_status.assert_called_once_with("test-session", "handoff_ready")
 
     @pytest.mark.asyncio
     async def test_generate_handoff_propagates_summary_error(
@@ -1349,9 +1340,7 @@ class TestGenerateHandoff:
             )
 
         assert result == {"error": "Failed to generate summary"}
-        mock_session_manager.update_status.assert_called_once_with(
-            "test-session", "handoff_ready"
-        )
+        mock_session_manager.update_status.assert_called_once_with("test-session", "handoff_ready")
 
     @pytest.mark.asyncio
     async def test_generate_handoff_zero_summary_length(
@@ -1417,7 +1406,10 @@ class TestSummaryActionsIntegration:
                     "role": "assistant",
                     "content": [
                         {"type": "thinking", "thinking": "Analyzing the request"},
-                        {"type": "text", "text": "I'll help you refactor. Let me look at the code."},
+                        {
+                            "type": "text",
+                            "text": "I'll help you refactor. Let me look at the code.",
+                        },
                         {"type": "tool_use", "name": "read_file"},
                     ],
                 }
@@ -1456,9 +1448,7 @@ class TestSummaryActionsIntegration:
         assert result["handoff_created"] is True
         assert result["summary_length"] == len("Session focused on code refactoring.")
         mock_session_manager.update_summary.assert_called_once()
-        mock_session_manager.update_status.assert_called_once_with(
-            "session-123", "handoff_ready"
-        )
+        mock_session_manager.update_status.assert_called_once_with("session-123", "handoff_ready")
 
     @pytest.mark.asyncio
     async def test_title_then_summary_workflow(
@@ -1473,9 +1463,7 @@ class TestSummaryActionsIntegration:
         transcript_file = tmp_path / "transcript.jsonl"
         with open(transcript_file, "w") as f:
             f.write(
-                json.dumps(
-                    {"message": {"role": "user", "content": "Fix the authentication bug"}}
-                )
+                json.dumps({"message": {"role": "user", "content": "Fix the authentication bug"}})
                 + "\n"
             )
 

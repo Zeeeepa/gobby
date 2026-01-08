@@ -216,17 +216,13 @@ class TestAgentRunnerPrepareRun:
     def test_prepare_run_creates_context(self, runner, mock_session_storage):
         """prepare_run creates AgentRunContext with session and run."""
         # Mock can_spawn to allow spawning
-        runner._child_session_manager.can_spawn_child = MagicMock(
-            return_value=(True, "OK", 0)
-        )
+        runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
         # Mock the child session manager to return a session
         child_session = MagicMock()
         child_session.id = "sess-child"
         child_session.agent_depth = 1
-        runner._child_session_manager.create_child_session = MagicMock(
-            return_value=child_session
-        )
+        runner._child_session_manager.create_child_session = MagicMock(return_value=child_session)
 
         # Mock the run storage
         agent_run = MagicMock()
@@ -338,17 +334,13 @@ class TestAgentRunnerRun:
     async def test_run_combines_prepare_and_execute(self, runner, mock_executor):
         """run() calls prepare_run then execute_run."""
         # Mock can_spawn to allow spawning
-        runner._child_session_manager.can_spawn_child = MagicMock(
-            return_value=(True, "OK", 0)
-        )
+        runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
         # Setup child session manager
         child_session = MagicMock()
         child_session.id = "sess-child"
         child_session.agent_depth = 1
-        runner._child_session_manager.create_child_session = MagicMock(
-            return_value=child_session
-        )
+        runner._child_session_manager.create_child_session = MagicMock(return_value=child_session)
 
         # Setup run storage
         agent_run = MagicMock()
@@ -384,16 +376,12 @@ class TestAgentRunnerRun:
     async def test_run_sets_run_id_on_result(self, runner, mock_executor):
         """run() sets run_id on the result."""
         # Mock can_spawn to allow spawning
-        runner._child_session_manager.can_spawn_child = MagicMock(
-            return_value=(True, "OK", 0)
-        )
+        runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
         child_session = MagicMock()
         child_session.id = "sess-child"
         child_session.agent_depth = 1
-        runner._child_session_manager.create_child_session = MagicMock(
-            return_value=child_session
-        )
+        runner._child_session_manager.create_child_session = MagicMock(return_value=child_session)
 
         agent_run = MagicMock()
         agent_run.id = "run-abc"
@@ -419,17 +407,13 @@ class TestAgentRunnerTerminalPickupMetadata:
     def test_prepare_run_sets_terminal_pickup_metadata(self, runner, mock_session_storage):
         """prepare_run calls update_terminal_pickup_metadata with correct values."""
         # Mock can_spawn to allow spawning
-        runner._child_session_manager.can_spawn_child = MagicMock(
-            return_value=(True, "OK", 0)
-        )
+        runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
         # Mock the child session manager to return a session
         child_session = MagicMock()
         child_session.id = "sess-child"
         child_session.agent_depth = 1
-        runner._child_session_manager.create_child_session = MagicMock(
-            return_value=child_session
-        )
+        runner._child_session_manager.create_child_session = MagicMock(return_value=child_session)
 
         # Mock the run storage
         agent_run = MagicMock()
@@ -463,16 +447,12 @@ class TestAgentRunnerTerminalPickupMetadata:
 
     def test_prepare_run_sets_metadata_without_workflow(self, runner, mock_session_storage):
         """prepare_run sets metadata even when no workflow specified."""
-        runner._child_session_manager.can_spawn_child = MagicMock(
-            return_value=(True, "OK", 0)
-        )
+        runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
         child_session = MagicMock()
         child_session.id = "sess-child"
         child_session.agent_depth = 1
-        runner._child_session_manager.create_child_session = MagicMock(
-            return_value=child_session
-        )
+        runner._child_session_manager.create_child_session = MagicMock(return_value=child_session)
 
         agent_run = MagicMock()
         agent_run.id = "run-456"
@@ -500,16 +480,12 @@ class TestAgentRunnerTerminalPickupMetadata:
 
     def test_prepare_run_uses_legacy_workflow_name(self, runner, mock_session_storage):
         """prepare_run uses legacy workflow_name if workflow not specified."""
-        runner._child_session_manager.can_spawn_child = MagicMock(
-            return_value=(True, "OK", 0)
-        )
+        runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
         child_session = MagicMock()
         child_session.id = "sess-child"
         child_session.agent_depth = 1
-        runner._child_session_manager.create_child_session = MagicMock(
-            return_value=child_session
-        )
+        runner._child_session_manager.create_child_session = MagicMock(return_value=child_session)
 
         agent_run = MagicMock()
         agent_run.id = "run-789"
@@ -934,7 +910,9 @@ class TestAgentRunnerExecuteRunStatusHandling:
         assert result.status == "timeout"
         runner._run_storage.timeout.assert_called_once_with("run-timeout", turns_used=5)
 
-    async def test_execute_run_handles_error_status(self, runner, mock_executor, mock_session_storage):
+    async def test_execute_run_handles_error_status(
+        self, runner, mock_executor, mock_session_storage
+    ):
         """execute_run handles error status correctly."""
         mock_session = MagicMock()
         mock_session.id = "sess-error"
@@ -970,7 +948,9 @@ class TestAgentRunnerExecuteRunStatusHandling:
         )
         mock_session_storage.update_status.assert_called_once_with("sess-error", "failed")
 
-    async def test_execute_run_handles_partial_status(self, runner, mock_executor, mock_session_storage):
+    async def test_execute_run_handles_partial_status(
+        self, runner, mock_executor, mock_session_storage
+    ):
         """execute_run handles partial status correctly."""
         mock_session = MagicMock()
         mock_session.id = "sess-partial"
@@ -1054,9 +1034,7 @@ class TestAgentRunnerPrepareRunWorkflows:
 
     def test_prepare_run_rejects_lifecycle_workflow(self, runner, mock_session_storage):
         """prepare_run returns error for lifecycle workflows."""
-        runner._child_session_manager.can_spawn_child = MagicMock(
-            return_value=(True, "OK", 0)
-        )
+        runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
         # Mock the workflow loader to return a lifecycle workflow
         mock_workflow = MagicMock()
@@ -1080,9 +1058,7 @@ class TestAgentRunnerPrepareRunWorkflows:
 
     def test_prepare_run_handles_child_session_creation_failure(self, runner, mock_session_storage):
         """prepare_run handles ValueError from create_child_session."""
-        runner._child_session_manager.can_spawn_child = MagicMock(
-            return_value=(True, "OK", 0)
-        )
+        runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
         runner._child_session_manager.create_child_session = MagicMock(
             side_effect=ValueError("Session creation failed")
         )
@@ -1104,16 +1080,12 @@ class TestAgentRunnerPrepareRunWorkflows:
         """prepare_run logs warning when workflow not found."""
         import logging
 
-        runner._child_session_manager.can_spawn_child = MagicMock(
-            return_value=(True, "OK", 0)
-        )
+        runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
         child_session = MagicMock()
         child_session.id = "sess-child"
         child_session.agent_depth = 1
-        runner._child_session_manager.create_child_session = MagicMock(
-            return_value=child_session
-        )
+        runner._child_session_manager.create_child_session = MagicMock(return_value=child_session)
 
         agent_run = MagicMock()
         agent_run.id = "run-123"
@@ -1138,16 +1110,12 @@ class TestAgentRunnerPrepareRunWorkflows:
 
     def test_prepare_run_initializes_workflow_state(self, runner, mock_session_storage):
         """prepare_run initializes workflow state for step workflows."""
-        runner._child_session_manager.can_spawn_child = MagicMock(
-            return_value=(True, "OK", 0)
-        )
+        runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
         child_session = MagicMock()
         child_session.id = "sess-child"
         child_session.agent_depth = 1
-        runner._child_session_manager.create_child_session = MagicMock(
-            return_value=child_session
-        )
+        runner._child_session_manager.create_child_session = MagicMock(return_value=child_session)
 
         agent_run = MagicMock()
         agent_run.id = "run-123"
@@ -1181,16 +1149,12 @@ class TestAgentRunnerPrepareRunWorkflows:
 
     def test_prepare_run_handles_workflow_with_no_steps(self, runner, mock_session_storage):
         """prepare_run handles workflow with empty steps list."""
-        runner._child_session_manager.can_spawn_child = MagicMock(
-            return_value=(True, "OK", 0)
-        )
+        runner._child_session_manager.can_spawn_child = MagicMock(return_value=(True, "OK", 0))
 
         child_session = MagicMock()
         child_session.id = "sess-child"
         child_session.agent_depth = 1
-        runner._child_session_manager.create_child_session = MagicMock(
-            return_value=child_session
-        )
+        runner._child_session_manager.create_child_session = MagicMock(return_value=child_session)
 
         agent_run = MagicMock()
         agent_run.id = "run-123"
@@ -1225,7 +1189,9 @@ class TestAgentRunnerPrepareRunWorkflows:
 class TestAgentRunnerWorkflowFiltering:
     """Tests for workflow-based tool filtering in execute_run."""
 
-    async def test_execute_run_with_workflow_filters_tools(self, runner, mock_executor, mock_session_storage):
+    async def test_execute_run_with_workflow_filters_tools(
+        self, runner, mock_executor, mock_session_storage
+    ):
         """execute_run creates workflow-filtered handler when workflow is active."""
         mock_session = MagicMock()
         mock_session.id = "sess-workflow"
@@ -1282,7 +1248,6 @@ class TestAgentRunnerWorkflowFiltering:
 
         # Now test the default handler behavior
         assert captured_handler is not None
-        from gobby.llm.executor import ToolResult
 
         result = await captured_handler("unknown_tool", {"arg": "value"})
         assert result.success is False

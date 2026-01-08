@@ -192,9 +192,7 @@ class TestLazyServerConnector:
 
     def test_circuit_breaker_blocks_connection(self):
         """Circuit breaker blocks connection attempts."""
-        connector = LazyServerConnector(
-            circuit_breaker_config={"failure_threshold": 2}
-        )
+        connector = LazyServerConnector(circuit_breaker_config={"failure_threshold": 2})
 
         connector.register_server("test-server")
         assert connector.can_attempt_connection("test-server")

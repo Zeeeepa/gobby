@@ -97,7 +97,7 @@ echo "hello"
 
         assert result.startswith(GOBBY_HOOK_START)
         assert result.endswith(GOBBY_HOOK_END + "\n")
-        assert "echo \"hello\"" in result
+        assert 'echo "hello"' in result
 
     def test_strips_whitespace_from_script(self):
         """Test that leading/trailing whitespace is stripped."""
@@ -110,7 +110,7 @@ echo "hello"
 
         # Should not have blank lines at start/end within markers
         lines = result.split("\n")
-        assert lines[1] == "echo \"test\""
+        assert lines[1] == 'echo "test"'
 
     def test_handles_multiline_script(self):
         """Test wrapping a multiline script."""
@@ -248,9 +248,7 @@ class TestBackupHook:
         assert (original_mode & 0o777) == (backup_mode & 0o777)
 
     @patch("gobby.cli.installers.git_hooks.shutil.copy2")
-    def test_handles_os_error_gracefully(
-        self, mock_copy: MagicMock, tmp_path: Path
-    ):
+    def test_handles_os_error_gracefully(self, mock_copy: MagicMock, tmp_path: Path):
         """Test that OSError during backup is handled gracefully."""
         hooks_dir = tmp_path / "hooks"
         hooks_dir.mkdir()
@@ -277,9 +275,7 @@ class TestCheckPrecommitInstalled:
         mock_which.assert_called_once_with("pre-commit")
 
     @patch("gobby.cli.installers.git_hooks.shutil.which")
-    def test_returns_false_when_precommit_not_installed(
-        self, mock_which: MagicMock
-    ):
+    def test_returns_false_when_precommit_not_installed(self, mock_which: MagicMock):
         """Test returns False when pre-commit is not in PATH."""
         mock_which.return_value = None
 
@@ -480,9 +476,7 @@ class TestInstallGitHooks:
         assert GOBBY_HOOK_START in content
 
     @patch("gobby.cli.installers.git_hooks._backup_hook")
-    def test_continues_when_backup_fails(
-        self, mock_backup: MagicMock, tmp_path: Path
-    ):
+    def test_continues_when_backup_fails(self, mock_backup: MagicMock, tmp_path: Path):
         """Test that installation continues even when backup fails."""
         mock_backup.return_value = None  # Simulate backup failure
 
@@ -532,9 +526,7 @@ class TestInstallGitHooks:
         assert "pre-push" in call_args.args[0]
 
     @patch("gobby.cli.installers.git_hooks._check_precommit_installed")
-    def test_skips_precommit_when_not_installed(
-        self, mock_check: MagicMock, tmp_path: Path
-    ):
+    def test_skips_precommit_when_not_installed(self, mock_check: MagicMock, tmp_path: Path):
         """Test that pre-commit setup is skipped when not installed."""
         mock_check.return_value = False
 
@@ -552,9 +544,7 @@ class TestInstallGitHooks:
         assert result["precommit_installed"] is False
 
     @patch("gobby.cli.installers.git_hooks._check_precommit_installed")
-    def test_skips_precommit_when_config_missing(
-        self, mock_check: MagicMock, tmp_path: Path
-    ):
+    def test_skips_precommit_when_config_missing(self, mock_check: MagicMock, tmp_path: Path):
         """Test that pre-commit setup is skipped when config is missing."""
         mock_check.return_value = True
 

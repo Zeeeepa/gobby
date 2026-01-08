@@ -413,9 +413,7 @@ class ProgressTracker:
 
         return result.rowcount
 
-    def get_recent_events(
-        self, session_id: str, limit: int = 20
-    ) -> list[ProgressEvent]:
+    def get_recent_events(self, session_id: str, limit: int = 20) -> list[ProgressEvent]:
         """Get recent progress events for a session.
 
         Args:

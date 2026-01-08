@@ -680,6 +680,7 @@ class TestGetTTYConfig:
         """get_tty_config returns TTYConfig instance."""
         # Reset the global cache
         import gobby.agents.tty_config as tty_module
+
         tty_module._config = None
 
         with patch.object(Path, "home", return_value=Path("/nonexistent")):
@@ -689,6 +690,7 @@ class TestGetTTYConfig:
     def test_get_caches_result(self):
         """get_tty_config caches the configuration."""
         import gobby.agents.tty_config as tty_module
+
         tty_module._config = None
 
         with patch("gobby.agents.tty_config.load_tty_config") as mock_load:
@@ -705,6 +707,7 @@ class TestGetTTYConfig:
     def test_get_returns_cached_on_second_call(self):
         """get_tty_config returns same instance on subsequent calls."""
         import gobby.agents.tty_config as tty_module
+
         tty_module._config = None
 
         config1 = get_tty_config()
@@ -767,7 +770,10 @@ class TestReloadTTYConfig:
                 yaml.dump({"preferences": {"macos": ["terminal.app"]}}, f2)
 
             # Patch load_tty_config to reload from our temp file
-            with patch("gobby.agents.tty_config.load_tty_config", side_effect=lambda: load_tty_config(f.name)):
+            with patch(
+                "gobby.agents.tty_config.load_tty_config",
+                side_effect=lambda: load_tty_config(f.name),
+            ):
                 config2 = reload_tty_config()
 
             assert isinstance(config2, TTYConfig)

@@ -444,12 +444,17 @@ def create_session_messages_registry(
                         "session_source": session.source,
                     }
 
-                    full_markdown = await provider.generate_summary(context, prompt_template=prompt_template)
+                    full_markdown = await provider.generate_summary(
+                        context, prompt_template=prompt_template
+                    )
 
                 except Exception as e:
                     full_error = str(e)
                     if full and not compact:
-                        return {"error": f"Failed to generate full summary: {e}", "session_id": session.id}
+                        return {
+                            "error": f"Failed to generate full summary: {e}",
+                            "session_id": session.id,
+                        }
 
             # Always save to database
             if compact_markdown:
@@ -473,7 +478,9 @@ def create_session_messages_registry(
                         files_written.append(str(full_file))
 
                     if compact_markdown:
-                        compact_file = summary_dir / f"session_compact_{timestamp}_{session.id[:12]}.md"
+                        compact_file = (
+                            summary_dir / f"session_compact_{timestamp}_{session.id[:12]}.md"
+                        )
                         compact_file.write_text(compact_markdown, encoding="utf-8")
                         files_written.append(str(compact_file))
 

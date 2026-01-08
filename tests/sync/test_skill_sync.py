@@ -320,11 +320,11 @@ async def test_get_sync_dir_non_stealth_with_project_context(sync_manager, tmp_p
 
     import gobby.sync.skills as skills_module
 
-    monkeypatch.setattr(
-        "gobby.utils.project_context.get_project_context", mock_get_project_context
-    )
+    monkeypatch.setattr("gobby.utils.project_context.get_project_context", mock_get_project_context)
     # Need to import inside the module's scope
-    monkeypatch.setattr(skills_module, "get_project_context", mock_get_project_context, raising=False)
+    monkeypatch.setattr(
+        skills_module, "get_project_context", mock_get_project_context, raising=False
+    )
 
     # We need to patch inside the function's scope
     original_get_sync_dir = sync_manager._get_sync_dir
@@ -353,9 +353,7 @@ async def test_get_sync_dir_non_stealth_fallback(sync_manager, monkeypatch):
         return None
 
     # Patch at the module level where the lazy import happens
-    monkeypatch.setattr(
-        "gobby.utils.project_context.get_project_context", mock_get_project_context
-    )
+    monkeypatch.setattr("gobby.utils.project_context.get_project_context", mock_get_project_context)
 
     path = sync_manager._get_sync_dir()
     # Should fall back to ~/.gobby/sync/skills
@@ -1207,6 +1205,7 @@ async def test_trigger_export_creates_new_task_when_done(sync_manager):
 @pytest.mark.slow
 async def test_shutdown_cancels_running_task(sync_manager):
     """Test shutdown properly handles CancelledError from export task."""
+
     # Create a task that will get cancelled
     async def long_running_task():
         await asyncio.sleep(10)

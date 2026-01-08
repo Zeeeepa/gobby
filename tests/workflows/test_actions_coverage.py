@@ -275,9 +275,7 @@ class TestHandleSkillsSyncExport:
     """Tests for _handle_skills_sync_export action."""
 
     @pytest.mark.asyncio
-    async def test_skills_sync_export_success(
-        self, action_executor, action_context, mock_services
-    ):
+    async def test_skills_sync_export_success(self, action_executor, action_context, mock_services):
         """Test successful skills export."""
         mock_services["skill_sync_manager"].export_to_all_formats = AsyncMock(
             return_value={"claude": 5, "gemini": 3}
@@ -292,9 +290,7 @@ class TestHandleSkillsSyncExport:
         assert result["by_format"]["gemini"] == 3
 
     @pytest.mark.asyncio
-    async def test_skills_sync_export_no_manager(
-        self, action_executor, action_context
-    ):
+    async def test_skills_sync_export_no_manager(self, action_executor, action_context):
         """Test when skill_sync_manager is None."""
         action_executor.skill_sync_manager = None
 
@@ -387,9 +383,7 @@ class TestHandleRequireTaskComplete:
         mock_task.id = "gt-ready-123"
         mock_services["task_manager"].list_ready_tasks.return_value = [mock_task]
 
-        with patch(
-            "gobby.workflows.actions.require_task_complete"
-        ) as mock_require:
+        with patch("gobby.workflows.actions.require_task_complete") as mock_require:
             mock_require.return_value = {"decision": "block", "reason": "Task incomplete"}
 
             result = await action_executor.execute(
@@ -418,9 +412,7 @@ class TestHandleRequireTaskComplete:
 
         task_ids = ["gt-task1", "gt-task2", "gt-task3"]
 
-        with patch(
-            "gobby.workflows.actions.require_task_complete"
-        ) as mock_require:
+        with patch("gobby.workflows.actions.require_task_complete") as mock_require:
             mock_require.return_value = None  # Allow
 
             result = await action_executor.execute(
@@ -446,9 +438,7 @@ class TestHandleRequireTaskComplete:
         )
         action_context.session_id = session.id
 
-        with patch(
-            "gobby.workflows.actions.require_task_complete"
-        ) as mock_require:
+        with patch("gobby.workflows.actions.require_task_complete") as mock_require:
             mock_require.return_value = None
 
             result = await action_executor.execute(
@@ -478,9 +468,7 @@ class TestHandleRequireTaskComplete:
         # Mock template engine to resolve the variable
         mock_services["template_engine"].render.return_value = "gt-resolved-task"
 
-        with patch(
-            "gobby.workflows.actions.require_task_complete"
-        ) as mock_require:
+        with patch("gobby.workflows.actions.require_task_complete") as mock_require:
             mock_require.return_value = None
 
             result = await action_executor.execute(
@@ -561,9 +549,7 @@ class TestStopSignalActions:
         mock_services["stop_registry"].acknowledge.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_check_stop_signal_no_registry(
-        self, action_executor, action_context
-    ):
+    async def test_check_stop_signal_no_registry(self, action_executor, action_context):
         """Test check_stop_signal when stop_registry is None."""
         action_executor.stop_registry = None
 
@@ -575,9 +561,7 @@ class TestStopSignalActions:
         assert result["has_signal"] is False
 
     @pytest.mark.asyncio
-    async def test_request_stop(
-        self, action_executor, action_context, mock_services
-    ):
+    async def test_request_stop(self, action_executor, action_context, mock_services):
         """Test request_stop action."""
         mock_signal = MagicMock()
         mock_signal.session_id = "test-session-id"
@@ -597,9 +581,7 @@ class TestStopSignalActions:
         mock_services["stop_registry"].signal_stop.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_request_stop_no_registry(
-        self, action_executor, action_context
-    ):
+    async def test_request_stop_no_registry(self, action_executor, action_context):
         """Test request_stop when stop_registry is None."""
         action_executor.stop_registry = None
 
@@ -612,9 +594,7 @@ class TestStopSignalActions:
         assert "error" in result
 
     @pytest.mark.asyncio
-    async def test_clear_stop_signal(
-        self, action_executor, action_context, mock_services
-    ):
+    async def test_clear_stop_signal(self, action_executor, action_context, mock_services):
         """Test clear_stop_signal action."""
         mock_services["stop_registry"].clear.return_value = True
 
@@ -651,9 +631,7 @@ class TestAutonomousExecutionActions:
     """Tests for autonomous execution action handlers."""
 
     @pytest.mark.asyncio
-    async def test_start_progress_tracking(
-        self, action_executor, action_context, mock_services
-    ):
+    async def test_start_progress_tracking(self, action_executor, action_context, mock_services):
         """Test start_progress_tracking action."""
         result = await action_executor.execute(
             "start_progress_tracking",
@@ -665,9 +643,7 @@ class TestAutonomousExecutionActions:
         mock_services["progress_tracker"].clear_session.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_start_progress_tracking_no_tracker(
-        self, action_executor, action_context
-    ):
+    async def test_start_progress_tracking_no_tracker(self, action_executor, action_context):
         """Test start_progress_tracking when tracker is None."""
         action_executor.progress_tracker = None
 
@@ -680,9 +656,7 @@ class TestAutonomousExecutionActions:
         assert "error" in result
 
     @pytest.mark.asyncio
-    async def test_stop_progress_tracking(
-        self, action_executor, action_context, mock_services
-    ):
+    async def test_stop_progress_tracking(self, action_executor, action_context, mock_services):
         """Test stop_progress_tracking action."""
         mock_summary = MagicMock()
         mock_summary.total_events = 10
@@ -722,9 +696,7 @@ class TestAutonomousExecutionActions:
         # So we check that it wasn't called in this test by checking the call count
 
     @pytest.mark.asyncio
-    async def test_record_progress(
-        self, action_executor, action_context, mock_services
-    ):
+    async def test_record_progress(self, action_executor, action_context, mock_services):
         """Test record_progress action."""
         mock_event = MagicMock()
         mock_event.progress_type.value = "tool_call"
@@ -762,9 +734,7 @@ class TestAutonomousExecutionActions:
         assert result["success"] is True
 
     @pytest.mark.asyncio
-    async def test_detect_task_loop(
-        self, action_executor, action_context, mock_services
-    ):
+    async def test_detect_task_loop(self, action_executor, action_context, mock_services):
         """Test detect_task_loop action."""
         mock_result = MagicMock()
         mock_result.is_stuck = True
@@ -785,9 +755,7 @@ class TestAutonomousExecutionActions:
         assert action_context.state.variables["_task_loop_task_id"] == "gt-123"
 
     @pytest.mark.asyncio
-    async def test_detect_task_loop_not_stuck(
-        self, action_executor, action_context, mock_services
-    ):
+    async def test_detect_task_loop_not_stuck(self, action_executor, action_context, mock_services):
         """Test detect_task_loop when not stuck."""
         mock_result = MagicMock()
         mock_result.is_stuck = False
@@ -806,9 +774,7 @@ class TestAutonomousExecutionActions:
         assert action_context.state.variables["_task_loop_detected"] is False
 
     @pytest.mark.asyncio
-    async def test_detect_stuck(
-        self, action_executor, action_context, mock_services
-    ):
+    async def test_detect_stuck(self, action_executor, action_context, mock_services):
         """Test detect_stuck action (full detection)."""
         mock_result = MagicMock()
         mock_result.is_stuck = True
@@ -829,9 +795,7 @@ class TestAutonomousExecutionActions:
         assert action_context.state.variables["_is_stuck"] is True
 
     @pytest.mark.asyncio
-    async def test_detect_stuck_not_stuck(
-        self, action_executor, action_context, mock_services
-    ):
+    async def test_detect_stuck_not_stuck(self, action_executor, action_context, mock_services):
         """Test detect_stuck when not stuck."""
         mock_result = MagicMock()
         mock_result.is_stuck = False
@@ -850,9 +814,7 @@ class TestAutonomousExecutionActions:
         assert "inject_context" not in result
 
     @pytest.mark.asyncio
-    async def test_record_task_selection(
-        self, action_executor, action_context, mock_services
-    ):
+    async def test_record_task_selection(self, action_executor, action_context, mock_services):
         """Test record_task_selection action."""
         mock_event = MagicMock()
         mock_event.task_id = "gt-selected"
@@ -901,9 +863,7 @@ class TestAutonomousExecutionActions:
         )
 
     @pytest.mark.asyncio
-    async def test_get_progress_summary(
-        self, action_executor, action_context, mock_services
-    ):
+    async def test_get_progress_summary(self, action_executor, action_context, mock_services):
         """Test get_progress_summary action."""
         from gobby.autonomous.progress_tracker import ProgressType
 
@@ -928,9 +888,7 @@ class TestAutonomousExecutionActions:
         assert "events_by_type" in result
 
     @pytest.mark.asyncio
-    async def test_get_progress_summary_no_tracker(
-        self, action_executor, action_context
-    ):
+    async def test_get_progress_summary_no_tracker(self, action_executor, action_context):
         """Test get_progress_summary when tracker is None."""
         action_executor.progress_tracker = None
 
@@ -959,9 +917,7 @@ class TestPluginActionValidationWrapper:
         action.handler = AsyncMock(return_value={"result": "success"})
         return action
 
-    def test_create_validating_wrapper(
-        self, action_executor, mock_plugin_action
-    ):
+    def test_create_validating_wrapper(self, action_executor, mock_plugin_action):
         """Test that validating wrapper is created correctly."""
         wrapper = action_executor._create_validating_wrapper(mock_plugin_action)
         assert callable(wrapper)
@@ -1003,9 +959,7 @@ class TestBroadcastAutonomousEvent:
     """Tests for _broadcast_autonomous_event helper."""
 
     @pytest.mark.asyncio
-    async def test_broadcast_autonomous_event_success(
-        self, action_executor, mock_services
-    ):
+    async def test_broadcast_autonomous_event_success(self, action_executor, mock_services):
         """Test successful broadcast of autonomous event."""
         mock_services["websocket_server"].broadcast_autonomous_event = AsyncMock()
 
@@ -1017,14 +971,13 @@ class TestBroadcastAutonomousEvent:
 
         # Give the async task time to execute
         import asyncio
+
         await asyncio.sleep(0.01)
 
         # The broadcast should have been scheduled
 
     @pytest.mark.asyncio
-    async def test_broadcast_autonomous_event_no_server(
-        self, action_executor
-    ):
+    async def test_broadcast_autonomous_event_no_server(self, action_executor):
         """Test broadcast when websocket_server is None."""
         action_executor.websocket_server = None
 
@@ -1094,9 +1047,7 @@ class TestHandleUpdateWorkflowTask:
     """Tests for _handle_update_workflow_task action."""
 
     @pytest.mark.asyncio
-    async def test_update_workflow_task_with_task_id(
-        self, action_executor, action_context
-    ):
+    async def test_update_workflow_task_with_task_id(self, action_executor, action_context):
         """Test updating a task with explicit task_id."""
         with patch("gobby.workflows.task_actions.update_task_from_workflow") as mock_update:
             mock_task = MagicMock()
@@ -1114,9 +1065,7 @@ class TestHandleUpdateWorkflowTask:
             assert result["task"]["status"] == "closed"
 
     @pytest.mark.asyncio
-    async def test_update_workflow_task_from_current_index(
-        self, action_executor, action_context
-    ):
+    async def test_update_workflow_task_from_current_index(self, action_executor, action_context):
         """Test updating task using current_task_index from state."""
         action_context.state.task_list = [
             {"id": "gt-first"},
@@ -1143,9 +1092,7 @@ class TestHandleUpdateWorkflowTask:
             assert call_kwargs["task_id"] == "gt-second"
 
     @pytest.mark.asyncio
-    async def test_update_workflow_task_no_task_id(
-        self, action_executor, action_context
-    ):
+    async def test_update_workflow_task_no_task_id(self, action_executor, action_context):
         """Test error when no task_id can be determined."""
         action_context.state.task_list = None
         action_context.state.current_task_index = None
@@ -1160,9 +1107,7 @@ class TestHandleUpdateWorkflowTask:
         assert "No task_id" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_update_workflow_task_not_found(
-        self, action_executor, action_context
-    ):
+    async def test_update_workflow_task_not_found(self, action_executor, action_context):
         """Test when task is not found."""
         with patch("gobby.workflows.task_actions.update_task_from_workflow") as mock_update:
             mock_update.return_value = None
@@ -1219,9 +1164,7 @@ class TestHandlePersistTasks:
     """Tests for _handle_persist_tasks action."""
 
     @pytest.mark.asyncio
-    async def test_persist_tasks_no_tasks(
-        self, action_executor, action_context
-    ):
+    async def test_persist_tasks_no_tasks(self, action_executor, action_context):
         """Test persist_tasks when no tasks provided."""
         result = await action_executor.execute(
             "persist_tasks",
@@ -1372,9 +1315,7 @@ class TestHandleRequireActiveTask:
         )
         action_context.session_id = session.id
 
-        with patch(
-            "gobby.workflows.actions.require_active_task"
-        ) as mock_require:
+        with patch("gobby.workflows.actions.require_active_task") as mock_require:
             mock_require.return_value = None  # Allow
 
             result = await action_executor.execute(
@@ -1396,15 +1337,11 @@ class TestHandleRequireCommitBeforeStop:
     """Tests for _handle_require_commit_before_stop action."""
 
     @pytest.mark.asyncio
-    async def test_require_commit_before_stop_with_cwd(
-        self, action_executor, action_context
-    ):
+    async def test_require_commit_before_stop_with_cwd(self, action_executor, action_context):
         """Test require_commit_before_stop extracts cwd from event_data."""
         action_context.event_data = {"cwd": "/path/to/project"}
 
-        with patch(
-            "gobby.workflows.actions.require_commit_before_stop"
-        ) as mock_require:
+        with patch("gobby.workflows.actions.require_commit_before_stop") as mock_require:
             mock_require.return_value = None
 
             result = await action_executor.execute(
@@ -1417,15 +1354,11 @@ class TestHandleRequireCommitBeforeStop:
             assert call_kwargs["project_path"] == "/path/to/project"
 
     @pytest.mark.asyncio
-    async def test_require_commit_before_stop_no_event_data(
-        self, action_executor, action_context
-    ):
+    async def test_require_commit_before_stop_no_event_data(self, action_executor, action_context):
         """Test require_commit_before_stop handles missing event_data."""
         action_context.event_data = None
 
-        with patch(
-            "gobby.workflows.actions.require_commit_before_stop"
-        ) as mock_require:
+        with patch("gobby.workflows.actions.require_commit_before_stop") as mock_require:
             mock_require.return_value = None
 
             result = await action_executor.execute(
@@ -1447,13 +1380,9 @@ class TestHandleValidateSessionTaskScope:
     """Tests for _handle_validate_session_task_scope action."""
 
     @pytest.mark.asyncio
-    async def test_validate_session_task_scope_delegated(
-        self, action_executor, action_context
-    ):
+    async def test_validate_session_task_scope_delegated(self, action_executor, action_context):
         """Test validate_session_task_scope delegates correctly."""
-        with patch(
-            "gobby.workflows.actions.validate_session_task_scope"
-        ) as mock_validate:
+        with patch("gobby.workflows.actions.validate_session_task_scope") as mock_validate:
             mock_validate.return_value = None
 
             result = await action_executor.execute(
@@ -1473,9 +1402,7 @@ class TestHandleWebhook:
     """Tests for _handle_webhook action."""
 
     @pytest.mark.asyncio
-    async def test_webhook_missing_url_and_id(
-        self, action_executor, action_context
-    ):
+    async def test_webhook_missing_url_and_id(self, action_executor, action_context):
         """Test webhook returns error when neither url nor webhook_id provided."""
         result = await action_executor.execute(
             "webhook",
@@ -1487,9 +1414,7 @@ class TestHandleWebhook:
         assert "Either url or webhook_id is required" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_webhook_invalid_config(
-        self, action_executor, action_context
-    ):
+    async def test_webhook_invalid_config(self, action_executor, action_context):
         """Test webhook handles invalid config gracefully."""
         result = await action_executor.execute(
             "webhook",
@@ -1540,9 +1465,7 @@ class TestHandleWebhook:
             assert "response_headers" in action_context.state.variables
 
     @pytest.mark.asyncio
-    async def test_webhook_with_webhook_id_unsupported(
-        self, action_executor, action_context
-    ):
+    async def test_webhook_with_webhook_id_unsupported(self, action_executor, action_context):
         """Test webhook_id returns error (not yet supported)."""
         result = await action_executor.execute(
             "webhook",
@@ -1563,13 +1486,9 @@ class TestHandleMarkLoopComplete:
     """Tests for _handle_mark_loop_complete action."""
 
     @pytest.mark.asyncio
-    async def test_mark_loop_complete(
-        self, action_executor, action_context
-    ):
+    async def test_mark_loop_complete(self, action_executor, action_context):
         """Test mark_loop_complete delegates to mark_loop_complete function."""
-        with patch(
-            "gobby.workflows.actions.mark_loop_complete"
-        ) as mock_mark:
+        with patch("gobby.workflows.actions.mark_loop_complete") as mock_mark:
             mock_mark.return_value = {"_loop_complete": True, "stop_reason": "completed"}
 
             result = await action_executor.execute(
@@ -1590,9 +1509,7 @@ class TestHandleSkillsLearn:
     """Tests for _handle_skills_learn action."""
 
     @pytest.mark.asyncio
-    async def test_skills_learn_no_learner(
-        self, action_executor, action_context
-    ):
+    async def test_skills_learn_no_learner(self, action_executor, action_context):
         """Test skills_learn when skill_learner is None."""
         action_context.skill_learner = None
 
@@ -1604,9 +1521,7 @@ class TestHandleSkillsLearn:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_skills_learn_not_enabled(
-        self, action_executor, action_context, mock_services
-    ):
+    async def test_skills_learn_not_enabled(self, action_executor, action_context, mock_services):
         """Test skills_learn when config is not enabled."""
         mock_learner = MagicMock()
         mock_config = MagicMock()
@@ -1631,13 +1546,9 @@ class TestHandleRestoreContext:
     """Tests for _handle_restore_context action."""
 
     @pytest.mark.asyncio
-    async def test_restore_context_delegated(
-        self, action_executor, action_context
-    ):
+    async def test_restore_context_delegated(self, action_executor, action_context):
         """Test restore_context delegates correctly."""
-        with patch(
-            "gobby.workflows.actions.restore_context"
-        ) as mock_restore:
+        with patch("gobby.workflows.actions.restore_context") as mock_restore:
             mock_restore.return_value = {"restored": True}
 
             result = await action_executor.execute(
@@ -1660,13 +1571,9 @@ class TestHandleExtractHandoffContext:
     """Tests for _handle_extract_handoff_context action."""
 
     @pytest.mark.asyncio
-    async def test_extract_handoff_context_delegated(
-        self, action_executor, action_context
-    ):
+    async def test_extract_handoff_context_delegated(self, action_executor, action_context):
         """Test extract_handoff_context delegates correctly."""
-        with patch(
-            "gobby.workflows.actions.extract_handoff_context"
-        ) as mock_extract:
+        with patch("gobby.workflows.actions.extract_handoff_context") as mock_extract:
             mock_extract.return_value = {"extracted": True}
 
             result = await action_executor.execute(
@@ -1687,7 +1594,13 @@ class TestGenerateHandoffCompactMode:
 
     @pytest.mark.asyncio
     async def test_generate_handoff_compact_mode_fetches_previous_summary(
-        self, action_executor, action_context, session_manager, sample_project, mock_services, tmp_path
+        self,
+        action_executor,
+        action_context,
+        session_manager,
+        sample_project,
+        mock_services,
+        tmp_path,
     ):
         """Test that compact mode fetches previous summary for cumulative compression."""
         import json
@@ -1723,9 +1636,7 @@ class TestGenerateHandoffCompactMode:
         action_context.transcript_processor = mock_services["transcript_processor"]
         action_context.template_engine = mock_services["template_engine"]
 
-        with patch(
-            "gobby.workflows.actions.generate_handoff"
-        ) as mock_handoff:
+        with patch("gobby.workflows.actions.generate_handoff") as mock_handoff:
             mock_handoff.return_value = {"handoff_created": True}
 
             result = await action_executor.execute(

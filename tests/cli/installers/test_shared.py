@@ -11,9 +11,7 @@ Tests cover:
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from gobby.cli.installers.shared import (
     configure_mcp_server_json,
@@ -415,11 +413,7 @@ class TestConfigureMcpServerJson:
         """Test adding gobby to existing mcpServers."""
         settings_path = temp_dir / ".claude" / "settings.json"
         settings_path.parent.mkdir(parents=True)
-        existing = {
-            "mcpServers": {
-                "other-server": {"command": "other", "args": ["arg"]}
-            }
-        }
+        existing = {"mcpServers": {"other-server": {"command": "other", "args": ["arg"]}}}
         settings_path.write_text(json.dumps(existing))
 
         result = configure_mcp_server_json(settings_path)
@@ -435,11 +429,7 @@ class TestConfigureMcpServerJson:
         """Test when gobby is already configured."""
         settings_path = temp_dir / ".claude" / "settings.json"
         settings_path.parent.mkdir(parents=True)
-        existing = {
-            "mcpServers": {
-                "gobby": {"command": "existing", "args": []}
-            }
-        }
+        existing = {"mcpServers": {"gobby": {"command": "existing", "args": []}}}
         settings_path.write_text(json.dumps(existing))
 
         result = configure_mcp_server_json(settings_path)
@@ -554,7 +544,7 @@ class TestRemoveMcpServerJson:
         existing = {
             "mcpServers": {
                 "gobby": {"command": "uv", "args": ["run", "gobby", "mcp-server"]},
-                "other": {"command": "other"}
+                "other": {"command": "other"},
             }
         }
         settings_path.write_text(json.dumps(existing))
@@ -572,12 +562,7 @@ class TestRemoveMcpServerJson:
     def test_remove_last_server_cleans_section(self, temp_dir: Path):
         """Test removing the last server cleans up mcpServers section."""
         settings_path = temp_dir / "settings.json"
-        existing = {
-            "mcpServers": {
-                "gobby": {"command": "uv"}
-            },
-            "otherSetting": "preserved"
-        }
+        existing = {"mcpServers": {"gobby": {"command": "uv"}}, "otherSetting": "preserved"}
         settings_path.write_text(json.dumps(existing))
 
         result = remove_mcp_server_json(settings_path)
@@ -593,10 +578,7 @@ class TestRemoveMcpServerJson:
         """Test removing with custom server name."""
         settings_path = temp_dir / "settings.json"
         existing = {
-            "mcpServers": {
-                "custom-gobby": {"command": "uv"},
-                "gobby": {"command": "other"}
-            }
+            "mcpServers": {"custom-gobby": {"command": "uv"}, "gobby": {"command": "other"}}
         }
         settings_path.write_text(json.dumps(existing))
 
@@ -778,6 +760,7 @@ command = "other"
 
         # Re-read the file - tomli_w reformats so check semantically
         import tomllib
+
         with open(config_path, "rb") as f:
             config = tomllib.load(f)
         assert "gobby" not in config.get("mcp_servers", {})
@@ -799,6 +782,7 @@ command = "uv"
         assert result["removed"] is True
 
         import tomllib
+
         with open(config_path, "rb") as f:
             config = tomllib.load(f)
         assert "mcp_servers" not in config
@@ -821,6 +805,7 @@ command = "default"
         assert result["removed"] is True
 
         import tomllib
+
         with open(config_path, "rb") as f:
             config = tomllib.load(f)
         assert "custom-gobby" not in config["mcp_servers"]
@@ -1130,4 +1115,3 @@ class TestEdgeCases:
 
         assert "real-skill" in result["skills"]
         assert "stray.txt" not in result["skills"]
-

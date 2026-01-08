@@ -8,15 +8,12 @@ Tests use Click's CliRunner and mock external dependencies.
 """
 
 import json
-from datetime import datetime
-from io import StringIO
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
 
 from gobby.cli import cli
-from gobby.cli.tasks import tasks
 
 # ==============================================================================
 # Fixtures
@@ -420,9 +417,7 @@ class TestBlockedTasksCommand:
         mock_get_manager.return_value = mock_manager
 
         mock_dep_manager = MagicMock()
-        mock_dep_manager.get_dependency_tree.return_value = {
-            "blockers": [{"id": "gt-blocker1"}]
-        }
+        mock_dep_manager.get_dependency_tree.return_value = {"blockers": [{"id": "gt-blocker1"}]}
         mock_dep_cls.return_value = mock_dep_manager
 
         blocker_task = MagicMock()
@@ -675,9 +670,7 @@ class TestUpdateTaskCommand:
         mock_manager.update_task.return_value = mock_task
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["tasks", "update", "gt-abc123", "--title", "Updated title"]
-        )
+        result = runner.invoke(cli, ["tasks", "update", "gt-abc123", "--title", "Updated title"])
 
         assert result.exit_code == 0
         assert "Updated task" in result.output
@@ -741,9 +734,7 @@ class TestUpdateTaskCommand:
         mock_manager.update_task.return_value = mock_task
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["tasks", "update", "gt-abc123", "--parent", "gt-parent"]
-        )
+        result = runner.invoke(cli, ["tasks", "update", "gt-abc123", "--parent", "gt-parent"])
 
         assert result.exit_code == 0
         mock_manager.update_task.assert_called_once()
@@ -791,15 +782,11 @@ class TestCloseTaskCommand:
         mock_manager.close_task.return_value = mock_task
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["tasks", "close", "gt-abc123", "--reason", "wont_fix"]
-        )
+        result = runner.invoke(cli, ["tasks", "close", "gt-abc123", "--reason", "wont_fix"])
 
         assert result.exit_code == 0
         assert "wont_fix" in result.output
-        mock_manager.close_task.assert_called_once_with(
-            mock_task.id, reason="wont_fix"
-        )
+        mock_manager.close_task.assert_called_once_with(mock_task.id, reason="wont_fix")
 
     @patch("gobby.cli.tasks.crud.get_task_manager")
     @patch("gobby.cli.tasks.crud.resolve_task_id")
@@ -957,9 +944,7 @@ class TestDeleteTaskCommand:
         mock_manager = MagicMock()
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["tasks", "delete", "gt-abc123", "--cascade"], input="y\n"
-        )
+        result = runner.invoke(cli, ["tasks", "delete", "gt-abc123", "--cascade"], input="y\n")
 
         assert result.exit_code == 0
         mock_manager.delete_task.assert_called_once_with(mock_task.id, cascade=True)
@@ -1407,9 +1392,7 @@ class TestValidateCommand:
         mock_manager.list_tasks.return_value = [child_task]
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["tasks", "validate", "gt-abc123", "--summary", "test"]
-        )
+        result = runner.invoke(cli, ["tasks", "validate", "gt-abc123", "--summary", "test"])
 
         assert result.exit_code == 0
         assert "VALID" in result.output
@@ -1435,9 +1418,7 @@ class TestValidateCommand:
         mock_manager.list_tasks.return_value = [child_task]
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["tasks", "validate", "gt-abc123", "--summary", "test"]
-        )
+        result = runner.invoke(cli, ["tasks", "validate", "gt-abc123", "--summary", "test"])
 
         assert result.exit_code == 0
         assert "INVALID" in result.output
@@ -1458,9 +1439,7 @@ class TestValidateCommand:
         mock_manager.list_tasks.return_value = []  # No children
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["tasks", "validate", "gt-abc123", "--summary", "   "]
-        )
+        result = runner.invoke(cli, ["tasks", "validate", "gt-abc123", "--summary", "   "])
 
         assert "Changes summary is required" in result.output
 
@@ -1610,9 +1589,7 @@ class TestValidateCommandExtended:
         mock_resolve.return_value = None
         mock_get_manager.return_value = MagicMock()
 
-        result = runner.invoke(
-            cli, ["tasks", "validate", "gt-nonexistent", "--summary", "test"]
-        )
+        result = runner.invoke(cli, ["tasks", "validate", "gt-nonexistent", "--summary", "test"])
 
         assert result.exit_code == 0
 
@@ -1641,9 +1618,7 @@ class TestValidateCommandExtended:
         mock_manager.list_tasks.return_value = children
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["tasks", "validate", "gt-abc123", "--summary", "test"]
-        )
+        result = runner.invoke(cli, ["tasks", "validate", "gt-abc123", "--summary", "test"])
 
         assert result.exit_code == 0
         assert "INVALID" in result.output
@@ -1674,9 +1649,7 @@ class TestValidateCommandExtended:
 
         mock_config.side_effect = Exception("Config not available")
 
-        result = runner.invoke(
-            cli, ["tasks", "validate", "gt-abc123", "--file", str(summary_file)]
-        )
+        result = runner.invoke(cli, ["tasks", "validate", "gt-abc123", "--file", str(summary_file)])
 
         # Command should attempt to validate (may fail on config but accepts the file)
         assert result.exit_code == 0
@@ -1973,9 +1946,7 @@ class TestExpandAllCommandExtended:
         mock_manager.list_tasks.side_effect = [[mock_task], []]
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["tasks", "expand-all", "--min-complexity", "5", "--dry-run"]
-        )
+        result = runner.invoke(cli, ["tasks", "expand-all", "--min-complexity", "5", "--dry-run"])
 
         assert result.exit_code == 0
         assert "No unexpanded tasks found" in result.output
@@ -1993,9 +1964,7 @@ class TestExpandAllCommandExtended:
         mock_manager.list_tasks.side_effect = [[mock_task], []]
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["tasks", "expand-all", "--type", "feature", "--dry-run"]
-        )
+        result = runner.invoke(cli, ["tasks", "expand-all", "--type", "feature", "--dry-run"])
 
         assert result.exit_code == 0
         # Verify type filter was passed

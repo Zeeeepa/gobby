@@ -6,8 +6,6 @@ Tests the write_todos and mark_todo_complete functions from todo_actions.py.
 import os
 from unittest.mock import patch
 
-import pytest
-
 from gobby.workflows.todo_actions import mark_todo_complete, write_todos
 
 
@@ -349,7 +347,7 @@ class TestMarkTodoComplete:
         todo_file = tmp_path / "TODO.md"
         todo_file.write_text("- [ ] Task\n")
 
-        with patch("builtins.open", side_effect=IOError("Read error")):
+        with patch("builtins.open", side_effect=OSError("Read error")):
             result = mark_todo_complete("Task", filename=str(todo_file))
 
             assert "error" in result
@@ -364,7 +362,7 @@ class TestMarkTodoComplete:
 
         def mock_open(file, mode="r", *args, **kwargs):
             if mode == "w":
-                raise IOError("Write error")
+                raise OSError("Write error")
             return original_open(file, mode, *args, **kwargs)
 
         with patch("builtins.open", side_effect=mock_open):

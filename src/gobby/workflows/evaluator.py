@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 from .definitions import WorkflowState
 
 if TYPE_CHECKING:
-    from .webhook_executor import WebhookExecutor, WebhookResult
+    from .webhook_executor import WebhookExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -299,9 +299,7 @@ class ConditionEvaluator:
             elif cond_type == "webhook":
                 # Webhook condition - check pre-evaluated result stored in variables
                 # The async evaluate_webhook_conditions method must be called first
-                condition_id = condition.get(
-                    "id", f"webhook_{hash(str(condition)) % 10000}"
-                )
+                condition_id = condition.get("id", f"webhook_{hash(str(condition)) % 10000}")
                 result_var = f"_webhook_{condition_id}_result"
 
                 # Get pre-evaluated webhook result from state
@@ -320,9 +318,7 @@ class ConditionEvaluator:
 
         return True
 
-    def _check_webhook_result(
-        self, condition: dict[str, Any], result: dict[str, Any]
-    ) -> bool:
+    def _check_webhook_result(self, condition: dict[str, Any], result: dict[str, Any]) -> bool:
         """Check if webhook result matches the condition criteria.
 
         Args:
@@ -494,9 +490,7 @@ class ConditionEvaluator:
             if condition.get("type") != "webhook":
                 continue
 
-            condition_id = condition.get(
-                "id", f"webhook_{hash(str(condition)) % 10000}"
-            )
+            condition_id = condition.get("id", f"webhook_{hash(str(condition)) % 10000}")
 
             try:
                 # Execute the webhook

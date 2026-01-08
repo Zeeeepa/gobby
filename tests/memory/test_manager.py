@@ -121,9 +121,7 @@ class TestMemoryManagerInit:
 
         # Access the property to trigger initialization
         # The import happens inside the property, so we patch it at the import location
-        with patch(
-            "gobby.memory.semantic_search.SemanticMemorySearch"
-        ) as mock_cls:
+        with patch("gobby.memory.semantic_search.SemanticMemorySearch") as mock_cls:
             mock_instance = MagicMock()
             mock_cls.return_value = mock_instance
             result = manager.semantic_search
@@ -281,9 +279,7 @@ class TestRecall:
     async def test_recall_by_memory_type(self, memory_manager):
         """Test recall filters by memory type."""
         await memory_manager.remember(content="Fact 1", memory_type="fact", importance=0.5)
-        await memory_manager.remember(
-            content="Pref 1", memory_type="preference", importance=0.5
-        )
+        await memory_manager.remember(content="Pref 1", memory_type="preference", importance=0.5)
 
         memories = memory_manager.recall(memory_type="preference")
 
@@ -424,9 +420,7 @@ class TestAccessStats:
         manager = MemoryManager(db=db, config=memory_config)
 
         # Create a real memory first
-        real_memory = manager.storage.create_memory(
-            content="Test timezone", importance=0.5
-        )
+        real_memory = manager.storage.create_memory(content="Test timezone", importance=0.5)
 
         # Mock memory with timestamp without timezone
         memory = MagicMock(spec=Memory)
@@ -585,9 +579,7 @@ class TestUpdateMemory:
     @pytest.mark.asyncio
     async def test_update_memory_tags(self, memory_manager):
         """Test updating memory tags."""
-        memory = await memory_manager.remember(
-            content="Test", importance=0.5, tags=["old"]
-        )
+        memory = await memory_manager.remember(content="Test", importance=0.5, tags=["old"])
 
         updated = memory_manager.update_memory(memory.id, tags=["new", "tags"])
 
@@ -619,15 +611,9 @@ class TestGetStats:
     @pytest.mark.asyncio
     async def test_get_stats_with_memories(self, memory_manager):
         """Test stats with multiple memories."""
-        await memory_manager.remember(
-            content="Fact 1", memory_type="fact", importance=0.6
-        )
-        await memory_manager.remember(
-            content="Fact 2", memory_type="fact", importance=0.8
-        )
-        await memory_manager.remember(
-            content="Pref 1", memory_type="preference", importance=0.4
-        )
+        await memory_manager.remember(content="Fact 1", memory_type="fact", importance=0.6)
+        await memory_manager.remember(content="Fact 2", memory_type="fact", importance=0.8)
+        await memory_manager.remember(content="Pref 1", memory_type="preference", importance=0.4)
 
         stats = memory_manager.get_stats()
 
@@ -675,9 +661,7 @@ class TestDecayMemories:
 
         # Create memory directly with old timestamp
         old_time = (datetime.now(UTC) - timedelta(days=60)).isoformat()
-        memory_id = manager.storage.create_memory(
-            content="Old memory", importance=0.8
-        ).id
+        memory_id = manager.storage.create_memory(content="Old memory", importance=0.8).id
 
         # Update timestamp to be old
         db.execute(
@@ -700,9 +684,7 @@ class TestDecayMemories:
 
         # Create memory with old timestamp
         old_time = (datetime.now(UTC) - timedelta(days=365)).isoformat()
-        memory_id = manager.storage.create_memory(
-            content="Very old", importance=0.3
-        ).id
+        memory_id = manager.storage.create_memory(content="Very old", importance=0.3).id
 
         db.execute(
             "UPDATE memories SET updated_at = ? WHERE id = ?",
@@ -931,9 +913,7 @@ class TestEdgeCases:
         memory.id = "mm-test"
         memory.last_accessed_at = None
 
-        with patch.object(
-            manager.storage, "update_access_stats"
-        ) as mock_update:
+        with patch.object(manager.storage, "update_access_stats") as mock_update:
             mock_update.side_effect = Exception("Database error")
 
             # Should not raise, just log warning
@@ -946,9 +926,7 @@ class TestEdgeCases:
 
         # Create memory with timezone-naive timestamp (2 months ago)
         old_time = (datetime.now() - timedelta(days=60)).strftime("%Y-%m-%dT%H:%M:%S")
-        memory_id = manager.storage.create_memory(
-            content="Naive timestamp", importance=0.8
-        ).id
+        memory_id = manager.storage.create_memory(content="Naive timestamp", importance=0.8).id
 
         db.execute(
             "UPDATE memories SET updated_at = ? WHERE id = ?",

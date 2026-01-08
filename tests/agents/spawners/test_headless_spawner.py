@@ -22,7 +22,6 @@ import pytest
 from gobby.agents.spawners.base import HeadlessResult
 from gobby.agents.spawners.headless import HeadlessSpawner, _get_spawn_utils
 
-
 # =============================================================================
 # Tests for _get_spawn_utils helper function
 # =============================================================================
@@ -436,9 +435,7 @@ class TestHeadlessSpawnerSpawnAndCapture:
         with patch.object(
             spawner,
             "spawn",
-            return_value=HeadlessResult(
-                success=False, message="Spawn failed", error="Test error"
-            ),
+            return_value=HeadlessResult(success=False, message="Spawn failed", error="Test error"),
         ):
             result = await spawner.spawn_and_capture(
                 command=["echo", "test"],
@@ -457,7 +454,7 @@ class TestHeadlessSpawnerSpawnAndCapture:
         mock_process = MagicMock()
         mock_process.pid = 12345
         mock_process.stdout = MagicMock()
-        mock_process.stdout.readline.side_effect = IOError("Read error")
+        mock_process.stdout.readline.side_effect = OSError("Read error")
         mock_process.wait = MagicMock()
 
         mock_result = HeadlessResult(
@@ -509,9 +506,7 @@ class TestHeadlessSpawnerSpawnAgent:
         spawner = HeadlessSpawner()
 
         with patch.object(spawner, "spawn") as mock_spawn:
-            mock_spawn.return_value = HeadlessResult(
-                success=True, message="OK", pid=123
-            )
+            mock_spawn.return_value = HeadlessResult(success=True, message="OK", pid=123)
 
             result = spawner.spawn_agent(
                 cli="claude",
@@ -545,9 +540,7 @@ class TestHeadlessSpawnerSpawnAgent:
         spawner = HeadlessSpawner()
 
         with patch.object(spawner, "spawn") as mock_spawn:
-            mock_spawn.return_value = HeadlessResult(
-                success=True, message="OK", pid=123
-            )
+            mock_spawn.return_value = HeadlessResult(success=True, message="OK", pid=123)
 
             spawner.spawn_agent(
                 cli="claude",
@@ -577,13 +570,9 @@ class TestHeadlessSpawnerSpawnAgent:
         long_prompt = "x" * 5000  # Over MAX_ENV_PROMPT_LENGTH
 
         with patch.object(spawner, "spawn") as mock_spawn:
-            mock_spawn.return_value = HeadlessResult(
-                success=True, message="OK", pid=123
-            )
+            mock_spawn.return_value = HeadlessResult(success=True, message="OK", pid=123)
 
-            with patch(
-                "gobby.agents.spawners.headless._get_spawn_utils"
-            ) as mock_utils:
+            with patch("gobby.agents.spawners.headless._get_spawn_utils") as mock_utils:
                 mock_build = MagicMock(return_value=["claude"])
                 mock_create_file = MagicMock(return_value="/tmp/prompt.txt")
                 mock_utils.return_value = (mock_build, mock_create_file, 4096)
@@ -612,9 +601,7 @@ class TestHeadlessSpawnerSpawnAgent:
         spawner = HeadlessSpawner()
 
         with patch.object(spawner, "spawn") as mock_spawn:
-            mock_spawn.return_value = HeadlessResult(
-                success=True, message="OK", pid=123
-            )
+            mock_spawn.return_value = HeadlessResult(success=True, message="OK", pid=123)
 
             spawner.spawn_agent(
                 cli="claude",
@@ -636,9 +623,7 @@ class TestHeadlessSpawnerSpawnAgent:
         spawner = HeadlessSpawner()
 
         with patch.object(spawner, "spawn") as mock_spawn:
-            mock_spawn.return_value = HeadlessResult(
-                success=True, message="OK", pid=123
-            )
+            mock_spawn.return_value = HeadlessResult(success=True, message="OK", pid=123)
 
             spawner.spawn_agent(
                 cli="claude",
@@ -662,9 +647,7 @@ class TestHeadlessSpawnerSpawnAgent:
         spawner = HeadlessSpawner()
 
         with patch.object(spawner, "spawn") as mock_spawn:
-            mock_spawn.return_value = HeadlessResult(
-                success=True, message="OK", pid=123
-            )
+            mock_spawn.return_value = HeadlessResult(success=True, message="OK", pid=123)
 
             spawner.spawn_agent(
                 cli="codex",
@@ -687,9 +670,7 @@ class TestHeadlessSpawnerSpawnAgent:
         spawner = HeadlessSpawner()
 
         with patch.object(spawner, "spawn") as mock_spawn:
-            mock_spawn.return_value = HeadlessResult(
-                success=True, message="OK", pid=123
-            )
+            mock_spawn.return_value = HeadlessResult(success=True, message="OK", pid=123)
 
             spawner.spawn_agent(
                 cli="gemini",
@@ -712,9 +693,7 @@ class TestHeadlessSpawnerSpawnAgent:
         spawner = HeadlessSpawner()
 
         with patch.object(spawner, "spawn") as mock_spawn:
-            mock_spawn.return_value = HeadlessResult(
-                success=True, message="OK", pid=123
-            )
+            mock_spawn.return_value = HeadlessResult(success=True, message="OK", pid=123)
 
             spawner.spawn_agent(
                 cli="claude",
@@ -737,9 +716,7 @@ class TestHeadlessSpawnerSpawnAgent:
         spawner = HeadlessSpawner()
 
         with patch.object(spawner, "spawn") as mock_spawn:
-            mock_spawn.return_value = HeadlessResult(
-                success=True, message="OK", pid=123
-            )
+            mock_spawn.return_value = HeadlessResult(success=True, message="OK", pid=123)
 
             spawner.spawn_agent(
                 cli="claude",
@@ -762,9 +739,7 @@ class TestHeadlessSpawnerSpawnAgent:
         spawner = HeadlessSpawner()
 
         with patch.object(spawner, "spawn") as mock_spawn:
-            mock_spawn.return_value = HeadlessResult(
-                success=True, message="OK", pid=123
-            )
+            mock_spawn.return_value = HeadlessResult(success=True, message="OK", pid=123)
 
             spawner.spawn_agent(
                 cli="claude",
@@ -791,13 +766,9 @@ class TestHeadlessSpawnerSpawnAgent:
         exact_prompt = "x" * 4096
 
         with patch.object(spawner, "spawn") as mock_spawn:
-            mock_spawn.return_value = HeadlessResult(
-                success=True, message="OK", pid=123
-            )
+            mock_spawn.return_value = HeadlessResult(success=True, message="OK", pid=123)
 
-            with patch(
-                "gobby.agents.spawners.headless._get_spawn_utils"
-            ) as mock_utils:
+            with patch("gobby.agents.spawners.headless._get_spawn_utils") as mock_utils:
                 mock_build = MagicMock(return_value=["claude"])
                 mock_create_file = MagicMock(return_value="/tmp/prompt.txt")
                 mock_utils.return_value = (mock_build, mock_create_file, 4096)
@@ -823,13 +794,9 @@ class TestHeadlessSpawnerSpawnAgent:
         over_prompt = "x" * 4097
 
         with patch.object(spawner, "spawn") as mock_spawn:
-            mock_spawn.return_value = HeadlessResult(
-                success=True, message="OK", pid=123
-            )
+            mock_spawn.return_value = HeadlessResult(success=True, message="OK", pid=123)
 
-            with patch(
-                "gobby.agents.spawners.headless._get_spawn_utils"
-            ) as mock_utils:
+            with patch("gobby.agents.spawners.headless._get_spawn_utils") as mock_utils:
                 mock_build = MagicMock(return_value=["claude"])
                 mock_create_file = MagicMock(return_value="/tmp/prompt.txt")
                 mock_utils.return_value = (mock_build, mock_create_file, 4096)
@@ -991,9 +958,7 @@ class TestHeadlessSpawnerIntegration:
         spawner = HeadlessSpawner()
 
         # Use 'env' command instead of actual CLI to verify env vars
-        with patch(
-            "gobby.agents.spawners.headless._get_spawn_utils"
-        ) as mock_utils:
+        with patch("gobby.agents.spawners.headless._get_spawn_utils") as mock_utils:
             mock_utils.return_value = (
                 lambda cli, **_: ["env"],
                 MagicMock(),

@@ -15,7 +15,6 @@ This file tests the agent-related MCP tools:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -168,7 +167,10 @@ class TestStartAgent:
             )
 
         assert result["success"] is False
-        assert "lifecycle workflow" in result["error"].lower() or "cannot use" in result["error"].lower()
+        assert (
+            "lifecycle workflow" in result["error"].lower()
+            or "cannot use" in result["error"].lower()
+        )
 
     @pytest.mark.asyncio
     async def test_in_process_mode_runs_via_runner(self, mock_runner, mock_context):

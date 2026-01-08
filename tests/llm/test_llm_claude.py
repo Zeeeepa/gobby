@@ -479,11 +479,11 @@ class TestGenerateWithMcpToolsWithCli:
             )
 
             # Verify create_sdk_mcp_server was called
-            mock_create_server.assert_called_once_with(
-                name="my-server", tools=[sample_tool_func]
-            )
+            mock_create_server.assert_called_once_with(name="my-server", tools=[sample_tool_func])
             # Verify mcp_servers config was passed
-            assert captured_options[0].kwargs["mcp_servers"] == {"my-server": {"type": "mcp_server"}}
+            assert captured_options[0].kwargs["mcp_servers"] == {
+                "my-server": {"type": "mcp_server"}
+            }
 
     @pytest.mark.asyncio
     async def test_handles_user_message_string_content(self, claude_config: DaemonConfig):
@@ -1107,9 +1107,7 @@ class TestGenerateText:
 
         async def mock_query(prompt, options):
             # ToolUseBlock without any TextBlock
-            yield MockAssistantMessage(
-                [MockToolUseBlock(id="1", name="some_tool", input={})]
-            )
+            yield MockAssistantMessage([MockToolUseBlock(id="1", name="some_tool", input={})])
 
         with mock_claude_sdk(mock_query):
             from gobby.llm.claude import ClaudeLLMProvider

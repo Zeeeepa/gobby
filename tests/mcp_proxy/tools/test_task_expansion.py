@@ -445,9 +445,10 @@ class TestExpandTaskTool:
         )
 
         # Epics should be skipped
-        assert "validation_criteria_generated" not in result or result.get(
-            "validation_criteria_generated", 0
-        ) == 0
+        assert (
+            "validation_criteria_generated" not in result
+            or result.get("validation_criteria_generated", 0) == 0
+        )
         mock_task_validator.generate_criteria.assert_not_called()
 
     @pytest.mark.asyncio
@@ -1601,9 +1602,7 @@ class TestAnalyzeComplexityTool:
         assert "moderate" in result["reasoning"].lower()
 
     @pytest.mark.asyncio
-    async def test_analyze_complexity_long_description(
-        self, mock_task_manager, expansion_registry
-    ):
+    async def test_analyze_complexity_long_description(self, mock_task_manager, expansion_registry):
         """Test analyze_complexity with long description (complex task)."""
         task = Task(
             id="t1",
@@ -1625,9 +1624,7 @@ class TestAnalyzeComplexityTool:
         assert "complex" in result["reasoning"].lower()
 
     @pytest.mark.asyncio
-    async def test_analyze_complexity_no_description(
-        self, mock_task_manager, expansion_registry
-    ):
+    async def test_analyze_complexity_no_description(self, mock_task_manager, expansion_registry):
         """Test analyze_complexity with no description (treated as short)."""
         task = Task(
             id="t1",
@@ -1649,9 +1646,7 @@ class TestAnalyzeComplexityTool:
         assert result["complexity_score"] == 2
 
     @pytest.mark.asyncio
-    async def test_analyze_complexity_many_subtasks(
-        self, mock_task_manager, expansion_registry
-    ):
+    async def test_analyze_complexity_many_subtasks(self, mock_task_manager, expansion_registry):
         """Test analyze_complexity caps score at 10 for many subtasks."""
         task = Task(
             id="t1",
@@ -1686,9 +1681,7 @@ class TestAnalyzeComplexityTool:
         assert result["existing_subtasks"] == 20
 
     @pytest.mark.asyncio
-    async def test_analyze_complexity_updates_task(
-        self, mock_task_manager, expansion_registry
-    ):
+    async def test_analyze_complexity_updates_task(self, mock_task_manager, expansion_registry):
         """Test analyze_complexity updates task with complexity score."""
         task = Task(
             id="t1",

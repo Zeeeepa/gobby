@@ -384,9 +384,7 @@ class TestHandleLifecycle:
     def mock_engine(self):
         """Create a mock workflow engine."""
         engine = MagicMock()
-        engine.evaluate_lifecycle_triggers = AsyncMock(
-            return_value=HookResponse(decision="allow")
-        )
+        engine.evaluate_lifecycle_triggers = AsyncMock(return_value=HookResponse(decision="allow"))
         return engine
 
     @pytest.fixture

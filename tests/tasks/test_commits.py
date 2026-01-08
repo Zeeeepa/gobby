@@ -125,6 +125,7 @@ class TestGetTaskDiff:
 
         call_order = []
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
+
             def capture_call(*args, **kwargs):
                 call_order.append(args)
                 return "diff"
@@ -267,10 +268,7 @@ class TestAutoLinkCommits:
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
             # Mock git log output with commit mentioning task
-            mock_git.return_value = (
-                "abc123|Fix bug [gt-test123]\n"
-                "def456|Unrelated commit\n"
-            )
+            mock_git.return_value = "abc123|Fix bug [gt-test123]\n" "def456|Unrelated commit\n"
 
             result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
 
@@ -335,8 +333,7 @@ class TestAutoLinkCommits:
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
             mock_git.return_value = (
-                "abc123|[gt-task1] first task\n"
-                "def456|gt-task2: second task\n"
+                "abc123|[gt-task1] first task\n" "def456|gt-task2: second task\n"
             )
 
             result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
@@ -364,10 +361,7 @@ class TestAutoLinkCommits:
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
-            mock_git.return_value = (
-                "abc123|[gt-test123] commit 1\n"
-                "def456|gt-test123: commit 2\n"
-            )
+            mock_git.return_value = "abc123|[gt-test123] commit 1\n" "def456|gt-test123: commit 2\n"
 
             result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
 
@@ -382,8 +376,7 @@ class TestAutoLinkCommits:
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
             mock_git.return_value = (
-                "abc123|[gt-specific] target task\n"
-                "def456|[gt-other] different task\n"
+                "abc123|[gt-specific] target task\n" "def456|[gt-other] different task\n"
             )
 
             result = auto_link_commits(

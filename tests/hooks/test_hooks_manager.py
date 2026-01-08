@@ -633,9 +633,7 @@ class TestHookManagerWorkflowBlocking:
         manager = hook_manager_with_mocks
 
         # Mock workflow handler to return context
-        workflow_response = HookResponse(
-            decision="allow", context="Workflow context info"
-        )
+        workflow_response = HookResponse(decision="allow", context="Workflow context info")
         with patch.object(manager._workflow_handler, "handle", return_value=workflow_response):
             response = manager.handle(sample_session_start_event)
 
@@ -680,9 +678,7 @@ class TestHookManagerWebhookBlocking:
 
         # Mock webhook dispatcher to return block decision
         with (
-            patch.object(
-                manager, "_dispatch_webhooks_sync", return_value=[MagicMock()]
-            ),
+            patch.object(manager, "_dispatch_webhooks_sync", return_value=[MagicMock()]),
             patch.object(
                 manager._webhook_dispatcher,
                 "get_blocking_decision",
@@ -862,9 +858,7 @@ class TestHookManagerHandlerErrors:
         def failing_handler(evt):
             raise Exception("Handler crashed")
 
-        with patch.object(
-            manager._event_handlers, "get_handler", return_value=failing_handler
-        ):
+        with patch.object(manager._event_handlers, "get_handler", return_value=failing_handler):
             response = manager.handle(event)
 
         assert response.decision == "allow"
@@ -1009,9 +1003,7 @@ class TestHookManagerSessionLookup:
         )
 
         # Session not in cache, should query database
-        with patch.object(
-            manager._session_manager, "get_session_id", return_value=None
-        ):
+        with patch.object(manager._session_manager, "get_session_id", return_value=None):
             response = manager.handle(event)
 
         # Should still allow (session will be auto-registered)
@@ -1219,9 +1211,7 @@ class TestHookManagerWebhookDispatch:
         )
 
         with (
-            patch.object(
-                manager._webhook_dispatcher, "_build_payload", return_value={}
-            ),
+            patch.object(manager._webhook_dispatcher, "_build_payload", return_value={}),
             patch.object(
                 manager._webhook_dispatcher,
                 "_dispatch_single",
@@ -1321,9 +1311,7 @@ class TestHookManagerWebhookDispatch:
 
         try:
             with (
-                patch.object(
-                    manager._webhook_dispatcher, "_build_payload", return_value={}
-                ),
+                patch.object(manager._webhook_dispatcher, "_build_payload", return_value={}),
                 patch.object(
                     manager._webhook_dispatcher,
                     "_dispatch_single",
@@ -1370,9 +1358,7 @@ class TestHookManagerWebhookDispatch:
 
         async def run_dispatch():
             with (
-                patch.object(
-                    manager._webhook_dispatcher, "_build_payload", return_value={}
-                ),
+                patch.object(manager._webhook_dispatcher, "_build_payload", return_value={}),
                 patch.object(
                     manager._webhook_dispatcher,
                     "_dispatch_single",
@@ -1421,9 +1407,7 @@ class TestHookManagerShutdownWebhook:
 
         assert manager._health_monitor._is_shutdown is True
 
-    def test_shutdown_handles_webhook_close_error(
-        self, hook_manager_with_mocks: HookManager
-    ):
+    def test_shutdown_handles_webhook_close_error(self, hook_manager_with_mocks: HookManager):
         """Test that shutdown handles webhook dispatcher close errors."""
         manager = hook_manager_with_mocks
 
@@ -1443,9 +1427,7 @@ class TestHookManagerShutdownWebhook:
 class TestHookManagerResolveProjectId:
     """Tests for project ID resolution."""
 
-    def test_resolve_project_id_returns_provided_id(
-        self, hook_manager_with_mocks: HookManager
-    ):
+    def test_resolve_project_id_returns_provided_id(self, hook_manager_with_mocks: HookManager):
         """Test that provided project ID is returned directly."""
         manager = hook_manager_with_mocks
 
@@ -1482,9 +1464,7 @@ class TestHookManagerResolveProjectId:
             mock_result.project_id = "auto-project-id"
             mock_result.project_name = "auto-project"
 
-            with patch(
-                "gobby.utils.project_init.initialize_project", return_value=mock_result
-            ):
+            with patch("gobby.utils.project_init.initialize_project", return_value=mock_result):
                 result = manager._resolve_project_id(None, str(new_dir))
 
         assert result == "auto-project-id"
@@ -1552,9 +1532,7 @@ class TestHookManagerLogging:
 class TestHookManagerPluginLoading:
     """Tests for plugin loading during initialization."""
 
-    def test_init_loads_plugins_when_enabled(
-        self, temp_dir: Path, mock_daemon_client: MagicMock
-    ):
+    def test_init_loads_plugins_when_enabled(self, temp_dir: Path, mock_daemon_client: MagicMock):
         """Test that plugins are loaded when enabled in config."""
         from gobby.config.extensions import PluginsConfig
 
@@ -1591,9 +1569,7 @@ class TestHookManagerPluginLoading:
 
             manager.shutdown()
 
-    def test_init_handles_plugin_load_error(
-        self, temp_dir: Path, mock_daemon_client: MagicMock
-    ):
+    def test_init_handles_plugin_load_error(self, temp_dir: Path, mock_daemon_client: MagicMock):
         """Test that plugin loading errors are handled gracefully."""
         from gobby.config.extensions import PluginsConfig
 
@@ -1642,9 +1618,7 @@ class TestHookManagerContextMerging:
         manager = hook_manager_with_mocks
 
         # Mock workflow handler to return context
-        workflow_response = HookResponse(
-            decision="allow", context="Workflow context"
-        )
+        workflow_response = HookResponse(decision="allow", context="Workflow context")
 
         # Mock event handler to return response with context
         def handler_with_context(event):
@@ -1664,9 +1638,7 @@ class TestHookManagerContextMerging:
 class TestHookManagerMachineIdFallback:
     """Tests for machine ID fallback behavior."""
 
-    def test_get_machine_id_returns_unknown_on_none(
-        self, hook_manager_with_mocks: HookManager
-    ):
+    def test_get_machine_id_returns_unknown_on_none(self, hook_manager_with_mocks: HookManager):
         """Test that get_machine_id returns 'unknown-machine' when underlying returns None."""
         manager = hook_manager_with_mocks
 

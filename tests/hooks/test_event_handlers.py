@@ -296,9 +296,7 @@ class TestEventHandlersInit:
 
     def test_init_custom_resolve_project_id(self) -> None:
         """Test custom resolve_project_id function is used."""
-        handlers = EventHandlers(
-            resolve_project_id=lambda p, c: f"resolved-{p or 'none'}"
-        )
+        handlers = EventHandlers(resolve_project_id=lambda p, c: f"resolved-{p or 'none'}")
         assert handlers._resolve_project_id("proj-1", None) == "resolved-proj-1"
 
 
@@ -377,13 +375,9 @@ class TestSessionStartPreCreatedSession:
         response = handlers.handle_session_start(event)
 
         assert response.decision == "allow"
-        mock_dependencies["session_coordinator"].start_agent_run.assert_called_once_with(
-            "run-456"
-        )
+        mock_dependencies["session_coordinator"].start_agent_run.assert_called_once_with("run-456")
 
-    def test_pre_created_session_agent_run_start_error(
-        self, mock_dependencies: dict
-    ) -> None:
+    def test_pre_created_session_agent_run_start_error(self, mock_dependencies: dict) -> None:
         """Test error starting agent run is handled gracefully."""
         mock_session = MagicMock()
         mock_session.id = "sess-agent-123"
@@ -435,9 +429,7 @@ class TestSessionStartPreCreatedSession:
             "sess-123", "/path/to/transcript.jsonl", source="claude"
         )
 
-    def test_pre_created_session_message_processor_error(
-        self, mock_dependencies: dict
-    ) -> None:
+    def test_pre_created_session_message_processor_error(self, mock_dependencies: dict) -> None:
         """Test error registering with message processor is handled gracefully."""
         mock_session = MagicMock()
         mock_session.id = "sess-123"
@@ -473,12 +465,10 @@ class TestSessionStartPreCreatedSession:
         mock_session.agent_run_id = None
 
         mock_dependencies["session_storage"].get.return_value = mock_session
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = (
-            HookResponse(
-                decision="allow",
-                context="Workflow context here",
-                system_message="Workflow system message",
-            )
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+            decision="allow",
+            context="Workflow context here",
+            system_message="Workflow system message",
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -503,8 +493,8 @@ class TestSessionStartPreCreatedSession:
         mock_session.agent_run_id = None
 
         mock_dependencies["session_storage"].get.return_value = mock_session
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = (
-            Exception("Workflow error")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+            "Workflow error"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -519,9 +509,7 @@ class TestSessionStartPreCreatedSession:
         # Should still allow despite error
         assert response.decision == "allow"
 
-    def test_pre_created_session_coordinator_error(
-        self, mock_dependencies: dict
-    ) -> None:
+    def test_pre_created_session_coordinator_error(self, mock_dependencies: dict) -> None:
         """Test error registering session with coordinator is handled."""
         mock_session = MagicMock()
         mock_session.id = "sess-123"
@@ -531,8 +519,8 @@ class TestSessionStartPreCreatedSession:
         mock_session.agent_run_id = None
 
         mock_dependencies["session_storage"].get.return_value = mock_session
-        mock_dependencies["session_coordinator"].register_session.side_effect = (
-            Exception("Coordinator error")
+        mock_dependencies["session_coordinator"].register_session.side_effect = Exception(
+            "Coordinator error"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -559,9 +547,7 @@ class TestSessionStartNewSession:
         # No pre-created session found
         mock_dependencies["session_storage"].get.return_value = None
         mock_dependencies["session_storage"].find_parent.return_value = mock_parent
-        mock_dependencies["session_manager"].register_session.return_value = (
-            "new-sess-456"
-        )
+        mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
 
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -584,12 +570,8 @@ class TestSessionStartNewSession:
     def test_new_session_parent_lookup_error(self, mock_dependencies: dict) -> None:
         """Test error looking up parent session is handled gracefully."""
         mock_dependencies["session_storage"].get.return_value = None
-        mock_dependencies["session_storage"].find_parent.side_effect = Exception(
-            "Lookup error"
-        )
-        mock_dependencies["session_manager"].register_session.return_value = (
-            "new-sess-456"
-        )
+        mock_dependencies["session_storage"].find_parent.side_effect = Exception("Lookup error")
+        mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
 
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -603,20 +585,16 @@ class TestSessionStartNewSession:
         # Should still allow despite error
         assert response.decision == "allow"
 
-    def test_new_session_mark_parent_expired_error(
-        self, mock_dependencies: dict
-    ) -> None:
+    def test_new_session_mark_parent_expired_error(self, mock_dependencies: dict) -> None:
         """Test error marking parent as expired is handled gracefully."""
         mock_parent = MagicMock()
         mock_parent.id = "parent-sess-123"
 
         mock_dependencies["session_storage"].get.return_value = None
         mock_dependencies["session_storage"].find_parent.return_value = mock_parent
-        mock_dependencies["session_manager"].register_session.return_value = (
-            "new-sess-456"
-        )
-        mock_dependencies["session_manager"].mark_session_expired.side_effect = (
-            Exception("Failed to expire")
+        mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
+        mock_dependencies["session_manager"].mark_session_expired.side_effect = Exception(
+            "Failed to expire"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -631,16 +609,12 @@ class TestSessionStartNewSession:
         # Should still allow despite error
         assert response.decision == "allow"
 
-    def test_new_session_coordinator_registration_error(
-        self, mock_dependencies: dict
-    ) -> None:
+    def test_new_session_coordinator_registration_error(self, mock_dependencies: dict) -> None:
         """Test error registering session with coordinator is handled."""
         mock_dependencies["session_storage"].get.return_value = None
-        mock_dependencies["session_manager"].register_session.return_value = (
-            "new-sess-456"
-        )
-        mock_dependencies["session_coordinator"].register_session.side_effect = (
-            Exception("Coordinator error")
+        mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
+        mock_dependencies["session_coordinator"].register_session.side_effect = Exception(
+            "Coordinator error"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -655,14 +629,10 @@ class TestSessionStartNewSession:
         # Should still allow despite error
         assert response.decision == "allow"
 
-    def test_new_session_message_processor_registration(
-        self, mock_dependencies: dict
-    ) -> None:
+    def test_new_session_message_processor_registration(self, mock_dependencies: dict) -> None:
         """Test new session registers with message processor."""
         mock_dependencies["session_storage"].get.return_value = None
-        mock_dependencies["session_manager"].register_session.return_value = (
-            "new-sess-456"
-        )
+        mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
 
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -680,9 +650,7 @@ class TestSessionStartNewSession:
     def test_new_session_message_processor_error(self, mock_dependencies: dict) -> None:
         """Test error registering with message processor is handled."""
         mock_dependencies["session_storage"].get.return_value = None
-        mock_dependencies["session_manager"].register_session.return_value = (
-            "new-sess-456"
-        )
+        mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
         mock_dependencies["message_processor"].register_session.side_effect = Exception(
             "Registration failed"
         )
@@ -702,15 +670,11 @@ class TestSessionStartNewSession:
     def test_new_session_workflow_context(self, mock_dependencies: dict) -> None:
         """Test new session merges workflow context."""
         mock_dependencies["session_storage"].get.return_value = None
-        mock_dependencies["session_manager"].register_session.return_value = (
-            "new-sess-456"
-        )
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = (
-            HookResponse(
-                decision="allow",
-                context="Workflow context",
-                system_message="System message",
-            )
+        mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+            decision="allow",
+            context="Workflow context",
+            system_message="System message",
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -728,11 +692,9 @@ class TestSessionStartNewSession:
     def test_new_session_workflow_error(self, mock_dependencies: dict) -> None:
         """Test workflow error during new session is handled."""
         mock_dependencies["session_storage"].get.return_value = None
-        mock_dependencies["session_manager"].register_session.return_value = (
-            "new-sess-456"
-        )
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = (
-            Exception("Workflow error")
+        mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+            "Workflow error"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -750,9 +712,7 @@ class TestSessionStartNewSession:
     def test_new_session_with_task_id_context(self, mock_dependencies: dict) -> None:
         """Test new session includes task context when task_id present."""
         mock_dependencies["session_storage"].get.return_value = None
-        mock_dependencies["session_manager"].register_session.return_value = (
-            "new-sess-456"
-        )
+        mock_dependencies["session_manager"].register_session.return_value = "new-sess-456"
 
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -775,9 +735,7 @@ class TestSessionEndHandling:
 
     def test_session_end_lookup_from_database(self, mock_dependencies: dict) -> None:
         """Test session_id lookup from database when not in metadata."""
-        mock_dependencies["session_manager"].lookup_session_id.return_value = (
-            "found-sess-123"
-        )
+        mock_dependencies["session_manager"].lookup_session_id.return_value = "found-sess-123"
 
         # Mock session for auto-link
         mock_session = MagicMock()
@@ -800,8 +758,8 @@ class TestSessionEndHandling:
 
     def test_session_end_workflow_error(self, mock_dependencies: dict) -> None:
         """Test workflow error during session end is handled."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = (
-            Exception("Workflow error")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+            "Workflow error"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -835,9 +793,7 @@ class TestSessionEndHandling:
             data={"cwd": "/some/dir"},
         )
 
-        with patch(
-            "gobby.tasks.commits.auto_link_commits", return_value=mock_link_result
-        ):
+        with patch("gobby.tasks.commits.auto_link_commits", return_value=mock_link_result):
             response = handlers.handle_session_end(event)
 
         assert response.decision == "allow"
@@ -884,16 +840,14 @@ class TestSessionEndHandling:
 
         mock_dependencies["session_coordinator"].complete_agent_run.assert_called_once()
 
-    def test_session_end_complete_agent_run_error(
-        self, mock_dependencies: dict
-    ) -> None:
+    def test_session_end_complete_agent_run_error(self, mock_dependencies: dict) -> None:
         """Test error completing agent run is handled gracefully."""
         mock_session = MagicMock()
         mock_session.created_at = "2024-01-01T00:00:00Z"
         mock_session.agent_run_id = "run-456"
         mock_dependencies["session_storage"].get.return_value = mock_session
-        mock_dependencies["session_coordinator"].complete_agent_run.side_effect = (
-            Exception("Completion error")
+        mock_dependencies["session_coordinator"].complete_agent_run.side_effect = Exception(
+            "Completion error"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -919,13 +873,9 @@ class TestSessionEndHandling:
 
         handlers.handle_session_end(event)
 
-        mock_dependencies[
-            "summary_file_generator"
-        ].generate_session_summary.assert_called_once()
+        mock_dependencies["summary_file_generator"].generate_session_summary.assert_called_once()
 
-    def test_session_end_summary_generation_error(
-        self, mock_dependencies: dict
-    ) -> None:
+    def test_session_end_summary_generation_error(self, mock_dependencies: dict) -> None:
         """Test error in summary generation is handled."""
         mock_dependencies[
             "summary_file_generator"
@@ -943,9 +893,7 @@ class TestSessionEndHandling:
         # Should still allow despite error
         assert response.decision == "allow"
 
-    def test_session_end_unregister_message_processor(
-        self, mock_dependencies: dict
-    ) -> None:
+    def test_session_end_unregister_message_processor(self, mock_dependencies: dict) -> None:
         """Test unregistering from message processor on session end."""
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -977,14 +925,12 @@ class TestSessionEndHandling:
         handlers.handle_session_end(event)
 
         # When session_id is None, external_id is used as fallback for unregister
-        mock_dependencies["message_processor"].unregister_session.assert_called_once_with(
-            "ext-123"
-        )
+        mock_dependencies["message_processor"].unregister_session.assert_called_once_with("ext-123")
 
     def test_session_end_unregister_error(self, mock_dependencies: dict) -> None:
         """Test error unregistering from message processor is handled."""
-        mock_dependencies["message_processor"].unregister_session.side_effect = (
-            Exception("Unregister error")
+        mock_dependencies["message_processor"].unregister_session.side_effect = Exception(
+            "Unregister error"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1003,9 +949,7 @@ class TestSessionEndHandling:
 class TestBeforeAgentHandling:
     """Test BEFORE_AGENT handler edge cases."""
 
-    def test_before_agent_updates_session_status(
-        self, mock_dependencies: dict
-    ) -> None:
+    def test_before_agent_updates_session_status(self, mock_dependencies: dict) -> None:
         """Test BEFORE_AGENT updates session status to active."""
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -1020,9 +964,7 @@ class TestBeforeAgentHandling:
             "sess-123", "active"
         )
 
-    def test_before_agent_skips_status_update_for_clear(
-        self, mock_dependencies: dict
-    ) -> None:
+    def test_before_agent_skips_status_update_for_clear(self, mock_dependencies: dict) -> None:
         """Test BEFORE_AGENT skips status update for /clear command."""
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -1035,9 +977,7 @@ class TestBeforeAgentHandling:
 
         mock_dependencies["session_manager"].update_session_status.assert_not_called()
 
-    def test_before_agent_skips_status_update_for_exit(
-        self, mock_dependencies: dict
-    ) -> None:
+    def test_before_agent_skips_status_update_for_exit(self, mock_dependencies: dict) -> None:
         """Test BEFORE_AGENT skips status update for /exit command."""
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -1050,9 +990,7 @@ class TestBeforeAgentHandling:
 
         mock_dependencies["session_manager"].update_session_status.assert_not_called()
 
-    def test_before_agent_resets_transcript_processed(
-        self, mock_dependencies: dict
-    ) -> None:
+    def test_before_agent_resets_transcript_processed(self, mock_dependencies: dict) -> None:
         """Test BEFORE_AGENT resets transcript processed flag."""
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -1063,14 +1001,14 @@ class TestBeforeAgentHandling:
 
         handlers.handle_before_agent(event)
 
-        mock_dependencies[
-            "session_storage"
-        ].reset_transcript_processed.assert_called_once_with("sess-123")
+        mock_dependencies["session_storage"].reset_transcript_processed.assert_called_once_with(
+            "sess-123"
+        )
 
     def test_before_agent_status_update_error(self, mock_dependencies: dict) -> None:
         """Test error updating session status is handled."""
-        mock_dependencies["session_manager"].update_session_status.side_effect = (
-            Exception("Update error")
+        mock_dependencies["session_manager"].update_session_status.side_effect = Exception(
+            "Update error"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1087,8 +1025,8 @@ class TestBeforeAgentHandling:
 
     def test_before_agent_workflow_deny(self, mock_dependencies: dict) -> None:
         """Test BEFORE_AGENT returns workflow deny response."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = (
-            HookResponse(decision="deny", reason="Not allowed")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+            decision="deny", reason="Not allowed"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1104,8 +1042,8 @@ class TestBeforeAgentHandling:
 
     def test_before_agent_workflow_context(self, mock_dependencies: dict) -> None:
         """Test BEFORE_AGENT merges workflow context."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = (
-            HookResponse(decision="allow", context="Some context")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+            decision="allow", context="Some context"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1118,9 +1056,7 @@ class TestBeforeAgentHandling:
 
         assert "Some context" in response.context
 
-    def test_before_agent_handles_clear_with_transcript(
-        self, mock_dependencies: dict
-    ) -> None:
+    def test_before_agent_handles_clear_with_transcript(self, mock_dependencies: dict) -> None:
         """Test BEFORE_AGENT handles /clear with transcript path."""
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -1153,8 +1089,8 @@ class TestAfterAgentHandling:
 
     def test_after_agent_status_update_error(self, mock_dependencies: dict) -> None:
         """Test error updating session status is handled."""
-        mock_dependencies["session_manager"].update_session_status.side_effect = (
-            Exception("Update error")
+        mock_dependencies["session_manager"].update_session_status.side_effect = Exception(
+            "Update error"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1170,8 +1106,8 @@ class TestAfterAgentHandling:
 
     def test_after_agent_workflow_deny(self, mock_dependencies: dict) -> None:
         """Test AFTER_AGENT returns workflow deny response."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = (
-            HookResponse(decision="deny", reason="Not allowed")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+            decision="deny", reason="Not allowed"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1183,8 +1119,8 @@ class TestAfterAgentHandling:
 
     def test_after_agent_workflow_context(self, mock_dependencies: dict) -> None:
         """Test AFTER_AGENT returns workflow context response."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = (
-            HookResponse(decision="allow", context="Context from workflow")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+            decision="allow", context="Context from workflow"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1213,8 +1149,8 @@ class TestToolHandlerEdgeCases:
 
     def test_before_tool_workflow_deny(self, mock_dependencies: dict) -> None:
         """Test BEFORE_TOOL returns workflow deny response."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = (
-            HookResponse(decision="deny", reason="Tool blocked")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+            decision="deny", reason="Tool blocked"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1230,8 +1166,8 @@ class TestToolHandlerEdgeCases:
 
     def test_before_tool_workflow_context(self, mock_dependencies: dict) -> None:
         """Test BEFORE_TOOL merges workflow context."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = (
-            HookResponse(decision="allow", context="Tool context")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+            decision="allow", context="Tool context"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1272,8 +1208,8 @@ class TestToolHandlerEdgeCases:
 
     def test_after_tool_workflow_deny(self, mock_dependencies: dict) -> None:
         """Test AFTER_TOOL returns workflow deny response."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = (
-            HookResponse(decision="deny", reason="Blocked")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+            decision="deny", reason="Blocked"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1288,8 +1224,8 @@ class TestToolHandlerEdgeCases:
 
     def test_after_tool_workflow_context(self, mock_dependencies: dict) -> None:
         """Test AFTER_TOOL merges workflow context."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = (
-            HookResponse(decision="allow", context="After tool context")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+            decision="allow", context="After tool context"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1321,8 +1257,8 @@ class TestStopHandlerEdgeCases:
 
     def test_stop_workflow_deny(self, mock_dependencies: dict) -> None:
         """Test STOP returns workflow deny response."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = (
-            HookResponse(decision="deny", reason="Cannot stop")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+            decision="deny", reason="Cannot stop"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1334,8 +1270,8 @@ class TestStopHandlerEdgeCases:
 
     def test_stop_workflow_context(self, mock_dependencies: dict) -> None:
         """Test STOP returns workflow context response."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = (
-            HookResponse(decision="allow", context="Stop context")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+            decision="allow", context="Stop context"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1380,8 +1316,8 @@ class TestPreCompactHandlerEdgeCases:
 
     def test_pre_compact_workflow_response(self, mock_dependencies: dict) -> None:
         """Test PRE_COMPACT returns workflow response."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = (
-            HookResponse(decision="allow", context="Compact context")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.return_value = HookResponse(
+            decision="allow", context="Compact context"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1454,8 +1390,8 @@ class TestNotificationHandlerEdgeCases:
 
     def test_notification_status_update_error(self, mock_dependencies: dict) -> None:
         """Test error updating session status is handled."""
-        mock_dependencies["session_manager"].update_session_status.side_effect = (
-            Exception("Update error")
+        mock_dependencies["session_manager"].update_session_status.side_effect = Exception(
+            "Update error"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1546,9 +1482,7 @@ class TestPermissionRequestEdgeCases:
 class TestGeminiHandlerEdgeCases:
     """Test Gemini-only handler edge cases."""
 
-    def test_before_tool_selection_with_session_id(
-        self, mock_dependencies: dict
-    ) -> None:
+    def test_before_tool_selection_with_session_id(self, mock_dependencies: dict) -> None:
         """Test BEFORE_TOOL_SELECTION with session_id."""
         handlers = EventHandlers(**mock_dependencies)
         event = make_event(
@@ -1632,8 +1566,8 @@ class TestWorkflowErrorHandling:
 
     def test_after_agent_workflow_error(self, mock_dependencies: dict) -> None:
         """Test AFTER_AGENT handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = (
-            Exception("Workflow error")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+            "Workflow error"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1646,8 +1580,8 @@ class TestWorkflowErrorHandling:
 
     def test_before_tool_workflow_error(self, mock_dependencies: dict) -> None:
         """Test BEFORE_TOOL handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = (
-            Exception("Workflow error")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+            "Workflow error"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1663,8 +1597,8 @@ class TestWorkflowErrorHandling:
 
     def test_after_tool_workflow_error(self, mock_dependencies: dict) -> None:
         """Test AFTER_TOOL handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = (
-            Exception("Workflow error")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+            "Workflow error"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1680,8 +1614,8 @@ class TestWorkflowErrorHandling:
 
     def test_stop_workflow_error(self, mock_dependencies: dict) -> None:
         """Test STOP handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = (
-            Exception("Workflow error")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+            "Workflow error"
         )
 
         handlers = EventHandlers(**mock_dependencies)
@@ -1694,8 +1628,8 @@ class TestWorkflowErrorHandling:
 
     def test_pre_compact_workflow_error(self, mock_dependencies: dict) -> None:
         """Test PRE_COMPACT handles workflow errors gracefully."""
-        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = (
-            Exception("Workflow error")
+        mock_dependencies["workflow_handler"].handle_all_lifecycles.side_effect = Exception(
+            "Workflow error"
         )
 
         handlers = EventHandlers(**mock_dependencies)

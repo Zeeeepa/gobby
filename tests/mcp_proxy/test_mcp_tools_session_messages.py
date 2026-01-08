@@ -68,9 +68,7 @@ async def test_get_session_messages(mock_message_manager, session_messages_regis
     )
 
     mock_message_manager.count_messages.assert_called_with("sess-123")
-    mock_message_manager.get_messages.assert_called_with(
-        session_id="sess-123", limit=5, offset=0
-    )
+    mock_message_manager.get_messages.assert_called_with(session_id="sess-123", limit=5, offset=0)
 
     assert result["success"] is True
     assert result["total_count"] == 10
@@ -109,9 +107,7 @@ async def test_search_messages(mock_message_manager, session_messages_registry):
 
 
 @pytest.mark.asyncio
-async def test_search_messages_with_session_filter(
-    mock_message_manager, session_messages_registry
-):
+async def test_search_messages_with_session_filter(mock_message_manager, session_messages_registry):
     """Test search_messages tool execution WITH session filter."""
     mock_message_manager.search_messages.return_value = []
 
@@ -224,9 +220,7 @@ async def test_get_current_session(mock_session_manager, full_sessions_registry)
 
     result = await full_sessions_registry.call("get_current_session", {})
 
-    mock_session_manager.list.assert_called_with(
-        project_id=None, status="active", limit=1
-    )
+    mock_session_manager.list.assert_called_with(project_id=None, status="active", limit=1)
     assert result["found"] is True
     assert result["status"] == "active"
 
@@ -463,9 +457,7 @@ async def test_pickup_links_child_session(mock_session_manager, full_sessions_re
         {"session_id": "sess-parent", "link_child_session_id": "sess-child"},
     )
 
-    mock_session_manager.update_parent_session_id.assert_called_with(
-        "sess-child", "sess-parent"
-    )
+    mock_session_manager.update_parent_session_id.assert_called_with("sess-child", "sess-parent")
     assert result["linked_child"] == "sess-child"
 
 
@@ -508,7 +500,9 @@ async def test_get_session_commits(mock_session_manager, full_sessions_registry)
     # Mock subprocess.run to return git log output
     mock_result = MagicMock()
     mock_result.returncode = 0
-    mock_result.stdout = "abc123|Fix bug|2025-01-01T11:00:00+00:00\ndef456|Add feature|2025-01-01T11:30:00+00:00"
+    mock_result.stdout = (
+        "abc123|Fix bug|2025-01-01T11:00:00+00:00\ndef456|Add feature|2025-01-01T11:30:00+00:00"
+    )
 
     with patch("subprocess.run", return_value=mock_result):
         result = await full_sessions_registry.call(
@@ -531,9 +525,7 @@ async def test_get_session_commits_not_found(mock_session_manager, full_sessions
     mock_session_manager.get.return_value = None
     mock_session_manager.list.return_value = []
 
-    result = await full_sessions_registry.call(
-        "get_session_commits", {"session_id": "nonexistent"}
-    )
+    result = await full_sessions_registry.call("get_session_commits", {"session_id": "nonexistent"})
 
     assert "error" in result
     assert "not found" in result["error"]

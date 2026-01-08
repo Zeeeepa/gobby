@@ -513,7 +513,11 @@ class TestSummarizeResults:
                 "parsed_action": {"tool": "google_search", "args": ["flask guide"]},
             },
             {"role": "tool", "content": "Flask quickstart guide found"},
-            {"role": "model", "content": "Done", "parsed_action": {"tool": "done", "reason": "complete"}},
+            {
+                "role": "model",
+                "content": "Done",
+                "parsed_action": {"tool": "done", "reason": "complete"},
+            },
         ]
         context = {"history": history, "found_files": set(), "snippets": {}}
 
@@ -591,6 +595,7 @@ class TestExceptionHandling:
 
     async def test_glob_pattern_exception(self, fs_agent, monkeypatch):
         """Test glob with pattern that causes exception."""
+
         # Mock glob to raise an exception
         def mock_glob(self, pattern):
             raise ValueError("Invalid pattern")

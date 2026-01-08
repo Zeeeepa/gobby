@@ -302,9 +302,7 @@ class TestAddMcpServer:
             )
 
     @pytest.mark.asyncio
-    async def test_add_server_skips_description_generation_when_provided(
-        self, mock_mcp_manager
-    ):
+    async def test_add_server_skips_description_generation_when_provided(self, mock_mcp_manager):
         """Test that description generation is skipped when custom description is provided."""
         mock_mcp_manager.add_server.return_value = {
             "success": True,
@@ -328,9 +326,7 @@ class TestAddMcpServer:
             mock_gen.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_add_server_skips_description_generation_when_no_tools(
-        self, mock_mcp_manager
-    ):
+    async def test_add_server_skips_description_generation_when_no_tools(self, mock_mcp_manager):
         """Test that description generation is skipped when no tools returned."""
         mock_mcp_manager.add_server.return_value = {
             "success": True,
@@ -353,9 +349,7 @@ class TestAddMcpServer:
             mock_gen.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_add_server_handles_description_generation_failure(
-        self, mock_mcp_manager
-    ):
+    async def test_add_server_handles_description_generation_failure(self, mock_mcp_manager):
         """Test that description generation failure doesn't fail the add operation."""
         mock_mcp_manager.add_server.return_value = {
             "success": True,
@@ -470,9 +464,7 @@ class TestRemoveMcpServer:
     @pytest.mark.asyncio
     async def test_remove_server_value_error_exception(self, mock_mcp_manager):
         """Test handling ValueError exception during remove."""
-        mock_mcp_manager.remove_server.side_effect = ValueError(
-            "Server 'test' not found"
-        )
+        mock_mcp_manager.remove_server.side_effect = ValueError("Server 'test' not found")
 
         result = await remove_mcp_server(
             mcp_manager=mock_mcp_manager,
@@ -494,9 +486,7 @@ class TestRemoveMcpServer:
             name="server-a",
             project_id="project-a",
         )
-        mock_mcp_manager.remove_server.assert_called_with(
-            "server-a", project_id="project-a"
-        )
+        mock_mcp_manager.remove_server.assert_called_with("server-a", project_id="project-a")
 
         # Remove from project B
         await remove_mcp_server(
@@ -504,9 +494,7 @@ class TestRemoveMcpServer:
             name="server-b",
             project_id="project-b",
         )
-        mock_mcp_manager.remove_server.assert_called_with(
-            "server-b", project_id="project-b"
-        )
+        mock_mcp_manager.remove_server.assert_called_with("server-b", project_id="project-b")
 
     @pytest.mark.asyncio
     async def test_remove_server_logs_on_success(self, mock_mcp_manager, caplog):
@@ -701,9 +689,7 @@ class TestListMcpServers:
         healthy_server = next(s for s in result["servers"] if s["name"] == "healthy")
         assert healthy_server["state"] == "connected"
 
-        unhealthy_server = next(
-            s for s in result["servers"] if s["name"] == "unhealthy"
-        )
+        unhealthy_server = next(s for s in result["servers"] if s["name"] == "unhealthy")
         assert unhealthy_server["state"] == "failed"
 
     @pytest.mark.asyncio
@@ -883,9 +869,7 @@ class TestEdgeCases:
         )
 
         assert result["success"] is True
-        mock_mcp_manager.remove_server.assert_called_once_with(
-            "test-server", project_id=""
-        )
+        mock_mcp_manager.remove_server.assert_called_once_with("test-server", project_id="")
 
 
 class TestConcurrencyScenarios:
@@ -990,9 +974,7 @@ class TestLogging:
                 url="http://localhost:8080",
             )
 
-        assert any(
-            "Failed to add MCP server" in record.message for record in caplog.records
-        )
+        assert any("Failed to add MCP server" in record.message for record in caplog.records)
 
     @pytest.mark.asyncio
     async def test_remove_server_logs_error_on_exception(self, mock_mcp_manager, caplog):
@@ -1008,9 +990,7 @@ class TestLogging:
                 project_id="project-123",
             )
 
-        assert any(
-            "Failed to remove MCP server" in record.message for record in caplog.records
-        )
+        assert any("Failed to remove MCP server" in record.message for record in caplog.records)
 
     @pytest.mark.asyncio
     async def test_list_servers_logs_error_on_exception(self, mock_mcp_manager, caplog):
@@ -1018,13 +998,9 @@ class TestLogging:
         import logging
 
         mock_mcp_manager.server_configs = MagicMock()
-        mock_mcp_manager.server_configs.__iter__ = MagicMock(
-            side_effect=Exception("Query failed")
-        )
+        mock_mcp_manager.server_configs.__iter__ = MagicMock(side_effect=Exception("Query failed"))
 
         with caplog.at_level(logging.ERROR):
             await list_mcp_servers(mock_mcp_manager)
 
-        assert any(
-            "Failed to list MCP servers" in record.message for record in caplog.records
-        )
+        assert any("Failed to list MCP servers" in record.message for record in caplog.records)

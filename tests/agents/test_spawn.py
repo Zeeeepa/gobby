@@ -1469,7 +1469,9 @@ class TestTerminalSpawnerSpawnAgent:
         long_prompt = "x" * (MAX_ENV_PROMPT_LENGTH + 100)
 
         with patch.object(spawner, "spawn") as mock_spawn:
-            with patch.object(spawner, "_write_prompt_file", return_value="/tmp/prompt.txt") as mock_write:
+            with patch.object(
+                spawner, "_write_prompt_file", return_value="/tmp/prompt.txt"
+            ) as mock_write:
                 mock_spawn.return_value = SpawnResult(success=True, message="OK", pid=123)
 
                 spawner.spawn_agent(
@@ -1816,7 +1818,9 @@ class TestMaxEnvPromptLength:
         over_prompt = "x" * (MAX_ENV_PROMPT_LENGTH + 1)
 
         with patch.object(spawner, "spawn") as mock_spawn:
-            with patch.object(spawner, "_write_prompt_file", return_value="/tmp/p.txt") as mock_write:
+            with patch.object(
+                spawner, "_write_prompt_file", return_value="/tmp/p.txt"
+            ) as mock_write:
                 mock_spawn.return_value = SpawnResult(success=True, message="OK", pid=123)
 
                 spawner.spawn_agent(
@@ -1939,9 +1943,7 @@ class TestTerminalSpawnerAutoDetect:
                     "spawn",
                     return_value=SpawnResult(success=True, message="OK", pid=123),
                 ) as mock_spawn:
-                    result = spawner.spawn(
-                        ["echo", "test"], cwd="/tmp", terminal=TerminalType.AUTO
-                    )
+                    result = spawner.spawn(["echo", "test"], cwd="/tmp", terminal=TerminalType.AUTO)
 
                     assert result.success is True
                     mock_spawn.assert_called_once()

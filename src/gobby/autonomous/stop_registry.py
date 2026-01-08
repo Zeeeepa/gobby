@@ -137,9 +137,7 @@ class StopRegistry:
             reason=row["reason"],
             requested_at=datetime.fromisoformat(row["requested_at"]),
             acknowledged_at=(
-                datetime.fromisoformat(row["acknowledged_at"])
-                if row["acknowledged_at"]
-                else None
+                datetime.fromisoformat(row["acknowledged_at"]) if row["acknowledged_at"] else None
             ),
         )
 

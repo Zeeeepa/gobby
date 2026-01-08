@@ -415,9 +415,7 @@ async def test_validate_task_failure_creates_fix_subtask_with_correct_fields(
     )
     mock_task_manager.create_task.return_value = fix_subtask
 
-    await registry_with_patches.call(
-        "validate_task", {"task_id": "t1", "changes_summary": "Done"}
-    )
+    await registry_with_patches.call("validate_task", {"task_id": "t1", "changes_summary": "Done"})
 
     # Verify subtask creation call
     mock_task_manager.create_task.assert_called_once()

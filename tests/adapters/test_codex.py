@@ -15,12 +15,11 @@ import os
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from gobby.adapters.codex import (
-    CODEX_SESSIONS_DIR,
     CodexAdapter,
     CodexAppServerClient,
     CodexConnectionState,
@@ -30,7 +29,7 @@ from gobby.adapters.codex import (
     CodexTurn,
     _get_machine_id,
 )
-from gobby.hooks.events import HookEvent, HookEventType, HookResponse, SessionSource
+from gobby.hooks.events import HookEventType, HookResponse, SessionSource
 
 # =============================================================================
 # Data Types Tests
@@ -277,11 +276,15 @@ class TestCodexAppServerClientStart:
 
         # Mock the response for initialize request
         def mock_readline():
-            return json.dumps({"jsonrpc": "2.0", "id": 1, "result": {"userAgent": "codex/1.0"}}) + "\n"
+            return (
+                json.dumps({"jsonrpc": "2.0", "id": 1, "result": {"userAgent": "codex/1.0"}}) + "\n"
+            )
 
         mock_process.stdout.readline = mock_readline
 
-        with patch("gobby.adapters.codex.subprocess.Popen", return_value=mock_process) as mock_popen:
+        with patch(
+            "gobby.adapters.codex.subprocess.Popen", return_value=mock_process
+        ) as mock_popen:
             # Create a task that will complete quickly
             async def run_start():
                 try:
@@ -681,7 +684,10 @@ class TestCodexAppServerClientRunTurn:
                     if event["type"] == "turn/created":
                         # Simulate completion
                         for handler in client._notification_handlers.get("turn/completed", []):
-                            handler("turn/completed", {"turn": {"id": "turn-stream", "status": "completed"}})
+                            handler(
+                                "turn/completed",
+                                {"turn": {"id": "turn-stream", "status": "completed"}},
+                            )
                         break
 
             await collect_events()
@@ -1282,13 +1288,13 @@ class TestCodexNotifyAdapterFindJsonlPath:
             session_file.parent.mkdir(parents=True, exist_ok=True)
             session_file.touch()
 
-            with patch.object(
-                Path, "exists", return_value=True
-            ), patch(
-                "gobby.adapters.codex.CODEX_SESSIONS_DIR", Path(tmpdir)
-            ), patch(
-                "gobby.adapters.codex.glob_module.glob",
-                return_value=[str(session_file)],
+            with (
+                patch.object(Path, "exists", return_value=True),
+                patch("gobby.adapters.codex.CODEX_SESSIONS_DIR", Path(tmpdir)),
+                patch(
+                    "gobby.adapters.codex.glob_module.glob",
+                    return_value=[str(session_file)],
+                ),
             ):
                 result = adapter._find_jsonl_path("thread-abc")
 

@@ -138,7 +138,10 @@ class TestInitNewProject:
         assert result.exit_code == 0
         # Verify the name was passed to initialize_project
         call_kwargs = mock_initialize.call_args
-        assert call_kwargs.kwargs.get("name") == "custom-name" or call_kwargs[1].get("name") == "custom-name"
+        assert (
+            call_kwargs.kwargs.get("name") == "custom-name"
+            or call_kwargs[1].get("name") == "custom-name"
+        )
 
     @patch("gobby.cli.init.initialize_project")
     @patch("gobby.cli.load_config")

@@ -82,9 +82,7 @@ def mock_parent_session():
 class TestInjectContext:
     """Tests for the inject_context function."""
 
-    def test_returns_none_when_session_manager_is_none(
-        self, workflow_state, mock_template_engine
-    ):
+    def test_returns_none_when_session_manager_is_none(self, workflow_state, mock_template_engine):
         """Should return None and log warning when session_manager is None."""
         result = inject_context(
             session_manager=None,
@@ -95,9 +93,7 @@ class TestInjectContext:
         )
         assert result is None
 
-    def test_returns_none_when_state_is_none(
-        self, mock_session_manager, mock_template_engine
-    ):
+    def test_returns_none_when_state_is_none(self, mock_session_manager, mock_template_engine):
         """Should return None and log warning when state is None."""
         result = inject_context(
             session_manager=mock_session_manager,
@@ -108,9 +104,7 @@ class TestInjectContext:
         )
         assert result is None
 
-    def test_returns_none_when_template_engine_is_none(
-        self, mock_session_manager, workflow_state
-    ):
+    def test_returns_none_when_template_engine_is_none(self, mock_session_manager, workflow_state):
         """Should return None and log warning when template_engine is None."""
         result = inject_context(
             session_manager=mock_session_manager,
@@ -174,7 +168,12 @@ class TestInjectContext:
         assert result is None
 
     def test_previous_session_summary_returns_parent_summary(
-        self, mock_session_manager, workflow_state, mock_template_engine, mock_session, mock_parent_session
+        self,
+        mock_session_manager,
+        workflow_state,
+        mock_template_engine,
+        mock_session,
+        mock_parent_session,
     ):
         """Should return parent session summary for previous_session_summary source."""
         mock_session.parent_session_id = "parent-session-id"
@@ -195,7 +194,12 @@ class TestInjectContext:
         assert workflow_state.context_injected is True
 
     def test_handoff_source_returns_parent_summary(
-        self, mock_session_manager, workflow_state, mock_template_engine, mock_session, mock_parent_session
+        self,
+        mock_session_manager,
+        workflow_state,
+        mock_template_engine,
+        mock_session,
+        mock_parent_session,
     ):
         """Should return parent session summary for handoff source."""
         mock_session.parent_session_id = "parent-session-id"
@@ -269,9 +273,7 @@ class TestInjectContext:
 
         assert result is None
 
-    def test_artifacts_source_with_artifacts(
-        self, mock_session_manager, mock_template_engine
-    ):
+    def test_artifacts_source_with_artifacts(self, mock_session_manager, mock_template_engine):
         """Should format artifacts as markdown when source is artifacts."""
         state = WorkflowState(
             session_id="test-session",
@@ -358,9 +360,7 @@ class TestInjectContext:
 
         assert result is None
 
-    def test_workflow_state_source(
-        self, mock_session_manager, mock_template_engine
-    ):
+    def test_workflow_state_source(self, mock_session_manager, mock_template_engine):
         """Should format workflow state as JSON."""
         state = WorkflowState(
             session_id="test-session",
@@ -414,9 +414,7 @@ class TestInjectContext:
         assert "## Workflow State" in result["inject_context"]
         assert test_state.dict_called is True
 
-    def test_compact_handoff_source(
-        self, mock_session_manager, mock_template_engine, mock_session
-    ):
+    def test_compact_handoff_source(self, mock_session_manager, mock_template_engine, mock_session):
         """Should return compact_markdown from current session."""
         mock_session.compact_markdown = "# Compact handoff content"
         mock_session_manager.get.return_value = mock_session
@@ -489,9 +487,7 @@ class TestInjectContext:
         assert "summary" in call_args[0][1]
         assert "handoff" in call_args[0][1]
 
-    def test_with_template_rendering_for_artifacts(
-        self, mock_session_manager
-    ):
+    def test_with_template_rendering_for_artifacts(self, mock_session_manager):
         """Should render template with artifacts_list for artifacts source."""
         state = WorkflowState(
             session_id="test-session",
@@ -516,9 +512,7 @@ class TestInjectContext:
         call_args = template_engine.render.call_args
         assert "artifacts_list" in call_args[0][1]
 
-    def test_with_template_rendering_for_observations(
-        self, mock_session_manager
-    ):
+    def test_with_template_rendering_for_observations(self, mock_session_manager):
         """Should render template with observations_text for observations source."""
         state = WorkflowState(
             session_id="test-session",
@@ -542,9 +536,7 @@ class TestInjectContext:
         call_args = template_engine.render.call_args
         assert "observations_text" in call_args[0][1]
 
-    def test_with_template_rendering_for_workflow_state(
-        self, mock_session_manager
-    ):
+    def test_with_template_rendering_for_workflow_state(self, mock_session_manager):
         """Should render template with workflow_state_text for workflow_state source."""
         state = WorkflowState(
             session_id="test-session",
@@ -567,9 +559,7 @@ class TestInjectContext:
         call_args = template_engine.render.call_args
         assert "workflow_state_text" in call_args[0][1]
 
-    def test_with_template_rendering_for_compact_handoff(
-        self, mock_session_manager, mock_session
-    ):
+    def test_with_template_rendering_for_compact_handoff(self, mock_session_manager, mock_session):
         """Should render template with handoff for compact_handoff source."""
         mock_session.compact_markdown = "Compact content"
         mock_session_manager.get.return_value = mock_session
@@ -627,9 +617,7 @@ class TestInjectContext:
         assert call_args["summary"] == "Parent session summary content"
         assert call_args["handoff"]["notes"] == "Parent session summary content"
 
-    def test_require_blocks_when_no_content(
-        self, mock_session_manager, mock_template_engine
-    ):
+    def test_require_blocks_when_no_content(self, mock_session_manager, mock_template_engine):
         """Should return block decision when require=True and no content found."""
         state = WorkflowState(
             session_id="test-session",
@@ -673,9 +661,7 @@ class TestInjectContext:
 
         assert result is None
 
-    def test_unknown_source_returns_none(
-        self, mock_session_manager, mock_template_engine
-    ):
+    def test_unknown_source_returns_none(self, mock_session_manager, mock_template_engine):
         """Should return None for unknown source type."""
         state = WorkflowState(
             session_id="test-session",
@@ -726,9 +712,7 @@ class TestInjectMessage:
         )
         assert result is None
 
-    def test_renders_and_returns_message(
-        self, mock_session_manager, workflow_state, mock_session
-    ):
+    def test_renders_and_returns_message(self, mock_session_manager, workflow_state, mock_session):
         """Should render template and return inject_message dict."""
         mock_session_manager.get.return_value = mock_session
         template_engine = MagicMock()
@@ -894,7 +878,12 @@ class TestRestoreContext:
         assert result is None
 
     def test_returns_parent_summary_without_template(
-        self, mock_session_manager, workflow_state, mock_template_engine, mock_session, mock_parent_session
+        self,
+        mock_session_manager,
+        workflow_state,
+        mock_template_engine,
+        mock_session,
+        mock_parent_session,
     ):
         """Should return parent summary directly when no template provided."""
         mock_session.parent_session_id = "parent-id"
@@ -980,7 +969,9 @@ class TestExtractHandoffContext:
 
         assert result == {"error": "No transcript path"}
 
-    def test_returns_error_when_transcript_file_not_found(self, mock_session_manager, mock_session, tmp_path):
+    def test_returns_error_when_transcript_file_not_found(
+        self, mock_session_manager, mock_session, tmp_path
+    ):
         """Should return error when transcript file doesn't exist."""
         mock_session.jsonl_path = str(tmp_path / "nonexistent.jsonl")
         mock_session_manager.get.return_value = mock_session
@@ -992,7 +983,9 @@ class TestExtractHandoffContext:
 
         assert result == {"error": "Transcript file not found"}
 
-    def test_extracts_context_and_saves_markdown(self, mock_session_manager, mock_session, tmp_path):
+    def test_extracts_context_and_saves_markdown(
+        self, mock_session_manager, mock_session, tmp_path
+    ):
         """Should extract context from transcript and save markdown to session."""
         # Create transcript file
         transcript_path = tmp_path / "transcript.jsonl"
@@ -1021,7 +1014,9 @@ class TestExtractHandoffContext:
             MockAnalyzer.return_value.extract_handoff_context.return_value = mock_ctx
 
             with patch("gobby.workflows.context_actions.get_git_status", return_value="No changes"):
-                with patch("gobby.workflows.context_actions.get_recent_git_commits", return_value=[]):
+                with patch(
+                    "gobby.workflows.context_actions.get_recent_git_commits", return_value=[]
+                ):
                     result = extract_handoff_context(
                         session_manager=mock_session_manager,
                         session_id="test-session-id",
@@ -1032,7 +1027,9 @@ class TestExtractHandoffContext:
         assert "markdown_length" in result
         mock_session_manager.update_compact_markdown.assert_called_once()
 
-    def test_enriches_with_git_status_when_empty(self, mock_session_manager, mock_session, tmp_path):
+    def test_enriches_with_git_status_when_empty(
+        self, mock_session_manager, mock_session, tmp_path
+    ):
         """Should enrich with git status when not provided by analyzer."""
         transcript_path = tmp_path / "transcript.jsonl"
         with open(transcript_path, "w") as f:
@@ -1053,8 +1050,12 @@ class TestExtractHandoffContext:
             mock_ctx.recent_activity = []
             MockAnalyzer.return_value.extract_handoff_context.return_value = mock_ctx
 
-            with patch("gobby.workflows.context_actions.get_git_status", return_value="M file.py") as mock_status:
-                with patch("gobby.workflows.context_actions.get_recent_git_commits", return_value=[]):
+            with patch(
+                "gobby.workflows.context_actions.get_git_status", return_value="M file.py"
+            ) as mock_status:
+                with patch(
+                    "gobby.workflows.context_actions.get_recent_git_commits", return_value=[]
+                ):
                     extract_handoff_context(
                         session_manager=mock_session_manager,
                         session_id="test-session-id",
@@ -1086,7 +1087,9 @@ class TestExtractHandoffContext:
 
             commits = [{"hash": "abc123", "message": "feat: add feature"}]
             with patch("gobby.workflows.context_actions.get_git_status", return_value=""):
-                with patch("gobby.workflows.context_actions.get_recent_git_commits", return_value=commits):
+                with patch(
+                    "gobby.workflows.context_actions.get_recent_git_commits", return_value=commits
+                ):
                     extract_handoff_context(
                         session_manager=mock_session_manager,
                         session_id="test-session-id",
@@ -1094,7 +1097,9 @@ class TestExtractHandoffContext:
 
                     assert mock_ctx.git_commits == commits
 
-    def test_enriches_with_worktree_context_via_manager(self, mock_session_manager, mock_session, tmp_path):
+    def test_enriches_with_worktree_context_via_manager(
+        self, mock_session_manager, mock_session, tmp_path
+    ):
         """Should enrich with worktree context when worktree_manager provided."""
         transcript_path = tmp_path / "transcript.jsonl"
         with open(transcript_path, "w") as f:
@@ -1128,7 +1133,9 @@ class TestExtractHandoffContext:
             MockAnalyzer.return_value.extract_handoff_context.return_value = mock_ctx
 
             with patch("gobby.workflows.context_actions.get_git_status", return_value=""):
-                with patch("gobby.workflows.context_actions.get_recent_git_commits", return_value=[]):
+                with patch(
+                    "gobby.workflows.context_actions.get_recent_git_commits", return_value=[]
+                ):
                     extract_handoff_context(
                         session_manager=mock_session_manager,
                         session_id="test-session-id",
@@ -1139,7 +1146,9 @@ class TestExtractHandoffContext:
                     assert mock_ctx.active_worktree["id"] == "wt-123"
                     assert mock_ctx.active_worktree["branch_name"] == "feature/auth"
 
-    def test_enriches_with_worktree_context_via_db(self, mock_session_manager, mock_session, tmp_path):
+    def test_enriches_with_worktree_context_via_db(
+        self, mock_session_manager, mock_session, tmp_path
+    ):
         """Should create worktree manager from db when provided."""
         transcript_path = tmp_path / "transcript.jsonl"
         with open(transcript_path, "w") as f:
@@ -1163,7 +1172,9 @@ class TestExtractHandoffContext:
             MockAnalyzer.return_value.extract_handoff_context.return_value = mock_ctx
 
             with patch("gobby.workflows.context_actions.get_git_status", return_value=""):
-                with patch("gobby.workflows.context_actions.get_recent_git_commits", return_value=[]):
+                with patch(
+                    "gobby.workflows.context_actions.get_recent_git_commits", return_value=[]
+                ):
                     with patch("gobby.storage.worktrees.LocalWorktreeManager") as MockWtManager:
                         mock_wt_instance = MagicMock()
                         mock_wt_instance.list.return_value = []
@@ -1177,7 +1188,9 @@ class TestExtractHandoffContext:
 
                         MockWtManager.assert_called_once_with(mock_db)
 
-    def test_handles_worktree_exception_gracefully(self, mock_session_manager, mock_session, tmp_path):
+    def test_handles_worktree_exception_gracefully(
+        self, mock_session_manager, mock_session, tmp_path
+    ):
         """Should handle worktree lookup exceptions gracefully."""
         transcript_path = tmp_path / "transcript.jsonl"
         with open(transcript_path, "w") as f:
@@ -1202,7 +1215,9 @@ class TestExtractHandoffContext:
             MockAnalyzer.return_value.extract_handoff_context.return_value = mock_ctx
 
             with patch("gobby.workflows.context_actions.get_git_status", return_value=""):
-                with patch("gobby.workflows.context_actions.get_recent_git_commits", return_value=[]):
+                with patch(
+                    "gobby.workflows.context_actions.get_recent_git_commits", return_value=[]
+                ):
                     # Should not raise, should continue gracefully
                     result = extract_handoff_context(
                         session_manager=mock_session_manager,
@@ -1232,7 +1247,9 @@ class TestExtractHandoffContext:
             assert "error" in result
             assert "Parse error" in result["error"]
 
-    def test_config_without_compact_handoff_attribute(self, mock_session_manager, mock_session, tmp_path):
+    def test_config_without_compact_handoff_attribute(
+        self, mock_session_manager, mock_session, tmp_path
+    ):
         """Should proceed when config doesn't have compact_handoff attribute."""
         transcript_path = tmp_path / "transcript.jsonl"
         with open(transcript_path, "w") as f:
@@ -1256,7 +1273,9 @@ class TestExtractHandoffContext:
             MockAnalyzer.return_value.extract_handoff_context.return_value = mock_ctx
 
             with patch("gobby.workflows.context_actions.get_git_status", return_value=""):
-                with patch("gobby.workflows.context_actions.get_recent_git_commits", return_value=[]):
+                with patch(
+                    "gobby.workflows.context_actions.get_recent_git_commits", return_value=[]
+                ):
                     result = extract_handoff_context(
                         session_manager=mock_session_manager,
                         session_id="test-session-id",
@@ -1271,8 +1290,8 @@ class TestExtractHandoffContext:
         # Create transcript with empty lines
         with open(transcript_path, "w") as f:
             f.write('{"type": "user", "message": {"content": "test"}}\n')
-            f.write('\n')  # Empty line
-            f.write('   \n')  # Whitespace-only line
+            f.write("\n")  # Empty line
+            f.write("   \n")  # Whitespace-only line
             f.write('{"type": "assistant", "message": {"content": "response"}}\n')
 
         mock_session.jsonl_path = str(transcript_path)
@@ -1291,7 +1310,9 @@ class TestExtractHandoffContext:
             MockAnalyzer.return_value.extract_handoff_context.return_value = mock_ctx
 
             with patch("gobby.workflows.context_actions.get_git_status", return_value=""):
-                with patch("gobby.workflows.context_actions.get_recent_git_commits", return_value=[]):
+                with patch(
+                    "gobby.workflows.context_actions.get_recent_git_commits", return_value=[]
+                ):
                     result = extract_handoff_context(
                         session_manager=mock_session_manager,
                         session_id="test-session-id",
@@ -1313,6 +1334,7 @@ class TestFormatHandoffAsMarkdown:
     @dataclass
     class MockHandoffContext:
         """Mock HandoffContext for testing."""
+
         active_gobby_task: dict | None = None
         active_worktree: dict | None = None
         todo_state: list = field(default_factory=list)
@@ -1422,9 +1444,7 @@ class TestFormatHandoffAsMarkdown:
 
     def test_formats_files_modified(self):
         """Should format files modified section."""
-        ctx = self.MockHandoffContext(
-            files_modified=["src/auth.py", "tests/test_auth.py"]
-        )
+        ctx = self.MockHandoffContext(files_modified=["src/auth.py", "tests/test_auth.py"])
         result = format_handoff_as_markdown(ctx)
 
         assert "### Files Being Modified" in result
@@ -1497,9 +1517,7 @@ class TestFormatHandoffAsMarkdown:
 
     def test_handles_commit_with_empty_hash(self):
         """Should handle commits with empty hash gracefully."""
-        ctx = self.MockHandoffContext(
-            git_commits=[{"hash": "", "message": "test commit"}]
-        )
+        ctx = self.MockHandoffContext(git_commits=[{"hash": "", "message": "test commit"}])
         result = format_handoff_as_markdown(ctx)
 
         assert "### Commits This Session" in result

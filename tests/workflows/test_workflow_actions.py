@@ -1344,9 +1344,7 @@ class TestWebhookAction:
             assert call_kwargs["method"] == "POST"
 
     @pytest.mark.asyncio
-    async def test_webhook_action_invalid_config_missing_url(
-        self, action_executor, action_context
-    ):
+    async def test_webhook_action_invalid_config_missing_url(self, action_executor, action_context):
         """Test webhook action fails gracefully for missing url/webhook_id."""
         result = await action_executor.execute(
             "webhook",
@@ -1464,9 +1462,7 @@ class TestWebhookAction:
             assert call_kwargs["retry_config"]["max_attempts"] == 5
 
     @pytest.mark.asyncio
-    async def test_webhook_action_webhook_id_not_supported(
-        self, action_executor, action_context
-    ):
+    async def test_webhook_action_webhook_id_not_supported(self, action_executor, action_context):
         """Test webhook action returns error for webhook_id without registry."""
         result = await action_executor.execute(
             "webhook",
@@ -1479,9 +1475,7 @@ class TestWebhookAction:
         assert "registry" in result["error"].lower()
 
     @pytest.mark.asyncio
-    async def test_webhook_action_interpolation_context(
-        self, action_executor, action_context
-    ):
+    async def test_webhook_action_interpolation_context(self, action_executor, action_context):
         """Test webhook action builds interpolation context from state."""
         # Set up workflow state with variables and artifacts
         action_context.state.variables = {"task_id": "123", "status": "completed"}

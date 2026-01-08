@@ -47,9 +47,7 @@ class TestAgentRun:
             model="claude-3-opus",
         )
 
-        row = agent_manager.db.fetchone(
-            "SELECT * FROM agent_runs WHERE id = ?", (agent_run.id,)
-        )
+        row = agent_manager.db.fetchone("SELECT * FROM agent_runs WHERE id = ?", (agent_run.id,))
         assert row is not None
 
         agent_from_row = AgentRun.from_row(row)
@@ -238,9 +236,7 @@ class TestLocalAgentRunManager:
                 prompt="Debug log test",
             )
             mock_logger.debug.assert_called()
-            assert f"Created agent run {agent_run.id}" in str(
-                mock_logger.debug.call_args_list[-1]
-            )
+            assert f"Created agent run {agent_run.id}" in str(mock_logger.debug.call_args_list[-1])
 
     def test_create_raises_on_failed_retrieval(
         self,
@@ -1240,7 +1236,7 @@ class TestAgentRunEdgeCases:
     ):
         """Test agent run with unicode characters in prompt."""
         # Use valid unicode characters (no surrogates)
-        unicode_prompt = "Test with unicode: \u4e2d\u6587 \U0001F680 \u00e9\u00e8\u00ea"
+        unicode_prompt = "Test with unicode: \u4e2d\u6587 \U0001f680 \u00e9\u00e8\u00ea"
 
         agent_run = agent_manager.create(
             parent_session_id=sample_session["id"],
