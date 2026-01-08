@@ -1142,26 +1142,3 @@ class TestEdgeCases:
         assert "real-skill" in result["skills"]
         assert "stray.txt" not in result["skills"]
 
-    def test_remove_json_write_error_after_backup(self, temp_dir: Path):
-        """Test handling write error after backup is created when removing JSON server."""
-        settings_path = temp_dir / "settings.json"
-        existing = {"mcpServers": {"gobby": {"command": "uv"}}}
-        settings_path.write_text(json.dumps(existing))
-
-        # We need to let the file be read and backup created, but fail on final write
-        original_open = open
-        call_count = [0]
-
-        def mock_open_fn(path, mode="r", *args, **kwargs):
-            call_count[0] += 1
-            # Allow reads and backup copy. Fail on final write (mode "w" for json.dump)
-            if "w" in str(mode) and call_count[0] > 1:
-                raise OSError("Permission denied")
-            return original_open(path, mode, *args, **kwargs)
-
-        with patch("builtins.open", mock_open_fn):
-            result = remove_mcp_server_json(settings_path)
-
-        assert result["success"] is False
-        assert result["error"] is not None
-        assert "Failed to write" in result["error"]

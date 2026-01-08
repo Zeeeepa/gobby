@@ -700,3 +700,1153 @@ async def test_memory_recall_relevant_respects_kwargs(
     call_kwargs = mock_mem_services["memory_manager"].recall.call_args[1]
     assert call_kwargs["limit"] == 3
     assert call_kwargs["min_importance"] == 0.7
+
+
+# =============================================================================
+# DIRECT FUNCTION TESTS - Testing memory_actions.py functions directly
+# These tests bypass ActionExecutor to directly test the functions
+# =============================================================================
+
+from unittest.mock import patch
+
+from gobby.workflows.memory_actions import (
+    _content_fingerprint,
+    memory_extract,
+    memory_inject,
+    memory_recall_relevant,
+    memory_save,
+    memory_sync_export,
+    memory_sync_import,
+)
+
+
+class TestContentFingerprint:
+    """Tests for _content_fingerprint helper function."""
+
+    def test_content_fingerprint_returns_16_char_hash(self):
+        """Test fingerprint returns a 16 character hex string."""
+        result = _content_fingerprint("test content")
+        assert len(result) == 16
+        assert all(c in "0123456789abcdef" for c in result)
+
+    def test_content_fingerprint_deterministic(self):
+        """Test fingerprint is deterministic for same input."""
+        content = "some test content here"
+        result1 = _content_fingerprint(content)
+        result2 = _content_fingerprint(content)
+        assert result1 == result2
+
+    def test_content_fingerprint_different_for_different_content(self):
+        """Test fingerprint differs for different content."""
+        result1 = _content_fingerprint("content A")
+        result2 = _content_fingerprint("content B")
+        assert result1 != result2
+
+
+class TestMemorySyncImportDirect:
+    """Direct tests for memory_sync_import function."""
+
+    @pytest.mark.asyncio
+    async def test_memory_sync_import_no_manager(self):
+        """Test memory_sync_import returns error when manager is None."""
+        result = await memory_sync_import(None)
+        assert result == {"error": "Memory Sync Manager not available"}
+
+    @pytest.mark.asyncio
+    async def test_memory_sync_import_success(self):
+        """Test memory_sync_import success path."""
+        mock_manager = AsyncMock()
+        mock_manager.import_from_files.return_value = 5
+
+        result = await memory_sync_import(mock_manager)
+
+        assert result == {"imported": {"memories": 5}}
+        mock_manager.import_from_files.assert_awaited_once()
+
+
+class TestMemorySyncExportDirect:
+    """Direct tests for memory_sync_export function."""
+
+    @pytest.mark.asyncio
+    async def test_memory_sync_export_no_manager(self):
+        """Test memory_sync_export returns error when manager is None."""
+        result = await memory_sync_export(None)
+        assert result == {"error": "Memory Sync Manager not available"}
+
+    @pytest.mark.asyncio
+    async def test_memory_sync_export_success(self):
+        """Test memory_sync_export success path."""
+        mock_manager = AsyncMock()
+        mock_manager.export_to_files.return_value = 7
+
+        result = await memory_sync_export(mock_manager)
+
+        assert result == {"exported": {"memories": 7}}
+        mock_manager.export_to_files.assert_awaited_once()
+
+
+class TestMemoryInjectDirect:
+    """Direct tests for memory_inject function."""
+
+    @pytest.mark.asyncio
+    async def test_memory_inject_no_memory_manager(self):
+        """Test memory_inject returns None when memory_manager is None."""
+        result = await memory_inject(
+            memory_manager=None,
+            session_manager=MagicMock(),
+            session_id="test-session",
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_memory_inject_no_project_id_from_session(self):
+        """Test memory_inject returns None when session has no project_id."""
+        mock_memory_manager = MagicMock()
+        mock_session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = None
+        mock_session_manager.get.return_value = mock_session
+
+        result = await memory_inject(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            project_id=None,
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_memory_inject_no_session_found(self):
+        """Test memory_inject returns None when session not found."""
+        mock_memory_manager = MagicMock()
+        mock_session_manager = MagicMock()
+        mock_session_manager.get.return_value = None
+
+        result = await memory_inject(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            project_id=None,
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_memory_inject_with_query_semantic_search(self):
+        """Test memory_inject uses semantic search when query provided."""
+        mock_memory_manager = MagicMock()
+        mock_session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session_manager.get.return_value = mock_session
+
+        # Create mock memories
+        m1 = MagicMock()
+        m1.memory_type = "fact"
+        m1.content = "Test memory content"
+        mock_memory_manager.recall.return_value = [m1]
+
+        result = await memory_inject(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            query="search query",
+            project_id="proj-123",
+        )
+
+        assert result is not None
+        assert "inject_context" in result
+        assert result["count"] == 1
+
+        # Verify semantic search was used
+        mock_memory_manager.recall.assert_called_once()
+        call_kwargs = mock_memory_manager.recall.call_args[1]
+        assert call_kwargs["query"] == "search query"
+        assert call_kwargs["use_semantic"] is True
+
+    @pytest.mark.asyncio
+    async def test_memory_inject_no_memories_found(self):
+        """Test memory_inject returns appropriate result when no memories found."""
+        mock_memory_manager = MagicMock()
+        mock_session_manager = MagicMock()
+        mock_memory_manager.recall.return_value = []
+
+        result = await memory_inject(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            project_id="proj-123",
+        )
+
+        assert result == {"injected": False, "reason": "No memories found", "count": 0}
+
+    @pytest.mark.asyncio
+    async def test_memory_inject_with_min_similarity_filter(self):
+        """Test memory_inject filters by min_similarity when query provided."""
+        mock_memory_manager = MagicMock()
+        mock_session_manager = MagicMock()
+
+        # Create memories with different similarities
+        m1 = MagicMock()
+        m1.memory_type = "fact"
+        m1.content = "High similarity"
+        m1.similarity = 0.9
+
+        m2 = MagicMock()
+        m2.memory_type = "fact"
+        m2.content = "Low similarity"
+        m2.similarity = 0.3
+
+        mock_memory_manager.recall.return_value = [m1, m2]
+
+        result = await memory_inject(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            query="test query",
+            project_id="proj-123",
+            min_similarity=0.5,
+        )
+
+        assert result is not None
+        # Only m1 should pass the similarity threshold
+        assert result["count"] == 1
+        assert "High similarity" in result["inject_context"]
+
+    @pytest.mark.asyncio
+    async def test_memory_inject_empty_context_after_build(self):
+        """Test memory_inject handles empty context after build_memory_context."""
+        mock_memory_manager = MagicMock()
+        mock_session_manager = MagicMock()
+
+        # Create a memory that results in empty context
+        m1 = MagicMock()
+        m1.memory_type = "unknown_type"
+        m1.content = ""
+        mock_memory_manager.recall.return_value = [m1]
+
+        with patch("gobby.memory.context.build_memory_context", return_value=""):
+            result = await memory_inject(
+                memory_manager=mock_memory_manager,
+                session_manager=mock_session_manager,
+                session_id="test-session",
+                project_id="proj-123",
+            )
+
+        assert result == {"injected": False, "count": 0}
+
+    @pytest.mark.asyncio
+    async def test_memory_inject_exception_handling(self):
+        """Test memory_inject handles exceptions gracefully."""
+        mock_memory_manager = MagicMock()
+        mock_session_manager = MagicMock()
+        mock_memory_manager.recall.side_effect = Exception("Database error")
+
+        result = await memory_inject(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            project_id="proj-123",
+        )
+
+        assert result is not None
+        assert "error" in result
+        assert "Database error" in result["error"]
+
+
+class TestMemoryExtractDirect:
+    """Direct tests for memory_extract function."""
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_no_memory_manager(self):
+        """Test memory_extract returns None when memory_manager is None."""
+        result = await memory_extract(
+            memory_manager=None,
+            llm_service=MagicMock(),
+            session_manager=MagicMock(),
+            session_id="test-session",
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_config_disabled(self):
+        """Test memory_extract returns None when config.enabled is False."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = False
+
+        result = await memory_extract(
+            memory_manager=mock_memory_manager,
+            llm_service=MagicMock(),
+            session_manager=MagicMock(),
+            session_id="test-session",
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_auto_extract_disabled(self):
+        """Test memory_extract returns None when auto_extract is disabled."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.config.auto_extract = False
+
+        result = await memory_extract(
+            memory_manager=mock_memory_manager,
+            llm_service=MagicMock(),
+            session_manager=MagicMock(),
+            session_id="test-session",
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_no_llm_service(self):
+        """Test memory_extract returns None when llm_service is None."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.config.auto_extract = True
+
+        result = await memory_extract(
+            memory_manager=mock_memory_manager,
+            llm_service=None,
+            session_manager=MagicMock(),
+            session_id="test-session",
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_session_not_found(self):
+        """Test memory_extract returns None when session not found."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.config.auto_extract = True
+
+        mock_session_manager = MagicMock()
+        mock_session_manager.get.return_value = None
+
+        result = await memory_extract(
+            memory_manager=mock_memory_manager,
+            llm_service=MagicMock(),
+            session_manager=mock_session_manager,
+            session_id="test-session",
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_json_with_code_fence(self):
+        """Test memory_extract handles JSON wrapped in code fences."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.config.auto_extract = True
+        mock_memory_manager.config.extraction_prompt = "Extract: {summary}"
+        mock_memory_manager.content_exists.return_value = False
+        mock_memory_manager.remember = AsyncMock()
+        mock_memory = MagicMock()
+        mock_memory.id = "mem-123"
+        mock_memory_manager.remember.return_value = mock_memory
+
+        mock_session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.summary_markdown = "Test summary"
+        mock_session_manager.get.return_value = mock_session
+
+        mock_provider = MagicMock()
+        mock_provider.generate_text = AsyncMock(
+            return_value='```json\n[{"content": "Test memory", "memory_type": "fact"}]\n```'
+        )
+        mock_llm_service = MagicMock()
+        mock_llm_service.get_provider_for_feature.return_value = (
+            mock_provider,
+            "test-model",
+            {},
+        )
+
+        result = await memory_extract(
+            memory_manager=mock_memory_manager,
+            llm_service=mock_llm_service,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert result["extracted"] == 1
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_json_with_triple_backticks_only(self):
+        """Test memory_extract handles JSON wrapped in backticks without json marker."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.config.auto_extract = True
+        mock_memory_manager.config.extraction_prompt = "Extract: {summary}"
+        mock_memory_manager.content_exists.return_value = False
+        mock_memory_manager.remember = AsyncMock()
+        mock_memory = MagicMock()
+        mock_memory.id = "mem-123"
+        mock_memory_manager.remember.return_value = mock_memory
+
+        mock_session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.summary_markdown = "Test summary"
+        mock_session_manager.get.return_value = mock_session
+
+        mock_provider = MagicMock()
+        mock_provider.generate_text = AsyncMock(
+            return_value='```\n[{"content": "Test memory", "memory_type": "fact"}]\n```'
+        )
+        mock_llm_service = MagicMock()
+        mock_llm_service.get_provider_for_feature.return_value = (
+            mock_provider,
+            "test-model",
+            {},
+        )
+
+        result = await memory_extract(
+            memory_manager=mock_memory_manager,
+            llm_service=mock_llm_service,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert result["extracted"] == 1
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_json_parse_error(self):
+        """Test memory_extract handles JSON parse errors."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.config.auto_extract = True
+        mock_memory_manager.config.extraction_prompt = "Extract: {summary}"
+
+        mock_session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.summary_markdown = "Test summary"
+        mock_session_manager.get.return_value = mock_session
+
+        mock_provider = MagicMock()
+        mock_provider.generate_text = AsyncMock(return_value="not valid json")
+        mock_llm_service = MagicMock()
+        mock_llm_service.get_provider_for_feature.return_value = (
+            mock_provider,
+            "test-model",
+            {},
+        )
+
+        result = await memory_extract(
+            memory_manager=mock_memory_manager,
+            llm_service=mock_llm_service,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert result["extracted"] == 0
+        assert result["error"] == "json_parse_error"
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_invalid_response_format(self):
+        """Test memory_extract handles non-list JSON response."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.config.auto_extract = True
+        mock_memory_manager.config.extraction_prompt = "Extract: {summary}"
+
+        mock_session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.summary_markdown = "Test summary"
+        mock_session_manager.get.return_value = mock_session
+
+        mock_provider = MagicMock()
+        mock_provider.generate_text = AsyncMock(return_value='{"not": "a list"}')
+        mock_llm_service = MagicMock()
+        mock_llm_service.get_provider_for_feature.return_value = (
+            mock_provider,
+            "test-model",
+            {},
+        )
+
+        result = await memory_extract(
+            memory_manager=mock_memory_manager,
+            llm_service=mock_llm_service,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert result["extracted"] == 0
+        assert result["error"] == "invalid_response_format"
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_skips_non_dict_items(self):
+        """Test memory_extract skips non-dict items in response list."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.config.auto_extract = True
+        mock_memory_manager.config.extraction_prompt = "Extract: {summary}"
+        mock_memory_manager.content_exists.return_value = False
+        mock_memory_manager.remember = AsyncMock()
+        mock_memory = MagicMock()
+        mock_memory.id = "mem-123"
+        mock_memory_manager.remember.return_value = mock_memory
+
+        mock_session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.summary_markdown = "Test summary"
+        mock_session_manager.get.return_value = mock_session
+
+        mock_provider = MagicMock()
+        # Include a string, null, and valid dict
+        mock_provider.generate_text = AsyncMock(
+            return_value='["string item", null, {"content": "Valid memory", "memory_type": "fact"}]'
+        )
+        mock_llm_service = MagicMock()
+        mock_llm_service.get_provider_for_feature.return_value = (
+            mock_provider,
+            "test-model",
+            {},
+        )
+
+        result = await memory_extract(
+            memory_manager=mock_memory_manager,
+            llm_service=mock_llm_service,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert result["extracted"] == 1  # Only the valid dict
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_skips_items_without_content(self):
+        """Test memory_extract skips items without content field."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.config.auto_extract = True
+        mock_memory_manager.config.extraction_prompt = "Extract: {summary}"
+        mock_memory_manager.content_exists.return_value = False
+        mock_memory_manager.remember = AsyncMock()
+        mock_memory = MagicMock()
+        mock_memory.id = "mem-123"
+        mock_memory_manager.remember.return_value = mock_memory
+
+        mock_session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.summary_markdown = "Test summary"
+        mock_session_manager.get.return_value = mock_session
+
+        mock_provider = MagicMock()
+        mock_provider.generate_text = AsyncMock(
+            return_value='[{"memory_type": "fact"}, {"content": "", "memory_type": "fact"}, {"content": "Valid", "memory_type": "fact"}]'
+        )
+        mock_llm_service = MagicMock()
+        mock_llm_service.get_provider_for_feature.return_value = (
+            mock_provider,
+            "test-model",
+            {},
+        )
+
+        result = await memory_extract(
+            memory_manager=mock_memory_manager,
+            llm_service=mock_llm_service,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert result["extracted"] == 1  # Only the item with valid content
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_normalizes_invalid_memory_type(self):
+        """Test memory_extract normalizes invalid memory_type to 'fact'."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.config.auto_extract = True
+        mock_memory_manager.config.extraction_prompt = "Extract: {summary}"
+        mock_memory_manager.content_exists.return_value = False
+        mock_memory_manager.remember = AsyncMock()
+        mock_memory = MagicMock()
+        mock_memory.id = "mem-123"
+        mock_memory_manager.remember.return_value = mock_memory
+
+        mock_session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.summary_markdown = "Test summary"
+        mock_session_manager.get.return_value = mock_session
+
+        mock_provider = MagicMock()
+        mock_provider.generate_text = AsyncMock(
+            return_value='[{"content": "Test", "memory_type": "invalid_type"}]'
+        )
+        mock_llm_service = MagicMock()
+        mock_llm_service.get_provider_for_feature.return_value = (
+            mock_provider,
+            "test-model",
+            {},
+        )
+
+        result = await memory_extract(
+            memory_manager=mock_memory_manager,
+            llm_service=mock_llm_service,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert result["extracted"] == 1
+        # Verify memory_type was normalized to 'fact'
+        call_kwargs = mock_memory_manager.remember.call_args[1]
+        assert call_kwargs["memory_type"] == "fact"
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_normalizes_invalid_importance(self):
+        """Test memory_extract normalizes invalid importance values."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.config.auto_extract = True
+        mock_memory_manager.config.extraction_prompt = "Extract: {summary}"
+        mock_memory_manager.content_exists.return_value = False
+        mock_memory_manager.remember = AsyncMock()
+        mock_memory = MagicMock()
+        mock_memory.id = "mem-123"
+        mock_memory_manager.remember.return_value = mock_memory
+
+        mock_session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.summary_markdown = "Test summary"
+        mock_session_manager.get.return_value = mock_session
+
+        mock_provider = MagicMock()
+        mock_provider.generate_text = AsyncMock(
+            return_value='[{"content": "Test", "importance": "not a number"}]'
+        )
+        mock_llm_service = MagicMock()
+        mock_llm_service.get_provider_for_feature.return_value = (
+            mock_provider,
+            "test-model",
+            {},
+        )
+
+        result = await memory_extract(
+            memory_manager=mock_memory_manager,
+            llm_service=mock_llm_service,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert result["extracted"] == 1
+        # Verify importance was normalized to 0.5
+        call_kwargs = mock_memory_manager.remember.call_args[1]
+        assert call_kwargs["importance"] == 0.5
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_clamps_importance(self):
+        """Test memory_extract clamps importance to 0.0-1.0 range."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.config.auto_extract = True
+        mock_memory_manager.config.extraction_prompt = "Extract: {summary}"
+        mock_memory_manager.content_exists.return_value = False
+        mock_memory_manager.remember = AsyncMock()
+        mock_memory = MagicMock()
+        mock_memory.id = "mem-123"
+        mock_memory_manager.remember.return_value = mock_memory
+
+        mock_session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.summary_markdown = "Test summary"
+        mock_session_manager.get.return_value = mock_session
+
+        mock_provider = MagicMock()
+        mock_provider.generate_text = AsyncMock(
+            return_value='[{"content": "High", "importance": 1.5}, {"content": "Low", "importance": -0.5}]'
+        )
+        mock_llm_service = MagicMock()
+        mock_llm_service.get_provider_for_feature.return_value = (
+            mock_provider,
+            "test-model",
+            {},
+        )
+
+        result = await memory_extract(
+            memory_manager=mock_memory_manager,
+            llm_service=mock_llm_service,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert result["extracted"] == 2
+        # Check both calls - importance should be clamped
+        calls = mock_memory_manager.remember.call_args_list
+        assert calls[0][1]["importance"] == 1.0  # Clamped from 1.5
+        assert calls[1][1]["importance"] == 0.0  # Clamped from -0.5
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_normalizes_invalid_tags(self):
+        """Test memory_extract normalizes invalid tags to empty list."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.config.auto_extract = True
+        mock_memory_manager.config.extraction_prompt = "Extract: {summary}"
+        mock_memory_manager.content_exists.return_value = False
+        mock_memory_manager.remember = AsyncMock()
+        mock_memory = MagicMock()
+        mock_memory.id = "mem-123"
+        mock_memory_manager.remember.return_value = mock_memory
+
+        mock_session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.summary_markdown = "Test summary"
+        mock_session_manager.get.return_value = mock_session
+
+        mock_provider = MagicMock()
+        mock_provider.generate_text = AsyncMock(
+            return_value='[{"content": "Test", "tags": "not a list"}]'
+        )
+        mock_llm_service = MagicMock()
+        mock_llm_service.get_provider_for_feature.return_value = (
+            mock_provider,
+            "test-model",
+            {},
+        )
+
+        result = await memory_extract(
+            memory_manager=mock_memory_manager,
+            llm_service=mock_llm_service,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert result["extracted"] == 1
+        # Verify tags was normalized to empty list
+        call_kwargs = mock_memory_manager.remember.call_args[1]
+        assert call_kwargs["tags"] == []
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_handles_remember_exception(self):
+        """Test memory_extract handles exceptions from remember()."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.config.auto_extract = True
+        mock_memory_manager.config.extraction_prompt = "Extract: {summary}"
+        mock_memory_manager.content_exists.return_value = False
+        mock_memory_manager.remember = AsyncMock(side_effect=Exception("DB error"))
+
+        mock_session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.summary_markdown = "Test summary"
+        mock_session_manager.get.return_value = mock_session
+
+        mock_provider = MagicMock()
+        mock_provider.generate_text = AsyncMock(
+            return_value='[{"content": "Test", "memory_type": "fact"}]'
+        )
+        mock_llm_service = MagicMock()
+        mock_llm_service.get_provider_for_feature.return_value = (
+            mock_provider,
+            "test-model",
+            {},
+        )
+
+        result = await memory_extract(
+            memory_manager=mock_memory_manager,
+            llm_service=mock_llm_service,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert result["extracted"] == 0  # Failed to create
+
+    @pytest.mark.asyncio
+    async def test_memory_extract_general_exception(self):
+        """Test memory_extract handles general exceptions."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.config.auto_extract = True
+        mock_memory_manager.config.extraction_prompt = "Extract: {summary}"
+
+        mock_session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-123"
+        mock_session.summary_markdown = "Test summary"
+        mock_session_manager.get.return_value = mock_session
+
+        mock_llm_service = MagicMock()
+        mock_llm_service.get_provider_for_feature.side_effect = Exception("LLM error")
+
+        result = await memory_extract(
+            memory_manager=mock_memory_manager,
+            llm_service=mock_llm_service,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+        )
+
+        assert result is not None
+        assert "error" in result
+        assert "LLM error" in result["error"]
+
+
+class TestMemorySaveDirect:
+    """Direct tests for memory_save function."""
+
+    @pytest.mark.asyncio
+    async def test_memory_save_no_memory_manager(self):
+        """Test memory_save returns error when memory_manager is None."""
+        result = await memory_save(
+            memory_manager=None,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            content="test content",
+        )
+        assert result == {"error": "Memory Manager not available"}
+
+    @pytest.mark.asyncio
+    async def test_memory_save_config_disabled(self):
+        """Test memory_save returns None when config.enabled is False."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = False
+
+        result = await memory_save(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            content="test content",
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_memory_save_no_project_id(self):
+        """Test memory_save returns error when no project_id found."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+
+        mock_session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = None
+        mock_session_manager.get.return_value = mock_session
+
+        result = await memory_save(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            content="test content",
+        )
+        assert result == {"error": "No project_id found"}
+
+    @pytest.mark.asyncio
+    async def test_memory_save_session_not_found_no_project(self):
+        """Test memory_save returns error when session not found and no project_id."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+
+        mock_session_manager = MagicMock()
+        mock_session_manager.get.return_value = None
+
+        result = await memory_save(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            content="test content",
+        )
+        assert result == {"error": "No project_id found"}
+
+    @pytest.mark.asyncio
+    async def test_memory_save_normalizes_invalid_memory_type(self):
+        """Test memory_save normalizes invalid memory_type to 'fact'."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.content_exists.return_value = False
+        mock_memory_manager.remember = AsyncMock()
+        mock_memory = MagicMock()
+        mock_memory.id = "mem-123"
+        mock_memory_manager.remember.return_value = mock_memory
+
+        result = await memory_save(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            content="test content",
+            memory_type="invalid_type",
+            project_id="proj-123",
+        )
+
+        assert result is not None
+        assert result["saved"] is True
+        assert result["memory_type"] == "fact"
+
+    @pytest.mark.asyncio
+    async def test_memory_save_normalizes_invalid_importance(self):
+        """Test memory_save normalizes invalid importance to 0.5."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.content_exists.return_value = False
+        mock_memory_manager.remember = AsyncMock()
+        mock_memory = MagicMock()
+        mock_memory.id = "mem-123"
+        mock_memory_manager.remember.return_value = mock_memory
+
+        result = await memory_save(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            content="test content",
+            importance="not a number",
+            project_id="proj-123",
+        )
+
+        assert result is not None
+        assert result["saved"] is True
+        assert result["importance"] == 0.5
+
+    @pytest.mark.asyncio
+    async def test_memory_save_clamps_importance(self):
+        """Test memory_save clamps importance to valid range."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.content_exists.return_value = False
+        mock_memory_manager.remember = AsyncMock()
+        mock_memory = MagicMock()
+        mock_memory.id = "mem-123"
+        mock_memory_manager.remember.return_value = mock_memory
+
+        # Test clamping high value
+        result = await memory_save(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            content="test content",
+            importance=2.0,
+            project_id="proj-123",
+        )
+
+        assert result is not None
+        assert result["importance"] == 1.0
+
+    @pytest.mark.asyncio
+    async def test_memory_save_normalizes_invalid_tags(self):
+        """Test memory_save normalizes invalid tags to empty list."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.content_exists.return_value = False
+        mock_memory_manager.remember = AsyncMock()
+        mock_memory = MagicMock()
+        mock_memory.id = "mem-123"
+        mock_memory_manager.remember.return_value = mock_memory
+
+        result = await memory_save(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            content="test content",
+            tags="not a list",
+            project_id="proj-123",
+        )
+
+        assert result is not None
+        assert result["saved"] is True
+        call_kwargs = mock_memory_manager.remember.call_args[1]
+        assert call_kwargs["tags"] == []
+
+    @pytest.mark.asyncio
+    async def test_memory_save_exception_handling(self):
+        """Test memory_save handles exceptions gracefully."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.content_exists.return_value = False
+        mock_memory_manager.remember = AsyncMock(side_effect=Exception("DB error"))
+
+        result = await memory_save(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            content="test content",
+            project_id="proj-123",
+        )
+
+        assert result is not None
+        assert "error" in result
+        assert "DB error" in result["error"]
+
+
+class TestMemoryRecallRelevantDirect:
+    """Direct tests for memory_recall_relevant function."""
+
+    @pytest.mark.asyncio
+    async def test_memory_recall_relevant_no_memory_manager(self):
+        """Test memory_recall_relevant returns None when memory_manager is None."""
+        result = await memory_recall_relevant(
+            memory_manager=None,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            prompt_text="test prompt",
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_memory_recall_relevant_config_disabled(self):
+        """Test memory_recall_relevant returns None when config.enabled is False."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = False
+
+        result = await memory_recall_relevant(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            prompt_text="test prompt",
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_memory_recall_relevant_no_prompt_text(self):
+        """Test memory_recall_relevant returns None when prompt_text is None."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+
+        result = await memory_recall_relevant(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            prompt_text=None,
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_memory_recall_relevant_resolves_project_from_session(self):
+        """Test memory_recall_relevant resolves project_id from session."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+
+        m1 = MagicMock()
+        m1.memory_type = "fact"
+        m1.content = "Test memory"
+        mock_memory_manager.recall.return_value = [m1]
+
+        mock_session_manager = MagicMock()
+        mock_session = MagicMock()
+        mock_session.project_id = "proj-from-session"
+        mock_session_manager.get.return_value = mock_session
+
+        result = await memory_recall_relevant(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            prompt_text="a longer prompt text here",
+        )
+
+        assert result is not None
+        call_kwargs = mock_memory_manager.recall.call_args[1]
+        assert call_kwargs["project_id"] == "proj-from-session"
+
+    @pytest.mark.asyncio
+    async def test_memory_recall_relevant_exception_handling(self):
+        """Test memory_recall_relevant handles exceptions gracefully."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+        mock_memory_manager.recall.side_effect = Exception("Search error")
+
+        result = await memory_recall_relevant(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            prompt_text="a longer prompt text here",
+            project_id="proj-123",
+        )
+
+        assert result is not None
+        assert "error" in result
+        assert "Search error" in result["error"]
+
+
+# Additional edge case tests for improved coverage
+
+
+class TestMemoryInjectEdgeCases:
+    """Additional edge case tests for memory_inject."""
+
+    @pytest.mark.asyncio
+    async def test_memory_inject_without_query_uses_importance_based(self):
+        """Test memory_inject uses importance-based retrieval when no query."""
+        mock_memory_manager = MagicMock()
+        mock_session_manager = MagicMock()
+
+        m1 = MagicMock()
+        m1.memory_type = "fact"
+        m1.content = "Test memory"
+        mock_memory_manager.recall.return_value = [m1]
+
+        result = await memory_inject(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            query=None,  # No query
+            project_id="proj-123",
+        )
+
+        assert result is not None
+        assert result["count"] == 1
+
+        # Verify importance-based retrieval was used (no query, no use_semantic)
+        call_kwargs = mock_memory_manager.recall.call_args[1]
+        assert "query" not in call_kwargs
+        assert "use_semantic" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_memory_inject_uses_explicit_project_id(self):
+        """Test memory_inject uses explicit project_id over session."""
+        mock_memory_manager = MagicMock()
+        mock_session_manager = MagicMock()
+
+        # Session has different project_id
+        mock_session = MagicMock()
+        mock_session.project_id = "session-proj"
+        mock_session_manager.get.return_value = mock_session
+
+        mock_memory_manager.recall.return_value = []
+
+        result = await memory_inject(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            project_id="explicit-proj",  # Explicit project_id
+        )
+
+        # Should use explicit project_id
+        call_kwargs = mock_memory_manager.recall.call_args[1]
+        assert call_kwargs["project_id"] == "explicit-proj"
+
+    @pytest.mark.asyncio
+    async def test_memory_inject_min_similarity_no_memories_pass(self):
+        """Test memory_inject when no memories pass similarity threshold."""
+        mock_memory_manager = MagicMock()
+        mock_session_manager = MagicMock()
+
+        # All memories below similarity threshold
+        m1 = MagicMock()
+        m1.memory_type = "fact"
+        m1.content = "Low similarity memory"
+        m1.similarity = 0.2
+
+        mock_memory_manager.recall.return_value = [m1]
+
+        with patch("gobby.memory.context.build_memory_context", return_value=""):
+            result = await memory_inject(
+                memory_manager=mock_memory_manager,
+                session_manager=mock_session_manager,
+                session_id="test-session",
+                query="test query",
+                project_id="proj-123",
+                min_similarity=0.5,  # Higher than memory's similarity
+            )
+
+        assert result == {"injected": False, "count": 0}
