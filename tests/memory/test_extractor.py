@@ -71,9 +71,7 @@ class TestMemoryExtractor:
     async def test_extract_from_session_creates_memories(self, extractor, mock_llm_service):
         """Test session extraction creates memories from LLM response."""
         # Mock LLM response
-        mock_llm_service.get_provider_for_feature.return_value[
-            0
-        ].generate_text.return_value = """
+        mock_llm_service.get_provider_for_feature.return_value[0].generate_text.return_value = """
         [
             {"content": "Project uses Python 3.11", "memory_type": "fact", "importance": 0.7, "tags": ["python"]},
             {"content": "User prefers pytest", "memory_type": "preference", "importance": 0.6, "tags": ["testing"]}
@@ -118,9 +116,7 @@ class TestMemoryExtractor:
         await memory_manager.remember(content="Project uses Python 3.11", importance=0.5)
 
         # Mock LLM response with duplicate
-        mock_llm_service.get_provider_for_feature.return_value[
-            0
-        ].generate_text.return_value = """
+        mock_llm_service.get_provider_for_feature.return_value[0].generate_text.return_value = """
         [
             {"content": "Project uses Python 3.11", "memory_type": "fact", "importance": 0.7},
             {"content": "New unique fact", "memory_type": "fact", "importance": 0.6}
@@ -137,9 +133,7 @@ class TestMemoryExtractor:
     @pytest.mark.asyncio
     async def test_extract_from_agent_md_with_content(self, extractor, mock_llm_service):
         """Test extraction from agent MD content."""
-        mock_llm_service.get_provider_for_feature.return_value[
-            0
-        ].generate_text.return_value = """
+        mock_llm_service.get_provider_for_feature.return_value[0].generate_text.return_value = """
         [
             {"content": "Always use type hints", "memory_type": "preference", "importance": 0.8}
         ]
@@ -196,9 +190,7 @@ class TestMemoryExtractor:
         (src / "main.py").write_text("def main():\n    print('hello')")
         (tmp_path / "pyproject.toml").write_text("[project]\nname = 'test'")
 
-        mock_llm_service.get_provider_for_feature.return_value[
-            0
-        ].generate_text.return_value = """
+        mock_llm_service.get_provider_for_feature.return_value[0].generate_text.return_value = """
         [{"content": "Project uses pyproject.toml", "memory_type": "fact", "importance": 0.6}]
         """
 
@@ -237,9 +229,9 @@ class TestMemoryExtractor:
         self, extractor, mock_llm_service
     ):
         """Test handling of invalid JSON response."""
-        mock_llm_service.get_provider_for_feature.return_value[0].generate_text.return_value = (
-            "not valid json"
-        )
+        mock_llm_service.get_provider_for_feature.return_value[
+            0
+        ].generate_text.return_value = "not valid json"
 
         result = await extractor.extract_from_session(
             summary="This is a sufficiently long session summary for extraction."
@@ -401,9 +393,7 @@ class TestMemoryExtractorAgentMdEdgeCases:
             "# Gemini Instructions\n\nThis is a long enough content for the extractor to process."
         )
 
-        mock_llm_service.get_provider_for_feature.return_value[
-            0
-        ].generate_text.return_value = """
+        mock_llm_service.get_provider_for_feature.return_value[0].generate_text.return_value = """
         [{"content": "Unique gemini memory content here", "memory_type": "preference", "importance": 0.7}]
         """
 
@@ -422,9 +412,7 @@ class TestMemoryExtractorAgentMdEdgeCases:
             "# Codex Instructions\n\nThis is a long enough content for the extractor to process."
         )
 
-        mock_llm_service.get_provider_for_feature.return_value[
-            0
-        ].generate_text.return_value = """
+        mock_llm_service.get_provider_for_feature.return_value[0].generate_text.return_value = """
         [{"content": "Unique codex memory content here", "memory_type": "preference", "importance": 0.7}]
         """
 
@@ -524,9 +512,9 @@ class TestMemoryExtractorLLMEdgeCases:
     @pytest.mark.asyncio
     async def test_extract_with_llm_exception(self, extractor, mock_llm_service):
         """Test handling of LLM exceptions."""
-        mock_llm_service.get_provider_for_feature.return_value[0].generate_text.side_effect = (
-            Exception("LLM API error")
-        )
+        mock_llm_service.get_provider_for_feature.return_value[
+            0
+        ].generate_text.side_effect = Exception("LLM API error")
 
         result = await extractor.extract_from_session(
             summary="This is a sufficiently long session summary for extraction testing."
@@ -545,9 +533,7 @@ class TestMemoryExtractorLLMEdgeCases:
             "Extract memories from: {content} with {unknown_key}"
         )
 
-        mock_llm_service.get_provider_for_feature.return_value[
-            0
-        ].generate_text.return_value = """
+        mock_llm_service.get_provider_for_feature.return_value[0].generate_text.return_value = """
         [{"content": "Memory from keyerror test content", "memory_type": "fact", "importance": 0.5}]
         """
 
@@ -631,9 +617,7 @@ class TestMemoryExtractorStoreMemories:
 
         monkeypatch.setattr(memory_manager, "remember", raise_storage_error)
 
-        mock_llm_service.get_provider_for_feature.return_value[
-            0
-        ].generate_text.return_value = """
+        mock_llm_service.get_provider_for_feature.return_value[0].generate_text.return_value = """
         [{"content": "Memory that will fail to store", "memory_type": "fact", "importance": 0.5}]
         """
 

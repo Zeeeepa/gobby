@@ -108,7 +108,6 @@ async def test_gather_context_with_agentic_research(mock_task_manager, sample_ta
         patch.object(gatherer, "_detect_project_patterns", return_value={}),
         patch("gobby.tasks.research.TaskResearchAgent") as MockAgent,
     ):
-
         mock_agent_instance = MockAgent.return_value
 
         # Simpler way to mock async return

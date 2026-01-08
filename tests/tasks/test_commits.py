@@ -501,9 +501,7 @@ class TestSummarizeDiffForValidation:
 +added line 1
 +added line 2
 -removed line
-""" + (
-            "x" * 50000
-        )
+""" + ("x" * 50000)
 
         result = summarize_diff_for_validation(diff, max_chars=5000)
 
@@ -536,9 +534,7 @@ index abc..def 100644
 --- a/important.py
 +++ b/important.py
 @@ -1,100 +1,200 @@
-""" + (
-            "+added\n" * 10000
-        )
+""" + ("+added\n" * 10000)
 
         result = summarize_diff_for_validation(diff, max_chars=2000)
 
