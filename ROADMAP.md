@@ -380,7 +380,7 @@ This document defines the implementation order across all Gobby planning documen
 
 | Sprint | Focus | Plan Reference | Dependencies | Status |
 |--------|-------|----------------|--------------|--------|
-| 20 | Session Management Tools | SESSION_MANAGEMENT | Sprint 7.4 | Pending |
+| 20 | Session Management Tools | SESSION_MANAGEMENT | Sprint 7.4 | ✅ Complete |
 | 21 | Task V2: Enhanced Validation | TASKS Phases 12.6-12.13 | Sprint 17 | 🔶 Mostly Complete |
 | 22 | Worktree Coordination | POST_MVP Phase 1 | Sprint 7.4 | 🔶 Mostly Complete |
 | 23 | Merge Resolution | POST_MVP Phase 2 | Sprint 22 | Pending |
@@ -389,7 +389,7 @@ This document defines the implementation order across all Gobby planning documen
 | 26 | Artifact Index | POST_MVP Phase 7 | Sprint 7.4 | Pending |
 | 27 | Enhanced Skill Routing | POST_MVP Phase 8 | Sprint 7.6 | Pending |
 | 28 | Semantic Memory Search | POST_MVP Phase 9 | Sprint 7.5 | Pending |
-| 29 | Autonomous Work Loop | POST_MVP Phase 10 | Sprints 3, 7 | Pending |
+| 29 | Autonomous Work Loop | POST_MVP Phase 10 | Sprints 3, 7 | 🔶 Partial |
 | 30 | Subagent System | SUBAGENTS Phases 1-4 | Sprint 7 | ✅ Complete |
 | 31 | Web Dashboard | UI Phases 1-7 | Sprint 1 | Pending |
 
