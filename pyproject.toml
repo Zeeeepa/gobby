@@ -5,7 +5,7 @@ description = "Gobby is a local daemon that unifies Claude Code, Gemini CLI, and
 readme = "README.md"
 license = "MIT"
 authors = [
-    { name = "Josh Peak", email = "josh@joshpeak.net" }
+    { name = "Josh Wilhelmi", email = "josh@gobby.ai" }
 ]
 keywords = ["cli", "mcp", "claude", "gemini", "codex", "daemon", "session-management"]
 classifiers = [
@@ -43,10 +43,10 @@ dependencies = [
 gobby = "gobby.cli:cli"
 
 [project.urls]
-Homepage = "https://github.com/neozenith/gobby"
-Repository = "https://github.com/neozenith/gobby"
-Documentation = "https://github.com/neozenith/gobby#readme"
-Issues = "https://github.com/neozenith/gobby/issues"
+Homepage = "https://github.com/GobbyAI/gobby"
+Repository = "https://github.com/GobbyAI/gobby"
+Documentation = "https://github.com/GobbyAI/gobby#readme"
+Issues = "https://github.com/GobbyAI/gobby/issues"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
