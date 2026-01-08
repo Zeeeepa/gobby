@@ -1850,3 +1850,34 @@ class TestMemoryInjectEdgeCases:
             )
 
         assert result == {"injected": False, "count": 0}
+
+
+class TestMemoryRecallRelevantEdgeCases:
+    """Additional edge case tests for memory_recall_relevant."""
+
+    @pytest.mark.asyncio
+    async def test_memory_recall_relevant_session_not_found_uses_none_project(self):
+        """Test memory_recall_relevant when session not found and no explicit project_id."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+
+        mock_session_manager = MagicMock()
+        mock_session_manager.get.return_value = None  # Session not found
+
+        m1 = MagicMock()
+        m1.memory_type = "fact"
+        m1.content = "Test memory"
+        mock_memory_manager.recall.return_value = [m1]
+
+        result = await memory_recall_relevant(
+            memory_manager=mock_memory_manager,
+            session_manager=mock_session_manager,
+            session_id="test-session",
+            prompt_text="a longer prompt text here",
+            project_id=None,  # No explicit project_id
+        )
+
+        assert result is not None
+        # Verify recall was called with None project_id
+        call_kwargs = mock_memory_manager.recall.call_args[1]
+        assert call_kwargs["project_id"] is None

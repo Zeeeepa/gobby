@@ -920,35 +920,24 @@ class TestEdgeCases:
         existing = {"mcpServers": {"gobby": {"command": "uv"}}}
         settings_path.write_text(json.dumps(existing))
 
-        # Make directory read-only to cause write failure
-        # But first create backup location
-        backup_dir = temp_dir
+        # Track call count to differentiate read vs write calls
+        original_open = open
+        call_count = [0]
+
+        def mock_open_fn(path, mode="r", *args, **kwargs):
+            call_count[0] += 1
+            # Fail on the write call (mode "w")
+            if "w" in str(mode):
+                raise OSError("Permission denied")
+            return original_open(path, mode, *args, **kwargs)
 
         with patch("gobby.cli.installers.shared.copy2"):  # Skip actual backup
-            with patch("builtins.open") as mock_open:
-                # First call succeeds (read)
-                mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(
-                    existing
-                )
-                # Configure mock for context manager
-                mock_file = MagicMock()
-                mock_file.read.return_value = json.dumps(existing)
-                mock_open.return_value.__enter__.return_value = mock_file
-
-                # Override to fail on write
-                def side_effect(*args, **kwargs):
-                    if "w" in args[1] if len(args) > 1 else kwargs.get("mode", "r"):
-                        raise OSError("Permission denied")
-                    mock_ctx = MagicMock()
-                    mock_ctx.__enter__ = MagicMock(return_value=mock_file)
-                    mock_ctx.__exit__ = MagicMock(return_value=False)
-                    return mock_ctx
-
-                mock_open.side_effect = side_effect
+            with patch("builtins.open", mock_open_fn):
                 result = remove_mcp_server_json(settings_path)
 
-        # The actual implementation reads the file first, so need a different approach
-        # Let's test with actual file system permissions
+        assert result["success"] is False
+        assert result["error"] is not None
+        assert "Failed to write" in result["error"]
 
     def test_install_cli_content_multiple_command_dirs(self, temp_dir: Path):
         """Test that both commands/ and prompts/ directories are processed."""

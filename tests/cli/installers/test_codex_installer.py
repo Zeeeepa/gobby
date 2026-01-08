@@ -875,6 +875,52 @@ debug = true
         # Config not updated since there was no notify line to remove
         assert result["config_updated"] is False
 
+    def test_uninstall_notify_removal_produces_identical_content(
+        self, mock_home: Path
+    ):
+        """Test edge case where regex matches but substitution produces same content.
+
+        This tests the branch at line 166 where updated == existing after substitution.
+        While this is nearly impossible in practice (regex match + no change),
+        we can test it by mocking the regex pattern to achieve this.
+        """
+        import re
+
+        from gobby.cli.installers.codex import uninstall_codex_notify
+
+        config_dir = mock_home / ".codex"
+        config_dir.mkdir(parents=True)
+        config_path = config_dir / "config.toml"
+
+        # Set up a config with a notify line
+        original_content = 'notify = ["cmd"]\nmodel = "gpt-4"\n'
+        config_path.write_text(original_content)
+
+        # Mock re.compile to return a pattern that matches but sub returns original
+        original_compile = re.compile
+
+        class MockPattern:
+            def search(self, text):
+                return True  # Pretend to match
+
+            def sub(self, replacement, text):
+                return text  # But return same text
+
+        def mock_compile(pattern, *args, **kwargs):
+            if "notify" in pattern:
+                return MockPattern()
+            return original_compile(pattern, *args, **kwargs)
+
+        with patch("gobby.cli.installers.codex.remove_mcp_server_toml") as mock_mcp, \
+             patch("gobby.cli.installers.codex.re.compile", side_effect=mock_compile):
+            mock_mcp.return_value = {"success": True, "removed": True}
+
+            result = uninstall_codex_notify()
+
+        assert result["success"] is True
+        # Config should NOT be updated since sub() returned same content
+        assert result["config_updated"] is False
+
 
 class TestResultStructure:
     """Tests for the result dictionary structure."""
