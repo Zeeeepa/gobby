@@ -461,7 +461,7 @@ class ClaudeLLMProvider(LLMProvider):
         system_prompt: str | None = None,
         model: str | None = None,
         max_turns: int = 10,
-        tool_functions: dict[str, list] | None = None,
+        tool_functions: dict[str, list[Any]] | None = None,
     ) -> MCPToolResult:
         """
         Generate text with access to MCP tools.

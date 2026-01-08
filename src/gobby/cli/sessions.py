@@ -4,6 +4,7 @@ Session management CLI commands.
 
 import asyncio
 import json
+from typing import Any
 
 import click
 
@@ -24,7 +25,7 @@ def get_message_manager() -> LocalSessionMessageManager:
     return LocalSessionMessageManager(db)
 
 
-def _format_turns_for_llm(turns: list[dict]) -> str:
+def _format_turns_for_llm(turns: list[dict[str, Any]]) -> str:
     """Format transcript turns for LLM analysis."""
     formatted: list[str] = []
     for i, turn in enumerate(turns):

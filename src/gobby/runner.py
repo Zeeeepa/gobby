@@ -53,7 +53,7 @@ class GobbyRunner:
         self.verbose = verbose
         self.machine_id = get_machine_id()
         self._shutdown_requested = False
-        self._metrics_cleanup_task: asyncio.Task | None = None
+        self._metrics_cleanup_task: asyncio.Task[None] | None = None
 
         # Initialize local storage
         self.database = LocalDatabase()

@@ -32,7 +32,7 @@ def _get_ready_descendants(
     parent_id: str,
     task_type: str | None = None,
     project_id: str | None = None,
-) -> list:
+) -> list[Any]:
     """
     Get all ready tasks that are descendants of the given parent task.
 

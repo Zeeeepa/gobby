@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.storage.tasks import LocalTaskManager
@@ -295,7 +295,7 @@ class CheckboxItem:
         # Use 2 spaces as standard unit
         return self.indent_level // 2
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "text": self.text,
@@ -328,7 +328,7 @@ class ExtractedCheckboxes:
     total_count: int  # Total number of checkboxes found
     checked_count: int  # Number of checked checkboxes
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "items": [item.to_dict() for item in self.items],

@@ -833,7 +833,7 @@ class ActionExecutor:
         """Signal the agent to switch modes (e.g., PLAN, ACT)."""
         return switch_mode(kwargs.get("mode"))
 
-    def _format_turns_for_llm(self, turns: list[dict]) -> str:
+    def _format_turns_for_llm(self, turns: list[dict[str, Any]]) -> str:
         """Format transcript turns for LLM analysis."""
         return format_turns_for_llm(turns)
 

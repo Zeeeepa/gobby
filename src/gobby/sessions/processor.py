@@ -50,7 +50,7 @@ class SessionMessageProcessor:
         self._parsers: dict[str, TranscriptParser] = {}
 
         self._running = False
-        self._task: asyncio.Task | None = None
+        self._task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
         """Start the processing loop."""

@@ -98,7 +98,7 @@ class WebSocketServer:
 
         # Server instance (set when started)
         self._server: Any = None
-        self._serve_task: asyncio.Task | None = None
+        self._serve_task: asyncio.Task[None] | None = None
 
     async def __aenter__(self) -> "WebSocketServer":
         """Async context manager entry."""

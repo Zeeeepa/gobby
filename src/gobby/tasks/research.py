@@ -106,7 +106,7 @@ class TaskResearchAgent:
 
     async def _build_step_prompt(
         self,
-        context: dict,
+        context: dict[str, Any],
         step: int,
         enable_web_search: bool = False,
     ) -> str:
@@ -247,7 +247,7 @@ History:
 
         return {"tool": tool, "args": args}
 
-    async def _execute_tool(self, action: dict) -> str:
+    async def _execute_tool(self, action: dict[str, Any]) -> str:
         tool = action["tool"]
         args = action.get("args", [])
 
@@ -378,7 +378,7 @@ History:
         except Exception as e:
             return f"Read error: {e}"
 
-    def _summarize_results(self, context: dict) -> dict[str, Any]:
+    def _summarize_results(self, context: dict[str, Any]) -> dict[str, Any]:
         """Convert agent history into structured context."""
         # Extract files that were read or found relevant
         found_files = set()

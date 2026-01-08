@@ -6,7 +6,7 @@ the unified HookEvent/HookResponse models.
 """
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from gobby.hooks.events import HookEvent, HookResponse, SessionSource
 
@@ -31,7 +31,7 @@ class BaseAdapter(ABC):
     source: SessionSource
 
     @abstractmethod
-    def translate_to_hook_event(self, native_event: dict) -> HookEvent | None:
+    def translate_to_hook_event(self, native_event: dict[str, Any]) -> HookEvent | None:
         """Convert native CLI event to unified HookEvent.
 
         Args:
@@ -47,7 +47,7 @@ class BaseAdapter(ABC):
         pass
 
     @abstractmethod
-    def translate_from_hook_response(self, response: HookResponse) -> dict:
+    def translate_from_hook_response(self, response: HookResponse) -> dict[str, Any]:
         """Convert HookResponse to native CLI response format.
 
         Args:
@@ -61,7 +61,9 @@ class BaseAdapter(ABC):
         """
         pass
 
-    def handle_native(self, native_event: dict, hook_manager: "HookManager") -> dict:
+    def handle_native(
+        self, native_event: dict[str, Any], hook_manager: "HookManager"
+    ) -> dict[str, Any]:
         """Main entry point for HTTP endpoints.
 
         This method handles the full round-trip:

@@ -268,8 +268,8 @@ class SummaryFileGenerator:
 
     def _generate_summary_with_llm(
         self,
-        last_turns: list[dict],
-        last_messages: list[dict],
+        last_turns: list[dict[str, Any]],
+        last_messages: list[dict[str, Any]],
         git_status: str,
         file_changes: str,
         external_id: str,
@@ -392,7 +392,7 @@ class SummaryFileGenerator:
 
             return error_summary
 
-    def _format_turns_for_llm(self, turns: list[dict]) -> str:
+    def _format_turns_for_llm(self, turns: list[dict[str, Any]]) -> str:
         """
         Format transcript turns for LLM analysis.
 
@@ -425,7 +425,7 @@ class SummaryFileGenerator:
 
         return "\n\n".join(formatted)
 
-    def _extract_last_todowrite(self, turns: list[dict]) -> str | None:
+    def _extract_last_todowrite(self, turns: list[dict[str, Any]]) -> str | None:
         """
         Extract the last TodoWrite tool call's todos list from transcript.
 

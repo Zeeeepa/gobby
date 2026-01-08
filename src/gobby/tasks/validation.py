@@ -35,7 +35,7 @@ def run_git_command(
     cmd: list[str],
     cwd: str | Path | None = None,
     timeout: int = 10,
-) -> subprocess.CompletedProcess | None:
+) -> subprocess.CompletedProcess[str] | None:
     """Run git command with standardized exception handling.
 
     Returns CompletedProcess on success, None on exception (logs debug).

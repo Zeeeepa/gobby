@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import threading
+from typing import Any
 
 from gobby.hooks.events import HookEvent, HookResponse
 
@@ -128,7 +129,7 @@ class WorkflowHookHandler:
             return HookResponse(decision="allow")
 
     def handle_lifecycle(
-        self, workflow_name: str, event: HookEvent, context_data: dict | None = None
+        self, workflow_name: str, event: HookEvent, context_data: dict[str, Any] | None = None
     ) -> HookResponse:
         """
         Handle a lifecycle workflow event.

@@ -80,21 +80,25 @@ class MemoryConfig(BaseModel):
         description="Model to use for memory extraction",
     )
     extraction_prompt: str = Field(
-        default="""You are an expert at extracting valuable information from development session transcripts.
+        default="""You are an expert at extracting long-term knowledge from development session transcripts.
 Respond with ONLY valid JSON - no markdown, no explanations, no code blocks.
 
-Analyze the following session summary and extract any facts, preferences, or patterns worth remembering for future sessions.
+Analyze the following session summary and extract any NEW facts, preferences, or patterns worth remembering for future sessions.
 
-Types of memories to extract:
-- "fact": Technical facts about the project (architecture, dependencies, conventions)
-- "preference": User preferences for tools, patterns, or approaches
-- "pattern": Recurring patterns or solutions that worked well
-- "context": Important project context (goals, constraints, decisions)
+CRITICAL QUALITY FILTER:
+- DO NOT extract information already in CLAUDE.md or generic knowledge.
+- DO NOT extract transient session logs ("User ran X command", "Test failed").
+- DO NOT extract internal implementation details like variable names unless critical.
+- DO NOT create duplicate memories. If something is fundamental (e.g., project architecture), assume it's already known.
+- ONLY extract high-value insights:
+    *   Specific bugs/gotchas found ("Feature X fails when Y")
+    *   Explicit User Preferences ("Always use library Z")
+    *   New architectural decisions ("We serve frontend from /api")
 
 Session Summary:
 {summary}
 
-Return a JSON array directly (empty array [] if nothing worth remembering):
+Return a JSON array directly (empty array [] if nothing passes the filter):
 [
   {{
     "content": "The specific fact, preference, or pattern to remember",
@@ -105,10 +109,10 @@ Return a JSON array directly (empty array [] if nothing worth remembering):
 ]
 
 Guidelines:
-- Only extract information that would be valuable in future sessions
-- Set importance 0.3-0.5 for nice-to-know, 0.6-0.8 for important, 0.9-1.0 for critical
-- Keep content concise but complete (one clear statement per memory)
-- Avoid duplicating obvious information or temporary context""",
+- "fact": Permanent truths about the codebase (not temporary states)
+- "pattern": Reusable solutions
+- "preference": Explicit user directives
+- Importance > 0.8 is reserved for CRITICAL information that prevents bugs.""",
         description="Prompt template for session memory extraction (use {summary} placeholder)",
     )
 

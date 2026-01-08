@@ -6,7 +6,7 @@ import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -55,20 +55,20 @@ class LocalDatabase:
         """Get current thread's database connection."""
         return self._get_connection()
 
-    def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
+    def execute(self, sql: str, params: tuple[Any, ...] = ()) -> sqlite3.Cursor:
         """Execute SQL statement."""
         return self.connection.execute(sql, params)
 
-    def executemany(self, sql: str, params_list: list[tuple]) -> sqlite3.Cursor:
+    def executemany(self, sql: str, params_list: list[tuple[Any, ...]]) -> sqlite3.Cursor:
         """Execute SQL statement with multiple parameter sets."""
         return self.connection.executemany(sql, params_list)
 
-    def fetchone(self, sql: str, params: tuple = ()) -> sqlite3.Row | None:
+    def fetchone(self, sql: str, params: tuple[Any, ...] = ()) -> sqlite3.Row | None:
         """Execute query and fetch one row."""
         cursor = self.execute(sql, params)
         return cast(sqlite3.Row | None, cursor.fetchone())
 
-    def fetchall(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
+    def fetchall(self, sql: str, params: tuple[Any, ...] = ()) -> list[sqlite3.Row]:
         """Execute query and fetch all rows."""
         cursor = self.execute(sql, params)
         return cursor.fetchall()

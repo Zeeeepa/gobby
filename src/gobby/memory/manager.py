@@ -1,6 +1,6 @@
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from gobby.config.app import MemoryConfig
 from gobby.storage.database import LocalDatabase
@@ -313,7 +313,7 @@ class MemoryManager:
             tags=tags,
         )
 
-    def get_stats(self, project_id: str | None = None) -> dict:
+    def get_stats(self, project_id: str | None = None) -> dict[str, Any]:
         """
         Get statistics about stored memories.
 
@@ -514,7 +514,7 @@ class MemoryManager:
             force=force,
         )
 
-    def get_embedding_stats(self, project_id: str | None = None) -> dict:
+    def get_embedding_stats(self, project_id: str | None = None) -> dict[str, Any]:
         """
         Get statistics about memory embeddings.
 

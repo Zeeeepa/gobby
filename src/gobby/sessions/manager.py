@@ -16,7 +16,7 @@ import logging
 import threading
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
@@ -63,7 +63,7 @@ class SessionManager:
         # Session caches with locks
         self._session_mapping: dict[str, str] = {}  # external_id -> session_id
         self._session_mapping_lock = threading.Lock()
-        self._session_metadata: dict[str, dict] = {}  # session_id -> metadata
+        self._session_metadata: dict[str, dict[str, Any]] = {}  # session_id -> metadata
         self._session_metadata_lock = threading.Lock()
 
     def register_session(
@@ -342,7 +342,7 @@ class SessionManager:
         with self._session_mapping_lock:
             self._session_mapping[external_id] = session_id
 
-    def get_session(self, session_id: str) -> dict | None:
+    def get_session(self, session_id: str) -> dict[str, Any] | None:
         """
         Get session data by ID.
 

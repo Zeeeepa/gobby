@@ -32,7 +32,7 @@ class MemorySyncManager:
         self.config = config
 
         # Debounce state
-        self._export_task: asyncio.Task | None = None
+        self._export_task: asyncio.Task[None] | None = None
         self._last_change_time: float = 0
         self._shutdown_requested = False
 

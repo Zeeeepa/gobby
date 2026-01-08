@@ -87,7 +87,7 @@ class MCPClientManager:
         self.health: dict[str, MCPConnectionHealth] = {}
         self._token_refresh_callback = token_refresh_callback
         self._health_check_interval = health_check_interval
-        self._health_check_task: asyncio.Task | None = None
+        self._health_check_task: asyncio.Task[None] | None = None
         self._reconnect_tasks: set[asyncio.Task[None]] = set()
         self._auth_token: str | None = None
         self._running = False

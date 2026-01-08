@@ -45,7 +45,7 @@ class PluginAction:
     """
 
     name: str
-    handler: Callable
+    handler: Callable[..., Any]
     schema: dict[str, Any]
     plugin_name: str
 
@@ -116,7 +116,7 @@ def _check_type(value: Any, expected_type: str) -> bool:
 def hook_handler(
     event_type: HookEventType,
     priority: int = 50,
-) -> Callable[[Callable], Callable]:
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     Decorator to mark a method as a hook handler.
 
@@ -160,7 +160,7 @@ def hook_handler(
                 logger.info(f"Tool {tool} completed with status: {status}")
     """
 
-    def decorator(func: Callable) -> Callable:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         # Store metadata on the function
         func._hook_event_type = event_type  # type: ignore[attr-defined]
         func._hook_priority = priority  # type: ignore[attr-defined]
@@ -209,7 +209,7 @@ class HookPlugin(ABC):
         """Initialize plugin instance."""
         # Containers for registered workflow extensions
         self._actions: dict[str, PluginAction] = {}
-        self._conditions: dict[str, Callable] = {}
+        self._conditions: dict[str, Callable[..., Any]] = {}
         self.logger = logging.getLogger(f"gobby.plugins.{self.name}")
 
     def on_load(self, config: dict[str, Any]) -> None:  # noqa: B027
@@ -231,7 +231,7 @@ class HookPlugin(ABC):
         """
         # Optional lifecycle hook - subclasses may override
 
-    def register_action(self, name: str, handler: Callable) -> None:
+    def register_action(self, name: str, handler: Callable[..., Any]) -> None:
         """
         Register a workflow action (simple form without schema).
 
@@ -257,7 +257,7 @@ class HookPlugin(ABC):
         self,
         action_type: str,
         schema: dict[str, Any],
-        executor_fn: Callable,
+        executor_fn: Callable[..., Any],
     ) -> None:
         """
         Register a workflow action with schema validation.
@@ -311,7 +311,7 @@ class HookPlugin(ABC):
         """
         return self._actions.get(name)
 
-    def register_condition(self, name: str, evaluator: Callable) -> None:
+    def register_condition(self, name: str, evaluator: Callable[..., Any]) -> None:
         """
         Register a workflow condition.
 
@@ -336,7 +336,7 @@ class RegisteredHandler:
     """A registered hook handler with metadata."""
 
     plugin: HookPlugin
-    method: Callable
+    method: Callable[..., Any]
     event_type: HookEventType
     priority: int
 

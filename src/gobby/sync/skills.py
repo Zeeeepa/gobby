@@ -12,6 +12,7 @@ import json
 import logging
 import time
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -42,7 +43,7 @@ class SkillSyncManager:
         self.config = config or SkillSyncConfig()
 
         # Debounce state
-        self._export_task: asyncio.Task | None = None
+        self._export_task: asyncio.Task[None] | None = None
         self._last_change_time: float = 0
         self._shutdown_requested = False
         self._task_lock = asyncio.Lock()
@@ -436,7 +437,7 @@ class SkillSyncManager:
 
         return count
 
-    def _import_skill_file(self, skill_file: Path, meta: dict) -> bool:
+    def _import_skill_file(self, skill_file: Path, meta: dict[str, Any]) -> bool:
         """Import a single skill file. Returns True if imported."""
         try:
             content = skill_file.read_text()

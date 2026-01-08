@@ -184,7 +184,7 @@ def list_agents(
         # Note: This requires querying without session filter
         db = LocalDatabase()
         query = "SELECT * FROM agent_runs"
-        params: list = []
+        params: list[str | int] = []
 
         if status:
             query += " WHERE status = ?"

@@ -140,12 +140,12 @@ class WorkflowLoader:
 
         return merged
 
-    def _merge_steps(self, parent_steps: list, child_steps: list) -> list:
+    def _merge_steps(self, parent_steps: list[Any], child_steps: list[Any]) -> list[Any]:
         """
         Merge step lists by step name.
         """
         # Convert parent list to dict by name, creating copies to avoid mutating originals
-        parent_map: dict[str, dict] = {}
+        parent_map: dict[str, dict[str, Any]] = {}
         for s in parent_steps:
             if "name" not in s:
                 logger.warning("Skipping parent step without 'name' key")

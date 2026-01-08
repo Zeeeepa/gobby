@@ -29,7 +29,7 @@ class RequestIDFilter(logging.Filter):
         return True
 
 
-class ContextLogger(logging.LoggerAdapter):
+class ContextLogger(logging.LoggerAdapter[logging.Logger]):
     """
     Logger adapter that adds contextual information to log records.
 

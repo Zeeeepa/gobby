@@ -35,8 +35,8 @@ class SessionLifecycleManager:
         self.message_manager = LocalSessionMessageManager(db)
 
         self._running = False
-        self._expire_task: asyncio.Task | None = None
-        self._process_task: asyncio.Task | None = None
+        self._expire_task: asyncio.Task[None] | None = None
+        self._process_task: asyncio.Task[None] | None = None
 
     async def start(self) -> None:
         """Start background jobs."""

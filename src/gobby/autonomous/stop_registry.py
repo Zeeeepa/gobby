@@ -80,8 +80,7 @@ class StopRegistry:
             existing = self.get_signal(session_id)
             if existing and existing.is_pending:
                 logger.debug(
-                    f"Stop signal already pending for session {session_id} "
-                    f"from {existing.source}"
+                    f"Stop signal already pending for session {session_id} from {existing.source}"
                 )
                 return existing
 

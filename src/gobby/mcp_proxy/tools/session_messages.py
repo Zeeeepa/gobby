@@ -98,7 +98,7 @@ def _format_handoff_markdown(ctx: HandoffContext, notes: str | None = None) -> s
     return "\n".join(sections)
 
 
-def _format_turns_for_llm(turns: list[dict]) -> str:
+def _format_turns_for_llm(turns: list[dict[str, Any]]) -> str:
     """Format transcript turns for LLM analysis."""
     formatted: list[str] = []
     for i, turn in enumerate(turns):

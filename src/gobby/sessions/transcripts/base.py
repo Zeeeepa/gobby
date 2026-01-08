@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +23,10 @@ class ParsedMessage:
     content: str
     content_type: str  # text, thinking, tool_use, tool_result
     tool_name: str | None
-    tool_input: dict | None
-    tool_result: dict | None
+    tool_input: dict[str, Any] | None
+    tool_result: dict[str, Any] | None
     timestamp: datetime
-    raw_json: dict
+    raw_json: dict[str, Any]
 
 
 @runtime_checkable
@@ -65,7 +65,9 @@ class TranscriptParser(Protocol):
         """
         ...
 
-    def extract_last_messages(self, turns: list[dict], num_pairs: int = 2) -> list[dict]:
+    def extract_last_messages(
+        self, turns: list[dict[str, Any]], num_pairs: int = 2
+    ) -> list[dict[str, Any]]:
         """
         Extract last N user<>agent message pairs from transcript.
 
@@ -78,7 +80,9 @@ class TranscriptParser(Protocol):
         """
         ...
 
-    def extract_turns_since_clear(self, turns: list[dict], max_turns: int = 50) -> list[dict]:
+    def extract_turns_since_clear(
+        self, turns: list[dict[str, Any]], max_turns: int = 50
+    ) -> list[dict[str, Any]]:
         """
         Extract turns since the most recent session boundary, up to max_turns.
 
@@ -96,7 +100,7 @@ class TranscriptParser(Protocol):
         """
         ...
 
-    def is_session_boundary(self, turn: dict) -> bool:
+    def is_session_boundary(self, turn: dict[str, Any]) -> bool:
         """
         Check if a turn represents a session boundary.
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from gobby.sessions.transcripts.base import ParsedMessage
 
@@ -32,7 +33,9 @@ class GeminiTranscriptParser:
         """
         self.logger = logger_instance or logger
 
-    def extract_last_messages(self, turns: list[dict], num_pairs: int = 2) -> list[dict]:
+    def extract_last_messages(
+        self, turns: list[dict[str, Any]], num_pairs: int = 2
+    ) -> list[dict[str, Any]]:
         """
         Extract last N user<>agent message pairs.
         """
@@ -55,7 +58,9 @@ class GeminiTranscriptParser:
                     break
         return messages
 
-    def extract_turns_since_clear(self, turns: list[dict], max_turns: int = 50) -> list[dict]:
+    def extract_turns_since_clear(
+        self, turns: list[dict[str, Any]], max_turns: int = 50
+    ) -> list[dict[str, Any]]:
         """
         Extract turns since the most recent session boundary.
         For Gemini, we might look for specific clear events or just return the tail.
@@ -63,7 +68,7 @@ class GeminiTranscriptParser:
         # Placeholder: just return last N turns for now until we know the clear signal
         return turns[-max_turns:] if len(turns) > max_turns else turns
 
-    def is_session_boundary(self, turn: dict) -> bool:
+    def is_session_boundary(self, turn: dict[str, Any]) -> bool:
         """
         Check if a turn is a session boundary.
         """

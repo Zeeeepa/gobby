@@ -1,6 +1,7 @@
 """Task compaction logic."""
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from gobby.storage.tasks import LocalTaskManager
 
@@ -11,7 +12,7 @@ class TaskCompactor:
     def __init__(self, task_manager: LocalTaskManager) -> None:
         self.task_manager = task_manager
 
-    def find_candidates(self, days_closed: int = 30) -> list[dict]:
+    def find_candidates(self, days_closed: int = 30) -> list[dict[str, Any]]:
         """
         Find tasks that have been closed for longer than the specified days
         and haven't been compacted yet.
@@ -51,7 +52,7 @@ class TaskCompactor:
         self.task_manager.db.execute(sql, (summary, summary, now, now, task_id))
         self.task_manager._notify_listeners()
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict[str, Any]:
         """Get compaction statistics."""
         sql_total = "SELECT COUNT(*) as c FROM tasks WHERE status = 'closed'"
         sql_compacted = "SELECT COUNT(*) as c FROM tasks WHERE compacted_at IS NOT NULL"

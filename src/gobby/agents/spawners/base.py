@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 
 class SpawnMode(str, Enum):
@@ -93,7 +94,7 @@ class HeadlessResult:
     message: str
     pid: int | None = None
     """Child process PID."""
-    process: subprocess.Popen | None = None
+    process: subprocess.Popen[Any] | None = None
     """Subprocess handle for output capture."""
     output_buffer: list[str] = field(default_factory=list)
     """Captured output lines."""

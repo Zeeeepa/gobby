@@ -268,7 +268,7 @@ class WorkflowEngine:
         # Execute on_enter of new step
         await self._execute_actions(new_step.on_enter, state)
 
-    async def _execute_actions(self, actions: list[dict], state: WorkflowState) -> None:
+    async def _execute_actions(self, actions: list[dict[str, Any]], state: WorkflowState) -> None:
         """
         Execute a list of actions.
         """

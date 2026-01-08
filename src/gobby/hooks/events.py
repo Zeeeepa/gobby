@@ -13,7 +13,7 @@ internal representation. Adapters translate between them.
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Literal
+from typing import Any, Literal
 
 
 class HookEventType(str, Enum):
@@ -93,7 +93,7 @@ class HookEvent:
     session_id: str  # external_id / thread_id (external ID)
     source: SessionSource
     timestamp: datetime
-    data: dict  # Event-specific payload (native format)
+    data: dict[str, Any]  # Event-specific payload (native format)
 
     # Context (populated by adapter or manager)
     machine_id: str | None = None
@@ -104,7 +104,7 @@ class HookEvent:
     project_id: str | None = None
     task_id: str | None = None
     workflow_id: str | None = None
-    metadata: dict = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -131,9 +131,9 @@ class HookResponse:
     reason: str | None = None  # Explanation for decision
 
     # Future extensibility
-    modify_args: dict | None = None
+    modify_args: dict[str, Any] | None = None
     trigger_action: str | None = None
-    metadata: dict = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 # Event type mapping table for documentation (see plan-multi-cli.md section 1.2)

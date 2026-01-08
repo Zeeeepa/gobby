@@ -4,6 +4,7 @@ Provides utilities for parsing structured issues from validation LLM responses.
 """
 
 import logging
+from typing import Any
 
 from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
 from gobby.utils.json_helpers import extract_json_object
@@ -58,7 +59,7 @@ def parse_issues_from_response(response: str) -> list[Issue]:
     return issues
 
 
-def _extract_json(content: str) -> dict | None:
+def _extract_json(content: str) -> dict[str, Any] | None:
     """Extract and parse JSON from response content.
 
     Handles:
@@ -75,7 +76,7 @@ def _extract_json(content: str) -> dict | None:
     return extract_json_object(content)
 
 
-def _parse_single_issue(issue_dict: dict) -> Issue | None:
+def _parse_single_issue(issue_dict: dict[str, Any]) -> Issue | None:
     """Parse a single issue dictionary into an Issue object.
 
     Args:

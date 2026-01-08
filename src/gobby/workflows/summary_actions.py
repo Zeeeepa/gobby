@@ -14,7 +14,7 @@ from gobby.workflows.git_utils import get_file_changes, get_git_status
 logger = logging.getLogger(__name__)
 
 
-def format_turns_for_llm(turns: list[dict]) -> str:
+def format_turns_for_llm(turns: list[dict[str, Any]]) -> str:
     """Format transcript turns for LLM analysis.
 
     Args:

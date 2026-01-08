@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import click
 import httpx
@@ -266,7 +267,7 @@ def status(ctx: click.Context) -> None:
     websocket_port = config.websocket.port
 
     # Build status kwargs
-    status_kwargs: dict = {
+    status_kwargs: dict[str, Any] = {
         "running": True,
         "pid": pid,
         "pid_file": str(pid_file),

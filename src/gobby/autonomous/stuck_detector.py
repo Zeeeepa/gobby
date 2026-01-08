@@ -255,7 +255,7 @@ class StuckDetector:
             if count >= self.tool_loop_threshold:
                 tool_name = key.split(":")[0]
                 logger.info(
-                    f"Session {session_id} stuck in tool loop: " f"{tool_name} called {count} times"
+                    f"Session {session_id} stuck in tool loop: {tool_name} called {count} times"
                 )
                 return StuckDetectionResult(
                     is_stuck=True,

@@ -149,20 +149,20 @@ class CodexAppServerClient:
         self._codex_command = codex_command
         self._on_notification = on_notification
 
-        self._process: subprocess.Popen | None = None
+        self._process: subprocess.Popen[str] | None = None
         self._state = CodexConnectionState.DISCONNECTED
         self._request_id = 0
         self._request_id_lock = threading.Lock()
 
         # Pending requests waiting for responses
-        self._pending_requests: dict[int, asyncio.Future] = {}
+        self._pending_requests: dict[int, asyncio.Future[Any]] = {}
         self._pending_requests_lock = threading.Lock()
 
         # Notification handlers by method
         self._notification_handlers: dict[str, list[NotificationHandler]] = {}
 
         # Reader task
-        self._reader_task: asyncio.Task | None = None
+        self._reader_task: asyncio.Task[None] | None = None
         self._shutdown_event = asyncio.Event()
 
         # Thread tracking for session management
@@ -508,7 +508,7 @@ class CodexAppServerClient:
                     print(event["item"]["text"])
         """
         # Queue to receive notifications
-        event_queue: asyncio.Queue = asyncio.Queue()
+        event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         turn_completed = asyncio.Event()
 
         def on_event(method: str, params: dict[str, Any]) -> None:
@@ -612,7 +612,7 @@ class CodexAppServerClient:
 
         # Create future for response
         loop = asyncio.get_event_loop()
-        future: asyncio.Future = loop.create_future()
+        future: asyncio.Future[Any] = loop.create_future()
 
         with self._pending_requests_lock:
             self._pending_requests[request_id] = future
@@ -867,7 +867,7 @@ class CodexAdapter(BaseAdapter):
         except Exception as e:
             logger.error(f"Error handling Codex notification {method}: {e}")
 
-    def _translate_approval_event(self, method: str, params: dict) -> HookEvent | None:
+    def _translate_approval_event(self, method: str, params: dict[str, Any]) -> HookEvent | None:
         """Translate approval request to HookEvent."""
         if method not in self.EVENT_MAP:
             logger.debug(f"Unknown approval method: {method}")
@@ -1172,7 +1172,7 @@ class CodexNotifyAdapter(BaseAdapter):
             return max(matches, key=os.path.getmtime)
         return None
 
-    def _get_first_prompt(self, input_messages: list) -> str | None:
+    def _get_first_prompt(self, input_messages: list[Any]) -> str | None:
         """Extract the first user prompt from input_messages.
 
         Args:
@@ -1189,7 +1189,7 @@ class CodexNotifyAdapter(BaseAdapter):
                 return first.get("text") or first.get("content")
         return None
 
-    def translate_to_hook_event(self, native_event: dict) -> HookEvent | None:
+    def translate_to_hook_event(self, native_event: dict[str, Any]) -> HookEvent | None:
         """Convert Codex notify payload to HookEvent.
 
         The native_event structure from /hooks/execute:
@@ -1254,7 +1254,7 @@ class CodexNotifyAdapter(BaseAdapter):
 
     def translate_from_hook_response(
         self, response: HookResponse, hook_type: str | None = None
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Convert HookResponse to Codex-expected format.
 
         Codex notify doesn't expect a response - it's fire-and-forget.
@@ -1272,7 +1272,9 @@ class CodexNotifyAdapter(BaseAdapter):
             "decision": response.decision,
         }
 
-    def handle_native(self, native_event: dict, hook_manager: HookManager) -> dict:
+    def handle_native(
+        self, native_event: dict[str, Any], hook_manager: HookManager
+    ) -> dict[str, Any]:
         """Process native Codex notify event.
 
         Args:

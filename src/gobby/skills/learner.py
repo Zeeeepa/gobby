@@ -55,10 +55,28 @@ class SkillLearner:
             # Get provider for skill learning
             provider, model, _ = self.llm_service.get_provider_for_feature(self.config)
 
-            prompt = self.config.prompt.format(transcript=transcript_text)
+            # Enhanced prompt with strict quality criteria
+            base_prompt = self.config.prompt
+            exclusion_criteria = """
+CRITICAL QUALITY FILTER:
+You must ONLY extract a skill if it represents a HIGH-VALUE, REUSABLE CAPABILITY.
+REJECT the following (return empty list):
+- Specific bug fixes (e.g., "Fix mypy error in file X")
+- One-off refactors
+- Basic logic (e.g., "How to use a loop")
+- Project-specific tweaks
+
+A valid skill must be:
+1. GENERALIZABLE: Applicable to any Python project or the general agent architecture.
+2. PROCEDURAL: A series of steps, not just a snippet.
+3. WORTH KEEPING: Something you would want to look up 6 months from now.
+"""
+            full_prompt = f"{exclusion_criteria}\n\n{base_prompt}".format(
+                transcript=transcript_text
+            )
 
             response = await provider.generate_text(
-                prompt=prompt,
+                prompt=full_prompt,
                 model=model,
             )
 

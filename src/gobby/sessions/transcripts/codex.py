@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import UTC, datetime
+from typing import Any
 
 from gobby.sessions.transcripts.base import ParsedMessage
 
@@ -25,7 +26,9 @@ class CodexTranscriptParser:
     def __init__(self, logger_instance: logging.Logger | None = None):
         self.logger = logger_instance or logger
 
-    def extract_last_messages(self, turns: list[dict], num_pairs: int = 2) -> list[dict]:
+    def extract_last_messages(
+        self, turns: list[dict[str, Any]], num_pairs: int = 2
+    ) -> list[dict[str, Any]]:
         messages: list[dict[str, str]] = []
         for turn in reversed(turns):
             role = turn.get("role")
@@ -37,12 +40,14 @@ class CodexTranscriptParser:
                     break
         return messages
 
-    def extract_turns_since_clear(self, turns: list[dict], max_turns: int = 50) -> list[dict]:
+    def extract_turns_since_clear(
+        self, turns: list[dict[str, Any]], max_turns: int = 50
+    ) -> list[dict[str, Any]]:
         # Codex likely uses a new session or clear command
         # For now, default to tail
         return turns[-max_turns:] if len(turns) > max_turns else turns
 
-    def is_session_boundary(self, turn: dict) -> bool:
+    def is_session_boundary(self, turn: dict[str, Any]) -> bool:
         return False
 
     def parse_line(self, line: str, index: int) -> ParsedMessage | None:

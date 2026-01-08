@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import msgspec
 
@@ -84,7 +84,7 @@ def extract_json_from_text(text: str) -> str | None:
     return None
 
 
-def extract_json_object(text: str) -> dict | None:
+def extract_json_object(text: str) -> dict[str, Any] | None:
     """
     Extract and parse a JSON object from text.
 
