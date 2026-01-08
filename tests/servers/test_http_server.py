@@ -1,6 +1,7 @@
 """Tests for the HTTP server endpoints."""
 
 from collections.abc import Generator
+from datetime import UTC
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -918,3 +919,181 @@ class TestShutdownEndpoint:
         data = response.json()
         assert data["status"] == "shutting_down"
         assert "response_time_ms" in data
+
+
+class FakeStopSignal:
+    """Fake stop signal for testing."""
+
+    def __init__(
+        self,
+        signal_id: str = "sig-123",
+        reason: str = "Test stop",
+        source: str = "http_api",
+    ) -> None:
+        from datetime import datetime, timezone
+
+        self.signal_id = signal_id
+        self.reason = reason
+        self.source = source
+        self.signaled_at = datetime.now(UTC)
+        self.acknowledged = False
+        self.acknowledged_at = None
+
+
+class FakeStopRegistry:
+    """Fake stop registry for testing."""
+
+    def __init__(self) -> None:
+        self._signals: dict[str, FakeStopSignal] = {}
+
+    def signal_stop(
+        self, session_id: str, reason: str = "Test", source: str = "test"
+    ) -> FakeStopSignal:
+        signal = FakeStopSignal(reason=reason, source=source)
+        self._signals[session_id] = signal
+        return signal
+
+    def get_signal(self, session_id: str) -> FakeStopSignal | None:
+        return self._signals.get(session_id)
+
+    def clear(self, session_id: str) -> bool:
+        if session_id in self._signals:
+            del self._signals[session_id]
+            return True
+        return False
+
+
+class FakeHookManager:
+    """Fake hook manager for testing stop signal endpoints."""
+
+    def __init__(self) -> None:
+        self._stop_registry = FakeStopRegistry()
+
+
+class TestStopSignalEndpoints:
+    """Tests for stop signal HTTP endpoints."""
+
+    @pytest.fixture
+    def server_with_stop_registry(
+        self,
+        session_storage: LocalSessionManager,
+    ) -> HTTPServer:
+        """Create HTTP server with mock stop registry."""
+        server = HTTPServer(
+            port=8765,
+            test_mode=True,
+            mcp_manager=None,
+            config=None,
+            session_manager=session_storage,
+        )
+        # Mock the hook_manager in app state
+        server.app.state.hook_manager = FakeHookManager()
+        return server
+
+    @pytest.fixture
+    def stop_client(self, server_with_stop_registry: HTTPServer) -> TestClient:
+        """Create test client with stop registry."""
+        return TestClient(server_with_stop_registry.app)
+
+    def test_post_stop_signal(self, stop_client: TestClient) -> None:
+        """Test sending a stop signal to a session."""
+        response = stop_client.post(
+            "/sessions/test-session-123/stop",
+            json={"reason": "User requested stop", "source": "dashboard"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "stop_signaled"
+        assert data["session_id"] == "test-session-123"
+        assert data["reason"] == "User requested stop"
+        assert data["source"] == "dashboard"
+        assert "signal_id" in data
+        assert "signaled_at" in data
+
+    def test_post_stop_signal_default_values(self, stop_client: TestClient) -> None:
+        """Test stop signal with default reason and source."""
+        response = stop_client.post("/sessions/test-session-456/stop")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "stop_signaled"
+        assert data["reason"] == "External stop request"
+        assert data["source"] == "http_api"
+
+    def test_get_stop_signal_present(
+        self, stop_client: TestClient, server_with_stop_registry: HTTPServer
+    ) -> None:
+        """Test checking for existing stop signal."""
+        # First send a signal
+        stop_client.post("/sessions/check-session/stop", json={"reason": "Test"})
+
+        # Then check for it
+        response = stop_client.get("/sessions/check-session/stop")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["has_signal"] is True
+        assert data["session_id"] == "check-session"
+        assert "signal_id" in data
+        assert "reason" in data
+
+    def test_get_stop_signal_absent(self, stop_client: TestClient) -> None:
+        """Test checking for non-existent stop signal."""
+        response = stop_client.get("/sessions/no-signal-session/stop")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["has_signal"] is False
+        assert data["session_id"] == "no-signal-session"
+
+    def test_delete_stop_signal(self, stop_client: TestClient) -> None:
+        """Test clearing a stop signal."""
+        # First send a signal
+        stop_client.post("/sessions/clear-session/stop")
+
+        # Then clear it
+        response = stop_client.delete("/sessions/clear-session/stop")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "cleared"
+        assert data["was_present"] is True
+
+        # Verify it's gone
+        check_response = stop_client.get("/sessions/clear-session/stop")
+        assert check_response.json()["has_signal"] is False
+
+    def test_delete_stop_signal_not_present(self, stop_client: TestClient) -> None:
+        """Test clearing non-existent stop signal."""
+        response = stop_client.delete("/sessions/no-signal/stop")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "no_signal"
+        assert data["was_present"] is False
+
+    def test_stop_signal_without_hook_manager(self, client: TestClient) -> None:
+        """Test stop signal endpoints when hook manager not available."""
+        response = client.post("/sessions/test-session/stop")
+        assert response.status_code == 503
+        assert "Hook manager not available" in response.json()["detail"]
+
+    def test_stop_signal_without_stop_registry(
+        self, session_storage: LocalSessionManager
+    ) -> None:
+        """Test stop signal endpoints when stop registry not available."""
+        server = HTTPServer(
+            port=8765,
+            test_mode=True,
+            session_manager=session_storage,
+        )
+        # Set hook_manager without stop_registry
+        server.app.state.hook_manager = MagicMock()
+        server.app.state.hook_manager._stop_registry = None
+
+        client = TestClient(server.app)
+        response = client.post("/sessions/test-session/stop")
+
+        assert response.status_code == 503
+        assert "Stop registry not available" in response.json()["detail"]

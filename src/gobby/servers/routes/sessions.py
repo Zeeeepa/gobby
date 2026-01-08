@@ -405,4 +405,161 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             logger.error(f"Update session summary error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=str(e)) from e
 
+    @router.post("/{session_id}/stop")
+    async def stop_session(session_id: str, request: Request) -> dict[str, Any]:
+        """
+        Signal a session to stop gracefully.
+
+        Allows external systems to request a graceful stop of an autonomous session.
+        The session will check for this signal and stop at the next opportunity.
+
+        Args:
+            session_id: Session ID to stop
+            request: Request body with optional reason and source
+
+        Returns:
+            Stop signal confirmation
+        """
+        metrics.inc_counter("http_requests_total")
+
+        try:
+            # Get HookManager from app state
+            if not hasattr(request.app.state, "hook_manager"):
+                raise HTTPException(status_code=503, detail="Hook manager not available")
+
+            hook_manager = request.app.state.hook_manager
+            if not hasattr(hook_manager, "_stop_registry") or not hook_manager._stop_registry:
+                raise HTTPException(status_code=503, detail="Stop registry not available")
+
+            stop_registry = hook_manager._stop_registry
+
+            # Parse optional body parameters
+            body: dict[str, Any] = {}
+            try:
+                body = await request.json()
+            except Exception:
+                pass  # Empty body is fine
+
+            reason = body.get("reason", "External stop request")
+            source = body.get("source", "http_api")
+
+            # Signal the stop
+            signal = stop_registry.signal_stop(
+                session_id=session_id,
+                reason=reason,
+                source=source,
+            )
+
+            logger.info(f"Stop signal sent to session {session_id}: {reason}")
+
+            return {
+                "status": "stop_signaled",
+                "session_id": session_id,
+                "signal_id": signal.signal_id,
+                "reason": signal.reason,
+                "source": signal.source,
+                "signaled_at": signal.signaled_at.isoformat(),
+            }
+
+        except HTTPException:
+            metrics.inc_counter("http_requests_errors_total")
+            raise
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error(f"Error sending stop signal: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.get("/{session_id}/stop")
+    async def get_stop_signal(session_id: str, request: Request) -> dict[str, Any]:
+        """
+        Check if a session has a pending stop signal.
+
+        Args:
+            session_id: Session ID to check
+
+        Returns:
+            Stop signal status and details if present
+        """
+        metrics.inc_counter("http_requests_total")
+
+        try:
+            # Get HookManager from app state
+            if not hasattr(request.app.state, "hook_manager"):
+                raise HTTPException(status_code=503, detail="Hook manager not available")
+
+            hook_manager = request.app.state.hook_manager
+            if not hasattr(hook_manager, "_stop_registry") or not hook_manager._stop_registry:
+                raise HTTPException(status_code=503, detail="Stop registry not available")
+
+            stop_registry = hook_manager._stop_registry
+
+            signal = stop_registry.get_signal(session_id)
+
+            if signal is None:
+                return {
+                    "has_signal": False,
+                    "session_id": session_id,
+                }
+
+            return {
+                "has_signal": True,
+                "session_id": session_id,
+                "signal_id": signal.signal_id,
+                "reason": signal.reason,
+                "source": signal.source,
+                "signaled_at": signal.signaled_at.isoformat(),
+                "acknowledged": signal.acknowledged,
+                "acknowledged_at": signal.acknowledged_at.isoformat() if signal.acknowledged_at else None,
+            }
+
+        except HTTPException:
+            metrics.inc_counter("http_requests_errors_total")
+            raise
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error(f"Error checking stop signal: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
+    @router.delete("/{session_id}/stop")
+    async def clear_stop_signal(session_id: str, request: Request) -> dict[str, Any]:
+        """
+        Clear a stop signal for a session.
+
+        Useful for resetting a session's stop state after handling.
+
+        Args:
+            session_id: Session ID to clear signal for
+
+        Returns:
+            Confirmation of signal cleared
+        """
+        metrics.inc_counter("http_requests_total")
+
+        try:
+            # Get HookManager from app state
+            if not hasattr(request.app.state, "hook_manager"):
+                raise HTTPException(status_code=503, detail="Hook manager not available")
+
+            hook_manager = request.app.state.hook_manager
+            if not hasattr(hook_manager, "_stop_registry") or not hook_manager._stop_registry:
+                raise HTTPException(status_code=503, detail="Stop registry not available")
+
+            stop_registry = hook_manager._stop_registry
+
+            cleared = stop_registry.clear(session_id)
+
+            return {
+                "status": "cleared" if cleared else "no_signal",
+                "session_id": session_id,
+                "was_present": cleared,
+            }
+
+        except HTTPException:
+            metrics.inc_counter("http_requests_errors_total")
+            raise
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error(f"Error clearing stop signal: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=str(e)) from e
+
     return router
