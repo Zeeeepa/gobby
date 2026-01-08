@@ -876,6 +876,26 @@ MIGRATIONS: list[tuple[int, str, str]] = [
             WHERE acknowledged_at IS NULL;
         """,
     ),
+    (
+        38,
+        "Create loop_progress table for autonomous progress tracking",
+        """
+        CREATE TABLE IF NOT EXISTS loop_progress (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            progress_type TEXT NOT NULL,
+            tool_name TEXT,
+            details TEXT,
+            recorded_at TEXT NOT NULL,
+            is_high_value INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_loop_progress_session
+            ON loop_progress(session_id, recorded_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_loop_progress_high_value
+            ON loop_progress(session_id, is_high_value, recorded_at DESC)
+            WHERE is_high_value = 1;
+        """,
+    ),
 ]
 
 

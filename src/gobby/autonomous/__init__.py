@@ -6,6 +6,19 @@ This module provides infrastructure for autonomous task execution including:
 - Stuck detection for breaking out of loops
 """
 
+from gobby.autonomous.progress_tracker import (
+    ProgressEvent,
+    ProgressSummary,
+    ProgressTracker,
+    ProgressType,
+)
 from gobby.autonomous.stop_registry import StopRegistry, StopSignal
 
-__all__ = ["StopRegistry", "StopSignal"]
+__all__ = [
+    "ProgressEvent",
+    "ProgressSummary",
+    "ProgressTracker",
+    "ProgressType",
+    "StopRegistry",
+    "StopSignal",
+]
