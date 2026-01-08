@@ -169,11 +169,12 @@ def create_metrics_registry(metrics_manager: ToolMetricsManager) -> InternalTool
 
     @registry.tool(
         name="reset_metrics",
-        description="Reset/delete metrics for a project or server.",
+        description="Reset/delete metrics for a project, server, or specific tool.",
     )
     def reset_metrics(
         project_id: str | None = None,
         server_name: str | None = None,
+        tool_name: str | None = None,
     ) -> dict[str, Any]:
         """
         Reset/delete metrics.
@@ -181,6 +182,7 @@ def create_metrics_registry(metrics_manager: ToolMetricsManager) -> InternalTool
         Args:
             project_id: Reset only for this project
             server_name: Reset only for this server
+            tool_name: Reset only for this specific tool
 
         Returns:
             Number of rows deleted
@@ -189,6 +191,7 @@ def create_metrics_registry(metrics_manager: ToolMetricsManager) -> InternalTool
             deleted = metrics_manager.reset_metrics(
                 project_id=project_id,
                 server_name=server_name,
+                tool_name=tool_name,
             )
             return {
                 "success": True,

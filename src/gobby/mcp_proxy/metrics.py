@@ -346,6 +346,7 @@ class ToolMetricsManager:
         self,
         project_id: str | None = None,
         server_name: str | None = None,
+        tool_name: str | None = None,
     ) -> int:
         """
         Reset/delete metrics.
@@ -353,6 +354,7 @@ class ToolMetricsManager:
         Args:
             project_id: Reset only for this project
             server_name: Reset only for this server
+            tool_name: Reset only for this specific tool
 
         Returns:
             Number of rows deleted
@@ -366,6 +368,9 @@ class ToolMetricsManager:
         if server_name:
             conditions.append("server_name = ?")
             params.append(server_name)
+        if tool_name:
+            conditions.append("tool_name = ?")
+            params.append(tool_name)
 
         if conditions:
             where_clause = " AND ".join(conditions)
