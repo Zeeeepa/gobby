@@ -1,14 +1,13 @@
 import asyncio
 import logging
-from pathlib import Path
+
+from gobby.storage.skills import LocalSkillManager
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("skill-cleanup")
 
 # Import Gobby components
-from gobby.storage.skills import LocalSkillManager
-from gobby.config.app import SkillConfig
 
 
 async def cleanup_db():
@@ -41,7 +40,7 @@ async def cleanup_db():
                 print(f"FAILED to delete: {skill.name} ({skill.id})")
 
     print("-" * 30)
-    print(f"Cleanup Complete.")
+    print("Cleanup Complete.")
     print(f"Deleted: {deleted_count}")
     print(f"Kept: {kept_count}")
     print(f"Total processed: {deleted_count + kept_count}")
