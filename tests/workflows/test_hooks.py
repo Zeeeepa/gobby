@@ -588,7 +588,7 @@ class TestEdgeCases:
 
             # All calls should complete successfully
             assert len(results) == 5
-            for index, result in results:
+            for _index, result in results:
                 assert result.decision == "allow"
 
         finally:
@@ -737,7 +737,7 @@ class TestThreadingScenarios:
             t2.join()
 
             assert len(results) == 2
-            for name, result in results:
+            for _name, result in results:
                 assert result.decision == "allow"
 
         finally:

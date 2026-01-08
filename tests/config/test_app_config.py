@@ -11,7 +11,10 @@ from pydantic import ValidationError
 
 from gobby.config.app import (
     CodeExecutionConfig,
+    CompactHandoffConfig,
+    ContextInjectionConfig,
     DaemonConfig,
+    GobbyTasksConfig,
     HookExtensionsConfig,
     ImportMCPServerConfig,
     LLMProviderConfig,
@@ -19,14 +22,22 @@ from gobby.config.app import (
     LoggingSettings,
     MCPClientProxyConfig,
     MemoryConfig,
+    MemorySyncConfig,
     MessageTrackingConfig,
+    MetricsConfig,
+    PluginItemConfig,
+    PluginsConfig,
     RecommendToolsConfig,
     SessionLifecycleConfig,
     SessionSummaryConfig,
     SkillConfig,
+    SkillSyncConfig,
     TaskExpansionConfig,
     TaskValidationConfig,
     TitleSynthesisConfig,
+    ToolSummarizerConfig,
+    WebhookEndpointConfig,
+    WebhooksConfig,
     WebSocketBroadcastConfig,
     WebSocketSettings,
     WorkflowConfig,
@@ -762,20 +773,6 @@ class TestSkillConfig:
 # Additional tests for config module decomposition coverage (gt-dfa0d7)
 # These tests verify all config classes can be instantiated correctly
 # ==============================================================================
-
-from gobby.config.app import (
-    CompactHandoffConfig,
-    ContextInjectionConfig,
-    GobbyTasksConfig,
-    MemorySyncConfig,
-    MetricsConfig,
-    PluginItemConfig,
-    PluginsConfig,
-    SkillSyncConfig,
-    ToolSummarizerConfig,
-    WebhookEndpointConfig,
-    WebhooksConfig,
-)
 
 
 class TestCompactHandoffConfig:

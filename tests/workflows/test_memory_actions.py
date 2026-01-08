@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -6,6 +6,15 @@ from gobby.memory.manager import MemoryManager
 from gobby.skills import SkillLearner
 from gobby.workflows.actions import ActionContext, ActionExecutor
 from gobby.workflows.definitions import WorkflowState
+from gobby.workflows.memory_actions import (
+    _content_fingerprint,
+    memory_extract,
+    memory_inject,
+    memory_recall_relevant,
+    memory_save,
+    memory_sync_export,
+    memory_sync_import,
+)
 from gobby.workflows.templates import TemplateEngine
 
 
@@ -706,18 +715,6 @@ async def test_memory_recall_relevant_respects_kwargs(
 # DIRECT FUNCTION TESTS - Testing memory_actions.py functions directly
 # These tests bypass ActionExecutor to directly test the functions
 # =============================================================================
-
-from unittest.mock import patch
-
-from gobby.workflows.memory_actions import (
-    _content_fingerprint,
-    memory_extract,
-    memory_inject,
-    memory_recall_relevant,
-    memory_save,
-    memory_sync_export,
-    memory_sync_import,
-)
 
 
 class TestContentFingerprint:

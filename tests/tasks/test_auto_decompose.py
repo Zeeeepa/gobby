@@ -4,7 +4,17 @@ TDD: These tests are written first - the detect_multi_step function
 does not exist yet and tests should fail in the red phase.
 """
 
+from datetime import UTC, datetime
+from unittest.mock import MagicMock
+
+import pytest
+
+from gobby.storage.database import LocalDatabase
+from gobby.storage.migrations import run_migrations
+from gobby.storage.task_dependencies import TaskDependencyManager
+from gobby.storage.tasks import LocalTaskManager
 from gobby.tasks.auto_decompose import detect_multi_step, extract_steps
+from gobby.workflows.definitions import WorkflowState
 
 
 class TestDetectMultiStepPositive:
@@ -455,13 +465,6 @@ class TestExtractStepsEdgeCases:
 # =============================================================================
 # create_task Integration Tests (TDD - auto_decompose parameter)
 # =============================================================================
-
-import pytest
-
-from gobby.storage.database import LocalDatabase
-from gobby.storage.migrations import run_migrations
-from gobby.storage.task_dependencies import TaskDependencyManager
-from gobby.storage.tasks import LocalTaskManager
 
 
 @pytest.fixture
@@ -981,11 +984,6 @@ class TestNeedsDecompositionStatusTransitions:
 # =============================================================================
 # Workflow Variable Integration Tests (TDD - gt-5f05d8)
 # =============================================================================
-
-from datetime import UTC, datetime
-from unittest.mock import MagicMock
-
-from gobby.workflows.definitions import WorkflowState
 
 
 @pytest.fixture

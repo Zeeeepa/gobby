@@ -504,7 +504,7 @@ async def test_export_to_codex_format_long_description(mock_skill_manager, tmp_p
     # Description should be truncated with "..."
     # The description line in YAML should end with ...
     lines = content.split("\n")
-    desc_line = [l for l in lines if l.startswith("description:")][0]
+    desc_line = [line for line in lines if line.startswith("description:")][0]
     assert len(desc_line) <= 520  # description: + 500 chars + some buffer
 
 

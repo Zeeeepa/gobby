@@ -1716,7 +1716,7 @@ class TestEdgeCases:
             # The output should have "Line 1 Line 2 Line 3" on a single row, not multiple lines
             lines = result.output.strip().split("\n")
             # Find the line with the agent run info
-            run_lines = [l for l in lines if "ar-multiline" in l]
+            run_lines = [line for line in lines if "ar-multiline" in line]
             assert len(run_lines) == 1  # Should be on a single line
 
     @patch("gobby.cli.agents.get_agent_run_manager")
@@ -1756,7 +1756,7 @@ class TestEdgeCases:
         assert "Model:" not in result.output
         # Child Session should not be shown when None
         lines = result.output.split("\n")
-        child_session_lines = [l for l in lines if "Child Session:" in l]
+        child_session_lines = [line for line in lines if "Child Session:" in line]
         assert len(child_session_lines) == 0
 
     @patch("gobby.cli.agents.get_agent_run_manager")
