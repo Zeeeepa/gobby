@@ -72,10 +72,9 @@ This document defines the implementation order across all Gobby planning documen
 | Merge Resolution             | ENHANCEMENTS Phase 2       |                                                             |
 | GitHub Integration           | ENHANCEMENTS Phase 4       |                                                             |
 | Linear Integration           | ENHANCEMENTS Phase 5       |                                                             |
-| Artifact Index               | ENHANCEMENTS Phase 7       |                                                             |
-| Enhanced Skill Routing       | ENHANCEMENTS Phase 8       |                                                             |
-| Semantic Memory Search       | ENHANCEMENTS Phase 9       |                                                             |
-| Autonomous Work Loop         | ENHANCEMENTS Phase 10      | 🔶 Remaining: multi-surface stop signals, stuck detection   |
+| Artifact Index               | ENHANCEMENTS Phase 6       |                                                             |
+| Enhanced Skill Routing       | ENHANCEMENTS Phase 7       |                                                             |
+| Semantic Memory Search       | ENHANCEMENTS Phase 8       |                                                             |
 | Web Dashboard                | UI Phases 1-7              |                                                             |
 | End-to-End Testing           | WORKFLOWS Phases 9-11      |                                                             |
 | Documentation                | All Plans, User Guides     |                                                             |
@@ -88,7 +87,7 @@ Remaining work can run in parallel if multiple contributors are available:
 
 ### Track A: Intelligence
 
-Artifact Index → Enhanced Skill Routing → Semantic Memory Search → Autonomous Work Loop
+Artifact Index → Enhanced Skill Routing → Semantic Memory Search
 
 ### Track B: Integrations
 
@@ -202,12 +201,12 @@ End-to-End Testing → Documentation (should be last)
 - [ ] Semantic memory search with sqlite-vec
 - **Value**: Agents that get smarter over time
 
-### "Autonomous Execution" 🔶
+### "Autonomous Execution" ✅
 
-- [x] Session chaining for context limits
-- [x] Task-driven work loops
-- [ ] Multi-surface stop signals (HTTP, MCP, WebSocket, CLI, slash commands)
-- [ ] Progress tracking with stuck detection
+- [x] Session chaining for context limits (`autonomous-loop.yaml` workflow)
+- [x] Task-driven work loops (`autonomous-task.yaml` workflow with exit conditions)
+- [x] Stop signals via HTTP (`POST /sessions/{id}/stop`), StopRegistry, and workflow actions
+- [x] Progress tracking (`ProgressTracker`) with stuck detection (`StuckDetector`)
 - **Value**: Hands-off task execution overnight
 
 ### "Visual Control Center"
