@@ -363,95 +363,70 @@ This document defines the implementation order across all Gobby planning documen
 | Self-Healing MCP | MCP_PROXY Phases 4-5 |
 | Hook Workflow Integration | HOOK_EXTENSIONS Phases 4-5 |
 | Feature Gap Coverage | MCP_PROXY, HOOK_EXT, MEMORY, HANDOFF gaps |
+| Session Management Tools | SESSION_MANAGEMENT |
+| Subagent System | SUBAGENTS Phases 1-4 |
 
-### Pending Sprints (Final Polish)
+### Remaining Sprints
 
-| Sprint | Focus | Plan Reference | Dependencies | Status |
-|--------|-------|----------------|--------------|--------|
-| 18 | End-to-End Testing | WORKFLOWS Phases 9-11, AUTONOMOUS_HANDOFF tests | Sprint 17 | Pending |
-| 19 | Documentation | All Plans, User Guides | Sprint 18 | Pending |
-
-### Post-MVP Sprints
-
-| Sprint | Focus | Plan Reference | Dependencies | Status |
-|--------|-------|----------------|--------------|--------|
-| 20 | Session Management Tools | SESSION_MANAGEMENT | Sprint 7.4 | ✅ Complete |
-| 21 | Task V2: Enhanced Validation | TASKS Phases 12.6-12.13 | Sprint 17 | 🔶 Mostly Complete |
-| 22 | Worktree Coordination | ENHANCEMENTS Phase 1 | Sprint 7.4 | 🔶 Mostly Complete |
-| 23 | Merge Resolution | ENHANCEMENTS Phase 2 | Sprint 22 | Pending |
-| 24 | GitHub Integration | ENHANCEMENTS Phase 4 | Sprint 3 | Pending |
-| 25 | Linear Integration | ENHANCEMENTS Phase 5 | Sprint 3 | Pending |
-| 26 | Artifact Index | ENHANCEMENTS Phase 7 | Sprint 7.4 | Pending |
-| 27 | Enhanced Skill Routing | ENHANCEMENTS Phase 8 | Sprint 7.6 | Pending |
-| 28 | Semantic Memory Search | ENHANCEMENTS Phase 9 | Sprint 7.5 | Pending |
-| 29 | Autonomous Work Loop | ENHANCEMENTS Phase 10 | Sprints 3, 7 | 🔶 Partial |
-| 30 | Subagent System | SUBAGENTS Phases 1-4 | Sprint 7 | ✅ Complete |
-| 31 | Web Dashboard | UI Phases 1-7 | Sprint 1 | Pending |
+| Focus | Plan Reference | Notes |
+|-------|----------------|-------|
+| Task V2: Enhanced Validation | TASKS Phases 12.6-12.13 | 🔶 Remaining: external validator agent spawning |
+| Worktree Coordination | ENHANCEMENTS Phase 1 | 🔶 Remaining: tiered merge conflict resolution |
+| Merge Resolution | ENHANCEMENTS Phase 2 | |
+| GitHub Integration | ENHANCEMENTS Phase 4 | |
+| Linear Integration | ENHANCEMENTS Phase 5 | |
+| Artifact Index | ENHANCEMENTS Phase 7 | |
+| Enhanced Skill Routing | ENHANCEMENTS Phase 8 | |
+| Semantic Memory Search | ENHANCEMENTS Phase 9 | |
+| Autonomous Work Loop | ENHANCEMENTS Phase 10 | 🔶 Remaining: multi-surface stop signals, stuck detection |
+| Web Dashboard | UI Phases 1-7 | |
+| End-to-End Testing | WORKFLOWS Phases 9-11 | |
+| Documentation | All Plans, User Guides | |
 
 ---
 
 ## Parallel Tracks
 
-Some sprints can run in parallel if multiple contributors are available:
+Remaining work can run in parallel if multiple contributors are available:
 
-### Track A: Core Platform
+### Track A: Intelligence
 
-Sprints 1 → 4 → 5 → 6 → 7 → 10 → 17 → 18 → 19
+Artifact Index → Enhanced Skill Routing → Semantic Memory Search → Autonomous Work Loop
 
-### Track B: Task System
+### Track B: Integrations
 
-Sprints 2 → 3 → 3.5 → 21 → 11 (Task V2 then workflow integration)
+Worktree Coordination → Merge Resolution → GitHub Integration → Linear Integration
 
-### Track C: Hook Extensions
+### Track C: Visualization
 
-Sprints 1 → 8 → 9 → 16 (joins Track A at Sprint 7)
+Web Dashboard (can start independently)
 
-### Track D: MCP Improvements
+### Track D: Final Polish
 
-Sprints 12 → 13 → 14 → 15 → 17 (metrics, lazy init, semantic search, self-healing, gap coverage)
-
-### Track E: Session & Memory
-
-Sprints 7.1 → 7.2 → 7.3 → 7.4 → 7.5 → 7.6 → 7.7 → 7.8 (Session Tracking feeds Memory System)
-
-### Track F: Post-MVP Intelligence
-
-Sprints 26 → 27 → 28 → 29 (Artifact Index → Skill Routing → Semantic Memory → Autonomous Loop)
-
-### Track G: Integrations
-
-Sprints 22 → 23 → 24 → 25 (Worktrees → Merge → GitHub → Linear)
-
-### Track H: Agent Orchestration
-
-Sprint 30 (Subagent System - can start after Sprint 7)
-
-### Track I: Visualization
-
-Sprint 31 (Web Dashboard - can start after Sprint 1)
+End-to-End Testing → Documentation (should be last)
 
 ---
 
-## Milestones
+## Completed Milestones
 
-### Milestone 1: "Observable Gobby" (Sprints 1-3) ✅ COMPLETE
+### "Observable Gobby" ✅
 
 - WebSocket event streaming
 - Full task system with CLI
 - **Value**: External tools can monitor sessions, agents can track work
 
-### Milestone 2: "Workflow Engine" (Sprints 4-7) ✅ COMPLETE
+### "Workflow Engine" ✅
 
-- [x] Workflow foundation (loader, state manager, engine)
-- [x] Session lifecycle hooks (session_start, session_end)
-- [x] Handoff actions (find_parent, restore_context, generate_handoff)
-- [x] LLM-powered session summaries with context handoff
-- [x] Context sources (previous_session_summary, handoff, artifacts, observations, workflow_state)
-- [x] Jinja2 templating for context injection
-- [x] All 7 built-in templates (session-handoff, plan-execute, react, plan-act-reflect, plan-to-tasks, architect, test-driven)
+- Workflow foundation (loader, state manager, engine)
+- Session lifecycle hooks (session_start, session_end)
+- Handoff actions (find_parent, restore_context, generate_handoff)
+- LLM-powered session summaries with context handoff
+- Context sources (previous_session_summary, handoff, artifacts, observations, workflow_state)
+- Jinja2 templating for context injection
+- All 7 built-in templates (session-handoff, plan-execute, react, plan-act-reflect, plan-to-tasks, architect, test-driven)
 - **Value**: Complete workflow templating system ready for step-based enforcement
 
-### Milestone 2.5: "Session Recording" (Sprints 7.1-7.4) ✅ COMPLETE
+### "Session Recording" ✅
 
 - Async JSONL message processing for all CLIs
 - Multi-CLI parsers (Claude, Gemini, Codex, Antigravity)
@@ -459,17 +434,17 @@ Sprint 31 (Web Dashboard - can start after Sprint 1)
 - Message search and query API
 - **Value**: Full conversation history for memory, analytics, and debugging
 
-### Milestone 3: "Memory-First Agents" (Sprints 7.5-7.8) ✅ COMPLETE
+### "Memory-First Agents" ✅
 
-- [x] Persistent memory across sessions (remember/recall/forget operations)
-- [x] Skill learning from session trajectories via LLM extraction
-- [x] MCP tools for memory and skill management (`gobby-memory`, `gobby-skills`)
-- [x] CLI commands for memory and skill operations
-- [x] JSONL sync for memories and skills (`.gobby/memories.jsonl`, `.gobby/skills/`)
-- [x] Cross-CLI memory sharing via unified storage
+- Persistent memory across sessions (remember/recall/forget operations)
+- Skill learning from session trajectories via LLM extraction
+- MCP tools for memory and skill management (`gobby-memory`, `gobby-skills`)
+- CLI commands for memory and skill operations
+- JSONL sync for memories and skills (`.gobby/memories.jsonl`, `.gobby/skills/`)
+- Cross-CLI memory sharing via unified storage
 - **Value**: Agents that learn and remember like coworkers, not contractors
 
-### Milestone 4: "Extensible Gobby" (Sprints 8-9) 🔶 MOSTLY COMPLETE
+### "Extensible Gobby" 🔶
 
 - [x] Webhook integrations (WebhookDispatcher with retry, blocking/non-blocking)
 - [x] Python plugin system (PluginLoader, HookPlugin, @hook_handler decorator)
@@ -477,88 +452,68 @@ Sprint 31 (Web Dashboard - can start after Sprint 1)
 - [ ] Webhook as workflow condition (conditional branching based on response) → gt-bbe107
 - **Value**: Infinite customization without forking
 
-### Milestone 5: "Smart MCP Proxy" (Sprints 12-15) ✅ COMPLETE
+### "Smart MCP Proxy" ✅
 
-- [x] Tool metrics and recommendations (Sprint 12) ✅
-- [x] Lazy server initialization (Sprint 13) ✅
-- [x] Semantic search with OpenAI embeddings (Sprint 14) ✅
-- [x] Self-healing fallbacks (Sprint 15) ✅
+- Tool metrics and recommendations
+- Lazy server initialization
+- Semantic search with OpenAI embeddings
+- Self-healing fallbacks
 - **Value**: Intelligent tool orchestration across MCP servers
-- **Done**: `search_tools` MCP/CLI, `recommend_tools` with semantic/hybrid/llm modes, `gobby-metrics` tools, LazyServerConnector with circuit breaker, ToolFallbackResolver, SchemaHashManager, `gobby mcp refresh` CLI
 
-### Milestone 6: "Production Ready" (Sprints 16-18) 🔶 PARTIAL
+### "Multi-Agent Orchestration" ✅
 
-- [x] Sprint 16: Hook workflow integration (WebhookAction, plugin actions/conditions, CLI)
-- [ ] Sprint 16 Polish: MCP tools, metrics, tests, docs (gt-84d0d2)
-- [ ] Sprint 18: Comprehensive testing, crash recovery
-- [ ] Sprint 19: Documentation
-- **Value**: Ship it!
+- `AgentExecutor` interface with multi-provider support
+- Claude, Gemini, Codex executors
+- MCP tools: `start_agent`, `stop_agent`, `list_agents`, `get_agent_status`
+- Context injection with `session_context` parameter
+- Agent depth tracking and safety limits
+- Terminal and headless spawn modes
+- **Value**: Orchestrate specialized agents with different models
 
 ---
 
-## Post-MVP Milestones
+## Remaining Milestones
 
-### Milestone 7: "Task System V2" (Sprint 21) 🔶 MOSTLY COMPLETE
+### "Task System V2" 🔶
 
-- [x] Commit linking infrastructure (migration, storage) ✅
-- [x] MCP tools: `link_commit`, `auto_link_commits`, `get_task_diff` ✅
-- [x] CLI commands: `gobby tasks commit link/unlink/auto/list` ✅
-- [x] Close_task uses commit-based diff when available ✅
-- [x] Validation history tracking ✅
-- [x] Structured issues with recurring detection ✅
-- [x] Build verification before LLM validation ✅
-- [x] External validator support ✅
-- [x] Escalation workflow ✅
+- [x] Commit linking infrastructure
+- [x] MCP tools: `link_commit`, `auto_link_commits`, `get_task_diff`
+- [x] CLI commands: `gobby tasks commit link/unlink/auto/list`
+- [x] Validation history tracking, structured issues, escalation workflow
+- [ ] External validator agent (spawn separate agent, not just different LLM)
 - **Value**: Production-grade QA loops with traceability
-- **Remaining**:
-  - [x] Git hook integration (via `gobby install`, pre-commit/post-merge hooks)
-  - [x] CLI commands: `gobby tasks reopen`, `gobby tasks dep add/remove/tree/cycles`, `gobby tasks ready/blocked`, `gobby tasks stats`
-  - [x] Agent instructions → Covered by gobby-skills system
-  - [ ] External validator agent (spawn separate agent, not just different LLM) → gt-4881c8
-  - [ ] GitHub Issues sync (moved to Sprint 24)
 
-### Milestone 8: "Worktree Orchestration" (Sprints 22-23) 🔶 MOSTLY COMPLETE
+### "Worktree Orchestration" 🔶
 
-- [x] Daemon-managed worktree registry ✅
-- [x] Agent spawning in worktrees (`spawn_agent_in_worktree`) ✅
-- [x] Stale worktree detection and cleanup (`detect_stale_worktrees`, `cleanup_stale_worktrees`) ✅
-- [x] MCP tools: `create_worktree`, `list_worktrees`, `get_worktree`, `update_worktree_status` ✅
+- [x] Daemon-managed worktree registry
+- [x] Agent spawning in worktrees (`spawn_agent_in_worktree`)
+- [x] Stale worktree detection and cleanup
 - [ ] Tiered merge conflict resolution (Auto-Claude inspired)
 - **Value**: True parallel development with multiple agents
 
-### Milestone 9: "External Integrations" (Sprints 24-25)
+### "External Integrations"
 
 - [ ] GitHub Issues ↔ gobby-tasks sync
 - [ ] PR creation from completed tasks
 - [ ] Linear Issues ↔ gobby-tasks sync
 - **Value**: Bridge between local AI development and team workflows
 
-### Milestone 10: "Intelligence Layer" (Sprints 26-28)
+### "Intelligence Layer"
 
-- [ ] Artifact Index with FTS5 (Continuous-Claude v2 inspired)
-- [ ] Enhanced skill routing: USE_EXISTING, IMPROVE, CREATE_NEW, COMPOSE (SkillForge inspired)
-- [ ] Semantic memory search with sqlite-vec (KnowNote inspired)
+- [ ] Artifact Index with FTS5
+- [ ] Enhanced skill routing: USE_EXISTING, IMPROVE, CREATE_NEW, COMPOSE
+- [ ] Semantic memory search with sqlite-vec
 - **Value**: Agents that get smarter over time
 
-### Milestone 11: "Autonomous Execution" (Sprint 29) 🔶 PARTIAL
+### "Autonomous Execution" 🔶
 
+- [x] Session chaining for context limits
+- [x] Task-driven work loops
 - [ ] Multi-surface stop signals (HTTP, MCP, WebSocket, CLI, slash commands)
-- [ ] Progress tracking with stuck detection (3 layers)
-- [x] Session chaining for context limits ✅
-- [x] Task-driven work loops ✅
+- [ ] Progress tracking with stuck detection
 - **Value**: Hands-off task execution overnight
 
-### Milestone 12: "Multi-Agent Orchestration" (Sprint 30) ✅ COMPLETE
-
-- [x] `AgentExecutor` interface with multi-provider support ✅
-- [x] Claude, Gemini, Codex executors ✅
-- [x] MCP tools: `start_agent`, `stop_agent`, `list_agents`, `get_agent_status` ✅
-- [x] Context injection with `session_context` parameter ✅
-- [x] Agent depth tracking and safety limits ✅
-- [x] Terminal and headless spawn modes ✅
-- **Value**: Orchestrate specialized agents with different models
-
-### Milestone 13: "Visual Control Center" (Sprint 31)
+### "Visual Control Center"
 
 - [ ] React + Vite web dashboard
 - [ ] Real-time WebSocket updates
@@ -567,32 +522,22 @@ Sprint 31 (Web Dashboard - can start after Sprint 1)
 - [ ] Memory & Skills browser
 - **Value**: See everything happening across all agents
 
----
+### "Production Ready" (Final)
 
-## Quick Start Recommendations
-
-**If you want immediate value**: Start with Sprint 1 (WebSocket broadcasting) - unlocks real-time monitoring.
-
-**If you want agent productivity**: Start with Sprints 2-3 (Task system) - agents can track and manage work.
-
-**If you want deterministic agents**: Start with Sprints 4-7 (Workflow engine) - enforce plan-act-reflect patterns.
-
-**If you want learning agents**: Start with Sprints 7.5-7.8 (Memory system) - agents that remember and improve.
-
-**If you have performance issues**: Start with Sprints 12-13 (Tool metrics + lazy init) - faster startup, better tool selection.
+- [ ] End-to-end testing, crash recovery
+- [ ] Documentation and user guides
+- **Value**: Ship it!
 
 ---
 
-## Post-MVP Recommendations
+## What's Next Recommendations
 
-**If you want parallel development**: Start with Sprints 22-23 (Worktree orchestration) - multiple agents working simultaneously.
+**If you want parallel development**: Worktree Orchestration - multiple agents working simultaneously.
 
-**If you want better QA**: Start with Sprint 21 (Task V2) - commit linking and enhanced validation loops.
+**If you want better QA**: Task V2 - commit linking and enhanced validation loops.
 
-**If you want smarter context**: Start with Sprint 26 (Artifact Index) - searchable session history for better handoffs.
+**If you want smarter context**: Artifact Index - searchable session history for better handoffs.
 
-**If you want autonomous agents**: Start with Sprint 29 (Autonomous Loop) - hands-off task execution.
+**If you want autonomous agents**: Autonomous Work Loop - hands-off task execution.
 
-**If you want multi-model workflows**: Start with Sprint 30 (Subagent System) - orchestrate Claude, Gemini, Codex together.
-
-**If you want visibility**: Start with Sprint 31 (Web Dashboard) - see everything happening in real-time.
+**If you want visibility**: Web Dashboard - see everything happening in real-time.
