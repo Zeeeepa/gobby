@@ -33,7 +33,9 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+from gobby.autonomous.progress_tracker import ProgressTracker
 from gobby.autonomous.stop_registry import StopRegistry
+from gobby.autonomous.stuck_detector import StuckDetector
 from gobby.hooks.event_handlers import EventHandlers
 from gobby.hooks.events import HookEvent, HookEventType, HookResponse
 from gobby.hooks.health_monitor import HealthMonitor
@@ -186,8 +188,12 @@ class HookManager:
         self._agent_run_manager = LocalAgentRunManager(self._database)
         self._worktree_manager = LocalWorktreeManager(self._database)
 
-        # Initialize Stop Registry for autonomous execution
+        # Initialize autonomous execution components
         self._stop_registry = StopRegistry(self._database)
+        self._progress_tracker = ProgressTracker(self._database)
+        self._stuck_detector = StuckDetector(
+            self._database, progress_tracker=self._progress_tracker
+        )
 
         # Use config or defaults
         memory_config = (
@@ -255,6 +261,8 @@ class HookManager:
             task_manager=self._task_manager,
             session_task_manager=self._session_task_manager,
             stop_registry=self._stop_registry,
+            progress_tracker=self._progress_tracker,
+            stuck_detector=self._stuck_detector,
         )
         self._workflow_engine = WorkflowEngine(
             loader=self._workflow_loader,

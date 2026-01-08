@@ -6,6 +6,15 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager  # noqa: F401
 from gobby.workflows.artifact_actions import capture_artifact, read_artifact
+from gobby.workflows.autonomous_actions import (
+    detect_stuck,
+    detect_task_loop,
+    get_progress_summary,
+    record_progress,
+    record_task_selection,
+    start_progress_tracking,
+    stop_progress_tracking,
+)
 from gobby.workflows.context_actions import (
     extract_handoff_context,
     format_handoff_as_markdown,
@@ -106,6 +115,8 @@ class ActionExecutor:
         task_manager: Any | None = None,
         session_task_manager: Any | None = None,
         stop_registry: Any | None = None,
+        progress_tracker: Any | None = None,
+        stuck_detector: Any | None = None,
     ):
         self.db = db
         self.session_manager = session_manager
@@ -121,6 +132,8 @@ class ActionExecutor:
         self.task_manager = task_manager
         self.session_task_manager = session_task_manager
         self.stop_registry = stop_registry
+        self.progress_tracker = progress_tracker
+        self.stuck_detector = stuck_detector
         self._handlers: dict[str, ActionHandler] = {}
         self._register_defaults()
 
@@ -229,6 +242,14 @@ class ActionExecutor:
         self.register("check_stop_signal", self._handle_check_stop_signal)
         self.register("request_stop", self._handle_request_stop)
         self.register("clear_stop_signal", self._handle_clear_stop_signal)
+        # Autonomous execution actions
+        self.register("start_progress_tracking", self._handle_start_progress_tracking)
+        self.register("stop_progress_tracking", self._handle_stop_progress_tracking)
+        self.register("record_progress", self._handle_record_progress)
+        self.register("detect_task_loop", self._handle_detect_task_loop)
+        self.register("detect_stuck", self._handle_detect_stuck)
+        self.register("record_task_selection", self._handle_record_task_selection)
+        self.register("get_progress_summary", self._handle_get_progress_summary)
 
     async def execute(
         self, action_type: str, context: ActionContext, **kwargs: Any
@@ -1087,4 +1108,79 @@ class ActionExecutor:
         return clear_stop_signal(
             stop_registry=self.stop_registry,
             session_id=target_session,
+        )
+
+    # --- Autonomous Execution Actions ---
+
+    async def _handle_start_progress_tracking(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Start progress tracking for a session."""
+        return start_progress_tracking(
+            progress_tracker=self.progress_tracker,
+            session_id=context.session_id,
+            state=context.state,
+        )
+
+    async def _handle_stop_progress_tracking(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Stop progress tracking for a session."""
+        return stop_progress_tracking(
+            progress_tracker=self.progress_tracker,
+            session_id=context.session_id,
+            state=context.state,
+            keep_data=kwargs.get("keep_data", False),
+        )
+
+    async def _handle_record_progress(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Record a progress event."""
+        return record_progress(
+            progress_tracker=self.progress_tracker,
+            session_id=context.session_id,
+            progress_type=kwargs.get("progress_type", "tool_call"),
+            tool_name=kwargs.get("tool_name"),
+            details=kwargs.get("details"),
+        )
+
+    async def _handle_detect_task_loop(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Detect task selection loops."""
+        return detect_task_loop(
+            stuck_detector=self.stuck_detector,
+            session_id=context.session_id,
+            state=context.state,
+        )
+
+    async def _handle_detect_stuck(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Run full stuck detection (all layers)."""
+        return detect_stuck(
+            stuck_detector=self.stuck_detector,
+            session_id=context.session_id,
+            state=context.state,
+        )
+
+    async def _handle_record_task_selection(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Record a task selection for loop detection."""
+        return record_task_selection(
+            stuck_detector=self.stuck_detector,
+            session_id=context.session_id,
+            task_id=kwargs.get("task_id", ""),
+            context=kwargs.get("context"),
+        )
+
+    async def _handle_get_progress_summary(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Get a summary of progress for a session."""
+        return get_progress_summary(
+            progress_tracker=self.progress_tracker,
+            session_id=context.session_id,
         )

@@ -896,6 +896,23 @@ MIGRATIONS: list[tuple[int, str, str]] = [
             WHERE is_high_value = 1;
         """,
     ),
+    (
+        39,
+        "Create task_selection_history table for stuck detection",
+        """
+        CREATE TABLE IF NOT EXISTS task_selection_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            task_id TEXT NOT NULL,
+            selected_at TEXT NOT NULL,
+            context TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_task_selection_session
+            ON task_selection_history(session_id, selected_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_task_selection_task
+            ON task_selection_history(session_id, task_id, selected_at DESC);
+        """,
+    ),
 ]
 
 

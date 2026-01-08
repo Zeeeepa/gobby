@@ -13,6 +13,11 @@ from gobby.autonomous.progress_tracker import (
     ProgressType,
 )
 from gobby.autonomous.stop_registry import StopRegistry, StopSignal
+from gobby.autonomous.stuck_detector import (
+    StuckDetectionResult,
+    StuckDetector,
+    TaskSelectionEvent,
+)
 
 __all__ = [
     "ProgressEvent",
@@ -21,4 +26,7 @@ __all__ = [
     "ProgressType",
     "StopRegistry",
     "StopSignal",
+    "StuckDetectionResult",
+    "StuckDetector",
+    "TaskSelectionEvent",
 ]
