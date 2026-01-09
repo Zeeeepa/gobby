@@ -12,7 +12,6 @@ import pytest
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 
-
 # =============================================================================
 # Import Tests
 # =============================================================================
@@ -232,11 +231,15 @@ class TestMergeResolutionDataclass:
         db = LocalDatabase(db_path)
         run_migrations(db)
 
-        # Create prerequisite worktree
+        # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         # Insert test data
@@ -314,9 +317,13 @@ class TestMergeConflictDataclass:
 
         # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
         db.execute(
             """INSERT INTO merge_resolutions (id, worktree_id, source_branch, target_branch, status, created_at, updated_at)
@@ -375,11 +382,15 @@ class TestMergeResolutionManagerCreate:
         db = LocalDatabase(db_path)
         run_migrations(db)
 
-        # Create prerequisite worktree
+        # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -404,11 +415,15 @@ class TestMergeResolutionManagerCreate:
         db = LocalDatabase(db_path)
         run_migrations(db)
 
-        # Create prerequisite worktree
+        # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -437,11 +452,15 @@ class TestMergeResolutionManagerGet:
         db = LocalDatabase(db_path)
         run_migrations(db)
 
-        # Create prerequisite worktree
+        # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -482,11 +501,15 @@ class TestMergeResolutionManagerUpdate:
         db = LocalDatabase(db_path)
         run_migrations(db)
 
-        # Create prerequisite worktree
+        # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -514,11 +537,15 @@ class TestMergeResolutionManagerUpdate:
         db = LocalDatabase(db_path)
         run_migrations(db)
 
-        # Create prerequisite worktree
+        # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -548,11 +575,15 @@ class TestMergeResolutionManagerDelete:
         db = LocalDatabase(db_path)
         run_migrations(db)
 
-        # Create prerequisite worktree
+        # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -599,9 +630,13 @@ class TestMergeResolutionManagerCreateConflict:
 
         # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -637,9 +672,13 @@ class TestMergeResolutionManagerUpdateConflict:
 
         # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -684,9 +723,13 @@ class TestConflictStateTransitions:
 
         # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -722,9 +765,13 @@ class TestConflictStateTransitions:
 
         # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -754,9 +801,13 @@ class TestConflictStateTransitions:
 
         # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -795,9 +846,13 @@ class TestQueryResolutionsByFile:
 
         # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -839,9 +894,13 @@ class TestQueryResolutionsByBranch:
 
         # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -871,9 +930,13 @@ class TestQueryResolutionsByBranch:
 
         # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -907,9 +970,13 @@ class TestQueryResolutionsByStatus:
 
         # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -941,9 +1008,13 @@ class TestQueryResolutionsByStatus:
 
         # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -992,9 +1063,13 @@ class TestResolutionHistoryTracking:
 
         # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -1009,8 +1084,9 @@ class TestResolutionHistoryTracking:
 
     def test_update_changes_updated_at(self, tmp_path):
         """Test that updating a resolution changes updated_at."""
-        from gobby.storage.merge_resolutions import MergeResolutionManager
         import time
+
+        from gobby.storage.merge_resolutions import MergeResolutionManager
 
         db_path = tmp_path / "update_timestamp.db"
         db = LocalDatabase(db_path)
@@ -1018,9 +1094,13 @@ class TestResolutionHistoryTracking:
 
         # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -1049,9 +1129,13 @@ class TestResolutionHistoryTracking:
 
         # Create prerequisites
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test", "/tmp/wt", "feature", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature", "/tmp/wt", "active"),
         )
 
         manager = MergeResolutionManager(db)
@@ -1088,14 +1172,18 @@ class TestResolutionHistoryTracking:
 
         # Create multiple worktrees
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-1", "proj-1", "test1", "/tmp/wt1", "feature1", "active"),
+            "INSERT INTO projects (id, name) VALUES (?, ?)",
+            ("proj-1", "Test Project"),
         )
         db.execute(
-            """INSERT INTO worktrees (id, project_id, name, path, branch, status, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
-            ("wt-2", "proj-1", "test2", "/tmp/wt2", "feature2", "active"),
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-1", "proj-1", "feature1", "/tmp/wt1", "active"),
+        )
+        db.execute(
+            """INSERT INTO worktrees (id, project_id, branch_name, worktree_path, status, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("wt-2", "proj-1", "feature2", "/tmp/wt2", "active"),
         )
 
         manager = MergeResolutionManager(db)

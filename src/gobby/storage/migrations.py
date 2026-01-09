@@ -949,6 +949,40 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE VIRTUAL TABLE IF NOT EXISTS session_artifacts_fts USING fts5(id UNINDEXED, content);
         """,
     ),
+    (
+        43,
+        "Create merge_resolutions and merge_conflicts tables",
+        """
+        CREATE TABLE IF NOT EXISTS merge_resolutions (
+            id TEXT PRIMARY KEY,
+            worktree_id TEXT NOT NULL REFERENCES worktrees(id) ON DELETE CASCADE,
+            source_branch TEXT NOT NULL,
+            target_branch TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            tier_used TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_merge_resolutions_worktree ON merge_resolutions(worktree_id);
+        CREATE INDEX IF NOT EXISTS idx_merge_resolutions_status ON merge_resolutions(status);
+        CREATE INDEX IF NOT EXISTS idx_merge_resolutions_source_branch ON merge_resolutions(source_branch);
+        CREATE INDEX IF NOT EXISTS idx_merge_resolutions_target_branch ON merge_resolutions(target_branch);
+        CREATE TABLE IF NOT EXISTS merge_conflicts (
+            id TEXT PRIMARY KEY,
+            resolution_id TEXT NOT NULL REFERENCES merge_resolutions(id) ON DELETE CASCADE,
+            file_path TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            ours_content TEXT,
+            theirs_content TEXT,
+            resolved_content TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_merge_conflicts_resolution ON merge_conflicts(resolution_id);
+        CREATE INDEX IF NOT EXISTS idx_merge_conflicts_file_path ON merge_conflicts(file_path);
+        CREATE INDEX IF NOT EXISTS idx_merge_conflicts_status ON merge_conflicts(status);
+        """,
+    ),
 ]
 
 
