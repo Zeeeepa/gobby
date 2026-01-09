@@ -1919,3 +1919,243 @@ diff --git a/src/cache.py b/src/cache.py
         # This could be via a "Priority Files" section or similar indicator
         assert "important.py" in prompt
         assert "related.py" in prompt
+
+
+class TestSymbolContextInValidationPrompt:
+    """Tests for including symbol context in validation prompts.
+
+    These tests verify that the external validator extracts function/class
+    names from task descriptions and includes them in the validation prompt
+    to help the validator focus on key symbols.
+
+    Task: gt-dd9bf8
+    """
+
+    @pytest.fixture
+    def validation_config(self):
+        """Create a validation config for symbol context tests."""
+        return TaskValidationConfig(
+            enabled=True,
+            provider="claude",
+            model="claude-haiku-4-5",
+            use_external_validator=True,
+        )
+
+    @pytest.fixture
+    def mock_llm_service(self):
+        """Create a mock LLM service."""
+        from gobby.llm import LLMProvider, LLMService
+
+        service = MagicMock(spec=LLMService)
+        provider = AsyncMock(spec=LLMProvider)
+        service.get_provider.return_value = provider
+        provider.generate_text.return_value = '{"status": "valid", "issues": []}'
+        return service
+
+    @pytest.mark.asyncio
+    async def test_symbol_context_includes_key_symbols_list(
+        self, validation_config, mock_llm_service
+    ):
+        """Test that when symbols extracted, prompt includes 'Key symbols to verify' list."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        task = {
+            "id": "gt-symbol-list",
+            "title": "Fix `validate_input()` function",
+            "description": "The `validate_input()` function and `InputValidator` class need updates.",
+            "validation_criteria": "- [ ] validate_input() handles edge cases",
+        }
+
+        await run_external_validation(
+            config=validation_config,
+            llm_service=mock_llm_service,
+            task=task,
+            changes_context="diff --git a/validator.py b/validator.py\n+def validate_input():\n",
+        )
+
+        call_kwargs = mock_llm_service.get_provider.return_value.generate_text.call_args.kwargs
+        prompt = call_kwargs["prompt"]
+
+        # Prompt should include the extracted symbols
+        assert "validate_input" in prompt
+        assert "InputValidator" in prompt
+        # Should have some indication these are key symbols
+        assert "symbol" in prompt.lower() or "function" in prompt.lower() or "class" in prompt.lower()
+
+    @pytest.mark.asyncio
+    async def test_symbol_context_instructs_verify_existence(
+        self, validation_config, mock_llm_service
+    ):
+        """Test that prompt instructs validator to check functions/classes exist."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        task = {
+            "id": "gt-verify-exist",
+            "title": "Implement `process_data()` function",
+            "description": "Add `process_data()` and `DataProcessor` class to handle transformations.",
+            "validation_criteria": "- [ ] process_data() implemented",
+        }
+
+        await run_external_validation(
+            config=validation_config,
+            llm_service=mock_llm_service,
+            task=task,
+            changes_context="diff --git a/processor.py b/processor.py\n+class DataProcessor:\n+    def process_data(self):\n",
+        )
+
+        call_kwargs = mock_llm_service.get_provider.return_value.generate_text.call_args.kwargs
+        prompt = call_kwargs["prompt"]
+
+        # Should include the symbols in some form
+        assert "process_data" in prompt
+        assert "DataProcessor" in prompt
+
+    @pytest.mark.asyncio
+    async def test_symbol_context_extracts_from_validation_criteria(
+        self, validation_config, mock_llm_service
+    ):
+        """Test that symbols from validation_criteria field are also included."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        task = {
+            "id": "gt-criteria-symbols",
+            "title": "Update authentication",
+            "description": "Improve the auth flow.",
+            "validation_criteria": "- [ ] `authenticate_user()` returns token\n- [ ] `TokenValidator` class exists",
+        }
+
+        await run_external_validation(
+            config=validation_config,
+            llm_service=mock_llm_service,
+            task=task,
+            changes_context="diff --git a/auth.py b/auth.py\n+changes",
+        )
+
+        call_kwargs = mock_llm_service.get_provider.return_value.generate_text.call_args.kwargs
+        prompt = call_kwargs["prompt"]
+
+        # Symbols from validation_criteria should be extracted
+        assert "authenticate_user" in prompt
+        assert "TokenValidator" in prompt
+
+    @pytest.mark.asyncio
+    async def test_symbol_context_empty_symbols_no_extra_sections(
+        self, validation_config, mock_llm_service
+    ):
+        """Test that empty symbols list doesn't add extra prompt sections."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        # Task without any backtick-quoted symbols
+        task = {
+            "id": "gt-no-symbols",
+            "title": "Improve documentation",
+            "description": "Add more comments to explain the code.",
+            "validation_criteria": "- [ ] Comments added to complex functions",
+        }
+
+        await run_external_validation(
+            config=validation_config,
+            llm_service=mock_llm_service,
+            task=task,
+            changes_context="diff --git a/main.py b/main.py\n+# comment",
+        )
+
+        call_kwargs = mock_llm_service.get_provider.return_value.generate_text.call_args.kwargs
+        prompt = call_kwargs["prompt"]
+
+        # Should NOT have a "Key symbols" section when no symbols found
+        assert "key symbols to verify" not in prompt.lower()
+        assert "prioritized symbols" not in prompt.lower()
+
+    @pytest.mark.asyncio
+    async def test_symbol_context_with_spawn_mode(self):
+        """Test that spawn mode validation also includes symbol context."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        mock_spawner = MagicMock()
+        mock_spawner.start_agent = AsyncMock(
+            return_value={"success": True, "agent_id": "test", "status": "running"}
+        )
+        mock_spawner.get_agent_result = AsyncMock(
+            return_value={
+                "success": True,
+                "status": "completed",
+                "output": '{"status": "valid", "issues": []}',
+            }
+        )
+
+        config = TaskValidationConfig(
+            enabled=True,
+            provider="claude",
+            model="claude-haiku-4-5",
+            use_external_validator=True,
+            external_validator_mode="spawn",
+        )
+
+        task = {
+            "id": "gt-spawn-symbols",
+            "title": "Add `calculate_total()` function",
+            "description": "Implement `calculate_total()` using the `PriceCalculator` class.",
+            "validation_criteria": "- [ ] calculate_total() works correctly",
+        }
+
+        await run_external_validation(
+            config=config,
+            llm_service=None,
+            task=task,
+            changes_context="diff content",
+            agent_spawner=mock_spawner,
+        )
+
+        call_kwargs = mock_spawner.start_agent.call_args.kwargs
+        prompt = call_kwargs.get("prompt", "")
+
+        # Symbols should be in the spawn prompt too
+        assert "calculate_total" in prompt
+        assert "PriceCalculator" in prompt
+
+    @pytest.mark.asyncio
+    async def test_symbol_context_with_agent_mode(self, validation_config):
+        """Test that agent mode validation also includes symbol context."""
+        from gobby.llm.executor import AgentResult
+        from gobby.tasks.external_validator import run_external_validation
+
+        mock_runner = MagicMock()
+        mock_runner.run = AsyncMock(
+            return_value=AgentResult(
+                output='{"status": "valid", "issues": []}',
+                status="completed",
+                turns_used=1,
+            )
+        )
+
+        config = TaskValidationConfig(
+            enabled=True,
+            provider="claude",
+            model="claude-haiku-4-5",
+            use_external_validator=True,
+            external_validator_mode="agent",
+        )
+
+        task = {
+            "id": "gt-agent-symbols",
+            "title": "Refactor `parse_config()`",
+            "description": "Update `parse_config()` to use the `ConfigParser` class.",
+            "validation_criteria": "- [ ] parse_config() uses ConfigParser",
+        }
+
+        await run_external_validation(
+            config=config,
+            llm_service=None,
+            task=task,
+            changes_context="diff content",
+            agent_runner=mock_runner,
+        )
+
+        call_args = mock_runner.run.call_args
+        agent_config = call_args[0][0]
+        prompt = agent_config.prompt
+
+        # Symbols should be in the agent prompt
+        assert "parse_config" in prompt
+        assert "ConfigParser" in prompt
