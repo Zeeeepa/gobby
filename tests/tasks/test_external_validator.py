@@ -1369,3 +1369,312 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
 
         # Task title should be in prompt
         assert "user registration" in prompt.lower() or "Implement user registration" in prompt
+
+
+class TestQALoopIntegration:
+    """Tests for QA loop integration with external validator.
+
+    TDD Red Phase: These tests verify that the external validator properly
+    integrates with the QA loop (validation -> feedback -> retry cycle).
+
+    Task: gt-4706c9
+    """
+
+    @pytest.fixture
+    def validation_config(self):
+        """Create a validation config for QA loop tests."""
+        return TaskValidationConfig(
+            enabled=True,
+            provider="claude",
+            model="claude-haiku-4-5",
+            use_external_validator=True,
+            external_validator_mode="spawn",
+        )
+
+    @pytest.fixture
+    def mock_agent_spawner(self):
+        """Mock agent spawner returning successful spawn."""
+        spawner = MagicMock()
+        spawner.start_agent = AsyncMock(
+            return_value={
+                "success": True,
+                "agent_id": "agent-qa-123",
+                "status": "running",
+            }
+        )
+        spawner.get_agent_result = AsyncMock()
+        return spawner
+
+    @pytest.mark.asyncio
+    async def test_returns_result_qa_loop_can_process(
+        self, validation_config, mock_agent_spawner
+    ):
+        """Test that external validator returns ExternalValidationResult processable by QA loop."""
+        from gobby.tasks.external_validator import ExternalValidationResult, run_external_validation
+
+        mock_agent_spawner.get_agent_result.return_value = {
+            "success": True,
+            "status": "completed",
+            "output": '{"status": "valid", "summary": "All good", "issues": []}',
+        }
+
+        task = {
+            "id": "gt-qa-test",
+            "title": "QA test task",
+            "validation_criteria": "- [ ] Works",
+        }
+
+        result = await run_external_validation(
+            config=validation_config,
+            llm_service=None,
+            task=task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        # Result should be an ExternalValidationResult
+        assert isinstance(result, ExternalValidationResult)
+
+        # Should have required fields for QA loop processing
+        assert hasattr(result, "status")
+        assert hasattr(result, "summary")
+        assert hasattr(result, "issues")
+        assert result.status in ("valid", "invalid", "error", "skipped", "pending")
+
+    @pytest.mark.asyncio
+    async def test_validation_issues_formatted_for_feedback(
+        self, validation_config, mock_agent_spawner
+    ):
+        """Test that validation issues are formatted for feedback to implementation agent."""
+        from gobby.tasks.external_validator import run_external_validation
+        from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
+
+        mock_agent_spawner.get_agent_result.return_value = {
+            "success": True,
+            "status": "completed",
+            "output": """{
+                "status": "invalid",
+                "summary": "Tests are failing",
+                "issues": [
+                    {
+                        "type": "test_failure",
+                        "severity": "blocker",
+                        "title": "Unit test fails",
+                        "location": "tests/test_auth.py:45",
+                        "details": "AssertionError: Expected True, got False",
+                        "suggested_fix": "Fix the login method to return correct boolean"
+                    }
+                ]
+            }""",
+        }
+
+        task = {
+            "id": "gt-feedback-test",
+            "title": "Task needing feedback",
+            "validation_criteria": "- [ ] Tests pass",
+        }
+
+        result = await run_external_validation(
+            config=validation_config,
+            llm_service=None,
+            task=task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        # Issues should be properly parsed
+        assert result.status == "invalid"
+        assert len(result.issues) >= 1
+
+        issue = result.issues[0]
+        # Issues should have actionable information
+        assert issue.title is not None
+        assert len(issue.title) > 0
+
+    @pytest.mark.asyncio
+    async def test_retry_behavior_on_validation_failure(
+        self, validation_config, mock_agent_spawner
+    ):
+        """Test that validation failure allows retry (doesn't raise exception)."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        # First call: failure
+        mock_agent_spawner.get_agent_result.return_value = {
+            "success": True,
+            "status": "completed",
+            "output": '{"status": "invalid", "summary": "Missing tests", "issues": [{"type": "acceptance_gap", "severity": "major", "title": "No tests"}]}',
+        }
+
+        task = {
+            "id": "gt-retry-test",
+            "title": "Retry test task",
+            "validation_criteria": "- [ ] Has tests",
+        }
+
+        # First validation - should return invalid without raising
+        result1 = await run_external_validation(
+            config=validation_config,
+            llm_service=None,
+            task=task,
+            changes_context="diff v1",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        assert result1.status == "invalid"
+        assert len(result1.issues) >= 1
+
+        # Second call: success after retry
+        mock_agent_spawner.get_agent_result.return_value = {
+            "success": True,
+            "status": "completed",
+            "output": '{"status": "valid", "summary": "Tests added", "issues": []}',
+        }
+
+        # Second validation after "fix"
+        result2 = await run_external_validation(
+            config=validation_config,
+            llm_service=None,
+            task=task,
+            changes_context="diff v2 with tests",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        assert result2.status == "valid"
+        assert len(result2.issues) == 0
+
+    @pytest.mark.asyncio
+    async def test_passed_validation_signals_completion(
+        self, validation_config, mock_agent_spawner
+    ):
+        """Test that passed validation returns status that signals task completion."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        mock_agent_spawner.get_agent_result.return_value = {
+            "success": True,
+            "status": "completed",
+            "output": '{"status": "valid", "summary": "All criteria satisfied", "issues": []}',
+        }
+
+        task = {
+            "id": "gt-complete-test",
+            "title": "Completion test",
+            "validation_criteria": "- [ ] Feature works",
+        }
+
+        result = await run_external_validation(
+            config=validation_config,
+            llm_service=None,
+            task=task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        # Valid status should signal completion
+        assert result.status == "valid"
+        assert result.issues == []
+        # Summary should confirm success
+        assert "satisfied" in result.summary.lower() or len(result.summary) > 0
+
+    @pytest.mark.asyncio
+    async def test_timeout_handling_doesnt_break_qa_loop(
+        self, validation_config, mock_agent_spawner
+    ):
+        """Test that timeout handling returns error result instead of raising."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        # Simulate timeout
+        mock_agent_spawner.get_agent_result.return_value = {
+            "success": False,
+            "status": "timeout",
+            "error": "Agent execution timed out after 120s",
+        }
+
+        task = {
+            "id": "gt-timeout-test",
+            "title": "Timeout test",
+            "validation_criteria": "- [ ] Completes",
+        }
+
+        # Should not raise exception
+        result = await run_external_validation(
+            config=validation_config,
+            llm_service=None,
+            task=task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        # Should return error status, not raise
+        assert result.status == "error"
+        assert "timed out" in result.summary.lower() or "timeout" in result.summary.lower()
+        # QA loop can decide to retry or escalate based on this
+
+    @pytest.mark.asyncio
+    async def test_error_result_includes_error_details(
+        self, validation_config, mock_agent_spawner
+    ):
+        """Test that error results include error details for debugging."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        mock_agent_spawner.get_agent_result.return_value = {
+            "success": False,
+            "status": "error",
+            "error": "Agent process crashed unexpectedly",
+        }
+
+        task = {
+            "id": "gt-error-test",
+            "title": "Error test",
+            "validation_criteria": "- [ ] Works",
+        }
+
+        result = await run_external_validation(
+            config=validation_config,
+            llm_service=None,
+            task=task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        assert result.status == "error"
+        # Error field should contain details
+        assert result.error is not None or "error" in result.summary.lower()
+
+    @pytest.mark.asyncio
+    async def test_multiple_issues_all_included(
+        self, validation_config, mock_agent_spawner
+    ):
+        """Test that multiple validation issues are all included in result."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        mock_agent_spawner.get_agent_result.return_value = {
+            "success": True,
+            "status": "completed",
+            "output": """{
+                "status": "invalid",
+                "summary": "Multiple issues found",
+                "issues": [
+                    {"type": "acceptance_gap", "severity": "major", "title": "Missing login feature"},
+                    {"type": "test_failure", "severity": "blocker", "title": "Auth tests fail"},
+                    {"type": "lint_error", "severity": "minor", "title": "Unused import"}
+                ]
+            }""",
+        }
+
+        task = {
+            "id": "gt-multi-issue",
+            "title": "Multi-issue task",
+            "validation_criteria": "- [ ] Login works\n- [ ] Tests pass\n- [ ] Clean code",
+        }
+
+        result = await run_external_validation(
+            config=validation_config,
+            llm_service=None,
+            task=task,
+            changes_context="diff",
+            agent_spawner=mock_agent_spawner,
+        )
+
+        # All issues should be included
+        assert result.status == "invalid"
+        assert len(result.issues) >= 3
