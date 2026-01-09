@@ -491,8 +491,8 @@ def test_todowrite_missing_content_or_status():
     assert ctx.todo_state[2]["status"] == "pending"
 
 
-def test_recent_activity_limited_to_5():
-    """Test that recent_activity is limited to last 5 tool calls."""
+def test_recent_activity_limited_to_10():
+    """Test that recent_activity is limited to last 10 tool calls."""
     turns = []
     for i in range(20):
         turns.append(
@@ -509,9 +509,10 @@ def test_recent_activity_limited_to_5():
     analyzer = TranscriptAnalyzer()
     ctx = analyzer.extract_handoff_context(turns)
 
-    assert len(ctx.recent_activity) == 5
-    # Should be the last 5 (reverse order: 19, 18, 17, 16, 15)
+    assert len(ctx.recent_activity) == 10
+    # Should be the last 10 (reverse order: 19, 18, ..., 10)
     assert "Called Tool19" in ctx.recent_activity[0]
+    assert "Called Tool10" in ctx.recent_activity[9]
     assert "Called Tool15" in ctx.recent_activity[4]
 
 

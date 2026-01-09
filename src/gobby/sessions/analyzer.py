@@ -52,7 +52,7 @@ class TranscriptAnalyzer:
         self.parser = parser or ClaudeTranscriptParser()
 
     def extract_handoff_context(
-        self, turns: list[dict[str, Any]], max_turns: int = 100
+        self, turns: list[dict[str, Any]], max_turns: int = 150
     ) -> HandoffContext:
         """
         Extract context for autonomous handoff.
@@ -124,12 +124,12 @@ class TranscriptAnalyzer:
         # 3. Extract TodoWrite state
         context.todo_state = self._extract_todowrite(relevant_turns)
 
-        # 4. Recent Activity Summary (Last 5 calls)
+        # 4. Recent Activity Summary (Last 10 calls)
         # Extract meaningful details from recent tool uses
         recent_tools = []
         count = 0
         for turn in reversed(turns):
-            if count >= 5:
+            if count >= 10:
                 break
             message = turn.get("message", {})
             content = message.get("content", [])
@@ -139,7 +139,7 @@ class TranscriptAnalyzer:
                         description = self._format_tool_description(block)
                         recent_tools.append(description)
                         count += 1
-                        if count >= 5:
+                        if count >= 10:
                             break
         context.recent_activity = recent_tools
 
