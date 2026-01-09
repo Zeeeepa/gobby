@@ -4,12 +4,17 @@ Extracted from actions.py as part of strangler fig decomposition.
 These functions handle session summary generation, title synthesis, and handoff creation.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.workflows.git_utils import get_file_changes, get_git_status
+
+if TYPE_CHECKING:
+    from gobby.compression import TextCompressor
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +131,7 @@ async def generate_summary(
     template: str | None = None,
     previous_summary: str | None = None,
     mode: Literal["clear", "compact"] = "clear",
+    compressor: TextCompressor | None = None,
 ) -> dict[str, Any] | None:
     """Generate a session summary using LLM and store it in the session record.
 
@@ -137,6 +143,8 @@ async def generate_summary(
         template: Optional prompt template
         previous_summary: Previous summary_markdown for cumulative compression (compact mode)
         mode: "clear" or "compact" - passed to LLM context to control summarization density
+        compressor: Optional TextCompressor for transcript compression. When provided,
+            max_turns is increased and transcript is compressed before LLM call.
 
     Returns:
         Dict with summary_generated and summary_length, or error
@@ -186,12 +194,17 @@ async def generate_summary(
         # recent turns since the last /clear and let the prompt control summarization
         # density. The mode parameter is passed to the LLM context where the template
         # can adjust output format (e.g., compact mode may instruct denser summaries).
-        # TODO: If requirements change, mode-specific extraction logic could be added
-        # here (e.g., extracting fewer turns for compact mode).
-        recent_turns = transcript_processor.extract_turns_since_clear(turns, max_turns=50)
+        # When compressor is provided, we extract more turns (100 vs 50) since
+        # compression will reduce the token count before the LLM call.
+        max_turns = 100 if compressor else 50
+        recent_turns = transcript_processor.extract_turns_since_clear(turns, max_turns=max_turns)
 
         # Format turns for LLM
         transcript_summary = format_turns_for_llm(recent_turns)
+
+        # Compress transcript if compressor provided
+        if compressor:
+            transcript_summary = compressor.compress(transcript_summary, context_type="handoff")
     except Exception as e:
         logger.error(f"Failed to process transcript: {e}")
         return {"error": str(e)}
@@ -240,6 +253,7 @@ async def generate_handoff(
     template: str | None = None,
     previous_summary: str | None = None,
     mode: Literal["clear", "compact"] = "clear",
+    compressor: TextCompressor | None = None,
 ) -> dict[str, Any] | None:
     """Generate a handoff record by summarizing the session.
 
@@ -253,6 +267,7 @@ async def generate_handoff(
         template: Optional prompt template
         previous_summary: Previous summary for cumulative compression (compact mode)
         mode: "clear" or "compact"
+        compressor: Optional TextCompressor for transcript compression
 
     Returns:
         Dict with handoff_created and summary_length, or error
@@ -269,6 +284,7 @@ async def generate_handoff(
         template=template,
         previous_summary=previous_summary,
         mode=mode,
+        compressor=compressor,
     )
 
     if summary_result and "error" in summary_result:
