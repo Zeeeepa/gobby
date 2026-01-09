@@ -207,3 +207,50 @@ class LocalArtifactManager:
 
         self._notify_listeners()
         return True
+
+    def search_artifacts(
+        self,
+        query: str,
+        session_id: str | None = None,
+        artifact_type: str | None = None,
+        limit: int = 50,
+    ) -> list[Artifact]:
+        """Search artifacts by content.
+
+        Uses LIKE-based search for content matching. Can optionally filter
+        by session_id and/or artifact_type.
+
+        Args:
+            query: The search query text
+            session_id: Optional session ID filter
+            artifact_type: Optional artifact type filter
+            limit: Maximum number of results (default: 50)
+
+        Returns:
+            List of matching Artifacts ordered by recency
+        """
+        # Empty query returns empty results
+        if not query or not query.strip():
+            return []
+
+        # Escape LIKE wildcards in query_text
+        escaped_query = (
+            query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        )
+
+        sql = "SELECT * FROM session_artifacts WHERE content LIKE ? ESCAPE '\\'"
+        params: list[Any] = [f"%{escaped_query}%"]
+
+        if session_id:
+            sql += " AND session_id = ?"
+            params.append(session_id)
+
+        if artifact_type:
+            sql += " AND artifact_type = ?"
+            params.append(artifact_type)
+
+        sql += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+
+        rows = self.db.fetchall(sql, tuple(params))
+        return [Artifact.from_row(row) for row in rows]
