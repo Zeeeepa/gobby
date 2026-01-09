@@ -628,6 +628,7 @@ class ActionExecutor:
             template=kwargs.get("template"),
             previous_summary=previous_summary,
             mode=mode,
+            compressor=self._compressor,
         )
 
     async def _handle_generate_summary(
@@ -640,6 +641,7 @@ class ActionExecutor:
             llm_service=context.llm_service,
             transcript_processor=context.transcript_processor,
             template=kwargs.get("template"),
+            compressor=self._compressor,
         )
 
     async def _handle_start_new_session(
