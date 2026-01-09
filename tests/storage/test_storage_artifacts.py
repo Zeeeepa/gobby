@@ -1056,3 +1056,259 @@ class TestLocalArtifactManagerChangeListeners:
         manager.delete_artifact(artifact.id)
 
         assert "delete" in called
+
+
+# =============================================================================
+# FTS5 Search Tests (TDD Red Phase)
+# =============================================================================
+
+
+class TestLocalArtifactManagerSearchImport:
+    """Tests for search_artifacts import."""
+
+    def test_search_artifacts_method_exists(self, tmp_path):
+        """Test that search_artifacts method exists on LocalArtifactManager."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_search_import.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        manager = LocalArtifactManager(db)
+        assert hasattr(manager, "search_artifacts")
+
+
+class TestLocalArtifactManagerSearchBasic:
+    """Tests for basic search_artifacts functionality."""
+
+    def test_search_artifacts_returns_matching_content(self, tmp_path):
+        """Test search_artifacts returns artifacts matching query."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_search_basic.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+        manager.create_artifact(
+            session_id="sess-1", artifact_type="code", content="function calculateTotal"
+        )
+        manager.create_artifact(
+            session_id="sess-1", artifact_type="code", content="def processPayment"
+        )
+        manager.create_artifact(
+            session_id="sess-1", artifact_type="code", content="function calculateTax"
+        )
+
+        results = manager.search_artifacts(query="calculate")
+
+        assert len(results) == 2
+        assert all("calculate" in r.content.lower() for r in results)
+
+    def test_search_artifacts_respects_session_id_filter(self, tmp_path):
+        """Test search_artifacts filters by session_id."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_search_session.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-2", "test-project", "ext-2", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+        manager.create_artifact(
+            session_id="sess-1", artifact_type="code", content="calculate total"
+        )
+        manager.create_artifact(
+            session_id="sess-2", artifact_type="code", content="calculate discount"
+        )
+
+        results = manager.search_artifacts(query="calculate", session_id="sess-1")
+
+        assert len(results) == 1
+        assert results[0].session_id == "sess-1"
+
+    def test_search_artifacts_respects_artifact_type_filter(self, tmp_path):
+        """Test search_artifacts filters by artifact_type."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_search_type.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+        manager.create_artifact(
+            session_id="sess-1", artifact_type="code", content="error handling code"
+        )
+        manager.create_artifact(
+            session_id="sess-1", artifact_type="error", content="error: undefined variable"
+        )
+
+        results = manager.search_artifacts(query="error", artifact_type="code")
+
+        assert len(results) == 1
+        assert results[0].artifact_type == "code"
+
+
+class TestLocalArtifactManagerSearchAdvanced:
+    """Tests for advanced search_artifacts functionality."""
+
+    def test_search_artifacts_with_limit(self, tmp_path):
+        """Test search_artifacts respects limit parameter."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_search_limit.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+        for i in range(10):
+            manager.create_artifact(
+                session_id="sess-1", artifact_type="code", content=f"calculate item {i}"
+            )
+
+        results = manager.search_artifacts(query="calculate", limit=3)
+
+        assert len(results) == 3
+
+    def test_search_artifacts_empty_query_returns_empty(self, tmp_path):
+        """Test search_artifacts with empty query returns empty list."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_search_empty.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+        manager.create_artifact(
+            session_id="sess-1", artifact_type="code", content="some content"
+        )
+
+        results = manager.search_artifacts(query="")
+
+        assert len(results) == 0
+
+    def test_search_artifacts_special_characters_handled(self, tmp_path):
+        """Test search_artifacts handles special characters safely."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_search_special.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+        manager.create_artifact(
+            session_id="sess-1",
+            artifact_type="code",
+            content="SELECT * FROM users WHERE id = ?",
+        )
+
+        # Should not raise an error with special FTS5 characters
+        results = manager.search_artifacts(query="SELECT * FROM")
+
+        # Should return results (query matches content)
+        assert isinstance(results, list)
+
+    def test_search_artifacts_no_match_returns_empty(self, tmp_path):
+        """Test search_artifacts returns empty list when no matches."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_search_no_match.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+        manager.create_artifact(
+            session_id="sess-1", artifact_type="code", content="hello world"
+        )
+
+        results = manager.search_artifacts(query="xyznonexistent")
+
+        assert len(results) == 0
