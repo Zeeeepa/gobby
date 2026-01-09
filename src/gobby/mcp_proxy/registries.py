@@ -10,6 +10,7 @@ from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
+    from gobby.compression import TextCompressor
     from gobby.config.app import DaemonConfig
     from gobby.llm.service import LLMService
     from gobby.mcp_proxy.metrics import ToolMetricsManager
@@ -51,6 +52,7 @@ def setup_internal_registries(
     git_manager: WorktreeGitManager | None = None,
     project_id: str | None = None,
     tool_proxy_getter: Callable[[], ToolProxyService | None] | None = None,
+    compressor: TextCompressor | None = None,
 ) -> InternalRegistryManager:
     """
     Setup internal MCP registries (tasks, messages, memory, skills, metrics, agents, worktrees).
@@ -76,6 +78,7 @@ def setup_internal_registries(
         project_id: Default project ID for worktree operations
         tool_proxy_getter: Callable that returns ToolProxyService for routing
             tool calls in in-process agents. Called lazily during agent execution.
+        compressor: Optional TextCompressor for compressing context content.
 
     Returns:
         InternalRegistryManager containing all registries
@@ -172,6 +175,7 @@ def setup_internal_registries(
         agents_registry = create_agents_registry(
             runner=agent_runner,
             tool_proxy_getter=tool_proxy_getter,
+            compressor=compressor,
         )
         manager.add_registry(agents_registry)
         logger.debug("Agents registry initialized")
