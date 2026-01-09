@@ -351,8 +351,10 @@ class TestSessionStartPreCreatedSession:
         response = handlers.handle_session_start(event)
 
         assert response.decision == "allow"
-        assert "Parent ID: sess-parent-456" in response.system_message
-        assert "Agent depth: 1" in response.system_message
+        # Parent session info now in context and metadata, not system_message
+        assert "Parent session: sess-parent-456" in response.context
+        assert response.metadata["parent_session_id"] == "sess-parent-456"
+        assert "Session enhanced by gobby" in response.system_message
 
     def test_pre_created_session_with_agent_run_id(self, mock_dependencies: dict) -> None:
         """Test pre-created session with agent_run_id starts the agent run."""

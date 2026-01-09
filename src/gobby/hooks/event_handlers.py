@@ -211,15 +211,10 @@ class EventHandlers:
                         except Exception as e:
                             self.logger.warning(f"Workflow error: {e}")
 
-                    # Build system message
-                    system_message = (
-                        f"Session ID: {session_id}\nProject ID: {existing_session.project_id}"
-                    )
+                    # Build system message (terminal display only)
+                    system_message = "\nSession enhanced by gobby."
                     if parent_session_id:
-                        system_message += f"\nParent ID: {parent_session_id}"
                         context_parts.append(f"Parent session: {parent_session_id}")
-                    if existing_session.agent_depth > 0:
-                        system_message += f"\nAgent depth: {existing_session.agent_depth}"
                     if wf_response.system_message:
                         system_message += f"\n\n{wf_response.system_message}"
 
@@ -229,7 +224,9 @@ class EventHandlers:
                         system_message=system_message,
                         metadata={
                             "session_id": session_id,
+                            "parent_session_id": parent_session_id,
                             "machine_id": machine_id,
+                            "project_id": existing_session.project_id,
                             "external_id": external_id,
                             "task_id": event.task_id,
                             "is_pre_created": True,
@@ -308,10 +305,8 @@ class EventHandlers:
         if parent_session_id:
             context_parts.append(f"Parent session: {parent_session_id}")
 
-        # Build system message
-        system_message = f"Session ID: {session_id}\nProject ID: {project_id}"
-        if parent_session_id:
-            system_message += f"\nParent ID: {parent_session_id}"
+        # Build system message (terminal display only)
+        system_message = "\nSession enhanced by gobby."
         if wf_response.system_message:
             system_message += f"\n\n{wf_response.system_message}"
 
@@ -327,7 +322,9 @@ class EventHandlers:
             system_message=system_message,
             metadata={
                 "session_id": session_id,
+                "parent_session_id": parent_session_id,
                 "machine_id": machine_id,
+                "project_id": project_id,
                 "external_id": external_id,
                 "task_id": event.task_id,
             },

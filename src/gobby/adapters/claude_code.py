@@ -185,8 +185,24 @@ class ClaudeCodeAdapter(BaseAdapter):
         else:
             result["decision"] = "approve"
 
-        # Note: metadata is NOT passed to Claude Code - it's not in their schema
-        # Metadata is for internal use only (e.g., logging, debugging)
+        # Add hookSpecificOutput with additionalContext for model context injection
+        # This is how we pass session identifiers to Claude's context
+        if response.metadata:
+            session_id = response.metadata.get("session_id")
+            if session_id:
+                hook_event_name = self.HOOK_EVENT_NAME_MAP.get(hook_type or "", "Unknown")
+                # Build context with all available identifiers
+                context_lines = [f"session_id: {session_id}"]
+                if response.metadata.get("parent_session_id"):
+                    context_lines.append(f"parent_session_id: {response.metadata['parent_session_id']}")
+                if response.metadata.get("machine_id"):
+                    context_lines.append(f"machine_id: {response.metadata['machine_id']}")
+                if response.metadata.get("project_id"):
+                    context_lines.append(f"project_id: {response.metadata['project_id']}")
+                result["hookSpecificOutput"] = {
+                    "hookEventName": hook_event_name,
+                    "additionalContext": "\n".join(context_lines),
+                }
 
         return result
 
