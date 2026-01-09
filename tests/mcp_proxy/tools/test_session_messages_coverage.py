@@ -5,7 +5,7 @@ Tests cover:
 - Helper functions (_format_handoff_markdown, _format_turns_for_llm)
 - Message tools (get_session_messages, search_messages)
 - Handoff tools (get_handoff_context, create_handoff, pickup)
-- Session CRUD tools (get_session, get_current_session, list_sessions, session_stats)
+- Session CRUD tools (get_session, list_sessions, session_stats)
 - Session commits tools (get_session_commits, mark_loop_complete)
 """
 
@@ -834,59 +834,6 @@ class TestGetSession:
 
         assert result["found"] is False
         assert "not found" in result["error"]
-
-
-class TestGetCurrentSession:
-    """Tests for get_current_session tool (deterministic lookup)."""
-
-    def test_get_current_session_found(self):
-        """Test finding current session by external identifiers."""
-        session_manager = MagicMock()
-        mock_session = MagicMock()
-        mock_session.to_dict.return_value = {
-            "id": "sess-current",
-            "status": "active",
-            "external_id": "ext-123",
-        }
-        session_manager.find_by_external_id.return_value = mock_session
-
-        registry = create_test_registry(session_manager=session_manager)
-        get_current = registry.get_tool("get_current_session")
-
-        result = get_current(
-            external_id="ext-123",
-            source="claude",
-            machine_id="machine-abc",
-            project_id="project-123",
-        )
-
-        assert result["found"] is True
-        assert result["id"] == "sess-current"
-        session_manager.find_by_external_id.assert_called_once_with(
-            external_id="ext-123",
-            machine_id="machine-abc",
-            project_id="project-123",
-            source="claude",
-        )
-
-    def test_get_current_session_not_found(self):
-        """Test when session not found for provided identifiers."""
-        session_manager = MagicMock()
-        session_manager.find_by_external_id.return_value = None
-
-        registry = create_test_registry(session_manager=session_manager)
-        get_current = registry.get_tool("get_current_session")
-
-        result = get_current(
-            external_id="ext-unknown",
-            source="claude",
-            machine_id="machine-abc",
-            project_id="project-123",
-        )
-
-        assert result["found"] is False
-        assert "Session not found" in result["message"]
-        assert result["external_id"] == "ext-unknown"
 
 
 class TestListSessions:

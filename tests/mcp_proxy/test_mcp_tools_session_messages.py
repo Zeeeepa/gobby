@@ -129,7 +129,6 @@ def test_full_registry_has_session_tools(full_sessions_registry):
         "get_session_messages",
         "search_messages",
         "get_session",
-        "get_current_session",
         "list_sessions",
         "session_stats",
         "get_handoff_context",
@@ -210,51 +209,6 @@ async def test_get_session_prefix_match(mock_session_manager, full_sessions_regi
 
     assert result["found"] is True
     assert result["id"] == "sess-abc123"
-
-
-@pytest.mark.asyncio
-async def test_get_current_session(mock_session_manager, full_sessions_registry):
-    """Test get_current_session tool execution (deterministic lookup)."""
-    mock_session = _make_mock_session("sess-active", status="active")
-    mock_session_manager.find_by_external_id.return_value = mock_session
-
-    result = await full_sessions_registry.call(
-        "get_current_session",
-        {
-            "external_id": "ext-123",
-            "source": "claude",
-            "machine_id": "machine-abc",
-            "project_id": "proj-123",
-        },
-    )
-
-    mock_session_manager.find_by_external_id.assert_called_with(
-        external_id="ext-123",
-        machine_id="machine-abc",
-        project_id="proj-123",
-        source="claude",
-    )
-    assert result["found"] is True
-    assert result["status"] == "active"
-
-
-@pytest.mark.asyncio
-async def test_get_current_session_none(mock_session_manager, full_sessions_registry):
-    """Test get_current_session when session not found."""
-    mock_session_manager.find_by_external_id.return_value = None
-
-    result = await full_sessions_registry.call(
-        "get_current_session",
-        {
-            "external_id": "ext-unknown",
-            "source": "claude",
-            "machine_id": "machine-abc",
-            "project_id": "proj-123",
-        },
-    )
-
-    assert result["found"] is False
-    assert result["external_id"] == "ext-unknown"
 
 
 @pytest.mark.asyncio

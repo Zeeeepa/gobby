@@ -669,61 +669,6 @@ def create_session_messages_registry(
             }
 
         @registry.tool(
-            name="get_current_session",
-            description="DEPRECATED: Your session_id is injected at startup. Check your context for 'session_id: xxx' and use get_session(session_id) instead. This tool requires manual lookup by external identifiers.",
-        )
-        def get_current_session(
-            external_id: str,
-            source: str,
-            machine_id: str,
-            project_id: str,
-        ) -> dict[str, Any]:
-            """
-            DEPRECATED: Look up the current session by its external identifiers.
-
-            NOTE: Your session_id is now injected into your context at session start.
-            Look for 'session_id: xxx' in your system reminders and use get_session(session_id)
-            instead of this tool.
-
-            This tool performs a deterministic lookup by external identifiers, which is
-            no longer necessary since the internal session_id is provided directly.
-
-            Args:
-                external_id: External session identifier (e.g., Claude Code's session ID)
-                source: CLI source ("claude", "gemini", "codex")
-                machine_id: Machine identifier
-                project_id: Project identifier
-
-            Returns:
-                Session dict with internal 'id' field, or error if not found
-            """
-            if session_manager is None:
-                return {"error": "Session manager not available"}
-
-            # Deterministic lookup by all four identifiers
-            session = session_manager.find_by_external_id(
-                external_id=external_id,
-                machine_id=machine_id,
-                project_id=project_id,
-                source=source,
-            )
-
-            if session:
-                return {
-                    "found": True,
-                    **session.to_dict(),
-                }
-
-            return {
-                "found": False,
-                "message": "Session not found for provided identifiers",
-                "external_id": external_id,
-                "source": source,
-                "machine_id": machine_id,
-                "project_id": project_id,
-            }
-
-        @registry.tool(
             name="list_sessions",
             description="List sessions with optional filtering.",
         )
