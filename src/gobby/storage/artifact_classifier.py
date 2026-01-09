@@ -16,22 +16,34 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any
 
-__all__ = ["ClassificationResult", "classify_artifact"]
+__all__ = ["ArtifactType", "ClassificationResult", "classify_artifact"]
+
+
+class ArtifactType(str, Enum):
+    """Artifact type enumeration."""
+
+    CODE = "code"
+    FILE_PATH = "file_path"
+    ERROR = "error"
+    COMMAND_OUTPUT = "command_output"
+    STRUCTURED_DATA = "structured_data"
+    TEXT = "text"
 
 
 @dataclass
 class ClassificationResult:
     """Result of artifact classification."""
 
-    artifact_type: str
+    artifact_type: ArtifactType
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
-            "artifact_type": self.artifact_type,
+            "artifact_type": self.artifact_type.value,
             "metadata": self.metadata,
         }
 
@@ -229,7 +241,7 @@ def classify_artifact(content: str) -> ClassificationResult:
         ClassificationResult with artifact_type and extracted metadata
     """
     if not content or not content.strip():
-        return ClassificationResult(artifact_type="text", metadata={})
+        return ClassificationResult(artifact_type=ArtifactType.TEXT, metadata={})
 
     # Check for markdown code fence first
     is_code_fence, fence_metadata = _is_code_block(content)
@@ -242,12 +254,12 @@ def classify_artifact(content: str) -> ClassificationResult:
                 detected_lang = _detect_language(inner_content.group(2))
                 if detected_lang:
                     metadata["language"] = detected_lang
-        return ClassificationResult(artifact_type="code", metadata=metadata)
+        return ClassificationResult(artifact_type=ArtifactType.CODE, metadata=metadata)
 
     # Check for file path (single line only)
     is_path, path_metadata = _is_file_path(content)
     if is_path:
-        return ClassificationResult(artifact_type="file_path", metadata=path_metadata)
+        return ClassificationResult(artifact_type=ArtifactType.FILE_PATH, metadata=path_metadata)
 
     # Check for error messages/stack traces
     if _is_error(content):
@@ -256,30 +268,30 @@ def classify_artifact(content: str) -> ClassificationResult:
         error_match = re.search(r"^(\w+Error):", content, re.MULTILINE)
         if error_match:
             metadata["error"] = error_match.group(1)
-        return ClassificationResult(artifact_type="error", metadata=metadata)
+        return ClassificationResult(artifact_type=ArtifactType.ERROR, metadata=metadata)
 
     # Check for code patterns BEFORE structured data
     # (TypeScript interfaces look like YAML otherwise)
     detected_lang = _detect_language(content)
     if detected_lang:
-        return ClassificationResult(artifact_type="code", metadata={"language": detected_lang})
+        return ClassificationResult(artifact_type=ArtifactType.CODE, metadata={"language": detected_lang})
 
     # Check for structured data formats
     if _is_json(content):
-        return ClassificationResult(artifact_type="structured_data", metadata={"format": "json"})
+        return ClassificationResult(artifact_type=ArtifactType.STRUCTURED_DATA, metadata={"format": "json"})
 
     if _is_xml(content):
-        return ClassificationResult(artifact_type="structured_data", metadata={"format": "xml"})
+        return ClassificationResult(artifact_type=ArtifactType.STRUCTURED_DATA, metadata={"format": "xml"})
 
     if _is_toml(content):
-        return ClassificationResult(artifact_type="structured_data", metadata={"format": "toml"})
+        return ClassificationResult(artifact_type=ArtifactType.STRUCTURED_DATA, metadata={"format": "toml"})
 
     if _is_yaml(content):
-        return ClassificationResult(artifact_type="structured_data", metadata={"format": "yaml"})
+        return ClassificationResult(artifact_type=ArtifactType.STRUCTURED_DATA, metadata={"format": "yaml"})
 
     # Check for command output
     if _is_command_output(content):
-        return ClassificationResult(artifact_type="command_output", metadata={})
+        return ClassificationResult(artifact_type=ArtifactType.COMMAND_OUTPUT, metadata={})
 
     # Default to text
-    return ClassificationResult(artifact_type="text", metadata={})
+    return ClassificationResult(artifact_type=ArtifactType.TEXT, metadata={})

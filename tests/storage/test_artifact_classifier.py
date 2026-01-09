@@ -620,30 +620,30 @@ class TestClassificationResult:
 
     def test_classification_result_has_artifact_type(self):
         """Test that ClassificationResult has artifact_type field."""
-        from gobby.storage.artifact_classifier import ClassificationResult
+        from gobby.storage.artifact_classifier import ArtifactType, ClassificationResult
 
-        result = ClassificationResult(artifact_type="code", metadata={})
+        result = ClassificationResult(artifact_type=ArtifactType.CODE, metadata={})
         assert result.artifact_type == "code"
 
     def test_classification_result_has_metadata(self):
         """Test that ClassificationResult has metadata field."""
-        from gobby.storage.artifact_classifier import ClassificationResult
+        from gobby.storage.artifact_classifier import ArtifactType, ClassificationResult
 
-        result = ClassificationResult(artifact_type="code", metadata={"language": "python"})
+        result = ClassificationResult(artifact_type=ArtifactType.CODE, metadata={"language": "python"})
         assert result.metadata == {"language": "python"}
 
     def test_classification_result_metadata_defaults_empty(self):
         """Test that ClassificationResult metadata can be empty."""
-        from gobby.storage.artifact_classifier import ClassificationResult
+        from gobby.storage.artifact_classifier import ArtifactType, ClassificationResult
 
-        result = ClassificationResult(artifact_type="text", metadata={})
+        result = ClassificationResult(artifact_type=ArtifactType.TEXT, metadata={})
         assert result.metadata == {}
 
     def test_classification_result_to_dict(self):
         """Test that ClassificationResult has to_dict method."""
-        from gobby.storage.artifact_classifier import ClassificationResult
+        from gobby.storage.artifact_classifier import ArtifactType, ClassificationResult
 
-        result = ClassificationResult(artifact_type="code", metadata={"language": "python"})
+        result = ClassificationResult(artifact_type=ArtifactType.CODE, metadata={"language": "python"})
         d = result.to_dict()
 
         assert d["artifact_type"] == "code"
