@@ -1,6 +1,11 @@
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:
+    from gobby.compression import TextCompressor
 
 from gobby.storage.database import LocalDatabase
 from gobby.storage.sessions import LocalSessionManager
