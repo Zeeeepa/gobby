@@ -1,5 +1,7 @@
 """SQLite database manager for local storage."""
 
+from __future__ import annotations
+
 import logging
 import re
 import sqlite3
@@ -7,7 +9,10 @@ import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from gobby.storage.artifacts import LocalArtifactManager
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +40,7 @@ class LocalDatabase:
         """
         self.db_path = Path(db_path) if db_path else DEFAULT_DB_PATH
         self._local = threading.local()
+        self._artifact_manager: LocalArtifactManager | None = None
         self._ensure_directory()
 
     def _ensure_directory(self) -> None:
@@ -59,6 +65,22 @@ class LocalDatabase:
     def connection(self) -> sqlite3.Connection:
         """Get current thread's database connection."""
         return self._get_connection()
+
+    @property
+    def artifact_manager(self) -> LocalArtifactManager:
+        """Get lazily-initialized LocalArtifactManager instance.
+
+        The artifact manager is created on first access and reused for the
+        lifetime of this LocalDatabase instance.
+
+        Returns:
+            LocalArtifactManager instance for managing session artifacts.
+        """
+        if self._artifact_manager is None:
+            from gobby.storage.artifacts import LocalArtifactManager
+
+            self._artifact_manager = LocalArtifactManager(self)
+        return self._artifact_manager
 
     def execute(self, sql: str, params: tuple[Any, ...] = ()) -> sqlite3.Cursor:
         """Execute SQL statement."""
@@ -160,7 +182,11 @@ class LocalDatabase:
             raise
 
     def close(self) -> None:
-        """Close current thread's database connection."""
+        """Close current thread's database connection and clean up managers."""
+        # Clean up artifact manager
+        self._artifact_manager = None
+
+        # Close connection
         if hasattr(self._local, "connection") and self._local.connection:
             self._local.connection.close()
             self._local.connection = None
