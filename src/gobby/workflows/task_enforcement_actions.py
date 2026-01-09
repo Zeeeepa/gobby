@@ -333,12 +333,31 @@ async def require_active_task(
         or None to allow the tool.
     """
     # Check if feature is enabled
-    if not config:
-        logger.debug("require_active_task: No config, allowing")
+    # Precedence: workflow_state variables > config.yaml
+    # (workflow_state already has step > lifecycle precedence merged)
+    require_task = None
+
+    # First check workflow state variables (step workflow > lifecycle workflow)
+    if workflow_state:
+        require_task = workflow_state.variables.get("require_task_before_edit")
+        if require_task is not None:
+            logger.debug(
+                f"require_active_task: Using workflow variable require_task_before_edit={require_task}"
+            )
+
+    # Fall back to config.yaml if not set in workflow variables
+    if require_task is None and config:
+        require_task = config.workflow.require_task_before_edit
+        logger.debug(
+            f"require_active_task: Using config.yaml require_task_before_edit={require_task}"
+        )
+
+    # If still None (no config), default to False (allow)
+    if require_task is None:
+        logger.debug("require_active_task: No config source, allowing")
         return None
 
-    workflow_config = config.workflow
-    if not workflow_config.require_task_before_edit:
+    if not require_task:
         logger.debug("require_active_task: Feature disabled, allowing")
         return None
 
@@ -352,8 +371,8 @@ async def require_active_task(
         logger.debug("require_active_task: No tool_name in event_data, allowing")
         return None
 
-    # Check if this tool is protected
-    protected_tools = workflow_config.protected_tools
+    # Check if this tool is protected (always from config.yaml)
+    protected_tools = config.workflow.protected_tools if config else ["Edit", "Write", "Update", "NotebookEdit"]
     if tool_name not in protected_tools:
         logger.debug(f"require_active_task: Tool '{tool_name}' not protected, allowing")
         return None

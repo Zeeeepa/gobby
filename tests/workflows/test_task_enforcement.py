@@ -1028,6 +1028,56 @@ class TestRequireActiveTask:
         assert result["decision"] == "block"
         assert "wasn't claimed" not in result["reason"]
 
+    async def test_workflow_variable_takes_precedence_over_config(
+        self, mock_task_manager, workflow_state
+    ):
+        """Workflow variable require_task_before_edit takes precedence over config.yaml."""
+        # Config has it enabled
+        mock_config = MagicMock()
+        mock_config.workflow.require_task_before_edit = True
+        mock_config.workflow.protected_tools = ["Edit", "Write"]
+
+        # But workflow variable disables it
+        workflow_state.variables["require_task_before_edit"] = False
+
+        result = await require_active_task(
+            task_manager=mock_task_manager,
+            session_id="test-session",
+            config=mock_config,
+            event_data={"tool_name": "Edit"},
+            project_id="proj-123",
+            workflow_state=workflow_state,
+        )
+
+        # Should allow because workflow variable takes precedence
+        assert result is None
+
+    async def test_workflow_variable_can_enable_when_config_disabled(
+        self, mock_task_manager, workflow_state
+    ):
+        """Workflow variable can enable feature even when config.yaml has it disabled."""
+        # Config has it disabled
+        mock_config = MagicMock()
+        mock_config.workflow.require_task_before_edit = False
+        mock_config.workflow.protected_tools = ["Edit", "Write"]
+
+        # But workflow variable enables it
+        workflow_state.variables["require_task_before_edit"] = True
+        mock_task_manager.list_tasks.return_value = []
+
+        result = await require_active_task(
+            task_manager=mock_task_manager,
+            session_id="test-session",
+            config=mock_config,
+            event_data={"tool_name": "Edit"},
+            project_id="proj-123",
+            workflow_state=workflow_state,
+        )
+
+        # Should block because workflow variable takes precedence
+        assert result is not None
+        assert result["decision"] == "block"
+
 
 # =============================================================================
 # Tests for validate_session_task_scope
