@@ -94,6 +94,33 @@ class ContextResolver:
         self._max_content_size = max_content_size * multiplier
         self._max_transcript_messages = max_transcript_messages * multiplier
 
+    async def resolve(self, source: str, session_id: str) -> str:
+        """
+        Resolve context from the specified source, with optional compression.
+
+        This is the main public API for context resolution. If a compressor
+        was provided at initialization, the resolved content will be compressed
+        before returning.
+
+        Args:
+            source: Context source specification.
+            session_id: Parent session ID for context lookups.
+
+        Returns:
+            Resolved context string, possibly compressed if compressor is available.
+
+        Raises:
+            ContextResolutionError: If resolution fails.
+        """
+        # Get raw (uncompressed) content
+        content = await self._resolve_raw(source, session_id)
+
+        # Apply compression if compressor is available and content is non-empty
+        if self.compressor and content:
+            return self.compressor.compress(content, context_type="context")
+
+        return content
+
     async def _resolve_raw(self, source: str, session_id: str) -> str:
         """
         Resolve context from the specified source without compression.

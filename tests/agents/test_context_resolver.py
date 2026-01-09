@@ -501,3 +501,146 @@ class TestContextResolverCompressor:
     def test_compression_limit_multiplier_is_two(self):
         """Verify the compression limit multiplier is 2."""
         assert ContextResolver.COMPRESSION_LIMIT_MULTIPLIER == 2
+
+
+class TestResolveWithCompression:
+    """Tests for resolve() method with compression support."""
+
+    async def test_resolve_without_compressor_returns_raw_content(
+        self, mock_session_manager, mock_message_manager, temp_project
+    ):
+        """resolve() without compressor returns same result as _resolve_raw()."""
+        resolver = ContextResolver(
+            session_manager=mock_session_manager,
+            message_manager=mock_message_manager,
+            project_path=temp_project,
+        )
+
+        mock_session = MagicMock()
+        mock_session.summary_markdown = "Raw content here"
+        mock_session_manager.get.return_value = mock_session
+
+        # Both methods should return the same content
+        raw_result = await resolver._resolve_raw("summary_markdown", "sess-123")
+        resolve_result = await resolver.resolve("summary_markdown", "sess-123")
+
+        assert resolve_result == raw_result
+        assert resolve_result == "Raw content here"
+
+    async def test_resolve_with_compressor_applies_compression(
+        self, mock_session_manager, mock_message_manager, temp_project
+    ):
+        """resolve() with compressor calls compress on raw content."""
+        mock_compressor = MagicMock()
+        mock_compressor.compress.return_value = "Compressed content"
+
+        resolver = ContextResolver(
+            session_manager=mock_session_manager,
+            message_manager=mock_message_manager,
+            project_path=temp_project,
+            compressor=mock_compressor,
+        )
+
+        mock_session = MagicMock()
+        mock_session.summary_markdown = "Original content to compress"
+        mock_session_manager.get.return_value = mock_session
+
+        result = await resolver.resolve("summary_markdown", "sess-123")
+
+        # Compressor should have been called with raw content
+        mock_compressor.compress.assert_called_once_with(
+            "Original content to compress", context_type="context"
+        )
+
+        # Result should be compressed
+        assert result == "Compressed content"
+
+    async def test_resolve_returns_compressed_output(
+        self, mock_session_manager, mock_message_manager, temp_project
+    ):
+        """resolve() returns compressed output when compressor is provided."""
+        mock_compressor = MagicMock()
+        mock_compressor.compress.return_value = "<<compressed>>"
+
+        resolver = ContextResolver(
+            session_manager=mock_session_manager,
+            message_manager=mock_message_manager,
+            project_path=temp_project,
+            compressor=mock_compressor,
+        )
+
+        mock_session = MagicMock()
+        mock_session.compact_markdown = "Lots of text here..."
+        mock_session_manager.get.return_value = mock_session
+
+        result = await resolver.resolve("compact_markdown", "sess-123")
+
+        assert result == "<<compressed>>"
+
+    async def test_resolve_skips_compression_for_empty_content(
+        self, mock_session_manager, mock_message_manager, temp_project
+    ):
+        """resolve() does not call compressor when content is empty."""
+        mock_compressor = MagicMock()
+        mock_compressor.compress.return_value = "Compressed"
+
+        resolver = ContextResolver(
+            session_manager=mock_session_manager,
+            message_manager=mock_message_manager,
+            project_path=temp_project,
+            compressor=mock_compressor,
+        )
+
+        mock_session = MagicMock()
+        mock_session.summary_markdown = ""
+        mock_session_manager.get.return_value = mock_session
+
+        result = await resolver.resolve("summary_markdown", "sess-123")
+
+        # Compressor should NOT have been called for empty content
+        mock_compressor.compress.assert_not_called()
+        assert result == ""
+
+    async def test_backward_compatibility_resolve_without_changes(
+        self, mock_session_manager, mock_message_manager, temp_project
+    ):
+        """Existing code using resolve() without compressor works unchanged."""
+        # Create resolver without compressor (how existing code works)
+        resolver = ContextResolver(
+            session_manager=mock_session_manager,
+            message_manager=mock_message_manager,
+            project_path=temp_project,
+        )
+
+        mock_session = MagicMock()
+        mock_session.summary_markdown = "Summary content"
+        mock_session_manager.get.return_value = mock_session
+
+        # Should work exactly as before
+        result = await resolver.resolve("summary_markdown", "sess-123")
+
+        assert result == "Summary content"
+
+    async def test_resolve_uses_context_type_context(
+        self, mock_session_manager, mock_message_manager, temp_project
+    ):
+        """resolve() passes context_type='context' to compressor."""
+        mock_compressor = MagicMock()
+        mock_compressor.compress.return_value = "Compressed"
+
+        resolver = ContextResolver(
+            session_manager=mock_session_manager,
+            message_manager=mock_message_manager,
+            project_path=temp_project,
+            compressor=mock_compressor,
+        )
+
+        mock_session = MagicMock()
+        mock_session.summary_markdown = "Content"
+        mock_session_manager.get.return_value = mock_session
+
+        await resolver.resolve("summary_markdown", "sess-123")
+
+        # Verify context_type parameter
+        call_args = mock_compressor.compress.call_args
+        assert call_args.kwargs.get("context_type") == "context"
