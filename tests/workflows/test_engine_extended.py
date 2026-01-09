@@ -176,15 +176,19 @@ class TestWorkflowEngineExtended:
         assert state.variables["_approval_cond_timeout_rejected"] is True
 
     async def test_lifecycle_loop_and_aliases(
-        self, workflow_engine, mock_loader, mock_action_executor, mock_evaluator
+        self, workflow_engine, mock_loader, mock_action_executor, mock_evaluator, mock_state_manager
     ):
         # Test:
         # 1. Alias lookup (on_before_agent -> on_prompt_submit)
         # 2. Loop mechanism (action triggers change in state -> triggers next cycle?)
         # Actually loop depends on separate triggers firing.
 
+        # No step workflow state for this lifecycle-only test
+        mock_state_manager.get_state.return_value = None
+
         wf = MagicMock(spec=WorkflowDefinition)
         wf.name = "lifecycle_wf"
+        wf.variables = {}  # Workflow-level variables
         # Triggers using ALIAS
         wf.triggers = {
             "on_prompt_submit": [  # Alias for on_before_agent
@@ -236,6 +240,7 @@ class TestWorkflowEngineExtended:
         """Test that actions returning decision='block' propagate through lifecycle workflows."""
         wf = MagicMock(spec=WorkflowDefinition)
         wf.name = "blocker"
+        wf.variables = {}
         wf.triggers = {"on_session_start": [{"action": "block_action"}]}
 
         container = MagicMock()
@@ -337,6 +342,7 @@ class TestWorkflowEngineExtended:
 
         wf = MagicMock(spec=WorkflowDefinition)
         wf.name = "sys_msg_wf"
+        wf.variables = {}
         wf.triggers = {"on_session_start": [{"action": "act1"}]}
 
         container = MagicMock()
@@ -369,6 +375,7 @@ class TestWorkflowEngineExtended:
         """Test that non-blocking actions result in 'allow' decision."""
         wf = MagicMock(spec=WorkflowDefinition)
         wf.name = "allow_wf"
+        wf.variables = {}
         wf.triggers = {"on_session_start": [{"action": "normal_action"}]}
 
         container = MagicMock()
@@ -402,6 +409,7 @@ class TestWorkflowEngineExtended:
     ):
         wf = MagicMock(spec=WorkflowDefinition)
         wf.name = "conditional"
+        wf.variables = {}
         # Condition that evals to False
         wf.triggers = {"on_session_start": [{"action": "act", "when": "skip_me"}]}
 
@@ -431,6 +439,7 @@ class TestWorkflowEngineExtended:
         # Force exception in action execution
         wf = MagicMock(spec=WorkflowDefinition)
         wf.name = "error_wf"
+        wf.variables = {}
         wf.triggers = {"on_session_start": [{"action": "act1"}]}
 
         container = MagicMock()
@@ -475,6 +484,7 @@ class TestWorkflowEngineExtended:
 
         wf = MagicMock(spec=WorkflowDefinition)
         wf.name = "chain_wf"
+        wf.variables = {}
         # Two triggers for SAME event?
         # The map is `trigger_name` -> list of triggers.
         # So yes, a list of triggers.
@@ -530,12 +540,14 @@ class TestWorkflowEngineExtended:
         # Setup mocking for 2 lifecycle workflows
         wf1 = MagicMock(spec=WorkflowDefinition)
         wf1.name = "wf1"
+        wf1.variables = {}
         # Triggers:
         # wf1: on_before_tool -> action1
         wf1.triggers = {"on_before_tool": [{"action": "act1", "param": "p1"}]}
 
         wf2 = MagicMock(spec=WorkflowDefinition)
         wf2.name = "wf2"
+        wf2.variables = {}
         # wf2: on_before_tool -> action2
         wf2.triggers = {"on_before_tool": [{"action": "act2", "param": "p2"}]}
 

@@ -589,6 +589,7 @@ class TestCheckPrematureStop:
         # (function returns early if no lifecycle workflows discovered)
         lifecycle_wf = MagicMock(spec=WorkflowDefinition)
         lifecycle_wf.name = "lifecycle_wf"
+        lifecycle_wf.variables = {}
         lifecycle_wf.triggers = {"on_stop": []}  # Empty triggers - just need workflow present
 
         container = MagicMock()
@@ -807,6 +808,7 @@ class TestLifecycleWorkflowAfterToolTaskDetection:
         # Need at least one lifecycle workflow to not return early
         lifecycle_wf = MagicMock(spec=WorkflowDefinition)
         lifecycle_wf.name = "lifecycle_wf"
+        lifecycle_wf.variables = {}
         lifecycle_wf.triggers = {"on_after_tool": []}  # Empty triggers
 
         container = MagicMock()
