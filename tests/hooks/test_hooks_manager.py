@@ -1659,3 +1659,395 @@ class TestHookManagerMachineIdFallback:
         with patch("gobby.utils.machine_id.get_machine_id", return_value="my-machine-id"):
             result = manager.get_machine_id()
             assert result == "my-machine-id"
+
+
+# =============================================================================
+# ArtifactCaptureHook Tests (TDD Red Phase)
+# =============================================================================
+
+
+class TestArtifactCaptureHookImport:
+    """Tests for importing ArtifactCaptureHook."""
+
+    def test_import_artifact_capture_hook(self):
+        """Test that ArtifactCaptureHook can be imported."""
+        from gobby.hooks.artifact_capture import ArtifactCaptureHook
+
+        assert ArtifactCaptureHook is not None
+
+
+class TestArtifactCaptureHookProcessing:
+    """Tests for ArtifactCaptureHook processing assistant messages."""
+
+    def test_processes_assistant_messages(self, temp_dir: Path):
+        """Test that ArtifactCaptureHook processes assistant messages."""
+        from gobby.hooks.artifact_capture import ArtifactCaptureHook
+
+        from gobby.storage.artifacts import LocalArtifactManager
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.migrations import run_migrations
+
+        db_path = temp_dir / "test.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        artifact_manager = LocalArtifactManager(db)
+        hook = ArtifactCaptureHook(artifact_manager=artifact_manager)
+
+        # Hook should have a method to process messages
+        assert hasattr(hook, "process_message")
+
+        db.close()
+
+    def test_ignores_user_messages(self, temp_dir: Path):
+        """Test that ArtifactCaptureHook ignores user messages."""
+        from gobby.hooks.artifact_capture import ArtifactCaptureHook
+
+        from gobby.storage.artifacts import LocalArtifactManager
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.migrations import run_migrations
+
+        db_path = temp_dir / "test.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        artifact_manager = LocalArtifactManager(db)
+        hook = ArtifactCaptureHook(artifact_manager=artifact_manager)
+
+        # Processing a user message should not create artifacts
+        result = hook.process_message(
+            session_id="sess-1",
+            role="user",
+            content="Can you help me with Python?",
+        )
+
+        assert result is None or result == []
+
+        db.close()
+
+
+class TestArtifactCaptureHookCodeExtraction:
+    """Tests for code block extraction from messages."""
+
+    def test_extracts_code_blocks_from_message(self, temp_dir: Path):
+        """Test that code blocks are extracted and stored as artifacts."""
+        from gobby.hooks.artifact_capture import ArtifactCaptureHook
+
+        from gobby.storage.artifacts import LocalArtifactManager
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.migrations import run_migrations
+
+        db_path = temp_dir / "test.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Create project and session
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        artifact_manager = LocalArtifactManager(db)
+        hook = ArtifactCaptureHook(artifact_manager=artifact_manager)
+
+        content = """Here's a Python function:
+
+```python
+def hello():
+    print("Hello, world!")
+```
+
+And here's some JavaScript:
+
+```javascript
+function greet() {
+    console.log("Hi!");
+}
+```
+"""
+        artifacts = hook.process_message(
+            session_id="sess-1",
+            role="assistant",
+            content=content,
+        )
+
+        # Should extract both code blocks
+        assert len(artifacts) >= 2
+        code_artifacts = [a for a in artifacts if a.artifact_type == "code"]
+        assert len(code_artifacts) >= 2
+
+        db.close()
+
+    def test_code_block_includes_language_metadata(self, temp_dir: Path):
+        """Test that extracted code blocks have language metadata."""
+        from gobby.hooks.artifact_capture import ArtifactCaptureHook
+
+        from gobby.storage.artifacts import LocalArtifactManager
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.migrations import run_migrations
+
+        db_path = temp_dir / "test.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Create project and session
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        artifact_manager = LocalArtifactManager(db)
+        hook = ArtifactCaptureHook(artifact_manager=artifact_manager)
+
+        content = """```rust
+fn main() {
+    println!("Hello!");
+}
+```"""
+        artifacts = hook.process_message(
+            session_id="sess-1",
+            role="assistant",
+            content=content,
+        )
+
+        assert len(artifacts) >= 1
+        rust_artifact = artifacts[0]
+        assert rust_artifact.metadata.get("language") == "rust"
+
+        db.close()
+
+
+class TestArtifactCaptureHookFileReferences:
+    """Tests for file reference extraction from messages."""
+
+    def test_extracts_file_paths_from_message(self, temp_dir: Path):
+        """Test that file references are extracted and stored."""
+        from gobby.hooks.artifact_capture import ArtifactCaptureHook
+
+        from gobby.storage.artifacts import LocalArtifactManager
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.migrations import run_migrations
+
+        db_path = temp_dir / "test.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Create project and session
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        artifact_manager = LocalArtifactManager(db)
+        hook = ArtifactCaptureHook(artifact_manager=artifact_manager)
+
+        content = """I've updated the following files:
+- `src/main.py`
+- `/Users/josh/Projects/gobby/config.yaml`
+"""
+        artifacts = hook.process_message(
+            session_id="sess-1",
+            role="assistant",
+            content=content,
+        )
+
+        # Should extract file references
+        file_artifacts = [a for a in artifacts if a.artifact_type == "file_path"]
+        assert len(file_artifacts) >= 1
+
+        db.close()
+
+
+class TestArtifactCaptureHookSessionLinking:
+    """Tests for artifact session linking."""
+
+    def test_artifacts_linked_to_session_id(self, temp_dir: Path):
+        """Test that artifacts are linked to the correct session_id."""
+        from gobby.hooks.artifact_capture import ArtifactCaptureHook
+
+        from gobby.storage.artifacts import LocalArtifactManager
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.migrations import run_migrations
+
+        db_path = temp_dir / "test.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Create project and session
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("my-session-id", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        artifact_manager = LocalArtifactManager(db)
+        hook = ArtifactCaptureHook(artifact_manager=artifact_manager)
+
+        content = """```python
+print("test")
+```"""
+        artifacts = hook.process_message(
+            session_id="my-session-id",
+            role="assistant",
+            content=content,
+        )
+
+        assert len(artifacts) >= 1
+        assert all(a.session_id == "my-session-id" for a in artifacts)
+
+        # Verify in database
+        stored = artifact_manager.list_artifacts(session_id="my-session-id")
+        assert len(stored) >= 1
+
+        db.close()
+
+
+class TestArtifactCaptureHookRegistration:
+    """Tests for hook registration in HooksManager."""
+
+    def test_hook_registered_in_hooks_manager(self, hook_manager_with_mocks: HookManager):
+        """Test that ArtifactCaptureHook is registered in HooksManager."""
+        manager = hook_manager_with_mocks
+
+        # Check that artifact capture hook is registered
+        # The hook should be accessible via the manager
+        assert hasattr(manager, "_artifact_capture_hook") or hasattr(manager, "artifact_capture_hook")
+
+
+class TestArtifactCaptureHookDuplicateDetection:
+    """Tests for duplicate content detection."""
+
+    def test_duplicate_content_not_restored(self, temp_dir: Path):
+        """Test that duplicate content is not stored again."""
+        from gobby.hooks.artifact_capture import ArtifactCaptureHook
+
+        from gobby.storage.artifacts import LocalArtifactManager
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.migrations import run_migrations
+
+        db_path = temp_dir / "test.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Create project and session
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        artifact_manager = LocalArtifactManager(db)
+        hook = ArtifactCaptureHook(artifact_manager=artifact_manager)
+
+        content = """```python
+def duplicate():
+    pass
+```"""
+        # Process the same message twice
+        artifacts1 = hook.process_message(
+            session_id="sess-1",
+            role="assistant",
+            content=content,
+        )
+
+        # First call should create artifacts
+        assert len(artifacts1) >= 1
+
+        artifacts2 = hook.process_message(
+            session_id="sess-1",
+            role="assistant",
+            content=content,
+        )
+
+        # Second call should not create new artifacts (duplicates)
+        assert len(artifacts2) == 0 or artifacts2 is None
+
+        # Only one artifact should be in the database
+        stored = artifact_manager.list_artifacts(session_id="sess-1")
+        assert len(stored) == 1
+
+        db.close()
+
+    def test_similar_but_different_content_stored(self, temp_dir: Path):
+        """Test that similar but different content is stored separately."""
+        from gobby.hooks.artifact_capture import ArtifactCaptureHook
+
+        from gobby.storage.artifacts import LocalArtifactManager
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.migrations import run_migrations
+
+        db_path = temp_dir / "test.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Create project and session
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        artifact_manager = LocalArtifactManager(db)
+        hook = ArtifactCaptureHook(artifact_manager=artifact_manager)
+
+        content1 = """```python
+def version_one():
+    pass
+```"""
+        content2 = """```python
+def version_two():
+    pass
+```"""
+        artifacts1 = hook.process_message(
+            session_id="sess-1",
+            role="assistant",
+            content=content1,
+        )
+        artifacts2 = hook.process_message(
+            session_id="sess-1",
+            role="assistant",
+            content=content2,
+        )
+
+        # Both should create artifacts
+        assert len(artifacts1) >= 1
+        assert len(artifacts2) >= 1
+
+        # Both should be in the database
+        stored = artifact_manager.list_artifacts(session_id="sess-1")
+        assert len(stored) == 2
+
+        db.close()
