@@ -149,6 +149,7 @@ def summarize_diff_for_validation(
     diff: str,
     max_chars: int = 30000,
     max_hunk_lines: int = 50,
+    priority_files: list[str] | None = None,
 ) -> str:
     """Summarize a diff for LLM validation, ensuring all files are visible.
 
@@ -156,11 +157,14 @@ def summarize_diff_for_validation(
     1. Always shows the complete file list with stats
     2. Truncates individual hunks to avoid overwhelming the LLM
     3. Prioritizes showing file names over full content
+    4. When priority_files provided, shows those files first with more space
 
     Args:
         diff: Full git diff string.
         max_chars: Maximum characters to return.
         max_hunk_lines: Maximum lines per hunk before truncation.
+        priority_files: Optional list of file paths to prioritize.
+            These files appear first and get 60% of the space allocation.
 
     Returns:
         Summarized diff string that fits within max_chars.
@@ -198,6 +202,21 @@ def summarize_diff_for_validation(
             }
         )
 
+    # Separate into priority and non-priority groups if priority_files provided
+    priority_stats: list[dict[str, str | int]] = []
+    non_priority_stats: list[dict[str, str | int]] = []
+
+    if priority_files:
+        priority_set = set(priority_files)
+        for f in file_stats:
+            if str(f["name"]) in priority_set:
+                priority_stats.append(f)
+            else:
+                non_priority_stats.append(f)
+    else:
+        # No priority files - all are non-priority (original behavior)
+        non_priority_stats = file_stats
+
     # Build summary header
     total_additions = sum(int(f["additions"]) for f in file_stats)
     total_deletions = sum(int(f["deletions"]) for f in file_stats)
@@ -207,7 +226,15 @@ def summarize_diff_for_validation(
         "### Files Changed:\n",
     ]
 
-    for f in file_stats:
+    # Show priority files first in the summary
+    if priority_stats:
+        summary_parts.append("#### Priority Files:\n")
+        for f in priority_stats:
+            summary_parts.append(f"- {f['name']} (+{f['additions']}/-{f['deletions']})\n")
+        if non_priority_stats:
+            summary_parts.append("\n#### Other Files:\n")
+
+    for f in non_priority_stats:
         summary_parts.append(f"- {f['name']} (+{f['additions']}/-{f['deletions']})\n")
 
     summary_parts.append("\n### File Details:\n\n")
@@ -216,24 +243,42 @@ def summarize_diff_for_validation(
     header_size = sum(len(p) for p in summary_parts)
     remaining_chars = max_chars - header_size - 100  # Buffer for truncation message
 
-    # Distribute remaining space among files
-    chars_per_file = remaining_chars // len(file_stats) if file_stats else remaining_chars
+    # Allocate space: 60% to priority files, 40% to non-priority (if priority_files provided)
+    if priority_files and priority_stats:
+        priority_space = int(remaining_chars * 0.6)
+        non_priority_space = remaining_chars - priority_space
 
-    for f in file_stats:
-        file_content = str(f["diff"])
+        chars_per_priority = priority_space // len(priority_stats) if priority_stats else 0
+        chars_per_non_priority = non_priority_space // len(non_priority_stats) if non_priority_stats else 0
+    else:
+        # Original behavior: equal distribution
+        chars_per_priority = 0
+        chars_per_non_priority = remaining_chars // len(file_stats) if file_stats else remaining_chars
 
-        if len(file_content) > chars_per_file:
-            # Truncate this file's diff but keep the header
-            header_end = file_content.find("@@")
-            if header_end > 0:
-                header = file_content[:header_end]
-                hunks = file_content[header_end:]
-                # Keep first part of hunks
-                truncated_hunks = hunks[: chars_per_file - len(header) - 50]
-                file_content = header + truncated_hunks + "\n... [file diff truncated] ...\n"
-            else:
-                file_content = file_content[:chars_per_file] + "\n... [file diff truncated] ...\n"
+    def truncate_file_content(file_content: str, max_file_chars: int) -> str:
+        """Truncate a file diff to fit within max_file_chars."""
+        if len(file_content) <= max_file_chars:
+            return file_content
 
+        # Truncate this file's diff but keep the header
+        header_end = file_content.find("@@")
+        if header_end > 0:
+            header = file_content[:header_end]
+            hunks = file_content[header_end:]
+            # Keep first part of hunks
+            truncated_hunks = hunks[: max_file_chars - len(header) - 50]
+            return header + truncated_hunks + "\n... [file diff truncated] ...\n"
+        else:
+            return file_content[:max_file_chars] + "\n... [file diff truncated] ...\n"
+
+    # Add priority files first
+    for f in priority_stats:
+        file_content = truncate_file_content(str(f["diff"]), chars_per_priority)
+        summary_parts.append(file_content)
+
+    # Add non-priority files
+    for f in non_priority_stats:
+        file_content = truncate_file_content(str(f["diff"]), chars_per_non_priority)
         summary_parts.append(file_content)
 
     result = "".join(summary_parts)
