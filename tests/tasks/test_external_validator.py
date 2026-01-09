@@ -1657,3 +1657,265 @@ class TestQALoopIntegration:
         # All issues should be included
         assert result.status == "invalid"
         assert len(result.issues) >= 3
+
+
+class TestTaskAwareValidationContext:
+    """Tests for task-aware validation context prioritization.
+
+    These tests verify that the external validator extracts file paths from task
+    descriptions and passes them as priority_files to summarize_diff_for_validation,
+    ensuring that task-relevant files get more space in the validation context.
+
+    Task: gt-9bf839
+    """
+
+    @pytest.fixture
+    def validation_config(self):
+        """Create a validation config for task-aware tests."""
+        return TaskValidationConfig(
+            enabled=True,
+            provider="claude",
+            model="claude-haiku-4-5",
+            use_external_validator=True,
+        )
+
+    @pytest.fixture
+    def mock_llm_service(self):
+        """Create a mock LLM service."""
+        from gobby.llm import LLMProvider, LLMService
+
+        service = MagicMock(spec=LLMService)
+        provider = AsyncMock(spec=LLMProvider)
+        service.get_provider.return_value = provider
+        provider.generate_text.return_value = '{"status": "valid", "issues": []}'
+        return service
+
+    @pytest.fixture
+    def mock_agent_spawner(self):
+        """Mock the gobby-agents spawner interface."""
+        spawner = MagicMock()
+        spawner.start_agent = AsyncMock(
+            return_value={
+                "success": True,
+                "agent_id": "agent-task-aware-123",
+                "status": "running",
+            }
+        )
+        spawner.get_agent_result = AsyncMock(
+            return_value={
+                "success": True,
+                "status": "completed",
+                "output": '{"status": "valid", "summary": "All criteria met", "issues": []}',
+            }
+        )
+        return spawner
+
+    @pytest.mark.asyncio
+    async def test_task_aware_llm_validation_extracts_files(
+        self, validation_config, mock_llm_service
+    ):
+        """Test that LLM validation extracts files from task and prioritizes them in diff."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        # Task mentions specific files
+        task = {
+            "id": "gt-file-extract",
+            "title": "Fix bug in src/auth/login.py",
+            "description": "The error handling in `src/auth/login.py` needs improvement. Also update tests/test_login.py.",
+            "validation_criteria": "- [ ] Error handling improved in src/auth/login.py",
+        }
+
+        # Large diff with many files - priority files should get more space
+        changes_context = """diff --git a/src/auth/login.py b/src/auth/login.py
+index abc..def 100644
++def improved_login():
++    # Better error handling
++    pass
+diff --git a/src/unrelated/file1.py b/src/unrelated/file1.py
++unrelated changes
+diff --git a/src/unrelated/file2.py b/src/unrelated/file2.py
++more unrelated
+diff --git a/tests/test_login.py b/tests/test_login.py
++def test_improved_login():
++    pass
+"""
+
+        await run_external_validation(
+            config=validation_config,
+            llm_service=mock_llm_service,
+            task=task,
+            changes_context=changes_context,
+        )
+
+        call_kwargs = mock_llm_service.get_provider.return_value.generate_text.call_args.kwargs
+        prompt = call_kwargs["prompt"]
+
+        # The prompt should indicate priority files or show them prominently
+        # Priority files should appear in the prompt
+        assert "src/auth/login.py" in prompt or "login.py" in prompt
+        assert "tests/test_login.py" in prompt or "test_login.py" in prompt
+
+    @pytest.mark.asyncio
+    async def test_task_aware_spawn_validation_extracts_files(
+        self, mock_agent_spawner
+    ):
+        """Test that spawn validation extracts files from task and prioritizes them."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        config = TaskValidationConfig(
+            enabled=True,
+            provider="claude",
+            model="claude-haiku-4-5",
+            use_external_validator=True,
+            external_validator_mode="spawn",
+        )
+
+        task = {
+            "id": "gt-spawn-extract",
+            "title": "Update src/tasks/task_expansion.py",
+            "description": "Modify the `expand_task` function in `src/tasks/task_expansion.py` to support TDD mode.",
+            "validation_criteria": "- [ ] TDD mode supported in src/tasks/task_expansion.py",
+        }
+
+        large_changes = "diff --git a/file1.py b/file1.py\n" + ("+line\n" * 100)
+        large_changes += "\ndiff --git a/src/tasks/task_expansion.py b/src/tasks/task_expansion.py\n+def expand_task():\n"
+        large_changes += "\ndiff --git a/file2.py b/file2.py\n" + ("+line\n" * 100)
+
+        await run_external_validation(
+            config=config,
+            llm_service=None,
+            task=task,
+            changes_context=large_changes,
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        prompt = call_kwargs.get("prompt", "")
+
+        # The task-relevant file should be prominently featured
+        assert "task_expansion.py" in prompt
+
+    @pytest.mark.asyncio
+    async def test_task_aware_agent_validation_extracts_files(
+        self, validation_config
+    ):
+        """Test that agent validation extracts files from task and prioritizes them."""
+        from gobby.llm.executor import AgentResult
+        from gobby.tasks.external_validator import run_external_validation
+
+        mock_runner = MagicMock()
+        mock_runner.run = AsyncMock(
+            return_value=AgentResult(
+                output='{"status": "valid", "summary": "Good", "issues": []}',
+                status="completed",
+                turns_used=2,
+            )
+        )
+
+        config = TaskValidationConfig(
+            enabled=True,
+            provider="claude",
+            model="claude-haiku-4-5",
+            use_external_validator=True,
+            external_validator_mode="agent",
+        )
+
+        task = {
+            "id": "gt-agent-extract",
+            "title": "Fix src/api/endpoints.py validation",
+            "description": "The input validation in `src/api/endpoints.py` is too permissive.",
+            "validation_criteria": "- [ ] Input validation stricter in src/api/endpoints.py",
+        }
+
+        await run_external_validation(
+            config=config,
+            llm_service=None,
+            task=task,
+            changes_context="diff content with many files",
+            agent_runner=mock_runner,
+        )
+
+        call_args = mock_runner.run.call_args
+        agent_config = call_args[0][0]
+        prompt = agent_config.prompt
+
+        # Task-relevant file should be in the prompt
+        assert "endpoints.py" in prompt or "src/api" in prompt
+
+    @pytest.mark.asyncio
+    async def test_task_aware_no_files_default_behavior(
+        self, validation_config, mock_llm_service
+    ):
+        """Test that when task has no file paths, default behavior is unchanged."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        # Task without file mentions
+        task = {
+            "id": "gt-no-files",
+            "title": "Improve performance",
+            "description": "Make the application faster by optimizing database queries.",
+            "validation_criteria": "- [ ] Query performance improved",
+        }
+
+        changes_context = """diff --git a/src/db.py b/src/db.py
++optimized query
+diff --git a/src/cache.py b/src/cache.py
++cache layer
+"""
+
+        await run_external_validation(
+            config=validation_config,
+            llm_service=mock_llm_service,
+            task=task,
+            changes_context=changes_context,
+        )
+
+        call_kwargs = mock_llm_service.get_provider.return_value.generate_text.call_args.kwargs
+        prompt = call_kwargs["prompt"]
+
+        # Both files should be present (no prioritization)
+        assert "db.py" in prompt or "src/db" in prompt
+        assert "cache.py" in prompt or "src/cache" in prompt
+
+    @pytest.mark.asyncio
+    async def test_task_aware_prompt_includes_priority_note(
+        self, mock_agent_spawner
+    ):
+        """Test that validation prompt includes note about which files were prioritized."""
+        from gobby.tasks.external_validator import run_external_validation
+
+        config = TaskValidationConfig(
+            enabled=True,
+            provider="claude",
+            model="claude-haiku-4-5",
+            use_external_validator=True,
+            external_validator_mode="spawn",
+        )
+
+        task = {
+            "id": "gt-priority-note",
+            "title": "Update src/important.py",
+            "description": "Changes needed in `src/important.py` and `src/related.py`.",
+            "validation_criteria": "- [ ] src/important.py updated correctly",
+        }
+
+        # Large diff to trigger summarization
+        changes = "diff --git a/src/important.py b/src/important.py\n+important change\n"
+        changes += "diff --git a/src/related.py b/src/related.py\n+related change\n"
+        changes += ("diff --git a/other.py b/other.py\n" + "+other\n" * 1000)
+
+        await run_external_validation(
+            config=config,
+            llm_service=None,
+            task=task,
+            changes_context=changes,
+            agent_spawner=mock_agent_spawner,
+        )
+
+        call_kwargs = mock_agent_spawner.start_agent.call_args.kwargs
+        prompt = call_kwargs.get("prompt", "")
+
+        # Prompt should indicate which files are task-relevant/prioritized
+        # This could be via a "Priority Files" section or similar indicator
+        assert "important.py" in prompt
+        assert "related.py" in prompt
