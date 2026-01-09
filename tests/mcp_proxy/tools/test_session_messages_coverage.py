@@ -837,41 +837,56 @@ class TestGetSession:
 
 
 class TestGetCurrentSession:
-    """Tests for get_current_session tool."""
+    """Tests for get_current_session tool (deterministic lookup)."""
 
     def test_get_current_session_found(self):
-        """Test finding current active session."""
+        """Test finding current session by external identifiers."""
         session_manager = MagicMock()
         mock_session = MagicMock()
         mock_session.to_dict.return_value = {
             "id": "sess-current",
             "status": "active",
+            "external_id": "ext-123",
         }
-        session_manager.list.return_value = [mock_session]
+        session_manager.find_by_external_id.return_value = mock_session
 
         registry = create_test_registry(session_manager=session_manager)
         get_current = registry.get_tool("get_current_session")
 
-        result = get_current(project_id="project-123")
+        result = get_current(
+            external_id="ext-123",
+            source="claude",
+            machine_id="machine-abc",
+            project_id="project-123",
+        )
 
         assert result["found"] is True
         assert result["id"] == "sess-current"
-        session_manager.list.assert_called_once_with(
-            project_id="project-123", status="active", limit=1
+        session_manager.find_by_external_id.assert_called_once_with(
+            external_id="ext-123",
+            machine_id="machine-abc",
+            project_id="project-123",
+            source="claude",
         )
 
     def test_get_current_session_not_found(self):
-        """Test when no active session found."""
+        """Test when session not found for provided identifiers."""
         session_manager = MagicMock()
-        session_manager.list.return_value = []
+        session_manager.find_by_external_id.return_value = None
 
         registry = create_test_registry(session_manager=session_manager)
         get_current = registry.get_tool("get_current_session")
 
-        result = get_current()
+        result = get_current(
+            external_id="ext-unknown",
+            source="claude",
+            machine_id="machine-abc",
+            project_id="project-123",
+        )
 
         assert result["found"] is False
-        assert "No active session found" in result["message"]
+        assert "Session not found" in result["message"]
+        assert result["external_id"] == "ext-unknown"
 
 
 class TestListSessions:

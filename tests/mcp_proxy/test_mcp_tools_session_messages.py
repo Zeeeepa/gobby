@@ -214,26 +214,47 @@ async def test_get_session_prefix_match(mock_session_manager, full_sessions_regi
 
 @pytest.mark.asyncio
 async def test_get_current_session(mock_session_manager, full_sessions_registry):
-    """Test get_current_session tool execution."""
+    """Test get_current_session tool execution (deterministic lookup)."""
     mock_session = _make_mock_session("sess-active", status="active")
-    mock_session_manager.list.return_value = [mock_session]
+    mock_session_manager.find_by_external_id.return_value = mock_session
 
-    result = await full_sessions_registry.call("get_current_session", {})
+    result = await full_sessions_registry.call(
+        "get_current_session",
+        {
+            "external_id": "ext-123",
+            "source": "claude",
+            "machine_id": "machine-abc",
+            "project_id": "proj-123",
+        },
+    )
 
-    mock_session_manager.list.assert_called_with(project_id=None, status="active", limit=1)
+    mock_session_manager.find_by_external_id.assert_called_with(
+        external_id="ext-123",
+        machine_id="machine-abc",
+        project_id="proj-123",
+        source="claude",
+    )
     assert result["found"] is True
     assert result["status"] == "active"
 
 
 @pytest.mark.asyncio
 async def test_get_current_session_none(mock_session_manager, full_sessions_registry):
-    """Test get_current_session when no active session."""
-    mock_session_manager.list.return_value = []
+    """Test get_current_session when session not found."""
+    mock_session_manager.find_by_external_id.return_value = None
 
-    result = await full_sessions_registry.call("get_current_session", {"project_id": "proj-123"})
+    result = await full_sessions_registry.call(
+        "get_current_session",
+        {
+            "external_id": "ext-unknown",
+            "source": "claude",
+            "machine_id": "machine-abc",
+            "project_id": "proj-123",
+        },
+    )
 
     assert result["found"] is False
-    assert result["project_id"] == "proj-123"
+    assert result["external_id"] == "ext-unknown"
 
 
 @pytest.mark.asyncio

@@ -667,39 +667,52 @@ def create_session_messages_registry(
 
         @registry.tool(
             name="get_current_session",
-            description="Get the current active session for a project.",
+            description="Look up the current session by its external identifiers.",
         )
         def get_current_session(
-            project_id: str | None = None,
+            external_id: str,
+            source: str,
+            machine_id: str,
+            project_id: str,
         ) -> dict[str, Any]:
             """
-            Find the most recent active session for a project.
+            Look up the current session by its external identifiers.
+
+            This is a deterministic lookup - it finds the exact session matching
+            the provided identifiers rather than guessing based on "most recent".
 
             Args:
-                project_id: Project ID (optional, defaults to current project)
+                external_id: External session identifier (e.g., Claude Code's session ID)
+                source: CLI source ("claude", "gemini", "codex")
+                machine_id: Machine identifier
+                project_id: Project identifier
 
             Returns:
-                Session dict or null if no active session
+                Session dict with internal 'id' field, or error if not found
             """
             if session_manager is None:
                 return {"error": "Session manager not available"}
 
-            # Find active sessions for project
-            sessions = session_manager.list(
+            # Deterministic lookup by all four identifiers
+            session = session_manager.find_by_external_id(
+                external_id=external_id,
+                machine_id=machine_id,
                 project_id=project_id,
-                status="active",
-                limit=1,
+                source=source,
             )
 
-            if sessions:
+            if session:
                 return {
                     "found": True,
-                    **sessions[0].to_dict(),
+                    **session.to_dict(),
                 }
 
             return {
                 "found": False,
-                "message": "No active session found",
+                "message": "Session not found for provided identifiers",
+                "external_id": external_id,
+                "source": source,
+                "machine_id": machine_id,
                 "project_id": project_id,
             }
 
