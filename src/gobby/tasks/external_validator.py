@@ -15,7 +15,11 @@ from typing import TYPE_CHECKING, Any
 
 from gobby.config.app import TaskValidationConfig
 from gobby.llm import LLMService
-from gobby.tasks.commits import extract_mentioned_files, summarize_diff_for_validation
+from gobby.tasks.commits import (
+    extract_mentioned_files,
+    extract_mentioned_symbols,
+    summarize_diff_for_validation,
+)
 from gobby.tasks.issue_extraction import parse_issues_from_response
 from gobby.tasks.validation_models import Issue
 from gobby.utils.json_helpers import extract_json_object
@@ -442,6 +446,12 @@ def _build_spawn_validation_prompt(
     if priority_files:
         priority_section = f"\n\n**Prioritized files based on task description:** {', '.join(priority_files)}"
 
+    # Extract symbols mentioned in the task for verification
+    mentioned_symbols = extract_mentioned_symbols(task)
+    symbol_section = ""
+    if mentioned_symbols:
+        symbol_section = f"\n\n**Key symbols to verify in the changes:** {', '.join(mentioned_symbols)}\nVerify these specific functions/classes are present and correctly implemented."
+
     prompt = f"""You are an OBJECTIVE and ADVERSARIAL QA validator.
 
 ## Critical Instructions
@@ -455,7 +465,7 @@ def _build_spawn_validation_prompt(
 ID: {task_id}
 Title: {task_title}
 
-{criteria_section}{test_strategy_section}{priority_section}
+{criteria_section}{test_strategy_section}{priority_section}{symbol_section}
 
 ## Code Changes to Validate
 {summarized_changes}
@@ -536,6 +546,12 @@ def _build_agent_validation_prompt(
     if priority_files:
         priority_section = f"\n\n**Prioritized files based on task description:** {', '.join(priority_files)}"
 
+    # Extract symbols mentioned in the task for verification
+    mentioned_symbols = extract_mentioned_symbols(task)
+    symbol_section = ""
+    if mentioned_symbols:
+        symbol_section = f"\n\n**Key symbols to verify in the changes:** {', '.join(mentioned_symbols)}\nVerify these specific functions/classes are present and correctly implemented."
+
     prompt = f"""You are an objective QA validator. You have NO prior context about this task.
 
 ## Your Role
@@ -547,7 +563,7 @@ Validate whether the code changes satisfy the acceptance criteria. You have acce
 ## Task Being Validated
 Title: {task_title}
 
-{criteria_section}{priority_section}
+{criteria_section}{priority_section}{symbol_section}
 
 ## Code Changes to Validate
 {summarized_changes}
@@ -625,12 +641,18 @@ def _build_external_validation_prompt(
     if priority_files:
         priority_section = f"\n\n**Prioritized files based on task description:** {', '.join(priority_files)}"
 
+    # Extract symbols mentioned in the task for verification
+    mentioned_symbols = extract_mentioned_symbols(task)
+    symbol_section = ""
+    if mentioned_symbols:
+        symbol_section = f"\n\n**Key symbols to verify in the changes:** {', '.join(mentioned_symbols)}\nVerify these specific functions/classes are present and correctly implemented."
+
     prompt = f"""You are reviewing code changes for the following task.
 
 ## Task
 Title: {task_title}
 
-{criteria_section}{priority_section}
+{criteria_section}{priority_section}{symbol_section}
 
 ## Code Changes to Validate
 {summarized_changes}
