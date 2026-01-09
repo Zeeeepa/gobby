@@ -170,6 +170,14 @@ class WorkflowEngine:
                 reason = "Waiting for user approval. Please respond with 'yes' or 'no'."
                 self._log_tool_call(session_id, state.step, "unknown", "block", reason)
                 return HookResponse(decision="block", reason=reason)
+
+            # Reset premature stop counter on tool calls
+            # This ensures the failsafe only triggers for repeated stops without work in between
+            if state.variables.get("_premature_stop_count", 0) > 0:
+                state.variables["_premature_stop_count"] = 0
+                self.state_manager.save_state(state)
+                logger.debug(f"Reset premature_stop_count on tool call for session {session_id}")
+
             tool_name = eval_context["tool_name"]
 
             # Check blocked list
