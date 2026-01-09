@@ -51,7 +51,7 @@ class TestResolveSummaryMarkdown:
         mock_session.summary_markdown = "# Summary\n\nThis is a summary."
         mock_session_manager.get.return_value = mock_session
 
-        result = await resolver.resolve("summary_markdown", "sess-123")
+        result = await resolver._resolve_raw("summary_markdown", "sess-123")
 
         assert result == "# Summary\n\nThis is a summary."
         mock_session_manager.get.assert_called_once_with("sess-123")
@@ -62,7 +62,7 @@ class TestResolveSummaryMarkdown:
         mock_session.summary_markdown = None
         mock_session_manager.get.return_value = mock_session
 
-        result = await resolver.resolve("summary_markdown", "sess-123")
+        result = await resolver._resolve_raw("summary_markdown", "sess-123")
 
         assert result == ""
 
@@ -71,7 +71,7 @@ class TestResolveSummaryMarkdown:
         mock_session_manager.get.return_value = None
 
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver.resolve("summary_markdown", "sess-unknown")
+            await resolver._resolve_raw("summary_markdown", "sess-unknown")
 
         assert "Session not found: sess-unknown" in str(exc_info.value)
 
@@ -85,7 +85,7 @@ class TestResolveCompactMarkdown:
         mock_session.compact_markdown = "## Handoff\n\nContext here."
         mock_session_manager.get.return_value = mock_session
 
-        result = await resolver.resolve("compact_markdown", "sess-123")
+        result = await resolver._resolve_raw("compact_markdown", "sess-123")
 
         assert result == "## Handoff\n\nContext here."
 
@@ -95,7 +95,7 @@ class TestResolveCompactMarkdown:
         mock_session.compact_markdown = None
         mock_session_manager.get.return_value = mock_session
 
-        result = await resolver.resolve("compact_markdown", "sess-123")
+        result = await resolver._resolve_raw("compact_markdown", "sess-123")
 
         assert result == ""
 
@@ -109,7 +109,7 @@ class TestResolveSessionId:
         mock_session.summary_markdown = "Target session summary"
         mock_session_manager.get.return_value = mock_session
 
-        result = await resolver.resolve("session_id:sess-target", "sess-parent")
+        result = await resolver._resolve_raw("session_id:sess-target", "sess-parent")
 
         # Should fetch the target session, not the parent
         mock_session_manager.get.assert_called_once_with("sess-target")
@@ -120,7 +120,7 @@ class TestResolveSessionId:
         mock_session_manager.get.return_value = None
 
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver.resolve("session_id:sess-missing", "sess-parent")
+            await resolver._resolve_raw("session_id:sess-missing", "sess-parent")
 
         assert "Session not found: sess-missing" in str(exc_info.value)
 
@@ -138,7 +138,7 @@ class TestResolveTranscript:
             ]
         )
 
-        result = await resolver.resolve("transcript:3", "sess-123")
+        result = await resolver._resolve_raw("transcript:3", "sess-123")
 
         mock_message_manager.get_messages.assert_called_once_with(
             session_id="sess-123",
@@ -153,7 +153,7 @@ class TestResolveTranscript:
         """transcript:<n> returns empty string when no messages."""
         mock_message_manager.get_messages = AsyncMock(return_value=[])
 
-        result = await resolver.resolve("transcript:10", "sess-123")
+        result = await resolver._resolve_raw("transcript:10", "sess-123")
 
         assert result == ""
 
@@ -162,7 +162,7 @@ class TestResolveTranscript:
         resolver._max_transcript_messages = 50
         mock_message_manager.get_messages = AsyncMock(return_value=[])
 
-        await resolver.resolve("transcript:1000", "sess-123")
+        await resolver._resolve_raw("transcript:1000", "sess-123")
 
         mock_message_manager.get_messages.assert_called_once_with(
             session_id="sess-123",
@@ -179,14 +179,14 @@ class TestResolveFile:
         test_file = temp_project / "test.md"
         test_file.write_text("# Test File\n\nContent here.")
 
-        result = await resolver.resolve("file:test.md", "sess-123")
+        result = await resolver._resolve_raw("file:test.md", "sess-123")
 
         assert result == "# Test File\n\nContent here."
 
     async def test_rejects_path_traversal(self, resolver):
         """file:<path> rejects path traversal attempts."""
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver.resolve("file:../etc/passwd", "sess-123")
+            await resolver._resolve_raw("file:../etc/passwd", "sess-123")
 
         assert "Path traversal not allowed" in str(exc_info.value)
 
@@ -194,7 +194,7 @@ class TestResolveFile:
         """file:<path> rejects paths outside project."""
         # Create a file outside project using absolute path trick
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver.resolve("file:/etc/passwd", "sess-123")
+            await resolver._resolve_raw("file:/etc/passwd", "sess-123")
 
         # Could raise absolute path, traversal, or outside project error
         error_msg = str(exc_info.value).lower()
@@ -203,7 +203,7 @@ class TestResolveFile:
     async def test_raises_on_missing_file(self, resolver):
         """file:<path> raises error for non-existent file."""
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver.resolve("file:nonexistent.md", "sess-123")
+            await resolver._resolve_raw("file:nonexistent.md", "sess-123")
 
         assert "File not found" in str(exc_info.value)
 
@@ -213,7 +213,7 @@ class TestResolveFile:
         test_file = temp_project / "large.txt"
         test_file.write_text("A" * 200)
 
-        result = await resolver.resolve("file:large.txt", "sess-123")
+        result = await resolver._resolve_raw("file:large.txt", "sess-123")
 
         assert len(result) < 200
         assert "truncated" in result
@@ -225,7 +225,7 @@ class TestResolveFile:
         test_file.write_bytes(b"\x00\x01\x02\xff\xfe")
 
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver.resolve("file:binary.bin", "sess-123")
+            await resolver._resolve_raw("file:binary.bin", "sess-123")
 
         assert "not valid UTF-8" in str(exc_info.value) or "binary" in str(exc_info.value)
 
@@ -238,7 +238,7 @@ class TestResolveFile:
         )
 
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver.resolve("file:test.md", "sess-123")
+            await resolver._resolve_raw("file:test.md", "sess-123")
 
         assert "No project path configured" in str(exc_info.value)
 
@@ -261,7 +261,7 @@ class TestContentTruncation:
         mock_session.summary_markdown = "A" * 200
         mock_session_manager.get.return_value = mock_session
 
-        result = await resolver.resolve("summary_markdown", "sess-123")
+        result = await resolver._resolve_raw("summary_markdown", "sess-123")
 
         assert len(result) < 200
         assert "truncated" in result
@@ -282,7 +282,7 @@ class TestContentTruncation:
         mock_session.compact_markdown = "B" * 200
         mock_session_manager.get.return_value = mock_session
 
-        result = await resolver.resolve("compact_markdown", "sess-123")
+        result = await resolver._resolve_raw("compact_markdown", "sess-123")
 
         assert len(result) < 200
         assert "truncated" in result
@@ -305,7 +305,7 @@ class TestContentTruncation:
             ]
         )
 
-        result = await resolver.resolve("transcript:10", "sess-123")
+        result = await resolver._resolve_raw("transcript:10", "sess-123")
 
         assert len(result) < 250
         assert "truncated" in result
@@ -325,7 +325,7 @@ class TestContentTruncation:
         mock_session.summary_markdown = "Small content"
         mock_session_manager.get.return_value = mock_session
 
-        result = await resolver.resolve("summary_markdown", "sess-123")
+        result = await resolver._resolve_raw("summary_markdown", "sess-123")
 
         assert result == "Small content"
         assert "truncated" not in result
@@ -337,14 +337,14 @@ class TestUnknownSource:
     async def test_raises_on_unknown_source(self, resolver):
         """Unknown source format raises error."""
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver.resolve("invalid_source", "sess-123")
+            await resolver._resolve_raw("invalid_source", "sess-123")
 
         assert "Unknown context source format" in str(exc_info.value)
 
     async def test_raises_on_malformed_source(self, resolver):
         """Malformed source format raises error."""
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver.resolve("session_id:", "sess-123")
+            await resolver._resolve_raw("session_id:", "sess-123")
 
         assert "Unknown context source format" in str(exc_info.value)
 
