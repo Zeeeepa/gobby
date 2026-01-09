@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from gobby.config.app import MemoryConfig
+from gobby.memory.context import build_memory_context
 from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import LocalMemoryManager, Memory
 
@@ -157,6 +158,42 @@ class MemoryManager:
         self._update_access_stats(memories)
 
         return memories
+
+    def recall_as_context(
+        self,
+        project_id: str | None = None,
+        limit: int = 10,
+        min_importance: float | None = None,
+        compression_threshold: int | None = None,
+    ) -> str:
+        """
+        Retrieve memories and format them as context for LLM prompts.
+
+        Convenience method that combines recall() with build_memory_context().
+        If a compressor was provided at initialization and the content exceeds
+        the compression threshold, the inner content will be compressed.
+
+        Args:
+            project_id: Filter by project
+            limit: Maximum memories to return
+            min_importance: Minimum importance threshold
+            compression_threshold: Character threshold for compression (default: 4000)
+
+        Returns:
+            Formatted markdown string wrapped in <project-memory> tags,
+            or empty string if no memories found
+        """
+        memories = self.recall(
+            project_id=project_id,
+            limit=limit,
+            min_importance=min_importance,
+        )
+
+        kwargs: dict[str, Any] = {"compressor": self.compressor}
+        if compression_threshold is not None:
+            kwargs["compression_threshold"] = compression_threshold
+
+        return build_memory_context(memories, **kwargs)
 
     def _recall_semantic(
         self,

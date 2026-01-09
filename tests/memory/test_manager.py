@@ -1024,15 +1024,16 @@ class TestRecallAsContext:
             compressor=mock_compressor,
         )
 
-        # Create enough memories to exceed compression threshold
-        for i in range(60):
+        # Create memories
+        for i in range(5):
             await manager.remember(
                 content=f"Memory {i} with some extra content to make it longer",
                 memory_type="preference",
                 importance=0.8,
             )
 
-        context = manager.recall_as_context()
+        # Use low compression threshold to force compression
+        context = manager.recall_as_context(compression_threshold=10)
 
         # Compressor should have been called
         mock_compressor.compress.assert_called_once()
@@ -1106,15 +1107,16 @@ class TestRecallAsContext:
             compressor=mock_compressor,
         )
 
-        # Create memories that will exceed threshold
-        for i in range(60):
+        # Create memories
+        for i in range(5):
             await manager.remember(
                 content=f"Memory {i} with some extra content padding",
                 memory_type="preference",
                 importance=0.8,
             )
 
-        manager.recall_as_context()
+        # Use low threshold to trigger compression
+        manager.recall_as_context(compression_threshold=10)
 
         # Should use the compressor from __init__
         mock_compressor.compress.assert_called()
