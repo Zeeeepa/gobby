@@ -15,6 +15,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, Field, field_validator
 
+from gobby.compression import CompressionConfig
 from gobby.config.extensions import (
     HookExtensionsConfig,
     PluginItemConfig,
@@ -60,6 +61,8 @@ from gobby.config.tasks import (
 
 # Explicit exports for mypy (re-exported symbols from submodules)
 __all__ = [
+    # From gobby.compression
+    "CompressionConfig",
     # From gobby.config.extensions
     "HookExtensionsConfig",
     "PluginItemConfig",
@@ -300,6 +303,10 @@ class DaemonConfig(BaseModel):
     verification_defaults: ProjectVerificationConfig = Field(
         default_factory=ProjectVerificationConfig,
         description="Default verification commands for projects without auto-detected config",
+    )
+    compression: CompressionConfig = Field(
+        default_factory=CompressionConfig,
+        description="LLMLingua-2 prompt compression configuration",
     )
 
     def get_code_execution_config(self) -> CodeExecutionConfig:
