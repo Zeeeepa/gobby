@@ -39,6 +39,13 @@ dependencies = [
     "gitingest>=0.3.1",
 ]
 
+[project.optional-dependencies]
+compression = [
+    "llmlingua>=0.2.0",
+    "transformers>=4.35.0",
+    "torch>=2.0.0",
+]
+
 [project.scripts]
 gobby = "gobby.cli:cli"
 
