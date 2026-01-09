@@ -10,12 +10,65 @@ number of tools exposed on the main MCP server.
 """
 
 import asyncio
+import inspect
 import logging
+import types
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Union, get_args, get_origin
 
 logger = logging.getLogger(__name__)
+
+
+def _get_json_schema_type(annotation: Any) -> str:
+    """
+    Convert a Python type annotation to a JSON schema type string.
+
+    Handles:
+    - Basic types: int, bool, str, dict, list
+    - Generic types: dict[str, Any], list[str], etc.
+    - Union types: str | None, dict[str, Any] | None, etc.
+    - typing.Union: Union[str, None], etc.
+
+    Args:
+        annotation: Python type annotation
+
+    Returns:
+        JSON schema type string ("string", "integer", "boolean", "object", "array")
+    """
+    if annotation is inspect.Parameter.empty:
+        return "string"
+
+    # Handle Union types (X | Y or Union[X, Y])
+    origin = get_origin(annotation)
+    if origin is Union or origin is types.UnionType:
+        # Get non-None types from the union
+        args = [arg for arg in get_args(annotation) if arg is not type(None)]
+        if args:
+            # Use the first non-None type
+            return _get_json_schema_type(args[0])
+        return "string"
+
+    # Handle generic types like dict[str, Any], list[str]
+    if origin is dict:
+        return "object"
+    if origin is list:
+        return "array"
+
+    # Handle basic types
+    if annotation is int:
+        return "integer"
+    if annotation is bool:
+        return "boolean"
+    if annotation is dict:
+        return "object"
+    if annotation is list:
+        return "array"
+    if annotation is str:
+        return "string"
+
+    # Default to string for unknown types
+    return "string"
 
 
 @dataclass
@@ -97,14 +150,7 @@ class InternalToolRegistry:
             # For now, we'll assume the decorated function is well-behaved
             # or rely on manual registration if complex schema needed.
             # But wait, tasks.py usage implies we need schema extraction.
-            # Let's use a basic schema generator or require schema?
-            # looking at existing code, there is no schema generator.
-            # I will create a dummy schema for now to satisfy the type checker
-            # and allow the code to run, noting that a real schema generator is needed.
-
-            import inspect
-
-            # Very basic schema extraction
+            # Extract schema from function signature using type annotations
             sig = inspect.signature(func)
             properties = {}
             required = []
@@ -113,17 +159,9 @@ class InternalToolRegistry:
                 if param_name == "self":
                     continue
 
-                param_type = "string"
-                if param.annotation is int:
-                    param_type = "integer"
-                elif param.annotation is bool:
-                    param_type = "boolean"
-                elif param.annotation is dict:
-                    param_type = "object"
-                elif param.annotation is list:
-                    param_type = "array"
-
+                param_type = _get_json_schema_type(param.annotation)
                 properties[param_name] = {"type": param_type}
+
                 if param.default == inspect.Parameter.empty:
                     required.append(param_name)
 
