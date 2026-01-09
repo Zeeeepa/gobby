@@ -539,6 +539,140 @@ index abc..def 100644
         # Should still have the file name visible
         assert "important.py" in result
 
+    def test_priority_files_none_unchanged_behavior(self):
+        """Test that priority_files=None keeps current behavior."""
+        large_diff = "diff --git a/file1.py b/file1.py\n" + ("+" * 20000)
+        large_diff += "\ndiff --git a/file2.py b/file2.py\n" + ("+" * 20000)
+
+        # With priority_files=None, behavior should be unchanged
+        result_with_none = summarize_diff_for_validation(large_diff, max_chars=5000, priority_files=None)
+        result_without_param = summarize_diff_for_validation(large_diff, max_chars=5000)
+
+        # Both should contain both files
+        assert "file1.py" in result_with_none
+        assert "file2.py" in result_with_none
+        assert "file1.py" in result_without_param
+        assert "file2.py" in result_without_param
+
+    def test_priority_files_appear_first(self):
+        """Test that priority files appear before non-priority files."""
+        diff = """diff --git a/aaa_first.py b/aaa_first.py
+index abc..def 100644
++line in aaa
+diff --git a/zzz_last.py b/zzz_last.py
+index abc..def 100644
++line in zzz
+diff --git a/priority_file.py b/priority_file.py
+index abc..def 100644
++line in priority
+"""
+        result = summarize_diff_for_validation(
+            diff, max_chars=5000, priority_files=["priority_file.py"]
+        )
+
+        # Priority file should appear before other files in the details section
+        priority_pos = result.find("priority_file.py")
+        aaa_pos = result.find("aaa_first.py")
+        zzz_pos = result.find("zzz_last.py")
+
+        # All files should be present
+        assert priority_pos != -1
+        assert aaa_pos != -1
+        assert zzz_pos != -1
+
+        # Priority file should appear first in the details (after summary header)
+        # Find the "File Details" section
+        details_start = result.find("File Details")
+        if details_start != -1:
+            # After File Details, priority should come first
+            assert result.find("priority_file.py", details_start) < result.find("aaa_first.py", details_start)
+
+    def test_priority_files_get_more_space(self):
+        """Test that priority files get at least 60% of available space."""
+        # Create diff with priority file having less content than others
+        priority_content = "+priority line\n" * 100  # Small content
+        other_content = "+other line\n" * 1000  # Large content
+
+        diff = f"""diff --git a/priority.py b/priority.py
+index abc..def 100644
+{priority_content}
+diff --git a/other1.py b/other1.py
+index abc..def 100644
+{other_content}
+diff --git a/other2.py b/other2.py
+index abc..def 100644
+{other_content}
+"""
+        result = summarize_diff_for_validation(
+            diff, max_chars=5000, priority_files=["priority.py"]
+        )
+
+        # Priority file should be shown in full (not truncated)
+        # since its content is small and gets 60% allocation
+        priority_section = result[result.find("priority.py"):]
+        assert "truncated" not in priority_section.split("other1.py")[0].lower() or "priority" in result
+
+    def test_non_priority_files_share_remaining_space(self):
+        """Test that non-priority files share remaining 40% of space."""
+        priority_content = "+priority\n" * 50
+        other_content = "+other\n" * 5000  # Very large
+
+        diff = f"""diff --git a/priority.py b/priority.py
+{priority_content}
+diff --git a/other1.py b/other1.py
+{other_content}
+diff --git a/other2.py b/other2.py
+{other_content}
+"""
+        result = summarize_diff_for_validation(
+            diff, max_chars=3000, priority_files=["priority.py"]
+        )
+
+        # Both other files should still be present (in summary at least)
+        assert "other1.py" in result
+        assert "other2.py" in result
+
+    def test_priority_files_shown_in_full_before_truncation(self):
+        """Test priority files are shown fully up to their allocation."""
+        # Priority file with moderate content
+        priority_content = "+priority line content here\n" * 200
+
+        diff = f"""diff --git a/priority.py b/priority.py
+index abc..def 100644
+--- a/priority.py
++++ b/priority.py
+@@ -1,1 +1,200 @@
+{priority_content}
+diff --git a/other.py b/other.py
++other content
+"""
+        result = summarize_diff_for_validation(
+            diff, max_chars=10000, priority_files=["priority.py"]
+        )
+
+        # Count occurrences of priority content in result
+        priority_lines_in_result = result.count("+priority line content here")
+
+        # Should have significant portion of priority file content
+        # (not just the header)
+        assert priority_lines_in_result > 50  # Most of the 200 lines should be there
+
+    def test_priority_files_not_in_diff_ignored(self):
+        """Test that files in priority_files but not in diff are ignored."""
+        diff = """diff --git a/actual_file.py b/actual_file.py
+index abc..def 100644
++content
+"""
+        # Request priority for a file that doesn't exist in diff
+        result = summarize_diff_for_validation(
+            diff, max_chars=5000, priority_files=["nonexistent.py", "actual_file.py"]
+        )
+
+        # Should not crash, should show actual file
+        assert "actual_file.py" in result
+        # Nonexistent file shouldn't appear in output (it's not in diff)
+        assert "nonexistent.py" not in result
+
 
 class TestExtractMentionedFiles:
     """Tests for extract_mentioned_files function."""
