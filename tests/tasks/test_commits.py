@@ -538,3 +538,163 @@ index abc..def 100644
 
         # Should still have the file name visible
         assert "important.py" in result
+
+
+class TestExtractMentionedFiles:
+    """Tests for extract_mentioned_files function."""
+
+    def test_extracts_simple_path_from_description(self):
+        """Test extraction of simple file paths from task description."""
+        from gobby.tasks.commits import extract_mentioned_files
+
+        task = {
+            "title": "Fix bug",
+            "description": "The issue is in src/gobby/tasks/commits.py",
+        }
+        result = extract_mentioned_files(task)
+        assert "src/gobby/tasks/commits.py" in result
+
+    def test_extracts_backtick_quoted_paths(self):
+        """Test extraction of paths wrapped in backticks."""
+        from gobby.tasks.commits import extract_mentioned_files
+
+        task = {
+            "title": "Update validation",
+            "description": "Modify `path/to/file.py` to fix the issue",
+        }
+        result = extract_mentioned_files(task)
+        assert "path/to/file.py" in result
+
+    def test_extracts_multiple_paths(self):
+        """Test extraction of multiple file paths from same text."""
+        from gobby.tasks.commits import extract_mentioned_files
+
+        task = {
+            "title": "Refactor modules",
+            "description": "Update src/module_a.py and src/module_b.py for consistency",
+        }
+        result = extract_mentioned_files(task)
+        assert "src/module_a.py" in result
+        assert "src/module_b.py" in result
+
+    def test_extracts_paths_from_title(self):
+        """Test extraction of file paths from task title."""
+        from gobby.tasks.commits import extract_mentioned_files
+
+        task = {
+            "title": "Fix src/utils/helpers.py error handling",
+            "description": "Add try/except blocks",
+        }
+        result = extract_mentioned_files(task)
+        assert "src/utils/helpers.py" in result
+
+    def test_extracts_relative_paths(self):
+        """Test extraction of relative file paths."""
+        from gobby.tasks.commits import extract_mentioned_files
+
+        task = {
+            "title": "Update tests",
+            "description": "Modify tests/test_main.py and ./config/settings.yaml",
+        }
+        result = extract_mentioned_files(task)
+        assert "tests/test_main.py" in result
+        assert "./config/settings.yaml" in result
+
+    def test_extracts_paths_without_extension(self):
+        """Test extraction of paths that may not have extensions."""
+        from gobby.tasks.commits import extract_mentioned_files
+
+        task = {
+            "title": "Update Makefile",
+            "description": "Modify src/Makefile and scripts/build",
+        }
+        result = extract_mentioned_files(task)
+        # Should extract paths with common file-like patterns
+        assert any("Makefile" in p for p in result)
+
+    def test_extracts_absolute_paths(self):
+        """Test extraction of absolute file paths."""
+        from gobby.tasks.commits import extract_mentioned_files
+
+        task = {
+            "title": "Fix config",
+            "description": "Update /etc/config.yaml if needed",
+        }
+        result = extract_mentioned_files(task)
+        assert "/etc/config.yaml" in result
+
+    def test_returns_empty_list_when_no_paths(self):
+        """Test returns empty list when no file paths found."""
+        from gobby.tasks.commits import extract_mentioned_files
+
+        task = {
+            "title": "Improve performance",
+            "description": "Make the application faster by optimizing algorithms",
+        }
+        result = extract_mentioned_files(task)
+        assert result == []
+
+    def test_handles_none_description(self):
+        """Test graceful handling of None description."""
+        from gobby.tasks.commits import extract_mentioned_files
+
+        task = {
+            "title": "Simple task",
+            "description": None,
+        }
+        result = extract_mentioned_files(task)
+        assert isinstance(result, list)
+
+    def test_handles_missing_description(self):
+        """Test graceful handling of missing description key."""
+        from gobby.tasks.commits import extract_mentioned_files
+
+        task = {"title": "Task with no description"}
+        result = extract_mentioned_files(task)
+        assert isinstance(result, list)
+
+    def test_deduplicates_paths(self):
+        """Test that duplicate paths are removed."""
+        from gobby.tasks.commits import extract_mentioned_files
+
+        task = {
+            "title": "Fix src/main.py",
+            "description": "The bug in src/main.py needs to be fixed in `src/main.py`",
+        }
+        result = extract_mentioned_files(task)
+        assert result.count("src/main.py") == 1
+
+    def test_extracts_paths_with_various_extensions(self):
+        """Test extraction of paths with various common extensions."""
+        from gobby.tasks.commits import extract_mentioned_files
+
+        task = {
+            "title": "Update configs",
+            "description": """
+            Files to update:
+            - src/app.ts
+            - src/styles.css
+            - config.json
+            - setup.cfg
+            - tests/test_api.py
+            """,
+        }
+        result = extract_mentioned_files(task)
+        assert "src/app.ts" in result
+        assert "src/styles.css" in result
+        assert "config.json" in result
+        assert "setup.cfg" in result
+        assert "tests/test_api.py" in result
+
+    def test_extracts_from_validation_criteria(self):
+        """Test extraction from validation_criteria field if present."""
+        from gobby.tasks.commits import extract_mentioned_files
+
+        task = {
+            "title": "Implement feature",
+            "description": "Add new functionality",
+            "validation_criteria": "Verify changes in src/feature.py and tests/test_feature.py",
+        }
+        result = extract_mentioned_files(task)
+        assert "src/feature.py" in result
+        assert "tests/test_feature.py" in result
