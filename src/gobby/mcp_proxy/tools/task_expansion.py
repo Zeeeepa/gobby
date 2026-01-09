@@ -349,6 +349,7 @@ def create_expansion_registry(
         parent_task_id: str | None = None,
         task_type: str = "task",
         mode: Literal["auto", "structured", "llm"] = "auto",
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Parse a specification file and create tasks from it.
@@ -366,6 +367,7 @@ def create_expansion_registry(
             parent_task_id: Optional parent task to nest created tasks under
             task_type: Type for created tasks (default: "task")
             mode: Parsing mode - "auto", "structured", or "llm" (default: "auto")
+            session_id: Session ID to resolve TDD mode from workflow state.
 
         Returns:
             Dictionary with parent task, created subtasks, and mode used
@@ -444,12 +446,16 @@ def create_expansion_registry(
                     verification_config=verification_config,
                 )
 
+            # Resolve TDD mode from workflow state if resolver provided
+            tdd_mode = resolve_tdd_mode(session_id) if resolve_tdd_mode else False
+
             # Use structured parsing with optional LLM fallback
             builder = TaskHierarchyBuilder(
                 task_manager=task_manager,
                 project_id=project_id,
                 parent_task_id=spec_task.id,
                 criteria_generator=criteria_generator,
+                tdd_mode=tdd_mode,
             )
 
             # Use fallback method if task_expander available (for hybrid specs)
@@ -474,6 +480,9 @@ def create_expansion_registry(
                     "parent_task_id": spec_task.id,
                 }
 
+            # Resolve TDD mode from workflow state if resolver provided
+            tdd_mode = resolve_tdd_mode(session_id) if resolve_tdd_mode else None
+
             llm_result = await task_expander.expand_task(
                 task_id=spec_task.id,
                 title=spec_task.title,
@@ -482,6 +491,7 @@ def create_expansion_registry(
                 "Each task should be specific and implementable.",
                 enable_web_research=False,
                 enable_code_context=False,
+                tdd_mode=tdd_mode,
             )
 
             if "error" in llm_result:

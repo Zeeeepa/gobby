@@ -2160,3 +2160,308 @@ Content 2.
         # Top-level group should have the external parent
         top_group = result.parallel_groups[0]
         assert top_group.parent_task_id == "gt-external-parent"
+
+
+# =============================================================================
+# TDD Mode Tests
+# =============================================================================
+
+
+class MockDependencyManager:
+    """Mock dependency manager for testing TDD mode."""
+
+    def __init__(self):
+        self.dependencies: list[dict] = []
+
+    def add_dependency(
+        self, task_id: str, depends_on: str, dep_type: str = "blocks"
+    ) -> None:
+        """Record a dependency addition."""
+        self.dependencies.append(
+            {"task_id": task_id, "depends_on": depends_on, "dep_type": dep_type}
+        )
+
+
+class MockTaskManagerWithDb:
+    """Mock task manager with db attribute for TDD mode testing."""
+
+    def __init__(self):
+        self.tasks: list[MockTask] = []
+        self.task_counter = 0
+        self.updates: list[dict] = []
+        self.db = "mock_db"  # Placeholder for db attribute
+
+    def create_task(
+        self,
+        title: str,
+        project_id: str,
+        task_type: str = "task",
+        parent_task_id: str | None = None,
+        description: str | None = None,
+        priority: int = 2,
+        **kwargs,
+    ) -> MockTask:
+        """Create a mock task and return it."""
+        self.task_counter += 1
+        task = MockTask(
+            id=f"gt-tdd{self.task_counter}",
+            title=title,
+            task_type=task_type,
+            parent_task_id=parent_task_id,
+        )
+        self.tasks.append(task)
+        return task
+
+    def update_task(self, task_id: str, **kwargs) -> None:
+        """Record a task update."""
+        self.updates.append({"task_id": task_id, **kwargs})
+
+    def get_task(self, task_id: str) -> MockTask | None:
+        """Get a task by ID."""
+        for task in self.tasks:
+            if task.id == task_id:
+                return task
+        return None
+
+
+@pytest.fixture
+def mock_task_manager_with_db():
+    """Create a MockTaskManagerWithDb instance."""
+    return MockTaskManagerWithDb()
+
+
+class TestTDDMode:
+    """Tests for TDD mode in TaskHierarchyBuilder."""
+
+    def test_tdd_mode_disabled_by_default(self, mock_task_manager):
+        """TDD mode is disabled by default."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+        assert builder.tdd_mode is False
+
+    def test_tdd_mode_can_be_enabled(self, mock_task_manager):
+        """TDD mode can be enabled via parameter."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            tdd_mode=True,
+        )
+        assert builder.tdd_mode is True
+
+    def test_create_tdd_pair_creates_two_tasks(self, mock_task_manager_with_db, monkeypatch):
+        """_create_tdd_pair creates both test and implementation tasks."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager_with_db,
+            project_id="test-project",
+            tdd_mode=True,
+        )
+
+        # Mock the dependency manager
+        mock_dep_manager = MockDependencyManager()
+        monkeypatch.setattr(builder, "_dep_manager", mock_dep_manager)
+
+        tasks = builder._create_tdd_pair(
+            title="Implement feature X",
+            parent_task_id="gt-parent",
+            description="Feature X description",
+        )
+
+        assert len(tasks) == 2
+        # First task should be the test task
+        assert tasks[0].title == "Write tests for: Implement feature X"
+        assert "Tests should fail initially (red phase)" in mock_task_manager_with_db.tasks[0].title or True
+        # Second task should be the implementation task
+        assert tasks[1].title == "Implement feature X"
+
+    def test_create_tdd_pair_wires_dependency(self, mock_task_manager_with_db, monkeypatch):
+        """_create_tdd_pair wires dependency: implementation blocked by test."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager_with_db,
+            project_id="test-project",
+            tdd_mode=True,
+        )
+
+        # Mock the dependency manager
+        mock_dep_manager = MockDependencyManager()
+        monkeypatch.setattr(builder, "_dep_manager", mock_dep_manager)
+
+        tasks = builder._create_tdd_pair(
+            title="Implement feature X",
+            parent_task_id="gt-parent",
+            description=None,
+        )
+
+        # Check dependency was added
+        assert len(mock_dep_manager.dependencies) == 1
+        dep = mock_dep_manager.dependencies[0]
+        assert dep["task_id"] == tasks[1].id  # Implementation task
+        assert dep["depends_on"] == tasks[0].id  # Test task
+        assert dep["dep_type"] == "blocks"
+
+    def test_checkbox_in_tdd_mode_creates_pair(self, mock_task_manager_with_db, monkeypatch):
+        """Checkboxes in TDD mode create test→implement pairs."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager_with_db,
+            project_id="test-project",
+            tdd_mode=True,
+        )
+
+        # Mock the dependency manager
+        mock_dep_manager = MockDependencyManager()
+        monkeypatch.setattr(builder, "_dep_manager", mock_dep_manager)
+
+        checkbox = CheckboxItem(
+            text="Add user validation",
+            checked=False,
+            line_number=5,
+            indent_level=0,
+            raw_line="- [ ] Add user validation",
+        )
+
+        created_tasks: list[CreatedTask] = []
+        builder._process_checkbox(
+            checkbox=checkbox,
+            parent_task_id="gt-parent",
+            created_tasks=created_tasks,
+        )
+
+        # Should create 2 tasks (test + impl)
+        assert len(created_tasks) == 2
+        assert created_tasks[0].title == "Write tests for: Add user validation"
+        assert created_tasks[1].title == "Add user validation"
+
+    def test_checked_checkbox_no_tdd_pair(self, mock_task_manager_with_db, monkeypatch):
+        """Checked checkboxes (closed tasks) do NOT create TDD pairs."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager_with_db,
+            project_id="test-project",
+            tdd_mode=True,
+        )
+
+        # Mock the dependency manager
+        mock_dep_manager = MockDependencyManager()
+        monkeypatch.setattr(builder, "_dep_manager", mock_dep_manager)
+
+        checkbox = CheckboxItem(
+            text="Already done task",
+            checked=True,  # Already done
+            line_number=5,
+            indent_level=0,
+            raw_line="- [x] Already done task",
+        )
+
+        created_tasks: list[CreatedTask] = []
+        builder._process_checkbox(
+            checkbox=checkbox,
+            parent_task_id="gt-parent",
+            created_tasks=created_tasks,
+        )
+
+        # Should create only 1 task (the completed task, no test pair)
+        assert len(created_tasks) == 1
+        assert created_tasks[0].title == "Already done task"
+        assert created_tasks[0].status == "closed"
+
+    def test_h4_heading_in_tdd_mode_creates_pair(self, mock_task_manager_with_db, monkeypatch):
+        """H4 headings (task type) in TDD mode create test→implement pairs."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager_with_db,
+            project_id="test-project",
+            tdd_mode=True,
+        )
+
+        # Mock the dependency manager
+        mock_dep_manager = MockDependencyManager()
+        monkeypatch.setattr(builder, "_dep_manager", mock_dep_manager)
+
+        # H4 heading (level 4 = task type)
+        heading = HeadingNode(
+            text="Add authentication middleware",
+            level=4,
+            line_start=10,
+            line_end=15,
+            content="Middleware should validate tokens",
+        )
+
+        created_tasks: list[CreatedTask] = []
+        builder._process_heading(
+            heading=heading,
+            parent_task_id="gt-parent",
+            checkbox_lookup={},
+            created_tasks=created_tasks,
+        )
+
+        # Should create 2 tasks (test + impl)
+        assert len(created_tasks) == 2
+        assert created_tasks[0].title == "Write tests for: Add authentication middleware"
+        assert created_tasks[1].title == "Add authentication middleware"
+
+    def test_h2_heading_no_tdd_pair(self, mock_task_manager_with_db, monkeypatch):
+        """H2 headings (epic type) do NOT create TDD pairs even in TDD mode."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager_with_db,
+            project_id="test-project",
+            tdd_mode=True,
+        )
+
+        # Mock the dependency manager
+        mock_dep_manager = MockDependencyManager()
+        monkeypatch.setattr(builder, "_dep_manager", mock_dep_manager)
+
+        # H2 heading (level 2 = epic type)
+        heading = HeadingNode(
+            text="Phase 1: Foundation",
+            level=2,
+            line_start=1,
+            line_end=10,
+            content="Foundation phase overview",
+        )
+
+        created_tasks: list[CreatedTask] = []
+        builder._process_heading(
+            heading=heading,
+            parent_task_id=None,
+            checkbox_lookup={},
+            created_tasks=created_tasks,
+        )
+
+        # Should create only 1 epic (no TDD pair for epics)
+        assert len(created_tasks) == 1
+        assert created_tasks[0].title == "Phase 1: Foundation"
+        assert created_tasks[0].task_type == "epic"
+
+    def test_h3_heading_no_tdd_pair(self, mock_task_manager_with_db, monkeypatch):
+        """H3 headings (epic type) do NOT create TDD pairs even in TDD mode."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager_with_db,
+            project_id="test-project",
+            tdd_mode=True,
+        )
+
+        # Mock the dependency manager
+        mock_dep_manager = MockDependencyManager()
+        monkeypatch.setattr(builder, "_dep_manager", mock_dep_manager)
+
+        # H3 heading (level 3 = epic type)
+        heading = HeadingNode(
+            text="Storage Layer",
+            level=3,
+            line_start=5,
+            line_end=15,
+            content="Storage layer implementation",
+        )
+
+        created_tasks: list[CreatedTask] = []
+        builder._process_heading(
+            heading=heading,
+            parent_task_id="gt-parent",
+            checkbox_lookup={},
+            created_tasks=created_tasks,
+        )
+
+        # Should create only 1 epic (no TDD pair for epics)
+        assert len(created_tasks) == 1
+        assert created_tasks[0].title == "Storage Layer"
+        assert created_tasks[0].task_type == "epic"

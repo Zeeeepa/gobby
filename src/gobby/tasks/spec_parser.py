@@ -664,6 +664,7 @@ class TaskHierarchyBuilder:
         default_priority: int = 2,
         parent_labels: list[str] | None = None,
         criteria_generator: CriteriaGenerator | None = None,
+        tdd_mode: bool = False,
     ) -> None:
         """Initialize the builder.
 
@@ -674,6 +675,7 @@ class TaskHierarchyBuilder:
             default_priority: Default priority for created tasks (1=high, 2=medium, 3=low)
             parent_labels: Optional labels from parent task (for pattern detection in LLM expansion)
             criteria_generator: Optional CriteriaGenerator for validation criteria
+            tdd_mode: If True, create test→implement pairs for coding tasks
         """
         self.task_manager = task_manager
         self.project_id = project_id
@@ -681,6 +683,18 @@ class TaskHierarchyBuilder:
         self.default_priority = default_priority
         self.parent_labels = parent_labels or []
         self.criteria_generator = criteria_generator
+        self.tdd_mode = tdd_mode
+        # Lazy-load dependency manager when needed
+        self._dep_manager: Any = None
+
+    @property
+    def dep_manager(self) -> Any:
+        """Get or create the dependency manager."""
+        if self._dep_manager is None:
+            from gobby.storage.task_dependencies import TaskDependencyManager
+
+            self._dep_manager = TaskDependencyManager(self.task_manager.db)
+        return self._dep_manager
 
     def build_from_headings(
         self,
@@ -808,15 +822,27 @@ class TaskHierarchyBuilder:
         # Level 4+: Task (implementation items)
         task_type = "epic" if heading.level <= 3 else "task"
 
-        # Create task for this heading
-        task = self._create_task(
-            title=heading.text,
-            task_type=task_type,
-            parent_task_id=parent_task_id,
-            description=heading.content if heading.content.strip() else None,
-        )
-        created_tasks.append(task)
-        created_at_level.append(task.id)
+        # In TDD mode, create test→implement pairs for non-epic tasks (h4+)
+        if self.tdd_mode and task_type == "task":
+            tasks = self._create_tdd_pair(
+                title=heading.text,
+                parent_task_id=parent_task_id,
+                description=heading.content if heading.content.strip() else None,
+            )
+            created_tasks.extend(tasks)
+            created_at_level.extend(t.id for t in tasks)
+            # Use implementation task (second in pair) as parent for children
+            task = tasks[1]
+        else:
+            # Create task for this heading
+            task = self._create_task(
+                title=heading.text,
+                task_type=task_type,
+                parent_task_id=parent_task_id,
+                description=heading.content if heading.content.strip() else None,
+            )
+            created_tasks.append(task)
+            created_at_level.append(task.id)
 
         # Process checkboxes under this heading
         if heading.text in checkbox_lookup:
@@ -859,22 +885,35 @@ class TaskHierarchyBuilder:
         # Determine status based on checkbox state
         status = "closed" if checkbox.checked else "open"
 
-        # Create task for this checkbox
-        task = self._create_task(
-            title=checkbox.text,
-            task_type="task",
-            parent_task_id=parent_task_id,
-            description=None,
-            status=status,
-        )
-        created_tasks.append(task)
-        created_at_level.append(task.id)
+        # In TDD mode, create test→implement pairs for open tasks
+        if self.tdd_mode and status == "open":
+            tasks = self._create_tdd_pair(
+                title=checkbox.text,
+                parent_task_id=parent_task_id,
+                description=None,
+            )
+            created_tasks.extend(tasks)
+            created_at_level.extend(t.id for t in tasks)
+            # Use the implementation task (second in pair) as parent for children
+            impl_task = tasks[1]
+        else:
+            # Create task for this checkbox
+            task = self._create_task(
+                title=checkbox.text,
+                task_type="task",
+                parent_task_id=parent_task_id,
+                description=None,
+                status=status,
+            )
+            created_tasks.append(task)
+            created_at_level.append(task.id)
+            impl_task = task
 
         # Process nested checkboxes as child tasks
         for child in checkbox.children:
             self._process_checkbox(
                 checkbox=child,
-                parent_task_id=task.id,
+                parent_task_id=impl_task.id,
                 created_tasks=created_tasks,
             )
 
@@ -935,6 +974,70 @@ class TaskHierarchyBuilder:
             status=status,
             parent_task_id=parent_task_id,
         )
+
+    def _create_tdd_pair(
+        self,
+        title: str,
+        parent_task_id: str | None,
+        description: str | None,
+        labels: list[str] | None = None,
+    ) -> list[CreatedTask]:
+        """Create a test→implementation pair for TDD mode.
+
+        Creates a test task that blocks the implementation task.
+        Only called when tdd_mode=True and for non-epic tasks.
+
+        Args:
+            title: Original task title
+            parent_task_id: Parent task ID
+            description: Task description
+            labels: Optional labels
+
+        Returns:
+            List of [test_task, implementation_task]
+        """
+        # Create test task first
+        test_title = f"Write tests for: {title}"
+        test_description = (
+            f"Write failing tests for: {title}\n\n"
+            "Test strategy: Tests should fail initially (red phase)"
+        )
+        test_task = self._create_task(
+            title=test_title,
+            task_type="task",
+            parent_task_id=parent_task_id,
+            description=test_description,
+            labels=labels,
+        )
+
+        # Create implementation task
+        impl_description = description or ""
+        if impl_description:
+            impl_description += "\n\n"
+        impl_description += "Test strategy: All tests from previous subtask should pass (green phase)"
+
+        impl_task = self._create_task(
+            title=title,
+            task_type="task",
+            parent_task_id=parent_task_id,
+            description=impl_description,
+            labels=labels,
+        )
+
+        # Wire dependency: implementation blocked by test
+        try:
+            self.dep_manager.add_dependency(
+                task_id=impl_task.id,
+                depends_on=test_task.id,
+                dep_type="blocks",
+            )
+            logger.debug(
+                f"TDD pair created: {test_task.id} (test) -> {impl_task.id} (impl)"
+            )
+        except ValueError as e:
+            logger.warning(f"Failed to add TDD dependency: {e}")
+
+        return [test_task, impl_task]
 
     async def build_from_headings_with_fallback(
         self,
