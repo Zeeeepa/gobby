@@ -134,9 +134,7 @@ def create_merge_registry(
                 "resolution_id": resolution.id,
                 "tier": result.tier.value,
                 "needs_human_review": result.needs_human_review,
-                "conflicts": [
-                    {"file": c.get("file", "")} for c in result.unresolved_conflicts
-                ],
+                "conflicts": [{"file": c.get("file", "")} for c in result.unresolved_conflicts],
                 "resolved_files": result.resolved_files,
             }
 
@@ -321,9 +319,7 @@ def create_merge_registry(
             return {
                 "success": False,
                 "error": f"Cannot apply: {len(pending)} unresolved conflicts remaining",
-                "pending_conflicts": [
-                    {"id": c.id, "file_path": c.file_path} for c in pending
-                ],
+                "pending_conflicts": [{"id": c.id, "file_path": c.file_path} for c in pending],
             }
 
         try:

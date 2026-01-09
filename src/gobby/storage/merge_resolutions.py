@@ -190,9 +190,7 @@ class MergeResolutionManager:
         Returns:
             The MergeResolution if found, None otherwise
         """
-        row = self.db.fetchone(
-            "SELECT * FROM merge_resolutions WHERE id = ?", (resolution_id,)
-        )
+        row = self.db.fetchone("SELECT * FROM merge_resolutions WHERE id = ?", (resolution_id,))
         if not row:
             return None
         return MergeResolution.from_row(row)
@@ -244,9 +242,7 @@ class MergeResolutionManager:
             True if deleted, False if not found
         """
         with self.db.transaction() as conn:
-            cursor = conn.execute(
-                "DELETE FROM merge_resolutions WHERE id = ?", (resolution_id,)
-            )
+            cursor = conn.execute("DELETE FROM merge_resolutions WHERE id = ?", (resolution_id,))
             if cursor.rowcount == 0:
                 return False
 
@@ -359,9 +355,7 @@ class MergeResolutionManager:
         Returns:
             The MergeConflict if found, None otherwise
         """
-        row = self.db.fetchone(
-            "SELECT * FROM merge_conflicts WHERE id = ?", (conflict_id,)
-        )
+        row = self.db.fetchone("SELECT * FROM merge_conflicts WHERE id = ?", (conflict_id,))
         if not row:
             return None
         return MergeConflict.from_row(row)
@@ -389,9 +383,7 @@ class MergeResolutionManager:
         now = datetime.now(UTC).isoformat()
         new_status = status if status is not None else conflict.status
         new_resolved = (
-            resolved_content
-            if resolved_content is not None
-            else conflict.resolved_content
+            resolved_content if resolved_content is not None else conflict.resolved_content
         )
 
         with self.db.transaction() as conn:
@@ -417,9 +409,7 @@ class MergeResolutionManager:
             True if deleted, False if not found
         """
         with self.db.transaction() as conn:
-            cursor = conn.execute(
-                "DELETE FROM merge_conflicts WHERE id = ?", (conflict_id,)
-            )
+            cursor = conn.execute("DELETE FROM merge_conflicts WHERE id = ?", (conflict_id,))
             if cursor.rowcount == 0:
                 return False
 
@@ -471,9 +461,7 @@ class MergeResolutionManager:
     # Helper Methods for CLI
     # =========================================================================
 
-    def get_active_resolution(
-        self, worktree_id: str | None = None
-    ) -> MergeResolution | None:
+    def get_active_resolution(self, worktree_id: str | None = None) -> MergeResolution | None:
         """
         Get the current active (pending) merge resolution.
 

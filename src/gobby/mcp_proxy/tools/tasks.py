@@ -245,10 +245,7 @@ def create_task_registry(
         is_multi_step = detect_multi_step(description)
         tdd_enabled = resolve_tdd_mode(session_id)
         use_tdd_expansion = (
-            is_multi_step
-            and tdd_enabled
-            and task_expander is not None
-            and task_type != "epic"
+            is_multi_step and tdd_enabled and task_expander is not None and task_type != "epic"
         )
 
         import logging
@@ -281,9 +278,14 @@ def create_task_registry(
 
             # Now expand with TaskExpander for TDD pairs
             try:
-                tdd_expansion_result = await task_expander.expand_task(task.id)
+                assert task_expander is not None  # Checked in use_tdd_expansion condition
+                tdd_expansion_result = await task_expander.expand_task(
+                    task.id, task.title, task.description
+                )
                 subtasks = []  # Will be populated from expansion result
-                logger.debug(f"TDD expansion created {tdd_expansion_result.get('subtask_count', 0)} subtasks")
+                logger.debug(
+                    f"TDD expansion created {tdd_expansion_result.get('subtask_count', 0)} subtasks"
+                )
             except Exception as e:
                 logger.warning(f"TDD expansion failed for {task.id}, falling back to regex: {e}")
                 # Fall back to regex decomposition
@@ -1208,6 +1210,7 @@ def create_task_registry(
         task_expander=task_expander,
         task_validator=task_validator,
         auto_generate_on_expand=auto_generate_on_expand,
+        resolve_tdd_mode=resolve_tdd_mode,
     )
     for tool_name, tool in expansion_registry._tools.items():
         registry._tools[tool_name] = tool

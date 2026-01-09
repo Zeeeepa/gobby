@@ -115,8 +115,7 @@ class MergeResolver:
 
         # Check if conflict is too large for conflict-only resolution
         total_lines = sum(
-            len(getattr(h, "ours", "").split("\n"))
-            + len(getattr(h, "theirs", "").split("\n"))
+            len(getattr(h, "ours", "").split("\n")) + len(getattr(h, "theirs", "").split("\n"))
             if hasattr(h, "ours")
             else 0
             for h in conflict_hunks
@@ -196,9 +195,7 @@ class MergeResolver:
 
         # If forcing full-file AI, skip tier 2
         if force_tier == ResolutionTier.FULL_FILE_AI:
-            return await self._try_full_file_resolution(
-                worktree_path, conflicts or [{}]
-            )
+            return await self._try_full_file_resolution(worktree_path, conflicts or [{}])
 
         # Tier 2: Conflict-only AI resolution
         if conflicts:
@@ -356,13 +353,15 @@ class MergeResolver:
         unresolved: list[dict[str, Any]] = []
 
         for r in results:
-            if isinstance(r, Exception):
+            if isinstance(r, BaseException):
                 logger.error(f"Error resolving conflict: {r}")
                 continue
 
-            if r["result"].get("success"):
-                resolved_files.append(r["conflict"].get("file", ""))
+            # r is now dict[str, Any] after the isinstance check
+            result_dict: dict[str, Any] = r
+            if result_dict["result"].get("success"):
+                resolved_files.append(result_dict["conflict"].get("file", ""))
             else:
-                unresolved.append(r["conflict"])
+                unresolved.append(result_dict["conflict"])
 
         return resolved_files, unresolved

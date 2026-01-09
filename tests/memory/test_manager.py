@@ -1033,7 +1033,7 @@ class TestRecallAsContext:
             )
 
         # Use low compression threshold to force compression
-        context = manager.recall_as_context(compression_threshold=10)
+        manager.recall_as_context(compression_threshold=10)
 
         # Compressor should have been called
         mock_compressor.compress.assert_called_once()
@@ -1043,9 +1043,7 @@ class TestRecallAsContext:
         assert call_args.kwargs.get("context_type") == "memory"
 
     @pytest.mark.asyncio
-    async def test_recall_as_context_no_compression_when_compressor_none(
-        self, db, memory_config
-    ):
+    async def test_recall_as_context_no_compression_when_compressor_none(self, db, memory_config):
         """Test recall_as_context works without compression when compressor is None."""
         manager = MemoryManager(db=db, config=memory_config, compressor=None)
 

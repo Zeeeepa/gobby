@@ -78,11 +78,13 @@ def sync_manager(test_db):
 def mock_task_expander():
     """Create a mock TaskExpander that returns TDD pairs."""
     expander = MagicMock(spec=TaskExpander)
-    expander.expand_task = AsyncMock(return_value={
-        "subtask_ids": ["gt-test1", "gt-impl1", "gt-test2", "gt-impl2"],
-        "subtask_count": 4,
-        "raw_response": "mock TDD response",
-    })
+    expander.expand_task = AsyncMock(
+        return_value={
+            "subtask_ids": ["gt-test1", "gt-impl1", "gt-test2", "gt-impl2"],
+            "subtask_count": 4,
+            "raw_response": "mock TDD response",
+        }
+    )
     return expander
 
 
@@ -162,7 +164,13 @@ class TestTddModeRoutesToExpander:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_multi_step_with_tdd_mode_calls_expander(
-        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_enabled, workflow_state_manager
+        self,
+        test_db,
+        task_manager,
+        sync_manager,
+        mock_task_expander,
+        config_tdd_enabled,
+        workflow_state_manager,
     ):
         """When tdd_mode=true and description is multi-step, TaskExpander should be called."""
         session_id = "test-session-001"
@@ -186,11 +194,14 @@ class TestTddModeRoutesToExpander:
                 config=config_tdd_enabled,
             )
 
-            result = await registry.call("create_task", {
-                "title": "Add authentication",
-                "description": multi_step_description,
-                "session_id": session_id,
-            })
+            await registry.call(
+                "create_task",
+                {
+                    "title": "Add authentication",
+                    "description": multi_step_description,
+                    "session_id": session_id,
+                },
+            )
 
             # TaskExpander.expand_task should have been called
             mock_task_expander.expand_task.assert_called_once()
@@ -199,7 +210,13 @@ class TestTddModeRoutesToExpander:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_tdd_mode_creates_test_implementation_pairs(
-        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_enabled, workflow_state_manager
+        self,
+        test_db,
+        task_manager,
+        sync_manager,
+        mock_task_expander,
+        config_tdd_enabled,
+        workflow_state_manager,
     ):
         """TDD mode should result in test->implementation task pairs."""
         session_id = "test-session-002"
@@ -209,15 +226,20 @@ class TestTddModeRoutesToExpander:
 3. Add cache invalidation"""
 
         # Configure expander to return TDD pairs
-        mock_task_expander.expand_task = AsyncMock(return_value={
-            "subtask_ids": [
-                "gt-test-redis", "gt-impl-redis",
-                "gt-test-middleware", "gt-impl-middleware",
-                "gt-test-invalidation", "gt-impl-invalidation",
-            ],
-            "subtask_count": 6,
-            "raw_response": "TDD pairs created",
-        })
+        mock_task_expander.expand_task = AsyncMock(
+            return_value={
+                "subtask_ids": [
+                    "gt-test-redis",
+                    "gt-impl-redis",
+                    "gt-test-middleware",
+                    "gt-impl-middleware",
+                    "gt-test-invalidation",
+                    "gt-impl-invalidation",
+                ],
+                "subtask_count": 6,
+                "raw_response": "TDD pairs created",
+            }
+        )
 
         # Create session and workflow state
         create_test_session(test_db, session_id)
@@ -234,11 +256,14 @@ class TestTddModeRoutesToExpander:
                 config=config_tdd_enabled,
             )
 
-            result = await registry.call("create_task", {
-                "title": "Add caching",
-                "description": multi_step_description,
-                "session_id": session_id,
-            })
+            result = await registry.call(
+                "create_task",
+                {
+                    "title": "Add caching",
+                    "description": multi_step_description,
+                    "session_id": session_id,
+                },
+            )
 
             # Result should indicate TDD expansion occurred
             assert result.get("subtask_count", 0) >= 6  # More subtasks due to TDD pairs
@@ -257,7 +282,13 @@ class TestTddModeDisabledUsesRegex:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_tdd_disabled_uses_regex_extraction(
-        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_disabled, workflow_state_manager
+        self,
+        test_db,
+        task_manager,
+        sync_manager,
+        mock_task_expander,
+        config_tdd_disabled,
+        workflow_state_manager,
     ):
         """When tdd_mode=false, multi-step tasks use regex extraction, not TaskExpander."""
         session_id = "test-session-003"
@@ -281,11 +312,14 @@ class TestTddModeDisabledUsesRegex:
                 config=config_tdd_disabled,
             )
 
-            result = await registry.call("create_task", {
-                "title": "Setup",
-                "description": multi_step_description,
-                "session_id": session_id,
-            })
+            result = await registry.call(
+                "create_task",
+                {
+                    "title": "Setup",
+                    "description": multi_step_description,
+                    "session_id": session_id,
+                },
+            )
 
             # TaskExpander should NOT have been called
             mock_task_expander.expand_task.assert_not_called()
@@ -297,7 +331,13 @@ class TestTddModeDisabledUsesRegex:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_single_step_task_never_calls_expander(
-        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_enabled, workflow_state_manager
+        self,
+        test_db,
+        task_manager,
+        sync_manager,
+        mock_task_expander,
+        config_tdd_enabled,
+        workflow_state_manager,
     ):
         """Single-step tasks should never call TaskExpander, even with tdd_mode=true."""
         session_id = "test-session-004"
@@ -318,11 +358,14 @@ class TestTddModeDisabledUsesRegex:
                 config=config_tdd_enabled,
             )
 
-            result = await registry.call("create_task", {
-                "title": "Fix typo",
-                "description": single_step_description,
-                "session_id": session_id,
-            })
+            await registry.call(
+                "create_task",
+                {
+                    "title": "Fix typo",
+                    "description": single_step_description,
+                    "session_id": session_id,
+                },
+            )
 
             # TaskExpander should NOT be called for single-step tasks
             mock_task_expander.expand_task.assert_not_called()
@@ -340,7 +383,13 @@ class TestTddModeResolutionHierarchy:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_workflow_variable_overrides_config(
-        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_enabled, workflow_state_manager
+        self,
+        test_db,
+        task_manager,
+        sync_manager,
+        mock_task_expander,
+        config_tdd_enabled,
+        workflow_state_manager,
     ):
         """Workflow variable tdd_mode=false should override config tdd_mode=true."""
         session_id = "test-session-005"
@@ -365,11 +414,14 @@ class TestTddModeResolutionHierarchy:
                 config=config_tdd_enabled,  # Config has tdd_mode=true
             )
 
-            result = await registry.call("create_task", {
-                "title": "Build feature",
-                "description": multi_step_description,
-                "session_id": session_id,
-            })
+            await registry.call(
+                "create_task",
+                {
+                    "title": "Build feature",
+                    "description": multi_step_description,
+                    "session_id": session_id,
+                },
+            )
 
             # Workflow variable (false) wins, so expander should NOT be called
             mock_task_expander.expand_task.assert_not_called()
@@ -378,7 +430,13 @@ class TestTddModeResolutionHierarchy:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_config_used_when_workflow_variable_not_set(
-        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_enabled, workflow_state_manager
+        self,
+        test_db,
+        task_manager,
+        sync_manager,
+        mock_task_expander,
+        config_tdd_enabled,
+        workflow_state_manager,
     ):
         """Config tdd_mode should be used when workflow variable is not set."""
         session_id = "test-session-006"
@@ -403,11 +461,14 @@ class TestTddModeResolutionHierarchy:
                 config=config_tdd_enabled,  # Config has tdd_mode=true
             )
 
-            result = await registry.call("create_task", {
-                "title": "Add feature",
-                "description": multi_step_description,
-                "session_id": session_id,
-            })
+            await registry.call(
+                "create_task",
+                {
+                    "title": "Add feature",
+                    "description": multi_step_description,
+                    "session_id": session_id,
+                },
+            )
 
             # Config (true) is used, so expander SHOULD be called
             mock_task_expander.expand_task.assert_called_once()
@@ -416,7 +477,13 @@ class TestTddModeResolutionHierarchy:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_workflow_variable_true_enables_tdd(
-        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_disabled, workflow_state_manager
+        self,
+        test_db,
+        task_manager,
+        sync_manager,
+        mock_task_expander,
+        config_tdd_disabled,
+        workflow_state_manager,
     ):
         """Workflow variable tdd_mode=true should enable TDD even if config is false."""
         session_id = "test-session-007"
@@ -441,11 +508,14 @@ class TestTddModeResolutionHierarchy:
                 config=config_tdd_disabled,  # Config has tdd_mode=false
             )
 
-            result = await registry.call("create_task", {
-                "title": "Implement auth",
-                "description": multi_step_description,
-                "session_id": session_id,
-            })
+            await registry.call(
+                "create_task",
+                {
+                    "title": "Implement auth",
+                    "description": multi_step_description,
+                    "session_id": session_id,
+                },
+            )
 
             # Workflow variable (true) wins, so expander SHOULD be called
             mock_task_expander.expand_task.assert_called_once()
@@ -476,11 +546,14 @@ class TestTddModeResolutionHierarchy:
                 config=config_tdd_enabled,  # Config has tdd_mode=true
             )
 
-            result = await registry.call("create_task", {
-                "title": "Setup",
-                "description": multi_step_description,
-                "session_id": session_id,
-            })
+            await registry.call(
+                "create_task",
+                {
+                    "title": "Setup",
+                    "description": multi_step_description,
+                    "session_id": session_id,
+                },
+            )
 
             # Config (true) is used, so expander SHOULD be called
             mock_task_expander.expand_task.assert_called_once()
@@ -498,15 +571,19 @@ class TestTddModeEdgeCases:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_expander_failure_falls_back_to_regex(
-        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_enabled, workflow_state_manager
+        self,
+        test_db,
+        task_manager,
+        sync_manager,
+        mock_task_expander,
+        config_tdd_enabled,
+        workflow_state_manager,
     ):
         """If TaskExpander fails, should fall back to regex extraction."""
         session_id = "test-session-009"
 
         # Make expander fail
-        mock_task_expander.expand_task = AsyncMock(
-            side_effect=Exception("LLM service unavailable")
-        )
+        mock_task_expander.expand_task = AsyncMock(side_effect=Exception("LLM service unavailable"))
 
         multi_step_description = """Build feature:
 1. Create model
@@ -529,11 +606,14 @@ class TestTddModeEdgeCases:
             )
 
             # Should not raise - should fall back to regex
-            result = await registry.call("create_task", {
-                "title": "Build feature",
-                "description": multi_step_description,
-                "session_id": session_id,
-            })
+            result = await registry.call(
+                "create_task",
+                {
+                    "title": "Build feature",
+                    "description": multi_step_description,
+                    "session_id": session_id,
+                },
+            )
 
             # Expander was called but failed
             mock_task_expander.expand_task.assert_called_once()
@@ -546,7 +626,13 @@ class TestTddModeEdgeCases:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_epic_type_skips_tdd_mode(
-        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_enabled, workflow_state_manager
+        self,
+        test_db,
+        task_manager,
+        sync_manager,
+        mock_task_expander,
+        config_tdd_enabled,
+        workflow_state_manager,
     ):
         """Epic-type tasks should skip TDD mode (epics are containers, not code)."""
         session_id = "test-session-010"
@@ -570,12 +656,15 @@ class TestTddModeEdgeCases:
                 config=config_tdd_enabled,
             )
 
-            result = await registry.call("create_task", {
-                "title": "Project Epic",
-                "description": multi_step_description,
-                "task_type": "epic",
-                "session_id": session_id,
-            })
+            await registry.call(
+                "create_task",
+                {
+                    "title": "Project Epic",
+                    "description": multi_step_description,
+                    "task_type": "epic",
+                    "session_id": session_id,
+                },
+            )
 
             # TaskExpander should NOT be called for epics
             mock_task_expander.expand_task.assert_not_called()
@@ -610,11 +699,14 @@ class TestTddModeEdgeCases:
             )
 
             # Should not raise - should use regex extraction
-            result = await registry.call("create_task", {
-                "title": "Build feature",
-                "description": multi_step_description,
-                "session_id": session_id,
-            })
+            result = await registry.call(
+                "create_task",
+                {
+                    "title": "Build feature",
+                    "description": multi_step_description,
+                    "session_id": session_id,
+                },
+            )
 
             # Task should still be created
             assert "id" in result

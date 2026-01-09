@@ -8,7 +8,7 @@ description: |
 triggers:
   on_session_end:
     - if: "variables.get('autonomous_mode') == True and variables.get('stop_reason') != 'completed'"
-
+    
 actions:
   on_session_end:
     # 1. Extract context from the ending session
@@ -20,13 +20,14 @@ actions:
       args: ["--print-transcript"] # Example argument
       prompt: |
         RESUMING SESSION (Autonomous Handoff)
-
+        
         Previous Goal: {{ variables.handoff_ctx.initial_goal }}
-
+        
         Last Status:
         {{ variables.handoff_ctx.git_status }}
-
+        
         Please continue working on this task.
-
+        
       # Only run if we actually got context
       when: "variables.get('handoff_ctx') is not None"
+

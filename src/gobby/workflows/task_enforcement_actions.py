@@ -372,7 +372,9 @@ async def require_active_task(
         return None
 
     # Check if this tool is protected (always from config.yaml)
-    protected_tools = config.workflow.protected_tools if config else ["Edit", "Write", "Update", "NotebookEdit"]
+    protected_tools = (
+        config.workflow.protected_tools if config else ["Edit", "Write", "Update", "NotebookEdit"]
+    )
     if tool_name not in protected_tools:
         logger.debug(f"require_active_task: Tool '{tool_name}' not protected, allowing")
         return None

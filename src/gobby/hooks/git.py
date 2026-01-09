@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import Any
 
 logger = logging.getLogger(__name__)
 

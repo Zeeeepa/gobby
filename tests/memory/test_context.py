@@ -187,9 +187,7 @@ class TestBuildMemoryContextWithCompressor:
         assert "</project-memory>" in result
         assert "Compressed memory content" in result
 
-    def test_content_unchanged_when_under_threshold(
-        self, mock_compressor, small_memory_list
-    ):
+    def test_content_unchanged_when_under_threshold(self, mock_compressor, small_memory_list):
         """Test that content is returned unchanged when under threshold."""
         result = build_memory_context(small_memory_list, compressor=mock_compressor)
 
@@ -212,16 +210,14 @@ class TestBuildMemoryContextWithCompressor:
     def test_custom_compression_threshold(self, mock_compressor, small_memory_list):
         """Test that custom compression threshold is respected."""
         # Use a very low threshold to force compression on small content
-        result = build_memory_context(
+        build_memory_context(
             small_memory_list, compressor=mock_compressor, compression_threshold=10
         )
 
         # Compressor should have been called due to low threshold
         mock_compressor.compress.assert_called_once()
 
-    def test_compression_preserves_outer_tags(
-        self, mock_compressor, large_memory_list
-    ):
+    def test_compression_preserves_outer_tags(self, mock_compressor, large_memory_list):
         """Test that compression preserves the outer project-memory tags."""
         result = build_memory_context(large_memory_list, compressor=mock_compressor)
 
@@ -229,11 +225,9 @@ class TestBuildMemoryContextWithCompressor:
         assert result.startswith("<project-memory>")
         assert result.endswith("</project-memory>")
 
-    def test_compression_only_compresses_inner_content(
-        self, mock_compressor, large_memory_list
-    ):
+    def test_compression_only_compresses_inner_content(self, mock_compressor, large_memory_list):
         """Test that only inner content (between tags) is compressed."""
-        result = build_memory_context(large_memory_list, compressor=mock_compressor)
+        build_memory_context(large_memory_list, compressor=mock_compressor)
 
         # Check that compress was called with inner content (no tags)
         call_args = mock_compressor.compress.call_args

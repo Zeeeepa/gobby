@@ -6,9 +6,6 @@ Tests TextCompressor with mocked LLMLingua-2, caching behavior, and fallback.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-
 # =============================================================================
 # Import Tests
 # =============================================================================
@@ -190,8 +187,8 @@ class TestCaching:
         compressor = TextCompressor(config)
 
         text = "Long content. More sentences. Even more. And more here."
-        result1 = compressor.compress(text, ratio=0.3)
-        result2 = compressor.compress(text, ratio=0.7)
+        compressor.compress(text, ratio=0.3)
+        compressor.compress(text, ratio=0.7)
 
         # Different ratios may produce different results
         # (at minimum they're cached separately)
@@ -317,9 +314,7 @@ class TestMockedLLMLingua:
 
         # Mock the model
         mock_model = MagicMock()
-        mock_model.compress_prompt.return_value = {
-            "compressed_prompt": "Compressed output"
-        }
+        mock_model.compress_prompt.return_value = {"compressed_prompt": "Compressed output"}
         compressor._model = mock_model
         compressor._model_loaded = True
 
@@ -361,7 +356,7 @@ class TestMockedLLMLingua:
         compressor = TextCompressor(config)
 
         # Try to load model (will fail if llmlingua not installed)
-        result = compressor._load_model()
+        compressor._load_model()
 
         # Either succeeds (llmlingua installed) or fails gracefully
         assert compressor._model_loaded is True

@@ -1071,9 +1071,7 @@ class TestValidationContextPassing:
         return spawner
 
     @pytest.mark.asyncio
-    async def test_git_diff_included_in_context(
-        self, validation_config, mock_agent_spawner
-    ):
+    async def test_git_diff_included_in_context(self, validation_config, mock_agent_spawner):
         """Test that git diff is included in the context passed to agent."""
         from gobby.tasks.external_validator import run_external_validation
 
@@ -1151,9 +1149,7 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
         assert "test_feature" in prompt or "pytest" in prompt.lower()
 
     @pytest.mark.asyncio
-    async def test_acceptance_criteria_included(
-        self, validation_config, mock_agent_spawner
-    ):
+    async def test_acceptance_criteria_included(self, validation_config, mock_agent_spawner):
         """Test that acceptance criteria from task is included in context."""
         from gobby.tasks.external_validator import run_external_validation
 
@@ -1185,9 +1181,7 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
         assert "invalidation" in prompt.lower() or "TTL" in prompt
 
     @pytest.mark.asyncio
-    async def test_validation_criteria_field_passed(
-        self, validation_config, mock_agent_spawner
-    ):
+    async def test_validation_criteria_field_passed(self, validation_config, mock_agent_spawner):
         """Test that validation_criteria field is passed to context."""
         from gobby.tasks.external_validator import run_external_validation
 
@@ -1214,9 +1208,7 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
         assert "Refresh" in prompt or "refresh" in prompt.lower()
 
     @pytest.mark.asyncio
-    async def test_test_strategy_field_passed(
-        self, validation_config, mock_agent_spawner
-    ):
+    async def test_test_strategy_field_passed(self, validation_config, mock_agent_spawner):
         """Test that test_strategy field is passed to context."""
         from gobby.tasks.external_validator import run_external_validation
 
@@ -1244,9 +1236,7 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
         assert "pytest" in prompt.lower() or "80%" in prompt or "coverage" in prompt.lower()
 
     @pytest.mark.asyncio
-    async def test_context_truncation_respects_max_chars(
-        self, mock_agent_spawner
-    ):
+    async def test_context_truncation_respects_max_chars(self, mock_agent_spawner):
         """Test that context truncation respects max_chars limit."""
         from gobby.tasks.external_validator import run_external_validation
 
@@ -1317,9 +1307,7 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
         assert "50%" in prompt or "response time" in prompt.lower()
 
     @pytest.mark.asyncio
-    async def test_task_id_included_in_context(
-        self, validation_config, mock_agent_spawner
-    ):
+    async def test_task_id_included_in_context(self, validation_config, mock_agent_spawner):
         """Test that task ID is included in validation context."""
         from gobby.tasks.external_validator import run_external_validation
 
@@ -1344,9 +1332,7 @@ PASSED tests/test_feature.py::test_edge_case - 0.01s
         assert "gt-abc123" in prompt
 
     @pytest.mark.asyncio
-    async def test_task_title_included_in_context(
-        self, validation_config, mock_agent_spawner
-    ):
+    async def test_task_title_included_in_context(self, validation_config, mock_agent_spawner):
         """Test that task title is included in validation context."""
         from gobby.tasks.external_validator import run_external_validation
 
@@ -1406,9 +1392,7 @@ class TestQALoopIntegration:
         return spawner
 
     @pytest.mark.asyncio
-    async def test_returns_result_qa_loop_can_process(
-        self, validation_config, mock_agent_spawner
-    ):
+    async def test_returns_result_qa_loop_can_process(self, validation_config, mock_agent_spawner):
         """Test that external validator returns ExternalValidationResult processable by QA loop."""
         from gobby.tasks.external_validator import ExternalValidationResult, run_external_validation
 
@@ -1447,7 +1431,6 @@ class TestQALoopIntegration:
     ):
         """Test that validation issues are formatted for feedback to implementation agent."""
         from gobby.tasks.external_validator import run_external_validation
-        from gobby.tasks.validation_models import Issue, IssueSeverity, IssueType
 
         mock_agent_spawner.get_agent_result.return_value = {
             "success": True,
@@ -1610,9 +1593,7 @@ class TestQALoopIntegration:
         # QA loop can decide to retry or escalate based on this
 
     @pytest.mark.asyncio
-    async def test_error_result_includes_error_details(
-        self, validation_config, mock_agent_spawner
-    ):
+    async def test_error_result_includes_error_details(self, validation_config, mock_agent_spawner):
         """Test that error results include error details for debugging."""
         from gobby.tasks.external_validator import run_external_validation
 
@@ -1641,9 +1622,7 @@ class TestQALoopIntegration:
         assert result.error is not None or "error" in result.summary.lower()
 
     @pytest.mark.asyncio
-    async def test_multiple_issues_all_included(
-        self, validation_config, mock_agent_spawner
-    ):
+    async def test_multiple_issues_all_included(self, validation_config, mock_agent_spawner):
         """Test that multiple validation issues are all included in result."""
         from gobby.tasks.external_validator import run_external_validation
 

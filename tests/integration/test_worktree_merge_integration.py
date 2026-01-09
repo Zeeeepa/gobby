@@ -192,17 +192,16 @@ class TestConcurrentMerges:
     @patch("gobby.storage.merge_resolutions.MergeResolutionManager.list_resolutions")
     def test_list_active_merges_method_exists(self, mock_list):
         """MergeResolutionManager should have list_resolutions method."""
-        from gobby.storage.merge_resolutions import MergeResolutionManager
 
         assert hasattr(MergeResolutionManager, "list_resolutions")
 
     def test_merge_resolution_manager_prevents_duplicate_worktree_merges(self):
         """MergeResolutionManager should prevent duplicate active merges per worktree."""
-        from gobby.storage.merge_resolutions import MergeResolutionManager
 
         # Check for method that validates or prevents duplicates
-        assert hasattr(MergeResolutionManager, "has_active_resolution_for_worktree") or \
-               hasattr(MergeResolutionManager, "get_active_resolution")
+        assert hasattr(MergeResolutionManager, "has_active_resolution_for_worktree") or hasattr(
+            MergeResolutionManager, "get_active_resolution"
+        )
 
 
 # ==============================================================================
@@ -283,11 +282,11 @@ class TestMergeHooks:
 
     def test_merge_resolution_manager_has_hooks_support(self):
         """MergeResolutionManager should support hooks."""
-        from gobby.storage.merge_resolutions import MergeResolutionManager
 
         # Check for methods that support hooks
-        assert hasattr(MergeResolutionManager, "create_resolution_with_hooks") or \
-               hasattr(MergeResolutionManager, "add_change_listener")
+        assert hasattr(MergeResolutionManager, "create_resolution_with_hooks") or hasattr(
+            MergeResolutionManager, "add_change_listener"
+        )
 
 
 # ==============================================================================
@@ -300,26 +299,22 @@ class TestMergeManagerHelperMethods:
 
     def test_merge_manager_has_get_active_resolution(self):
         """MergeResolutionManager should have get_active_resolution method."""
-        from gobby.storage.merge_resolutions import MergeResolutionManager
 
         assert hasattr(MergeResolutionManager, "get_active_resolution")
 
     def test_merge_manager_has_get_conflict_by_path(self):
         """MergeResolutionManager should have get_conflict_by_path method."""
-        from gobby.storage.merge_resolutions import MergeResolutionManager
 
         assert hasattr(MergeResolutionManager, "get_conflict_by_path")
 
     def test_get_active_resolution_returns_pending_resolution(self, mock_resolution):
         """get_active_resolution should return the current pending resolution."""
-        from gobby.storage.merge_resolutions import MergeResolutionManager
 
         if not hasattr(MergeResolutionManager, "get_active_resolution"):
             pytest.fail("get_active_resolution method not implemented")
 
     def test_get_conflict_by_path_finds_conflict(self, mock_conflict):
         """get_conflict_by_path should find conflict by file path."""
-        from gobby.storage.merge_resolutions import MergeResolutionManager
 
         if not hasattr(MergeResolutionManager, "get_conflict_by_path"):
             pytest.fail("get_conflict_by_path method not implemented")

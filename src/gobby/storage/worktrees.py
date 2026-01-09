@@ -447,9 +447,7 @@ class LocalWorktreeManager:
 
     # Merge state methods
 
-    def set_merge_state(
-        self, worktree_id: str, merge_state: str | None
-    ) -> Worktree | None:
+    def set_merge_state(self, worktree_id: str, merge_state: str | None) -> Worktree | None:
         """
         Set the merge state for a worktree.
 

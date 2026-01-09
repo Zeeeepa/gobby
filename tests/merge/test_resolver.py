@@ -7,7 +7,7 @@ Tests for MergeResolver class implementing tiered resolution:
 - Tier 4: Human review fallback (marks as needs-human-review)
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -104,7 +104,7 @@ class TestTier2ConflictOnlyAI:
     @pytest.mark.asyncio
     async def test_conflict_only_ai_sends_hunks_not_full_file(self):
         """Test that Tier 2 sends only conflict hunks to LLM."""
-        from gobby.worktrees.merge.resolver import MergeResolver, ResolutionTier
+        from gobby.worktrees.merge.resolver import MergeResolver
 
         resolver = MergeResolver()
 
@@ -118,7 +118,7 @@ class TestTier2ConflictOnlyAI:
                 }
                 mock_ai.return_value = {"success": True, "resolutions": []}
 
-                result = await resolver.resolve(
+                await resolver.resolve(
                     worktree_path="/path/to/worktree",
                     source_branch="feature/test",
                     target_branch="main",
@@ -431,9 +431,7 @@ class TestStrategyEscalation:
         resolver = MergeResolver()
 
         with patch.object(resolver, "_git_merge", new_callable=AsyncMock) as mock_git:
-            with patch.object(
-                resolver, "_resolve_full_file", new_callable=AsyncMock
-            ) as mock_t3:
+            with patch.object(resolver, "_resolve_full_file", new_callable=AsyncMock) as mock_t3:
                 mock_t3.return_value = {"success": True}
 
                 result = await resolver.resolve(

@@ -232,7 +232,7 @@ class TextCompressor:
                     rate=effective_ratio,
                     force_tokens=[".", "!", "?", "\n"],  # Preserve sentence structure
                 )
-                compressed = result.get("compressed_prompt", content)
+                compressed: str = result.get("compressed_prompt", content)
                 self._set_cached(cache_key, compressed)
                 logger.debug(
                     f"Compressed {len(content)} -> {len(compressed)} chars "

@@ -13,7 +13,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 from click.testing import CliRunner
 
-
 # ==============================================================================
 # Fixtures
 # ==============================================================================
@@ -149,9 +148,7 @@ class TestMergeStartCommand:
         mock_resolver = MagicMock()
         mock_get_resolver.return_value = mock_resolver
 
-        result = runner.invoke(
-            cli, ["merge", "start", "feature/test", "--strategy", "ai-only"]
-        )
+        result = runner.invoke(cli, ["merge", "start", "feature/test", "--strategy", "ai-only"])
 
         assert result.exit_code == 0
 
@@ -308,9 +305,7 @@ class TestMergeResolveCommand:
         mock_manager.get_conflict_by_path.return_value = mock_conflict
         mock_get_manager.return_value = mock_manager
 
-        result = runner.invoke(
-            cli, ["merge", "resolve", "src/test.py", "--strategy", "human"]
-        )
+        result = runner.invoke(cli, ["merge", "resolve", "src/test.py", "--strategy", "human"])
 
         assert result.exit_code == 0
 

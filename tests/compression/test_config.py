@@ -7,7 +7,6 @@ Tests CompressionConfig default values, validation, and serialization.
 import pytest
 from pydantic import ValidationError
 
-
 # =============================================================================
 # Import Tests
 # =============================================================================

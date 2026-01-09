@@ -35,6 +35,7 @@ if TYPE_CHECKING:
             """Get the result of a completed agent run."""
             ...
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -150,6 +151,12 @@ async def run_external_validation(
             agent_runner=agent_runner,
         )
     else:
+        if llm_service is None:
+            return ExternalValidationResult(
+                status="error",
+                summary="External validation requires llm_service for 'llm' mode",
+                issues=[],
+            )
         return await _run_llm_validation(
             config=config,
             llm_service=llm_service,

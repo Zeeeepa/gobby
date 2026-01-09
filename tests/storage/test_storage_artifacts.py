@@ -5,7 +5,6 @@ Tests should fail initially as the table does not exist yet.
 """
 
 import json
-import sqlite3
 
 import pytest
 
@@ -173,9 +172,7 @@ class TestSessionArtifactsFTS5:
         )
 
         # Test FTS search works
-        row = db.fetchone(
-            """SELECT * FROM session_artifacts_fts WHERE content MATCH 'calculate'"""
-        )
+        row = db.fetchone("""SELECT * FROM session_artifacts_fts WHERE content MATCH 'calculate'""")
         assert row is not None, "FTS search should find matching content"
 
 
@@ -243,16 +240,13 @@ class TestSessionArtifactsIndexes:
         assert table_row is not None, "session_artifacts table must exist first"
 
         # Check if any index covers both session_id and artifact_type
-        has_composite = False
+        # Note: Composite index is optional - individual indexes are the minimum requirement
+        # This loop documents the check for optimization purposes
         for row in rows:
             if row["sql"]:
                 sql_lower = row["sql"].lower()
                 if "session_id" in sql_lower and "artifact_type" in sql_lower:
-                    has_composite = True
-                    break
-
-        # Note: Composite index is optional - individual indexes are the minimum requirement
-        # This test documents the possibility of optimization
+                    break  # Found composite index (optional optimization)
 
 
 # =============================================================================
@@ -1243,9 +1237,7 @@ class TestLocalArtifactManagerSearchAdvanced:
         )
 
         manager = LocalArtifactManager(db)
-        manager.create_artifact(
-            session_id="sess-1", artifact_type="code", content="some content"
-        )
+        manager.create_artifact(session_id="sess-1", artifact_type="code", content="some content")
 
         results = manager.search_artifacts(query_text="")
 
@@ -1305,9 +1297,7 @@ class TestLocalArtifactManagerSearchAdvanced:
         )
 
         manager = LocalArtifactManager(db)
-        manager.create_artifact(
-            session_id="sess-1", artifact_type="code", content="hello world"
-        )
+        manager.create_artifact(session_id="sess-1", artifact_type="code", content="hello world")
 
         results = manager.search_artifacts(query_text="xyznonexistent")
 

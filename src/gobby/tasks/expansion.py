@@ -77,6 +77,7 @@ class TaskExpander:
         context: str | None = None,
         enable_web_research: bool = False,
         enable_code_context: bool = True,
+        tdd_mode: bool | None = None,
     ) -> dict[str, Any]:
         """
         Expand a task into subtasks using structured JSON output.
@@ -91,6 +92,7 @@ class TaskExpander:
             context: Additional context for expansion
             enable_web_research: Whether to enable web research (default: False)
             enable_code_context: Whether to enable code context gathering (default: True)
+            tdd_mode: Override TDD mode setting. If None, uses config default.
 
         Returns:
             Dictionary with:
@@ -115,6 +117,7 @@ class TaskExpander:
                     context=context,
                     enable_web_research=enable_web_research,
                     enable_code_context=enable_code_context,
+                    tdd_mode=tdd_mode,
                 )
         except TimeoutError:
             error_msg = (
@@ -132,6 +135,7 @@ class TaskExpander:
         context: str | None = None,
         enable_web_research: bool = False,
         enable_code_context: bool = True,
+        tdd_mode: bool | None = None,
     ) -> dict[str, Any]:
         """Internal implementation of expand_task (called within timeout context)."""
         # Gather enhanced context
@@ -184,12 +188,13 @@ class TaskExpander:
 
             # Disable TDD mode for epics - epics are container tasks whose
             # closing condition is "all children closed", not test verification.
-            # For non-epics, use the config setting.
-            tdd_mode = self.config.tdd_mode and task_obj.task_type != "epic"
+            # Use passed tdd_mode if provided, otherwise fall back to config.
+            effective_tdd = tdd_mode if tdd_mode is not None else self.config.tdd_mode
+            tdd_for_prompt = effective_tdd and task_obj.task_type != "epic"
 
             response = await provider.generate_text(
                 prompt=prompt,
-                system_prompt=self.prompt_builder.get_system_prompt(tdd_mode=tdd_mode),
+                system_prompt=self.prompt_builder.get_system_prompt(tdd_mode=tdd_for_prompt),
                 model=self.config.model,
             )
 

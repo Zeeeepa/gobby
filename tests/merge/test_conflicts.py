@@ -4,9 +4,6 @@ Tests for extract_conflict_hunks function that parses Git conflict markers
 and extracts conflict regions with context windowing.
 """
 
-from dataclasses import dataclass
-
-import pytest
 
 # =============================================================================
 # Import Tests
@@ -487,12 +484,12 @@ content with >>>, <<<, ===
         """Test that we don't mis-parse markers in quoted strings."""
         from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
-        content = '''<<<<<<< HEAD
+        content = """<<<<<<< HEAD
 print("<<<<<<< this is a string")
 =======
 print(">>>>>>> this too")
 >>>>>>> branch
-'''
+"""
         hunks = extract_conflict_hunks(content)
 
         # Should treat them as content, not markers

@@ -152,9 +152,7 @@ class LocalArtifactManager:
         Returns:
             The Artifact if found, None otherwise
         """
-        row = self.db.fetchone(
-            "SELECT * FROM session_artifacts WHERE id = ?", (artifact_id,)
-        )
+        row = self.db.fetchone("SELECT * FROM session_artifacts WHERE id = ?", (artifact_id,))
         if not row:
             return None
         return Artifact.from_row(row)
@@ -204,15 +202,11 @@ class LocalArtifactManager:
             True if deleted, False if not found
         """
         with self.db.transaction() as conn:
-            cursor = conn.execute(
-                "DELETE FROM session_artifacts WHERE id = ?", (artifact_id,)
-            )
+            cursor = conn.execute("DELETE FROM session_artifacts WHERE id = ?", (artifact_id,))
             if cursor.rowcount == 0:
                 return False
             # Also delete from FTS5 table
-            conn.execute(
-                "DELETE FROM session_artifacts_fts WHERE id = ?", (artifact_id,)
-            )
+            conn.execute("DELETE FROM session_artifacts_fts WHERE id = ?", (artifact_id,))
 
         self._notify_listeners()
         return True

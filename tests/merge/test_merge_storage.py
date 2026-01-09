@@ -4,11 +4,6 @@ Tests for MergeResolution and MergeConflict persistence in SQLite database.
 Tests should fail initially as the storage module does not exist yet.
 """
 
-import json
-import sqlite3
-
-import pytest
-
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
 
@@ -434,9 +429,7 @@ class TestMergeResolutionManagerCreate:
         )
 
         # Verify in database
-        row = db.fetchone(
-            "SELECT * FROM merge_resolutions WHERE id = ?", (resolution.id,)
-        )
+        row = db.fetchone("SELECT * FROM merge_resolutions WHERE id = ?", (resolution.id,))
         assert row is not None
         assert row["source_branch"] == "feature/test"
 
@@ -558,9 +551,7 @@ class TestMergeResolutionManagerUpdate:
         manager.update_resolution(resolution.id, status="resolved")
 
         # Verify in database
-        row = db.fetchone(
-            "SELECT * FROM merge_resolutions WHERE id = ?", (resolution.id,)
-        )
+        row = db.fetchone("SELECT * FROM merge_resolutions WHERE id = ?", (resolution.id,))
         assert row["status"] == "resolved"
 
 
@@ -985,11 +976,11 @@ class TestQueryResolutionsByStatus:
             source_branch="feature/auth",
             target_branch="main",
         )
-        res2 = manager.create_resolution(
+        manager.create_resolution(
             worktree_id="wt-1",
             source_branch="feature/api",
             target_branch="main",
-        )
+        )  # Second resolution, not updated (remains pending)
 
         manager.update_resolution(res1.id, status="resolved")
 

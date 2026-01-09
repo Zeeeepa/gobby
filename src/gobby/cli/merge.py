@@ -43,7 +43,8 @@ def get_project_context() -> dict[str, Any] | None:
         if project_file.exists():
             import json as json_module
 
-            return json_module.loads(project_file.read_text())
+            result: dict[str, Any] = json_module.loads(project_file.read_text())
+            return result
     return None
 
 
@@ -139,7 +140,7 @@ def merge_start(
 
     except Exception as e:
         click.echo(f"Error starting merge: {e}", err=True)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
 
 @merge.command("status")
@@ -238,7 +239,7 @@ def merge_resolve(file_path: str, strategy: str, json_format: bool) -> None:
 
         if strategy == "ai":
             # AI resolution
-            resolver = get_merge_resolver()
+            get_merge_resolver()  # Validates resolver is available
             # Would call AI resolver here
             click.echo(f"Resolving {file_path} with AI...")
             manager.update_conflict(conflict.id, status="resolved")
@@ -257,10 +258,10 @@ def merge_resolve(file_path: str, strategy: str, json_format: bool) -> None:
     except AttributeError:
         # get_conflict_by_path may not exist
         click.echo(f"Error: Conflict not found for '{file_path}'", err=True)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
     except Exception as e:
         click.echo(f"Error resolving conflict: {e}", err=True)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
 
 @merge.command("apply")
@@ -316,10 +317,10 @@ def merge_apply(force: bool, json_format: bool) -> None:
     except AttributeError:
         # get_active_resolution may not exist
         click.echo("Error: No active merge operation found.", err=True)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
     except Exception as e:
         click.echo(f"Error applying merge: {e}", err=True)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
 
 
 @merge.command("abort")
@@ -367,7 +368,7 @@ def merge_abort(json_format: bool) -> None:
     except AttributeError:
         # get_active_resolution may not exist
         click.echo("Error: No active merge operation to abort.", err=True)
-        raise SystemExit(1)
+        raise SystemExit(1) from None
     except Exception as e:
         click.echo(f"Error aborting merge: {e}", err=True)
-        raise SystemExit(1)
+        raise SystemExit(1) from None

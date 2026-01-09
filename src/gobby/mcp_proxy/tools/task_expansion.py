@@ -11,6 +11,7 @@ Provides tools for expanding tasks into subtasks using AI or structured parsing:
 Extracted from tasks.py using Strangler Fig pattern for code decomposition.
 """
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -39,6 +40,7 @@ def create_expansion_registry(
     task_expander: "TaskExpander | None" = None,
     task_validator: "TaskValidator | None" = None,
     auto_generate_on_expand: bool = True,
+    resolve_tdd_mode: Callable[[str | None], bool] | None = None,
 ) -> InternalToolRegistry:
     """
     Create a registry with task expansion tools.
@@ -48,6 +50,7 @@ def create_expansion_registry(
         task_expander: TaskExpander instance (optional, required for AI expansion)
         task_validator: TaskValidator instance (optional, for auto-generating criteria)
         auto_generate_on_expand: Whether to auto-generate validation criteria on expand
+        resolve_tdd_mode: Callable to resolve TDD mode from session_id (optional)
 
     Returns:
         InternalToolRegistry with expansion tools registered
@@ -78,6 +81,7 @@ def create_expansion_registry(
         enable_web_research: bool = False,
         enable_code_context: bool = True,
         generate_validation: bool | None = None,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Expand a task into subtasks using tool-based expansion.
@@ -92,6 +96,7 @@ def create_expansion_registry(
             enable_code_context: Whether to enable code context gathering (default: True)
             generate_validation: Whether to auto-generate validation_criteria for subtasks.
                 Defaults to config setting (gobby_tasks.validation.auto_generate_on_expand).
+            session_id: Session ID to resolve TDD mode from workflow state.
 
         Returns:
             Dictionary with subtask_ids, tool_calls count, and agent text
@@ -107,6 +112,9 @@ def create_expansion_registry(
         if not task:
             raise ValueError(f"Task not found: {task_id}")
 
+        # Resolve TDD mode from workflow state if resolver provided
+        tdd_mode = resolve_tdd_mode(session_id) if resolve_tdd_mode else None
+
         result = await task_expander.expand_task(
             task_id=task.id,
             title=task.title,
@@ -114,6 +122,7 @@ def create_expansion_registry(
             context=context,
             enable_web_research=enable_web_research,
             enable_code_context=enable_code_context,
+            tdd_mode=tdd_mode,
         )
 
         # Handle errors

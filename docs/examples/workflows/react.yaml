@@ -5,19 +5,19 @@ version: "1.0"
 steps:
   - name: loop
     description: "Reason -> Act -> Observe loop"
-    
+
     on_enter:
       - action: inject_message
         content: |
           You are in ReAct mode (Reason -> Act -> Observe).
-          
+
           For each step:
           1. REASON: Think about what to do next.
           2. ACT: Call a tool.
           3. OBSERVE: Analyze the tool output.
-          
+
     allowed_tools: all
-    
+
     # Simple rule: if tool error, suggest checking observation
     transitions:
       - to: loop

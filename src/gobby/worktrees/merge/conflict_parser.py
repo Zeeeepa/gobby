@@ -43,9 +43,7 @@ CONFLICT_BASE_SEPARATOR = re.compile(r"^(\|\|\|\|\|\|\|\s+.*)$", re.MULTILINE)  
 CONFLICT_END = re.compile(r"^(>>>>>>>\s+.*)$", re.MULTILINE)
 
 
-def extract_conflict_hunks(
-    file_content: str, context_lines: int = 3
-) -> list[ConflictHunk]:
+def extract_conflict_hunks(file_content: str, context_lines: int = 3) -> list[ConflictHunk]:
     """Extract conflict hunks from file content.
 
     Parses Git conflict markers and extracts conflict regions with
@@ -87,9 +85,7 @@ def extract_conflict_hunks(
     return hunks
 
 
-def _parse_conflict_at(
-    lines: list[str], start_idx: int, context_lines: int
-) -> ConflictHunk | None:
+def _parse_conflict_at(lines: list[str], start_idx: int, context_lines: int) -> ConflictHunk | None:
     """Parse a single conflict starting at the given line index.
 
     Args:
