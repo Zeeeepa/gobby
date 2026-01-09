@@ -5,10 +5,8 @@ Re-exports routers for backward compatibility during Strangler Fig migration.
 Routers are being extracted from base.py into focused sub-modules.
 """
 
-from gobby.servers.routes.mcp.base import (
-    create_code_router,
-    create_mcp_router,
-)
+from gobby.servers.routes.mcp.base import create_mcp_router
+from gobby.servers.routes.mcp.code import create_code_router
 from gobby.servers.routes.mcp.hooks import create_hooks_router
 from gobby.servers.routes.mcp.plugins import create_plugins_router
 from gobby.servers.routes.mcp.webhooks import create_webhooks_router
