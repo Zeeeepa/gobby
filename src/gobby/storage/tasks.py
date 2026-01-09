@@ -909,8 +909,12 @@ class LocalTaskManager:
         then return the first N tasks in tree traversal order.
         """
         # Use recursive CTE to find tasks with ready parent chains
-        # Note: "blocked by own children" is a completion block, not a work block.
-        # Parent tasks should still be considered "ready" even if blocked by children.
+        # Note: "blocked by own children/descendants" is a completion block, not a work block.
+        # Parent tasks should still be considered "ready" even if blocked by descendants.
+        #
+        # The is_descendant_of check uses a recursive CTE to walk up the blocker's ancestor
+        # chain and check if the blocked task (t.id) appears anywhere in that chain.
+        # This handles multi-level hierarchies (grandchildren, great-grandchildren, etc.)
         query = """
         WITH RECURSIVE ready_tasks AS (
             -- Base case: open/in_progress tasks with no parent and no external blocking deps
@@ -923,9 +927,19 @@ class LocalTaskManager:
                 WHERE d.task_id = t.id
                   AND d.dep_type = 'blocks'
                   AND blocker.status != 'closed'
-                  -- Exclude parent blocked by own children (completion block, not work block)
-                  -- Use COALESCE to handle NULL parent_task_id (NULL != x returns NULL, not TRUE)
-                  AND COALESCE(blocker.parent_task_id, '') != t.id
+                  -- Exclude ancestor blocked by any descendant (completion block, not work block)
+                  -- Check if t.id appears anywhere in blocker's ancestor chain
+                  AND NOT EXISTS (
+                      WITH RECURSIVE ancestors AS (
+                          SELECT blocker.parent_task_id AS ancestor_id
+                          UNION ALL
+                          SELECT p.parent_task_id
+                          FROM tasks p
+                          JOIN ancestors a ON p.id = a.ancestor_id
+                          WHERE p.parent_task_id IS NOT NULL
+                      )
+                      SELECT 1 FROM ancestors WHERE ancestor_id = t.id
+                  )
             )
 
             UNION ALL
@@ -940,8 +954,18 @@ class LocalTaskManager:
                 WHERE d.task_id = t.id
                   AND d.dep_type = 'blocks'
                   AND blocker.status != 'closed'
-                  -- Exclude parent blocked by own children (completion block, not work block)
-                  AND COALESCE(blocker.parent_task_id, '') != t.id
+                  -- Exclude ancestor blocked by any descendant (completion block, not work block)
+                  AND NOT EXISTS (
+                      WITH RECURSIVE ancestors AS (
+                          SELECT blocker.parent_task_id AS ancestor_id
+                          UNION ALL
+                          SELECT p.parent_task_id
+                          FROM tasks p
+                          JOIN ancestors a ON p.id = a.ancestor_id
+                          WHERE p.parent_task_id IS NOT NULL
+                      )
+                      SELECT 1 FROM ancestors WHERE ancestor_id = t.id
+                  )
             )
         )
         SELECT t.* FROM tasks t

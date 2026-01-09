@@ -484,14 +484,12 @@ def create_expansion_registry(
 
             subtask_ids = llm_result.get("subtask_ids", [])
 
-        # Wire parent → subtask dependencies
-        for subtask_id in subtask_ids:
-            try:
-                dep_manager.add_dependency(
-                    task_id=spec_task.id, depends_on=subtask_id, dep_type="blocks"
-                )
-            except ValueError:
-                pass
+        # NOTE: We do NOT add explicit blocking dependencies from parent to children here.
+        # The parent-child relationship is already captured via parent_task_id.
+        # Adding explicit deps causes readiness detection issues (parent incorrectly
+        # marked as blocked by descendants, breaking the ready task query).
+        # Inter-sibling dependencies (task A before task B) are still created in
+        # expansion.py based on LLM-suggested depends_on_indices.
 
         # Fetch created subtasks (brief format for token efficiency)
         subtasks = []
