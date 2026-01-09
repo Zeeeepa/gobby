@@ -1,0 +1,5 @@
+{
+  "id": "metrics",
+  "trigger_pattern": "/metrics",
+  "tags": ["gobby", "metrics", "statistics", "monitoring", "mcp"]
+}

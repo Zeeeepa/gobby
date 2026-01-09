@@ -1,0 +1,5 @@
+{
+  "id": "worktrees",
+  "trigger_pattern": "/worktrees",
+  "tags": ["gobby", "worktrees", "git", "parallel", "mcp"]
+}
