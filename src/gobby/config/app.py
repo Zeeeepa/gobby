@@ -353,6 +353,10 @@ class DaemonConfig(BaseModel):
         """Get metrics configuration."""
         return self.metrics
 
+    def get_compression_config(self) -> CompressionConfig:
+        """Get compression configuration."""
+        return self.compression
+
     def get_verification_defaults(self) -> ProjectVerificationConfig:
         """Get default verification commands configuration."""
         return self.verification_defaults
