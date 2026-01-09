@@ -1,8 +1,15 @@
 """
 MCP routes package.
 
-Re-exports routers for backward compatibility during Strangler Fig migration.
-Routers are being extracted from base.py into focused sub-modules.
+Decomposed from monolithic mcp.py using Strangler Fig pattern.
+Each router is now in its own focused module:
+- tools.py: create_mcp_router (tool discovery, execution, search)
+- code.py: create_code_router (code execution, dataset processing)
+- hooks.py: create_hooks_router (CLI hook adapter)
+- plugins.py: create_plugins_router (plugin management)
+- webhooks.py: create_webhooks_router (webhook management)
+
+This __init__.py re-exports all routers for backward compatibility.
 """
 
 from gobby.servers.routes.mcp.code import create_code_router

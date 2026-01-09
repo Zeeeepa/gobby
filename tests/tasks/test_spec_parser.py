@@ -1734,7 +1734,9 @@ class TestIsActionableSection:
         ]
 
         for heading in actionable_headings:
-            assert builder._is_actionable_section(heading) is True, f"'{heading}' should be actionable"
+            assert (
+                builder._is_actionable_section(heading) is True
+            ), f"'{heading}' should be actionable"
 
     def test_non_actionable_sections_detected(self, mock_task_manager):
         """Headings without actionable keywords return False."""
@@ -1758,7 +1760,9 @@ class TestIsActionableSection:
         ]
 
         for heading in non_actionable_headings:
-            assert builder._is_actionable_section(heading) is False, f"'{heading}' should NOT be actionable"
+            assert (
+                builder._is_actionable_section(heading) is False
+            ), f"'{heading}' should NOT be actionable"
 
     def test_case_insensitive_matching(self, mock_task_manager):
         """Keyword matching is case-insensitive."""

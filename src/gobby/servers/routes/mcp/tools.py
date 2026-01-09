@@ -1315,7 +1315,3 @@ def create_mcp_router() -> APIRouter:
             raise HTTPException(status_code=500, detail=str(e)) from e
 
     return router
-
-
-
-
