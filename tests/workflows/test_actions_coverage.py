@@ -1651,3 +1651,184 @@ class TestGenerateHandoffCompactMode:
             call_kwargs = mock_handoff.call_args.kwargs
             assert call_kwargs.get("mode") == "compact"
             assert call_kwargs.get("previous_summary") == "Previous summary content"
+
+
+# =============================================================================
+# Test ActionExecutor TextCompressor Integration
+# =============================================================================
+
+
+class TestActionExecutorCompressor:
+    """Tests for ActionExecutor TextCompressor integration."""
+
+    def test_compressor_created_when_config_has_compression(
+        self, temp_db, session_manager, mock_services
+    ):
+        """Test that TextCompressor is created when config has compression settings."""
+        from gobby.compression import CompressionConfig
+
+        # Create a mock config with compression attribute
+        mock_config = MagicMock()
+        mock_config.compression = CompressionConfig(enabled=True)
+
+        executor = ActionExecutor(
+            db=temp_db,
+            session_manager=session_manager,
+            template_engine=mock_services["template_engine"],
+            config=mock_config,
+        )
+
+        assert executor._compressor is not None
+        assert executor._compressor.config.enabled is True
+
+    def test_compressor_not_created_when_config_is_none(
+        self, temp_db, session_manager, mock_services
+    ):
+        """Test that TextCompressor is not created when config is None."""
+        executor = ActionExecutor(
+            db=temp_db,
+            session_manager=session_manager,
+            template_engine=mock_services["template_engine"],
+            config=None,
+        )
+
+        assert executor._compressor is None
+
+    def test_compressor_not_created_when_config_has_no_compression(
+        self, temp_db, session_manager, mock_services
+    ):
+        """Test that TextCompressor is not created when config has no compression attr."""
+        # Create a mock config without compression attribute
+        mock_config = MagicMock(spec=[])  # Empty spec = no attributes
+
+        executor = ActionExecutor(
+            db=temp_db,
+            session_manager=session_manager,
+            template_engine=mock_services["template_engine"],
+            config=mock_config,
+        )
+
+        assert executor._compressor is None
+
+    @pytest.mark.asyncio
+    async def test_generate_summary_passes_compressor(
+        self, temp_db, session_manager, mock_services, workflow_state
+    ):
+        """Test that _handle_generate_summary passes self._compressor to generate_summary."""
+        from gobby.compression import CompressionConfig
+
+        # Create executor with compression enabled
+        mock_config = MagicMock()
+        mock_config.compression = CompressionConfig(enabled=True)
+
+        executor = ActionExecutor(
+            db=temp_db,
+            session_manager=session_manager,
+            template_engine=mock_services["template_engine"],
+            config=mock_config,
+            llm_service=mock_services["llm_service"],
+            transcript_processor=mock_services["transcript_processor"],
+        )
+
+        # Create action context
+        context = ActionContext(
+            session_id=workflow_state.session_id,
+            state=workflow_state,
+            db=temp_db,
+            session_manager=session_manager,
+            template_engine=mock_services["template_engine"],
+            llm_service=mock_services["llm_service"],
+            transcript_processor=mock_services["transcript_processor"],
+        )
+
+        with patch("gobby.workflows.actions.generate_summary") as mock_gen:
+            mock_gen.return_value = {"summary_generated": True}
+
+            await executor.execute("generate_summary", context)
+
+            mock_gen.assert_called_once()
+            call_kwargs = mock_gen.call_args.kwargs
+            assert "compressor" in call_kwargs
+            assert call_kwargs["compressor"] is executor._compressor
+
+    @pytest.mark.asyncio
+    async def test_generate_handoff_passes_compressor(
+        self, temp_db, session_manager, mock_services, workflow_state
+    ):
+        """Test that _handle_generate_handoff passes self._compressor to generate_handoff."""
+        from gobby.compression import CompressionConfig
+
+        # Create executor with compression enabled
+        mock_config = MagicMock()
+        mock_config.compression = CompressionConfig(enabled=True)
+
+        executor = ActionExecutor(
+            db=temp_db,
+            session_manager=session_manager,
+            template_engine=mock_services["template_engine"],
+            config=mock_config,
+            llm_service=mock_services["llm_service"],
+            transcript_processor=mock_services["transcript_processor"],
+        )
+
+        # Create action context
+        context = ActionContext(
+            session_id=workflow_state.session_id,
+            state=workflow_state,
+            db=temp_db,
+            session_manager=session_manager,
+            template_engine=mock_services["template_engine"],
+            llm_service=mock_services["llm_service"],
+            transcript_processor=mock_services["transcript_processor"],
+        )
+
+        with patch("gobby.workflows.actions.generate_handoff") as mock_gen:
+            mock_gen.return_value = {"handoff_generated": True}
+
+            await executor.execute("generate_handoff", context)
+
+            mock_gen.assert_called_once()
+            call_kwargs = mock_gen.call_args.kwargs
+            assert "compressor" in call_kwargs
+            assert call_kwargs["compressor"] is executor._compressor
+
+    @pytest.mark.asyncio
+    async def test_extract_handoff_context_passes_compressor(
+        self, temp_db, session_manager, mock_services, workflow_state
+    ):
+        """Test that _handle_extract_handoff_context passes self._compressor."""
+        from gobby.compression import CompressionConfig
+
+        # Create executor with compression enabled
+        mock_config = MagicMock()
+        mock_config.compression = CompressionConfig(enabled=True)
+
+        executor = ActionExecutor(
+            db=temp_db,
+            session_manager=session_manager,
+            template_engine=mock_services["template_engine"],
+            config=mock_config,
+        )
+
+        # Create action context
+        context = ActionContext(
+            session_id=workflow_state.session_id,
+            state=workflow_state,
+            db=temp_db,
+            session_manager=session_manager,
+            template_engine=mock_services["template_engine"],
+            config=mock_config,
+        )
+
+        with patch("gobby.workflows.actions.extract_handoff_context") as mock_extract:
+            mock_extract.return_value = {"handoff_context_extracted": True}
+
+            await executor.execute("extract_handoff_context", context)
+
+            mock_extract.assert_called_once()
+            call_kwargs = mock_extract.call_args.kwargs
+            assert "compressor" in call_kwargs
+            assert call_kwargs["compressor"] is executor._compressor
+            # Also verify db is passed
+            assert "db" in call_kwargs
+            assert call_kwargs["db"] is temp_db
