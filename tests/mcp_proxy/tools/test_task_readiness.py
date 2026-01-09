@@ -225,12 +225,12 @@ class TestSuggestNextTask:
         assert "No ready tasks" in result["reason"]
 
     def test_suggest_next_task_prefers_leaf_tasks(self, mock_readiness_registry):
-        """Test that suggest_next_task prefers leaf tasks over parent tasks."""
+        """Test that suggest_next_task prefers leaf tasks over parent tasks at same priority."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
         task_manager = MagicMock()
 
-        # Parent task (has children)
+        # Parent task (has children) - same priority as leaf
         parent_task = MagicMock()
         parent_task.id = "parent-1"
         parent_task.priority = 1
@@ -238,10 +238,10 @@ class TestSuggestNextTask:
         parent_task.test_strategy = None
         parent_task.to_dict.return_value = {"id": "parent-1", "title": "Parent task"}
 
-        # Leaf task (no children)
+        # Leaf task (no children) - same priority as parent
         leaf_task = MagicMock()
         leaf_task.id = "leaf-1"
-        leaf_task.priority = 2  # Lower priority than parent
+        leaf_task.priority = 1  # Same priority as parent
         leaf_task.complexity_score = 3
         leaf_task.test_strategy = "Unit tests"
         leaf_task.to_dict.return_value = {"id": "leaf-1", "title": "Leaf task"}
@@ -249,7 +249,7 @@ class TestSuggestNextTask:
         task_manager.list_ready_tasks.return_value = [parent_task, leaf_task]
 
         # Mock list_tasks to indicate parent has children, leaf doesn't
-        def mock_list_tasks(parent_task_id=None, status=None, limit=None):
+        def mock_list_tasks(parent_task_id=None, status=None, limit=None, project_id=None):
             if parent_task_id == "parent-1":
                 return [MagicMock()]  # Has children
             return []  # No children
@@ -261,7 +261,7 @@ class TestSuggestNextTask:
 
         result = suggest(prefer_subtasks=True)
 
-        # Should prefer leaf task despite lower priority
+        # At same priority, leaf task wins due to leaf bonus + other bonuses
         assert result["suggestion"]["id"] == "leaf-1"
 
     def test_suggest_next_task_with_type_filter(self, mock_readiness_registry):
@@ -283,7 +283,7 @@ class TestSuggestNextTask:
         )
 
     def test_suggest_next_task_scoring(self, mock_readiness_registry):
-        """Test that suggest_next_task uses correct scoring algorithm."""
+        """Test that suggest_next_task uses correct scoring algorithm with priority dominance."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
         task_manager = MagicMock()
@@ -312,10 +312,11 @@ class TestSuggestNextTask:
 
         result = suggest()
 
-        # High priority should win (30 points) over low priority (10 + 15 + 10 = 35, but both get leaf bonus)
-        # Actually with leaf bonus: high = 30 + 25 = 55, low = 10 + 25 + 15 + 10 = 60
-        # So low priority with better attributes should win
-        assert result["suggestion"]["id"] == "low-priority"
+        # Priority weight is 110 per level to ensure priority dominates over bonuses
+        # High priority (1): (4-1)*110 + 25 (leaf) = 355
+        # Low priority (3): (4-3)*110 + 25 (leaf) + 15 (complexity) + 10 (test_strategy) = 160
+        # High priority wins despite fewer bonuses
+        assert result["suggestion"]["id"] == "high-priority"
 
 
 class TestReadinessEdgeCases:

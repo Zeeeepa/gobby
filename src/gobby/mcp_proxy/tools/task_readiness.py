@@ -380,8 +380,11 @@ def create_readiness_registry(
             score = 0
             proximity_boost = 0
 
-            # Priority boost (1=high gets +30, 2=medium gets +20, 3=low gets +10)
-            score += (4 - task.priority) * 10
+            # Priority boost - use weight of 110 per level to ensure priority dominates
+            # This makes the gap between priority levels (110) larger than max possible
+            # bonuses (leaf=25 + complexity=15 + test_strategy=10 + proximity=50 = 100)
+            # Priority 0 (critical): 440, Priority 1 (high): 330, etc.
+            score += (4 - task.priority) * 110
 
             # Check if it's a leaf task (no children)
             children = task_manager.list_tasks(parent_task_id=task.id, status="open", limit=1)
@@ -411,7 +414,9 @@ def create_readiness_registry(
         best_task, best_score, is_leaf, best_proximity = scored[0]
 
         reasons = []
-        if best_task.priority == 1:
+        if best_task.priority == 0:
+            reasons.append("critical priority")
+        elif best_task.priority == 1:
             reasons.append("high priority")
         if is_leaf:
             reasons.append("actionable leaf task")
