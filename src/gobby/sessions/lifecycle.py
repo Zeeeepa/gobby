@@ -9,9 +9,12 @@ Handles background jobs for:
 import asyncio
 import logging
 import os
+from typing import Any
 
 from gobby.config.app import SessionLifecycleConfig
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
+from gobby.sessions.transcripts.codex import CodexTranscriptParser
+from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
 from gobby.storage.database import LocalDatabase
 from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager
@@ -153,6 +156,7 @@ class SessionLifecycleManager:
         Process a full transcript for a session.
 
         Reads the entire transcript and stores messages.
+        Aggregates token usage and costs.
         Uses idempotent upsert so re-processing is safe.
 
         Args:
@@ -175,7 +179,19 @@ class SessionLifecycleManager:
             return
 
         # Parse all lines
-        parser = ClaudeTranscriptParser()
+        session = self.session_manager.get(session_id)
+        if not session:
+            return
+
+        # Choose parser based on source
+        # Default to Claude for backward compatibility or safety
+        # But we should rely on session.source if possible
+        parser: Any = ClaudeTranscriptParser()
+        if session.source == "gemini":
+            parser = GeminiTranscriptParser()
+        elif session.source == "codex":
+            parser = CodexTranscriptParser()
+
         messages = parser.parse_lines(lines, start_index=0)
 
         if not messages:
@@ -183,6 +199,35 @@ class SessionLifecycleManager:
 
         # Store messages (upsert - safe for re-processing)
         await self.message_manager.store_messages(session_id, messages)
+
+        # Aggregate usage
+        input_tokens = 0
+        output_tokens = 0
+        cache_creation_tokens = 0
+        cache_read_tokens = 0
+        total_cost_usd = 0.0
+
+        for msg in messages:
+            if msg.usage:
+                input_tokens += msg.usage.input_tokens
+                output_tokens += msg.usage.output_tokens
+                cache_creation_tokens += msg.usage.cache_creation_tokens
+                cache_read_tokens += msg.usage.cache_read_tokens
+                if msg.usage.total_cost_usd:
+                    total_cost_usd += msg.usage.total_cost_usd
+
+        # Update session with aggregated usage
+        # We only update if we found some usage, to avoid overwriting with zeros if re-processing
+        # (though re-processing from scratch IS the source of truth, so zeros might be correct if no usage found)
+        # Actually, let's always update to ensure consistency with the file
+        self.session_manager.update_usage(
+            session_id=session_id,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cache_creation_tokens=cache_creation_tokens,
+            cache_read_tokens=cache_read_tokens,
+            total_cost_usd=total_cost_usd,
+        )
 
         # Update processing state
         await self.message_manager.update_state(

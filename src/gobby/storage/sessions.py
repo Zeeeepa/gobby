@@ -40,6 +40,12 @@ class Session:
     agent_run_id: str | None = None  # Link back to agent run record
     context_injected: bool = False  # Whether context was injected into prompt
     original_prompt: str | None = None  # Original prompt for terminal mode
+    # Usage tracking fields
+    usage_input_tokens: int = 0
+    usage_output_tokens: int = 0
+    usage_cache_creation_tokens: int = 0
+    usage_cache_read_tokens: int = 0
+    usage_total_cost_usd: float = 0.0
 
     @classmethod
     def from_row(cls, row: Any) -> Session:
@@ -66,6 +72,11 @@ class Session:
             agent_run_id=row["agent_run_id"],
             context_injected=bool(row["context_injected"]),
             original_prompt=row["original_prompt"],
+            usage_input_tokens=row["usage_input_tokens"] or 0,
+            usage_output_tokens=row["usage_output_tokens"] or 0,
+            usage_cache_creation_tokens=row["usage_cache_creation_tokens"] or 0,
+            usage_cache_read_tokens=row["usage_cache_read_tokens"] or 0,
+            usage_total_cost_usd=row["usage_total_cost_usd"] or 0.0,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -90,6 +101,11 @@ class Session:
             "agent_run_id": self.agent_run_id,
             "context_injected": self.context_injected,
             "original_prompt": self.original_prompt,
+            "usage_input_tokens": self.usage_input_tokens,
+            "usage_output_tokens": self.usage_output_tokens,
+            "usage_cache_creation_tokens": self.usage_cache_creation_tokens,
+            "usage_cache_read_tokens": self.usage_cache_read_tokens,
+            "usage_total_cost_usd": self.usage_total_cost_usd,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -626,6 +642,45 @@ class LocalSessionManager:
             (now, session_id),
         )
         return self.get(session_id)
+
+    def update_usage(
+        self,
+        session_id: str,
+        input_tokens: int,
+        output_tokens: int,
+        cache_creation_tokens: int,
+        cache_read_tokens: int,
+        total_cost_usd: float,
+    ) -> bool:
+        """Update session usage statistics."""
+        query = """
+        UPDATE sessions
+        SET
+            usage_input_tokens = ?,
+            usage_output_tokens = ?,
+            usage_cache_creation_tokens = ?,
+            usage_cache_read_tokens = ?,
+            usage_total_cost_usd = ?,
+            updated_at = datetime('now')
+        WHERE id = ?
+        """
+        try:
+            with self.db.transaction():
+                cursor = self.db.execute(
+                    query,
+                    (
+                        input_tokens,
+                        output_tokens,
+                        cache_creation_tokens,
+                        cache_read_tokens,
+                        total_cost_usd,
+                        session_id,
+                    ),
+                )
+                return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Failed to update session usage {session_id}: {e}")
+            return False
 
     def update_terminal_pickup_metadata(
         self,

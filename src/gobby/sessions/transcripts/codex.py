@@ -11,7 +11,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from gobby.sessions.transcripts.base import ParsedMessage
+from gobby.sessions.transcripts.base import ParsedMessage, TokenUsage
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +91,24 @@ class CodexTranscriptParser:
             tool_result=None,
             timestamp=timestamp,
             raw_json=data,
+            usage=self._extract_usage(data),
+        )
+
+    def _extract_usage(self, data: dict[str, Any]) -> TokenUsage | None:
+        """Extract token usage from Codex message data."""
+        # Codex CLI typically logs these at top level or in usage field
+        usage_data = data if "input_tokens" in data else data.get("usage")
+
+        if not usage_data:
+            return None
+
+        return TokenUsage(
+            input_tokens=usage_data.get("input_tokens", 0) or usage_data.get("inputTokens", 0),
+            output_tokens=usage_data.get("output_tokens", 0) or usage_data.get("outputTokens", 0),
+            cache_read_tokens=usage_data.get("cached_tokens", 0)
+            or usage_data.get("cachedTokens", 0),
+            # Total cost often provided directly
+            total_cost_usd=usage_data.get("cost") or usage_data.get("total_cost"),
         )
 
     def parse_lines(self, lines: list[str], start_index: int = 0) -> list[ParsedMessage]:

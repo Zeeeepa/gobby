@@ -1,0 +1,102 @@
+import json
+import pytest
+from datetime import datetime, UTC
+from pathlib import Path
+
+from gobby.storage.database import LocalDatabase
+from gobby.storage.sessions import LocalSessionManager
+from gobby.sessions.lifecycle import SessionLifecycleManager
+from gobby.config.app import SessionLifecycleConfig
+from gobby.storage.migrations import run_migrations
+
+
+@pytest.fixture
+def db(tmp_path):
+    """Initialize database with migrations."""
+    db_path = tmp_path / "gobby.db"
+    database = LocalDatabase(str(db_path))
+    run_migrations(database)
+    # Create dummy project required for sessions
+    database.execute(
+        "INSERT INTO projects (id, name, repo_path) VALUES (?, ?, ?)",
+        ("proj-1", "Test Project", str(tmp_path)),
+    )
+    yield database
+    database.close()
+
+
+@pytest.fixture
+def session_manager(db):
+    return LocalSessionManager(db)
+
+
+@pytest.fixture
+def lifecycle_manager(db):
+    config = SessionLifecycleConfig()
+    return SessionLifecycleManager(db, config)
+
+
+@pytest.mark.asyncio
+async def test_token_usage_aggregation(db, session_manager, lifecycle_manager, tmp_path):
+    """Test that token usage is correctly aggregated from transcript files."""
+
+    # 1. Create a dummy transcript with usage data
+    # Format matches what ClaudeTranscriptParser expects
+    transcript_path = tmp_path / "transcript.jsonl"
+
+    transcript_data = [
+        # Msg 1: Assistant msg with top-level usage
+        {
+            "type": "assistant",
+            "message": {"role": "assistant", "content": [{"type": "text", "text": "Hello"}]},
+            "usage": {"input_tokens": 10, "output_tokens": 20, "cost": 0.001},
+        },
+        # Msg 2: User msg with top-level usage
+        {
+            "type": "user",
+            "message": {"role": "user", "content": "Hi"},
+            "usage": {"input_tokens": 5, "output_tokens": 0},
+        },
+        # Msg 3: Assistant msg with nested usage (Claude API style)
+        {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Bye"}],
+                "usage": {"input_tokens": 15, "output_tokens": 25, "cost": 0.002},
+            },
+        },
+    ]
+
+    with open(transcript_path, "w") as f:
+        for entry in transcript_data:
+            f.write(json.dumps(entry) + "\n")
+
+    # 2. Register a session
+    session = session_manager.register(
+        external_id="ext-123",
+        machine_id="mac-1",
+        source="claude_code",
+        project_id="proj-1",
+        title="Test Session",
+        jsonl_path=str(transcript_path),
+    )
+
+    # 3. Process the transcript
+    # We call the internal method directly to bypass status checks for testing
+    await lifecycle_manager._process_session_transcript(session.id, str(transcript_path))
+
+    # 4. Verify results
+    updated_session = session_manager.get(session.id)
+
+    assert updated_session is not None
+
+    # Expected:
+    # 1: 10 in, 20 out, 0.001
+    # 2: 5 in, 0 out
+    # 3: 15 in, 25 out, 0.002
+    # Total: 30 in, 45 out, 0.003
+
+    assert updated_session.usage_input_tokens == 30
+    assert updated_session.usage_output_tokens == 45
+    assert updated_session.usage_total_cost_usd == pytest.approx(0.003)

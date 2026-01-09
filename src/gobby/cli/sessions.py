@@ -97,7 +97,11 @@ def list_sessions(
         if len(title) > 50:
             title = title[:47] + "..."
 
-        click.echo(f"{status_icon} {session.id[:12]}  {session.source:<12} {title}")
+        cost_str = ""
+        if session.usage_total_cost_usd > 0:
+            cost_str = f"${session.usage_total_cost_usd:.2f}"
+
+        click.echo(f"{status_icon} {session.id[:12]}  {session.source:<12} {title:<40} {cost_str}")
 
 
 @sessions.command("show")
@@ -142,6 +146,14 @@ def show_session(session_id: str, json_format: bool) -> None:
     click.echo(f"Updated: {session.updated_at}")
     if session.parent_session_id:
         click.echo(f"Parent: {session.parent_session_id}")
+    if session.usage_input_tokens > 0 or session.usage_output_tokens > 0:
+        click.echo("\nUsage Stats:")
+        click.echo(f"  Input Tokens: {session.usage_input_tokens}")
+        click.echo(f"  Output Tokens: {session.usage_output_tokens}")
+        click.echo(f"  Cache Write: {session.usage_cache_creation_tokens}")
+        click.echo(f"  Cache Read: {session.usage_cache_read_tokens}")
+        click.echo(f"  Total Cost: ${session.usage_total_cost_usd:.4f}")
+
     if session.summary_markdown:
         click.echo(f"\nSummary:\n{session.summary_markdown[:500]}")
         if len(session.summary_markdown) > 500:

@@ -11,7 +11,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from gobby.sessions.transcripts.base import ParsedMessage
+from gobby.sessions.transcripts.base import ParsedMessage, TokenUsage
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +160,23 @@ class GeminiTranscriptParser:
             tool_result=tool_result,
             timestamp=timestamp,
             raw_json=data,
+            usage=self._extract_usage(data),
+        )
+
+    def _extract_usage(self, data: dict[str, Any]) -> TokenUsage | None:
+        """Extract token usage from Gemini message data."""
+        # Gemini API standard is usageMetadata
+        usage_data = data.get("usageMetadata")
+
+        if not usage_data:
+            return None
+
+        return TokenUsage(
+            input_tokens=usage_data.get("promptTokenCount", 0),
+            output_tokens=usage_data.get("candidatesTokenCount", 0),
+            # Gemini doesn't always split cache tokens in this view, strictly speaking
+            # but usually total is prompt + candidates
+            total_cost_usd=None,  # Cost calculation not standard in CLI output
         )
 
     def parse_lines(self, lines: list[str], start_index: int = 0) -> list[ParsedMessage]:

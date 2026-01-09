@@ -15,6 +15,17 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class TokenUsage:
+    """Token usage metrics for a message or session."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_creation_tokens: int = 0
+    cache_read_tokens: int = 0
+    total_cost_usd: float | None = None
+
+
+@dataclass
 class ParsedMessage:
     """Normalized message from any CLI transcript."""
 
@@ -27,6 +38,7 @@ class ParsedMessage:
     tool_result: dict[str, Any] | None
     timestamp: datetime
     raw_json: dict[str, Any]
+    usage: TokenUsage | None = None
 
 
 @runtime_checkable

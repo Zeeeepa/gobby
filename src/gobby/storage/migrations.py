@@ -983,6 +983,17 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_merge_conflicts_status ON merge_conflicts(status);
         """,
     ),
+    (
+        44,
+        "Add token usage columns to sessions table",
+        """
+        ALTER TABLE sessions ADD COLUMN usage_input_tokens INTEGER DEFAULT 0;
+        ALTER TABLE sessions ADD COLUMN usage_output_tokens INTEGER DEFAULT 0;
+        ALTER TABLE sessions ADD COLUMN usage_cache_creation_tokens INTEGER DEFAULT 0;
+        ALTER TABLE sessions ADD COLUMN usage_cache_read_tokens INTEGER DEFAULT 0;
+        ALTER TABLE sessions ADD COLUMN usage_total_cost_usd REAL DEFAULT 0.0;
+        """,
+    ),
 ]
 
 

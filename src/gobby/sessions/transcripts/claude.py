@@ -11,7 +11,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
-from gobby.sessions.transcripts.base import ParsedMessage
+from gobby.sessions.transcripts.base import ParsedMessage, TokenUsage
 
 logger = logging.getLogger(__name__)
 
@@ -307,6 +307,30 @@ class ClaudeTranscriptParser:
             tool_result=tool_result,
             timestamp=timestamp,
             raw_json=data,
+            usage=self._extract_usage(data),
+        )
+
+    def _extract_usage(self, data: dict[str, Any]) -> TokenUsage | None:
+        """Extract token usage from message data."""
+        # Check for top-level usage field (some formats)
+        usage_data = data.get("usage")
+
+        # Check inside message object (standard Claude API format)
+        if not usage_data:
+            usage_data = data.get("message", {}).get("usage")
+
+        if not usage_data:
+            return None
+
+        return TokenUsage(
+            input_tokens=usage_data.get("input_tokens", 0) or usage_data.get("inputTokens", 0),
+            output_tokens=usage_data.get("output_tokens", 0) or usage_data.get("outputTokens", 0),
+            cache_creation_tokens=usage_data.get("cache_creation_input_tokens", 0)
+            or usage_data.get("cacheCreationInputTokens", 0),
+            cache_read_tokens=usage_data.get("cache_read_input_tokens", 0)
+            or usage_data.get("cacheReadInputTokens", 0),
+            # Cost might be calculated or provided
+            total_cost_usd=usage_data.get("cost") or usage_data.get("total_cost"),
         )
 
     def parse_lines(self, lines: list[str], start_index: int = 0) -> list[ParsedMessage]:
