@@ -11,7 +11,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-
 # =============================================================================
 # Import Tests
 # =============================================================================
@@ -81,7 +80,7 @@ class TestTier1GitAutoMerge:
 
         with patch.object(resolver, "_git_merge", new_callable=AsyncMock) as mock_git:
             with patch.object(
-                resolver, "_resolve_with_ai", new_callable=AsyncMock
+                resolver, "_resolve_conflicts_only", new_callable=AsyncMock
             ) as mock_ai:
                 mock_git.return_value = {"success": True, "conflicts": []}
 
@@ -306,28 +305,26 @@ class TestParallelResolution:
 
         resolver = MergeResolver()
 
-        with patch.object(resolver, "_git_merge", new_callable=AsyncMock) as mock_git:
-            with patch.object(
-                resolver, "_resolve_file_conflict", new_callable=AsyncMock
-            ) as mock_resolve:
-                mock_git.return_value = {
-                    "success": False,
-                    "conflicts": [
-                        {"file": "a.py"},
-                        {"file": "b.py"},
-                        {"file": "c.py"},
-                    ],
-                }
-                mock_resolve.return_value = {"success": True}
+        with patch.object(
+            resolver, "_resolve_file_conflict", new_callable=AsyncMock
+        ) as mock_resolve:
+            mock_resolve.return_value = {"success": True}
 
-                result = await resolver.resolve(
-                    worktree_path="/path/to/worktree",
-                    source_branch="feature/test",
-                    target_branch="main",
-                )
+            conflicts = [
+                {"file": "a.py"},
+                {"file": "b.py"},
+                {"file": "c.py"},
+            ]
 
-                # Should have resolved all three files
-                assert mock_resolve.call_count == 3
+            resolved, unresolved = await resolver.resolve_conflicts_parallel(
+                worktree_path="/path/to/worktree",
+                conflicts=conflicts,
+            )
+
+            # Should have resolved all three files
+            assert mock_resolve.call_count == 3
+            assert len(resolved) == 3
+            assert len(unresolved) == 0
 
     @pytest.mark.asyncio
     async def test_parallel_resolution_handles_partial_failure(self):
@@ -336,32 +333,28 @@ class TestParallelResolution:
 
         resolver = MergeResolver()
 
-        with patch.object(resolver, "_git_merge", new_callable=AsyncMock) as mock_git:
-            with patch.object(
-                resolver, "_resolve_file_conflict", new_callable=AsyncMock
-            ) as mock_resolve:
-                mock_git.return_value = {
-                    "success": False,
-                    "conflicts": [
-                        {"file": "a.py"},
-                        {"file": "b.py"},
-                    ],
-                }
-                # First file resolves, second doesn't
-                mock_resolve.side_effect = [
-                    {"success": True},
-                    {"success": False},
-                ]
+        with patch.object(
+            resolver, "_resolve_file_conflict", new_callable=AsyncMock
+        ) as mock_resolve:
+            # First file resolves, second doesn't
+            mock_resolve.side_effect = [
+                {"success": True},
+                {"success": False},
+            ]
 
-                result = await resolver.resolve(
-                    worktree_path="/path/to/worktree",
-                    source_branch="feature/test",
-                    target_branch="main",
-                )
+            conflicts = [
+                {"file": "a.py"},
+                {"file": "b.py"},
+            ]
 
-                # Should track partial success
-                assert len(result.resolved_files) == 1
-                assert len(result.unresolved_conflicts) == 1
+            resolved, unresolved = await resolver.resolve_conflicts_parallel(
+                worktree_path="/path/to/worktree",
+                conflicts=conflicts,
+            )
+
+            # Should track partial success
+            assert len(resolved) == 1
+            assert len(unresolved) == 1
 
 
 # =============================================================================
