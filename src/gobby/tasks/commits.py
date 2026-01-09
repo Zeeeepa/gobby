@@ -7,7 +7,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from gobby.utils.git import run_git_command
 
@@ -243,6 +243,128 @@ def summarize_diff_for_validation(
         result = result[:max_chars] + "\n\n... [diff truncated] ..."
 
     return result
+
+
+def _build_file_patterns(
+    file_extensions: list[str] | None = None,
+    path_prefixes: list[str] | None = None,
+) -> list[str]:
+    """Build regex patterns for file path extraction.
+
+    Args:
+        file_extensions: List of file extensions to match (e.g., [".py", ".ts"]).
+            If None, uses a basic default set.
+        path_prefixes: List of path prefixes to match (e.g., ["src/", "tests/"]).
+            If None, uses a basic default set.
+
+    Returns:
+        List of regex patterns for file path matching.
+    """
+    # Build extension pattern from config
+    if file_extensions:
+        # Strip leading dots and escape for regex
+        exts = [ext.lstrip(".") for ext in file_extensions]
+        ext_pattern = "|".join(re.escape(ext) for ext in exts)
+    else:
+        ext_pattern = "py|ts|js|json|yaml|yml|toml|md|go|rs|cfg|ini|sh"
+
+    # Build prefix pattern from config
+    if path_prefixes:
+        # Strip trailing slashes for regex alternation
+        prefixes = [p.rstrip("/") for p in path_prefixes]
+        prefix_pattern = "|".join(re.escape(p) for p in prefixes)
+    else:
+        prefix_pattern = "src|tests?|lib|config|scripts?|docs?|bin|pkg|internal|cmd"
+
+    return [
+        # Backtick-quoted paths: `path/to/file.py`
+        r"`([^`]+/[^`]+)`",
+        r"`([^`]+\.[a-zA-Z0-9]+)`",
+        # Paths with directory separators and extensions
+        r"(?<![a-zA-Z0-9_])([a-zA-Z0-9_./-]+/[a-zA-Z0-9_.-]+\.[a-zA-Z0-9]+)",
+        # Paths starting with common prefixes (using config)
+        rf"(?<![a-zA-Z0-9_])((?:{prefix_pattern})/[a-zA-Z0-9_./+-]+)",
+        # Absolute paths
+        r"(/[a-zA-Z0-9_.-]+(?:/[a-zA-Z0-9_.-]+)+)",
+        # Relative paths with ./
+        r"(\./[a-zA-Z0-9_./+-]+)",
+        # Standalone filenames with common extensions (using config)
+        rf"(?<![a-zA-Z0-9_/])([a-zA-Z0-9_-]+\.(?:{ext_pattern}))\b",
+    ]
+
+
+# Default known files (used when no config provided)
+_DEFAULT_KNOWN_FILES = {
+    "Makefile", "Dockerfile", "Jenkinsfile", "Vagrantfile", "Rakefile", "Gemfile"
+}
+
+
+def extract_mentioned_files(
+    task: dict[str, Any],
+    file_extensions: list[str] | None = None,
+    known_files: list[str] | None = None,
+    path_prefixes: list[str] | None = None,
+) -> list[str]:
+    """Extract file paths mentioned in task title, description, and validation_criteria.
+
+    Searches for file path patterns in the task's text fields and returns
+    a deduplicated list of file paths. Useful for prioritizing relevant files
+    in validation context.
+
+    Args:
+        task: Task dictionary with title, description, and optionally validation_criteria.
+        file_extensions: List of file extensions to recognize (from config).
+            If None, uses basic defaults.
+        known_files: List of known filenames without extensions (from config).
+            If None, uses basic defaults.
+        path_prefixes: List of common path prefixes (from config).
+            If None, uses basic defaults.
+
+    Returns:
+        List of unique file paths mentioned in the task.
+    """
+    # Combine text from all relevant fields
+    text_parts = []
+    if task.get("title"):
+        text_parts.append(task["title"])
+    if task.get("description"):
+        text_parts.append(task["description"])
+    if task.get("validation_criteria"):
+        text_parts.append(task["validation_criteria"])
+
+    if not text_parts:
+        return []
+
+    combined_text = "\n".join(text_parts)
+    found_paths: set[str] = set()
+
+    # Build patterns based on config
+    patterns = _build_file_patterns(file_extensions, path_prefixes)
+
+    # Apply each pattern
+    for pattern in patterns:
+        matches = re.findall(pattern, combined_text)
+        for match in matches:
+            # Clean up the match
+            path = match.strip()
+            # Skip if it looks like a URL
+            if path.startswith("http://") or path.startswith("https://"):
+                continue
+            # Skip if too short or doesn't look like a path
+            if len(path) < 3:
+                continue
+            found_paths.add(path)
+
+    # Check for known filenames without extensions
+    files_to_check = set(known_files) if known_files else _DEFAULT_KNOWN_FILES
+    for filename in files_to_check:
+        if filename in combined_text:
+            # Only add if it appears as a word boundary (escape special chars in filename)
+            escaped_filename = re.escape(filename)
+            if re.search(rf"(?<![a-zA-Z0-9_/]){escaped_filename}(?![a-zA-Z0-9_])", combined_text):
+                found_paths.add(filename)
+
+    return list(found_paths)
 
 
 # Task ID patterns to search for in commit messages

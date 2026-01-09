@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 
 __all__ = [
     "CompactHandoffConfig",
+    "FileExtractionConfig",
     "PatternCriteriaConfig",
     "TaskExpansionConfig",
     "TaskValidationConfig",
@@ -282,6 +283,150 @@ class TaskValidationConfig(BaseModel):
         return v
 
 
+class FileExtractionConfig(BaseModel):
+    """Configuration for extracting file paths from task descriptions.
+
+    Used by extract_mentioned_files() to identify task-relevant files
+    for validation context prioritization.
+    """
+
+    # Comprehensive list of file extensions to recognize
+    file_extensions: list[str] = Field(
+        default_factory=lambda: [
+            # Python
+            ".py", ".pyi", ".pyx", ".pxd",
+            # JavaScript/TypeScript
+            ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs",
+            # Web
+            ".html", ".htm", ".css", ".scss", ".sass", ".less", ".vue", ".svelte", ".astro",
+            # Data/Config
+            ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".conf", ".env",
+            ".xml", ".csv", ".tsv",
+            # Documentation
+            ".md", ".markdown", ".rst", ".txt", ".adoc",
+            # Shell/Scripts
+            ".sh", ".bash", ".zsh", ".fish", ".ps1", ".bat", ".cmd",
+            # Go
+            ".go", ".mod", ".sum",
+            # Rust
+            ".rs", ".toml",
+            # Java/Kotlin/JVM
+            ".java", ".kt", ".kts", ".scala", ".groovy", ".gradle",
+            # C/C++
+            ".c", ".h", ".cpp", ".hpp", ".cc", ".hh", ".cxx", ".hxx",
+            # C#/.NET
+            ".cs", ".csproj", ".sln", ".fs", ".fsx",
+            # Swift/Objective-C
+            ".swift", ".m", ".mm",
+            # Ruby
+            ".rb", ".rake", ".gemspec",
+            # PHP
+            ".php", ".phtml",
+            # Perl
+            ".pl", ".pm",
+            # Lua
+            ".lua",
+            # R
+            ".r", ".R", ".rmd", ".Rmd",
+            # Julia
+            ".jl",
+            # Elixir/Erlang
+            ".ex", ".exs", ".erl", ".hrl",
+            # Haskell
+            ".hs", ".lhs",
+            # OCaml
+            ".ml", ".mli",
+            # SQL
+            ".sql", ".psql", ".mysql",
+            # GraphQL
+            ".graphql", ".gql",
+            # Protobuf/Thrift
+            ".proto", ".thrift",
+            # Docker/Container
+            ".dockerfile",
+            # Terraform/IaC
+            ".tf", ".tfvars", ".hcl",
+            # Kubernetes
+            ".k8s",
+            # Nix
+            ".nix",
+            # Prisma
+            ".prisma",
+            # Other
+            ".lock", ".log", ".diff", ".patch",
+        ],
+        description="File extensions to recognize when extracting paths from task descriptions",
+    )
+
+    # Files without extensions that should be recognized
+    known_files: list[str] = Field(
+        default_factory=lambda: [
+            "Makefile", "makefile", "GNUmakefile",
+            "Dockerfile", "dockerfile",
+            "Containerfile",
+            "Jenkinsfile",
+            "Vagrantfile",
+            "Rakefile", "rakefile",
+            "Gemfile",
+            "Podfile",
+            "Brewfile",
+            "Procfile",
+            "Taskfile",
+            "Justfile", "justfile",
+            "Earthfile",
+            "Tiltfile",
+            "BUILD", "WORKSPACE",
+            "CMakeLists",
+            "meson.build",
+            "SConstruct", "SConscript",
+            "CHANGELOG", "CHANGES", "HISTORY",
+            "README", "INSTALL", "LICENSE", "COPYING",
+            "AUTHORS", "CONTRIBUTORS", "MAINTAINERS",
+            "CODEOWNERS",
+            ".gitignore", ".gitattributes", ".gitmodules",
+            ".dockerignore",
+            ".editorconfig",
+            ".eslintrc", ".prettierrc", ".stylelintrc",
+            ".babelrc",
+            ".nvmrc", ".node-version", ".python-version", ".ruby-version",
+            "requirements.txt", "constraints.txt",
+            "package.json", "package-lock.json",
+            "yarn.lock", "pnpm-lock.yaml",
+            "Cargo.toml", "Cargo.lock",
+            "go.mod", "go.sum",
+            "composer.json", "composer.lock",
+            "pyproject.toml", "setup.py", "setup.cfg",
+            "poetry.lock", "Pipfile", "Pipfile.lock",
+            "tsconfig.json", "jsconfig.json",
+            "webpack.config.js", "vite.config.js", "rollup.config.js",
+            "jest.config.js", "vitest.config.js", "playwright.config.js",
+            ".env.local", ".env.development", ".env.production", ".env.test",
+        ],
+        description="Known filenames without extensions to recognize",
+    )
+
+    # Common path prefixes that indicate a file path
+    path_prefixes: list[str] = Field(
+        default_factory=lambda: [
+            "src/", "lib/", "pkg/", "packages/",
+            "test/", "tests/", "spec/", "specs/", "__tests__/",
+            "app/", "apps/", "internal/", "cmd/",
+            "bin/", "scripts/", "tools/", "utils/",
+            "config/", "configs/", "conf/", "settings/",
+            "docs/", "doc/", "documentation/",
+            "assets/", "static/", "public/", "resources/",
+            "components/", "pages/", "views/", "templates/",
+            "models/", "controllers/", "services/", "handlers/",
+            "api/", "routes/", "middleware/",
+            "fixtures/", "mocks/", "stubs/", "fakes/",
+            "migrations/", "seeds/", "schemas/",
+            ".github/", ".circleci/", ".gitlab/",
+            ".gobby/", ".vscode/", ".idea/",
+        ],
+        description="Common path prefixes that indicate a file path",
+    )
+
+
 class GobbyTasksConfig(BaseModel):
     """Configuration for gobby-tasks internal MCP server."""
 
@@ -294,6 +439,10 @@ class GobbyTasksConfig(BaseModel):
     show_result_on_create: bool = Field(
         default=False,
         description="Show full task result on create_task (False = minimal output with just id)",
+    )
+    file_extraction: FileExtractionConfig = Field(
+        default_factory=FileExtractionConfig,
+        description="Configuration for extracting file paths from task descriptions",
     )
     expansion: TaskExpansionConfig = Field(
         default_factory=lambda: TaskExpansionConfig(),
