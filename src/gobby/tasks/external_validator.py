@@ -444,7 +444,9 @@ def _build_spawn_validation_prompt(
     # Build priority files section
     priority_section = ""
     if priority_files:
-        priority_section = f"\n\n**Prioritized files based on task description:** {', '.join(priority_files)}"
+        priority_section = (
+            f"\n\n**Prioritized files based on task description:** {', '.join(priority_files)}"
+        )
 
     # Extract symbols mentioned in the task for verification
     mentioned_symbols = extract_mentioned_symbols(task)
@@ -544,7 +546,9 @@ def _build_agent_validation_prompt(
     # Build priority files section
     priority_section = ""
     if priority_files:
-        priority_section = f"\n\n**Prioritized files based on task description:** {', '.join(priority_files)}"
+        priority_section = (
+            f"\n\n**Prioritized files based on task description:** {', '.join(priority_files)}"
+        )
 
     # Extract symbols mentioned in the task for verification
     mentioned_symbols = extract_mentioned_symbols(task)
@@ -639,7 +643,9 @@ def _build_external_validation_prompt(
     # Build priority files section
     priority_section = ""
     if priority_files:
-        priority_section = f"\n\n**Prioritized files based on task description:** {', '.join(priority_files)}"
+        priority_section = (
+            f"\n\n**Prioritized files based on task description:** {', '.join(priority_files)}"
+        )
 
     # Extract symbols mentioned in the task for verification
     mentioned_symbols = extract_mentioned_symbols(task)

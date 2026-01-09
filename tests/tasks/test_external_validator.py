@@ -1756,9 +1756,7 @@ diff --git a/tests/test_login.py b/tests/test_login.py
         assert "tests/test_login.py" in prompt or "test_login.py" in prompt
 
     @pytest.mark.asyncio
-    async def test_task_aware_spawn_validation_extracts_files(
-        self, mock_agent_spawner
-    ):
+    async def test_task_aware_spawn_validation_extracts_files(self, mock_agent_spawner):
         """Test that spawn validation extracts files from task and prioritizes them."""
         from gobby.tasks.external_validator import run_external_validation
 
@@ -1796,9 +1794,7 @@ diff --git a/tests/test_login.py b/tests/test_login.py
         assert "task_expansion.py" in prompt
 
     @pytest.mark.asyncio
-    async def test_task_aware_agent_validation_extracts_files(
-        self, validation_config
-    ):
+    async def test_task_aware_agent_validation_extracts_files(self, validation_config):
         """Test that agent validation extracts files from task and prioritizes them."""
         from gobby.llm.executor import AgentResult
         from gobby.tasks.external_validator import run_external_validation
@@ -1843,9 +1839,7 @@ diff --git a/tests/test_login.py b/tests/test_login.py
         assert "endpoints.py" in prompt or "src/api" in prompt
 
     @pytest.mark.asyncio
-    async def test_task_aware_no_files_default_behavior(
-        self, validation_config, mock_llm_service
-    ):
+    async def test_task_aware_no_files_default_behavior(self, validation_config, mock_llm_service):
         """Test that when task has no file paths, default behavior is unchanged."""
         from gobby.tasks.external_validator import run_external_validation
 
@@ -1878,9 +1872,7 @@ diff --git a/src/cache.py b/src/cache.py
         assert "cache.py" in prompt or "src/cache" in prompt
 
     @pytest.mark.asyncio
-    async def test_task_aware_prompt_includes_priority_note(
-        self, mock_agent_spawner
-    ):
+    async def test_task_aware_prompt_includes_priority_note(self, mock_agent_spawner):
         """Test that validation prompt includes note about which files were prioritized."""
         from gobby.tasks.external_validator import run_external_validation
 
@@ -1902,7 +1894,7 @@ diff --git a/src/cache.py b/src/cache.py
         # Large diff to trigger summarization
         changes = "diff --git a/src/important.py b/src/important.py\n+important change\n"
         changes += "diff --git a/src/related.py b/src/related.py\n+related change\n"
-        changes += ("diff --git a/other.py b/other.py\n" + "+other\n" * 1000)
+        changes += "diff --git a/other.py b/other.py\n" + "+other\n" * 1000
 
         await run_external_validation(
             config=config,
@@ -1980,7 +1972,9 @@ class TestSymbolContextInValidationPrompt:
         assert "validate_input" in prompt
         assert "InputValidator" in prompt
         # Should have some indication these are key symbols
-        assert "symbol" in prompt.lower() or "function" in prompt.lower() or "class" in prompt.lower()
+        assert (
+            "symbol" in prompt.lower() or "function" in prompt.lower() or "class" in prompt.lower()
+        )
 
     @pytest.mark.asyncio
     async def test_symbol_context_instructs_verify_existence(

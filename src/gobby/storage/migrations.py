@@ -994,6 +994,13 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         ALTER TABLE sessions ADD COLUMN usage_total_cost_usd REAL DEFAULT 0.0;
         """,
     ),
+    (
+        45,
+        "Add terminal_context column to sessions table",
+        """
+        ALTER TABLE sessions ADD COLUMN terminal_context TEXT;
+        """,
+    ),
 ]
 
 

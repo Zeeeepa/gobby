@@ -249,11 +249,15 @@ def summarize_diff_for_validation(
         non_priority_space = remaining_chars - priority_space
 
         chars_per_priority = priority_space // len(priority_stats) if priority_stats else 0
-        chars_per_non_priority = non_priority_space // len(non_priority_stats) if non_priority_stats else 0
+        chars_per_non_priority = (
+            non_priority_space // len(non_priority_stats) if non_priority_stats else 0
+        )
     else:
         # Original behavior: equal distribution
         chars_per_priority = 0
-        chars_per_non_priority = remaining_chars // len(file_stats) if file_stats else remaining_chars
+        chars_per_non_priority = (
+            remaining_chars // len(file_stats) if file_stats else remaining_chars
+        )
 
     def truncate_file_content(file_content: str, max_file_chars: int) -> str:
         """Truncate a file diff to fit within max_file_chars."""
@@ -340,7 +344,12 @@ def _build_file_patterns(
 
 # Default known files (used when no config provided)
 _DEFAULT_KNOWN_FILES = {
-    "Makefile", "Dockerfile", "Jenkinsfile", "Vagrantfile", "Rakefile", "Gemfile"
+    "Makefile",
+    "Dockerfile",
+    "Jenkinsfile",
+    "Vagrantfile",
+    "Rakefile",
+    "Gemfile",
 }
 
 

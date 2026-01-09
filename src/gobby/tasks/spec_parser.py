@@ -1014,7 +1014,9 @@ class TaskHierarchyBuilder:
         impl_description = description or ""
         if impl_description:
             impl_description += "\n\n"
-        impl_description += "Test strategy: All tests from previous subtask should pass (green phase)"
+        impl_description += (
+            "Test strategy: All tests from previous subtask should pass (green phase)"
+        )
 
         impl_task = self._create_task(
             title=title,
@@ -1031,9 +1033,7 @@ class TaskHierarchyBuilder:
                 depends_on=test_task.id,
                 dep_type="blocks",
             )
-            logger.debug(
-                f"TDD pair created: {test_task.id} (test) -> {impl_task.id} (impl)"
-            )
+            logger.debug(f"TDD pair created: {test_task.id} (test) -> {impl_task.id} (impl)")
         except ValueError as e:
             logger.warning(f"Failed to add TDD dependency: {e}")
 

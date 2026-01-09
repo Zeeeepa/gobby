@@ -545,7 +545,9 @@ index abc..def 100644
         large_diff += "\ndiff --git a/file2.py b/file2.py\n" + ("+" * 20000)
 
         # With priority_files=None, behavior should be unchanged
-        result_with_none = summarize_diff_for_validation(large_diff, max_chars=5000, priority_files=None)
+        result_with_none = summarize_diff_for_validation(
+            large_diff, max_chars=5000, priority_files=None
+        )
         result_without_param = summarize_diff_for_validation(large_diff, max_chars=5000)
 
         # Both should contain both files
@@ -585,7 +587,9 @@ index abc..def 100644
         details_start = result.find("File Details")
         if details_start != -1:
             # After File Details, priority should come first
-            assert result.find("priority_file.py", details_start) < result.find("aaa_first.py", details_start)
+            assert result.find("priority_file.py", details_start) < result.find(
+                "aaa_first.py", details_start
+            )
 
     def test_priority_files_get_more_space(self):
         """Test that priority files get at least 60% of available space."""
@@ -603,14 +607,15 @@ diff --git a/other2.py b/other2.py
 index abc..def 100644
 {other_content}
 """
-        result = summarize_diff_for_validation(
-            diff, max_chars=5000, priority_files=["priority.py"]
-        )
+        result = summarize_diff_for_validation(diff, max_chars=5000, priority_files=["priority.py"])
 
         # Priority file should be shown in full (not truncated)
         # since its content is small and gets 60% allocation
-        priority_section = result[result.find("priority.py"):]
-        assert "truncated" not in priority_section.split("other1.py")[0].lower() or "priority" in result
+        priority_section = result[result.find("priority.py") :]
+        assert (
+            "truncated" not in priority_section.split("other1.py")[0].lower()
+            or "priority" in result
+        )
 
     def test_non_priority_files_share_remaining_space(self):
         """Test that non-priority files share remaining 40% of space."""
@@ -624,9 +629,7 @@ diff --git a/other1.py b/other1.py
 diff --git a/other2.py b/other2.py
 {other_content}
 """
-        result = summarize_diff_for_validation(
-            diff, max_chars=3000, priority_files=["priority.py"]
-        )
+        result = summarize_diff_for_validation(diff, max_chars=3000, priority_files=["priority.py"])
 
         # Both other files should still be present (in summary at least)
         assert "other1.py" in result

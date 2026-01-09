@@ -252,6 +252,8 @@ class EventHandlers:
                 self.logger.warning(f"Error finding parent session: {e}")
 
         # Step 2: Register new session with parent if found
+        # Extract terminal context (injected by hook_dispatcher for terminal correlation)
+        terminal_context = input_data.get("terminal_context")
         session_id = None
         if self._session_manager:
             session_id = self._session_manager.register_session(
@@ -262,6 +264,7 @@ class EventHandlers:
                 jsonl_path=transcript_path,
                 source=cli_source,
                 project_path=cwd,
+                terminal_context=terminal_context,
             )
 
         # Step 2b: Mark parent session as expired after successful handoff

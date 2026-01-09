@@ -209,7 +209,8 @@ class TestTaskHierarchyBuilderTddMode:
         # TDD mode uses "Write tests for:" prefix
         test_tasks = [t for t in result.tasks if t.title.startswith("Write tests for:")]
         impl_tasks = [
-            t for t in result.tasks
+            t
+            for t in result.tasks
             if not t.title.startswith("Write tests for:") and t.task_type == "task"
         ]
 
@@ -352,11 +353,13 @@ class TestExpandFromSpecTddMode:
 
         # Should have test tasks (TDD mode creates "Write tests for:" prefixed tasks)
         test_tasks = [
-            t for t in child_tasks
+            t
+            for t in child_tasks
             if t.title.startswith("Test:") or t.title.startswith("Write tests for:")
         ]
         impl_tasks = [
-            t for t in child_tasks
+            t
+            for t in child_tasks
             if not t.title.startswith("Test:")
             and not t.title.startswith("Write tests for:")
             and t.task_type == "task"
@@ -428,7 +431,8 @@ class TestExpandFromSpecTddMode:
 
         # Should NOT have test tasks when tdd_mode=False
         test_tasks = [
-            t for t in child_tasks
+            t
+            for t in child_tasks
             if t.title.startswith("Test:") or t.title.startswith("Write tests for:")
         ]
         assert len(test_tasks) == 0, "Expected no test tasks with tdd_mode=False"
@@ -463,10 +467,12 @@ class TestExpandFromPromptTddMode:
 
         # Create mock task expander to verify tdd_mode is passed
         mock_expander = MagicMock()
-        mock_expander.expand_task = AsyncMock(return_value={
-            "subtask_ids": [],
-            "subtask_count": 0,
-        })
+        mock_expander.expand_task = AsyncMock(
+            return_value={
+                "subtask_ids": [],
+                "subtask_count": 0,
+            }
+        )
 
         from gobby.mcp_proxy.tools.task_expansion import create_expansion_registry
 
@@ -513,10 +519,12 @@ class TestExpandFromPromptTddMode:
             return False
 
         mock_expander = MagicMock()
-        mock_expander.expand_task = AsyncMock(return_value={
-            "subtask_ids": [],
-            "subtask_count": 0,
-        })
+        mock_expander.expand_task = AsyncMock(
+            return_value={
+                "subtask_ids": [],
+                "subtask_count": 0,
+            }
+        )
 
         from gobby.mcp_proxy.tools.task_expansion import create_expansion_registry
 
@@ -577,10 +585,12 @@ class TestExpandTaskTddMode:
         )
 
         mock_expander = MagicMock()
-        mock_expander.expand_task = AsyncMock(return_value={
-            "subtask_ids": [],
-            "subtask_count": 0,
-        })
+        mock_expander.expand_task = AsyncMock(
+            return_value={
+                "subtask_ids": [],
+                "subtask_count": 0,
+            }
+        )
 
         from gobby.mcp_proxy.tools.task_expansion import create_expansion_registry
 
@@ -626,10 +636,12 @@ class TestExpandTaskTddMode:
         )
 
         mock_expander = MagicMock()
-        mock_expander.expand_task = AsyncMock(return_value={
-            "subtask_ids": [],
-            "subtask_count": 0,
-        })
+        mock_expander.expand_task = AsyncMock(
+            return_value={
+                "subtask_ids": [],
+                "subtask_count": 0,
+            }
+        )
 
         from gobby.mcp_proxy.tools.task_expansion import create_expansion_registry
 

@@ -16,6 +16,7 @@ Exit Codes:
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -51,6 +52,41 @@ def get_daemon_url() -> str:
         port = DEFAULT_DAEMON_PORT
 
     return f"http://localhost:{port}"
+
+
+def get_terminal_context() -> dict[str, str | int | None]:
+    """Capture terminal/process context for session correlation.
+
+    Returns:
+        Dict with terminal identifiers (values may be None if unavailable)
+    """
+    context: dict[str, str | int | None] = {}
+
+    # Parent process ID (shell or Claude process)
+    try:
+        context["parent_pid"] = os.getppid()
+    except Exception:
+        context["parent_pid"] = None
+
+    # TTY device name
+    try:
+        context["tty"] = os.ttyname(0)
+    except Exception:
+        context["tty"] = None
+
+    # macOS Terminal.app session ID
+    context["term_session_id"] = os.environ.get("TERM_SESSION_ID")
+
+    # iTerm2 session ID
+    context["iterm_session_id"] = os.environ.get("ITERM_SESSION_ID")
+
+    # VS Code terminal ID (if running in VS Code integrated terminal)
+    context["vscode_terminal_id"] = os.environ.get("VSCODE_GIT_ASKPASS_NODE")
+
+    # Tmux pane (if running in tmux)
+    context["tmux_pane"] = os.environ.get("TMUX_PANE")
+
+    return context
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -141,6 +177,11 @@ def main() -> int:
     try:
         # Read JSON input from stdin
         input_data = json.load(sys.stdin)
+
+        # Inject terminal context for session-start hooks
+        # This captures the terminal/process info for session correlation
+        if hook_type == "session-start":
+            input_data["terminal_context"] = get_terminal_context()
 
         # ALWAYS log what Claude Code sends us (for debugging hook data issues)
         logger.info(f"[{hook_type}] Received input keys: {list(input_data.keys())}")

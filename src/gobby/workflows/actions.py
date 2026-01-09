@@ -63,6 +63,7 @@ from gobby.workflows.summary_actions import (
     synthesize_title,
 )
 from gobby.workflows.task_enforcement_actions import (
+    capture_baseline_dirty_files,
     require_active_task,
     require_commit_before_stop,
     require_task_complete,
@@ -253,6 +254,7 @@ class ActionExecutor:
         self.register("require_commit_before_stop", self._handle_require_commit_before_stop)
         self.register("require_task_complete", self._handle_require_task_complete)
         self.register("validate_session_task_scope", self._handle_validate_session_task_scope)
+        self.register("capture_baseline_dirty_files", self._handle_capture_baseline_dirty_files)
         # Webhook
         self.register("webhook", self._handle_webhook)
         # Stop signal actions
@@ -867,6 +869,20 @@ class ActionExecutor:
     def _get_file_changes(self) -> str:
         """Get detailed file changes from git."""
         return get_file_changes()
+
+    async def _handle_capture_baseline_dirty_files(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Capture baseline dirty files at session start."""
+        # Get project path from event data (cwd from hook payload)
+        project_path = None
+        if context.event_data:
+            project_path = context.event_data.get("cwd")
+
+        return await capture_baseline_dirty_files(
+            workflow_state=context.state,
+            project_path=project_path,
+        )
 
     async def _handle_require_active_task(
         self, context: ActionContext, **kwargs: Any

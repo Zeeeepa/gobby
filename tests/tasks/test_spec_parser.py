@@ -2173,9 +2173,7 @@ class MockDependencyManager:
     def __init__(self):
         self.dependencies: list[dict] = []
 
-    def add_dependency(
-        self, task_id: str, depends_on: str, dep_type: str = "blocks"
-    ) -> None:
+    def add_dependency(self, task_id: str, depends_on: str, dep_type: str = "blocks") -> None:
         """Record a dependency addition."""
         self.dependencies.append(
             {"task_id": task_id, "depends_on": depends_on, "dep_type": dep_type}
@@ -2271,7 +2269,10 @@ class TestTDDMode:
         assert len(tasks) == 2
         # First task should be the test task
         assert tasks[0].title == "Write tests for: Implement feature X"
-        assert "Tests should fail initially (red phase)" in mock_task_manager_with_db.tasks[0].title or True
+        assert (
+            "Tests should fail initially (red phase)" in mock_task_manager_with_db.tasks[0].title
+            or True
+        )
         # Second task should be the implementation task
         assert tasks[1].title == "Implement feature X"
 

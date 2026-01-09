@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import builtins
+import json
 import logging
 import uuid
 from dataclasses import dataclass
@@ -46,6 +47,8 @@ class Session:
     usage_cache_creation_tokens: int = 0
     usage_cache_read_tokens: int = 0
     usage_total_cost_usd: float = 0.0
+    # Terminal context (JSON blob with tty, parent_pid, term_session_id, etc.)
+    terminal_context: dict[str, Any] | None = None
 
     @classmethod
     def from_row(cls, row: Any) -> Session:
@@ -77,6 +80,9 @@ class Session:
             usage_cache_creation_tokens=row["usage_cache_creation_tokens"] or 0,
             usage_cache_read_tokens=row["usage_cache_read_tokens"] or 0,
             usage_total_cost_usd=row["usage_total_cost_usd"] or 0.0,
+            terminal_context=json.loads(row["terminal_context"])
+            if row["terminal_context"]
+            else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -106,6 +112,7 @@ class Session:
             "usage_cache_creation_tokens": self.usage_cache_creation_tokens,
             "usage_cache_read_tokens": self.usage_cache_read_tokens,
             "usage_total_cost_usd": self.usage_total_cost_usd,
+            "terminal_context": self.terminal_context,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -130,6 +137,7 @@ class LocalSessionManager:
         parent_session_id: str | None = None,
         agent_depth: int = 0,
         spawned_by_agent_id: str | None = None,
+        terminal_context: dict[str, Any] | None = None,
     ) -> Session:
         """
         Register a new session or return existing one.
@@ -192,10 +200,10 @@ class LocalSessionManager:
             INSERT INTO sessions (
                 id, external_id, machine_id, source, project_id, title,
                 jsonl_path, git_branch, parent_session_id,
-                agent_depth, spawned_by_agent_id,
+                agent_depth, spawned_by_agent_id, terminal_context,
                 status, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
             """,
             (
                 session_id,
@@ -209,6 +217,7 @@ class LocalSessionManager:
                 parent_session_id,
                 agent_depth,
                 spawned_by_agent_id,
+                json.dumps(terminal_context) if terminal_context else None,
                 now,
                 now,
             ),

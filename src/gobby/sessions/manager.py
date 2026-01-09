@@ -77,6 +77,7 @@ class SessionManager:
         title: str | None = None,
         git_branch: str | None = None,
         project_path: str | None = None,
+        terminal_context: dict[str, Any] | None = None,
     ) -> str:
         """
         Register new session with local storage.
@@ -119,6 +120,7 @@ class SessionManager:
                 jsonl_path=jsonl_path,
                 git_branch=git_branch,
                 parent_session_id=parent_session_id,
+                terminal_context=terminal_context,
             )
 
             session_id: str = session.id

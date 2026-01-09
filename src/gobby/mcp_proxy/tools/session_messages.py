@@ -629,14 +629,17 @@ def create_session_messages_registry(
 
         @registry.tool(
             name="get_session",
-            description="Get session details by ID.",
+            description="Get session details by ID. Use the session_id from your injected context (look for 'session_id: xxx' in system reminders).",
         )
         def get_session(session_id: str) -> dict[str, Any]:
             """
-            Get session details.
+            Get session details by internal session ID.
+
+            Your session_id is injected into your context at session start.
+            Look for 'session_id: xxx' in your system reminders.
 
             Args:
-                session_id: Session ID (supports prefix matching)
+                session_id: Internal session ID (supports prefix matching)
 
             Returns:
                 Session dict with all fields, or error if not found
@@ -667,7 +670,7 @@ def create_session_messages_registry(
 
         @registry.tool(
             name="get_current_session",
-            description="Look up the current session by its external identifiers.",
+            description="DEPRECATED: Your session_id is injected at startup. Check your context for 'session_id: xxx' and use get_session(session_id) instead. This tool requires manual lookup by external identifiers.",
         )
         def get_current_session(
             external_id: str,
@@ -676,10 +679,14 @@ def create_session_messages_registry(
             project_id: str,
         ) -> dict[str, Any]:
             """
-            Look up the current session by its external identifiers.
+            DEPRECATED: Look up the current session by its external identifiers.
 
-            This is a deterministic lookup - it finds the exact session matching
-            the provided identifiers rather than guessing based on "most recent".
+            NOTE: Your session_id is now injected into your context at session start.
+            Look for 'session_id: xxx' in your system reminders and use get_session(session_id)
+            instead of this tool.
+
+            This tool performs a deterministic lookup by external identifiers, which is
+            no longer necessary since the internal session_id is provided directly.
 
             Args:
                 external_id: External session identifier (e.g., Claude Code's session ID)

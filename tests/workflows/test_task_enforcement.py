@@ -8,6 +8,8 @@ import pytest
 
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.task_enforcement_actions import (
+    _get_dirty_files,
+    capture_baseline_dirty_files,
     require_active_task,
     require_commit_before_stop,
     require_task_complete,
@@ -40,6 +42,167 @@ def workflow_state():
         step_entered_at=datetime.now(UTC),
         variables={},
     )
+
+
+# =============================================================================
+# Tests for _get_dirty_files helper
+# =============================================================================
+
+
+class TestGetDirtyFiles:
+    """Tests for _get_dirty_files helper function."""
+
+    def test_parses_git_status_output(self):
+        """Parse git status --porcelain output correctly."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=0,
+                stdout=" M src/file.py\n?? new_file.py\nA  staged.py",
+                stderr="",
+            )
+
+            result = _get_dirty_files("/test/path")
+
+        assert result == {"src/file.py", "new_file.py", "staged.py"}
+
+    def test_excludes_gobby_directory(self):
+        """Files in .gobby/ are excluded from dirty files."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=0,
+                stdout=" M src/file.py\n M .gobby/tasks.jsonl\n?? .gobby/new.json",
+                stderr="",
+            )
+
+            result = _get_dirty_files("/test/path")
+
+        assert result == {"src/file.py"}
+        assert ".gobby/tasks.jsonl" not in result
+        assert ".gobby/new.json" not in result
+
+    def test_handles_renames(self):
+        """Parse rename format correctly (old -> new)."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=0,
+                stdout="R  old_name.py -> new_name.py",
+                stderr="",
+            )
+
+            result = _get_dirty_files("/test/path")
+
+        # Should capture the old name (source of rename)
+        assert result == {"old_name.py"}
+
+    def test_returns_empty_set_on_no_changes(self):
+        """Empty output returns empty set."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=0,
+                stdout="",
+                stderr="",
+            )
+
+            result = _get_dirty_files("/test/path")
+
+        assert result == set()
+
+    def test_returns_empty_set_on_git_failure(self):
+        """Git failure returns empty set."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(
+                returncode=128,
+                stdout="",
+                stderr="fatal: not a git repository",
+            )
+
+            result = _get_dirty_files("/test/path")
+
+        assert result == set()
+
+    def test_returns_empty_set_on_timeout(self):
+        """Timeout returns empty set."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=10)
+
+            result = _get_dirty_files("/test/path")
+
+        assert result == set()
+
+    def test_returns_empty_set_on_file_not_found(self):
+        """Git not found returns empty set."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = FileNotFoundError("git not found")
+
+            result = _get_dirty_files("/test/path")
+
+        assert result == set()
+
+    def test_returns_empty_set_on_generic_error(self):
+        """Generic error returns empty set."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = OSError("Unexpected error")
+
+            result = _get_dirty_files("/test/path")
+
+        assert result == set()
+
+
+# =============================================================================
+# Tests for capture_baseline_dirty_files
+# =============================================================================
+
+
+class TestCaptureBaselineDirtyFiles:
+    """Tests for capture_baseline_dirty_files action."""
+
+    async def test_no_workflow_state_returns_none(self):
+        """When no workflow_state, return None."""
+        result = await capture_baseline_dirty_files(
+            workflow_state=None,
+            project_path="/test/path",
+        )
+        assert result is None
+
+    async def test_captures_dirty_files_as_baseline(self, workflow_state):
+        """Captures current dirty files and stores in workflow_state."""
+        with patch(
+            "gobby.workflows.task_enforcement_actions._get_dirty_files"
+        ) as mock_get_dirty:
+            mock_get_dirty.return_value = {"src/file1.py", "src/file2.py"}
+
+            result = await capture_baseline_dirty_files(
+                workflow_state=workflow_state,
+                project_path="/test/path",
+            )
+
+        assert result is not None
+        assert result["baseline_captured"] is True
+        assert result["file_count"] == 2
+        assert set(result["files"]) == {"src/file1.py", "src/file2.py"}
+
+        # Check stored in workflow_state (as list, not set)
+        baseline = workflow_state.variables["baseline_dirty_files"]
+        assert isinstance(baseline, list)
+        assert set(baseline) == {"src/file1.py", "src/file2.py"}
+
+    async def test_captures_empty_baseline(self, workflow_state):
+        """Captures empty baseline when no dirty files."""
+        with patch(
+            "gobby.workflows.task_enforcement_actions._get_dirty_files"
+        ) as mock_get_dirty:
+            mock_get_dirty.return_value = set()
+
+            result = await capture_baseline_dirty_files(
+                workflow_state=workflow_state,
+                project_path="/test/path",
+            )
+
+        assert result is not None
+        assert result["baseline_captured"] is True
+        assert result["file_count"] == 0
+        assert result["files"] == []
+        assert workflow_state.variables["baseline_dirty_files"] == []
 
 
 # =============================================================================

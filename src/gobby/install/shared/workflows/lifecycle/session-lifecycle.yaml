@@ -29,6 +29,9 @@ triggers:
     - action: require_commit_before_stop
 
   on_session_start:
+    # Capture baseline dirty files for session-aware commit detection
+    # Must run FIRST so baseline is captured before any modifications
+    - action: capture_baseline_dirty_files
     # Context handoff - inject previous session summary
     - action: inject_context
       when: "event.data.get('source') == 'clear'"

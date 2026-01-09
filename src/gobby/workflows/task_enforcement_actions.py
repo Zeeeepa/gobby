@@ -19,6 +19,93 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _get_dirty_files(project_path: str | None = None) -> set[str]:
+    """
+    Get the set of dirty files from git status --porcelain.
+
+    Excludes .gobby/ files from the result.
+
+    Args:
+        project_path: Path to the project directory
+
+    Returns:
+        Set of dirty file paths (relative to repo root)
+    """
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=project_path,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        if result.returncode != 0:
+            logger.warning(f"_get_dirty_files: git status failed: {result.stderr}")
+            return set()
+
+        dirty_files = set()
+        for line in result.stdout.strip().split("\n"):
+            if not line:
+                continue
+            # Format is "XY filename" or "XY filename -> newname" for renames
+            # Skip the status prefix (first 3 chars: 2 status chars + space)
+            filepath = line[3:].split(" -> ")[0]  # Handle renames
+            # Exclude .gobby/ files
+            if not filepath.startswith(".gobby/"):
+                dirty_files.add(filepath)
+
+        return dirty_files
+
+    except subprocess.TimeoutExpired:
+        logger.warning("_get_dirty_files: git status timed out")
+        return set()
+    except FileNotFoundError:
+        logger.warning("_get_dirty_files: git not found")
+        return set()
+    except Exception as e:
+        logger.error(f"_get_dirty_files: Error running git status: {e}")
+        return set()
+
+
+async def capture_baseline_dirty_files(
+    workflow_state: "WorkflowState | None",
+    project_path: str | None = None,
+) -> dict[str, Any] | None:
+    """
+    Capture current dirty files as baseline for session-aware detection.
+
+    Called on session_start to record pre-existing dirty files. The
+    require_commit_before_stop action will compare against this baseline
+    to detect only NEW dirty files made during the session.
+
+    Args:
+        workflow_state: Workflow state to store baseline in
+        project_path: Path to the project directory for git status check
+
+    Returns:
+        Dict with captured baseline info, or None if no workflow_state
+    """
+    if not workflow_state:
+        logger.debug("capture_baseline_dirty_files: No workflow_state, skipping")
+        return None
+
+    dirty_files = _get_dirty_files(project_path)
+
+    # Store as a list in workflow state (sets aren't JSON serializable)
+    workflow_state.variables["baseline_dirty_files"] = list(dirty_files)
+
+    logger.debug(
+        f"capture_baseline_dirty_files: Captured {len(dirty_files)} baseline dirty files"
+    )
+
+    return {
+        "baseline_captured": True,
+        "file_count": len(dirty_files),
+        "files": list(dirty_files),
+    }
+
+
 async def require_commit_before_stop(
     workflow_state: "WorkflowState | None",
     project_path: str | None = None,
@@ -61,34 +148,30 @@ async def require_commit_before_stop(
             workflow_state.variables["task_claimed"] = False
             return None
 
-    # Check for uncommitted changes
-    try:
-        result = subprocess.run(
-            ["git", "status", "--porcelain"],
-            cwd=project_path,
-            capture_output=True,
-            text=True,
-            timeout=10,
+    # Check for uncommitted changes using baseline-aware comparison
+    current_dirty = _get_dirty_files(project_path)
+
+    if not current_dirty:
+        logger.debug("require_commit_before_stop: No uncommitted changes, allowing")
+        return None
+
+    # Get baseline dirty files captured at session start
+    baseline_dirty = set(workflow_state.variables.get("baseline_dirty_files", []))
+
+    # Calculate NEW dirty files (not in baseline)
+    new_dirty = current_dirty - baseline_dirty
+
+    if not new_dirty:
+        logger.debug(
+            f"require_commit_before_stop: All {len(current_dirty)} dirty files were pre-existing "
+            f"(in baseline), allowing"
         )
-
-        if result.returncode != 0:
-            logger.warning(f"require_commit_before_stop: git status failed: {result.stderr}")
-            return None
-
-        uncommitted = result.stdout.strip()
-        if not uncommitted:
-            logger.debug("require_commit_before_stop: No uncommitted changes, allowing")
-            return None
-
-    except subprocess.TimeoutExpired:
-        logger.warning("require_commit_before_stop: git status timed out")
         return None
-    except FileNotFoundError:
-        logger.warning("require_commit_before_stop: git not found")
-        return None
-    except Exception as e:
-        logger.error(f"require_commit_before_stop: Error running git status: {e}")
-        return None
+
+    logger.debug(
+        f"require_commit_before_stop: Found {len(new_dirty)} new dirty files "
+        f"(baseline had {len(baseline_dirty)}, current has {len(current_dirty)})"
+    )
 
     # Track how many times we've blocked to prevent infinite loops
     block_count = workflow_state.variables.get("_commit_block_count", 0)
@@ -103,13 +186,20 @@ async def require_commit_before_stop(
     # Block - agent needs to commit and close
     logger.info(
         f"require_commit_before_stop: Blocking stop - task '{claimed_task_id}' "
-        f"has uncommitted changes"
+        f"has {len(new_dirty)} uncommitted changes"
     )
+
+    # Build list of new dirty files for the message (limit to 10 for readability)
+    new_dirty_list = sorted(new_dirty)[:10]
+    files_display = "\n".join(f"  - {f}" for f in new_dirty_list)
+    if len(new_dirty) > 10:
+        files_display += f"\n  ... and {len(new_dirty) - 10} more files"
 
     return {
         "decision": "block",
         "reason": (
-            f"Task '{claimed_task_id}' is in_progress with uncommitted changes.\n\n"
+            f"Task '{claimed_task_id}' is in_progress with {len(new_dirty)} uncommitted "
+            f"changes made during this session:\n{files_display}\n\n"
             f"Before stopping, commit your changes and close the task:\n"
             f"1. Commit with [{claimed_task_id}] in the message\n"
             f'2. Close the task: close_task(task_id="{claimed_task_id}", commit_sha="...")'
