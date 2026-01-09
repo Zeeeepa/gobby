@@ -10,8 +10,10 @@ Public API:
     - TextCompressor: LLMLingua-2 wrapper with caching and fallback
 """
 
+from gobby.compression.compressor import TextCompressor
 from gobby.compression.config import CompressionConfig
 
 __all__ = [
     "CompressionConfig",
+    "TextCompressor",
 ]
