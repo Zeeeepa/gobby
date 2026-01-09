@@ -160,9 +160,9 @@ class TestSuggestNextTaskProximityScoring:
         )
 
         epic_b = task_manager.create_task(project_id, "Epic B", task_type="epic")
-        task_b1 = task_manager.create_task(
+        task_manager.create_task(
             project_id, "Task B1", task_type="task", parent_task_id=epic_b.id
-        )
+        )  # Creates competing task in different branch
 
         # Set task_a1 as in_progress
         task_manager.update_task(task_a1.id, status="in_progress")
@@ -179,9 +179,9 @@ class TestSuggestNextTaskProximityScoring:
     async def test_child_of_in_progress_preferred_over_sibling(self, task_manager, project_id):
         """Children of in_progress task get higher boost than siblings."""
         parent = task_manager.create_task(project_id, "Parent", task_type="feature")
-        sibling = task_manager.create_task(
+        task_manager.create_task(
             project_id, "Sibling", task_type="task", parent_task_id=parent.id
-        )
+        )  # Creates sibling to compare against
         in_progress = task_manager.create_task(
             project_id, "In Progress", task_type="task", parent_task_id=parent.id
         )
@@ -206,9 +206,9 @@ class TestSuggestNextTaskProximityScoring:
         task1 = task_manager.create_task(
             project_id, "High Priority", task_type="task", parent_task_id=epic.id, priority=1
         )
-        task2 = task_manager.create_task(
+        task_manager.create_task(
             project_id, "Low Priority", task_type="task", parent_task_id=epic.id, priority=3
-        )
+        )  # Lower priority task for comparison
 
         with patch("gobby.mcp_proxy.tools.task_readiness.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": project_id}
@@ -231,9 +231,9 @@ class TestSuggestNextTaskProximityScoring:
         )
 
         epic_b = task_manager.create_task(project_id, "Epic B", task_type="epic")
-        task_b1 = task_manager.create_task(
+        task_manager.create_task(
             project_id, "Task B1 (high)", task_type="task", parent_task_id=epic_b.id, priority=1
-        )
+        )  # High priority but different branch
 
         # Set task_a1 as in_progress
         task_manager.update_task(task_a1.id, status="in_progress")
@@ -255,9 +255,9 @@ class TestSuggestNextTaskProximityScoring:
         tree1_task1 = task_manager.create_task(
             project_id, "Tree 1 Task 1", task_type="task", priority=3
         )
-        tree1_task2 = task_manager.create_task(
+        task_manager.create_task(
             project_id, "Tree 1 Task 2", task_type="task", priority=3
-        )
+        )  # Second task in tree 1
 
         tree2_task = task_manager.create_task(
             project_id, "Tree 2 Task", task_type="task", priority=1
@@ -286,9 +286,9 @@ class TestSuggestNextTaskProximityScoring:
         task1 = task_manager.create_task(
             project_id, "Task 1", task_type="task", parent_task_id=epic.id
         )
-        task2 = task_manager.create_task(
+        task_manager.create_task(
             project_id, "Task 2", task_type="task", parent_task_id=epic.id
-        )
+        )  # Creates sibling task
 
         task_manager.update_task(task1.id, status="in_progress")
 
