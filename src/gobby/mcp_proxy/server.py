@@ -8,10 +8,12 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from gobby.compression.compressor import TextCompressor
 from gobby.config.app import DaemonConfig
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.mcp_proxy.services.code_execution import CodeExecutionService
 from gobby.mcp_proxy.services.recommendation import RecommendationService, SearchMode
+from gobby.mcp_proxy.services.response_transformer import ResponseTransformerService
 from gobby.mcp_proxy.services.server_mgmt import ServerManagementService
 from gobby.mcp_proxy.services.system import SystemService
 from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
@@ -44,6 +46,13 @@ class GobbyDaemonTools:
         self._mcp_manager = mcp_manager  # Store for project_id access
         self._semantic_search = semantic_search  # Store for direct search access
 
+        # Initialize response transformer with compression if configured
+        response_transformer = None
+        if config and config.compression and config.compression.enabled:
+            compressor = TextCompressor(config.compression)
+            response_transformer = ResponseTransformerService(compressor)
+            logger.info("Response compression enabled for MCP tool calls")
+
         # Initialize services
         self.system_service = SystemService(mcp_manager, daemon_port, websocket_port, start_time)
         self.tool_proxy = ToolProxyService(
@@ -51,6 +60,7 @@ class GobbyDaemonTools:
             internal_manager=internal_manager,
             tool_filter=tool_filter,
             fallback_resolver=fallback_resolver,
+            response_transformer=response_transformer,
         )
         self.server_mgmt = ServerManagementService(mcp_manager, config_manager, config)
         self.code_execution = CodeExecutionService(llm_service=llm_service, config=config)
