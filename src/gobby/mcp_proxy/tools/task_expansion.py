@@ -534,6 +534,7 @@ def create_expansion_registry(
         prompt: str,
         parent_task_id: str | None = None,
         task_type: str = "task",
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Parse a user prompt and create tasks from it.
@@ -545,6 +546,7 @@ def create_expansion_registry(
             prompt: The user's task prompt (e.g., "implement user authentication")
             parent_task_id: Optional parent task to nest created tasks under
             task_type: Type for created tasks (default: "task")
+            session_id: Optional session ID to resolve workflow variables (e.g., tdd_mode)
 
         Returns:
             Dictionary with parent task and created subtasks
@@ -588,6 +590,9 @@ def create_expansion_registry(
             task_type="epic" if len(prompt) > 200 else task_type,
         )
 
+        # Resolve TDD mode from workflow state if resolver provided
+        tdd_mode = resolve_tdd_mode(session_id) if resolve_tdd_mode else None
+
         # Expand the task into subtasks
         result = await task_expander.expand_task(
             task_id=prompt_task.id,
@@ -597,6 +602,7 @@ def create_expansion_registry(
             "Each task should be specific, testable, and implementable.",
             enable_web_research=False,
             enable_code_context=True,  # Use code context for prompts
+            tdd_mode=tdd_mode,
         )
 
         if "error" in result:
