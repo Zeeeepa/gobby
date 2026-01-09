@@ -18,7 +18,12 @@ from gobby.utils.project_context import get_project_context
 if TYPE_CHECKING:
     from gobby.storage.tasks import LocalTaskManager
 
-__all__ = ["create_readiness_registry", "is_descendant_of"]
+__all__ = [
+    "create_readiness_registry",
+    "is_descendant_of",
+    "_get_ancestry_chain",
+    "_compute_proximity_boost",
+]
 
 
 def get_current_project_id() -> str | None:
@@ -110,6 +115,77 @@ def is_descendant_of(
         current_id = task.parent_task_id
 
     return False
+
+
+def _get_ancestry_chain(
+    task_manager: "LocalTaskManager",
+    task_id: str,
+) -> list[str]:
+    """
+    Build the ancestry chain for a task, from task up to root.
+
+    Args:
+        task_manager: LocalTaskManager instance
+        task_id: ID of the task to get ancestry for
+
+    Returns:
+        List of task IDs starting with task_id and ending with root ancestor.
+        Returns empty list if task doesn't exist.
+    """
+    chain: list[str] = []
+    current_id: str | None = task_id
+    visited: set[str] = set()
+
+    while current_id and current_id not in visited:
+        try:
+            task = task_manager.get_task(current_id)
+        except ValueError:
+            # Task doesn't exist - return chain so far or empty if just started
+            return chain if chain else []
+        visited.add(current_id)
+        chain.append(current_id)
+        current_id = task.parent_task_id
+
+    return chain
+
+
+def _compute_proximity_boost(
+    task_ancestry: list[str],
+    active_ancestry: list[str],
+) -> int:
+    """
+    Compute proximity boost based on common ancestry.
+
+    The boost is higher for tasks closer to the active task in the hierarchy.
+    - If task is a descendant of the active task: max boost (50)
+    - Otherwise: max(0, 50 - (depth * 10)) where depth is distance to common ancestor
+
+    Args:
+        task_ancestry: Ancestry chain of the candidate task [task, parent, grandparent, ...]
+        active_ancestry: Ancestry chain of the active (in_progress) task
+
+    Returns:
+        Proximity boost score (0-50)
+    """
+    if not task_ancestry or not active_ancestry:
+        return 0
+
+    # Convert to sets for O(1) lookup
+    active_set = set(active_ancestry)
+    active_task_id = active_ancestry[0]
+
+    # Find first common ancestor and its depth from the task
+    for depth, ancestor_id in enumerate(task_ancestry):
+        if ancestor_id in active_set:
+            # If common ancestor is the active task itself, task is a descendant
+            # of active work - give max boost
+            if ancestor_id == active_task_id:
+                return 50
+            # Otherwise, use depth from common ancestor
+            return max(0, 50 - (depth * 10))
+
+    # No common ancestor found
+    return 0
 
 
 class ReadinessToolRegistry(InternalToolRegistry):
@@ -251,6 +327,7 @@ def create_readiness_registry(
         - Priority (higher priority = higher score)
         - Is a leaf task (subtask with no children)
         - Has clear scope (complexity_score if available)
+        - Proximity to current in_progress task (same branch preferred)
 
         Args:
             task_type: Filter by task type (optional)
@@ -279,10 +356,29 @@ def create_readiness_registry(
                 "reason": "No ready tasks found",
             }
 
+        # Find current in_progress task for proximity scoring
+        in_progress_tasks = task_manager.list_tasks(
+            status="in_progress", limit=1, project_id=project_id
+        )
+        active_ancestry: list[str] = []
+        active_task_id: str | None = None
+        if in_progress_tasks:
+            active_task_id = in_progress_tasks[0].id
+            active_ancestry = _get_ancestry_chain(task_manager, active_task_id)
+
+        # Filter out in_progress tasks - we want to suggest the NEXT task, not current
+        ready_tasks = [t for t in ready_tasks if t.status != "in_progress"]
+        if not ready_tasks:
+            return {
+                "suggestion": None,
+                "reason": "No ready tasks found (all tasks are in_progress)",
+            }
+
         # Score each task
         scored = []
         for task in ready_tasks:
             score = 0
+            proximity_boost = 0
 
             # Priority boost (1=high gets +30, 2=medium gets +20, 3=low gets +10)
             score += (4 - task.priority) * 10
@@ -302,11 +398,17 @@ def create_readiness_registry(
             if task.test_strategy:
                 score += 10
 
-            scored.append((task, score, is_leaf))
+            # Proximity boost based on ancestry relationship to in_progress task
+            if active_ancestry:
+                task_ancestry = _get_ancestry_chain(task_manager, task.id)
+                proximity_boost = _compute_proximity_boost(task_ancestry, active_ancestry)
+                score += proximity_boost
+
+            scored.append((task, score, is_leaf, proximity_boost))
 
         # Sort by score descending
         scored.sort(key=lambda x: x[1], reverse=True)
-        best_task, best_score, is_leaf = scored[0]
+        best_task, best_score, is_leaf, best_proximity = scored[0]
 
         reasons = []
         if best_task.priority == 1:
@@ -317,6 +419,8 @@ def create_readiness_registry(
             reasons.append("manageable complexity")
         if best_task.test_strategy:
             reasons.append("has test strategy")
+        if best_proximity > 0:
+            reasons.append("same branch as current work")
 
         return {
             "suggestion": best_task.to_dict(),
@@ -324,7 +428,7 @@ def create_readiness_registry(
             "reason": f"Selected because: {', '.join(reasons) if reasons else 'best available option'}",
             "alternatives": [
                 {"task_id": t.id, "title": t.title, "score": s}
-                for t, s, _ in scored[1:4]  # Show top 3 alternatives
+                for t, s, _, _ in scored[1:4]  # Show top 3 alternatives
             ],
         }
 
