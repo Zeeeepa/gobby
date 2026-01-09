@@ -369,6 +369,7 @@ def _build_spawn_validation_prompt(
     task_title = task.get("title", "Unknown Task")
     task_description = task.get("description", "")
     validation_criteria = task.get("validation_criteria", "")
+    test_strategy = task.get("test_strategy", "")
 
     # Build criteria section
     if validation_criteria:
@@ -377,6 +378,11 @@ def _build_spawn_validation_prompt(
         criteria_section = f"Task Description:\n{task_description}"
     else:
         criteria_section = "No specific criteria provided. Evaluate for general correctness."
+
+    # Build test strategy section
+    test_strategy_section = ""
+    if test_strategy:
+        test_strategy_section = f"\n\n## Test Strategy\n{test_strategy}"
 
     prompt = f"""You are an OBJECTIVE and ADVERSARIAL QA validator.
 
@@ -391,7 +397,7 @@ def _build_spawn_validation_prompt(
 ID: {task_id}
 Title: {task_title}
 
-{criteria_section}
+{criteria_section}{test_strategy_section}
 
 ## Code Changes to Validate
 {changes_context}
