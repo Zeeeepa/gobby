@@ -351,10 +351,6 @@ class WorkflowVariablesConfig(BaseModel):
         default=False,
         description="Require an active task (in_progress) before allowing file edits",
     )
-    require_commit_before_stop: bool = Field(
-        default=True,
-        description="Block session stop if task has uncommitted changes",
-    )
     auto_decompose: bool = Field(
         default=True,
         description="Auto-decompose multi-step task descriptions into subtasks",

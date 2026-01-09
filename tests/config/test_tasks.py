@@ -675,7 +675,6 @@ class TestWorkflowVariablesConfigDefaults:
 
         config = WorkflowVariablesConfig()
         assert config.require_task_before_edit is False
-        assert config.require_commit_before_stop is True
         assert config.auto_decompose is True
         assert config.tdd_mode is True
         assert config.memory_injection_enabled is True
@@ -688,7 +687,6 @@ class TestWorkflowVariablesConfigDefaults:
 
         config = WorkflowVariablesConfig()
         assert isinstance(config.require_task_before_edit, bool)
-        assert isinstance(config.require_commit_before_stop, bool)
         assert isinstance(config.auto_decompose, bool)
         assert isinstance(config.tdd_mode, bool)
         assert isinstance(config.memory_injection_enabled, bool)
@@ -705,13 +703,11 @@ class TestWorkflowVariablesConfigCustom:
 
         config = WorkflowVariablesConfig(
             require_task_before_edit=True,
-            require_commit_before_stop=False,
             auto_decompose=False,
             tdd_mode=False,
             memory_injection_enabled=False,
         )
         assert config.require_task_before_edit is True
-        assert config.require_commit_before_stop is False
         assert config.auto_decompose is False
         assert config.tdd_mode is False
         assert config.memory_injection_enabled is False
@@ -784,7 +780,6 @@ class TestWorkflowVariablesMergeWithDB:
         # YAML defaults (from session-lifecycle.yaml pattern)
         yaml_defaults = {
             "require_task_before_edit": False,
-            "require_commit_before_stop": True,
             "auto_decompose": True,
             "tdd_mode": True,
             "memory_injection_enabled": True,
@@ -813,7 +808,6 @@ class TestWorkflowVariablesMergeWithDB:
 
         yaml_defaults = {
             "require_task_before_edit": False,
-            "require_commit_before_stop": True,
             "auto_decompose": True,
             "tdd_mode": True,
             "memory_injection_enabled": True,
@@ -848,7 +842,6 @@ class TestWorkflowVariablesMergeWithDB:
 
         yaml_defaults = {
             "require_task_before_edit": False,
-            "require_commit_before_stop": True,
             "auto_decompose": True,
             "tdd_mode": True,
             "memory_injection_enabled": True,
@@ -859,7 +852,6 @@ class TestWorkflowVariablesMergeWithDB:
         # DB overrides everything
         db_overrides = {
             "require_task_before_edit": True,
-            "require_commit_before_stop": False,
             "auto_decompose": False,
             "tdd_mode": False,
             "memory_injection_enabled": False,
@@ -875,7 +867,6 @@ class TestWorkflowVariablesMergeWithDB:
         # Validate through config class
         config = WorkflowVariablesConfig(**effective)
         assert config.require_task_before_edit is True
-        assert config.require_commit_before_stop is False
         assert config.auto_decompose is False
         assert config.tdd_mode is False
         assert config.memory_injection_enabled is False
@@ -1018,7 +1009,6 @@ class TestMergeWorkflowVariablesFunction:
 
         yaml_defaults = {
             "require_task_before_edit": False,
-            "require_commit_before_stop": True,
             "auto_decompose": True,
             "tdd_mode": True,
             "memory_injection_enabled": True,
@@ -1027,7 +1017,6 @@ class TestMergeWorkflowVariablesFunction:
         }
         db_overrides = {
             "require_task_before_edit": True,
-            "require_commit_before_stop": False,
             "auto_decompose": False,
             "tdd_mode": False,
             "memory_injection_enabled": False,
@@ -1039,7 +1028,6 @@ class TestMergeWorkflowVariablesFunction:
 
         # All should come from DB
         assert effective["require_task_before_edit"] is True
-        assert effective["require_commit_before_stop"] is False
         assert effective["auto_decompose"] is False
         assert effective["tdd_mode"] is False
         assert effective["memory_injection_enabled"] is False
@@ -1177,7 +1165,6 @@ class TestBackwardCompatibilityLayer:
 
         # Should match hardcoded defaults
         assert effective["require_task_before_edit"] is False
-        assert effective["require_commit_before_stop"] is True
         assert effective["auto_decompose"] is True
         assert effective["tdd_mode"] is True
         assert effective["memory_injection_enabled"] is True
