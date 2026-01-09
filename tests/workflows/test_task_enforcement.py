@@ -52,99 +52,107 @@ def workflow_state():
 class TestGetDirtyFiles:
     """Tests for _get_dirty_files helper function."""
 
-    def test_parses_git_status_output(self):
+    def test_parses_git_status_output(self, monkeypatch):
         """Parse git status --porcelain output correctly."""
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=0,
-                stdout=" M src/file.py\n?? new_file.py\nA  staged.py",
-                stderr="",
-            )
+        import gobby.workflows.task_enforcement_actions as tea
 
-            result = _get_dirty_files("/test/path")
+        mock_result = MagicMock(
+            returncode=0,
+            stdout=" M src/file.py\n?? new_file.py\nA  staged.py",
+            stderr="",
+        )
+        monkeypatch.setattr(tea.subprocess, "run", lambda *a, **k: mock_result)
 
+        # Use tea._get_dirty_files to ensure we're using the patched subprocess
+        result = tea._get_dirty_files("/test/path")
         assert result == {"src/file.py", "new_file.py", "staged.py"}
 
-    def test_excludes_gobby_directory(self):
+    def test_excludes_gobby_directory(self, monkeypatch):
         """Files in .gobby/ are excluded from dirty files."""
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=0,
-                stdout=" M src/file.py\n M .gobby/tasks.jsonl\n?? .gobby/new.json",
-                stderr="",
-            )
+        import gobby.workflows.task_enforcement_actions as tea
 
-            result = _get_dirty_files("/test/path")
+        mock_result = MagicMock(
+            returncode=0,
+            stdout=" M src/file.py\n M .gobby/tasks.jsonl\n?? .gobby/new.json",
+            stderr="",
+        )
+        monkeypatch.setattr(tea.subprocess, "run", lambda *a, **k: mock_result)
+
+        result = tea._get_dirty_files("/test/path")
 
         assert result == {"src/file.py"}
         assert ".gobby/tasks.jsonl" not in result
         assert ".gobby/new.json" not in result
 
-    def test_handles_renames(self):
+    def test_handles_renames(self, monkeypatch):
         """Parse rename format correctly (old -> new)."""
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=0,
-                stdout="R  old_name.py -> new_name.py",
-                stderr="",
-            )
+        import gobby.workflows.task_enforcement_actions as tea
 
-            result = _get_dirty_files("/test/path")
+        mock_result = MagicMock(
+            returncode=0,
+            stdout="R  old_name.py -> new_name.py",
+            stderr="",
+        )
+        monkeypatch.setattr(tea.subprocess, "run", lambda *a, **k: mock_result)
 
+        result = tea._get_dirty_files("/test/path")
         # Should capture the old name (source of rename)
         assert result == {"old_name.py"}
 
-    def test_returns_empty_set_on_no_changes(self):
+    def test_returns_empty_set_on_no_changes(self, monkeypatch):
         """Empty output returns empty set."""
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=0,
-                stdout="",
-                stderr="",
-            )
+        import gobby.workflows.task_enforcement_actions as tea
 
-            result = _get_dirty_files("/test/path")
+        mock_result = MagicMock(returncode=0, stdout="", stderr="")
+        monkeypatch.setattr(tea.subprocess, "run", lambda *a, **k: mock_result)
 
+        result = tea._get_dirty_files("/test/path")
         assert result == set()
 
-    def test_returns_empty_set_on_git_failure(self):
+    def test_returns_empty_set_on_git_failure(self, monkeypatch):
         """Git failure returns empty set."""
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=128,
-                stdout="",
-                stderr="fatal: not a git repository",
-            )
+        import gobby.workflows.task_enforcement_actions as tea
 
-            result = _get_dirty_files("/test/path")
+        mock_result = MagicMock(returncode=128, stdout="", stderr="fatal: not a git repository")
+        monkeypatch.setattr(tea.subprocess, "run", lambda *a, **k: mock_result)
 
+        result = tea._get_dirty_files("/test/path")
         assert result == set()
 
-    def test_returns_empty_set_on_timeout(self):
+    def test_returns_empty_set_on_timeout(self, monkeypatch):
         """Timeout returns empty set."""
-        with patch("subprocess.run") as mock_run:
-            mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=10)
+        import gobby.workflows.task_enforcement_actions as tea
 
-            result = _get_dirty_files("/test/path")
+        def raise_timeout(*a, **k):
+            raise subprocess.TimeoutExpired(cmd="git", timeout=10)
 
+        monkeypatch.setattr(tea.subprocess, "run", raise_timeout)
+
+        result = tea._get_dirty_files("/test/path")
         assert result == set()
 
-    def test_returns_empty_set_on_file_not_found(self):
+    def test_returns_empty_set_on_file_not_found(self, monkeypatch):
         """Git not found returns empty set."""
-        with patch("subprocess.run") as mock_run:
-            mock_run.side_effect = FileNotFoundError("git not found")
+        import gobby.workflows.task_enforcement_actions as tea
 
-            result = _get_dirty_files("/test/path")
+        def raise_fnf(*a, **k):
+            raise FileNotFoundError("git not found")
 
+        monkeypatch.setattr(tea.subprocess, "run", raise_fnf)
+
+        result = tea._get_dirty_files("/test/path")
         assert result == set()
 
-    def test_returns_empty_set_on_generic_error(self):
+    def test_returns_empty_set_on_generic_error(self, monkeypatch):
         """Generic error returns empty set."""
-        with patch("subprocess.run") as mock_run:
-            mock_run.side_effect = OSError("Unexpected error")
+        import gobby.workflows.task_enforcement_actions as tea
 
-            result = _get_dirty_files("/test/path")
+        def raise_oserror(*a, **k):
+            raise OSError("Unexpected error")
 
+        monkeypatch.setattr(tea.subprocess, "run", raise_oserror)
+
+        result = tea._get_dirty_files("/test/path")
         assert result == set()
 
 
@@ -166,9 +174,7 @@ class TestCaptureBaselineDirtyFiles:
 
     async def test_captures_dirty_files_as_baseline(self, workflow_state):
         """Captures current dirty files and stores in workflow_state."""
-        with patch(
-            "gobby.workflows.task_enforcement_actions._get_dirty_files"
-        ) as mock_get_dirty:
+        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
             mock_get_dirty.return_value = {"src/file1.py", "src/file2.py"}
 
             result = await capture_baseline_dirty_files(
@@ -188,9 +194,7 @@ class TestCaptureBaselineDirtyFiles:
 
     async def test_captures_empty_baseline(self, workflow_state):
         """Captures empty baseline when no dirty files."""
-        with patch(
-            "gobby.workflows.task_enforcement_actions._get_dirty_files"
-        ) as mock_get_dirty:
+        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
             mock_get_dirty.return_value = set()
 
             result = await capture_baseline_dirty_files(
@@ -277,12 +281,8 @@ class TestRequireCommitBeforeStop:
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=0,
-                stdout="",
-                stderr="",
-            )
+        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+            mock_get_dirty.return_value = set()
 
             result = await require_commit_before_stop(
                 workflow_state=workflow_state,
@@ -293,19 +293,16 @@ class TestRequireCommitBeforeStop:
         assert result is None
 
     async def test_uncommitted_changes_blocks(self, workflow_state, mock_task_manager):
-        """When git status shows changes, block stop."""
+        """When git status shows NEW changes (not in baseline), block stop."""
         workflow_state.variables["claimed_task_id"] = "gt-abc123"
+        workflow_state.variables["baseline_dirty_files"] = []  # No baseline files
 
         mock_task = MagicMock()
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=0,
-                stdout=" M src/file.py\n?? new_file.py",
-                stderr="",
-            )
+        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+            mock_get_dirty.return_value = {"src/file.py", "new_file.py"}
 
             result = await require_commit_before_stop(
                 workflow_state=workflow_state,
@@ -316,23 +313,25 @@ class TestRequireCommitBeforeStop:
         assert result is not None
         assert result["decision"] == "block"
         assert "gt-abc123" in result["reason"]
-        assert "uncommitted changes" in result["reason"]
+        assert "uncommitted" in result["reason"]
         assert "close_task" in result["reason"]
 
-    async def test_git_status_failure_allows(self, workflow_state, mock_task_manager):
-        """When git status fails, allow to avoid blocking legitimate work."""
+    async def test_preexisting_dirty_files_allows(self, workflow_state, mock_task_manager):
+        """Pre-existing dirty files (in baseline) are ignored."""
         workflow_state.variables["claimed_task_id"] = "gt-abc123"
+        # Baseline captured at session start
+        workflow_state.variables["baseline_dirty_files"] = [
+            "src/preexisting.py",
+            "config.yaml",
+        ]
 
         mock_task = MagicMock()
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=128,
-                stdout="",
-                stderr="fatal: not a git repository",
-            )
+        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+            # Same files as baseline - no NEW changes
+            mock_get_dirty.return_value = {"src/preexisting.py", "config.yaml"}
 
             result = await require_commit_before_stop(
                 workflow_state=workflow_state,
@@ -342,16 +341,22 @@ class TestRequireCommitBeforeStop:
 
         assert result is None
 
-    async def test_git_timeout_allows(self, workflow_state, mock_task_manager):
-        """When git status times out, allow stop."""
+    async def test_new_changes_with_baseline_blocks(self, workflow_state, mock_task_manager):
+        """New changes beyond baseline are blocked."""
         workflow_state.variables["claimed_task_id"] = "gt-abc123"
+        # Some files were already dirty at session start
+        workflow_state.variables["baseline_dirty_files"] = ["src/preexisting.py"]
 
         mock_task = MagicMock()
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.side_effect = subprocess.TimeoutExpired(cmd="git", timeout=10)
+        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+            # New files added during session
+            mock_get_dirty.return_value = {
+                "src/preexisting.py",  # In baseline
+                "src/new_file.py",  # NEW - should trigger block
+            }
 
             result = await require_commit_before_stop(
                 workflow_state=workflow_state,
@@ -359,18 +364,22 @@ class TestRequireCommitBeforeStop:
                 task_manager=mock_task_manager,
             )
 
-        assert result is None
+        assert result is not None
+        assert result["decision"] == "block"
+        # Should only mention the NEW file
+        assert "src/new_file.py" in result["reason"]
 
-    async def test_git_not_found_allows(self, workflow_state, mock_task_manager):
-        """When git command not found, allow stop."""
+    async def test_no_baseline_treats_all_as_new(self, workflow_state, mock_task_manager):
+        """When no baseline, all dirty files are treated as new."""
         workflow_state.variables["claimed_task_id"] = "gt-abc123"
+        # No baseline captured (e.g., workflow activated after session started)
 
         mock_task = MagicMock()
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.side_effect = FileNotFoundError("git not found")
+        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+            mock_get_dirty.return_value = {"src/file.py"}
 
             result = await require_commit_before_stop(
                 workflow_state=workflow_state,
@@ -378,18 +387,20 @@ class TestRequireCommitBeforeStop:
                 task_manager=mock_task_manager,
             )
 
-        assert result is None
+        assert result is not None
+        assert result["decision"] == "block"
 
-    async def test_git_generic_error_allows(self, workflow_state, mock_task_manager):
-        """When git raises unexpected error, allow stop."""
+    async def test_block_reason_lists_new_dirty_files(self, workflow_state, mock_task_manager):
+        """Block reason includes list of new dirty files."""
         workflow_state.variables["claimed_task_id"] = "gt-abc123"
+        workflow_state.variables["baseline_dirty_files"] = []
 
         mock_task = MagicMock()
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.side_effect = OSError("Unexpected error")
+        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+            mock_get_dirty.return_value = {"src/a.py", "src/b.py", "src/c.py"}
 
             result = await require_commit_before_stop(
                 workflow_state=workflow_state,
@@ -397,7 +408,34 @@ class TestRequireCommitBeforeStop:
                 task_manager=mock_task_manager,
             )
 
-        assert result is None
+        assert result is not None
+        assert "3 uncommitted" in result["reason"]
+        assert "src/a.py" in result["reason"]
+        assert "src/b.py" in result["reason"]
+        assert "src/c.py" in result["reason"]
+
+    async def test_block_reason_truncates_long_file_list(self, workflow_state, mock_task_manager):
+        """Block reason truncates file list if more than 10 files."""
+        workflow_state.variables["claimed_task_id"] = "gt-abc123"
+        workflow_state.variables["baseline_dirty_files"] = []
+
+        mock_task = MagicMock()
+        mock_task.status = "in_progress"
+        mock_task_manager.get_task.return_value = mock_task
+
+        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+            # 15 files
+            mock_get_dirty.return_value = {f"src/file{i}.py" for i in range(15)}
+
+            result = await require_commit_before_stop(
+                workflow_state=workflow_state,
+                project_path="/test/path",
+                task_manager=mock_task_manager,
+            )
+
+        assert result is not None
+        assert "15 uncommitted" in result["reason"]
+        assert "and 5 more files" in result["reason"]
 
     async def test_max_block_count_allows(self, workflow_state, mock_task_manager):
         """After 3 blocks, allow to prevent infinite loop."""
@@ -408,12 +446,8 @@ class TestRequireCommitBeforeStop:
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=0,
-                stdout=" M src/file.py",
-                stderr="",
-            )
+        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+            mock_get_dirty.return_value = {"src/file.py"}
 
             result = await require_commit_before_stop(
                 workflow_state=workflow_state,
@@ -426,17 +460,14 @@ class TestRequireCommitBeforeStop:
     async def test_block_count_increments(self, workflow_state, mock_task_manager):
         """Block count increments on each block."""
         workflow_state.variables["claimed_task_id"] = "gt-abc123"
+        workflow_state.variables["baseline_dirty_files"] = []
 
         mock_task = MagicMock()
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=0,
-                stdout=" M src/file.py",
-                stderr="",
-            )
+        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+            mock_get_dirty.return_value = {"src/file.py"}
 
             # First block
             result = await require_commit_before_stop(
@@ -461,13 +492,10 @@ class TestRequireCommitBeforeStop:
     async def test_no_task_manager_skips_status_check(self, workflow_state):
         """When no task_manager, skip task status check but still check git."""
         workflow_state.variables["claimed_task_id"] = "gt-abc123"
+        workflow_state.variables["baseline_dirty_files"] = []
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=0,
-                stdout=" M src/file.py",
-                stderr="",
-            )
+        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+            mock_get_dirty.return_value = {"src/file.py"}
 
             result = await require_commit_before_stop(
                 workflow_state=workflow_state,
@@ -482,17 +510,14 @@ class TestRequireCommitBeforeStop:
     async def test_block_reason_includes_instructions(self, workflow_state, mock_task_manager):
         """Block reason includes commit and close instructions."""
         workflow_state.variables["claimed_task_id"] = "gt-xyz789"
+        workflow_state.variables["baseline_dirty_files"] = []
 
         mock_task = MagicMock()
         mock_task.status = "in_progress"
         mock_task_manager.get_task.return_value = mock_task
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(
-                returncode=0,
-                stdout=" M file.txt",
-                stderr="",
-            )
+        with patch("gobby.workflows.task_enforcement_actions._get_dirty_files") as mock_get_dirty:
+            mock_get_dirty.return_value = {"file.txt"}
 
             result = await require_commit_before_stop(
                 workflow_state=workflow_state,

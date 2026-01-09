@@ -45,7 +45,10 @@ def _get_dirty_files(project_path: str | None = None) -> set[str]:
             return set()
 
         dirty_files = set()
-        for line in result.stdout.strip().split("\n"):
+        # Split by newline first, don't strip() the whole string as it removes
+        # the leading space from git status format (e.g., " M file.py")
+        for line in result.stdout.split("\n"):
+            line = line.rstrip()  # Remove trailing whitespace only
             if not line:
                 continue
             # Format is "XY filename" or "XY filename -> newname" for renames
@@ -95,9 +98,7 @@ async def capture_baseline_dirty_files(
     # Store as a list in workflow state (sets aren't JSON serializable)
     workflow_state.variables["baseline_dirty_files"] = list(dirty_files)
 
-    logger.debug(
-        f"capture_baseline_dirty_files: Captured {len(dirty_files)} baseline dirty files"
-    )
+    logger.debug(f"capture_baseline_dirty_files: Captured {len(dirty_files)} baseline dirty files")
 
     return {
         "baseline_captured": True,
