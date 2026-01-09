@@ -416,3 +416,88 @@ class TestFormatInjectedPrompt:
         result = format_injected_prompt("", "Original prompt", template=template)
 
         assert result == "Original prompt"
+
+
+class TestContextResolverCompressor:
+    """Tests for ContextResolver compressor parameter."""
+
+    def test_init_accepts_compressor_parameter(
+        self, mock_session_manager, mock_message_manager, temp_project
+    ):
+        """ContextResolver can be instantiated with compressor."""
+        mock_compressor = MagicMock()
+
+        resolver = ContextResolver(
+            session_manager=mock_session_manager,
+            message_manager=mock_message_manager,
+            project_path=temp_project,
+            compressor=mock_compressor,
+        )
+
+        assert resolver.compressor is mock_compressor
+
+    def test_init_without_compressor_backward_compatible(
+        self, mock_session_manager, mock_message_manager, temp_project
+    ):
+        """ContextResolver can be instantiated without compressor (backward compatible)."""
+        resolver = ContextResolver(
+            session_manager=mock_session_manager,
+            message_manager=mock_message_manager,
+            project_path=temp_project,
+        )
+
+        assert resolver.compressor is None
+
+    def test_compressor_increases_limits(
+        self, mock_session_manager, mock_message_manager, temp_project
+    ):
+        """When compressor is provided, internal limits are increased."""
+        mock_compressor = MagicMock()
+
+        # Create resolver without compressor
+        resolver_no_compress = ContextResolver(
+            session_manager=mock_session_manager,
+            message_manager=mock_message_manager,
+            project_path=temp_project,
+            max_file_size=50000,
+            max_content_size=50000,
+            max_transcript_messages=100,
+        )
+
+        # Create resolver with compressor
+        resolver_with_compress = ContextResolver(
+            session_manager=mock_session_manager,
+            message_manager=mock_message_manager,
+            project_path=temp_project,
+            max_file_size=50000,
+            max_content_size=50000,
+            max_transcript_messages=100,
+            compressor=mock_compressor,
+        )
+
+        # With compressor, limits should be multiplied by COMPRESSION_LIMIT_MULTIPLIER
+        multiplier = ContextResolver.COMPRESSION_LIMIT_MULTIPLIER
+        assert resolver_with_compress._max_file_size == 50000 * multiplier
+        assert resolver_with_compress._max_content_size == 50000 * multiplier
+        assert resolver_with_compress._max_transcript_messages == 100 * multiplier
+
+        # Without compressor, limits should be unchanged
+        assert resolver_no_compress._max_file_size == 50000
+        assert resolver_no_compress._max_content_size == 50000
+        assert resolver_no_compress._max_transcript_messages == 100
+
+    def test_compressor_defaults_to_none(
+        self, mock_session_manager, mock_message_manager, temp_project
+    ):
+        """Compressor defaults to None."""
+        resolver = ContextResolver(
+            session_manager=mock_session_manager,
+            message_manager=mock_message_manager,
+            project_path=temp_project,
+        )
+
+        assert resolver.compressor is None
+
+    def test_compression_limit_multiplier_is_two(self):
+        """Verify the compression limit multiplier is 2."""
+        assert ContextResolver.COMPRESSION_LIMIT_MULTIPLIER == 2
