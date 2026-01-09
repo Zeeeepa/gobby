@@ -8,7 +8,6 @@ from dataclasses import dataclass
 
 import pytest
 
-
 # =============================================================================
 # Import Tests
 # =============================================================================
@@ -19,13 +18,13 @@ class TestConflictExtractionImport:
 
     def test_import_extract_conflict_hunks(self):
         """Test that extract_conflict_hunks can be imported."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         assert extract_conflict_hunks is not None
 
     def test_import_conflict_hunk_dataclass(self):
         """Test that ConflictHunk dataclass can be imported."""
-        from gobby.merge.conflicts import ConflictHunk
+        from gobby.worktrees.merge.conflict_parser import ConflictHunk
 
         assert ConflictHunk is not None
 
@@ -40,7 +39,7 @@ class TestSingleConflict:
 
     def test_extract_single_conflict(self):
         """Test extracting a single conflict region."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """line 1
 line 2
@@ -61,7 +60,7 @@ line 4
 
     def test_single_conflict_preserves_markers(self):
         """Test that conflict markers are captured correctly."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """<<<<<<< HEAD
 our side
@@ -77,7 +76,7 @@ their side
 
     def test_single_conflict_line_numbers(self):
         """Test that line numbers are tracked correctly."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """line 1
 line 2
@@ -105,7 +104,7 @@ class TestMultipleConflicts:
 
     def test_extract_two_conflicts(self):
         """Test extracting two separate conflicts."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """line 1
 <<<<<<< HEAD
@@ -129,7 +128,7 @@ line end
 
     def test_extract_multiple_conflicts_ordering(self):
         """Test that conflicts are returned in document order."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """<<<<<<< HEAD
 a
@@ -158,7 +157,7 @@ c2
 
     def test_adjacent_conflicts(self):
         """Test conflicts that are immediately adjacent."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """<<<<<<< HEAD
 first
@@ -186,7 +185,7 @@ class TestContextWindowing:
 
     def test_default_context_window(self):
         """Test default context includes surrounding lines."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """line 1
 line 2
@@ -211,7 +210,7 @@ line 6
 
     def test_custom_context_window(self):
         """Test custom context window size."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """line 1
 line 2
@@ -240,7 +239,7 @@ line 8
 
     def test_zero_context_window(self):
         """Test zero context window returns no surrounding context."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """before
 <<<<<<< HEAD
@@ -258,7 +257,7 @@ after
 
     def test_context_at_file_start(self):
         """Test context when conflict is at start of file."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """<<<<<<< HEAD
 conflict at start
@@ -276,7 +275,7 @@ more after
 
     def test_context_at_file_end(self):
         """Test context when conflict is at end of file."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """line before
 more before
@@ -303,7 +302,7 @@ class TestMalformedMarkers:
 
     def test_missing_separator(self):
         """Test handling missing ======= separator."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """<<<<<<< HEAD
 our stuff
@@ -316,7 +315,7 @@ our stuff
 
     def test_missing_end_marker(self):
         """Test handling missing >>>>>>> end marker."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """<<<<<<< HEAD
 our stuff
@@ -330,7 +329,7 @@ remaining content
 
     def test_missing_start_marker(self):
         """Test content with separator and end but no start."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """some content
 =======
@@ -343,7 +342,7 @@ other content
 
     def test_extra_markers(self):
         """Test handling extra conflict markers."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """<<<<<<< HEAD
 our stuff
@@ -367,7 +366,7 @@ class TestEmptyConflicts:
 
     def test_empty_ours_section(self):
         """Test conflict with empty 'ours' section."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """<<<<<<< HEAD
 =======
@@ -382,7 +381,7 @@ their content
 
     def test_empty_theirs_section(self):
         """Test conflict with empty 'theirs' section."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """<<<<<<< HEAD
 our content
@@ -397,7 +396,7 @@ our content
 
     def test_both_sections_empty(self):
         """Test conflict with both sections empty."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """<<<<<<< HEAD
 =======
@@ -420,7 +419,7 @@ class TestNoConflicts:
 
     def test_no_conflicts_returns_empty(self):
         """Test that file without conflicts returns empty list."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """line 1
 line 2
@@ -432,7 +431,7 @@ line 3
 
     def test_empty_content_returns_empty(self):
         """Test that empty content returns empty list."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         hunks = extract_conflict_hunks("")
 
@@ -449,7 +448,7 @@ class TestEdgeCases:
 
     def test_multiline_conflict_content(self):
         """Test conflict with multiple lines on each side."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """<<<<<<< HEAD
 line 1 ours
@@ -469,7 +468,7 @@ line 2 theirs
 
     def test_conflict_with_special_characters(self):
         """Test conflict containing special characters."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """<<<<<<< HEAD
 >>> not a marker
@@ -486,7 +485,7 @@ content with >>>, <<<, ===
 
     def test_conflict_marker_in_strings(self):
         """Test that we don't mis-parse markers in quoted strings."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = '''<<<<<<< HEAD
 print("<<<<<<< this is a string")
@@ -501,7 +500,7 @@ print(">>>>>>> this too")
 
     def test_windows_line_endings(self):
         """Test handling Windows CRLF line endings."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = "<<<<<<< HEAD\r\nour content\r\n=======\r\ntheir content\r\n>>>>>>> branch\r\n"
 
@@ -512,7 +511,7 @@ print(">>>>>>> this too")
 
     def test_branch_name_with_spaces(self):
         """Test handling branch names with special chars."""
-        from gobby.merge.conflicts import extract_conflict_hunks
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """<<<<<<< HEAD
 ours
