@@ -412,6 +412,21 @@ def extract_mentioned_files(
     return list(found_paths)
 
 
+def extract_mentioned_symbols(task: dict[str, Any]) -> list[str]:
+    """Extract function/class names mentioned in task description.
+
+    Searches for symbol patterns in backticks and extracts function/class names.
+    Useful for providing enhanced context to validators.
+
+    Args:
+        task: Task dictionary with title, description, and optionally validation_criteria.
+
+    Returns:
+        List of unique symbol names mentioned in the task.
+    """
+    raise NotImplementedError("extract_mentioned_symbols not yet implemented")
+
+
 # Task ID patterns to search for in commit messages
 TASK_ID_PATTERNS = [
     # [gt-xxxxx] - bracket format

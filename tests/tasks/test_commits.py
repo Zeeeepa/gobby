@@ -832,3 +832,164 @@ class TestExtractMentionedFiles:
         result = extract_mentioned_files(task)
         assert "src/feature.py" in result
         assert "tests/test_feature.py" in result
+
+
+class TestExtractMentionedSymbols:
+    """Tests for extract_mentioned_symbols function."""
+
+    def test_extracts_backtick_function_with_parens(self):
+        """Test extraction of function names in backticks with parentheses."""
+        from gobby.tasks.commits import extract_mentioned_symbols
+
+        task = {
+            "title": "Fix validation",
+            "description": "Update `summarize_diff_for_validation()` to handle edge cases",
+        }
+        result = extract_mentioned_symbols(task)
+        assert "summarize_diff_for_validation" in result
+
+    def test_extracts_backtick_function_without_parens(self):
+        """Test extraction of function names in backticks without parentheses."""
+        from gobby.tasks.commits import extract_mentioned_symbols
+
+        task = {
+            "title": "Refactor code",
+            "description": "The `process_data` function needs optimization",
+        }
+        result = extract_mentioned_symbols(task)
+        assert "process_data" in result
+
+    def test_extracts_class_names_in_backticks(self):
+        """Test extraction of class names in backticks (PascalCase)."""
+        from gobby.tasks.commits import extract_mentioned_symbols
+
+        task = {
+            "title": "Update result type",
+            "description": "Modify `TaskDiffResult` to include new field",
+        }
+        result = extract_mentioned_symbols(task)
+        assert "TaskDiffResult" in result
+
+    def test_extracts_method_references(self):
+        """Test extraction of method references like ClassName.method_name."""
+        from gobby.tasks.commits import extract_mentioned_symbols
+
+        task = {
+            "title": "Fix method",
+            "description": "The `TaskManager.get_task` method has a bug",
+        }
+        result = extract_mentioned_symbols(task)
+        # Should extract the method name
+        assert "get_task" in result or "TaskManager.get_task" in result
+
+    def test_extracts_multiple_symbols(self):
+        """Test extraction of multiple symbols from same text."""
+        from gobby.tasks.commits import extract_mentioned_symbols
+
+        task = {
+            "title": "Update functions",
+            "description": "Modify `validate_input()` and `process_output()` for consistency",
+        }
+        result = extract_mentioned_symbols(task)
+        assert "validate_input" in result
+        assert "process_output" in result
+
+    def test_extracts_symbols_from_title(self):
+        """Test extraction of symbols from task title."""
+        from gobby.tasks.commits import extract_mentioned_symbols
+
+        task = {
+            "title": "Fix `calculate_total()` rounding error",
+            "description": "The calculation is off by one",
+        }
+        result = extract_mentioned_symbols(task)
+        assert "calculate_total" in result
+
+    def test_returns_empty_list_when_no_symbols(self):
+        """Test returns empty list when no symbols found."""
+        from gobby.tasks.commits import extract_mentioned_symbols
+
+        task = {
+            "title": "Improve performance",
+            "description": "Make the application faster",
+        }
+        result = extract_mentioned_symbols(task)
+        assert result == []
+
+    def test_deduplicates_symbols(self):
+        """Test that duplicate symbols are removed."""
+        from gobby.tasks.commits import extract_mentioned_symbols
+
+        task = {
+            "title": "Fix `process_data`",
+            "description": "The `process_data()` function in `process_data` module needs work",
+        }
+        result = extract_mentioned_symbols(task)
+        assert result.count("process_data") == 1
+
+    def test_handles_none_description(self):
+        """Test graceful handling of None description."""
+        from gobby.tasks.commits import extract_mentioned_symbols
+
+        task = {
+            "title": "Simple task",
+            "description": None,
+        }
+        result = extract_mentioned_symbols(task)
+        assert isinstance(result, list)
+
+    def test_handles_missing_description(self):
+        """Test graceful handling of missing description key."""
+        from gobby.tasks.commits import extract_mentioned_symbols
+
+        task = {"title": "Task with no description"}
+        result = extract_mentioned_symbols(task)
+        assert isinstance(result, list)
+
+    def test_extracts_from_validation_criteria(self):
+        """Test extraction from validation_criteria field if present."""
+        from gobby.tasks.commits import extract_mentioned_symbols
+
+        task = {
+            "title": "Implement feature",
+            "description": "Add new functionality",
+            "validation_criteria": "Verify `new_feature()` works correctly",
+        }
+        result = extract_mentioned_symbols(task)
+        assert "new_feature" in result
+
+    def test_ignores_file_paths(self):
+        """Test that file paths are not extracted as symbols."""
+        from gobby.tasks.commits import extract_mentioned_symbols
+
+        task = {
+            "title": "Update code",
+            "description": "Modify `src/gobby/tasks/commits.py` to fix the bug",
+        }
+        result = extract_mentioned_symbols(task)
+        # File paths should not be in symbols
+        assert "src/gobby/tasks/commits.py" not in result
+        assert "commits.py" not in result
+
+    def test_extracts_dunder_methods(self):
+        """Test extraction of dunder methods like __init__."""
+        from gobby.tasks.commits import extract_mentioned_symbols
+
+        task = {
+            "title": "Fix initialization",
+            "description": "The `__init__` method needs to validate parameters",
+        }
+        result = extract_mentioned_symbols(task)
+        assert "__init__" in result
+
+    def test_handles_nested_class_methods(self):
+        """Test extraction of nested class.method patterns."""
+        from gobby.tasks.commits import extract_mentioned_symbols
+
+        task = {
+            "title": "Update validation",
+            "description": "Call `ExternalValidator.validate_task` with new params",
+        }
+        result = extract_mentioned_symbols(task)
+        # Should extract the method or full reference
+        assert "validate_task" in result or "ExternalValidator.validate_task" in result
