@@ -40,12 +40,15 @@ from gobby.storage.tasks import (
 )
 from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.sync.tasks import TaskSyncManager
+from gobby.tasks.auto_decompose import detect_multi_step
 from gobby.tasks.commits import auto_link_commits as auto_link_commits_fn
 from gobby.tasks.commits import get_task_diff, is_doc_only_diff, summarize_diff_for_validation
 from gobby.tasks.expansion import TaskExpander
 from gobby.tasks.validation import TaskValidator
 from gobby.utils.project_context import get_project_context
 from gobby.utils.project_init import initialize_project
+from gobby.workflows.definitions import WorkflowState
+from gobby.workflows.state_manager import WorkflowStateManager
 
 __all__ = ["create_task_registry"]
 
@@ -162,6 +165,33 @@ def create_task_registry(
     # Helper managers
     dep_manager = TaskDependencyManager(task_manager.db)
     session_task_manager = SessionTaskManager(task_manager.db)
+    workflow_state_manager = WorkflowStateManager(task_manager.db)
+
+    # Get TDD mode config setting (fallback when no workflow state)
+    tdd_mode_config = False
+    if config is not None:
+        tdd_mode_config = config.get_gobby_tasks_config().expansion.tdd_mode
+
+    def get_workflow_state(session_id: str | None) -> WorkflowState | None:
+        """Get workflow state for a session, if available."""
+        if not session_id:
+            return None
+        return workflow_state_manager.get_state(session_id)
+
+    def resolve_tdd_mode(session_id: str | None) -> bool:
+        """
+        Resolve tdd_mode from workflow state > config hierarchy.
+
+        Returns:
+            True if TDD mode is enabled, False otherwise.
+        """
+        # Check workflow state first (takes precedence)
+        state = get_workflow_state(session_id)
+        if state and "tdd_mode" in state.variables:
+            return bool(state.variables["tdd_mode"])
+
+        # Fall back to config
+        return tdd_mode_config
 
     # --- Task CRUD ---
 
@@ -211,30 +241,99 @@ def create_task_registry(
         if effective_test_strategy is None:
             effective_test_strategy = _infer_test_strategy(title, description)
 
-        # Use create_task_with_decomposition for auto-decomposition support
-        create_result = task_manager.create_task_with_decomposition(
-            project_id=project_id,
-            title=title,
-            description=description,
-            priority=priority,
-            task_type=task_type,
-            parent_task_id=parent_task_id,
-            labels=labels,
-            test_strategy=effective_test_strategy,
-            validation_criteria=validation_criteria,
-            created_in_session_id=session_id,
+        # Check if TDD mode should route multi-step tasks through TaskExpander
+        is_multi_step = detect_multi_step(description)
+        tdd_enabled = resolve_tdd_mode(session_id)
+        use_tdd_expansion = (
+            is_multi_step
+            and tdd_enabled
+            and task_expander is not None
+            and task_type != "epic"
         )
 
-        # Handle auto-decomposed vs single task results
-        auto_decomposed = create_result.get("auto_decomposed", False)
-        if auto_decomposed:
-            # Multi-step task was decomposed into parent + subtasks
-            task = task_manager.get_task(create_result["parent_task"]["id"])
-            subtasks = create_result.get("subtasks", [])
-        else:
-            # Single task created
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        tdd_expansion_result = None
+        if use_tdd_expansion:
+            # TDD mode: Create parent task without auto-decomposition,
+            # then use TaskExpander for intelligent TDD pair generation
+            logger.debug(f"TDD mode enabled for multi-step task: {title}")
+
+            # Create parent task without decomposition
+            create_result = task_manager.create_task_with_decomposition(
+                project_id=project_id,
+                title=title,
+                description=description,
+                priority=priority,
+                task_type=task_type,
+                parent_task_id=parent_task_id,
+                labels=labels,
+                test_strategy=effective_test_strategy,
+                validation_criteria=validation_criteria,
+                created_in_session_id=session_id,
+                auto_decompose=False,  # Disable regex extraction
+            )
+
+            # Get the created task
             task = task_manager.get_task(create_result["task"]["id"])
-            subtasks = []
+
+            # Now expand with TaskExpander for TDD pairs
+            try:
+                tdd_expansion_result = await task_expander.expand_task(task.id)
+                subtasks = []  # Will be populated from expansion result
+                logger.debug(f"TDD expansion created {tdd_expansion_result.get('subtask_count', 0)} subtasks")
+            except Exception as e:
+                logger.warning(f"TDD expansion failed for {task.id}, falling back to regex: {e}")
+                # Fall back to regex decomposition
+                # Delete the task and recreate with auto_decompose=True
+                task_manager.delete_task(task.id)
+                create_result = task_manager.create_task_with_decomposition(
+                    project_id=project_id,
+                    title=title,
+                    description=description,
+                    priority=priority,
+                    task_type=task_type,
+                    parent_task_id=parent_task_id,
+                    labels=labels,
+                    test_strategy=effective_test_strategy,
+                    validation_criteria=validation_criteria,
+                    created_in_session_id=session_id,
+                    auto_decompose=True,
+                )
+                if create_result.get("auto_decomposed"):
+                    task = task_manager.get_task(create_result["parent_task"]["id"])
+                    subtasks = create_result.get("subtasks", [])
+                else:
+                    task = task_manager.get_task(create_result["task"]["id"])
+                    subtasks = []
+                tdd_expansion_result = None  # Clear the failed expansion
+        else:
+            # Standard path: Use regex-based decomposition or no decomposition
+            create_result = task_manager.create_task_with_decomposition(
+                project_id=project_id,
+                title=title,
+                description=description,
+                priority=priority,
+                task_type=task_type,
+                parent_task_id=parent_task_id,
+                labels=labels,
+                test_strategy=effective_test_strategy,
+                validation_criteria=validation_criteria,
+                created_in_session_id=session_id,
+            )
+
+            # Handle auto-decomposed vs single task results
+            auto_decomposed = create_result.get("auto_decomposed", False)
+            if auto_decomposed:
+                # Multi-step task was decomposed into parent + subtasks
+                task = task_manager.get_task(create_result["parent_task"]["id"])
+                subtasks = create_result.get("subtasks", [])
+            else:
+                # Single task created
+                task = task_manager.get_task(create_result["task"]["id"])
+                subtasks = []
 
         # Handle 'blocks' argument if provided (syntactic sugar)
         if blocks:
@@ -267,9 +366,16 @@ def create_task_registry(
         result = task.to_dict() if show_result_on_create else {"success": True, "id": task.id}
         if validation_generated:
             result["validation_generated"] = True
-        if auto_decomposed:
+
+        # Handle TDD expansion result
+        if tdd_expansion_result is not None:
+            result["auto_decomposed"] = True
+            result["subtask_count"] = tdd_expansion_result.get("subtask_count", 0)
+            result["tdd_expanded"] = True
+        elif create_result.get("auto_decomposed"):
             result["auto_decomposed"] = True
             result["subtask_count"] = len(subtasks)
+
         return result
 
     registry.register(

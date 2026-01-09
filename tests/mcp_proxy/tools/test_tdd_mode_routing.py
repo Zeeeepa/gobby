@@ -12,15 +12,20 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from gobby.config.app import DaemonConfig, GobbyTasksConfig, TaskExpansionConfig, TaskValidationConfig
+from gobby.config.app import (
+    DaemonConfig,
+    GobbyTasksConfig,
+    TaskExpansionConfig,
+    TaskValidationConfig,
+)
 from gobby.mcp_proxy.tools.tasks import create_task_registry
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
-from gobby.storage.tasks import LocalTaskManager, Task
+from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.tasks import TaskSyncManager
 from gobby.tasks.expansion import TaskExpander
 from gobby.workflows.definitions import WorkflowState
-
+from gobby.workflows.state_manager import WorkflowStateManager
 
 # =============================================================================
 # Fixtures
@@ -42,10 +47,25 @@ def test_db(tmp_path):
     return db
 
 
+def create_test_session(db: LocalDatabase, session_id: str) -> None:
+    """Create a test session in the database."""
+    db.execute(
+        """INSERT OR IGNORE INTO sessions (id, external_id, machine_id, source, project_id, status)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (session_id, "test-external", "test-machine", "test", "test-project", "active"),
+    )
+
+
 @pytest.fixture
 def task_manager(test_db):
     """Create a LocalTaskManager instance."""
     return LocalTaskManager(test_db)
+
+
+@pytest.fixture
+def workflow_state_manager(test_db):
+    """Create a WorkflowStateManager for setting up workflow state."""
+    return WorkflowStateManager(test_db)
 
 
 @pytest.fixture
@@ -116,27 +136,17 @@ def config_tdd_disabled():
     return config
 
 
-@pytest.fixture
-def workflow_state_tdd_enabled():
-    """Workflow state with tdd_mode enabled."""
+def create_workflow_state(session_id: str, tdd_mode: bool | None = None) -> WorkflowState:
+    """Create a workflow state with optional tdd_mode variable."""
+    variables = {}
+    if tdd_mode is not None:
+        variables["tdd_mode"] = tdd_mode
     return WorkflowState(
-        session_id="test-session",
+        session_id=session_id,
         workflow_name="test-workflow",
         step="execute",
         step_entered_at=datetime.now(UTC),
-        variables={"tdd_mode": True, "auto_decompose": True},
-    )
-
-
-@pytest.fixture
-def workflow_state_tdd_disabled():
-    """Workflow state with tdd_mode disabled."""
-    return WorkflowState(
-        session_id="test-session",
-        workflow_name="test-workflow",
-        step="execute",
-        step_entered_at=datetime.now(UTC),
-        variables={"tdd_mode": False, "auto_decompose": True},
+        variables=variables,
     )
 
 
@@ -152,25 +162,22 @@ class TestTddModeRoutesToExpander:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_multi_step_with_tdd_mode_calls_expander(
-        self, task_manager, sync_manager, mock_task_expander, config_tdd_enabled
+        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_enabled, workflow_state_manager
     ):
         """When tdd_mode=true and description is multi-step, TaskExpander should be called."""
+        session_id = "test-session-001"
         multi_step_description = """Implement user authentication:
 1. Create user model with email and password
 2. Add login endpoint with JWT
 3. Implement logout endpoint"""
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx, \
-             patch("gobby.mcp_proxy.tools.tasks.get_workflow_state") as mock_get_state:
+        # Create session and workflow state
+        create_test_session(test_db, session_id)
+        state = create_workflow_state(session_id, tdd_mode=True)
+        workflow_state_manager.save_state(state)
 
+        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "test-project"}
-            mock_get_state.return_value = WorkflowState(
-                session_id="test",
-                workflow_name="test",
-                step="execute",
-                step_entered_at=datetime.now(UTC),
-                variables={"tdd_mode": True},
-            )
 
             registry = create_task_registry(
                 task_manager=task_manager,
@@ -178,12 +185,12 @@ class TestTddModeRoutesToExpander:
                 task_expander=mock_task_expander,
                 config=config_tdd_enabled,
             )
-            create_task = registry.get_tool("create_task")
 
-            result = await create_task(
-                title="Add authentication",
-                description=multi_step_description,
-            )
+            result = await registry.call("create_task", {
+                "title": "Add authentication",
+                "description": multi_step_description,
+                "session_id": session_id,
+            })
 
             # TaskExpander.expand_task should have been called
             mock_task_expander.expand_task.assert_called_once()
@@ -192,9 +199,10 @@ class TestTddModeRoutesToExpander:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_tdd_mode_creates_test_implementation_pairs(
-        self, task_manager, sync_manager, mock_task_expander, config_tdd_enabled
+        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_enabled, workflow_state_manager
     ):
         """TDD mode should result in test->implementation task pairs."""
+        session_id = "test-session-002"
         multi_step_description = """Add caching layer:
 1. Install Redis client
 2. Create cache middleware
@@ -211,17 +219,13 @@ class TestTddModeRoutesToExpander:
             "raw_response": "TDD pairs created",
         })
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx, \
-             patch("gobby.mcp_proxy.tools.tasks.get_workflow_state") as mock_get_state:
+        # Create session and workflow state
+        create_test_session(test_db, session_id)
+        state = create_workflow_state(session_id, tdd_mode=True)
+        workflow_state_manager.save_state(state)
 
+        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "test-project"}
-            mock_get_state.return_value = WorkflowState(
-                session_id="test",
-                workflow_name="test",
-                step="execute",
-                step_entered_at=datetime.now(UTC),
-                variables={"tdd_mode": True},
-            )
 
             registry = create_task_registry(
                 task_manager=task_manager,
@@ -229,15 +233,16 @@ class TestTddModeRoutesToExpander:
                 task_expander=mock_task_expander,
                 config=config_tdd_enabled,
             )
-            create_task = registry.get_tool("create_task")
 
-            result = await create_task(
-                title="Add caching",
-                description=multi_step_description,
-            )
+            result = await registry.call("create_task", {
+                "title": "Add caching",
+                "description": multi_step_description,
+                "session_id": session_id,
+            })
 
             # Result should indicate TDD expansion occurred
             assert result.get("subtask_count", 0) >= 6  # More subtasks due to TDD pairs
+            assert result.get("tdd_expanded") is True
 
 
 # =============================================================================
@@ -252,25 +257,22 @@ class TestTddModeDisabledUsesRegex:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_tdd_disabled_uses_regex_extraction(
-        self, task_manager, sync_manager, mock_task_expander, config_tdd_disabled
+        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_disabled, workflow_state_manager
     ):
         """When tdd_mode=false, multi-step tasks use regex extraction, not TaskExpander."""
+        session_id = "test-session-003"
         multi_step_description = """Setup project:
 1. Initialize repository
 2. Add dependencies
 3. Configure CI/CD"""
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx, \
-             patch("gobby.mcp_proxy.tools.tasks.get_workflow_state") as mock_get_state:
+        # Create session and workflow state
+        create_test_session(test_db, session_id)
+        state = create_workflow_state(session_id, tdd_mode=False)
+        workflow_state_manager.save_state(state)
 
+        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "test-project"}
-            mock_get_state.return_value = WorkflowState(
-                session_id="test",
-                workflow_name="test",
-                step="execute",
-                step_entered_at=datetime.now(UTC),
-                variables={"tdd_mode": False},
-            )
 
             registry = create_task_registry(
                 task_manager=task_manager,
@@ -278,12 +280,12 @@ class TestTddModeDisabledUsesRegex:
                 task_expander=mock_task_expander,
                 config=config_tdd_disabled,
             )
-            create_task = registry.get_tool("create_task")
 
-            result = await create_task(
-                title="Setup",
-                description=multi_step_description,
-            )
+            result = await registry.call("create_task", {
+                "title": "Setup",
+                "description": multi_step_description,
+                "session_id": session_id,
+            })
 
             # TaskExpander should NOT have been called
             mock_task_expander.expand_task.assert_not_called()
@@ -295,22 +297,19 @@ class TestTddModeDisabledUsesRegex:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_single_step_task_never_calls_expander(
-        self, task_manager, sync_manager, mock_task_expander, config_tdd_enabled
+        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_enabled, workflow_state_manager
     ):
         """Single-step tasks should never call TaskExpander, even with tdd_mode=true."""
+        session_id = "test-session-004"
         single_step_description = "Fix the typo in the README file."
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx, \
-             patch("gobby.mcp_proxy.tools.tasks.get_workflow_state") as mock_get_state:
+        # Create session and workflow state
+        create_test_session(test_db, session_id)
+        state = create_workflow_state(session_id, tdd_mode=True)
+        workflow_state_manager.save_state(state)
 
+        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "test-project"}
-            mock_get_state.return_value = WorkflowState(
-                session_id="test",
-                workflow_name="test",
-                step="execute",
-                step_entered_at=datetime.now(UTC),
-                variables={"tdd_mode": True},
-            )
 
             registry = create_task_registry(
                 task_manager=task_manager,
@@ -318,12 +317,12 @@ class TestTddModeDisabledUsesRegex:
                 task_expander=mock_task_expander,
                 config=config_tdd_enabled,
             )
-            create_task = registry.get_tool("create_task")
 
-            result = await create_task(
-                title="Fix typo",
-                description=single_step_description,
-            )
+            result = await registry.call("create_task", {
+                "title": "Fix typo",
+                "description": single_step_description,
+                "session_id": session_id,
+            })
 
             # TaskExpander should NOT be called for single-step tasks
             mock_task_expander.expand_task.assert_not_called()
@@ -341,26 +340,23 @@ class TestTddModeResolutionHierarchy:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_workflow_variable_overrides_config(
-        self, task_manager, sync_manager, mock_task_expander, config_tdd_enabled
+        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_enabled, workflow_state_manager
     ):
         """Workflow variable tdd_mode=false should override config tdd_mode=true."""
+        session_id = "test-session-005"
         multi_step_description = """Build feature:
 1. Create model
 2. Add API
 3. Build UI"""
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx, \
-             patch("gobby.mcp_proxy.tools.tasks.get_workflow_state") as mock_get_state:
+        # Create session and workflow state
+        create_test_session(test_db, session_id)
+        # Config has tdd_mode=true, but workflow state has tdd_mode=false
+        state = create_workflow_state(session_id, tdd_mode=False)
+        workflow_state_manager.save_state(state)
 
+        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "test-project"}
-            # Workflow state has tdd_mode=false (overrides config which has tdd_mode=true)
-            mock_get_state.return_value = WorkflowState(
-                session_id="test",
-                workflow_name="test",
-                step="execute",
-                step_entered_at=datetime.now(UTC),
-                variables={"tdd_mode": False},
-            )
 
             registry = create_task_registry(
                 task_manager=task_manager,
@@ -368,12 +364,12 @@ class TestTddModeResolutionHierarchy:
                 task_expander=mock_task_expander,
                 config=config_tdd_enabled,  # Config has tdd_mode=true
             )
-            create_task = registry.get_tool("create_task")
 
-            result = await create_task(
-                title="Build feature",
-                description=multi_step_description,
-            )
+            result = await registry.call("create_task", {
+                "title": "Build feature",
+                "description": multi_step_description,
+                "session_id": session_id,
+            })
 
             # Workflow variable (false) wins, so expander should NOT be called
             mock_task_expander.expand_task.assert_not_called()
@@ -382,26 +378,23 @@ class TestTddModeResolutionHierarchy:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_config_used_when_workflow_variable_not_set(
-        self, task_manager, sync_manager, mock_task_expander, config_tdd_enabled
+        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_enabled, workflow_state_manager
     ):
         """Config tdd_mode should be used when workflow variable is not set."""
+        session_id = "test-session-006"
         multi_step_description = """Add feature:
 1. Step one
 2. Step two
 3. Step three"""
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx, \
-             patch("gobby.mcp_proxy.tools.tasks.get_workflow_state") as mock_get_state:
+        # Create session and workflow state
+        create_test_session(test_db, session_id)
+        # Workflow state has NO tdd_mode variable
+        state = create_workflow_state(session_id, tdd_mode=None)  # No tdd_mode
+        workflow_state_manager.save_state(state)
 
+        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "test-project"}
-            # Workflow state has NO tdd_mode variable
-            mock_get_state.return_value = WorkflowState(
-                session_id="test",
-                workflow_name="test",
-                step="execute",
-                step_entered_at=datetime.now(UTC),
-                variables={},  # No tdd_mode variable
-            )
 
             registry = create_task_registry(
                 task_manager=task_manager,
@@ -409,12 +402,12 @@ class TestTddModeResolutionHierarchy:
                 task_expander=mock_task_expander,
                 config=config_tdd_enabled,  # Config has tdd_mode=true
             )
-            create_task = registry.get_tool("create_task")
 
-            result = await create_task(
-                title="Add feature",
-                description=multi_step_description,
-            )
+            result = await registry.call("create_task", {
+                "title": "Add feature",
+                "description": multi_step_description,
+                "session_id": session_id,
+            })
 
             # Config (true) is used, so expander SHOULD be called
             mock_task_expander.expand_task.assert_called_once()
@@ -423,26 +416,23 @@ class TestTddModeResolutionHierarchy:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_workflow_variable_true_enables_tdd(
-        self, task_manager, sync_manager, mock_task_expander, config_tdd_disabled
+        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_disabled, workflow_state_manager
     ):
         """Workflow variable tdd_mode=true should enable TDD even if config is false."""
+        session_id = "test-session-007"
         multi_step_description = """Implement auth:
 1. Create user model
 2. Add login endpoint
 3. Add logout endpoint"""
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx, \
-             patch("gobby.mcp_proxy.tools.tasks.get_workflow_state") as mock_get_state:
+        # Create session and workflow state
+        create_test_session(test_db, session_id)
+        # Workflow state has tdd_mode=true (overrides config false)
+        state = create_workflow_state(session_id, tdd_mode=True)
+        workflow_state_manager.save_state(state)
 
+        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "test-project"}
-            # Workflow state has tdd_mode=true (overrides config false)
-            mock_get_state.return_value = WorkflowState(
-                session_id="test",
-                workflow_name="test",
-                step="execute",
-                step_entered_at=datetime.now(UTC),
-                variables={"tdd_mode": True},
-            )
 
             registry = create_task_registry(
                 task_manager=task_manager,
@@ -450,12 +440,12 @@ class TestTddModeResolutionHierarchy:
                 task_expander=mock_task_expander,
                 config=config_tdd_disabled,  # Config has tdd_mode=false
             )
-            create_task = registry.get_tool("create_task")
 
-            result = await create_task(
-                title="Implement auth",
-                description=multi_step_description,
-            )
+            result = await registry.call("create_task", {
+                "title": "Implement auth",
+                "description": multi_step_description,
+                "session_id": session_id,
+            })
 
             # Workflow variable (true) wins, so expander SHOULD be called
             mock_task_expander.expand_task.assert_called_once()
@@ -464,20 +454,20 @@ class TestTddModeResolutionHierarchy:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_no_workflow_state_uses_config(
-        self, task_manager, sync_manager, mock_task_expander, config_tdd_enabled
+        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_enabled
     ):
         """When no workflow state exists, config tdd_mode should be used."""
+        session_id = "test-session-008"  # No workflow state saved for this session
         multi_step_description = """Setup:
 1. First step
 2. Second step
 3. Third step"""
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx, \
-             patch("gobby.mcp_proxy.tools.tasks.get_workflow_state") as mock_get_state:
+        # Create session but NO workflow state
+        create_test_session(test_db, session_id)
 
+        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "test-project"}
-            # No workflow state
-            mock_get_state.return_value = None
 
             registry = create_task_registry(
                 task_manager=task_manager,
@@ -485,12 +475,12 @@ class TestTddModeResolutionHierarchy:
                 task_expander=mock_task_expander,
                 config=config_tdd_enabled,  # Config has tdd_mode=true
             )
-            create_task = registry.get_tool("create_task")
 
-            result = await create_task(
-                title="Setup",
-                description=multi_step_description,
-            )
+            result = await registry.call("create_task", {
+                "title": "Setup",
+                "description": multi_step_description,
+                "session_id": session_id,
+            })
 
             # Config (true) is used, so expander SHOULD be called
             mock_task_expander.expand_task.assert_called_once()
@@ -508,9 +498,11 @@ class TestTddModeEdgeCases:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_expander_failure_falls_back_to_regex(
-        self, task_manager, sync_manager, mock_task_expander, config_tdd_enabled
+        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_enabled, workflow_state_manager
     ):
         """If TaskExpander fails, should fall back to regex extraction."""
+        session_id = "test-session-009"
+
         # Make expander fail
         mock_task_expander.expand_task = AsyncMock(
             side_effect=Exception("LLM service unavailable")
@@ -521,17 +513,13 @@ class TestTddModeEdgeCases:
 2. Add API
 3. Build UI"""
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx, \
-             patch("gobby.mcp_proxy.tools.tasks.get_workflow_state") as mock_get_state:
+        # Create session and workflow state
+        create_test_session(test_db, session_id)
+        state = create_workflow_state(session_id, tdd_mode=True)
+        workflow_state_manager.save_state(state)
 
+        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "test-project"}
-            mock_get_state.return_value = WorkflowState(
-                session_id="test",
-                workflow_name="test",
-                step="execute",
-                step_entered_at=datetime.now(UTC),
-                variables={"tdd_mode": True},
-            )
 
             registry = create_task_registry(
                 task_manager=task_manager,
@@ -539,13 +527,13 @@ class TestTddModeEdgeCases:
                 task_expander=mock_task_expander,
                 config=config_tdd_enabled,
             )
-            create_task = registry.get_tool("create_task")
 
             # Should not raise - should fall back to regex
-            result = await create_task(
-                title="Build feature",
-                description=multi_step_description,
-            )
+            result = await registry.call("create_task", {
+                "title": "Build feature",
+                "description": multi_step_description,
+                "session_id": session_id,
+            })
 
             # Expander was called but failed
             mock_task_expander.expand_task.assert_called_once()
@@ -558,25 +546,22 @@ class TestTddModeEdgeCases:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_epic_type_skips_tdd_mode(
-        self, task_manager, sync_manager, mock_task_expander, config_tdd_enabled
+        self, test_db, task_manager, sync_manager, mock_task_expander, config_tdd_enabled, workflow_state_manager
     ):
         """Epic-type tasks should skip TDD mode (epics are containers, not code)."""
+        session_id = "test-session-010"
         multi_step_description = """Epic phases:
 1. Phase 1: Research
 2. Phase 2: Implementation
 3. Phase 3: Testing"""
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx, \
-             patch("gobby.mcp_proxy.tools.tasks.get_workflow_state") as mock_get_state:
+        # Create session and workflow state
+        create_test_session(test_db, session_id)
+        state = create_workflow_state(session_id, tdd_mode=True)
+        workflow_state_manager.save_state(state)
 
+        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "test-project"}
-            mock_get_state.return_value = WorkflowState(
-                session_id="test",
-                workflow_name="test",
-                step="execute",
-                step_entered_at=datetime.now(UTC),
-                variables={"tdd_mode": True},
-            )
 
             registry = create_task_registry(
                 task_manager=task_manager,
@@ -584,13 +569,13 @@ class TestTddModeEdgeCases:
                 task_expander=mock_task_expander,
                 config=config_tdd_enabled,
             )
-            create_task = registry.get_tool("create_task")
 
-            result = await create_task(
-                title="Project Epic",
-                description=multi_step_description,
-                task_type="epic",
-            )
+            result = await registry.call("create_task", {
+                "title": "Project Epic",
+                "description": multi_step_description,
+                "task_type": "epic",
+                "session_id": session_id,
+            })
 
             # TaskExpander should NOT be called for epics
             mock_task_expander.expand_task.assert_not_called()
@@ -599,25 +584,22 @@ class TestTddModeEdgeCases:
     @pytest.mark.slow
     @pytest.mark.integration
     async def test_no_expander_provided_uses_regex(
-        self, task_manager, sync_manager, config_tdd_enabled
+        self, test_db, task_manager, sync_manager, config_tdd_enabled, workflow_state_manager
     ):
         """When no TaskExpander is provided, should use regex extraction."""
+        session_id = "test-session-011"
         multi_step_description = """Build feature:
 1. Create model
 2. Add API
 3. Build UI"""
 
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx, \
-             patch("gobby.mcp_proxy.tools.tasks.get_workflow_state") as mock_get_state:
+        # Create session and workflow state
+        create_test_session(test_db, session_id)
+        state = create_workflow_state(session_id, tdd_mode=True)
+        workflow_state_manager.save_state(state)
 
+        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "test-project"}
-            mock_get_state.return_value = WorkflowState(
-                session_id="test",
-                workflow_name="test",
-                step="execute",
-                step_entered_at=datetime.now(UTC),
-                variables={"tdd_mode": True},
-            )
 
             # No task_expander provided
             registry = create_task_registry(
@@ -626,13 +608,13 @@ class TestTddModeEdgeCases:
                 task_expander=None,  # No expander
                 config=config_tdd_enabled,
             )
-            create_task = registry.get_tool("create_task")
 
             # Should not raise - should use regex extraction
-            result = await create_task(
-                title="Build feature",
-                description=multi_step_description,
-            )
+            result = await registry.call("create_task", {
+                "title": "Build feature",
+                "description": multi_step_description,
+                "session_id": session_id,
+            })
 
             # Task should still be created
             assert "id" in result
