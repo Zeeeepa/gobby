@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -7,6 +9,7 @@ from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import LocalMemoryManager, Memory
 
 if TYPE_CHECKING:
+    from gobby.compression import TextCompressor
     from gobby.memory.semantic_search import EmbedStats, SemanticMemorySearch
 
 logger = logging.getLogger(__name__)
@@ -23,15 +26,17 @@ class MemoryManager:
         db: LocalDatabase,
         config: MemoryConfig,
         openai_api_key: str | None = None,
+        compressor: TextCompressor | None = None,
     ):
         self.db = db
         self.storage = LocalMemoryManager(db)
         self.config = config
         self._openai_api_key = openai_api_key
         self._semantic_search: SemanticMemorySearch | None = None
+        self.compressor = compressor
 
     @property
-    def semantic_search(self) -> "SemanticMemorySearch":
+    def semantic_search(self) -> SemanticMemorySearch:
         """Lazy-init semantic search to avoid import cycles."""
         if self._semantic_search is None:
             from gobby.memory.semantic_search import SemanticMemorySearch
@@ -494,7 +499,7 @@ class MemoryManager:
         self,
         project_id: str | None = None,
         force: bool = False,
-    ) -> "EmbedStats":
+    ) -> EmbedStats:
         """
         Rebuild embeddings for all memories.
 
