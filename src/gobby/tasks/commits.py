@@ -424,7 +424,57 @@ def extract_mentioned_symbols(task: dict[str, Any]) -> list[str]:
     Returns:
         List of unique symbol names mentioned in the task.
     """
-    raise NotImplementedError("extract_mentioned_symbols not yet implemented")
+    # Combine text from all relevant fields
+    text_parts = []
+    if task.get("title"):
+        text_parts.append(task["title"])
+    if task.get("description"):
+        text_parts.append(task["description"])
+    if task.get("validation_criteria"):
+        text_parts.append(task["validation_criteria"])
+
+    if not text_parts:
+        return []
+
+    combined_text = "\n".join(text_parts)
+    found_symbols: set[str] = set()
+
+    # Pattern to match backtick-quoted content
+    backtick_pattern = r"`([^`]+)`"
+    backtick_matches = re.findall(backtick_pattern, combined_text)
+
+    for match in backtick_matches:
+        match = match.strip()
+
+        # Skip if it looks like a file path (contains / or has file extension pattern)
+        if "/" in match:
+            continue
+        # Skip if it looks like a filename with common extensions
+        if re.search(r"\.[a-zA-Z]{1,4}$", match) and "." in match:
+            # But allow method calls like obj.method()
+            if not re.search(r"^[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*(?:\(\))?$", match):
+                continue
+
+        # Extract the symbol name
+        # Remove trailing () if present
+        symbol = re.sub(r"\(\)$", "", match)
+
+        # Handle Class.method pattern - extract the method name
+        if "." in symbol:
+            parts = symbol.split(".")
+            # Add the method name (last part)
+            method_name = parts[-1]
+            if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", method_name):
+                found_symbols.add(method_name)
+            # Optionally also add the full reference
+            if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*\.[a-zA-Z_][a-zA-Z0-9_]*$", symbol):
+                found_symbols.add(symbol)
+        else:
+            # Simple identifier (function name, class name, etc.)
+            if re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", symbol):
+                found_symbols.add(symbol)
+
+    return list(found_symbols)
 
 
 # Task ID patterns to search for in commit messages
