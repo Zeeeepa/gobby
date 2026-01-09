@@ -25,6 +25,9 @@ variables:
   session_task: null  # Task ID(s) to complete before exit
   # Failsafe: force allow stop after N blocked attempts (resets on user prompt)
   premature_stop_max_attempts: 3
+  # Require active task (in_progress) before allowing Edit/Write tools
+  # Enforces task discipline in autonomous sessions
+  require_task_before_edit: true
 
 steps:
   - name: work
