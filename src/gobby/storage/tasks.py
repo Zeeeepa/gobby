@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Priority name to numeric value mapping
-PRIORITY_MAP = {"low": 3, "medium": 2, "high": 1, "critical": 0}
+PRIORITY_MAP = {"backlog": 4, "low": 3, "medium": 2, "high": 1, "critical": 0}
 
 
 def normalize_priority(priority: int | str | None) -> int:

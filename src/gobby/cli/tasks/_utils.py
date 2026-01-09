@@ -306,9 +306,11 @@ def format_task_row(
         }.get(task.status, "?")
 
     priority_icon = {
+        0: "🟣",  # Critical
         1: "🔴",  # High
         2: "🟡",  # Medium
         3: "🔵",  # Low
+        4: "⚪",  # Backlog
     }.get(task.priority, "⚪")
 
     # Build row with proper visual width padding
