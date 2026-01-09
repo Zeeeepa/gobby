@@ -1708,6 +1708,147 @@ class TestHeadingHasCheckboxes:
         assert builder._heading_has_checkboxes(heading, checkbox_lookup) is False
 
 
+class TestIsActionableSection:
+    """Tests for TaskHierarchyBuilder._is_actionable_section()."""
+
+    def test_actionable_keywords_detected(self, mock_task_manager):
+        """Headings with actionable keywords return True."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        # All actionable keywords should be detected
+        actionable_headings = [
+            "Implementation Details",
+            "Phase 1: Foundation",
+            "Tasks for Sprint 1",
+            "Steps to Complete",
+            "Work Items",
+            "TODO Items",
+            "Action Items",
+            "Deliverables",
+            "Required Changes",
+            "Modifications Needed",
+            "Requirements",
+        ]
+
+        for heading in actionable_headings:
+            assert builder._is_actionable_section(heading) is True, f"'{heading}' should be actionable"
+
+    def test_non_actionable_sections_detected(self, mock_task_manager):
+        """Headings without actionable keywords return False."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        # Non-actionable headings should return False
+        non_actionable_headings = [
+            "Overview",
+            "Module Structure",
+            "Configuration Example",
+            "Architecture",
+            "Background",
+            "Introduction",
+            "Summary",
+            "Appendix",
+            "References",
+            "Glossary",
+        ]
+
+        for heading in non_actionable_headings:
+            assert builder._is_actionable_section(heading) is False, f"'{heading}' should NOT be actionable"
+
+    def test_case_insensitive_matching(self, mock_task_manager):
+        """Keyword matching is case-insensitive."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        assert builder._is_actionable_section("IMPLEMENTATION") is True
+        assert builder._is_actionable_section("Phase") is True
+        assert builder._is_actionable_section("TASKS") is True
+        assert builder._is_actionable_section("steps") is True
+
+
+class TestNonActionableSectionsSkipped:
+    """Tests that non-actionable sections don't trigger LLM expansion."""
+
+    @pytest.mark.asyncio
+    async def test_non_actionable_section_skips_llm(self, mock_task_manager, mock_task_expander):
+        """Non-actionable sections like 'Overview' should NOT trigger LLM expansion."""
+        content = """## Overview
+
+This is an overview of the project.
+It provides background information.
+
+## Configuration Example
+
+```yaml
+key: value
+```
+
+## Implementation Tasks
+
+This phase involves implementing the core features.
+"""
+        heading_parser = MarkdownStructureParser()
+        headings = heading_parser.parse(content)
+
+        # No checkboxes
+        checkboxes = None
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        result = await builder.build_from_headings_with_fallback(
+            headings, checkboxes, task_expander=mock_task_expander
+        )
+
+        # Only "Implementation Tasks" should trigger LLM expansion
+        # "Overview" and "Configuration Example" should NOT
+        assert len(mock_task_expander.expand_calls) == 1
+        assert mock_task_expander.expand_calls[0]["title"] == "Implementation Tasks"
+
+        # Should have 3 heading tasks + 2 LLM-created subtasks for Implementation only
+        # Overview (1) + Configuration Example (1) + Implementation Tasks (1) + 2 subtasks = 5
+        assert result.total_count == 5
+
+    @pytest.mark.asyncio
+    async def test_all_non_actionable_sections_no_llm(self, mock_task_manager, mock_task_expander):
+        """Spec with only non-actionable sections should not call LLM."""
+        content = """## Overview
+
+Project overview.
+
+## Architecture
+
+System architecture description.
+
+## Glossary
+
+Term definitions.
+"""
+        heading_parser = MarkdownStructureParser()
+        headings = heading_parser.parse(content)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        await builder.build_from_headings_with_fallback(
+            headings, checkboxes=None, task_expander=mock_task_expander
+        )
+
+        # No LLM expansion should happen
+        assert len(mock_task_expander.expand_calls) == 0
+
+
 # =============================================================================
 # Parallelism Detection Tests
 # =============================================================================

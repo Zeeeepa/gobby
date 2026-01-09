@@ -319,6 +319,23 @@ HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+)$")
 # Regex pattern for fenced code block markers (``` or ~~~)
 FENCE_PATTERN = re.compile(r"^(`{3,}|~{3,})")
 
+# Keywords that indicate a section contains actionable items worth expanding
+# Sections without these keywords (e.g., "Overview", "Configuration Example")
+# should NOT be LLM-expanded to avoid creating duplicate/invalid tasks
+ACTIONABLE_KEYWORDS = {
+    "implementation",
+    "tasks",
+    "steps",
+    "phase",
+    "work items",
+    "todo",
+    "action items",
+    "deliverables",
+    "changes",
+    "modifications",
+    "requirements",
+}
+
 
 @dataclass
 class ExtractedCheckboxes:
@@ -1033,8 +1050,9 @@ class TaskHierarchyBuilder:
                     task_expander=task_expander,
                 )
         else:
-            # No checkboxes - fall back to LLM expansion
-            if task_expander and heading.content.strip():
+            # No checkboxes - fall back to LLM expansion if section is actionable
+            is_actionable = self._is_actionable_section(heading.text)
+            if task_expander and heading.content.strip() and is_actionable:
                 logger.info(f"No checkboxes under '{heading.text}', using LLM expansion")
                 try:
                     result = await task_expander.expand_task(
@@ -1069,7 +1087,12 @@ class TaskHierarchyBuilder:
                 except Exception as e:
                     logger.warning(f"LLM fallback failed for '{heading.text}': {e}")
             else:
-                # No expander available, still process children (as epics/tasks)
+                # No expander, no content, or non-actionable section - skip LLM expansion
+                if task_expander and heading.content.strip() and not is_actionable:
+                    logger.debug(
+                        f"Skipping LLM expansion for non-actionable section '{heading.text}'"
+                    )
+                # Still process children (as epics/tasks)
                 for child in heading.children:
                     await self._process_heading_with_fallback(
                         heading=child,
@@ -1105,6 +1128,21 @@ class TaskHierarchyBuilder:
                 return True
 
         return False
+
+    def _is_actionable_section(self, heading_text: str) -> bool:
+        """Check if a heading indicates an actionable section worth expanding.
+
+        Sections like "Overview", "Configuration Example", etc. should NOT
+        be expanded as they contain informational content, not work items.
+
+        Args:
+            heading_text: The heading text to check
+
+        Returns:
+            True if the heading contains actionable keywords
+        """
+        heading_lower = heading_text.lower()
+        return any(keyword in heading_lower for keyword in ACTIONABLE_KEYWORDS)
 
     def _detect_parallel_groups(
         self,
