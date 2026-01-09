@@ -142,6 +142,16 @@ class ActionExecutor:
         self.stuck_detector = stuck_detector
         self.websocket_server = websocket_server
         self._handlers: dict[str, ActionHandler] = {}
+
+        # Create compressor from config if available
+        self._compressor: TextCompressor | None = None
+        if config is not None:
+            compression_config = getattr(config, "compression", None)
+            if compression_config is not None:
+                from gobby.compression import TextCompressor
+
+                self._compressor = TextCompressor(compression_config)
+
         self._register_defaults()
 
     def register(self, name: str, handler: ActionHandler) -> None:
