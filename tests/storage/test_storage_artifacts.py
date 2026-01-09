@@ -532,3 +532,527 @@ class TestSessionArtifactsDataIntegrity:
         rows = db.fetchall("SELECT artifact_type FROM session_artifacts ORDER BY artifact_type")
         stored_types = [row["artifact_type"] for row in rows]
         assert sorted(stored_types) == sorted(artifact_types)
+
+
+# =============================================================================
+# Artifact Dataclass Tests (TDD Red Phase)
+# =============================================================================
+
+
+class TestArtifactDataclass:
+    """Tests for Artifact dataclass with from_row() and to_dict() methods."""
+
+    def test_import_artifact(self):
+        """Test that Artifact can be imported from storage.artifacts."""
+        from gobby.storage.artifacts import Artifact
+
+        assert Artifact is not None
+
+    def test_artifact_has_required_fields(self):
+        """Test that Artifact has all required fields."""
+        from gobby.storage.artifacts import Artifact
+
+        artifact = Artifact(
+            id="art-1",
+            session_id="sess-1",
+            artifact_type="code",
+            content="def hello(): pass",
+            created_at="2026-01-08T00:00:00Z",
+        )
+        assert artifact.id == "art-1"
+        assert artifact.session_id == "sess-1"
+        assert artifact.artifact_type == "code"
+        assert artifact.content == "def hello(): pass"
+        assert artifact.created_at == "2026-01-08T00:00:00Z"
+
+    def test_artifact_has_optional_fields(self):
+        """Test that Artifact has optional fields with defaults."""
+        from gobby.storage.artifacts import Artifact
+
+        artifact = Artifact(
+            id="art-1",
+            session_id="sess-1",
+            artifact_type="code",
+            content="content",
+            created_at="2026-01-08T00:00:00Z",
+        )
+        assert artifact.metadata is None
+        assert artifact.source_file is None
+        assert artifact.line_start is None
+        assert artifact.line_end is None
+
+    def test_artifact_from_row(self, tmp_path):
+        """Test Artifact.from_row() creates Artifact from database row."""
+        from gobby.storage.artifacts import Artifact
+
+        db_path = tmp_path / "artifacts_from_row.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup prerequisites
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+        db.execute(
+            """INSERT INTO session_artifacts (id, session_id, artifact_type, content, metadata_json, created_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'))""",
+            ("art-1", "sess-1", "code", "def hello(): pass", json.dumps({"lang": "python"})),
+        )
+
+        row = db.fetchone("SELECT * FROM session_artifacts WHERE id = ?", ("art-1",))
+        artifact = Artifact.from_row(row)
+
+        assert artifact.id == "art-1"
+        assert artifact.session_id == "sess-1"
+        assert artifact.artifact_type == "code"
+        assert artifact.content == "def hello(): pass"
+        assert artifact.metadata == {"lang": "python"}
+
+    def test_artifact_to_dict(self):
+        """Test Artifact.to_dict() returns proper dictionary."""
+        from gobby.storage.artifacts import Artifact
+
+        artifact = Artifact(
+            id="art-1",
+            session_id="sess-1",
+            artifact_type="code",
+            content="def hello(): pass",
+            created_at="2026-01-08T00:00:00Z",
+            metadata={"lang": "python"},
+            source_file="/src/main.py",
+            line_start=1,
+            line_end=10,
+        )
+        result = artifact.to_dict()
+
+        assert isinstance(result, dict)
+        assert result["id"] == "art-1"
+        assert result["session_id"] == "sess-1"
+        assert result["artifact_type"] == "code"
+        assert result["content"] == "def hello(): pass"
+        assert result["metadata"] == {"lang": "python"}
+        assert result["source_file"] == "/src/main.py"
+        assert result["line_start"] == 1
+        assert result["line_end"] == 10
+
+
+# =============================================================================
+# LocalArtifactManager Tests (TDD Red Phase)
+# =============================================================================
+
+
+class TestLocalArtifactManagerImport:
+    """Tests for LocalArtifactManager import."""
+
+    def test_import_local_artifact_manager(self):
+        """Test that LocalArtifactManager can be imported."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        assert LocalArtifactManager is not None
+
+
+class TestLocalArtifactManagerCreate:
+    """Tests for LocalArtifactManager.create_artifact()."""
+
+    def test_create_artifact_with_required_fields(self, tmp_path):
+        """Test create_artifact with required fields only."""
+        from gobby.storage.artifacts import Artifact, LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_create.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup prerequisites
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+        artifact = manager.create_artifact(
+            session_id="sess-1",
+            artifact_type="code",
+            content="def hello(): pass",
+        )
+
+        assert isinstance(artifact, Artifact)
+        assert artifact.session_id == "sess-1"
+        assert artifact.artifact_type == "code"
+        assert artifact.content == "def hello(): pass"
+        assert artifact.id is not None
+
+    def test_create_artifact_with_all_fields(self, tmp_path):
+        """Test create_artifact with all fields."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_create_all.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup prerequisites
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+        artifact = manager.create_artifact(
+            session_id="sess-1",
+            artifact_type="code",
+            content="def hello(): pass",
+            metadata={"lang": "python"},
+            source_file="/src/main.py",
+            line_start=1,
+            line_end=10,
+        )
+
+        assert artifact.metadata == {"lang": "python"}
+        assert artifact.source_file == "/src/main.py"
+        assert artifact.line_start == 1
+        assert artifact.line_end == 10
+
+    def test_create_artifact_persists_to_database(self, tmp_path):
+        """Test that create_artifact saves to database."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_persist.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+        artifact = manager.create_artifact(
+            session_id="sess-1",
+            artifact_type="code",
+            content="def hello(): pass",
+        )
+
+        # Verify in database
+        row = db.fetchone("SELECT * FROM session_artifacts WHERE id = ?", (artifact.id,))
+        assert row is not None
+        assert row["content"] == "def hello(): pass"
+
+
+class TestLocalArtifactManagerGet:
+    """Tests for LocalArtifactManager.get_artifact()."""
+
+    def test_get_artifact_by_id(self, tmp_path):
+        """Test get_artifact returns artifact by ID."""
+        from gobby.storage.artifacts import Artifact, LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_get.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+        created = manager.create_artifact(
+            session_id="sess-1",
+            artifact_type="code",
+            content="def hello(): pass",
+        )
+
+        retrieved = manager.get_artifact(created.id)
+
+        assert retrieved is not None
+        assert isinstance(retrieved, Artifact)
+        assert retrieved.id == created.id
+        assert retrieved.content == "def hello(): pass"
+
+    def test_get_artifact_returns_none_for_nonexistent(self, tmp_path):
+        """Test get_artifact returns None for nonexistent ID."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_get_none.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        manager = LocalArtifactManager(db)
+        result = manager.get_artifact("nonexistent-id")
+
+        assert result is None
+
+
+class TestLocalArtifactManagerList:
+    """Tests for LocalArtifactManager.list_artifacts()."""
+
+    def test_list_artifacts_by_session_id(self, tmp_path):
+        """Test list_artifacts filters by session_id."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_list_session.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-2", "test-project", "ext-2", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+        manager.create_artifact(session_id="sess-1", artifact_type="code", content="content 1")
+        manager.create_artifact(session_id="sess-1", artifact_type="code", content="content 2")
+        manager.create_artifact(session_id="sess-2", artifact_type="code", content="content 3")
+
+        results = manager.list_artifacts(session_id="sess-1")
+
+        assert len(results) == 2
+        assert all(a.session_id == "sess-1" for a in results)
+
+    def test_list_artifacts_by_type(self, tmp_path):
+        """Test list_artifacts filters by artifact_type."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_list_type.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+        manager.create_artifact(session_id="sess-1", artifact_type="code", content="code content")
+        manager.create_artifact(session_id="sess-1", artifact_type="diff", content="diff content")
+        manager.create_artifact(session_id="sess-1", artifact_type="code", content="more code")
+
+        results = manager.list_artifacts(artifact_type="code")
+
+        assert len(results) == 2
+        assert all(a.artifact_type == "code" for a in results)
+
+    def test_list_artifacts_combined_filters(self, tmp_path):
+        """Test list_artifacts with both session_id and artifact_type."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_list_combined.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-2", "test-project", "ext-2", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+        manager.create_artifact(session_id="sess-1", artifact_type="code", content="s1 code")
+        manager.create_artifact(session_id="sess-1", artifact_type="diff", content="s1 diff")
+        manager.create_artifact(session_id="sess-2", artifact_type="code", content="s2 code")
+
+        results = manager.list_artifacts(session_id="sess-1", artifact_type="code")
+
+        assert len(results) == 1
+        assert results[0].session_id == "sess-1"
+        assert results[0].artifact_type == "code"
+
+
+class TestLocalArtifactManagerDelete:
+    """Tests for LocalArtifactManager.delete_artifact()."""
+
+    def test_delete_artifact(self, tmp_path):
+        """Test delete_artifact removes artifact."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_delete.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+        artifact = manager.create_artifact(
+            session_id="sess-1",
+            artifact_type="code",
+            content="to be deleted",
+        )
+
+        result = manager.delete_artifact(artifact.id)
+
+        assert result is True
+        assert manager.get_artifact(artifact.id) is None
+
+    def test_delete_nonexistent_artifact(self, tmp_path):
+        """Test delete_artifact returns False for nonexistent ID."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_delete_none.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        manager = LocalArtifactManager(db)
+        result = manager.delete_artifact("nonexistent-id")
+
+        assert result is False
+
+
+class TestLocalArtifactManagerChangeListeners:
+    """Tests for change listener notification."""
+
+    def test_add_change_listener(self, tmp_path):
+        """Test add_change_listener adds listener."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_listener.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        manager = LocalArtifactManager(db)
+
+        called = []
+
+        def listener():
+            called.append(True)
+
+        manager.add_change_listener(listener)
+
+        assert len(manager._change_listeners) == 1
+
+    def test_create_artifact_notifies_listeners(self, tmp_path):
+        """Test create_artifact notifies change listeners."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_notify_create.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+
+        called = []
+
+        def listener():
+            called.append("create")
+
+        manager.add_change_listener(listener)
+        manager.create_artifact(session_id="sess-1", artifact_type="code", content="test")
+
+        assert "create" in called
+
+    def test_delete_artifact_notifies_listeners(self, tmp_path):
+        """Test delete_artifact notifies change listeners."""
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        db_path = tmp_path / "artifacts_notify_delete.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
+
+        # Setup
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
+        manager = LocalArtifactManager(db)
+        artifact = manager.create_artifact(
+            session_id="sess-1", artifact_type="code", content="test"
+        )
+
+        called = []
+
+        def listener():
+            called.append("delete")
+
+        manager.add_change_listener(listener)
+        manager.delete_artifact(artifact.id)
+
+        assert "delete" in called
