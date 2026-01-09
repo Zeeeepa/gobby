@@ -14,6 +14,7 @@ from .install import install, uninstall
 from .mcp import mcp_server
 from .mcp_proxy import mcp_proxy
 from .memory import memory
+from .merge import merge
 from .sessions import sessions
 from .skills import skills
 from .tasks import tasks
@@ -52,6 +53,7 @@ cli.add_command(agents)
 cli.add_command(worktrees)
 cli.add_command(mcp_proxy)
 cli.add_command(workflows)
+cli.add_command(merge)
 cli.add_command(hooks)
 cli.add_command(plugins)
 cli.add_command(webhooks)
