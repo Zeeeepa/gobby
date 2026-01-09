@@ -16,6 +16,19 @@ FALSE_POSITIVE_PATTERNS = [
     r"files?\s+to\s+modify",
     r"requirements?\s*:",
     r"requirements\s+for\s+fix",
+    # Informational section headers (not actionable)
+    r"##?\s*problem",
+    r"##?\s*issue[s]?",
+    r"##?\s*context",
+    r"##?\s*background",
+    r"##?\s*root\s*cause",
+    r"##?\s*example",
+    r"##?\s*current\s+(?:state|behavior)",
+    # Explanatory list prefixes
+    r"because\s*:",
+    r"due\s+to\s*:",
+    r"reasons?\s*:",
+    r"caused\s+by\s*:",
 ]
 
 # Patterns that indicate implementation steps
