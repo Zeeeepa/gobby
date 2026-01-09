@@ -123,6 +123,49 @@ def test_extract_handoff_context_max_turns():
     # So it won't see tool uses before that.
 
 
+def test_extract_handoff_context_default_max_turns_is_150():
+    """Test that default max_turns is 150 (increased from 100)."""
+    import inspect
+
+    from gobby.sessions.analyzer import TranscriptAnalyzer
+
+    # Check the function signature for default value
+    sig = inspect.signature(TranscriptAnalyzer.extract_handoff_context)
+    max_turns_param = sig.parameters["max_turns"]
+    assert max_turns_param.default == 150, "Default max_turns should be 150"
+
+
+def test_extract_handoff_context_explicit_max_turns_overrides_default():
+    """Test that explicit max_turns parameter overrides the default."""
+    # Create turns with file modifications at different positions
+    turns = []
+    for i in range(200):
+        turns.append(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "Edit",
+                            "input": {"file_path": f"/path/file{i}.py"},
+                        },
+                    ]
+                },
+            }
+        )
+
+    analyzer = TranscriptAnalyzer()
+
+    # With explicit max_turns=50, should only see files from last 50 turns
+    ctx = analyzer.extract_handoff_context(turns, max_turns=50)
+    # Should have files from turns 150-199 (the last 50)
+    assert "/path/file199.py" in ctx.files_modified
+    assert "/path/file150.py" in ctx.files_modified
+    # Should NOT have file from turn 149 (outside the window)
+    assert "/path/file149.py" not in ctx.files_modified
+
+
 def test_extract_todowrite():
     """Test extraction of TodoWrite state from transcript."""
     turns = [
