@@ -920,6 +920,27 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         ALTER TABLE tasks RENAME COLUMN type TO task_type;
         """,
     ),
+    (
+        41,
+        "Create session_artifacts table with FTS5 for full-text search",
+        """
+        CREATE TABLE IF NOT EXISTS session_artifacts (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+            artifact_type TEXT NOT NULL,
+            content TEXT NOT NULL,
+            metadata_json TEXT,
+            source_file TEXT,
+            line_start INTEGER,
+            line_end INTEGER,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_session_artifacts_session ON session_artifacts(session_id);
+        CREATE INDEX IF NOT EXISTS idx_session_artifacts_type ON session_artifacts(artifact_type);
+        CREATE INDEX IF NOT EXISTS idx_session_artifacts_created ON session_artifacts(created_at);
+        CREATE VIRTUAL TABLE IF NOT EXISTS session_artifacts_fts USING fts5(content);
+        """,
+    ),
 ]
 
 

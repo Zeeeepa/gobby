@@ -146,20 +146,36 @@ class TestSessionArtifactsFTS5:
 
         run_migrations(db)
 
+        # Setup prerequisites
+        db.execute(
+            """INSERT INTO projects (id, name, created_at, updated_at)
+               VALUES (?, ?, datetime('now'), datetime('now'))""",
+            ("test-project", "Test Project"),
+        )
+        db.execute(
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+        )
+
         # Insert a test artifact
+        test_content = "def calculate_total(items): return sum(items)"
         db.execute(
             """INSERT INTO session_artifacts (id, session_id, artifact_type, content, created_at)
                VALUES (?, ?, ?, ?, datetime('now'))""",
-            ("art-1", "sess-1", "code", "def calculate_total(items): return sum(items)"),
+            ("art-1", "sess-1", "code", test_content),
         )
 
-        # Insert into FTS table (if using content sync or triggers)
-        # The actual implementation may handle this differently
-        # For now, test the FTS table can be queried
+        # Manually insert into FTS table (no auto-sync triggers)
+        db.execute(
+            """INSERT INTO session_artifacts_fts(content) VALUES (?)""",
+            (test_content,),
+        )
+
+        # Test FTS search works
         row = db.fetchone(
             """SELECT * FROM session_artifacts_fts WHERE content MATCH 'calculate'"""
         )
-        # Note: This test may fail if FTS is not properly synced with main table
         assert row is not None, "FTS search should find matching content"
 
 
@@ -318,9 +334,9 @@ class TestSessionArtifactsMigration:
             ("test-project", "Test Project"),
         )
         db.execute(
-            """INSERT INTO sessions (id, project_id, cli, created_at, updated_at)
-               VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
-            ("sess-1", "test-project", "claude"),
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
         )
 
         # Insert artifact
@@ -364,9 +380,9 @@ class TestSessionArtifactsDataIntegrity:
             ("test-project", "Test Project"),
         )
         db.execute(
-            """INSERT INTO sessions (id, project_id, cli, created_at, updated_at)
-               VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
-            ("sess-1", "test-project", "claude"),
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
         )
 
         # Insert artifact
@@ -397,9 +413,9 @@ class TestSessionArtifactsDataIntegrity:
             ("test-project", "Test Project"),
         )
         db.execute(
-            """INSERT INTO sessions (id, project_id, cli, created_at, updated_at)
-               VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
-            ("sess-1", "test-project", "claude"),
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
         )
 
         # Insert with complex metadata
@@ -435,9 +451,9 @@ class TestSessionArtifactsDataIntegrity:
             ("test-project", "Test Project"),
         )
         db.execute(
-            """INSERT INTO sessions (id, project_id, cli, created_at, updated_at)
-               VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
-            ("sess-1", "test-project", "claude"),
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
         )
 
         # Insert large content (100KB of text)
@@ -467,9 +483,9 @@ class TestSessionArtifactsDataIntegrity:
             ("test-project", "Test Project"),
         )
         db.execute(
-            """INSERT INTO sessions (id, project_id, cli, created_at, updated_at)
-               VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
-            ("sess-1", "test-project", "claude"),
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
         )
 
         # Insert multiple artifacts
@@ -498,9 +514,9 @@ class TestSessionArtifactsDataIntegrity:
             ("test-project", "Test Project"),
         )
         db.execute(
-            """INSERT INTO sessions (id, project_id, cli, created_at, updated_at)
-               VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
-            ("sess-1", "test-project", "claude"),
+            """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+            ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
         )
 
         # Test different artifact types
