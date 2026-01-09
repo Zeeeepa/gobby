@@ -42,10 +42,16 @@ logger = logging.getLogger(__name__)
 class ExternalValidationResult:
     """Result from external validation.
 
+    Used by QA loop to determine next action:
+    - status="valid": Task can be marked complete
+    - status="invalid": Task should be retried with issues as feedback
+    - status="error": Validation failed (timeout, crash, etc.) - may retry or escalate
+    - status="skipped": Validation was skipped (disabled in config)
+
     Attributes:
-        status: Validation status - "valid", "invalid", "error", or "pending"
+        status: Validation status - "valid", "invalid", "error", "skipped", or "pending"
         summary: Human-readable summary of validation result
-        issues: List of structured issues found
+        issues: List of structured issues found (actionable feedback for implementation agent)
         error: Error message if status is "error"
     """
 
@@ -53,6 +59,37 @@ class ExternalValidationResult:
     summary: str
     issues: list[Issue] = field(default_factory=list)
     error: str | None = None
+
+    @property
+    def passed(self) -> bool:
+        """Whether validation passed (status is 'valid')."""
+        return self.status == "valid"
+
+    def format_issues_for_feedback(self) -> str:
+        """Format issues as actionable feedback for implementation agent.
+
+        Returns a formatted string suitable for including in a prompt to the
+        implementation agent, describing what needs to be fixed.
+        """
+        if not self.issues:
+            return ""
+
+        lines = ["## Validation Issues\n"]
+        for i, issue in enumerate(self.issues, 1):
+            lines.append(f"### Issue {i}: {issue.title}")
+            if hasattr(issue, "severity"):
+                lines.append(f"**Severity:** {issue.severity}")
+            if hasattr(issue, "issue_type"):
+                lines.append(f"**Type:** {issue.issue_type}")
+            if hasattr(issue, "location") and issue.location:
+                lines.append(f"**Location:** {issue.location}")
+            if hasattr(issue, "details") and issue.details:
+                lines.append(f"\n{issue.details}")
+            if hasattr(issue, "suggested_fix") and issue.suggested_fix:
+                lines.append(f"\n**Suggested Fix:** {issue.suggested_fix}")
+            lines.append("")
+
+        return "\n".join(lines)
 
 
 async def run_external_validation(
