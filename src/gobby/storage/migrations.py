@@ -941,6 +941,14 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE VIRTUAL TABLE IF NOT EXISTS session_artifacts_fts USING fts5(content);
         """,
     ),
+    (
+        42,
+        "Add id column to session_artifacts_fts for JOIN support",
+        """
+        DROP TABLE IF EXISTS session_artifacts_fts;
+        CREATE VIRTUAL TABLE IF NOT EXISTS session_artifacts_fts USING fts5(id UNINDEXED, content);
+        """,
+    ),
 ]
 
 

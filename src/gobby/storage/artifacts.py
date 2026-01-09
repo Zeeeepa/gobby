@@ -134,6 +134,11 @@ class LocalArtifactManager:
                     now,
                 ),
             )
+            # Also insert into FTS5 table for full-text search
+            conn.execute(
+                "INSERT INTO session_artifacts_fts (id, content) VALUES (?, ?)",
+                (artifact_id, content),
+            )
 
         self._notify_listeners()
         return self.get_artifact(artifact_id)  # type: ignore[return-value]
@@ -204,52 +209,82 @@ class LocalArtifactManager:
             )
             if cursor.rowcount == 0:
                 return False
+            # Also delete from FTS5 table
+            conn.execute(
+                "DELETE FROM session_artifacts_fts WHERE id = ?", (artifact_id,)
+            )
 
         self._notify_listeners()
         return True
 
     def search_artifacts(
         self,
-        query: str,
+        query_text: str,
         session_id: str | None = None,
         artifact_type: str | None = None,
         limit: int = 50,
     ) -> list[Artifact]:
-        """Search artifacts by content.
+        """Search artifacts by content using FTS5 full-text search.
 
-        Uses LIKE-based search for content matching. Can optionally filter
-        by session_id and/or artifact_type.
+        Uses FTS5 MATCH query on session_artifacts_fts with bm25 ranking.
+        Can optionally filter by session_id and/or artifact_type.
 
         Args:
-            query: The search query text
+            query_text: The search query text
             session_id: Optional session ID filter
             artifact_type: Optional artifact type filter
             limit: Maximum number of results (default: 50)
 
         Returns:
-            List of matching Artifacts ordered by recency
+            List of matching Artifacts ordered by relevance (bm25 ranking)
         """
         # Empty query returns empty results
-        if not query or not query.strip():
+        if not query_text or not query_text.strip():
             return []
 
-        # Escape LIKE wildcards in query_text
-        escaped_query = (
-            query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        )
+        # Escape FTS5 special characters and build query
+        # Split into words and add prefix matching for each term
+        words = query_text.strip().split()
+        if not words:
+            return []
 
-        sql = "SELECT * FROM session_artifacts WHERE content LIKE ? ESCAPE '\\'"
-        params: list[Any] = [f"%{escaped_query}%"]
+        # Build FTS5 query: each word becomes a prefix search term
+        # e.g., "calculate total" -> "calculate* total*"
+        fts_terms = []
+        for word in words:
+            # Remove FTS5 special chars that would break syntax: * ^ " ( ) AND OR NOT
+            # Keep only alphanumeric and safe punctuation
+            sanitized = ""
+            for char in word:
+                if char.isalnum() or char in "-_":
+                    sanitized += char
+            if sanitized:
+                fts_terms.append(f"{sanitized}*")
+
+        if not fts_terms:
+            return []
+
+        fts_query = " ".join(fts_terms)
+
+        # Use FTS5 MATCH query with JOIN to main table
+        # Order by bm25() for relevance ranking (lower bm25 = more relevant)
+        sql = """
+            SELECT sa.*
+            FROM session_artifacts sa
+            INNER JOIN session_artifacts_fts fts ON sa.id = fts.id
+            WHERE fts.content MATCH ?
+        """
+        params: list[Any] = [fts_query]
 
         if session_id:
-            sql += " AND session_id = ?"
+            sql += " AND sa.session_id = ?"
             params.append(session_id)
 
         if artifact_type:
-            sql += " AND artifact_type = ?"
+            sql += " AND sa.artifact_type = ?"
             params.append(artifact_type)
 
-        sql += " ORDER BY created_at DESC LIMIT ?"
+        sql += " ORDER BY bm25(session_artifacts_fts) LIMIT ?"
         params.append(limit)
 
         rows = self.db.fetchall(sql, tuple(params))

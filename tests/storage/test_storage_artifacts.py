@@ -1112,7 +1112,7 @@ class TestLocalArtifactManagerSearchBasic:
             session_id="sess-1", artifact_type="code", content="function calculateTax"
         )
 
-        results = manager.search_artifacts(query="calculate")
+        results = manager.search_artifacts(query_text="calculate")
 
         assert len(results) == 2
         assert all("calculate" in r.content.lower() for r in results)
@@ -1150,7 +1150,7 @@ class TestLocalArtifactManagerSearchBasic:
             session_id="sess-2", artifact_type="code", content="calculate discount"
         )
 
-        results = manager.search_artifacts(query="calculate", session_id="sess-1")
+        results = manager.search_artifacts(query_text="calculate", session_id="sess-1")
 
         assert len(results) == 1
         assert results[0].session_id == "sess-1"
@@ -1183,7 +1183,7 @@ class TestLocalArtifactManagerSearchBasic:
             session_id="sess-1", artifact_type="error", content="error: undefined variable"
         )
 
-        results = manager.search_artifacts(query="error", artifact_type="code")
+        results = manager.search_artifacts(query_text="error", artifact_type="code")
 
         assert len(results) == 1
         assert results[0].artifact_type == "code"
@@ -1218,7 +1218,7 @@ class TestLocalArtifactManagerSearchAdvanced:
                 session_id="sess-1", artifact_type="code", content=f"calculate item {i}"
             )
 
-        results = manager.search_artifacts(query="calculate", limit=3)
+        results = manager.search_artifacts(query_text="calculate", limit=3)
 
         assert len(results) == 3
 
@@ -1247,7 +1247,7 @@ class TestLocalArtifactManagerSearchAdvanced:
             session_id="sess-1", artifact_type="code", content="some content"
         )
 
-        results = manager.search_artifacts(query="")
+        results = manager.search_artifacts(query_text="")
 
         assert len(results) == 0
 
@@ -1279,7 +1279,7 @@ class TestLocalArtifactManagerSearchAdvanced:
         )
 
         # Should not raise an error with special FTS5 characters
-        results = manager.search_artifacts(query="SELECT * FROM")
+        results = manager.search_artifacts(query_text="SELECT * FROM")
 
         # Should return results (query matches content)
         assert isinstance(results, list)
@@ -1309,6 +1309,6 @@ class TestLocalArtifactManagerSearchAdvanced:
             session_id="sess-1", artifact_type="code", content="hello world"
         )
 
-        results = manager.search_artifacts(query="xyznonexistent")
+        results = manager.search_artifacts(query_text="xyznonexistent")
 
         assert len(results) == 0
