@@ -483,7 +483,11 @@ class WorkflowEngine:
                 if key in processed_triggers:
                     continue
 
-                response = await self._evaluate_workflow_triggers(workflow, event, context_data)
+                # Merge workflow definition's default variables (lower priority than session state)
+                # Precedence: session state > workflow YAML defaults
+                workflow_context = {**workflow.variables, **context_data}
+
+                response = await self._evaluate_workflow_triggers(workflow, event, workflow_context)
 
                 # Accumulate context
                 if response.context:
