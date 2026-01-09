@@ -1325,6 +1325,248 @@ class TestExtractHandoffContext:
                     assert len(turns) == 2  # Only the two valid JSON lines
 
 
+# --- Tests for extract_handoff_context with compressor ---
+
+
+class TestExtractHandoffContextWithCompressor:
+    """Tests for extract_handoff_context() compressor integration."""
+
+    @pytest.fixture
+    def mock_compressor(self):
+        """Create a mock compressor."""
+        compressor = MagicMock()
+        compressor.compress.return_value = "Compressed markdown content"
+        return compressor
+
+    def test_compressor_none_uses_default_max_turns(
+        self, mock_session_manager, mock_session, tmp_path
+    ):
+        """Should use default max_turns of 100 when compressor=None."""
+        transcript_path = tmp_path / "transcript.jsonl"
+        with open(transcript_path, "w") as f:
+            f.write('{"type": "user", "message": {"content": "test"}}\n')
+
+        mock_session.jsonl_path = str(transcript_path)
+        mock_session_manager.get.return_value = mock_session
+
+        with patch("gobby.sessions.analyzer.TranscriptAnalyzer") as MockAnalyzer:
+            mock_ctx = MagicMock()
+            mock_ctx.git_status = ""
+            mock_ctx.git_commits = []
+            mock_ctx.active_gobby_task = None
+            mock_ctx.active_worktree = None
+            mock_ctx.todo_state = []
+            mock_ctx.files_modified = []
+            mock_ctx.initial_goal = ""
+            mock_ctx.recent_activity = []
+            MockAnalyzer.return_value.extract_handoff_context.return_value = mock_ctx
+
+            with patch("gobby.workflows.context_actions.get_git_status", return_value=""):
+                with patch(
+                    "gobby.workflows.context_actions.get_recent_git_commits", return_value=[]
+                ):
+                    extract_handoff_context(
+                        session_manager=mock_session_manager,
+                        session_id="test-session-id",
+                        compressor=None,
+                    )
+
+                    # Verify max_turns=100 was passed
+                    call_args = MockAnalyzer.return_value.extract_handoff_context.call_args
+                    assert call_args.kwargs.get("max_turns") == 100
+
+    def test_compressor_provided_increases_max_turns(
+        self, mock_session_manager, mock_session, mock_compressor, tmp_path
+    ):
+        """Should increase max_turns to 200 when compressor provided."""
+        transcript_path = tmp_path / "transcript.jsonl"
+        with open(transcript_path, "w") as f:
+            f.write('{"type": "user", "message": {"content": "test"}}\n')
+
+        mock_session.jsonl_path = str(transcript_path)
+        mock_session_manager.get.return_value = mock_session
+
+        with patch("gobby.sessions.analyzer.TranscriptAnalyzer") as MockAnalyzer:
+            mock_ctx = MagicMock()
+            mock_ctx.git_status = ""
+            mock_ctx.git_commits = []
+            mock_ctx.active_gobby_task = None
+            mock_ctx.active_worktree = None
+            mock_ctx.todo_state = []
+            mock_ctx.files_modified = []
+            mock_ctx.initial_goal = ""
+            mock_ctx.recent_activity = []
+            MockAnalyzer.return_value.extract_handoff_context.return_value = mock_ctx
+
+            with patch("gobby.workflows.context_actions.get_git_status", return_value=""):
+                with patch(
+                    "gobby.workflows.context_actions.get_recent_git_commits", return_value=[]
+                ):
+                    extract_handoff_context(
+                        session_manager=mock_session_manager,
+                        session_id="test-session-id",
+                        compressor=mock_compressor,
+                    )
+
+                    # Verify max_turns=200 was passed
+                    call_args = MockAnalyzer.return_value.extract_handoff_context.call_args
+                    assert call_args.kwargs.get("max_turns") == 200
+
+    def test_compressor_called_with_correct_arguments(
+        self, mock_session_manager, mock_session, mock_compressor, tmp_path
+    ):
+        """Should call compressor.compress() with markdown and handoff context type."""
+        transcript_path = tmp_path / "transcript.jsonl"
+        with open(transcript_path, "w") as f:
+            f.write('{"type": "user", "message": {"content": "test"}}\n')
+
+        mock_session.jsonl_path = str(transcript_path)
+        mock_session_manager.get.return_value = mock_session
+
+        with patch("gobby.sessions.analyzer.TranscriptAnalyzer") as MockAnalyzer:
+            mock_ctx = MagicMock()
+            mock_ctx.git_status = ""
+            mock_ctx.git_commits = []
+            mock_ctx.active_gobby_task = None
+            mock_ctx.active_worktree = None
+            mock_ctx.todo_state = []
+            mock_ctx.files_modified = []
+            mock_ctx.initial_goal = "Test goal"
+            mock_ctx.recent_activity = []
+            MockAnalyzer.return_value.extract_handoff_context.return_value = mock_ctx
+
+            with patch("gobby.workflows.context_actions.get_git_status", return_value=""):
+                with patch(
+                    "gobby.workflows.context_actions.get_recent_git_commits", return_value=[]
+                ):
+                    extract_handoff_context(
+                        session_manager=mock_session_manager,
+                        session_id="test-session-id",
+                        compressor=mock_compressor,
+                    )
+
+                    # Verify compressor was called
+                    mock_compressor.compress.assert_called_once()
+                    call_args = mock_compressor.compress.call_args
+
+                    # Check that markdown content was passed (contains the initial goal)
+                    assert "Test goal" in call_args[0][0]
+                    # Check context_type is "handoff"
+                    assert call_args.kwargs.get("context_type") == "handoff"
+
+    def test_compressed_markdown_saved_to_session(
+        self, mock_session_manager, mock_session, mock_compressor, tmp_path
+    ):
+        """Should save compressed markdown to session."""
+        transcript_path = tmp_path / "transcript.jsonl"
+        with open(transcript_path, "w") as f:
+            f.write('{"type": "user", "message": {"content": "test"}}\n')
+
+        mock_session.jsonl_path = str(transcript_path)
+        mock_session_manager.get.return_value = mock_session
+
+        with patch("gobby.sessions.analyzer.TranscriptAnalyzer") as MockAnalyzer:
+            mock_ctx = MagicMock()
+            mock_ctx.git_status = ""
+            mock_ctx.git_commits = []
+            mock_ctx.active_gobby_task = None
+            mock_ctx.active_worktree = None
+            mock_ctx.todo_state = []
+            mock_ctx.files_modified = []
+            mock_ctx.initial_goal = "Goal"
+            mock_ctx.recent_activity = []
+            MockAnalyzer.return_value.extract_handoff_context.return_value = mock_ctx
+
+            with patch("gobby.workflows.context_actions.get_git_status", return_value=""):
+                with patch(
+                    "gobby.workflows.context_actions.get_recent_git_commits", return_value=[]
+                ):
+                    extract_handoff_context(
+                        session_manager=mock_session_manager,
+                        session_id="test-session-id",
+                        compressor=mock_compressor,
+                    )
+
+                    # Verify compressed content was saved
+                    mock_session_manager.update_compact_markdown.assert_called_once_with(
+                        "test-session-id", "Compressed markdown content"
+                    )
+
+    def test_no_compressor_saves_uncompressed_markdown(
+        self, mock_session_manager, mock_session, tmp_path
+    ):
+        """Should save uncompressed markdown when no compressor provided."""
+        transcript_path = tmp_path / "transcript.jsonl"
+        with open(transcript_path, "w") as f:
+            f.write('{"type": "user", "message": {"content": "test"}}\n')
+
+        mock_session.jsonl_path = str(transcript_path)
+        mock_session_manager.get.return_value = mock_session
+
+        with patch("gobby.sessions.analyzer.TranscriptAnalyzer") as MockAnalyzer:
+            mock_ctx = MagicMock()
+            mock_ctx.git_status = ""
+            mock_ctx.git_commits = []
+            mock_ctx.active_gobby_task = None
+            mock_ctx.active_worktree = None
+            mock_ctx.todo_state = []
+            mock_ctx.files_modified = []
+            mock_ctx.initial_goal = "Original goal"
+            mock_ctx.recent_activity = []
+            MockAnalyzer.return_value.extract_handoff_context.return_value = mock_ctx
+
+            with patch("gobby.workflows.context_actions.get_git_status", return_value=""):
+                with patch(
+                    "gobby.workflows.context_actions.get_recent_git_commits", return_value=[]
+                ):
+                    extract_handoff_context(
+                        session_manager=mock_session_manager,
+                        session_id="test-session-id",
+                        compressor=None,
+                    )
+
+                    # Verify original markdown was saved (contains "Original goal")
+                    call_args = mock_session_manager.update_compact_markdown.call_args
+                    assert "Original goal" in call_args[0][1]
+
+    def test_compressor_with_success_result(
+        self, mock_session_manager, mock_session, mock_compressor, tmp_path
+    ):
+        """Should return success with markdown_length from compressed content."""
+        transcript_path = tmp_path / "transcript.jsonl"
+        with open(transcript_path, "w") as f:
+            f.write('{"type": "user", "message": {"content": "test"}}\n')
+
+        mock_session.jsonl_path = str(transcript_path)
+        mock_session_manager.get.return_value = mock_session
+
+        with patch("gobby.sessions.analyzer.TranscriptAnalyzer") as MockAnalyzer:
+            mock_ctx = MagicMock()
+            mock_ctx.git_status = ""
+            mock_ctx.git_commits = []
+            mock_ctx.active_gobby_task = None
+            mock_ctx.active_worktree = None
+            mock_ctx.todo_state = []
+            mock_ctx.files_modified = []
+            mock_ctx.initial_goal = ""
+            mock_ctx.recent_activity = []
+            MockAnalyzer.return_value.extract_handoff_context.return_value = mock_ctx
+
+            with patch("gobby.workflows.context_actions.get_git_status", return_value=""):
+                with patch(
+                    "gobby.workflows.context_actions.get_recent_git_commits", return_value=[]
+                ):
+                    result = extract_handoff_context(
+                        session_manager=mock_session_manager,
+                        session_id="test-session-id",
+                        compressor=mock_compressor,
+                    )
+
+                    assert result["handoff_context_extracted"] is True
+                    # markdown_length should reflect compressed content length
+                    assert result["markdown_length"] == len("Compressed markdown content")
+
+
 # --- Tests for format_handoff_as_markdown ---
 
 
