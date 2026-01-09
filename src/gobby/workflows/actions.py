@@ -683,6 +683,8 @@ class ActionExecutor:
             session_manager=context.session_manager,
             session_id=context.session_id,
             config=context.config,
+            db=self.db,
+            compressor=self._compressor,
         )
 
     def _format_handoff_as_markdown(self, ctx: Any, prompt_template: str | None = None) -> str:
