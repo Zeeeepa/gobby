@@ -511,7 +511,8 @@ def create_task_registry(
         if validation_criteria is not None:
             kwargs["validation_criteria"] = validation_criteria
         if parent_task_id is not None:
-            kwargs["parent_task_id"] = parent_task_id
+            # Empty string means "clear parent" - convert to None for storage layer
+            kwargs["parent_task_id"] = parent_task_id if parent_task_id else None
         if test_strategy is not None:
             kwargs["test_strategy"] = test_strategy
         if workflow_name is not None:
