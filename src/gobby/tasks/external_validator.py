@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 
 from gobby.config.app import TaskValidationConfig
 from gobby.llm import LLMService
+from gobby.tasks.commits import extract_mentioned_files, summarize_diff_for_validation
 from gobby.tasks.issue_extraction import parse_issues_from_response
 from gobby.tasks.validation_models import Issue
 from gobby.utils.json_helpers import extract_json_object
@@ -415,6 +416,14 @@ def _build_spawn_validation_prompt(
     validation_criteria = task.get("validation_criteria", "")
     test_strategy = task.get("test_strategy", "")
 
+    # Extract files mentioned in the task for prioritization
+    priority_files = extract_mentioned_files(task)
+
+    # Summarize diff with priority files for better context
+    summarized_changes = summarize_diff_for_validation(
+        changes_context, priority_files=priority_files if priority_files else None
+    )
+
     # Build criteria section
     if validation_criteria:
         criteria_section = f"Acceptance Criteria:\n{validation_criteria}"
@@ -427,6 +436,11 @@ def _build_spawn_validation_prompt(
     test_strategy_section = ""
     if test_strategy:
         test_strategy_section = f"\n\n## Test Strategy\n{test_strategy}"
+
+    # Build priority files section
+    priority_section = ""
+    if priority_files:
+        priority_section = f"\n\n**Prioritized files based on task description:** {', '.join(priority_files)}"
 
     prompt = f"""You are an OBJECTIVE and ADVERSARIAL QA validator.
 
@@ -441,10 +455,10 @@ def _build_spawn_validation_prompt(
 ID: {task_id}
 Title: {task_title}
 
-{criteria_section}{test_strategy_section}
+{criteria_section}{test_strategy_section}{priority_section}
 
 ## Code Changes to Validate
-{changes_context}
+{summarized_changes}
 
 ## Validation Process
 1. Review each acceptance criterion one by one
@@ -501,6 +515,14 @@ def _build_agent_validation_prompt(
     task_description = task.get("description", "")
     validation_criteria = task.get("validation_criteria", "")
 
+    # Extract files mentioned in the task for prioritization
+    priority_files = extract_mentioned_files(task)
+
+    # Summarize diff with priority files for better context
+    summarized_changes = summarize_diff_for_validation(
+        changes_context, priority_files=priority_files if priority_files else None
+    )
+
     # Build criteria section
     if validation_criteria:
         criteria_section = f"Acceptance Criteria:\n{validation_criteria}"
@@ -508,6 +530,11 @@ def _build_agent_validation_prompt(
         criteria_section = f"Task Description:\n{task_description}"
     else:
         criteria_section = "No specific criteria provided. Evaluate for general correctness."
+
+    # Build priority files section
+    priority_section = ""
+    if priority_files:
+        priority_section = f"\n\n**Prioritized files based on task description:** {', '.join(priority_files)}"
 
     prompt = f"""You are an objective QA validator. You have NO prior context about this task.
 
@@ -520,10 +547,10 @@ Validate whether the code changes satisfy the acceptance criteria. You have acce
 ## Task Being Validated
 Title: {task_title}
 
-{criteria_section}
+{criteria_section}{priority_section}
 
 ## Code Changes to Validate
-{changes_context}
+{summarized_changes}
 
 ## Instructions
 1. Review the changes against the acceptance criteria
@@ -577,6 +604,14 @@ def _build_external_validation_prompt(
     task_description = task.get("description", "")
     validation_criteria = task.get("validation_criteria", "")
 
+    # Extract files mentioned in the task for prioritization
+    priority_files = extract_mentioned_files(task)
+
+    # Summarize diff with priority files for better context
+    summarized_changes = summarize_diff_for_validation(
+        changes_context, priority_files=priority_files if priority_files else None
+    )
+
     # Build criteria section
     if validation_criteria:
         criteria_section = f"Acceptance Criteria:\n{validation_criteria}"
@@ -585,15 +620,20 @@ def _build_external_validation_prompt(
     else:
         criteria_section = "No specific criteria provided. Evaluate for general correctness."
 
+    # Build priority files section
+    priority_section = ""
+    if priority_files:
+        priority_section = f"\n\n**Prioritized files based on task description:** {', '.join(priority_files)}"
+
     prompt = f"""You are reviewing code changes for the following task.
 
 ## Task
 Title: {task_title}
 
-{criteria_section}
+{criteria_section}{priority_section}
 
 ## Code Changes to Validate
-{changes_context}
+{summarized_changes}
 
 ## Instructions
 1. Review each change against the acceptance criteria
