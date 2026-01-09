@@ -188,6 +188,15 @@ class HookManager:
         self._agent_run_manager = LocalAgentRunManager(self._database)
         self._worktree_manager = LocalWorktreeManager(self._database)
 
+        # Initialize Artifact storage and capture hook
+        from gobby.hooks.artifact_capture import ArtifactCaptureHook
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        self._artifact_manager = LocalArtifactManager(self._database)
+        self._artifact_capture_hook = ArtifactCaptureHook(
+            artifact_manager=self._artifact_manager
+        )
+
         # Initialize autonomous execution components
         self._stop_registry = StopRegistry(self._database)
         self._progress_tracker = ProgressTracker(self._database)
