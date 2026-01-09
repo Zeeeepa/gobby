@@ -466,3 +466,87 @@ class MergeResolutionManager:
 
         rows = self.db.fetchall(query, tuple(params))
         return [MergeConflict.from_row(row) for row in rows]
+
+    # =========================================================================
+    # Helper Methods for CLI
+    # =========================================================================
+
+    def get_active_resolution(
+        self, worktree_id: str | None = None
+    ) -> MergeResolution | None:
+        """
+        Get the current active (pending) merge resolution.
+
+        Args:
+            worktree_id: Optional worktree ID to filter by
+
+        Returns:
+            The most recent pending MergeResolution, or None
+        """
+        if worktree_id:
+            row = self.db.fetchone(
+                """
+                SELECT * FROM merge_resolutions
+                WHERE worktree_id = ? AND status = 'pending'
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (worktree_id,),
+            )
+        else:
+            row = self.db.fetchone(
+                """
+                SELECT * FROM merge_resolutions
+                WHERE status = 'pending'
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            )
+        return MergeResolution.from_row(row) if row else None
+
+    def get_conflict_by_path(
+        self, file_path: str, resolution_id: str | None = None
+    ) -> MergeConflict | None:
+        """
+        Get a conflict by file path.
+
+        Args:
+            file_path: Path to the conflicting file
+            resolution_id: Optional resolution ID to filter by
+
+        Returns:
+            The MergeConflict if found, None otherwise
+        """
+        if resolution_id:
+            row = self.db.fetchone(
+                """
+                SELECT * FROM merge_conflicts
+                WHERE file_path = ? AND resolution_id = ?
+                """,
+                (file_path, resolution_id),
+            )
+        else:
+            # Find any pending conflict with this path
+            row = self.db.fetchone(
+                """
+                SELECT c.* FROM merge_conflicts c
+                JOIN merge_resolutions r ON c.resolution_id = r.id
+                WHERE c.file_path = ? AND r.status = 'pending'
+                ORDER BY c.created_at DESC
+                LIMIT 1
+                """,
+                (file_path,),
+            )
+        return MergeConflict.from_row(row) if row else None
+
+    def has_active_resolution_for_worktree(self, worktree_id: str) -> bool:
+        """
+        Check if a worktree has an active (pending) merge resolution.
+
+        Args:
+            worktree_id: Worktree ID to check
+
+        Returns:
+            True if an active resolution exists
+        """
+        return self.get_active_resolution(worktree_id) is not None

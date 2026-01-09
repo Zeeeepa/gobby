@@ -285,3 +285,42 @@ def status(ctx: click.Context) -> None:
     message = format_status_message(**status_kwargs)
     click.echo(message)
     sys.exit(0)
+
+
+def get_merge_status() -> dict[str, Any]:
+    """
+    Get the current merge status for status output.
+
+    Returns:
+        Dict with merge status info:
+        - active: bool - Whether there's an active merge
+        - resolution_id: str | None - ID of active resolution
+        - source_branch: str | None - Source branch being merged
+        - target_branch: str | None - Target branch
+        - pending_conflicts: int - Number of unresolved conflicts
+    """
+    try:
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.merge_resolutions import MergeResolutionManager
+
+        db = LocalDatabase()
+        manager = MergeResolutionManager(db)
+
+        resolution = manager.get_active_resolution()
+        if not resolution:
+            return {"active": False}
+
+        conflicts = manager.list_conflicts(resolution_id=resolution.id)
+        pending_count = sum(1 for c in conflicts if c.status == "pending")
+
+        return {
+            "active": True,
+            "resolution_id": resolution.id,
+            "source_branch": resolution.source_branch,
+            "target_branch": resolution.target_branch,
+            "pending_conflicts": pending_count,
+            "total_conflicts": len(conflicts),
+        }
+    except Exception as e:
+        logger.debug(f"Error getting merge status: {e}")
+        return {"active": False, "error": str(e)}

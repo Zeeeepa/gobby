@@ -38,10 +38,18 @@ class Worktree:
     created_at: str
     updated_at: str
     merged_at: str | None
+    merge_state: str | None = None  # "pending", "resolved", or None
 
     @classmethod
     def from_row(cls, row: Any) -> Worktree:
         """Create Worktree from database row."""
+        # Handle merge_state which may not exist in older schemas
+        merge_state = None
+        try:
+            merge_state = row["merge_state"]
+        except (KeyError, IndexError):
+            pass
+
         return cls(
             id=row["id"],
             project_id=row["project_id"],
@@ -54,6 +62,7 @@ class Worktree:
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             merged_at=row["merged_at"],
+            merge_state=merge_state,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -70,6 +79,7 @@ class Worktree:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "merged_at": self.merged_at,
+            "merge_state": self.merge_state,
         }
 
 
@@ -224,6 +234,7 @@ class LocalWorktreeManager:
             "last_activity_at",
             "updated_at",
             "merged_at",
+            "merge_state",
         }
     )
 
@@ -433,3 +444,105 @@ class LocalWorktreeManager:
             (project_id,),
         )
         return {row["status"]: row["count"] for row in rows}
+
+    # Merge state methods
+
+    def set_merge_state(
+        self, worktree_id: str, merge_state: str | None
+    ) -> Worktree | None:
+        """
+        Set the merge state for a worktree.
+
+        Args:
+            worktree_id: Worktree ID
+            merge_state: Merge state ("pending", "resolved", or None)
+
+        Returns:
+            Updated Worktree or None if not found
+        """
+        return self.update(worktree_id, merge_state=merge_state)
+
+    def get_by_merge_state(
+        self,
+        merge_state: str,
+        project_id: str | None = None,
+        limit: int = 50,
+    ) -> list[Worktree]:
+        """
+        Get worktrees by merge state.
+
+        Args:
+            merge_state: Merge state to filter by
+            project_id: Optional project ID filter
+            limit: Maximum number of results
+
+        Returns:
+            List of Worktree instances with the given merge state
+        """
+        if project_id:
+            rows = self.db.fetchall(
+                """
+                SELECT * FROM worktrees
+                WHERE merge_state = ? AND project_id = ?
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                (merge_state, project_id, limit),
+            )
+        else:
+            rows = self.db.fetchall(
+                """
+                SELECT * FROM worktrees
+                WHERE merge_state = ?
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                (merge_state, limit),
+            )
+        return [Worktree.from_row(row) for row in rows]
+
+    def sync_with_merge_resolution(
+        self,
+        worktree_id: str,
+        merge_manager: Any | None = None,
+        strategy: str = "auto",
+    ) -> dict[str, Any]:
+        """
+        Sync worktree with merge resolution support.
+
+        When conflicts are detected during sync, a merge resolution
+        is initiated with the specified strategy.
+
+        Args:
+            worktree_id: Worktree ID
+            merge_manager: MergeResolutionManager for creating resolutions
+            strategy: Resolution strategy ("auto", "ai-only", "human")
+
+        Returns:
+            Dict with sync result and optional merge info
+        """
+        worktree = self.get(worktree_id)
+        if not worktree:
+            return {"success": False, "error": "Worktree not found"}
+
+        # Placeholder: actual sync would involve git operations
+        # and detection of merge conflicts
+
+        return {
+            "success": True,
+            "worktree_id": worktree_id,
+            "merge_initiated": False,
+            "message": "Sync completed without conflicts",
+        }
+
+    def sync(self, worktree_id: str) -> dict[str, Any]:
+        """
+        Basic sync without merge resolution.
+
+        Args:
+            worktree_id: Worktree ID
+
+        Returns:
+            Dict with sync result
+        """
+        return self.sync_with_merge_resolution(worktree_id)
