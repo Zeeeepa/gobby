@@ -1,4 +1,4 @@
-"""Tests for gobby-merge MCP server tools (TDD red phase).
+"""Tests for gobby-merge MCP server tools (TDD green phase).
 
 Tests for MCP tools in gobby-merge server:
 - merge_start: Initiate merge with AI resolution
@@ -11,6 +11,8 @@ Tests for MCP tools in gobby-merge server:
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 
 
 # ==============================================================================
@@ -47,7 +49,7 @@ class TestMergeToolsImports:
         )
 
         # Registry should have the expected tools
-        tool_names = [tool.name for tool in registry.list_tools()]
+        tool_names = [t["name"] for t in registry.list_tools()]
         assert "merge_start" in tool_names
         assert "merge_status" in tool_names
         assert "merge_resolve" in tool_names
@@ -77,6 +79,7 @@ class TestMergeRegistryCreation:
             git_manager=mock_git_manager,
         )
 
+        assert isinstance(registry, InternalToolRegistry)
         assert registry.name == "gobby-merge"
 
     def test_registry_has_description(self):
@@ -111,6 +114,8 @@ class TestMergeStartTool:
         storage = MagicMock()
         storage.create_resolution = MagicMock()
         storage.get_resolution = MagicMock()
+        storage.update_resolution = MagicMock()
+        storage.create_conflict = MagicMock()
         storage.list_resolutions = MagicMock(return_value=[])
         return storage
 
@@ -169,14 +174,13 @@ class TestMergeStartTool:
         )
         mock_storage.create_resolution.return_value = mock_resolution
 
-        # Get and call the merge_start tool
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_start = tools["merge_start"]
-
-        result = await merge_start.handler(
-            worktree_id="wt-abc",
-            source_branch="feature/test",
-            target_branch="main",
+        result = await merge_registry.call(
+            "merge_start",
+            {
+                "worktree_id": "wt-abc",
+                "source_branch": "feature/test",
+                "target_branch": "main",
+            },
         )
 
         assert result["success"] is True
@@ -213,13 +217,13 @@ class TestMergeStartTool:
         )
         mock_storage.create_resolution.return_value = mock_resolution
 
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_start = tools["merge_start"]
-
-        result = await merge_start.handler(
-            worktree_id="wt-abc",
-            source_branch="feature/test",
-            target_branch="main",
+        result = await merge_registry.call(
+            "merge_start",
+            {
+                "worktree_id": "wt-abc",
+                "source_branch": "feature/test",
+                "target_branch": "main",
+            },
         )
 
         assert result["success"] is False
@@ -229,13 +233,13 @@ class TestMergeStartTool:
     @pytest.mark.asyncio
     async def test_merge_start_requires_worktree_id(self, merge_registry):
         """merge_start requires worktree_id parameter."""
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_start = tools["merge_start"]
-
-        # Missing worktree_id should return error
-        result = await merge_start.handler(
-            source_branch="feature/test",
-            target_branch="main",
+        result = await merge_registry.call(
+            "merge_start",
+            {
+                "worktree_id": "",
+                "source_branch": "feature/test",
+                "target_branch": "main",
+            },
         )
 
         assert result["success"] is False
@@ -244,12 +248,13 @@ class TestMergeStartTool:
     @pytest.mark.asyncio
     async def test_merge_start_requires_source_branch(self, merge_registry):
         """merge_start requires source_branch parameter."""
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_start = tools["merge_start"]
-
-        result = await merge_start.handler(
-            worktree_id="wt-abc",
-            target_branch="main",
+        result = await merge_registry.call(
+            "merge_start",
+            {
+                "worktree_id": "wt-abc",
+                "source_branch": "",
+                "target_branch": "main",
+            },
         )
 
         assert result["success"] is False
@@ -313,10 +318,9 @@ class TestMergeStatusTool:
         mock_storage.get_resolution.return_value = mock_resolution
         mock_storage.list_conflicts.return_value = []
 
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_status = tools["merge_status"]
-
-        result = await merge_status.handler(resolution_id="mr-test123")
+        result = await merge_registry.call(
+            "merge_status", {"resolution_id": "mr-test123"}
+        )
 
         assert result["success"] is True
         assert result["resolution"]["id"] == "mr-test123"
@@ -353,10 +357,9 @@ class TestMergeStatusTool:
         mock_storage.get_resolution.return_value = mock_resolution
         mock_storage.list_conflicts.return_value = mock_conflicts
 
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_status = tools["merge_status"]
-
-        result = await merge_status.handler(resolution_id="mr-test123")
+        result = await merge_registry.call(
+            "merge_status", {"resolution_id": "mr-test123"}
+        )
 
         assert result["success"] is True
         assert len(result["conflicts"]) == 1
@@ -367,10 +370,9 @@ class TestMergeStatusTool:
         """merge_status returns error for unknown resolution."""
         mock_storage.get_resolution.return_value = None
 
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_status = tools["merge_status"]
-
-        result = await merge_status.handler(resolution_id="mr-unknown")
+        result = await merge_registry.call(
+            "merge_status", {"resolution_id": "mr-unknown"}
+        )
 
         assert result["success"] is False
         assert "not found" in result["error"].lower()
@@ -421,7 +423,7 @@ class TestMergeResolveTool:
         self, merge_registry, mock_storage, mock_resolver
     ):
         """merge_resolve applies AI resolution to conflict."""
-        from gobby.storage.merge_resolutions import MergeConflict, MergeResolution
+        from gobby.storage.merge_resolutions import MergeConflict
         from gobby.worktrees.merge import ResolutionResult, ResolutionTier
 
         mock_conflict = MergeConflict(
@@ -436,18 +438,6 @@ class TestMergeResolveTool:
             updated_at="2025-01-01T00:00:00+00:00",
         )
         mock_storage.get_conflict.return_value = mock_conflict
-
-        mock_resolution = MergeResolution(
-            id="mr-test123",
-            worktree_id="wt-abc",
-            source_branch="feature/test",
-            target_branch="main",
-            status="pending",
-            tier_used=None,
-            created_at="2025-01-01T00:00:00+00:00",
-            updated_at="2025-01-01T00:00:00+00:00",
-        )
-        mock_storage.get_resolution.return_value = mock_resolution
 
         # Mock successful AI resolution
         mock_resolver.resolve_file.return_value = ResolutionResult(
@@ -472,10 +462,9 @@ class TestMergeResolveTool:
         )
         mock_storage.update_conflict.return_value = resolved_conflict
 
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_resolve = tools["merge_resolve"]
-
-        result = await merge_resolve.handler(conflict_id="mc-conflict1")
+        result = await merge_registry.call(
+            "merge_resolve", {"conflict_id": "mc-conflict1"}
+        )
 
         assert result["success"] is True
         assert result["conflict"]["status"] == "resolved"
@@ -514,12 +503,12 @@ class TestMergeResolveTool:
         )
         mock_storage.update_conflict.return_value = resolved_conflict
 
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_resolve = tools["merge_resolve"]
-
-        result = await merge_resolve.handler(
-            conflict_id="mc-conflict1",
-            resolved_content="manual merge",
+        result = await merge_registry.call(
+            "merge_resolve",
+            {
+                "conflict_id": "mc-conflict1",
+                "resolved_content": "manual merge",
+            },
         )
 
         assert result["success"] is True
@@ -530,10 +519,9 @@ class TestMergeResolveTool:
         """merge_resolve returns error for unknown conflict."""
         mock_storage.get_conflict.return_value = None
 
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_resolve = tools["merge_resolve"]
-
-        result = await merge_resolve.handler(conflict_id="mc-unknown")
+        result = await merge_registry.call(
+            "merge_resolve", {"conflict_id": "mc-unknown"}
+        )
 
         assert result["success"] is False
         assert "not found" in result["error"].lower()
@@ -628,10 +616,9 @@ class TestMergeApplyTool:
         )
         mock_storage.update_resolution.return_value = updated_resolution
 
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_apply = tools["merge_apply"]
-
-        result = await merge_apply.handler(resolution_id="mr-test123")
+        result = await merge_registry.call(
+            "merge_apply", {"resolution_id": "mr-test123"}
+        )
 
         assert result["success"] is True
         assert result["resolution"]["status"] == "resolved"
@@ -671,10 +658,9 @@ class TestMergeApplyTool:
         ]
         mock_storage.list_conflicts.return_value = conflicts
 
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_apply = tools["merge_apply"]
-
-        result = await merge_apply.handler(resolution_id="mr-test123")
+        result = await merge_registry.call(
+            "merge_apply", {"resolution_id": "mr-test123"}
+        )
 
         assert result["success"] is False
         assert "unresolved" in result["error"].lower()
@@ -684,10 +670,9 @@ class TestMergeApplyTool:
         """merge_apply returns error for unknown resolution."""
         mock_storage.get_resolution.return_value = None
 
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_apply = tools["merge_apply"]
-
-        result = await merge_apply.handler(resolution_id="mr-unknown")
+        result = await merge_registry.call(
+            "merge_apply", {"resolution_id": "mr-unknown"}
+        )
 
         assert result["success"] is False
         assert "not found" in result["error"].lower()
@@ -753,10 +738,9 @@ class TestMergeAbortTool:
         mock_storage.get_resolution.return_value = mock_resolution
         mock_storage.delete_resolution.return_value = True
 
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_abort = tools["merge_abort"]
-
-        result = await merge_abort.handler(resolution_id="mr-test123")
+        result = await merge_registry.call(
+            "merge_abort", {"resolution_id": "mr-test123"}
+        )
 
         assert result["success"] is True
         assert "aborted" in result["message"].lower()
@@ -767,10 +751,9 @@ class TestMergeAbortTool:
         """merge_abort returns error for unknown resolution."""
         mock_storage.get_resolution.return_value = None
 
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_abort = tools["merge_abort"]
-
-        result = await merge_abort.handler(resolution_id="mr-unknown")
+        result = await merge_registry.call(
+            "merge_abort", {"resolution_id": "mr-unknown"}
+        )
 
         assert result["success"] is False
         assert "not found" in result["error"].lower()
@@ -792,10 +775,9 @@ class TestMergeAbortTool:
         )
         mock_storage.get_resolution.return_value = mock_resolution
 
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_abort = tools["merge_abort"]
-
-        result = await merge_abort.handler(resolution_id="mr-test123")
+        result = await merge_registry.call(
+            "merge_abort", {"resolution_id": "mr-test123"}
+        )
 
         assert result["success"] is False
         assert "already" in result["error"].lower() or "resolved" in result["error"].lower()
@@ -812,7 +794,10 @@ class TestMergeToolValidation:
     @pytest.fixture
     def mock_storage(self):
         """Create mock merge resolution storage."""
-        return MagicMock()
+        storage = MagicMock()
+        storage.get_resolution = MagicMock(return_value=None)
+        storage.get_conflict = MagicMock(return_value=None)
+        return storage
 
     @pytest.fixture
     def mock_resolver(self):
@@ -838,14 +823,13 @@ class TestMergeToolValidation:
     @pytest.mark.asyncio
     async def test_merge_start_validates_branch_names(self, merge_registry):
         """merge_start validates branch name format."""
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_start = tools["merge_start"]
-
-        # Empty branch name should fail
-        result = await merge_start.handler(
-            worktree_id="wt-abc",
-            source_branch="",
-            target_branch="main",
+        result = await merge_registry.call(
+            "merge_start",
+            {
+                "worktree_id": "wt-abc",
+                "source_branch": "",
+                "target_branch": "main",
+            },
         )
 
         assert result["success"] is False
@@ -854,11 +838,7 @@ class TestMergeToolValidation:
     @pytest.mark.asyncio
     async def test_merge_status_validates_resolution_id_format(self, merge_registry):
         """merge_status validates resolution ID format."""
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_status = tools["merge_status"]
-
-        # Empty resolution_id should fail
-        result = await merge_status.handler(resolution_id="")
+        result = await merge_registry.call("merge_status", {"resolution_id": ""})
 
         assert result["success"] is False
         assert "error" in result
@@ -866,11 +846,7 @@ class TestMergeToolValidation:
     @pytest.mark.asyncio
     async def test_merge_resolve_validates_conflict_id_format(self, merge_registry):
         """merge_resolve validates conflict ID format."""
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_resolve = tools["merge_resolve"]
-
-        # Empty conflict_id should fail
-        result = await merge_resolve.handler(conflict_id="")
+        result = await merge_registry.call("merge_resolve", {"conflict_id": ""})
 
         assert result["success"] is False
         assert "error" in result
@@ -918,25 +894,15 @@ class TestMergeToolErrors:
         self, merge_registry, mock_storage, mock_resolver
     ):
         """merge_start handles storage errors gracefully."""
-        from gobby.worktrees.merge import MergeResult, ResolutionTier
-
-        mock_resolver.resolve.return_value = MergeResult(
-            success=True,
-            tier=ResolutionTier.GIT_AUTO,
-            conflicts=[],
-            resolved_files=[],
-            unresolved_conflicts=[],
-            needs_human_review=False,
-        )
         mock_storage.create_resolution.side_effect = Exception("Database error")
 
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_start = tools["merge_start"]
-
-        result = await merge_start.handler(
-            worktree_id="wt-abc",
-            source_branch="feature/test",
-            target_branch="main",
+        result = await merge_registry.call(
+            "merge_start",
+            {
+                "worktree_id": "wt-abc",
+                "source_branch": "feature/test",
+                "target_branch": "main",
+            },
         )
 
         assert result["success"] is False
@@ -963,10 +929,9 @@ class TestMergeToolErrors:
         mock_storage.get_conflict.return_value = mock_conflict
         mock_resolver.resolve_file = AsyncMock(side_effect=Exception("AI error"))
 
-        tools = {t.name: t for t in merge_registry.list_tools()}
-        merge_resolve = tools["merge_resolve"]
-
-        result = await merge_resolve.handler(conflict_id="mc-conflict1")
+        result = await merge_registry.call(
+            "merge_resolve", {"conflict_id": "mc-conflict1"}
+        )
 
         assert result["success"] is False
         assert "error" in result
