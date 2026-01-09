@@ -9,8 +9,8 @@ from gobby.servers.routes.mcp.base import (
     create_code_router,
     create_hooks_router,
     create_mcp_router,
-    create_plugins_router,
 )
+from gobby.servers.routes.mcp.plugins import create_plugins_router
 from gobby.servers.routes.mcp.webhooks import create_webhooks_router
 
 __all__ = [
