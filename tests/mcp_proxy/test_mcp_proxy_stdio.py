@@ -547,26 +547,6 @@ class TestDaemonProxyMethods:
             mock_req.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_execute_code(self):
-        from gobby.mcp_proxy.stdio import DaemonProxy
-
-        proxy = DaemonProxy(8765)
-        with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
-            mock_req.return_value = {"success": True}
-            await proxy.execute_code("code")
-            mock_req.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_process_large_dataset(self):
-        from gobby.mcp_proxy.stdio import DaemonProxy
-
-        proxy = DaemonProxy(8765)
-        with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
-            mock_req.return_value = {"success": True}
-            await proxy.process_large_dataset([], "op")
-            mock_req.assert_called()
-
-    @pytest.mark.asyncio
     async def test_add_mcp_server(self):
         from gobby.mcp_proxy.stdio import DaemonProxy
 
@@ -633,8 +613,6 @@ class TestMCPToolsWrapper:
         mock_proxy.add_mcp_server = AsyncMock(return_value={"res": "add"})
         mock_proxy.remove_mcp_server = AsyncMock(return_value={"res": "remove"})
         mock_proxy.import_mcp_server = AsyncMock(return_value={"res": "import"})
-        mock_proxy.execute_code = AsyncMock(return_value={"res": "exec"})
-        mock_proxy.process_large_dataset = AsyncMock(return_value={"res": "proc"})
 
         # Call the registration directly!
         register_proxy_tools(mock_mcp, mock_proxy)
@@ -692,14 +670,6 @@ class TestMCPToolsWrapper:
         # 10. import_mcp_server
         await run_tool("import_mcp_server", from_project="p")
         mock_proxy.import_mcp_server.assert_called()
-
-        # 11. execute_code
-        await run_tool("execute_code", code="print(1)")
-        mock_proxy.execute_code.assert_called_with("print(1)", "python", None, 30)
-
-        # 12. process_large_dataset
-        await run_tool("process_large_dataset", data=[], operation="op")
-        mock_proxy.process_large_dataset.assert_called_with([], "op", None, 60)
 
 
 class TestEnsureDaemonRunningFailures:

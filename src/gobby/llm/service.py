@@ -19,9 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 # Type alias for feature configs that have provider/model/prompt fields
-FeatureConfig = (
-    "SessionSummaryConfig | TitleSynthesisConfig | CodeExecutionConfig | RecommendToolsConfig"
-)
+FeatureConfig = "SessionSummaryConfig | TitleSynthesisConfig | RecommendToolsConfig"
 
 
 class LLMService:

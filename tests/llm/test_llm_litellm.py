@@ -152,31 +152,3 @@ class TestLiteLLMProviderSynthesizeTitle:
             await provider.synthesize_title("test prompt")
 
 
-class TestLiteLLMProviderExecuteCode:
-    """Tests for execute_code method."""
-
-    @pytest.mark.asyncio
-    async def test_execute_code_not_supported(self, litellm_config: DaemonConfig):
-        """Test execute_code returns not supported error."""
-        from gobby.llm.litellm import LiteLLMProvider
-
-        provider = LiteLLMProvider(litellm_config)
-
-        result = await provider.execute_code("print('hello')")
-
-        assert result["success"] is False
-        assert "not supported" in result["error"]
-        assert "LiteLLM" in result["error"]
-        assert result["language"] == "python"
-
-    @pytest.mark.asyncio
-    async def test_execute_code_different_language(self, litellm_config: DaemonConfig):
-        """Test execute_code returns not supported for any language."""
-        from gobby.llm.litellm import LiteLLMProvider
-
-        provider = LiteLLMProvider(litellm_config)
-
-        result = await provider.execute_code("console.log('hello')", language="javascript")
-
-        assert result["success"] is False
-        assert result["language"] == "javascript"

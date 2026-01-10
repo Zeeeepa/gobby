@@ -1,4 +1,4 @@
-"""Tests for ClaudeLLMProvider methods: generate_summary, synthesize_title, execute_code."""
+"""Tests for ClaudeLLMProvider methods: generate_summary, synthesize_title."""
 
 import asyncio
 from contextlib import contextmanager
@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from gobby.config.app import (
-    CodeExecutionConfig,
     DaemonConfig,
     LLMProviderConfig,
     LLMProvidersConfig,
@@ -66,7 +65,6 @@ def claude_config():
         llm_providers=LLMProvidersConfig(
             claude=LLMProviderConfig(models="claude-3-5-sonnet"),
         ),
-        code_execution=CodeExecutionConfig(enabled=True),
         session_summary=SessionSummaryConfig(enabled=True),
         title_synthesis=TitleSynthesisConfig(enabled=True),
     )
@@ -145,40 +143,6 @@ async def test_synthesize_title_retry(claude_config):
             title = await provider.synthesize_title("prompt", prompt_template="test")
             assert title == "Success Title"
             assert attempts == 3
-
-
-@pytest.mark.asyncio
-async def test_execute_code_success(claude_config):
-    async def mock_query(prompt, options):
-        # Simulate tool use loop
-        yield MockAssistantMessage(
-            [MockToolUseBlock(id="call_1", name="code_execution", input={"code": "print('hello')"})]
-        )
-        yield MockAssistantMessage([MockToolResultBlock(tool_use_id="call_1", content="hello\n")])
-        yield MockResultMessage(result="hello\n")
-
-    with mock_claude_sdk(mock_query):
-        provider = ClaudeLLMProvider(claude_config)
-        result = await provider.execute_code("print('hello')", prompt_template="{code}")
-
-        assert result["success"] is True
-        assert result["result"] == "hello"
-        assert result["language"] == "python"
-
-
-@pytest.mark.asyncio
-async def test_execute_code_timeout(claude_config):
-    async def mock_query(prompt, options):
-        await asyncio.sleep(0.5)  # Longer than timeout
-        yield MockResultMessage(result="Done")
-
-    with mock_claude_sdk(mock_query):
-        provider = ClaudeLLMProvider(claude_config)
-        # Use a real timeout shorter than the sleep
-        result = await provider.execute_code("sleep", timeout=0.1, prompt_template="{code}")
-
-        assert result["success"] is False
-        assert result["error_type"] == "TimeoutError"
 
 
 @pytest.mark.asyncio

@@ -58,7 +58,6 @@ class TestGobbyDaemonToolsInit:
         assert handler.system_service is not None
         assert handler.tool_proxy is not None
         assert handler.server_mgmt is not None
-        assert handler.code_execution is not None
         assert handler.recommendation is not None
 
     def test_init_stores_mcp_manager(self, mock_mcp_manager, mock_internal_manager):
@@ -393,40 +392,6 @@ class TestGobbyDaemonToolsServerManagement:
         result = await tools_handler.import_mcp_server(from_project="source-project")
 
         tools_handler.server_mgmt.import_server.assert_called_once()
-        assert result["success"] is True
-
-
-class TestGobbyDaemonToolsCodeExecution:
-    """Tests for code execution tools."""
-
-    @pytest.mark.asyncio
-    async def test_execute_code_delegates_to_service(self, tools_handler):
-        """Test that execute_code delegates to code_execution service."""
-        tools_handler.code_execution.execute_code = AsyncMock(
-            return_value={"success": True, "output": "42"}
-        )
-
-        result = await tools_handler.execute_code(
-            code="print(21 * 2)",
-            language="python",
-        )
-
-        tools_handler.code_execution.execute_code.assert_called_once()
-        assert result["success"] is True
-
-    @pytest.mark.asyncio
-    async def test_process_large_dataset_delegates_to_service(self, tools_handler):
-        """Test that process_large_dataset delegates to code_execution service."""
-        tools_handler.code_execution.process_dataset = AsyncMock(
-            return_value={"success": True, "result": [1, 2, 3]}
-        )
-
-        result = await tools_handler.process_large_dataset(
-            data=[1, 2, 3, 4, 5],
-            operation="filter even numbers",
-        )
-
-        tools_handler.code_execution.process_dataset.assert_called_once()
         assert result["success"] is True
 
 

@@ -254,26 +254,6 @@ title_synthesis:
     User's first message:
 
     {user_prompt}"
-code_execution:
-  enabled: true
-  provider: claude
-  model: claude-sonnet-4-5
-  max_turns: 5
-  default_timeout: 30
-  max_dataset_preview: 3
-  prompt: "Execute the following code and return the result.
-
-    Context: {context}
-
-    Code:
-
-    ```
-    {language}
-
-    {code}
-    ```
-
-    Return the execution output or any errors encountered."
 recommend_tools:
   enabled: true
   provider: claude

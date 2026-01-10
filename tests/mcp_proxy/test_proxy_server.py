@@ -83,8 +83,6 @@ def mock_mcp_manager():
 def mock_llm_service():
     service = MagicMock()
     provider = MagicMock()
-    provider.execute_code = AsyncMock(return_value={"success": True, "result": "42"})
-    provider.supports_code_execution = True
     provider.generate_text = AsyncMock(
         return_value='{"recommendations": [{"server": "s1", "tool": "t1", "reason": "r1"}]}'
     )
@@ -110,18 +108,7 @@ def daemon_tools(mock_mcp_manager, mock_llm_service):
     mock_proxy_config.enabled = True
     mock_proxy_config.tool_timeout = 60.0
     mock_config.get_mcp_client_proxy_config.return_value = mock_proxy_config
-
-    # Mock code execution config
-    mock_code_exec = MagicMock()
-    mock_code_exec.enabled = True
-    mock_code_exec.provider = "claude"
-    mock_code_exec.prompt = "exec prompt"
-    # IMPORTANT: Set integer values for these fields to avoid TypeError in comparisons
-    mock_code_exec.default_timeout = 30
-    mock_code_exec.max_dataset_preview = 3
-    mock_code_exec.max_turns = 5
-    mock_config.get_code_execution_config.return_value = mock_code_exec
-    mock_config.code_execution = mock_code_exec  # Direct property access
+    mock_config.compression = None  # Disable compression for tests
 
     # Mock recommend tools config
     mock_rec_tools = MagicMock()
@@ -256,15 +243,6 @@ async def test_get_tool_schema(daemon_tools, mock_mcp_manager):
 
 
 @pytest.mark.asyncio
-async def test_execute_code(daemon_tools):
-    # CodeExecutionService uses LLM provider's execute_code method
-    # The mock_llm_service fixture already sets up provider.execute_code
-    result = await daemon_tools.execute_code("print('hello')")
-    assert result["success"] is True
-    assert result["result"] == "42"
-
-
-@pytest.mark.asyncio
 async def test_recommend_tools(daemon_tools, mock_mcp_manager):
     # The RecommendationService.recommend_tools accesses mcp_manager._configs
     mock_mcp_manager._configs = {"server1": MagicMock()}
@@ -280,28 +258,4 @@ async def test_recommend_tools(daemon_tools, mock_mcp_manager):
 async def test_call_hook(daemon_tools):
     # GobbyDaemonTools no longer exposes call_hook - this functionality
     # is handled by the hook system directly, not through MCP tools
-    pass
-
-
-@pytest.mark.asyncio
-async def test_process_large_dataset_mocked(daemon_tools):
-    # The CodeExecutionService.process_dataset is currently stubbed
-    # It returns {"success": True, "result": "Stubbed for refactor"}
-    # We test that it returns a success response
-
-    data = [{"id": 1}, {"id": 2}]
-    result = await daemon_tools.process_large_dataset(data, "filter")
-
-    # The stub always returns success
-    assert result["success"] is True
-
-
-@pytest.mark.skip(
-    reason="GobbyDaemonTools does not have codex/codex_list_threads methods - removed in refactor"
-)
-@pytest.mark.asyncio
-async def test_codex_tools(daemon_tools):
-    # GobbyDaemonTools no longer exposes codex and codex_list_threads methods
-    # Codex functionality is handled through CodeExecutionService which uses a codex_client
-    # but exposes it through execute_code, not direct codex() calls
     pass
