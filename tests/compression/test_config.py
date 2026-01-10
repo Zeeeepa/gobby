@@ -50,7 +50,6 @@ class TestCompressionConfigDefaults:
         assert config.memory_compression_ratio == 0.6
         assert config.context_compression_ratio == 0.4
         assert config.min_content_length == 500
-        assert config.fallback_on_error is True
 
     def test_enabled_override(self) -> None:
         """Test enabling compression."""

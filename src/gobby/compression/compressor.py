@@ -2,7 +2,7 @@
 Text compressor module using LLMLingua-2.
 
 Provides semantic text compression at retrieval/injection time with lazy model
-loading, hash-based caching, and graceful fallback to smart truncation.
+loading and hash-based caching.
 """
 
 from __future__ import annotations
@@ -26,12 +26,11 @@ ContextType = Literal["handoff", "memory", "context"]
 
 class TextCompressor:
     """
-    LLMLingua-2 text compressor with caching and fallback.
+    LLMLingua-2 text compressor with caching.
 
     Compresses text content while preserving semantic meaning using the
-    LLMLingua-2 model. Features lazy model loading to avoid startup overhead,
-    hash-based caching for repeated compressions, and graceful fallback to
-    smart truncation when LLMLingua is unavailable.
+    LLMLingua-2 model. Features lazy model loading to avoid startup overhead
+    and hash-based caching for repeated compressions.
 
     Example:
         config = CompressionConfig(enabled=True)
@@ -55,18 +54,6 @@ class TextCompressor:
     def config(self) -> CompressionConfig:
         """Get the compression configuration."""
         return self._config
-
-    @property
-    def is_available(self) -> bool:
-        """Check if LLMLingua-2 is available for import."""
-        if not self._config.enabled:
-            return False
-        try:
-            import llmlingua  # noqa: F401
-
-            return True
-        except ImportError:
-            return False
 
     def _get_device(self) -> str:
         """Determine the best available device for inference."""
@@ -100,27 +87,17 @@ class TextCompressor:
             logger.debug("Compression disabled in config")
             return False
 
-        try:
-            from llmlingua import PromptCompressor
+        from llmlingua import PromptCompressor
 
-            device = self._get_device()
-            logger.info(f"Loading LLMLingua-2 model on {device}...")
+        device = self._get_device()
+        logger.info(f"Loading LLMLingua-2 model on {device}...")
 
-            self._model = PromptCompressor(
-                model_name=self._config.model,
-                device_map=device,
-            )
-            logger.info("LLMLingua-2 model loaded successfully")
-            return True
-
-        except ImportError:
-            logger.warning(
-                "LLMLingua not installed. Install with: uv pip install gobby[compression]"
-            )
-            return False
-        except Exception as e:
-            logger.error(f"Failed to load LLMLingua-2 model: {e}")
-            return False
+        self._model = PromptCompressor(
+            model_name=self._config.model,
+            device_map=device,
+        )
+        logger.info("LLMLingua-2 model loaded successfully")
+        return True
 
     def _get_ratio_for_context(self, context_type: ContextType) -> float:
         """Get the compression ratio for a specific context type."""
@@ -161,38 +138,6 @@ class TextCompressor:
         if self._config.cache_enabled:
             self._cache[key] = (result, time.time())
 
-    def _fallback_truncate(self, content: str, ratio: float) -> str:
-        """
-        Smart truncation fallback when LLMLingua unavailable.
-
-        Preserves content structure by truncating at sentence boundaries
-        when possible.
-
-        Args:
-            content: Text to truncate
-            ratio: Target ratio (0.0-1.0, lower = more compression)
-
-        Returns:
-            Truncated text
-        """
-        target_length = int(len(content) * ratio)
-        if target_length >= len(content):
-            return content
-
-        # Try to truncate at sentence boundary
-        truncated = content[:target_length]
-        for sep in [". ", ".\n", "! ", "!\n", "? ", "?\n"]:
-            last_sep = truncated.rfind(sep)
-            if last_sep > target_length * 0.7:  # Don't truncate too aggressively
-                return truncated[: last_sep + 1].strip()
-
-        # Fall back to word boundary
-        last_space = truncated.rfind(" ")
-        if last_space > target_length * 0.8:
-            return truncated[:last_space].strip() + "..."
-
-        return truncated.strip() + "..."
-
     def compress(
         self,
         content: str,
@@ -208,10 +153,14 @@ class TextCompressor:
             ratio: Override compression ratio (0.0-1.0, lower = more compression)
 
         Returns:
-            Compressed text, or original/truncated text on failure
+            Compressed text, or original if compression disabled or content too short
         """
         # Skip short content
         if len(content) < self._config.min_content_length:
+            return content
+
+        # Skip if compression disabled
+        if not self._load_model():
             return content
 
         # Determine compression ratio
@@ -224,34 +173,19 @@ class TextCompressor:
             logger.debug(f"Cache hit for compression (key={cache_key[:8]})")
             return cached
 
-        # Try LLMLingua compression
-        if self._load_model() and self._model is not None:
-            try:
-                result = self._model.compress_prompt(
-                    content,
-                    rate=effective_ratio,
-                    force_tokens=[".", "!", "?", "\n"],  # Preserve sentence structure
-                )
-                compressed: str = result.get("compressed_prompt", content)
-                self._set_cached(cache_key, compressed)
-                logger.debug(
-                    f"Compressed {len(content)} -> {len(compressed)} chars "
-                    f"({len(compressed) / len(content):.1%})"
-                )
-                return compressed
-            except Exception as e:
-                logger.warning(f"LLMLingua compression failed: {e}")
-                if not self._config.fallback_on_error:
-                    return content
-
-        # Fallback to smart truncation
-        if self._config.fallback_on_error:
-            logger.debug("Using fallback truncation")
-            truncated = self._fallback_truncate(content, effective_ratio)
-            self._set_cached(cache_key, truncated)
-            return truncated
-
-        return content
+        # Compress with LLMLingua
+        result = self._model.compress_prompt(
+            content,
+            rate=effective_ratio,
+            force_tokens=[".", "!", "?", "\n"],  # Preserve sentence structure
+        )
+        compressed: str = result.get("compressed_prompt", content)
+        self._set_cached(cache_key, compressed)
+        logger.debug(
+            f"Compressed {len(content)} -> {len(compressed)} chars "
+            f"({len(compressed) / len(content):.1%})"
+        )
+        return compressed
 
     def clear_cache(self) -> int:
         """

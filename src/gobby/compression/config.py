@@ -56,10 +56,6 @@ class CompressionConfig(BaseModel):
         default=500,
         description="Minimum content length (chars) to trigger compression",
     )
-    fallback_on_error: bool = Field(
-        default=True,
-        description="Fall back to smart truncation if LLMLingua fails",
-    )
 
     @field_validator("cache_ttl_seconds", "min_content_length")
     @classmethod
