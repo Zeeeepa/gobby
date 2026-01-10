@@ -11,6 +11,7 @@ from gobby.storage.memories import LocalMemoryManager, Memory
 
 if TYPE_CHECKING:
     from gobby.compression import TextCompressor
+    from gobby.memory.search import SearchBackend
     from gobby.memory.semantic_search import EmbedStats, SemanticMemorySearch
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,8 @@ class MemoryManager:
         self.config = config
         self._openai_api_key = openai_api_key
         self._semantic_search: SemanticMemorySearch | None = None
+        self._search_backend: SearchBackend | None = None
+        self._search_backend_fitted = False
         self.compressor = compressor
 
     @property
@@ -47,6 +50,61 @@ class MemoryManager:
                 openai_api_key=self._openai_api_key,
             )
         return self._semantic_search
+
+    @property
+    def search_backend(self) -> SearchBackend:
+        """
+        Lazy-init search backend based on configuration.
+
+        The backend type is determined by config.search_backend:
+        - "tfidf" (default): Zero-dependency TF-IDF search
+        - "openai": Embedding-based semantic search
+        - "hybrid": Combines TF-IDF and OpenAI with RRF
+        - "text": Simple text substring matching
+        """
+        if self._search_backend is None:
+            from gobby.memory.search import get_search_backend
+
+            backend_type = getattr(self.config, "search_backend", "tfidf")
+            logger.debug(f"Initializing search backend: {backend_type}")
+
+            try:
+                self._search_backend = get_search_backend(
+                    backend_type=backend_type,
+                    db=self.db,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to initialize {backend_type} backend: {e}")
+                # Fall back to TF-IDF which has no external deps
+                self._search_backend = get_search_backend("tfidf")
+
+        return self._search_backend
+
+    def _ensure_search_backend_fitted(self) -> None:
+        """Ensure the search backend is fitted with current memories."""
+        if self._search_backend_fitted:
+            return
+
+        backend = self.search_backend
+        if not backend.needs_refit():
+            self._search_backend_fitted = True
+            return
+
+        # Fit the backend with all memories
+        memories = self.storage.list_memories(limit=10000)
+        memory_tuples = [(m.id, m.content) for m in memories]
+
+        try:
+            backend.fit(memory_tuples)
+            self._search_backend_fitted = True
+            logger.info(f"Search backend fitted with {len(memory_tuples)} memories")
+        except Exception as e:
+            logger.error(f"Failed to fit search backend: {e}")
+            raise
+
+    def mark_search_refit_needed(self) -> None:
+        """Mark that the search backend needs to be refitted."""
+        self._search_backend_fitted = False
 
     async def remember(
         self,
@@ -102,6 +160,7 @@ class MemoryManager:
         min_importance: float | None = None,
         memory_type: str | None = None,
         use_semantic: bool | None = None,
+        search_mode: str | None = None,
     ) -> list[Memory]:
         """
         Retrieve memories.
@@ -115,36 +174,22 @@ class MemoryManager:
             limit: Maximum memories to return
             min_importance: Minimum importance threshold
             memory_type: Filter by memory type
-            use_semantic: Use semantic search (default: True if config.semantic_search_enabled)
+            use_semantic: Use semantic search (deprecated, use search_mode instead)
+            search_mode: Search mode - "auto" (default), "tfidf", "openai", "hybrid", "text"
         """
         threshold = (
             min_importance if min_importance is not None else self.config.importance_threshold
         )
 
-        # Determine if we should use semantic search
-        should_use_semantic = use_semantic
-        if should_use_semantic is None:
-            should_use_semantic = getattr(self.config, "semantic_search_enabled", False)
-
         if query:
-            if should_use_semantic:
-                # Use semantic search
-                memories = self._recall_semantic(
-                    query=query,
-                    project_id=project_id,
-                    limit=limit,
-                    min_importance=threshold,
-                )
-            else:
-                # Fall back to text search
-                memories = self.storage.search_memories(
-                    query_text=query,
-                    project_id=project_id,
-                    limit=limit * 2,
-                )
-                # Filter by threshold
-                memories = [m for m in memories if m.importance >= threshold]
-                memories = memories[:limit]
+            memories = self._recall_with_search(
+                query=query,
+                project_id=project_id,
+                limit=limit,
+                min_importance=threshold,
+                use_semantic=use_semantic,
+                search_mode=search_mode,
+            )
         else:
             # Just get top memories
             memories = self.storage.list_memories(
@@ -158,6 +203,71 @@ class MemoryManager:
         self._update_access_stats(memories)
 
         return memories
+
+    def _recall_with_search(
+        self,
+        query: str,
+        project_id: str | None = None,
+        limit: int = 10,
+        min_importance: float | None = None,
+        use_semantic: bool | None = None,
+        search_mode: str | None = None,
+    ) -> list[Memory]:
+        """
+        Perform search using the configured search backend.
+
+        Uses the new search backend by default (TF-IDF),
+        falling back to legacy semantic search if configured.
+        """
+        # Determine search mode from config or parameters
+        if search_mode is None:
+            search_mode = getattr(self.config, "search_backend", "tfidf")
+
+        # Legacy compatibility: use_semantic overrides search_mode
+        if use_semantic is not None:
+            if use_semantic:
+                search_mode = "openai"
+            else:
+                search_mode = "text"
+        elif getattr(self.config, "semantic_search_enabled", False) and search_mode == "tfidf":
+            # If semantic_search_enabled is True but we're using tfidf,
+            # upgrade to hybrid if possible
+            search_mode = getattr(self.config, "search_backend", "tfidf")
+
+        # Use the search backend
+        try:
+            self._ensure_search_backend_fitted()
+            results = self.search_backend.search(query, top_k=limit * 2)
+
+            # Get the actual Memory objects
+            memory_ids = [mid for mid, _ in results]
+            memories = []
+            for mid in memory_ids:
+                memory = self.get_memory(mid)
+                if memory:
+                    # Apply filters
+                    if project_id and memory.project_id != project_id:
+                        if memory.project_id is not None:  # Allow global memories
+                            continue
+                    if min_importance and memory.importance < min_importance:
+                        continue
+                    memories.append(memory)
+                    if len(memories) >= limit:
+                        break
+
+            return memories
+
+        except Exception as e:
+            logger.warning(f"Search backend failed, falling back to text search: {e}")
+            # Fall back to text search
+            memories = self.storage.search_memories(
+                query_text=query,
+                project_id=project_id,
+                limit=limit * 2,
+            )
+            if min_importance:
+                memories = [m for m in memories if m.importance >= min_importance]
+            return memories[:limit]
 
     def recall_as_context(
         self,
