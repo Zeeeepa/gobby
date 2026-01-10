@@ -1308,4 +1308,311 @@ def create_orchestration_registry(
         func=spawn_review_agent,
     )
 
+    # --- process_completed_agents ---
+
+    async def process_completed_agents(
+        parent_session_id: str,
+        spawn_reviews: bool = True,
+        review_provider: Literal["claude", "gemini", "codex", "antigravity"] | None = None,
+        review_model: str | None = None,
+        terminal: str = "auto",
+        mode: str = "terminal",
+        project_path: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Process completed agents and route them to review or cleanup.
+
+        Takes agents from completed_agents list and either:
+        - Spawns review agents for validation (if spawn_reviews=True)
+        - Moves directly to reviewed_agents list (if already validated)
+
+        For failed agents, optionally retries or escalates.
+
+        Args:
+            parent_session_id: Parent session ID (orchestrator session)
+            spawn_reviews: Whether to spawn review agents for completed tasks
+            review_provider: LLM provider for reviews (uses workflow variable if not set)
+            review_model: Model for reviews (uses workflow variable if not set)
+            terminal: Terminal for terminal mode
+            mode: Execution mode for review agents
+            project_path: Path to project directory
+
+        Returns:
+            Dict with:
+            - reviews_spawned: List of review agents spawned
+            - ready_for_cleanup: List of agents ready for worktree cleanup
+            - retries_scheduled: List of failed agents scheduled for retry
+            - escalated: List of agents escalated for manual intervention
+        """
+        if agent_runner is None:
+            return {
+                "success": False,
+                "error": "Agent runner not configured",
+            }
+
+        # Get workflow state
+        from gobby.workflows.state_manager import WorkflowStateManager
+
+        state_manager = WorkflowStateManager(task_manager.db)
+        state = state_manager.get_state(parent_session_id)
+        if not state:
+            return {
+                "success": True,
+                "reviews_spawned": [],
+                "ready_for_cleanup": [],
+                "retries_scheduled": [],
+                "escalated": [],
+                "message": "No workflow state found",
+            }
+
+        workflow_vars = state.variables
+        completed_agents = workflow_vars.get("completed_agents", [])
+        failed_agents = workflow_vars.get("failed_agents", [])
+        reviewed_agents = workflow_vars.get("reviewed_agents", [])
+        review_agents_spawned = workflow_vars.get("review_agents_spawned", [])
+
+        # Resolve review provider from workflow vars or parameters
+        effective_review_provider = (
+            review_provider
+            or workflow_vars.get("review_provider")
+            or "claude"
+        )
+        effective_review_model = (
+            review_model
+            or workflow_vars.get("review_model")
+            or "opus-4"
+        )
+
+        reviews_spawned: list[dict[str, Any]] = []
+        ready_for_cleanup: list[dict[str, Any]] = []
+        retries_scheduled: list[dict[str, Any]] = []
+        escalated: list[dict[str, Any]] = []
+
+        # Process completed agents
+        still_pending_review: list[dict[str, Any]] = []
+
+        for agent_info in completed_agents:
+            task_id = agent_info.get("task_id")
+            if not task_id:
+                # Invalid agent info
+                escalated.append({
+                    **agent_info,
+                    "escalation_reason": "Missing task_id",
+                })
+                continue
+
+            # Check task validation status
+            task = task_manager.get_task(task_id)
+            if not task:
+                escalated.append({
+                    **agent_info,
+                    "escalation_reason": "Task not found",
+                })
+                continue
+
+            # Check if task is already validated (passed validation)
+            if task.validation_status == "valid":
+                # Ready for cleanup
+                ready_for_cleanup.append({
+                    **agent_info,
+                    "validation_status": "valid",
+                })
+                reviewed_agents.append(agent_info)
+                continue
+
+            # Check if task validation failed - may need retry
+            if task.validation_status == "invalid":
+                # Check failure count
+                fail_count = task.validation_fail_count or 0
+                max_retries = 3
+
+                if fail_count >= max_retries:
+                    # Escalate - too many failures
+                    escalated.append({
+                        **agent_info,
+                        "escalation_reason": f"Validation failed {fail_count} times",
+                        "validation_feedback": task.validation_feedback,
+                    })
+                else:
+                    # Retry - reopen task and add back to queue
+                    try:
+                        task_manager.reopen_task(task_id, reason="Validation failed, retrying")
+                        retries_scheduled.append({
+                            **agent_info,
+                            "retry_count": fail_count + 1,
+                        })
+                    except Exception as e:
+                        escalated.append({
+                            **agent_info,
+                            "escalation_reason": f"Failed to reopen task: {e}",
+                        })
+                continue
+
+            # Task needs review - spawn review agent if enabled
+            if spawn_reviews:
+                # Check if review agent already spawned for this task
+                already_spawned = any(
+                    ra.get("task_id") == task_id for ra in review_agents_spawned
+                )
+                if already_spawned:
+                    # Keep in pending review list
+                    still_pending_review.append(agent_info)
+                    continue
+
+                # Spawn review agent
+                review_result = await spawn_review_agent(
+                    task_id=task_id,
+                    review_provider=effective_review_provider,
+                    review_model=effective_review_model,
+                    terminal=terminal,
+                    mode=mode,
+                    parent_session_id=parent_session_id,
+                    project_path=project_path,
+                )
+
+                if review_result.get("success"):
+                    reviews_spawned.append({
+                        "task_id": task_id,
+                        "agent_id": review_result.get("agent_id"),
+                        "session_id": review_result.get("session_id"),
+                        "worktree_id": review_result.get("worktree_id"),
+                    })
+                    review_agents_spawned.append({
+                        "task_id": task_id,
+                        "agent_id": review_result.get("agent_id"),
+                    })
+                    # Keep agent in completed list until review completes
+                    still_pending_review.append(agent_info)
+                else:
+                    # Review spawn failed - escalate
+                    escalated.append({
+                        **agent_info,
+                        "escalation_reason": f"Review spawn failed: {review_result.get('error')}",
+                    })
+            else:
+                # Not spawning reviews - move to ready_for_cleanup
+                ready_for_cleanup.append({
+                    **agent_info,
+                    "skipped_review": True,
+                })
+                reviewed_agents.append(agent_info)
+
+        # Process failed agents
+        still_failed: list[dict[str, Any]] = []
+
+        for agent_info in failed_agents:
+            task_id = agent_info.get("task_id")
+            failure_reason = agent_info.get("failure_reason", "Unknown")
+
+            # Check if this is a retriable failure
+            if "crashed" in failure_reason.lower() or "exited" in failure_reason.lower():
+                # Potentially retriable - reopen task
+                if task_id:
+                    task = task_manager.get_task(task_id)
+                    if task and task.status == "in_progress":
+                        # Reopen for retry
+                        try:
+                            task_manager.update_task(task_id, status="open")
+                            retries_scheduled.append({
+                                **agent_info,
+                                "retry_reason": "Agent crashed, reopened task",
+                            })
+                            continue
+                        except Exception:
+                            pass
+
+            # Non-retriable - escalate
+            escalated.append({
+                **agent_info,
+                "escalation_reason": failure_reason,
+            })
+
+        # Update workflow state
+        try:
+            state = state_manager.get_state(parent_session_id)
+            if state:
+                # Update completed_agents to only include pending review
+                state.variables["completed_agents"] = still_pending_review
+                # Update reviewed_agents
+                existing_reviewed = state.variables.get("reviewed_agents", [])
+                existing_reviewed.extend(reviewed_agents)
+                state.variables["reviewed_agents"] = existing_reviewed
+                # Update review_agents_spawned
+                state.variables["review_agents_spawned"] = review_agents_spawned
+                # Update failed_agents
+                state.variables["failed_agents"] = still_failed
+                # Track escalated agents
+                existing_escalated = state.variables.get("escalated_agents", [])
+                existing_escalated.extend(escalated)
+                state.variables["escalated_agents"] = existing_escalated
+
+                state_manager.save_state(state)
+        except Exception as e:
+            logger.warning(f"Failed to update workflow state during processing: {e}")
+
+        return {
+            "success": True,
+            "reviews_spawned": reviews_spawned,
+            "ready_for_cleanup": ready_for_cleanup,
+            "retries_scheduled": retries_scheduled,
+            "escalated": escalated,
+            "summary": {
+                "reviews_spawned": len(reviews_spawned),
+                "ready_for_cleanup": len(ready_for_cleanup),
+                "retries_scheduled": len(retries_scheduled),
+                "escalated": len(escalated),
+                "pending_review": len(still_pending_review),
+            },
+        }
+
+    registry.register(
+        name="process_completed_agents",
+        description=(
+            "Process completed agents and route to review or cleanup. "
+            "Spawns review agents for validation, handles retries for failures, "
+            "escalates unrecoverable errors. Used by autonomous-orchestrator review step."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "parent_session_id": {
+                    "type": "string",
+                    "description": "Parent session ID (orchestrator session)",
+                },
+                "spawn_reviews": {
+                    "type": "boolean",
+                    "description": "Whether to spawn review agents for completed tasks",
+                    "default": True,
+                },
+                "review_provider": {
+                    "type": "string",
+                    "description": "LLM provider for reviews (uses workflow variable if not set)",
+                    "default": None,
+                },
+                "review_model": {
+                    "type": "string",
+                    "description": "Model for reviews (uses workflow variable if not set)",
+                    "default": None,
+                },
+                "terminal": {
+                    "type": "string",
+                    "description": "Terminal for terminal mode",
+                    "default": "auto",
+                },
+                "mode": {
+                    "type": "string",
+                    "description": "Execution mode for review agents",
+                    "default": "terminal",
+                },
+                "project_path": {
+                    "type": "string",
+                    "description": "Path to project directory",
+                    "default": None,
+                },
+            },
+            "required": ["parent_session_id"],
+        },
+        func=process_completed_agents,
+    )
+
     return registry
