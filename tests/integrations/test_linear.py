@@ -32,9 +32,7 @@ def linear_integration(mock_mcp_manager):
 class TestLinearIntegrationAvailability:
     """Test is_available() method."""
 
-    def test_is_available_returns_true_when_configured_and_connected(
-        self, mock_mcp_manager
-    ):
+    def test_is_available_returns_true_when_configured_and_connected(self, mock_mcp_manager):
         """is_available() returns True when Linear MCP server is configured and connected."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"linear": MagicMock(state="connected")}

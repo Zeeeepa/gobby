@@ -1742,7 +1742,7 @@ class TestGobbyRunnerDualWrite:
             # Patch getcwd to return our project directory
             with patch("os.getcwd", return_value=str(project_dir)):
                 with patch("gobby.runner.DualWriteDatabase") as mock_dual_write:
-                    runner = GobbyRunner()
+                    _runner = GobbyRunner()
 
                     # DualWriteDatabase should be instantiated
                     mock_dual_write.assert_called_once()
@@ -1756,12 +1756,12 @@ class TestGobbyRunnerDualWrite:
         patches = create_base_patches(mock_config=mock_config)
 
         with ExitStack() as stack:
-            mocks = [stack.enter_context(p) for p in patches]
+            _mocks = [stack.enter_context(p) for p in patches]
 
             # Patch getcwd to return non-project directory
             with patch("os.getcwd", return_value=str(non_project_dir)):
                 with patch("gobby.runner.DualWriteDatabase") as mock_dual_write:
-                    runner = GobbyRunner()
+                    _runner = GobbyRunner()
 
                     # DualWriteDatabase should NOT be called
                     mock_dual_write.assert_not_called()

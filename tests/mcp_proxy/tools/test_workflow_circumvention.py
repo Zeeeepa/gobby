@@ -5,7 +5,6 @@ These tests verify that agents cannot bypass workflow controls:
 2. Modifying session_task when a real workflow is active is blocked
 """
 
-from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
@@ -260,9 +259,7 @@ class TestBlockSessionTaskModification:
         assert "warning" in result
         assert "DEPRECATED" in result["warning"]
 
-    def test_allows_session_task_modification_with_no_state(
-        self, registry, mock_state_manager
-    ):
+    def test_allows_session_task_modification_with_no_state(self, registry, mock_state_manager):
         """Can set session_task when no workflow state exists."""
         mock_state_manager.get_state.return_value = None
 
@@ -278,9 +275,7 @@ class TestBlockSessionTaskModification:
         # Should still save state and show warning
         mock_state_manager.save_state.assert_called_once()
 
-    def test_allows_initial_session_task_setting(
-        self, registry, mock_state_manager
-    ):
+    def test_allows_initial_session_task_setting(self, registry, mock_state_manager):
         """Can set session_task for the first time even with active workflow."""
         # Workflow active but session_task not yet set
         mock_state = MagicMock(spec=WorkflowState)
@@ -299,9 +294,7 @@ class TestBlockSessionTaskModification:
         # Should allow since there's no existing value to protect
         assert result["success"] is True
 
-    def test_allows_setting_same_session_task_value(
-        self, registry, mock_state_manager
-    ):
+    def test_allows_setting_same_session_task_value(self, registry, mock_state_manager):
         """Setting session_task to same value is allowed (idempotent)."""
         mock_state = MagicMock(spec=WorkflowState)
         mock_state.workflow_name = "auto-task"

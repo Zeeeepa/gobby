@@ -7,7 +7,7 @@ TDD Red Phase: Tests should fail initially since GitHubIntegration class does no
 """
 
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -34,9 +34,7 @@ def github_integration(mock_mcp_manager):
 class TestGitHubIntegrationAvailability:
     """Test is_available() method."""
 
-    def test_is_available_returns_true_when_configured_and_connected(
-        self, mock_mcp_manager
-    ):
+    def test_is_available_returns_true_when_configured_and_connected(self, mock_mcp_manager):
         """is_available() returns True when GitHub MCP server is configured and connected."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"github": MagicMock(state="connected")}

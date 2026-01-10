@@ -136,9 +136,7 @@ class LinearSyncService:
 
         effective_team_id = team_id or self.linear_team_id
         if not effective_team_id:
-            raise ValueError(
-                "No team_id provided and no default linear_team_id configured."
-            )
+            raise ValueError("No team_id provided and no default linear_team_id configured.")
 
         # Build filter arguments for Linear MCP
         args: dict[str, Any] = {"teamId": effective_team_id}
@@ -191,8 +189,7 @@ class LinearSyncService:
 
         if not task.linear_issue_id:
             raise ValueError(
-                f"Task {task_id} has no linked Linear issue. "
-                "Set linear_issue_id to sync."
+                f"Task {task_id} has no linked Linear issue. " "Set linear_issue_id to sync."
             )
 
         result = await self.mcp_manager.call_tool(
@@ -241,9 +238,7 @@ class LinearSyncService:
 
         effective_team_id = team_id or task.linear_team_id or self.linear_team_id
         if not effective_team_id:
-            raise ValueError(
-                f"Task {task_id} has no linear_team_id set and no default configured."
-            )
+            raise ValueError(f"Task {task_id} has no linear_team_id set and no default configured.")
 
         # Create issue via Linear MCP
         result = await self.mcp_manager.call_tool(

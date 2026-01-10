@@ -6,7 +6,7 @@ and GitHub via the official GitHub MCP server.
 TDD Red Phase: Tests should fail initially since GitHubSyncService class does not exist.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -106,9 +106,7 @@ class TestGitHubSyncServiceAvailability:
 
         assert service.github.is_available() is False
 
-    def test_is_available_proxies_to_integration(
-        self, mock_mcp_manager, mock_task_manager
-    ):
+    def test_is_available_proxies_to_integration(self, mock_mcp_manager, mock_task_manager):
         """is_available() delegates to GitHubIntegration."""
         service = GitHubSyncService(
             mcp_manager=mock_mcp_manager,
@@ -165,15 +163,19 @@ class TestGitHubSyncServiceImport:
         create_call = mock_task_manager.create_task.call_args
         assert create_call is not None
         kwargs = create_call.kwargs if create_call.kwargs else {}
-        args_dict = dict(zip(["project_id", "title"], create_call.args)) if create_call.args else {}
+        args_dict = (
+            dict(zip(["project_id", "title"], create_call.args, strict=False))
+            if create_call.args
+            else {}
+        )
         all_args = {**args_dict, **kwargs}
 
-        assert all_args.get("github_issue_number") == 42 or "github_issue_number" in str(create_call)
+        assert all_args.get("github_issue_number") == 42 or "github_issue_number" in str(
+            create_call
+        )
 
     @pytest.mark.asyncio
-    async def test_import_issues_raises_when_unavailable(
-        self, mock_mcp_manager, mock_task_manager
-    ):
+    async def test_import_issues_raises_when_unavailable(self, mock_mcp_manager, mock_task_manager):
         """import_github_issues raises RuntimeError when GitHub unavailable."""
         mock_mcp_manager.has_server.return_value = False
 
@@ -207,9 +209,7 @@ class TestGitHubSyncServiceSync:
         mock_mcp_manager.call_tool.assert_called()
 
     @pytest.mark.asyncio
-    async def test_sync_task_raises_when_no_issue_number(
-        self, sync_service, mock_task_manager
-    ):
+    async def test_sync_task_raises_when_no_issue_number(self, sync_service, mock_task_manager):
         """sync_task_to_github raises ValueError when task has no github_issue_number."""
         mock_task = MagicMock()
         mock_task.github_issue_number = None
@@ -233,7 +233,10 @@ class TestGitHubSyncServicePR:
         mock_task.id = "test-task-id"
 
         sync_service.task_manager.get_task.return_value = mock_task
-        mock_mcp_manager.call_tool.return_value = {"number": 123, "url": "https://github.com/owner/repo/pull/123"}
+        mock_mcp_manager.call_tool.return_value = {
+            "number": 123,
+            "url": "https://github.com/owner/repo/pull/123",
+        }
 
         result = await sync_service.create_pr_for_task(
             task_id="test-task-id",
@@ -289,9 +292,7 @@ class TestLabelMapping:
     def test_map_gobby_labels_to_github_with_prefix(self, sync_service):
         """map_gobby_labels_to_github can add prefix to labels."""
         gobby_labels = ["bug"]
-        github_labels = sync_service.map_gobby_labels_to_github(
-            gobby_labels, prefix="gobby:"
-        )
+        github_labels = sync_service.map_gobby_labels_to_github(gobby_labels, prefix="gobby:")
         assert "gobby:bug" in github_labels
 
     def test_map_github_labels_to_gobby_basic(self, sync_service):
@@ -310,9 +311,7 @@ class TestLabelMapping:
     def test_map_github_labels_to_gobby_strips_prefix(self, sync_service):
         """map_github_labels_to_gobby strips gobby: prefix."""
         github_labels = ["gobby:bug", "gobby:feature"]
-        gobby_labels = sync_service.map_github_labels_to_gobby(
-            github_labels, strip_prefix="gobby:"
-        )
+        gobby_labels = sync_service.map_github_labels_to_gobby(github_labels, strip_prefix="gobby:")
         assert "bug" in gobby_labels
         assert "feature" in gobby_labels
 
@@ -329,9 +328,7 @@ class TestGitHubSyncIntegration:
     """Integration tests for full GitHubSyncService workflows."""
 
     @pytest.mark.asyncio
-    async def test_import_and_sync_workflow(
-        self, mock_mcp_manager, mock_task_manager
-    ):
+    async def test_import_and_sync_workflow(self, mock_mcp_manager, mock_task_manager):
         """Test full workflow: import issues, then sync back."""
         # Setup: GitHub MCP returns realistic issue data
         mock_mcp_manager.has_server.return_value = True
@@ -380,9 +377,7 @@ class TestGitHubSyncIntegration:
         assert result is not None
 
     @pytest.mark.asyncio
-    async def test_create_pr_after_task_completion(
-        self, mock_mcp_manager, mock_task_manager
-    ):
+    async def test_create_pr_after_task_completion(self, mock_mcp_manager, mock_task_manager):
         """Test workflow: complete task and create PR."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"github": MagicMock(state="connected")}
@@ -417,9 +412,7 @@ class TestGitHubSyncIntegration:
         mock_task_manager.update_task.assert_called()
 
     @pytest.mark.asyncio
-    async def test_error_recovery_network_failure(
-        self, mock_mcp_manager, mock_task_manager
-    ):
+    async def test_error_recovery_network_failure(self, mock_mcp_manager, mock_task_manager):
         """Test error handling when network fails."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"github": MagicMock(state="connected")}
@@ -436,9 +429,7 @@ class TestGitHubSyncIntegration:
             await service.import_github_issues(repo="owner/repo")
 
     @pytest.mark.asyncio
-    async def test_handles_empty_issue_list(
-        self, mock_mcp_manager, mock_task_manager
-    ):
+    async def test_handles_empty_issue_list(self, mock_mcp_manager, mock_task_manager):
         """Test handling of repo with no issues."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"github": MagicMock(state="connected")}
@@ -495,9 +486,7 @@ class TestGitHubSyncErrorHandling:
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"github": MagicMock(state="connected")}
         # Simulate rate limit response
-        mock_mcp_manager.call_tool.side_effect = Exception(
-            "API rate limit exceeded"
-        )
+        mock_mcp_manager.call_tool.side_effect = Exception("API rate limit exceeded")
 
         service = GitHubSyncService(
             mcp_manager=mock_mcp_manager,
@@ -516,9 +505,7 @@ class TestGitHubSyncErrorHandling:
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"github": MagicMock(state="connected")}
         # Simulate 404 response
-        mock_mcp_manager.call_tool.side_effect = Exception(
-            "Not Found"
-        )
+        mock_mcp_manager.call_tool.side_effect = Exception("Not Found")
 
         service = GitHubSyncService(
             mcp_manager=mock_mcp_manager,
@@ -530,9 +517,7 @@ class TestGitHubSyncErrorHandling:
             await service.import_github_issues(repo="owner/nonexistent")
 
     @pytest.mark.asyncio
-    async def test_sync_validates_response_structure(
-        self, mock_mcp_manager, mock_task_manager
-    ):
+    async def test_sync_validates_response_structure(self, mock_mcp_manager, mock_task_manager):
         """sync_task_to_github validates response before processing."""
         from gobby.sync.github import GitHubSyncError
 

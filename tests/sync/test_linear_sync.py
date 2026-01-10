@@ -104,9 +104,7 @@ class TestLinearSyncServiceAvailability:
 
         assert service.linear.is_available() is False
 
-    def test_is_available_proxies_to_integration(
-        self, mock_mcp_manager, mock_task_manager
-    ):
+    def test_is_available_proxies_to_integration(self, mock_mcp_manager, mock_task_manager):
         """is_available() delegates to LinearIntegration."""
         service = LinearSyncService(
             mcp_manager=mock_mcp_manager,
@@ -160,15 +158,17 @@ class TestLinearSyncServiceImport:
         create_call = mock_task_manager.create_task.call_args
         assert create_call is not None
         kwargs = create_call.kwargs if create_call.kwargs else {}
-        args_dict = dict(zip(["project_id", "title"], create_call.args)) if create_call.args else {}
+        args_dict = (
+            dict(zip(["project_id", "title"], create_call.args, strict=False))
+            if create_call.args
+            else {}
+        )
         all_args = {**args_dict, **kwargs}
 
         assert all_args.get("linear_issue_id") == "lin-42" or "linear_issue_id" in str(create_call)
 
     @pytest.mark.asyncio
-    async def test_import_issues_raises_when_unavailable(
-        self, mock_mcp_manager, mock_task_manager
-    ):
+    async def test_import_issues_raises_when_unavailable(self, mock_mcp_manager, mock_task_manager):
         """import_linear_issues raises RuntimeError when Linear unavailable."""
         mock_mcp_manager.has_server.return_value = False
 
@@ -183,9 +183,7 @@ class TestLinearSyncServiceImport:
             await service.import_linear_issues()
 
     @pytest.mark.asyncio
-    async def test_import_issues_raises_when_no_team_id(
-        self, mock_mcp_manager, mock_task_manager
-    ):
+    async def test_import_issues_raises_when_no_team_id(self, mock_mcp_manager, mock_task_manager):
         """import_linear_issues raises ValueError when no team_id provided."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"linear": MagicMock(state="connected")}
@@ -221,9 +219,7 @@ class TestLinearSyncServiceSync:
         mock_mcp_manager.call_tool.assert_called()
 
     @pytest.mark.asyncio
-    async def test_sync_task_raises_when_no_issue_id(
-        self, sync_service, mock_task_manager
-    ):
+    async def test_sync_task_raises_when_no_issue_id(self, sync_service, mock_task_manager):
         """sync_task_to_linear raises ValueError when task has no linear_issue_id."""
         mock_task = MagicMock()
         mock_task.linear_issue_id = None
@@ -247,7 +243,10 @@ class TestLinearSyncServiceCreate:
         mock_task.id = "test-task-id"
 
         sync_service.task_manager.get_task.return_value = mock_task
-        mock_mcp_manager.call_tool.return_value = {"id": "lin-123", "title": "Feature: Add new thing"}
+        mock_mcp_manager.call_tool.return_value = {
+            "id": "lin-123",
+            "title": "Feature: Add new thing",
+        }
 
         result = await sync_service.create_issue_for_task(task_id="test-task-id")
 
@@ -273,9 +272,7 @@ class TestLinearSyncServiceCreate:
         mock_task_manager.update_task.assert_called()
 
     @pytest.mark.asyncio
-    async def test_create_issue_raises_when_no_team_id(
-        self, mock_mcp_manager, mock_task_manager
-    ):
+    async def test_create_issue_raises_when_no_team_id(self, mock_mcp_manager, mock_task_manager):
         """create_issue_for_task raises ValueError when no team_id available."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"linear": MagicMock(state="connected")}
@@ -335,9 +332,7 @@ class TestLinearSyncIntegration:
     """Integration tests for full LinearSyncService workflows."""
 
     @pytest.mark.asyncio
-    async def test_import_and_sync_workflow(
-        self, mock_mcp_manager, mock_task_manager
-    ):
+    async def test_import_and_sync_workflow(self, mock_mcp_manager, mock_task_manager):
         """Test full workflow: import issues, then sync back."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"linear": MagicMock(state="connected")}
@@ -381,9 +376,7 @@ class TestLinearSyncIntegration:
         assert result is not None
 
     @pytest.mark.asyncio
-    async def test_handles_empty_issue_list(
-        self, mock_mcp_manager, mock_task_manager
-    ):
+    async def test_handles_empty_issue_list(self, mock_mcp_manager, mock_task_manager):
         """Test handling of team with no issues."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"linear": MagicMock(state="connected")}
@@ -424,7 +417,9 @@ class TestLinearSyncExceptions:
         """LinearNotFoundError indicates missing resource."""
         from gobby.sync.linear import LinearNotFoundError
 
-        error = LinearNotFoundError("Issue lin-42 not found", resource="issue", resource_id="lin-42")
+        error = LinearNotFoundError(
+            "Issue lin-42 not found", resource="issue", resource_id="lin-42"
+        )
         assert "Issue lin-42 not found" in str(error)
         assert error.resource == "issue"
         assert error.resource_id == "lin-42"
@@ -434,9 +429,7 @@ class TestLinearSyncErrorHandling:
     """Test error handling in sync operations."""
 
     @pytest.mark.asyncio
-    async def test_sync_validates_response_structure(
-        self, mock_mcp_manager, mock_task_manager
-    ):
+    async def test_sync_validates_response_structure(self, mock_mcp_manager, mock_task_manager):
         """sync_task_to_linear validates response before processing."""
         from gobby.sync.linear import LinearSyncError
 
@@ -461,9 +454,7 @@ class TestLinearSyncErrorHandling:
             await service.sync_task_to_linear(task_id="test-task")
 
     @pytest.mark.asyncio
-    async def test_error_recovery_network_failure(
-        self, mock_mcp_manager, mock_task_manager
-    ):
+    async def test_error_recovery_network_failure(self, mock_mcp_manager, mock_task_manager):
         """Test error handling when network fails."""
         mock_mcp_manager.has_server.return_value = True
         mock_mcp_manager.health = {"linear": MagicMock(state="connected")}

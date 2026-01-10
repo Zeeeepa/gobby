@@ -96,17 +96,13 @@ class TestDualWriteIntegration:
 
         # Verify task exists in project database
         project_db_direct = LocalDatabase(project_db_path)
-        row = project_db_direct.fetchone(
-            "SELECT id, title FROM tasks WHERE id = ?", ("task-1",)
-        )
+        row = project_db_direct.fetchone("SELECT id, title FROM tasks WHERE id = ?", ("task-1",))
         assert row is not None
         assert row["title"] == "Test Task"
 
         # Verify task exists in hub database
         hub_db_direct = LocalDatabase(hub_db_path)
-        row = hub_db_direct.fetchone(
-            "SELECT id, title FROM tasks WHERE id = ?", ("task-1",)
-        )
+        row = hub_db_direct.fetchone("SELECT id, title FROM tasks WHERE id = ?", ("task-1",))
         assert row is not None
         assert row["title"] == "Test Task"
 
@@ -327,9 +323,7 @@ class TestHubQueryIntegration:
 
         # Query hub database directly for cross-project tasks
         hub_db_query = LocalDatabase(hub_db_path)
-        rows = hub_db_query.fetchall(
-            "SELECT id, project_id, title FROM tasks ORDER BY title"
-        )
+        rows = hub_db_query.fetchall("SELECT id, project_id, title FROM tasks ORDER BY title")
 
         assert len(rows) == 2
         assert rows[0]["title"] == "Task from project-alpha"

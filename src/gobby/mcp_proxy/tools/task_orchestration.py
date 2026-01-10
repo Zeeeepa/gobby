@@ -199,18 +199,12 @@ def create_orchestration_registry(
                 workflow_vars = state.variables
 
         # Provider assignment chain: parameter > workflow var > default
-        effective_provider = (
-            coding_provider
-            or workflow_vars.get("coding_provider")
-            or provider
-        )
-        effective_model = (
-            coding_model
-            or workflow_vars.get("coding_model")
-            or model
-        )
+        effective_provider = coding_provider or workflow_vars.get("coding_provider") or provider
+        effective_model = coding_model or workflow_vars.get("coding_model") or model
         # Also capture terminal from workflow if not explicitly set
-        effective_terminal = terminal if terminal != "auto" else workflow_vars.get("terminal", "auto")
+        effective_terminal = (
+            terminal if terminal != "auto" else workflow_vars.get("terminal", "auto")
+        )
 
         spawned: list[dict[str, Any]] = []
         skipped: list[dict[str, Any]] = []
@@ -860,22 +854,26 @@ def create_orchestration_registry(
 
             if not session_id:
                 # Invalid agent info, mark as failed
-                newly_failed.append({
-                    **agent_info,
-                    "failure_reason": "Missing session_id in agent info",
-                })
+                newly_failed.append(
+                    {
+                        **agent_info,
+                        "failure_reason": "Missing session_id in agent info",
+                    }
+                )
                 continue
 
             # Check if the task is closed (agent completed successfully)
             if task_id:
                 task = task_manager.get_task(task_id)
                 if task and task.status == "closed":
-                    newly_completed.append({
-                        **agent_info,
-                        "completed_at": task.closed_at,
-                        "closed_reason": task.closed_reason,
-                        "commit_sha": task.closed_commit_sha,
-                    })
+                    newly_completed.append(
+                        {
+                            **agent_info,
+                            "completed_at": task.closed_at,
+                            "closed_reason": task.closed_reason,
+                            "commit_sha": task.closed_commit_sha,
+                        }
+                    )
                     continue
 
             # Check worktree status (if agent released worktree, it's done)
@@ -888,48 +886,62 @@ def create_orchestration_registry(
                         task = task_manager.get_task(task_id)
                         if task and task.status != "closed":
                             # Agent released worktree without closing task
-                            newly_failed.append({
-                                **agent_info,
-                                "failure_reason": "Agent released worktree without closing task",
-                            })
+                            newly_failed.append(
+                                {
+                                    **agent_info,
+                                    "failure_reason": "Agent released worktree without closing task",
+                                }
+                            )
                             continue
 
             # Check if agent is still running via in-memory registry
             running_agent = agent_runner.get_running_agent(session_id)
             if running_agent:
                 # Still running
-                still_running.append({
-                    **agent_info,
-                    "running_since": running_agent.started_at.isoformat() if running_agent.started_at else None,
-                })
+                still_running.append(
+                    {
+                        **agent_info,
+                        "running_since": running_agent.started_at.isoformat()
+                        if running_agent.started_at
+                        else None,
+                    }
+                )
             else:
                 # Agent not in running registry and task not closed
                 # Could be completed or failed - check task status
                 if task_id:
                     task = task_manager.get_task(task_id)
                     if task and task.status == "closed":
-                        newly_completed.append({
-                            **agent_info,
-                            "completed_at": task.closed_at,
-                        })
+                        newly_completed.append(
+                            {
+                                **agent_info,
+                                "completed_at": task.closed_at,
+                            }
+                        )
                     elif task and task.status == "in_progress":
                         # Still in progress but agent not running - likely crashed
-                        newly_failed.append({
-                            **agent_info,
-                            "failure_reason": "Agent exited without completing task",
-                        })
+                        newly_failed.append(
+                            {
+                                **agent_info,
+                                "failure_reason": "Agent exited without completing task",
+                            }
+                        )
                     else:
                         # Task open, agent not running - was never started properly
-                        newly_failed.append({
-                            **agent_info,
-                            "failure_reason": "Agent not running and task not started",
-                        })
+                        newly_failed.append(
+                            {
+                                **agent_info,
+                                "failure_reason": "Agent not running and task not started",
+                            }
+                        )
                 else:
                     # No task ID, can't determine status
-                    newly_failed.append({
-                        **agent_info,
-                        "failure_reason": "Unknown status - no task_id",
-                    })
+                    newly_failed.append(
+                        {
+                            **agent_info,
+                            "failure_reason": "Unknown status - no task_id",
+                        }
+                    )
 
         # Update workflow state
         if newly_completed or newly_failed or still_running != spawned_agents:
@@ -1374,14 +1386,10 @@ def create_orchestration_registry(
 
         # Resolve review provider from workflow vars or parameters
         effective_review_provider = (
-            review_provider
-            or workflow_vars.get("review_provider")
-            or "claude"
+            review_provider or workflow_vars.get("review_provider") or "claude"
         )
         effective_review_model = (
-            review_model
-            or workflow_vars.get("review_model")
-            or "claude-opus-4-5"
+            review_model or workflow_vars.get("review_model") or "claude-opus-4-5"
         )
 
         reviews_spawned: list[dict[str, Any]] = []
@@ -1396,28 +1404,34 @@ def create_orchestration_registry(
             task_id = agent_info.get("task_id")
             if not task_id:
                 # Invalid agent info
-                escalated.append({
-                    **agent_info,
-                    "escalation_reason": "Missing task_id",
-                })
+                escalated.append(
+                    {
+                        **agent_info,
+                        "escalation_reason": "Missing task_id",
+                    }
+                )
                 continue
 
             # Check task validation status
             task = task_manager.get_task(task_id)
             if not task:
-                escalated.append({
-                    **agent_info,
-                    "escalation_reason": "Task not found",
-                })
+                escalated.append(
+                    {
+                        **agent_info,
+                        "escalation_reason": "Task not found",
+                    }
+                )
                 continue
 
             # Check if task is already validated (passed validation)
             if task.validation_status == "valid":
                 # Ready for cleanup
-                ready_for_cleanup.append({
-                    **agent_info,
-                    "validation_status": "valid",
-                })
+                ready_for_cleanup.append(
+                    {
+                        **agent_info,
+                        "validation_status": "valid",
+                    }
+                )
                 reviewed_agents.append(agent_info)
                 continue
 
@@ -1429,32 +1443,36 @@ def create_orchestration_registry(
 
                 if fail_count >= max_retries:
                     # Escalate - too many failures
-                    escalated.append({
-                        **agent_info,
-                        "escalation_reason": f"Validation failed {fail_count} times",
-                        "validation_feedback": task.validation_feedback,
-                    })
+                    escalated.append(
+                        {
+                            **agent_info,
+                            "escalation_reason": f"Validation failed {fail_count} times",
+                            "validation_feedback": task.validation_feedback,
+                        }
+                    )
                 else:
                     # Retry - reopen task and add back to queue
                     try:
                         task_manager.reopen_task(task_id, reason="Validation failed, retrying")
-                        retries_scheduled.append({
-                            **agent_info,
-                            "retry_count": fail_count + 1,
-                        })
+                        retries_scheduled.append(
+                            {
+                                **agent_info,
+                                "retry_count": fail_count + 1,
+                            }
+                        )
                     except Exception as e:
-                        escalated.append({
-                            **agent_info,
-                            "escalation_reason": f"Failed to reopen task: {e}",
-                        })
+                        escalated.append(
+                            {
+                                **agent_info,
+                                "escalation_reason": f"Failed to reopen task: {e}",
+                            }
+                        )
                 continue
 
             # Task needs review - spawn review agent if enabled
             if spawn_reviews:
                 # Check if review agent already spawned for this task
-                already_spawned = any(
-                    ra.get("task_id") == task_id for ra in review_agents_spawned
-                )
+                already_spawned = any(ra.get("task_id") == task_id for ra in review_agents_spawned)
                 if already_spawned:
                     # Keep in pending review list
                     still_pending_review.append(agent_info)
@@ -1472,30 +1490,38 @@ def create_orchestration_registry(
                 )
 
                 if review_result.get("success"):
-                    reviews_spawned.append({
-                        "task_id": task_id,
-                        "agent_id": review_result.get("agent_id"),
-                        "session_id": review_result.get("session_id"),
-                        "worktree_id": review_result.get("worktree_id"),
-                    })
-                    review_agents_spawned.append({
-                        "task_id": task_id,
-                        "agent_id": review_result.get("agent_id"),
-                    })
+                    reviews_spawned.append(
+                        {
+                            "task_id": task_id,
+                            "agent_id": review_result.get("agent_id"),
+                            "session_id": review_result.get("session_id"),
+                            "worktree_id": review_result.get("worktree_id"),
+                        }
+                    )
+                    review_agents_spawned.append(
+                        {
+                            "task_id": task_id,
+                            "agent_id": review_result.get("agent_id"),
+                        }
+                    )
                     # Keep agent in completed list until review completes
                     still_pending_review.append(agent_info)
                 else:
                     # Review spawn failed - escalate
-                    escalated.append({
-                        **agent_info,
-                        "escalation_reason": f"Review spawn failed: {review_result.get('error')}",
-                    })
+                    escalated.append(
+                        {
+                            **agent_info,
+                            "escalation_reason": f"Review spawn failed: {review_result.get('error')}",
+                        }
+                    )
             else:
                 # Not spawning reviews - move to ready_for_cleanup
-                ready_for_cleanup.append({
-                    **agent_info,
-                    "skipped_review": True,
-                })
+                ready_for_cleanup.append(
+                    {
+                        **agent_info,
+                        "skipped_review": True,
+                    }
+                )
                 reviewed_agents.append(agent_info)
 
         # Process failed agents
@@ -1514,19 +1540,23 @@ def create_orchestration_registry(
                         # Reopen for retry
                         try:
                             task_manager.update_task(task_id, status="open")
-                            retries_scheduled.append({
-                                **agent_info,
-                                "retry_reason": "Agent crashed, reopened task",
-                            })
+                            retries_scheduled.append(
+                                {
+                                    **agent_info,
+                                    "retry_reason": "Agent crashed, reopened task",
+                                }
+                            )
                             continue
                         except Exception:
                             pass
 
             # Non-retriable - escalate
-            escalated.append({
-                **agent_info,
-                "escalation_reason": failure_reason,
-            })
+            escalated.append(
+                {
+                    **agent_info,
+                    "escalation_reason": failure_reason,
+                }
+            )
 
         # Update workflow state
         try:
@@ -1702,10 +1732,12 @@ def create_orchestration_registry(
             branch_name = agent_info.get("branch_name")
 
             if not worktree_id:
-                failed.append({
-                    **agent_info,
-                    "failure_reason": "Missing worktree_id",
-                })
+                failed.append(
+                    {
+                        **agent_info,
+                        "failure_reason": "Missing worktree_id",
+                    }
+                )
                 continue
 
             # Get worktree from storage
@@ -1728,19 +1760,23 @@ def create_orchestration_registry(
                     )
 
                     if merge_result["success"]:
-                        merged.append({
-                            "worktree_id": worktree_id,
-                            "task_id": task_id,
-                            "branch_name": branch,
-                            "merge_commit": merge_result.get("merge_commit"),
-                        })
+                        merged.append(
+                            {
+                                "worktree_id": worktree_id,
+                                "task_id": task_id,
+                                "branch_name": branch,
+                                "merge_commit": merge_result.get("merge_commit"),
+                            }
+                        )
                     else:
                         # Merge failed - cannot proceed with cleanup
-                        failed.append({
-                            **agent_info,
-                            "failure_reason": f"Merge failed: {merge_result.get('error')}",
-                            "merge_error": merge_result.get("error"),
-                        })
+                        failed.append(
+                            {
+                                **agent_info,
+                                "failure_reason": f"Merge failed: {merge_result.get('error')}",
+                                "merge_error": merge_result.get("error"),
+                            }
+                        )
                         continue
 
                 # Step 2: Mark worktree as merged
@@ -1755,52 +1791,57 @@ def create_orchestration_registry(
                     )
 
                     if delete_result.success:
-                        deleted.append({
-                            "worktree_id": worktree_id,
-                            "task_id": task_id,
-                            "worktree_path": worktree_path,
-                            "branch_deleted": delete_branches,
-                        })
+                        deleted.append(
+                            {
+                                "worktree_id": worktree_id,
+                                "task_id": task_id,
+                                "worktree_path": worktree_path,
+                                "branch_deleted": delete_branches,
+                            }
+                        )
 
                         # Also delete the database record
                         worktree_storage.delete(worktree_id)
                     else:
                         # Worktree deletion failed, but it's already marked as merged
-                        failed.append({
-                            **agent_info,
-                            "failure_reason": f"Worktree deletion failed: {delete_result.message}",
-                            "worktree_status": "merged",  # Still merged
-                        })
+                        failed.append(
+                            {
+                                **agent_info,
+                                "failure_reason": f"Worktree deletion failed: {delete_result.message}",
+                                "worktree_status": "merged",  # Still merged
+                            }
+                        )
                         continue
 
                 cleaned_agents.append(agent_info)
 
             except Exception as e:
                 logger.exception(f"Error cleaning up worktree {worktree_id}")
-                failed.append({
-                    **agent_info,
-                    "failure_reason": str(e),
-                })
+                failed.append(
+                    {
+                        **agent_info,
+                        "failure_reason": str(e),
+                    }
+                )
 
         # Update workflow state
         try:
             state = state_manager.get_state(parent_session_id)
             if state:
                 # Remove successfully cleaned agents from reviewed_agents
-                remaining_reviewed = [
-                    a for a in reviewed_agents
-                    if a not in cleaned_agents
-                ]
+                remaining_reviewed = [a for a in reviewed_agents if a not in cleaned_agents]
                 state.variables["reviewed_agents"] = remaining_reviewed
 
                 # Track cleanup history
                 cleanup_history = state.variables.get("cleanup_history", [])
-                cleanup_history.append({
-                    "merged_count": len(merged),
-                    "deleted_count": len(deleted),
-                    "failed_count": len(failed),
-                    "timestamp": datetime.now(UTC).isoformat(),
-                })
+                cleanup_history.append(
+                    {
+                        "merged_count": len(merged),
+                        "deleted_count": len(deleted),
+                        "failed_count": len(failed),
+                        "timestamp": datetime.now(UTC).isoformat(),
+                    }
+                )
                 state.variables["cleanup_history"] = cleanup_history
 
                 state_manager.save_state(state)
@@ -2065,25 +2106,31 @@ def create_orchestration_registry(
                     # Mark as abandoned and delete record
                     worktree_storage.mark_abandoned(wt.id)
                     worktree_storage.delete(wt.id)
-                    deleted.append({
-                        "worktree_id": wt.id,
-                        "branch_name": wt.branch_name,
-                        "worktree_path": wt.worktree_path,
-                    })
+                    deleted.append(
+                        {
+                            "worktree_id": wt.id,
+                            "branch_name": wt.branch_name,
+                            "worktree_path": wt.worktree_path,
+                        }
+                    )
                 else:
-                    failed.append({
-                        "worktree_id": wt.id,
-                        "branch_name": wt.branch_name,
-                        "failure_reason": delete_result.message,
-                    })
+                    failed.append(
+                        {
+                            "worktree_id": wt.id,
+                            "branch_name": wt.branch_name,
+                            "failure_reason": delete_result.message,
+                        }
+                    )
 
             except Exception as e:
                 logger.exception(f"Error cleaning up stale worktree {wt.id}")
-                failed.append({
-                    "worktree_id": wt.id,
-                    "branch_name": wt.branch_name,
-                    "failure_reason": str(e),
-                })
+                failed.append(
+                    {
+                        "worktree_id": wt.id,
+                        "branch_name": wt.branch_name,
+                        "failure_reason": str(e),
+                    }
+                )
 
         return {
             "success": True,

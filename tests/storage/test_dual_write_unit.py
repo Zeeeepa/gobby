@@ -1,8 +1,6 @@
 """Tests for DualWriteDatabase."""
 
-import sqlite3
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -137,9 +135,7 @@ class TestDualWriteDatabaseRead:
 class TestDualWriteDatabaseHubFailure:
     """Tests for hub database failure handling."""
 
-    def test_hub_execute_failure_is_logged_not_raised(
-        self, dual_db: DualWriteDatabase, caplog
-    ):
+    def test_hub_execute_failure_is_logged_not_raised(self, dual_db: DualWriteDatabase, caplog):
         """Test hub execute failure is logged but doesn't raise."""
         # Make hub fail by dropping the table
         dual_db.hub_db.execute("DROP TABLE test")
@@ -156,9 +152,7 @@ class TestDualWriteDatabaseHubFailure:
         assert "Hub database" in caplog.text
         assert dual_db.hub_healthy is False
 
-    def test_hub_safe_update_failure_is_logged_not_raised(
-        self, dual_db: DualWriteDatabase, caplog
-    ):
+    def test_hub_safe_update_failure_is_logged_not_raised(self, dual_db: DualWriteDatabase, caplog):
         """Test hub safe_update failure is logged but doesn't raise."""
         # Insert initial data
         dual_db.execute("INSERT INTO test (id, value) VALUES (1, 'old')")
@@ -226,9 +220,7 @@ class TestDualWriteDatabaseTransaction:
 class TestDualWriteDatabaseClose:
     """Tests for close operation."""
 
-    def test_close_closes_both_databases(
-        self, project_db: LocalDatabase, hub_db: LocalDatabase
-    ):
+    def test_close_closes_both_databases(self, project_db: LocalDatabase, hub_db: LocalDatabase):
         """Test close closes both database connections."""
         dual = DualWriteDatabase(project_db, hub_db)
         dual.close()

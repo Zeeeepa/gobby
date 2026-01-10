@@ -686,11 +686,13 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
         while current_retry < max_retries:
             # Run validation
             validation_result = await validate_task(task_id)
-            loop_history.append({
-                "iteration": current_retry + 1,
-                "action": "validate",
-                "result": validation_result,
-            })
+            loop_history.append(
+                {
+                    "iteration": current_retry + 1,
+                    "action": "validate",
+                    "result": validation_result,
+                }
+            )
 
             if validation_result.get("is_valid"):
                 # Success! Task is closed by validate_task
@@ -708,11 +710,13 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
                 break
 
             if not agent_runner:
-                loop_history.append({
-                    "iteration": current_retry + 1,
-                    "action": "fix_skipped",
-                    "reason": "Agent runner not configured",
-                })
+                loop_history.append(
+                    {
+                        "iteration": current_retry + 1,
+                        "action": "fix_skipped",
+                        "reason": "Agent runner not configured",
+                    }
+                )
                 break
 
             # Spawn fix agent
@@ -720,11 +724,13 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
                 task_id=task_id,
                 timeout=fix_timeout,
             )
-            loop_history.append({
-                "iteration": current_retry + 1,
-                "action": "fix_attempt",
-                "result": fix_result,
-            })
+            loop_history.append(
+                {
+                    "iteration": current_retry + 1,
+                    "action": "fix_attempt",
+                    "result": fix_result,
+                }
+            )
 
             if not fix_result.get("success"):
                 # Fix agent failed to run
@@ -740,7 +746,9 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
                 None,
             )
             if last_validation and last_validation.get("result", {}).get("feedback"):
-                final_feedback += f"\n\nLast validation feedback:\n{last_validation['result']['feedback']}"
+                final_feedback += (
+                    f"\n\nLast validation feedback:\n{last_validation['result']['feedback']}"
+                )
 
         # Create fix subtask for manual intervention
         fix_task = task_manager.create_task(

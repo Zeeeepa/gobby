@@ -173,7 +173,9 @@ def linear_import(
 
         # Run async import
         label_list = labels.split(",") if labels else None
-        tasks = asyncio.run(service.import_linear_issues(team_id=team_id, state=state, labels=label_list))
+        tasks = asyncio.run(
+            service.import_linear_issues(team_id=team_id, state=state, labels=label_list)
+        )
 
         if json_format:
             click.echo(json.dumps({"tasks": tasks, "count": len(tasks)}, indent=2))

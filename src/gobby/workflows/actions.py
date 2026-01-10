@@ -83,7 +83,7 @@ class ActionContext:
 
     session_id: str
     state: WorkflowState
-    db: LocalDatabase
+    db: DatabaseProtocol
     session_manager: LocalSessionManager
     template_engine: TemplateEngine
     llm_service: Any | None = None

@@ -45,9 +45,7 @@ class DatabaseProtocol(Protocol):
         """Execute SQL statement."""
         ...
 
-    def executemany(
-        self, sql: str, params_list: list[tuple[Any, ...]]
-    ) -> sqlite3.Cursor:
+    def executemany(self, sql: str, params_list: list[tuple[Any, ...]]) -> sqlite3.Cursor:
         """Execute SQL statement with multiple parameter sets."""
         ...
 
@@ -76,6 +74,7 @@ class DatabaseProtocol(Protocol):
     def close(self) -> None:
         """Close database connection."""
         ...
+
 
 # Default database path
 DEFAULT_DB_PATH = Path.home() / ".gobby" / "gobby.db"

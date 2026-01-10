@@ -195,8 +195,7 @@ def create_github_sync_registry(
     @registry.tool(
         name="create_pr_for_task",
         description=(
-            "Create a GitHub pull request for a task. "
-            "Links the PR to the task for tracking."
+            "Create a GitHub pull request for a task. " "Links the PR to the task for tracking."
         ),
     )
     async def create_pr_for_task(

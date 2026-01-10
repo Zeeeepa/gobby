@@ -19,7 +19,7 @@ wipFile: '{implementation_artifacts}/tech-spec-wip.md'
 
 ## CONTEXT:
 
-- Requires `{wipFile}` from Step 3. 
+- Requires `{wipFile}` from Step 3.
 - MUST present COMPLETE spec content. Iterate until user is satisfied.
 - **Criteria**: The spec MUST meet the **READY FOR DEVELOPMENT** standard defined in `workflow.md`.
 

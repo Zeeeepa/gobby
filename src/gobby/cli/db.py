@@ -146,7 +146,9 @@ def sync(ctx: click.Context, direction: str) -> None:
 
     if direction == "to-hub":
         if project_db_path is None or not project_db_path.exists():
-            click.echo("Error: Not in a project context or project database doesn't exist.", err=True)
+            click.echo(
+                "Error: Not in a project context or project database doesn't exist.", err=True
+            )
             click.echo("Run this command from a directory with .gobby/project.json", err=True)
             raise SystemExit(1)
 

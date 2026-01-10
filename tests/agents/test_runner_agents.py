@@ -3,10 +3,11 @@ Tests for Agent Runner integration with Agent Definitions (Agents V2).
 """
 
 from unittest.mock import MagicMock
+
 import pytest
 
-from gobby.agents.runner import AgentConfig, AgentRunner
 from gobby.agents.definitions import AgentDefinition
+from gobby.agents.runner import AgentConfig, AgentRunner
 
 
 class TestAgentRunnerDefinitions:

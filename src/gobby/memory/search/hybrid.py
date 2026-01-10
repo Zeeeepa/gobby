@@ -260,15 +260,11 @@ class HybridSearcher:
         # Run TF-IDF in thread pool (sync) and OpenAI search concurrently
         loop = asyncio.get_event_loop()
 
-        tfidf_task = loop.run_in_executor(
-            None, lambda: self._tfidf.search(query, top_k=top_k * 2)
-        )
+        tfidf_task = loop.run_in_executor(None, lambda: self._tfidf.search(query, top_k=top_k * 2))
 
         try:
             openai_task = self._openai.async_search(query, top_k=top_k * 2)
-            tfidf_results, openai_results = await asyncio.gather(
-                tfidf_task, openai_task
-            )
+            tfidf_results, openai_results = await asyncio.gather(tfidf_task, openai_task)
         except Exception as e:
             logger.warning(f"OpenAI search failed: {e}")
             tfidf_results = await tfidf_task

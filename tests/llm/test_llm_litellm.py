@@ -150,5 +150,3 @@ class TestLiteLLMProviderSynthesizeTitle:
 
         with pytest.raises(ValueError, match="prompt_template is required"):
             await provider.synthesize_title("test prompt")
-
-

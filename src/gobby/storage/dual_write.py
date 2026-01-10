@@ -109,9 +109,7 @@ class DualWriteDatabase:
         self._hub_execute(sql, params)
         return result
 
-    def executemany(
-        self, sql: str, params_list: list[tuple[Any, ...]]
-    ) -> sqlite3.Cursor:
+    def executemany(self, sql: str, params_list: list[tuple[Any, ...]]) -> sqlite3.Cursor:
         """Execute SQL with multiple params on both databases."""
         result = self.project_db.executemany(sql, params_list)
         self._hub_executemany(sql, params_list)
@@ -206,9 +204,7 @@ class DualWriteDatabase:
         except Exception as e:
             self._log_hub_error("execute", e)
 
-    def _hub_executemany(
-        self, sql: str, params_list: list[tuple[Any, ...]]
-    ) -> None:
+    def _hub_executemany(self, sql: str, params_list: list[tuple[Any, ...]]) -> None:
         """Execute SQL with multiple params on hub database."""
         try:
             self.hub_db.executemany(sql, params_list)

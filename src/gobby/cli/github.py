@@ -153,9 +153,7 @@ def github_unlink() -> None:
     help="Issue state filter",
 )
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
-def github_import(
-    repo: str | None, labels: str | None, state: str, json_format: bool
-) -> None:
+def github_import(repo: str | None, labels: str | None, state: str, json_format: bool) -> None:
     """Import GitHub issues as gobby tasks.
 
     If REPO is not specified, uses the linked repo.

@@ -1279,9 +1279,7 @@ class TestRequireActiveTask:
             config=mock_config,
             event_data={
                 "tool_name": "Write",
-                "tool_input": {
-                    "file_path": "/Users/josh/.claude/plans/my-plan-abc123.md"
-                },
+                "tool_input": {"file_path": "/Users/josh/.claude/plans/my-plan-abc123.md"},
             },
             project_id="proj-123",
             workflow_state=workflow_state,
@@ -1300,9 +1298,7 @@ class TestRequireActiveTask:
             config=mock_config,
             event_data={
                 "tool_name": "Edit",
-                "tool_input": {
-                    "file_path": "/Users/josh/.claude/plans/plan-12345.md"
-                },
+                "tool_input": {"file_path": "/Users/josh/.claude/plans/plan-12345.md"},
             },
             project_id="proj-123",
             workflow_state=workflow_state,
@@ -1322,9 +1318,7 @@ class TestRequireActiveTask:
             config=mock_config,
             event_data={
                 "tool_name": "Write",
-                "tool_input": {
-                    "file_path": "/Users/josh/project/src/main.py"
-                },
+                "tool_input": {"file_path": "/Users/josh/project/src/main.py"},
             },
             project_id="proj-123",
             workflow_state=workflow_state,
@@ -1345,9 +1339,7 @@ class TestRequireActiveTask:
             config=mock_config,
             event_data={
                 "tool_name": "Edit",
-                "tool_input": {
-                    "file_path": "/Users/josh/project/src/some_file.py"
-                },
+                "tool_input": {"file_path": "/Users/josh/project/src/some_file.py"},
             },
             project_id="proj-123",
             workflow_state=workflow_state,
@@ -1369,9 +1361,7 @@ class TestRequireActiveTask:
             config=mock_config,
             event_data={
                 "tool_name": "Write",
-                "tool_input": {
-                    "file_path": "/Users/josh/project/src/main.py"
-                },
+                "tool_input": {"file_path": "/Users/josh/project/src/main.py"},
             },
             project_id="proj-123",
             workflow_state=workflow_state,

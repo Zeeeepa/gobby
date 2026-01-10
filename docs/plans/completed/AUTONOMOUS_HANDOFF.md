@@ -496,7 +496,7 @@ async def _handle_start_new_session(
 
         # Check for interactive/TUI mode (no prompt)
         interactive = kwargs.get("interactive", False)
-        
+
         # Check for cloud execution
         # ENV_ID typically comes from config or context variables
         env_id = context.state.variables.get("cloud_env_id") or kwargs.get("env_id")
@@ -527,7 +527,7 @@ async def _handle_start_new_session(
             "stdout": subprocess.DEVNULL,
             "stderr": subprocess.DEVNULL,
         }
-        
+
         if detached:
             if sys.platform == "win32":
                  # Windows: Use CREATE_NEW_PROCESS_GROUP and DETACHED_PROCESS

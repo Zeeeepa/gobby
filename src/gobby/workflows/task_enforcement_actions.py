@@ -478,9 +478,7 @@ async def require_active_task(
     tool_input = event_data.get("tool_input", {}) or {}
     file_path = tool_input.get("file_path", "")
     if file_path and "/.claude/plans/" in file_path:
-        logger.debug(
-            f"require_active_task: Target is Claude plan file '{file_path}', allowing"
-        )
+        logger.debug(f"require_active_task: Target is Claude plan file '{file_path}', allowing")
         return None
 
     # Check for plan_mode variable (set via EnterPlanMode tool detection or manually)

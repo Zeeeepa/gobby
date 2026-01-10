@@ -40,9 +40,7 @@ class TestTddAwareCriteriaGeneration:
     """Tests for TDD-aware criteria generation."""
 
     @pytest.mark.asyncio
-    async def test_generate_criteria_accepts_labels_parameter(
-        self, mock_llm, validation_config
-    ):
+    async def test_generate_criteria_accepts_labels_parameter(self, mock_llm, validation_config):
         """generate_criteria should accept an optional labels parameter."""
         validator = TaskValidator(validation_config, mock_llm)
         mock_provider = mock_llm.get_provider.return_value
@@ -136,9 +134,7 @@ class TestTddAwareCriteriaGeneration:
         assert result == llm_response
 
     @pytest.mark.asyncio
-    async def test_empty_labels_list_generates_plain_criteria(
-        self, mock_llm, validation_config
-    ):
+    async def test_empty_labels_list_generates_plain_criteria(self, mock_llm, validation_config):
         """Empty labels list should behave same as no labels."""
         validator = TaskValidator(validation_config, mock_llm)
         mock_provider = mock_llm.get_provider.return_value
@@ -154,9 +150,7 @@ class TestTddAwareCriteriaGeneration:
         assert result == llm_response
 
     @pytest.mark.asyncio
-    async def test_pattern_criteria_appended_to_llm_criteria(
-        self, mock_llm, validation_config
-    ):
+    async def test_pattern_criteria_appended_to_llm_criteria(self, mock_llm, validation_config):
         """Pattern criteria should be appended to LLM-generated criteria."""
         validator = TaskValidator(validation_config, mock_llm)
         mock_provider = mock_llm.get_provider.return_value

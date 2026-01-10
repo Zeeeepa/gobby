@@ -916,8 +916,8 @@ class TestGetGitDiffMerged:
 
     @patch("gobby.tasks.validation.run_git_command")
     def test_get_git_diff_exception(self, mock_run):
-        mock_run.side_effect = Exception("Git error")
-        with pytest.raises(Exception):
+        mock_run.side_effect = RuntimeError("Git error")
+        with pytest.raises(RuntimeError):
             get_git_diff()
 
     @patch("gobby.tasks.validation.run_git_command")
@@ -1070,8 +1070,8 @@ class TestGetRecentCommitsMerged:
 
     @patch("gobby.tasks.validation.run_git_command")
     def test_get_recent_commits_exception(self, mock_run):
-        mock_run.side_effect = Exception("Git error")
-        with pytest.raises(Exception):
+        mock_run.side_effect = RuntimeError("Git error")
+        with pytest.raises(RuntimeError):
             get_recent_commits(5)
 
 

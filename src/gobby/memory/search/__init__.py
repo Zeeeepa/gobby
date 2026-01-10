@@ -144,6 +144,5 @@ def get_search_backend(
 
     else:
         raise ValueError(
-            f"Unknown search backend: {backend_type}. "
-            "Valid options: tfidf, openai, hybrid, text"
+            f"Unknown search backend: {backend_type}. " "Valid options: tfidf, openai, hybrid, text"
         )

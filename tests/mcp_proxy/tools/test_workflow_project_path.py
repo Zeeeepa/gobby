@@ -8,7 +8,6 @@ These tests verify that workflow tools work with:
 """
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -79,7 +78,9 @@ class TestGetWorkflowWithProjectPath:
         mock_loader.load_workflow.return_value = mock_workflow
 
         # Call with explicit project_path
-        result = call_tool(registry, "get_workflow", name="test-workflow", project_path=str(tmp_path))
+        result = call_tool(
+            registry, "get_workflow", name="test-workflow", project_path=str(tmp_path)
+        )
 
         assert result["success"] is True
         assert result["name"] == "test-workflow"
@@ -104,9 +105,7 @@ class TestGetWorkflowWithProjectPath:
         mock_loader.load_workflow.return_value = mock_workflow
 
         # Patch get_workflow_project_path to return our tmp_path
-        with patch(
-            "gobby.mcp_proxy.tools.workflows.get_workflow_project_path"
-        ) as mock_discover:
+        with patch("gobby.mcp_proxy.tools.workflows.get_workflow_project_path") as mock_discover:
             mock_discover.return_value = tmp_path
 
             result = call_tool(registry, "get_workflow", name="test-workflow")
@@ -119,9 +118,7 @@ class TestGetWorkflowWithProjectPath:
         """Verify get_workflow handles auto-discovery failure gracefully."""
         mock_loader.load_workflow.return_value = None
 
-        with patch(
-            "gobby.mcp_proxy.tools.workflows.get_workflow_project_path"
-        ) as mock_discover:
+        with patch("gobby.mcp_proxy.tools.workflows.get_workflow_project_path") as mock_discover:
             mock_discover.return_value = None
 
             result = call_tool(registry, "get_workflow", name="nonexistent-workflow")
@@ -148,9 +145,7 @@ class TestListWorkflowsWithProjectPath:
 
     def test_with_auto_discovery(self, registry, mock_loader, tmp_path):
         """Verify list_workflows uses auto-discovery when project_path not provided."""
-        with patch(
-            "gobby.mcp_proxy.tools.workflows.get_workflow_project_path"
-        ) as mock_discover:
+        with patch("gobby.mcp_proxy.tools.workflows.get_workflow_project_path") as mock_discover:
             mock_discover.return_value = tmp_path
 
             result = call_tool(registry, "list_workflows")
@@ -160,9 +155,7 @@ class TestListWorkflowsWithProjectPath:
 
     def test_no_project_path_no_discovery(self, registry, mock_loader):
         """Verify list_workflows works without project even when discovery fails."""
-        with patch(
-            "gobby.mcp_proxy.tools.workflows.get_workflow_project_path"
-        ) as mock_discover:
+        with patch("gobby.mcp_proxy.tools.workflows.get_workflow_project_path") as mock_discover:
             mock_discover.return_value = None
 
             result = call_tool(registry, "list_workflows")
@@ -175,9 +168,7 @@ class TestListWorkflowsWithProjectPath:
 class TestActivateWorkflowWithProjectPath:
     """Tests for activate_workflow with project_path parameter."""
 
-    def test_with_explicit_project_path(
-        self, registry, mock_loader, mock_state_manager, tmp_path
-    ):
+    def test_with_explicit_project_path(self, registry, mock_loader, mock_state_manager, tmp_path):
         """Verify activate_workflow works with explicit project_path."""
         # Setup mock workflow
         mock_step = MagicMock()
@@ -191,7 +182,8 @@ class TestActivateWorkflowWithProjectPath:
         mock_state_manager.get_state.return_value = None
 
         result = call_tool(
-            registry, "activate_workflow",
+            registry,
+            "activate_workflow",
             name="plan-execute",
             session_id="test-session",
             project_path=str(tmp_path),
@@ -200,9 +192,7 @@ class TestActivateWorkflowWithProjectPath:
         assert result["success"] is True
         mock_loader.load_workflow.assert_called_once_with("plan-execute", tmp_path)
 
-    def test_with_auto_discovery(
-        self, registry, mock_loader, mock_state_manager, tmp_path
-    ):
+    def test_with_auto_discovery(self, registry, mock_loader, mock_state_manager, tmp_path):
         """Verify activate_workflow uses auto-discovery when project_path not provided."""
         mock_step = MagicMock()
         mock_step.name = "work"
@@ -214,13 +204,12 @@ class TestActivateWorkflowWithProjectPath:
         mock_loader.load_workflow.return_value = mock_workflow
         mock_state_manager.get_state.return_value = None
 
-        with patch(
-            "gobby.mcp_proxy.tools.workflows.get_workflow_project_path"
-        ) as mock_discover:
+        with patch("gobby.mcp_proxy.tools.workflows.get_workflow_project_path") as mock_discover:
             mock_discover.return_value = tmp_path
 
             result = call_tool(
-                registry, "activate_workflow",
+                registry,
+                "activate_workflow",
                 name="auto-task",
                 session_id="test-session",
             )
@@ -232,9 +221,7 @@ class TestActivateWorkflowWithProjectPath:
 class TestRequestStepTransitionWithProjectPath:
     """Tests for request_step_transition with project_path parameter."""
 
-    def test_with_explicit_project_path(
-        self, registry, mock_loader, mock_state_manager, tmp_path
-    ):
+    def test_with_explicit_project_path(self, registry, mock_loader, mock_state_manager, tmp_path):
         """Verify request_step_transition works with explicit project_path."""
         # Setup mock state
         mock_state = MagicMock()
@@ -252,7 +239,8 @@ class TestRequestStepTransitionWithProjectPath:
         mock_loader.load_workflow.return_value = mock_workflow
 
         result = call_tool(
-            registry, "request_step_transition",
+            registry,
+            "request_step_transition",
             to_step="execute",
             session_id="test-session",
             project_path=str(tmp_path),
@@ -262,9 +250,7 @@ class TestRequestStepTransitionWithProjectPath:
         assert result["to_step"] == "execute"
         mock_loader.load_workflow.assert_called_once_with("plan-execute", tmp_path)
 
-    def test_with_auto_discovery(
-        self, registry, mock_loader, mock_state_manager, tmp_path
-    ):
+    def test_with_auto_discovery(self, registry, mock_loader, mock_state_manager, tmp_path):
         """Verify request_step_transition uses auto-discovery."""
         mock_state = MagicMock()
         mock_state.workflow_name = "plan-execute"
@@ -279,13 +265,12 @@ class TestRequestStepTransitionWithProjectPath:
         mock_workflow.steps = [mock_step1, mock_step2]
         mock_loader.load_workflow.return_value = mock_workflow
 
-        with patch(
-            "gobby.mcp_proxy.tools.workflows.get_workflow_project_path"
-        ) as mock_discover:
+        with patch("gobby.mcp_proxy.tools.workflows.get_workflow_project_path") as mock_discover:
             mock_discover.return_value = tmp_path
 
             result = call_tool(
-                registry, "request_step_transition",
+                registry,
+                "request_step_transition",
                 to_step="execute",
                 session_id="test-session",
             )
@@ -309,7 +294,8 @@ class TestImportWorkflowWithProjectPath:
         project.mkdir()
 
         result = call_tool(
-            registry, "import_workflow",
+            registry,
+            "import_workflow",
             source_path=str(source_file),
             project_path=str(project),
         )
@@ -326,13 +312,12 @@ class TestImportWorkflowWithProjectPath:
         project = tmp_path / "project"
         project.mkdir()
 
-        with patch(
-            "gobby.mcp_proxy.tools.workflows.get_workflow_project_path"
-        ) as mock_discover:
+        with patch("gobby.mcp_proxy.tools.workflows.get_workflow_project_path") as mock_discover:
             mock_discover.return_value = project
 
             result = call_tool(
-                registry, "import_workflow",
+                registry,
+                "import_workflow",
                 source_path=str(source_file),
             )
 
@@ -345,13 +330,12 @@ class TestImportWorkflowWithProjectPath:
         source_file = tmp_path / "source.yaml"
         source_file.write_text("name: test\ntype: step\n")
 
-        with patch(
-            "gobby.mcp_proxy.tools.workflows.get_workflow_project_path"
-        ) as mock_discover:
+        with patch("gobby.mcp_proxy.tools.workflows.get_workflow_project_path") as mock_discover:
             mock_discover.return_value = None
 
             result = call_tool(
-                registry, "import_workflow",
+                registry,
+                "import_workflow",
                 source_path=str(source_file),
             )
 
@@ -377,10 +361,7 @@ class TestWorktreeAutoDiscovery:
         worktree_gobby = worktree / ".gobby"
         worktree_gobby.mkdir()
         (worktree_gobby / "project.json").write_text(
-            json.dumps({
-                "id": "worktree-id",
-                "parent_project_path": str(parent_project)
-            })
+            json.dumps({"id": "worktree-id", "parent_project_path": str(parent_project)})
         )
 
         # Mock workflow
@@ -395,9 +376,7 @@ class TestWorktreeAutoDiscovery:
         mock_loader.load_workflow.return_value = mock_workflow
 
         # get_workflow_project_path should return parent when in worktree
-        with patch(
-            "gobby.mcp_proxy.tools.workflows.get_workflow_project_path"
-        ) as mock_discover:
+        with patch("gobby.mcp_proxy.tools.workflows.get_workflow_project_path") as mock_discover:
             mock_discover.return_value = parent_project
 
             result = call_tool(registry, "get_workflow", name="test")

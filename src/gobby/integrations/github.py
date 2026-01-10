@@ -7,7 +7,7 @@ GitHub MCP server (@modelcontextprotocol/server-github) for all GitHub operation
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.manager import MCPClientManager

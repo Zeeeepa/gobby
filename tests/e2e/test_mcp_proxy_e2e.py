@@ -37,9 +37,9 @@ class TestMCPProxyToolDiscovery:
         # At minimum, gobby-tasks should be present
         # Other servers may vary based on configuration
         internal_servers = [n for n in server_names if n and n.startswith("gobby-")]
-        assert len(internal_servers) >= 1, (
-            f"Should have at least one gobby-* server, got: {server_names}"
-        )
+        assert (
+            len(internal_servers) >= 1
+        ), f"Should have at least one gobby-* server, got: {server_names}"
 
     def test_client_discovers_tools_from_internal_servers(
         self, daemon_instance: DaemonInstance, mcp_client: MCPTestClient
@@ -88,9 +88,9 @@ class TestMCPProxyToolDiscovery:
             server_name = tool.get("server") or tool.get("server_name")
             # Only check if server_name is present (it's added by MCPTestClient)
             if server_name:
-                assert server_name == gobby_server, (
-                    f"Tool server mismatch: expected {gobby_server}, got {server_name}"
-                )
+                assert (
+                    server_name == gobby_server
+                ), f"Tool server mismatch: expected {gobby_server}, got {server_name}"
 
 
 class TestMCPProxyToolInvocation:
@@ -149,9 +149,12 @@ class TestMCPProxyToolInvocation:
         )
 
         # Should get an error response (400, 404, 500, or 503 for unavailable)
-        assert response.status_code in [400, 404, 500, 503], (
-            f"Invalid server should return error, got {response.status_code}"
-        )
+        assert response.status_code in [
+            400,
+            404,
+            500,
+            503,
+        ], f"Invalid server should return error, got {response.status_code}"
 
     def test_invalid_tool_returns_error(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
@@ -167,9 +170,11 @@ class TestMCPProxyToolInvocation:
         )
 
         # Should get an error response (404 for tool not found)
-        assert response.status_code in [400, 404, 500], (
-            f"Invalid tool should return error, got {response.status_code}"
-        )
+        assert response.status_code in [
+            400,
+            404,
+            500,
+        ], f"Invalid tool should return error, got {response.status_code}"
 
 
 class TestMCPProxyConcurrency:
@@ -203,9 +208,9 @@ class TestMCPProxyConcurrency:
                 if resp.status_code == 200:
                     success_count += 1
 
-            assert success_count >= 3, (
-                f"At least 3 of 5 concurrent calls should succeed, got {success_count}"
-            )
+            assert (
+                success_count >= 3
+            ), f"At least 3 of 5 concurrent calls should succeed, got {success_count}"
 
     @pytest.mark.asyncio
     async def test_concurrent_calls_to_different_tools(self, daemon_instance: DaemonInstance):
@@ -256,9 +261,9 @@ class TestMCPProxyErrorHandling:
         )
 
         # Should get 400 for missing server_name (per the API implementation)
-        assert response.status_code == 400, (
-            f"Missing server_name should return 400, got {response.status_code}"
-        )
+        assert (
+            response.status_code == 400
+        ), f"Missing server_name should return 400, got {response.status_code}"
 
     def test_malformed_json_returns_error(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
@@ -272,9 +277,11 @@ class TestMCPProxyErrorHandling:
 
         # Should get error - malformed JSON should fail with 4xx or 500
         # FastAPI may return 422 for validation, 400 for bad request, or 500 for parse error
-        assert response.status_code in [400, 422, 500], (
-            f"Malformed JSON should return error, got {response.status_code}"
-        )
+        assert response.status_code in [
+            400,
+            422,
+            500,
+        ], f"Malformed JSON should return error, got {response.status_code}"
 
     def test_empty_request_returns_error(
         self, daemon_instance: DaemonInstance, daemon_client: httpx.Client
@@ -283,9 +290,9 @@ class TestMCPProxyErrorHandling:
         response = daemon_client.post("/mcp/tools/call", json={})
 
         # Should get 400 for missing required fields
-        assert response.status_code == 400, (
-            f"Empty request should return 400, got {response.status_code}"
-        )
+        assert (
+            response.status_code == 400
+        ), f"Empty request should return 400, got {response.status_code}"
 
 
 class TestMCPProxyToolSchema:
@@ -302,9 +309,9 @@ class TestMCPProxyToolSchema:
             },
         )
 
-        assert response.status_code == 200, (
-            f"Schema request should return 200, got {response.status_code}"
-        )
+        assert (
+            response.status_code == 200
+        ), f"Schema request should return 200, got {response.status_code}"
 
         schema = response.json()
         assert schema is not None
@@ -324,9 +331,9 @@ class TestMCPProxyToolSchema:
         )
 
         # Should get 404 for tool not found
-        assert response.status_code == 404, (
-            f"Invalid tool schema should return 404, got {response.status_code}"
-        )
+        assert (
+            response.status_code == 404
+        ), f"Invalid tool schema should return 404, got {response.status_code}"
 
 
 class TestMCPProxyServerManagement:
@@ -354,4 +361,4 @@ class TestMCPProxyServerManagement:
         # Tools may be returned as dict (by server) or list
         assert "tools" in data
         tools = data["tools"]
-        assert isinstance(tools, (list, dict)), f"Tools should be list or dict, got {type(tools)}"
+        assert isinstance(tools, list | dict), f"Tools should be list or dict, got {type(tools)}"

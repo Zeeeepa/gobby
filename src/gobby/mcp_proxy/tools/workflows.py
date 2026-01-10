@@ -454,9 +454,7 @@ def create_workflows_registry(
 
         # Block manual transitions to steps that have conditional auto-transitions
         # These steps should only be reached when their conditions are met
-        current_step_def = next(
-            (s for s in definition.steps if s.name == state.step), None
-        )
+        current_step_def = next((s for s in definition.steps if s.name == state.step), None)
         if current_step_def and current_step_def.transitions:
             for transition in current_step_def.transitions:
                 if transition.to == to_step and transition.when:

@@ -13,9 +13,8 @@ from gobby.memory.manager import MemoryManager
 from gobby.memory.search.tfidf import TFIDFSearcher
 from gobby.memory.viz import export_memory_graph
 from gobby.storage.database import LocalDatabase
-from gobby.storage.memories import LocalMemoryManager, Memory, MemoryCrossRef
+from gobby.storage.memories import Memory, MemoryCrossRef
 from gobby.storage.migrations import run_migrations
-
 
 # =============================================================================
 # Fixtures
@@ -144,10 +143,12 @@ class TestTFIDFSearcher:
     def test_search_returns_similarity_scores(self):
         """Test that search results include similarity scores."""
         searcher = TFIDFSearcher()
-        searcher.fit([
-            ("mm-1", "Python programming language"),
-            ("mm-2", "unrelated content about cooking"),
-        ])
+        searcher.fit(
+            [
+                ("mm-1", "Python programming language"),
+                ("mm-2", "unrelated content about cooking"),
+            ]
+        )
 
         results = searcher.search("Python programming", top_k=5)
 
@@ -175,10 +176,12 @@ class TestTFIDFSearcher:
     def test_get_stats_returns_index_info(self):
         """Test that get_stats returns useful information."""
         searcher = TFIDFSearcher()
-        searcher.fit([
-            ("mm-1", "Python programming"),
-            ("mm-2", "JavaScript development"),
-        ])
+        searcher.fit(
+            [
+                ("mm-1", "Python programming"),
+                ("mm-2", "JavaScript development"),
+            ]
+        )
 
         stats = searcher.get_stats()
 
@@ -208,14 +211,12 @@ class TestCrossReferences:
     """Tests for memory cross-reference functionality."""
 
     @pytest.mark.asyncio
-    async def test_create_crossrefs_links_similar_memories(
-        self, memory_manager_with_crossref
-    ):
+    async def test_create_crossrefs_links_similar_memories(self, memory_manager_with_crossref):
         """Test that similar memories get cross-referenced."""
         manager = memory_manager_with_crossref
 
         # Create similar memories
-        mem1 = await manager.remember(
+        _mem1 = await manager.remember(
             content="Python is a great programming language for data science",
             importance=0.5,
         )
@@ -231,14 +232,12 @@ class TestCrossReferences:
         assert len(crossrefs) >= 1
 
     @pytest.mark.asyncio
-    async def test_get_related_returns_linked_memories(
-        self, memory_manager_with_crossref
-    ):
+    async def test_get_related_returns_linked_memories(self, memory_manager_with_crossref):
         """Test that get_related returns cross-referenced memories."""
         manager = memory_manager_with_crossref
 
         # Create memories that should be linked
-        mem1 = await manager.remember(
+        _mem1 = await manager.remember(
             content="React is a JavaScript library for building user interfaces",
             importance=0.5,
         )
@@ -246,7 +245,7 @@ class TestCrossReferences:
             content="React components use JavaScript and JSX syntax",
             importance=0.5,
         )
-        mem3 = await manager.remember(
+        _mem3 = await manager.remember(
             content="Completely unrelated content about cooking recipes",
             importance=0.5,
         )
@@ -255,7 +254,7 @@ class TestCrossReferences:
         related = manager.get_related(mem2.id, limit=5)
 
         # Should find mem1 as related (both about React/JavaScript)
-        related_ids = [m.id for m in related]
+        _related_ids = [m.id for m in related]
 
         # At minimum, we should get some results
         # The exact linking depends on TF-IDF similarity

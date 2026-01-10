@@ -1,6 +1,5 @@
 """Tests for ClaudeLLMProvider methods: generate_summary, synthesize_title."""
 
-import asyncio
 from contextlib import contextmanager
 from unittest.mock import AsyncMock, patch
 
