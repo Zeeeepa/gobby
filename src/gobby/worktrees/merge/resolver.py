@@ -114,12 +114,17 @@ class MergeResolver:
         }
 
         # Check if conflict is too large for conflict-only resolution
-        total_lines = sum(
-            len(getattr(h, "ours", "").split("\n")) + len(getattr(h, "theirs", "").split("\n"))
-            if hasattr(h, "ours")
-            else 0
-            for h in conflict_hunks
-        )
+        def get_hunk_lines(h: Any) -> int:
+            """Get line count from hunk, handling both objects and dicts."""
+            if isinstance(h, dict):
+                ours = h.get("ours", "")
+                theirs = h.get("theirs", "")
+            else:
+                ours = getattr(h, "ours", "")
+                theirs = getattr(h, "theirs", "")
+            return len(ours.split("\n")) + len(theirs.split("\n"))
+
+        total_lines = sum(get_hunk_lines(h) for h in conflict_hunks)
 
         # Tier 2: Try conflict-only if under threshold
         if total_lines <= self.conflict_size_threshold:

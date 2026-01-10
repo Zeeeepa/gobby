@@ -150,27 +150,34 @@ class TestTaskStatusDuringMerge:
 class TestMergeStatePersistence:
     """Tests for merge state persistence across daemon restarts."""
 
-    @patch("gobby.storage.merge_resolutions.MergeResolutionManager")
-    def test_merge_resolution_persists(self, mock_manager_class):
+    def test_merge_resolution_persists(self, tmp_path):
         """Merge resolution should persist in database."""
-        mock_manager = MagicMock()
-        mock_manager_class.return_value = mock_manager
+        from gobby.storage.database import LocalDatabase
+        from gobby.storage.merge_resolutions import MergeResolutionManager
+        from gobby.storage.migrations import run_migrations
 
-        mock_resolution = MagicMock()
-        mock_resolution.id = "mr-test"
-        mock_resolution.worktree_id = "wt-123"
-        mock_manager.create_resolution.return_value = mock_resolution
-        mock_manager.get_resolution.return_value = mock_resolution
+        # Create real database
+        db_path = tmp_path / "test.db"
+        db = LocalDatabase(db_path)
+        run_migrations(db)
 
-        # Simulate create and retrieve
-        created = mock_manager.create_resolution(
+        # Create real manager
+        manager = MergeResolutionManager(db)
+
+        # Create resolution
+        created = manager.create_resolution(
             worktree_id="wt-123",
             source_branch="feature/test",
             target_branch="main",
         )
-        retrieved = mock_manager.get_resolution(created.id)
 
+        # Retrieve and verify
+        retrieved = manager.get_resolution(created.id)
+        assert retrieved is not None
         assert retrieved.worktree_id == "wt-123"
+        assert retrieved.source_branch == "feature/test"
+
+        db.close()
 
     def test_worktree_merge_state_in_database_schema(self):
         """Database schema should include merge_state column in worktrees table."""

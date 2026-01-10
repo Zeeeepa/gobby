@@ -51,6 +51,7 @@ def get_project_context() -> dict[str, Any] | None:
 def get_worktree_context() -> dict[str, Any] | None:
     """Get current worktree context if in a worktree."""
     import os
+    from pathlib import Path
 
     from gobby.storage.worktrees import LocalWorktreeManager
 
@@ -58,16 +59,24 @@ def get_worktree_context() -> dict[str, Any] | None:
     manager = LocalWorktreeManager(db)
 
     # Check if current directory is a worktree
-    cwd = os.getcwd()
+    cwd = Path(os.getcwd()).resolve()
     worktrees = manager.list_worktrees()
     for wt in worktrees:
-        if wt.worktree_path and cwd.startswith(wt.worktree_path):
-            return {
-                "id": wt.id,
-                "branch_name": wt.branch_name,
-                "worktree_path": wt.worktree_path,
-                "base_branch": wt.base_branch,
-            }
+        if wt.worktree_path:
+            worktree_path = Path(wt.worktree_path).resolve()
+            # Use is_relative_to for proper path containment check
+            try:
+                cwd.relative_to(worktree_path)
+                # If we get here, cwd is inside worktree_path
+                return {
+                    "id": wt.id,
+                    "branch_name": wt.branch_name,
+                    "worktree_path": wt.worktree_path,
+                    "base_branch": wt.base_branch,
+                }
+            except ValueError:
+                # cwd is not relative to worktree_path
+                continue
     return None
 
 
@@ -120,12 +129,13 @@ def merge_start(
     manager = get_merge_manager()
 
     try:
-        # Create resolution record
+        # Create resolution record with strategy
         resolution = manager.create_resolution(
             worktree_id=worktree_id,
             source_branch=source_branch,
             target_branch=target_branch,
             status="pending",
+            tier_used=strategy,
         )
 
         if json_format:

@@ -68,6 +68,9 @@ class RunningAgent:
     task: Any | None = None
     """Async task object for in-process agents (asyncio.Task)."""
 
+    monitor_task: Any | None = None
+    """Background monitoring task for headless agents (asyncio.Task)."""
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {

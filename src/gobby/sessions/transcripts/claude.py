@@ -322,15 +322,40 @@ class ClaudeTranscriptParser:
         if not usage_data:
             return None
 
+        # Use explicit presence checks to handle 0 correctly
+        input_tokens = (
+            usage_data["input_tokens"]
+            if "input_tokens" in usage_data
+            else usage_data.get("inputTokens", 0)
+        )
+        output_tokens = (
+            usage_data["output_tokens"]
+            if "output_tokens" in usage_data
+            else usage_data.get("outputTokens", 0)
+        )
+        cache_creation_tokens = (
+            usage_data["cache_creation_input_tokens"]
+            if "cache_creation_input_tokens" in usage_data
+            else usage_data.get("cacheCreationInputTokens", 0)
+        )
+        cache_read_tokens = (
+            usage_data["cache_read_input_tokens"]
+            if "cache_read_input_tokens" in usage_data
+            else usage_data.get("cacheReadInputTokens", 0)
+        )
+        # Cost might be calculated or provided
+        total_cost_usd = (
+            usage_data["cost"]
+            if "cost" in usage_data
+            else usage_data.get("total_cost")
+        )
+
         return TokenUsage(
-            input_tokens=usage_data.get("input_tokens", 0) or usage_data.get("inputTokens", 0),
-            output_tokens=usage_data.get("output_tokens", 0) or usage_data.get("outputTokens", 0),
-            cache_creation_tokens=usage_data.get("cache_creation_input_tokens", 0)
-            or usage_data.get("cacheCreationInputTokens", 0),
-            cache_read_tokens=usage_data.get("cache_read_input_tokens", 0)
-            or usage_data.get("cacheReadInputTokens", 0),
-            # Cost might be calculated or provided
-            total_cost_usd=usage_data.get("cost") or usage_data.get("total_cost"),
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cache_creation_tokens=cache_creation_tokens,
+            cache_read_tokens=cache_read_tokens,
+            total_cost_usd=total_cost_usd,
         )
 
     def parse_lines(self, lines: list[str], start_index: int = 0) -> list[ParsedMessage]:

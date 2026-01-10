@@ -67,9 +67,11 @@ steps:
     description: "Work through tasks sequentially"
 
     on_enter:
-      - action: set_variable
+      # Initialize current_task_index only if undefined (preserve progress)
+      - action: initialize_variable
         name: current_task_index
         value: 0
+        when: "current_task_index is not defined"
 
       # Load persisted tasks for this workflow
       - action: get_workflow_tasks

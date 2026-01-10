@@ -44,11 +44,12 @@ class Worktree:
     def from_row(cls, row: Any) -> Worktree:
         """Create Worktree from database row."""
         # Handle merge_state which may not exist in older schemas
-        merge_state = None
-        try:
-            merge_state = row["merge_state"]
-        except (KeyError, IndexError):
-            pass
+        merge_state = row.get("merge_state") if hasattr(row, "get") else None
+        if merge_state is None:
+            try:
+                merge_state = row["merge_state"]
+            except KeyError:
+                pass
 
         return cls(
             id=row["id"],

@@ -1013,7 +1013,7 @@ class LocalTaskManager:
         """List tasks that are blocked by at least one open blocking dependency.
 
         Only considers "external" blockers - excludes parent tasks being blocked
-        by their own children (which is a "completion" block, not a "work" block).
+        by their own descendants (which is a "completion" block, not a "work" block).
 
         Results are ordered hierarchically: parents appear before their children,
         with siblings sorted by priority ASC, then created_at ASC.
@@ -1021,6 +1021,9 @@ class LocalTaskManager:
         Note: The limit is applied AFTER hierarchical ordering to ensure coherent
         tree structures.
         """
+        # Uses the same descendant-aware predicate as list_ready_tasks.
+        # The is_descendant_of check uses a recursive CTE to walk up the blocker's
+        # ancestor chain and check if the blocked task (t.id) appears anywhere.
         query = """
         SELECT t.* FROM tasks t
         WHERE t.status = 'open'
@@ -1030,9 +1033,19 @@ class LocalTaskManager:
             WHERE d.task_id = t.id
               AND d.dep_type = 'blocks'
               AND blocker.status != 'closed'
-              -- Exclude parent blocked by own children (completion block, not work block)
-              -- Use COALESCE to handle NULL parent_task_id (NULL != x returns NULL, not TRUE)
-              AND COALESCE(blocker.parent_task_id, '') != t.id
+              -- Exclude ancestor blocked by any descendant (completion block, not work block)
+              -- Check if t.id appears anywhere in blocker's ancestor chain
+              AND NOT EXISTS (
+                  WITH RECURSIVE ancestors AS (
+                      SELECT blocker.parent_task_id AS ancestor_id
+                      UNION ALL
+                      SELECT p.parent_task_id
+                      FROM tasks p
+                      JOIN ancestors a ON p.id = a.ancestor_id
+                      WHERE p.parent_task_id IS NOT NULL
+                  )
+                  SELECT 1 FROM ancestors WHERE ancestor_id = t.id
+              )
         )
         """
         params: list[Any] = []
@@ -1147,7 +1160,7 @@ class LocalTaskManager:
         """
         Count tasks that are ready (open or in_progress) and not blocked by any external blocking dependency.
 
-        Excludes parent tasks blocked by their own children (completion block, not work block).
+        Excludes parent tasks blocked by their own descendants (completion block, not work block).
 
         Args:
             project_id: Optional project filter
@@ -1155,6 +1168,9 @@ class LocalTaskManager:
         Returns:
             Count of ready tasks
         """
+        # Uses the same descendant-aware predicate as list_ready_tasks.
+        # The is_descendant_of check uses a recursive CTE to walk up the blocker's
+        # ancestor chain and check if the blocked task (t.id) appears anywhere.
         query = """
         SELECT COUNT(*) as count FROM tasks t
         WHERE t.status IN ('open', 'in_progress')
@@ -1164,9 +1180,19 @@ class LocalTaskManager:
             WHERE d.task_id = t.id
               AND d.dep_type = 'blocks'
               AND blocker.status != 'closed'
-              -- Exclude parent blocked by own children (completion block, not work block)
-              -- Use COALESCE to handle NULL parent_task_id (NULL != x returns NULL, not TRUE)
-              AND COALESCE(blocker.parent_task_id, '') != t.id
+              -- Exclude ancestor blocked by any descendant (completion block, not work block)
+              -- Check if t.id appears anywhere in blocker's ancestor chain
+              AND NOT EXISTS (
+                  WITH RECURSIVE ancestors AS (
+                      SELECT blocker.parent_task_id AS ancestor_id
+                      UNION ALL
+                      SELECT p.parent_task_id
+                      FROM tasks p
+                      JOIN ancestors a ON p.id = a.ancestor_id
+                      WHERE p.parent_task_id IS NOT NULL
+                  )
+                  SELECT 1 FROM ancestors WHERE ancestor_id = t.id
+              )
         )
         """
         params: list[Any] = []
@@ -1182,7 +1208,7 @@ class LocalTaskManager:
         """
         Count tasks that are blocked by at least one external blocking dependency.
 
-        Excludes parent tasks blocked by their own children (completion block, not work block).
+        Excludes parent tasks blocked by their own descendants (completion block, not work block).
 
         Args:
             project_id: Optional project filter
@@ -1190,6 +1216,9 @@ class LocalTaskManager:
         Returns:
             Count of blocked tasks
         """
+        # Uses the same descendant-aware predicate as list_ready_tasks.
+        # The is_descendant_of check uses a recursive CTE to walk up the blocker's
+        # ancestor chain and check if the blocked task (t.id) appears anywhere.
         query = """
         SELECT COUNT(*) as count FROM tasks t
         WHERE t.status = 'open'
@@ -1199,9 +1228,19 @@ class LocalTaskManager:
             WHERE d.task_id = t.id
               AND d.dep_type = 'blocks'
               AND blocker.status != 'closed'
-              -- Exclude parent blocked by own children (completion block, not work block)
-              -- Use COALESCE to handle NULL parent_task_id (NULL != x returns NULL, not TRUE)
-              AND COALESCE(blocker.parent_task_id, '') != t.id
+              -- Exclude ancestor blocked by any descendant (completion block, not work block)
+              -- Check if t.id appears anywhere in blocker's ancestor chain
+              AND NOT EXISTS (
+                  WITH RECURSIVE ancestors AS (
+                      SELECT blocker.parent_task_id AS ancestor_id
+                      UNION ALL
+                      SELECT p.parent_task_id
+                      FROM tasks p
+                      JOIN ancestors a ON p.id = a.ancestor_id
+                      WHERE p.parent_task_id IS NOT NULL
+                  )
+                  SELECT 1 FROM ancestors WHERE ancestor_id = t.id
+              )
         )
         """
         params: list[Any] = []

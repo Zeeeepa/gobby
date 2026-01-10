@@ -82,8 +82,8 @@ class TestShortContent:
         config = CompressionConfig(min_content_length=50)
         compressor = TextCompressor(config)
 
-        # Content exactly at boundary
-        text = "a" * 49
+        # Content exactly at boundary (length == min_content_length)
+        text = "a" * 50
         result = compressor.compress(text)
 
         assert result == text

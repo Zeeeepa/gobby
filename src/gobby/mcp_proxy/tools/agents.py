@@ -582,8 +582,8 @@ def create_agents_registry(
                     except Exception:
                         pass
 
-            # Schedule monitoring task
-            asyncio.create_task(monitor_headless_process())
+            # Schedule monitoring task and store reference to prevent GC
+            running_agent.monitor_task = asyncio.create_task(monitor_headless_process())
 
             return {
                 "success": True,

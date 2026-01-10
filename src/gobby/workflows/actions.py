@@ -144,9 +144,13 @@ class ActionExecutor:
         if config is not None:
             compression_config = getattr(config, "compression", None)
             if compression_config is not None:
-                from gobby.compression import TextCompressor
+                try:
+                    from gobby.compression import TextCompressor
 
-                self._compressor = TextCompressor(compression_config)
+                    self._compressor = TextCompressor(compression_config)
+                except Exception as e:
+                    logger.warning(f"Failed to initialize TextCompressor: {e}")
+                    # Leave _compressor as None so compression is optional
 
         self._register_defaults()
 

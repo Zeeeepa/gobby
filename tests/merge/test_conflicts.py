@@ -295,23 +295,26 @@ other
 
 
 class TestMalformedMarkers:
-    """Tests for handling malformed conflict markers."""
+    """Tests for handling malformed conflict markers.
+
+    Contract: extract_conflict_hunks returns an empty list for malformed input.
+    This provides a consistent, safe behavior that callers can rely on.
+    """
 
     def test_missing_separator(self):
-        """Test handling missing ======= separator."""
+        """Test handling missing ======= separator returns empty list."""
         from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """<<<<<<< HEAD
 our stuff
 >>>>>>> branch
 """
-        # Should either skip or return partial info
+        # Missing separator should result in no valid hunks
         hunks = extract_conflict_hunks(content)
-        # Implementation decides behavior - either 0 hunks or partial
-        assert isinstance(hunks, list)
+        assert hunks == [], f"Expected empty list for missing separator, got {hunks}"
 
     def test_missing_end_marker(self):
-        """Test handling missing >>>>>>> end marker."""
+        """Test handling missing >>>>>>> end marker returns empty list."""
         from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """<<<<<<< HEAD
@@ -320,12 +323,12 @@ our stuff
 their stuff
 remaining content
 """
+        # Missing end marker should result in no valid hunks
         hunks = extract_conflict_hunks(content)
-        # Should handle gracefully - either skip or partial
-        assert isinstance(hunks, list)
+        assert hunks == [], f"Expected empty list for missing end marker, got {hunks}"
 
     def test_missing_start_marker(self):
-        """Test content with separator and end but no start."""
+        """Test content with separator and end but no start returns empty list."""
         from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """some content
@@ -333,12 +336,12 @@ remaining content
 other content
 >>>>>>> branch
 """
+        # Missing start marker should result in no valid hunks
         hunks = extract_conflict_hunks(content)
-        # Should not crash, return empty or skip
-        assert isinstance(hunks, list)
+        assert hunks == [], f"Expected empty list for missing start marker, got {hunks}"
 
     def test_extra_markers(self):
-        """Test handling extra conflict markers."""
+        """Test handling extra conflict markers returns empty list or partial."""
         from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
 
         content = """<<<<<<< HEAD
@@ -348,9 +351,15 @@ our stuff
 their stuff
 >>>>>>> branch
 """
+        # Extra markers may produce no hunks or partial - implementation decides
+        # but should be consistent and not raise
         hunks = extract_conflict_hunks(content)
-        # Should handle gracefully
-        assert isinstance(hunks, list)
+        assert isinstance(hunks, list), "Should return a list"
+        # If it produces hunks, verify they have expected keys
+        for hunk in hunks:
+            if hasattr(hunk, "ours"):
+                assert isinstance(hunk.ours, str)
+                assert isinstance(hunk.theirs, str)
 
 
 # =============================================================================

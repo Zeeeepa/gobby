@@ -19,7 +19,7 @@ Agents are workflow configurations with names. An agent definition bundles:
 ### Agent Definition Format
 
 ```yaml
-# .gobby/agents/agents/validation-runner.yaml
+# .gobby/agents/validation-runner.yaml
 name: validation-runner
 description: Runs validation commands (pytest, ruff, mypy) and reports results
 

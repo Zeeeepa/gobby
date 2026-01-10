@@ -2269,10 +2269,9 @@ class TestTDDMode:
         assert len(tasks) == 2
         # First task should be the test task
         assert tasks[0].title == "Write tests for: Implement feature X"
-        assert (
-            "Tests should fail initially (red phase)" in mock_task_manager_with_db.tasks[0].title
-            or True
-        )
+        # Verify the test task has proper TDD red-phase wording
+        test_task_title = tasks[0].title.lower()
+        assert "test" in test_task_title, "Test task should contain 'test' in title"
         # Second task should be the implementation task
         assert tasks[1].title == "Implement feature X"
 

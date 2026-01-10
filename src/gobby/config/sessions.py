@@ -14,12 +14,46 @@ Extracted from app.py using Strangler Fig pattern for code decomposition.
 from pydantic import BaseModel, Field, field_validator
 
 __all__ = [
+    "ArtifactHandoffConfig",
     "ContextInjectionConfig",
     "SessionSummaryConfig",
     "TitleSynthesisConfig",
     "MessageTrackingConfig",
     "SessionLifecycleConfig",
 ]
+
+
+class ArtifactHandoffConfig(BaseModel):
+    """Configuration for artifact inclusion in session handoffs.
+
+    Controls how artifacts are collected and formatted when generating
+    handoff context for session continuation.
+    """
+
+    max_artifacts_in_handoff: int = Field(
+        default=10,
+        description="Maximum number of artifacts to include in handoff context",
+    )
+    max_context_size: int = Field(
+        default=50000,
+        description="Maximum size in characters for handoff context",
+    )
+    include_parent_artifacts: bool = Field(
+        default=True,
+        description="Include artifacts from parent session in handoff",
+    )
+    max_lineage_depth: int = Field(
+        default=3,
+        description="Maximum depth to traverse session lineage for artifacts",
+    )
+
+    @field_validator("max_artifacts_in_handoff", "max_context_size", "max_lineage_depth")
+    @classmethod
+    def validate_positive(cls, v: int) -> int:
+        """Validate value is positive."""
+        if v <= 0:
+            raise ValueError("Value must be positive")
+        return v
 
 
 class ContextInjectionConfig(BaseModel):

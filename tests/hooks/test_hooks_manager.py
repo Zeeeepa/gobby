@@ -1634,41 +1634,54 @@ class TestArtifactCaptureHookImport:
         assert ArtifactCaptureHook is not None
 
 
+@pytest.fixture
+def artifact_test_db(temp_dir: Path):
+    """Shared fixture for artifact capture tests with DB setup."""
+    from gobby.storage.artifacts import LocalArtifactManager
+    from gobby.storage.database import LocalDatabase
+    from gobby.storage.migrations import run_migrations
+
+    db_path = temp_dir / "test.db"
+    db = LocalDatabase(db_path)
+    run_migrations(db)
+
+    # Create project and session
+    db.execute(
+        """INSERT INTO projects (id, name, created_at, updated_at)
+           VALUES (?, ?, datetime('now'), datetime('now'))""",
+        ("test-project", "Test Project"),
+    )
+    db.execute(
+        """INSERT INTO sessions (id, project_id, external_id, machine_id, source, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("sess-1", "test-project", "ext-1", "machine-1", "claude"),
+    )
+
+    artifact_manager = LocalArtifactManager(db)
+
+    yield {"db": db, "artifact_manager": artifact_manager}
+
+    db.close()
+
+
+@pytest.mark.integration
 class TestArtifactCaptureHookProcessing:
     """Tests for ArtifactCaptureHook processing assistant messages."""
 
-    def test_processes_assistant_messages(self, temp_dir: Path):
+    def test_processes_assistant_messages(self, artifact_test_db):
         """Test that ArtifactCaptureHook processes assistant messages."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
-        from gobby.storage.artifacts import LocalArtifactManager
-        from gobby.storage.database import LocalDatabase
-        from gobby.storage.migrations import run_migrations
 
-        db_path = temp_dir / "test.db"
-        db = LocalDatabase(db_path)
-        run_migrations(db)
-
-        artifact_manager = LocalArtifactManager(db)
-        hook = ArtifactCaptureHook(artifact_manager=artifact_manager)
+        hook = ArtifactCaptureHook(artifact_manager=artifact_test_db["artifact_manager"])
 
         # Hook should have a method to process messages
         assert hasattr(hook, "process_message")
 
-        db.close()
-
-    def test_ignores_user_messages(self, temp_dir: Path):
+    def test_ignores_user_messages(self, artifact_test_db):
         """Test that ArtifactCaptureHook ignores user messages."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
-        from gobby.storage.artifacts import LocalArtifactManager
-        from gobby.storage.database import LocalDatabase
-        from gobby.storage.migrations import run_migrations
 
-        db_path = temp_dir / "test.db"
-        db = LocalDatabase(db_path)
-        run_migrations(db)
-
-        artifact_manager = LocalArtifactManager(db)
-        hook = ArtifactCaptureHook(artifact_manager=artifact_manager)
+        hook = ArtifactCaptureHook(artifact_manager=artifact_test_db["artifact_manager"])
 
         # Processing a user message should not create artifacts
         result = hook.process_message(
@@ -1679,9 +1692,8 @@ class TestArtifactCaptureHookProcessing:
 
         assert result is None or result == []
 
-        db.close()
 
-
+@pytest.mark.integration
 class TestArtifactCaptureHookCodeExtraction:
     """Tests for code block extraction from messages."""
 
@@ -1783,6 +1795,7 @@ fn main() {
         db.close()
 
 
+@pytest.mark.integration
 class TestArtifactCaptureHookFileReferences:
     """Tests for file reference extraction from messages."""
 
@@ -1829,6 +1842,7 @@ class TestArtifactCaptureHookFileReferences:
         db.close()
 
 
+@pytest.mark.integration
 class TestArtifactCaptureHookSessionLinking:
     """Tests for artifact session linking."""
 
@@ -1891,6 +1905,7 @@ class TestArtifactCaptureHookRegistration:
         )
 
 
+@pytest.mark.integration
 class TestArtifactCaptureHookDuplicateDetection:
     """Tests for duplicate content detection."""
 

@@ -336,8 +336,8 @@ async def _run_spawn_validation(
             mode="headless",
             model=model,
             provider=config.provider,
-            max_turns="5",  # Validation should be quick
-            timeout="120.0",
+            max_turns=5,  # Validation should be quick
+            timeout=120.0,
             # Critical: no parent session context to ensure fresh context
             parent_session_id=None,
             session_context=None,

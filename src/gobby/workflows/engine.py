@@ -178,7 +178,8 @@ class WorkflowEngine:
                 self.state_manager.save_state(state)
                 logger.debug(f"Reset premature_stop_count on tool call for session {session_id}")
 
-            tool_name = str(eval_context["tool_name"])
+            raw_tool_name = eval_context.get("tool_name")
+            tool_name = str(raw_tool_name) if raw_tool_name is not None else ""
 
             # Check blocked list
             if tool_name in current_step.blocked_tools:

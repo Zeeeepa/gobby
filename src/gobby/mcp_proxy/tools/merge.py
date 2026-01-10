@@ -32,6 +32,7 @@ def create_merge_registry(
     merge_storage: MergeResolutionManager,
     merge_resolver: MergeResolver,
     git_manager: WorktreeGitManager | None = None,
+    worktree_manager: Any | None = None,
 ) -> InternalToolRegistry:
     """
     Create a merge tool registry with all merge-related tools.
@@ -40,6 +41,7 @@ def create_merge_registry(
         merge_storage: MergeResolutionManager for database operations.
         merge_resolver: MergeResolver for AI-powered conflict resolution.
         git_manager: WorktreeGitManager for git operations.
+        worktree_manager: LocalWorktreeManager for resolving worktree paths.
 
     Returns:
         InternalToolRegistry with all merge tools registered.
@@ -101,8 +103,18 @@ def create_merge_registry(
             elif strategy == "full_file":
                 force_tier = ResolutionTier.FULL_FILE_AI
 
-            # Get worktree path (would need worktree storage in real impl)
-            worktree_path = f"/tmp/gobby-worktrees/{worktree_id}"
+            # Get worktree path from manager
+            worktree_path = None
+            if worktree_manager:
+                worktree = worktree_manager.get_worktree(worktree_id)
+                if worktree and worktree.worktree_path:
+                    worktree_path = worktree.worktree_path
+
+            if not worktree_path:
+                return {
+                    "success": False,
+                    "error": f"Worktree '{worktree_id}' not found or has no path",
+                }
 
             result = await merge_resolver.resolve(
                 worktree_path=worktree_path,

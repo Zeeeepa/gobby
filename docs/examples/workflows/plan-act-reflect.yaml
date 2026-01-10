@@ -91,6 +91,18 @@ steps:
 
 triggers:
   on_session_start:
+    # Load persisted workflow state first
+    - action: load_workflow_state
+
+    # Only enter plan step if no persisted step exists
     - action: enter_step
       step: plan
       when: "not workflow_state.step"
+
+  on_state_change:
+    # Persist state when step changes
+    - action: save_workflow_state
+
+  on_session_end:
+    # Save state when session ends
+    - action: save_workflow_state

@@ -73,7 +73,6 @@ def create_base_patches(
         patch("gobby.runner.LocalDatabase"),
         patch("gobby.runner.run_migrations"),
         patch("gobby.runner.LocalSessionManager"),
-        patch("gobby.runner.LocalSessionManager"),
         patch("gobby.runner.LocalSessionMessageManager"),
         patch("gobby.runner.LocalTaskManager"),
         patch("gobby.runner.SessionTaskManager"),
@@ -85,7 +84,6 @@ def create_base_patches(
         patch("gobby.runner.TaskValidator"),
         patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
         patch("gobby.runner.create_llm_service", return_value=None),
-        patch("gobby.runner.MemoryManager", return_value=None),
         patch("gobby.runner.MemoryManager", return_value=None),
         patch("gobby.runner.HTTPServer", return_value=mock_http),
     ]

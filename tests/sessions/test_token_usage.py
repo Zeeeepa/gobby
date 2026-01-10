@@ -35,6 +35,7 @@ def lifecycle_manager(db):
     return SessionLifecycleManager(db, config)
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_token_usage_aggregation(db, session_manager, lifecycle_manager, tmp_path):
     """Test that token usage is correctly aggregated from transcript files."""

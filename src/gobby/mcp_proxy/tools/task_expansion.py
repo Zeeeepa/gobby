@@ -447,7 +447,7 @@ def create_expansion_registry(
                 )
 
             # Resolve TDD mode from workflow state if resolver provided
-            tdd_mode = resolve_tdd_mode(session_id) if resolve_tdd_mode else False
+            tdd_mode = resolve_tdd_mode(session_id) if resolve_tdd_mode else None
 
             # Use structured parsing with optional LLM fallback
             builder = TaskHierarchyBuilder(

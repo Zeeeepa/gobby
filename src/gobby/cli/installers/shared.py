@@ -7,6 +7,7 @@ that are used across all CLI integrations (Claude, Gemini, Codex, etc.).
 
 import json
 import logging
+import os
 import shutil
 import time
 from pathlib import Path
@@ -113,8 +114,9 @@ def install_gobby_commands_symlink(
             target_dir.unlink()
 
     # Create relative symlink for portability
-    # From .claude/commands/gobby -> ../../.gobby/commands/gobby
-    relative_source = Path("..") / ".." / ".gobby" / "commands" / "gobby"
+    # Compute correct relative path from symlink location to source
+    source = project_path / ".gobby" / "commands" / "gobby"
+    relative_source = os.path.relpath(str(source), start=str(target_dir.parent))
 
     try:
         target_dir.symlink_to(relative_source)

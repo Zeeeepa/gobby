@@ -156,6 +156,7 @@ async def test_get_task_not_found(mock_task_manager, mock_sync_manager):
 
     result = await registry.call("get_task", {"task_id": "nonexistent"})
 
+    mock_task_manager.get_task.assert_called_once_with("nonexistent")
     assert "error" in result
     assert result["found"] is False
 

@@ -648,19 +648,19 @@ class MemuMemoryBackend:
 
     async def initialize(self) -> None:
         try:
-            from memu import MemU  # Lazy import
+            from memu import MemuClient  # Lazy import
         except ImportError:
             raise ImportError(
                 "MemU backend requires memu-py. Install with: pip install memu-py"
             )
 
         if self._mode == "embedded":
-            self._client = MemU(
+            self._client = MemuClient(
                 storage_path=self._categories_path,
                 resources_path=self._resources_path,
             )
         else:
-            self._client = MemU.connect(self._server_url)
+            self._client = MemuClient.connect(self._server_url)
 
     async def remember(
         self,
@@ -1010,7 +1010,7 @@ class MemoryManager:
         return self._backend.capabilities
 
     def has_capability(self, cap: MemoryCapability) -> bool:
-        return cap in self._backend.capabilities
+        return (self._backend.capabilities & cap) == cap
 
     async def initialize(self) -> None:
         if not self._initialized:

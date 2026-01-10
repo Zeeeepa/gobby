@@ -179,7 +179,12 @@ class MergeResolutionManager:
             )
 
         self._notify_listeners()
-        return self.get_resolution(resolution_id)  # type: ignore[return-value]
+        result = self.get_resolution(resolution_id)
+        if result is None:
+            raise RuntimeError(
+                f"Failed to retrieve resolution '{resolution_id}' after successful insert"
+            )
+        return result
 
     def get_resolution(self, resolution_id: str) -> MergeResolution | None:
         """Get a resolution by ID.
@@ -344,7 +349,12 @@ class MergeResolutionManager:
             )
 
         self._notify_listeners()
-        return self.get_conflict(conflict_id)  # type: ignore[return-value]
+        result = self.get_conflict(conflict_id)
+        if result is None:
+            raise RuntimeError(
+                f"Failed to retrieve conflict '{conflict_id}' after successful insert"
+            )
+        return result
 
     def get_conflict(self, conflict_id: str) -> MergeConflict | None:
         """Get a conflict by ID.

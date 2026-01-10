@@ -41,6 +41,7 @@ class LocalDatabase:
         self.db_path = Path(db_path) if db_path else DEFAULT_DB_PATH
         self._local = threading.local()
         self._artifact_manager: LocalArtifactManager | None = None
+        self._artifact_manager_lock = threading.Lock()
         self._ensure_directory()
 
     def _ensure_directory(self) -> None:
@@ -71,15 +72,19 @@ class LocalDatabase:
         """Get lazily-initialized LocalArtifactManager instance.
 
         The artifact manager is created on first access and reused for the
-        lifetime of this LocalDatabase instance.
+        lifetime of this LocalDatabase instance. Uses double-checked locking
+        for thread-safe initialization.
 
         Returns:
             LocalArtifactManager instance for managing session artifacts.
         """
         if self._artifact_manager is None:
-            from gobby.storage.artifacts import LocalArtifactManager
+            with self._artifact_manager_lock:
+                # Double-check inside lock
+                if self._artifact_manager is None:
+                    from gobby.storage.artifacts import LocalArtifactManager
 
-            self._artifact_manager = LocalArtifactManager(self)
+                    self._artifact_manager = LocalArtifactManager(self)
         return self._artifact_manager
 
     def execute(self, sql: str, params: tuple[Any, ...] = ()) -> sqlite3.Cursor:

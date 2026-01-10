@@ -80,10 +80,26 @@ class Session:
             usage_cache_creation_tokens=row["usage_cache_creation_tokens"] or 0,
             usage_cache_read_tokens=row["usage_cache_read_tokens"] or 0,
             usage_total_cost_usd=row["usage_total_cost_usd"] or 0.0,
-            terminal_context=json.loads(row["terminal_context"])
-            if row["terminal_context"]
-            else None,
+            terminal_context=cls._parse_terminal_context(row["terminal_context"]),
         )
+
+    @classmethod
+    def _parse_terminal_context(cls, raw: str | None) -> dict[str, Any] | None:
+        """Parse terminal_context JSON, returning None on malformed data.
+
+        Args:
+            raw: Raw JSON string or None
+
+        Returns:
+            Parsed dict or None if parsing fails or input is None
+        """
+        if not raw:
+            return None
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            logger.warning("Failed to parse terminal_context JSON, returning None")
+            return None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""

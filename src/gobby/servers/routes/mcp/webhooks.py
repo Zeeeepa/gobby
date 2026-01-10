@@ -85,6 +85,10 @@ def create_webhooks_router() -> APIRouter:
 
         try:
             body = await request.json()
+        except (ValueError, Exception):
+            raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+        try:
             webhook_name = body.get("name")
             event_type = body.get("event_type", "notification")
 

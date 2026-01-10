@@ -612,10 +612,11 @@ index abc..def 100644
         # Priority file should be shown in full (not truncated)
         # since its content is small and gets 60% allocation
         priority_section = result[result.find("priority.py") :]
-        assert (
-            "truncated" not in priority_section.split("other1.py")[0].lower()
-            or "priority" in result
-        )
+        # Get just the priority.py section before other files
+        priority_only = priority_section.split("other1.py")[0].lower()
+        # Assert both conditions: not truncated AND content appears
+        assert "truncated" not in priority_only, "Priority file should not be truncated"
+        assert "priority" in priority_only, "Priority file content should appear in its section"
 
     def test_non_priority_files_share_remaining_space(self):
         """Test that non-priority files share remaining 40% of space."""

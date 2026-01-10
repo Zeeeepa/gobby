@@ -7,7 +7,7 @@ Processes assistant messages to extract:
 - Other classified content
 
 Uses artifact_classifier for type detection and LocalArtifactManager for storage.
-Tracks content hashes to prevent duplicate storage.
+Tracks content hashes to prevent duplicate storage using a bounded LRU cache.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
+from collections import OrderedDict
 from typing import TYPE_CHECKING
 
 from gobby.storage.artifact_classifier import ArtifactType, classify_artifact
@@ -25,6 +26,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 __all__ = ["ArtifactCaptureHook"]
+
+# Maximum number of content hashes to track for duplicate detection
+MAX_HASH_CACHE = 10000
 
 # Pattern to extract markdown code blocks
 _CODE_BLOCK_PATTERN = re.compile(r"```(\w*)\n(.*?)```", re.DOTALL)
@@ -54,19 +58,38 @@ class ArtifactCaptureHook:
             artifact_manager: LocalArtifactManager instance for storing artifacts
         """
         self._artifact_manager = artifact_manager
-        self._seen_hashes: set[str] = set()
+        # Use OrderedDict as LRU cache for bounded duplicate tracking
+        self._seen_hashes: OrderedDict[str, None] = OrderedDict()
 
     def _compute_hash(self, content: str) -> str:
         """Compute a hash for content deduplication."""
         return hashlib.sha256(content.encode()).hexdigest()
 
     def _is_duplicate(self, content: str) -> bool:
-        """Check if content has already been seen."""
+        """Check if content has already been seen.
+
+        Uses a bounded LRU cache to prevent unbounded memory growth.
+        """
         content_hash = self._compute_hash(content)
         if content_hash in self._seen_hashes:
+            # Move to end (most recently used)
+            self._seen_hashes.move_to_end(content_hash)
             return True
-        self._seen_hashes.add(content_hash)
+
+        # Add new hash, evict oldest if over capacity
+        self._seen_hashes[content_hash] = None
+        if len(self._seen_hashes) > MAX_HASH_CACHE:
+            # Remove oldest entry (first item)
+            self._seen_hashes.popitem(last=False)
+
         return False
+
+    def reset_duplicate_tracking(self) -> None:
+        """Clear the duplicate tracking cache.
+
+        Useful to reset between sessions or when memory needs to be freed.
+        """
+        self._seen_hashes.clear()
 
     def _extract_code_blocks(self, content: str) -> list[tuple[str, str]]:
         """
