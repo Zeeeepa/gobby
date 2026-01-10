@@ -86,6 +86,39 @@ Tools for cross-project queries:
 4. **Project db doesn't exist** - Create it
 5. **Hub db doesn't exist** - Create it
 
+## Tasks
+
+### Task 1: Disable WAL mode in LocalDatabase
+Remove PRAGMA journal_mode = WAL from database.py line 62. Use default DELETE mode.
+**File:** `src/gobby/storage/database.py`
+
+### Task 2: Create DualWriteDatabase class
+New file with wrapper that proxies writes to two LocalDatabase instances.
+**File:** `src/gobby/storage/dual_write.py`
+
+### Task 3: Add hub_database_path to DaemonConfig
+Add Field with default `~/.gobby/gobby-hub.db`.
+**File:** `src/gobby/config/app.py`
+
+### Task 4: Update daemon to use dual-write
+Detect project context, create DualWriteDatabase if in project, run migrations on both.
+**File:** `src/gobby/runner.py`
+
+### Task 5: Update CLI utils for dual-write
+Same pattern as runner for CLI commands that need database access.
+**File:** `src/gobby/cli/utils.py`
+
+### Task 6: Add gobby db sync CLI command
+New command with --direction (to-hub, from-hub) for syncing between databases.
+**File:** `src/gobby/cli/db.py`
+
+### Task 7: Add hub query MCP tools
+list_all_projects, list_cross_project_tasks, list_cross_project_sessions, hub_stats.
+**File:** `src/gobby/mcp_proxy/tools/hub.py`
+
+### Task 8: Integration testing
+Verify dual-write works end-to-end, test sync command, test hub tools.
+
 ## Verification
 
 1. Start daemon in a project directory

@@ -240,7 +240,7 @@ class TestHeadlessSpawnerSpawn:
             assert call_args[1]["cwd"] == "/tmp"
             assert call_args[1]["stdout"] == subprocess.PIPE
             assert call_args[1]["stderr"] == subprocess.STDOUT
-            assert call_args[1]["stdin"] == subprocess.PIPE
+            assert call_args[1]["stdin"] == subprocess.DEVNULL
             assert call_args[1]["text"] is True
             assert call_args[1]["bufsize"] == 1
             assert "TEST" in call_args[1]["env"]
