@@ -54,10 +54,6 @@ triggers:
 
         {{ handoff }}
 
-    # Memory injection - inject relevant stored memories
-    - action: memory_inject
-      # Uses config defaults: importance_threshold=0.3, injection_limit=10
-
     # Memory sync - import from JSONL for Git persistence
     - action: memory_sync_import
 
@@ -65,7 +61,7 @@ triggers:
     # Memory recall - inject memories relevant to the user's prompt via semantic search
     - action: memory_recall_relevant
       limit: 5
-      min_importance: 0.3
+      min_importance: 0.7
 
   on_before_tool:
     # Task enforcement - require active task before file modifications
