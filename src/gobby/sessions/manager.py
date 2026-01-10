@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
+    from gobby.storage.artifacts import Artifact
     from gobby.storage.sessions import LocalSessionManager as SessionStorage
 
 logger = logging.getLogger(__name__)
@@ -421,7 +422,9 @@ class SessionManager:
             current_session = self._storage.get(session_id)
             depth = 0
 
-            while current_session and current_session.parent_session_id and depth < max_lineage_depth:
+            while (
+                current_session and current_session.parent_session_id and depth < max_lineage_depth
+            ):
                 parent_id = current_session.parent_session_id
                 parent_artifacts = artifact_manager.list_artifacts(
                     session_id=parent_id,
@@ -503,7 +506,7 @@ class SessionManager:
 
         return "\n".join(context_parts)
 
-    def _format_artifact(self, artifact) -> str:
+    def _format_artifact(self, artifact: Artifact) -> str:
         """
         Format an artifact for inclusion in handoff context.
 

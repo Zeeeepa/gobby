@@ -14,7 +14,7 @@ Features:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import numpy as np
@@ -199,14 +199,14 @@ class TFIDFSearcher:
         """
         self._pending_updates += 1
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict[str, Any]:
         """
         Get statistics about the TF-IDF index.
 
         Returns:
             Dict with index statistics
         """
-        stats = {
+        stats: dict[str, Any] = {
             "fitted": self._fitted,
             "memory_count": len(self._memory_ids),
             "pending_updates": self._pending_updates,

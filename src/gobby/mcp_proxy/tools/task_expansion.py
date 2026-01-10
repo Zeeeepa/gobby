@@ -455,7 +455,7 @@ def create_expansion_registry(
                 project_id=project_id,
                 parent_task_id=spec_task.id,
                 criteria_generator=criteria_generator,
-                tdd_mode=tdd_mode,
+                tdd_mode=tdd_mode or False,
             )
 
             # Use fallback method if task_expander available (for hybrid specs)

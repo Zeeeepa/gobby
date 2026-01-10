@@ -7,7 +7,6 @@ These tests verify that the ToolProxyService:
 4. Valid parameters pass through normally
 """
 
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -179,9 +178,7 @@ class TestCallToolPreValidation:
     """Tests for call_tool pre-validation behavior."""
 
     @pytest.mark.asyncio
-    async def test_returns_error_with_schema_for_invalid_args(
-        self, tool_proxy, mock_mcp_manager
-    ):
+    async def test_returns_error_with_schema_for_invalid_args(self, tool_proxy, mock_mcp_manager):
         """Verify invalid arguments return error with schema included."""
         # Setup mock to return tool schema
         tool_proxy._mcp_manager = mock_mcp_manager
@@ -239,6 +236,7 @@ class TestCallToolPreValidation:
         self, tool_proxy, mock_mcp_manager
     ):
         """Verify missing required parameters return error with schema."""
+
         async def mock_get_schema(server, tool):
             return {
                 "success": True,
@@ -270,10 +268,9 @@ class TestCallToolPreValidation:
         assert "schema" in result
 
     @pytest.mark.asyncio
-    async def test_valid_arguments_pass_through(
-        self, tool_proxy, mock_mcp_manager
-    ):
+    async def test_valid_arguments_pass_through(self, tool_proxy, mock_mcp_manager):
         """Verify valid arguments pass through to execution."""
+
         async def mock_get_schema(server, tool):
             return {
                 "success": True,
@@ -302,13 +299,11 @@ class TestCallToolPreValidation:
         mock_mcp_manager.call_tool.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_no_validation_when_disabled(
-        self, tool_proxy_no_validation, mock_mcp_manager
-    ):
+    async def test_no_validation_when_disabled(self, tool_proxy_no_validation, mock_mcp_manager):
         """Verify no validation when validate_arguments is False."""
         mock_mcp_manager.call_tool.return_value = {"success": True}
 
-        result = await tool_proxy_no_validation.call_tool(
+        await tool_proxy_no_validation.call_tool(
             server_name="test-server",
             tool_name="test_tool",
             arguments={"wrong_param": "test"},  # Would fail validation
@@ -318,13 +313,11 @@ class TestCallToolPreValidation:
         mock_mcp_manager.call_tool.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_no_validation_for_empty_arguments(
-        self, tool_proxy, mock_mcp_manager
-    ):
+    async def test_no_validation_for_empty_arguments(self, tool_proxy, mock_mcp_manager):
         """Verify no validation is performed when arguments are empty."""
         mock_mcp_manager.call_tool.return_value = {"success": True}
 
-        result = await tool_proxy.call_tool(
+        await tool_proxy.call_tool(
             server_name="test-server",
             tool_name="test_tool",
             arguments={},  # Empty args
@@ -334,17 +327,16 @@ class TestCallToolPreValidation:
         mock_mcp_manager.call_tool.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_schema_fetch_failure_allows_execution(
-        self, tool_proxy, mock_mcp_manager
-    ):
+    async def test_schema_fetch_failure_allows_execution(self, tool_proxy, mock_mcp_manager):
         """Verify tool execution proceeds when schema fetch fails."""
+
         async def mock_get_schema(server, tool):
             return {"success": False, "error": "Schema not found"}
 
         tool_proxy.get_tool_schema = mock_get_schema
         mock_mcp_manager.call_tool.return_value = {"success": True}
 
-        result = await tool_proxy.call_tool(
+        await tool_proxy.call_tool(
             server_name="test-server",
             tool_name="test_tool",
             arguments={"some_param": "test"},
@@ -358,9 +350,7 @@ class TestCallToolInternalServer:
     """Tests for call_tool with internal servers (gobby-*)."""
 
     @pytest.mark.asyncio
-    async def test_validates_internal_tool_arguments(
-        self, tool_proxy, mock_internal_manager
-    ):
+    async def test_validates_internal_tool_arguments(self, tool_proxy, mock_internal_manager):
         """Verify internal tool arguments are validated."""
         # Setup internal server detection
         mock_internal_manager.is_internal.return_value = True
@@ -398,9 +388,7 @@ class TestCallToolInternalServer:
         assert "task_id" in result["error"]  # Should suggest correct param
 
     @pytest.mark.asyncio
-    async def test_valid_internal_tool_execution(
-        self, tool_proxy, mock_internal_manager
-    ):
+    async def test_valid_internal_tool_execution(self, tool_proxy, mock_internal_manager):
         """Verify valid internal tool calls execute successfully."""
         mock_internal_manager.is_internal.return_value = True
         mock_registry = MagicMock()

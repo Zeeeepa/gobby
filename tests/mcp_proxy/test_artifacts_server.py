@@ -77,7 +77,7 @@ class TestSearchArtifacts:
         registry = create_registry(db=mock_db, artifact_manager=mock_artifact_manager)
         tool = registry._tools.get("search_artifacts")
 
-        result = tool.func(query="test", session_id="sess-123")
+        tool.func(query="test", session_id="sess-123")
 
         mock_artifact_manager.search_artifacts.assert_called_once_with(
             query_text="test",
@@ -97,7 +97,7 @@ class TestSearchArtifacts:
         registry = create_registry(db=mock_db, artifact_manager=mock_artifact_manager)
         tool = registry._tools.get("search_artifacts")
 
-        result = tool.func(query="error", artifact_type="error")
+        tool.func(query="error", artifact_type="error")
 
         mock_artifact_manager.search_artifacts.assert_called_once_with(
             query_text="error",
@@ -163,7 +163,7 @@ class TestListArtifacts:
         registry = create_registry(db=mock_db, artifact_manager=mock_artifact_manager)
         tool = registry._tools.get("list_artifacts")
 
-        result = tool.func(session_id="sess-123")
+        tool.func(session_id="sess-123")
 
         mock_artifact_manager.list_artifacts.assert_called_once()
         call_kwargs = mock_artifact_manager.list_artifacts.call_args
@@ -180,7 +180,7 @@ class TestListArtifacts:
         registry = create_registry(db=mock_db, artifact_manager=mock_artifact_manager)
         tool = registry._tools.get("list_artifacts")
 
-        result = tool.func(artifact_type="error")
+        tool.func(artifact_type="error")
 
         mock_artifact_manager.list_artifacts.assert_called_once()
 
@@ -195,7 +195,7 @@ class TestListArtifacts:
         registry = create_registry(db=mock_db, artifact_manager=mock_artifact_manager)
         tool = registry._tools.get("list_artifacts")
 
-        result = tool.func(limit=10, offset=20)
+        tool.func(limit=10, offset=20)
 
         call_args = mock_artifact_manager.list_artifacts.call_args
         # Check limit and offset were passed

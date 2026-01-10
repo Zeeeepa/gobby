@@ -18,7 +18,7 @@ class TextSearcher:
     - Word overlap (proportional score)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._memories: dict[str, str] = {}  # id -> content
         self._fitted = False
 

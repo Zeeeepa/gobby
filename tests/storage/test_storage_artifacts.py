@@ -8,11 +8,11 @@ import json
 
 import pytest
 
-# Mark all tests in this module as integration tests
-pytestmark = [pytest.mark.integration]
-
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import run_migrations
+
+# Mark all tests in this module as integration tests
+pytestmark = [pytest.mark.integration]
 
 # =============================================================================
 # Session Artifacts Table Schema Tests

@@ -96,7 +96,8 @@ class Session:
         if not raw:
             return None
         try:
-            return json.loads(raw)
+            result: dict[str, Any] = json.loads(raw)
+            return result
         except json.JSONDecodeError:
             logger.warning("Failed to parse terminal_context JSON, returning None")
             return None

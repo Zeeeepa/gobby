@@ -16,7 +16,7 @@ Usage:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 if TYPE_CHECKING:
     from gobby.storage.database import LocalDatabase
@@ -101,7 +101,7 @@ class SearchBackend(Protocol):
 def get_search_backend(
     backend_type: str,
     db: LocalDatabase | None = None,
-    **kwargs,
+    **kwargs: Any,
 ) -> SearchBackend:
     """
     Factory function for search backends.
@@ -121,26 +121,26 @@ def get_search_backend(
     if backend_type == "tfidf":
         from gobby.memory.search.tfidf import TFIDFSearcher
 
-        return TFIDFSearcher(**kwargs)
+        return cast(SearchBackend, TFIDFSearcher(**kwargs))
 
     elif backend_type == "openai":
         from gobby.memory.search.openai_adapter import OpenAISearchAdapter
 
         if db is None:
             raise ValueError("OpenAI search backend requires database connection")
-        return OpenAISearchAdapter(db=db, **kwargs)
+        return cast(SearchBackend, OpenAISearchAdapter(db=db, **kwargs))
 
     elif backend_type == "hybrid":
         from gobby.memory.search.hybrid import HybridSearcher
 
         if db is None:
             raise ValueError("Hybrid search backend requires database connection")
-        return HybridSearcher(db=db, **kwargs)
+        return cast(SearchBackend, HybridSearcher(db=db, **kwargs))
 
     elif backend_type == "text":
         from gobby.memory.search.text import TextSearcher
 
-        return TextSearcher(**kwargs)
+        return cast(SearchBackend, TextSearcher(**kwargs))
 
     else:
         raise ValueError(

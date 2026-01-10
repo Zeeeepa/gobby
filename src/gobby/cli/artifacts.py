@@ -4,7 +4,7 @@ import json
 
 import click
 
-from gobby.storage.artifacts import LocalArtifactManager
+from gobby.storage.artifacts import Artifact, LocalArtifactManager
 from gobby.storage.database import LocalDatabase
 
 
@@ -53,10 +53,15 @@ def search(
         return
 
     if output_json:
-        click.echo(json.dumps({
-            "artifacts": [a.to_dict() for a in artifacts_list],
-            "count": len(artifacts_list),
-        }, indent=2))
+        click.echo(
+            json.dumps(
+                {
+                    "artifacts": [a.to_dict() for a in artifacts_list],
+                    "count": len(artifacts_list),
+                },
+                indent=2,
+            )
+        )
     else:
         _display_artifact_list(artifacts_list)
 
@@ -84,10 +89,15 @@ def list_artifacts(
     )
 
     if output_json:
-        click.echo(json.dumps({
-            "artifacts": [a.to_dict() for a in artifacts_list],
-            "count": len(artifacts_list),
-        }, indent=2))
+        click.echo(
+            json.dumps(
+                {
+                    "artifacts": [a.to_dict() for a in artifacts_list],
+                    "count": len(artifacts_list),
+                },
+                indent=2,
+            )
+        )
     else:
         if not artifacts_list:
             click.echo("No artifacts found")
@@ -144,11 +154,16 @@ def timeline(
     artifacts_list = list(reversed(artifacts_list))
 
     if output_json:
-        click.echo(json.dumps({
-            "session_id": session_id,
-            "artifacts": [a.to_dict() for a in artifacts_list],
-            "count": len(artifacts_list),
-        }, indent=2))
+        click.echo(
+            json.dumps(
+                {
+                    "session_id": session_id,
+                    "artifacts": [a.to_dict() for a in artifacts_list],
+                    "count": len(artifacts_list),
+                },
+                indent=2,
+            )
+        )
     else:
         if not artifacts_list:
             click.echo(f"No artifacts found for session: {session_id}")
@@ -174,7 +189,7 @@ def _display_artifact_list(artifacts_list: list) -> None:
         click.echo(f"{artifact_id:<12} {artifact.artifact_type:<8} {source:<20} {created:<20}")
 
 
-def _display_artifact_detail(artifact, verbose: bool) -> None:
+def _display_artifact_detail(artifact: Artifact, verbose: bool) -> None:
     """Display a single artifact with optional verbosity."""
     click.echo(f"ID: {artifact.id}")
     click.echo(f"Type: {artifact.artifact_type}")
@@ -232,7 +247,7 @@ def _display_content(content: str, artifact_type: str, metadata: dict | None) ->
         click.echo(content)
 
 
-def _display_timeline_entry(artifact) -> None:
+def _display_timeline_entry(artifact: Artifact) -> None:
     """Display a single timeline entry."""
     click.echo(f"[{artifact.created_at[:19]}] {artifact.artifact_type.upper()}: {artifact.id}")
     if artifact.source_file:
