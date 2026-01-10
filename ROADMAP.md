@@ -198,8 +198,8 @@ End-to-End Testing → Documentation (should be last)
 
 ### "Autonomous Execution" ✅
 
-- [x] Session chaining for context limits (`autonomous-loop.yaml` workflow)
-- [x] Task-driven work loops (`autonomous-task.yaml` workflow with exit conditions)
+- [x] Session chaining for context limits (`auto-loop.yaml` workflow)
+- [x] Task-driven work loops (`auto-task.yaml` workflow with exit conditions)
 - [x] Stop signals via HTTP (`POST /sessions/{id}/stop`), StopRegistry, and workflow actions
 - [x] Progress tracking (`ProgressTracker`) with stuck detection (`StuckDetector`)
 - **Value**: Hands-off task execution overnight

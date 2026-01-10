@@ -49,9 +49,9 @@ graph TD
     class start_event,before_agent_event,before_tool_event,stop_event,pre_compact_event,end_event trigger;
 ```
 
-## Autonomous Task (`autonomous-task.yaml`)
+## Autonomous Task (`auto-task.yaml`)
 
-This diagram details the state machine for the `autonomous-task` step workflow. It visualizes the flow from activation to completion, including the `work` loop where the agent has full tool access, and the transition to `complete` once the task tree is finished.
+This diagram details the state machine for the `auto-task` step workflow. It visualizes the flow from activation to completion, including the `work` loop where the agent has full tool access, and the transition to `complete` once the task tree is finished.
 
 ```mermaid
 stateDiagram-v2

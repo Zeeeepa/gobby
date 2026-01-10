@@ -212,7 +212,7 @@ def create_workflows_registry(
         Activate a step-based workflow for the current session.
 
         Args:
-            name: Workflow name (e.g., "plan-act-reflect", "autonomous-task")
+            name: Workflow name (e.g., "plan-act-reflect", "auto-task")
             session_id: Required session ID (must be provided to prevent cross-session bleed)
             initial_step: Optional starting step (defaults to first step)
             variables: Optional initial variables to set (merged with workflow defaults)
@@ -223,7 +223,7 @@ def create_workflows_registry(
 
         Example:
             activate_workflow(
-                name="autonomous-task",
+                name="auto-task",
                 variables={"session_task": "gt-abc123"},
                 session_id="..."
             )
@@ -606,7 +606,7 @@ def create_workflows_registry(
         if name == "session_task" and value and state.workflow_name == "__lifecycle__":
             result["warning"] = (
                 "DEPRECATED: Setting session_task directly is deprecated. "
-                "Use activate_workflow(name='autonomous-task', variables={'session_task': ...}) instead "
+                "Use activate_workflow(name='auto-task', variables={'session_task': ...}) instead "
                 "for proper state machine semantics and on_premature_stop handling."
             )
 

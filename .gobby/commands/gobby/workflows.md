@@ -21,11 +21,11 @@ Do NOT call `list_sessions` to look it up - you already have it.
 Call `gobby-workflows.activate_workflow` with:
 - `session_id`: **Required** - from your SessionStart context
 - `name`: The workflow name to activate
-- `variables`: Optional initial variables (e.g., `session_task` for autonomous-task)
+- `variables`: Optional initial variables (e.g., `session_task` for auto-task)
 - `initial_step`: Optional starting step (defaults to first step)
 
 Available workflows:
-- `autonomous-task` - Task execution with session_task variable
+- `auto-task` - Task execution with session_task variable
 - `plan-execute` - Planning then execution phases
 - `test-driven` - TDD: Red → Green → Refactor
 - `plan-act-reflect` - Structured development cycle
@@ -34,8 +34,8 @@ Available workflows:
 Example: `/workflows activate plan-execute`
 → `activate_workflow(session_id="<from context>", name="plan-execute")`
 
-Example: `/workflows activate autonomous-task session_task=gt-abc123`
-→ `activate_workflow(session_id="<from context>", name="autonomous-task", variables={"session_task": "gt-abc123"})`
+Example: `/workflows activate auto-task session_task=gt-abc123`
+→ `activate_workflow(session_id="<from context>", name="auto-task", variables={"session_task": "gt-abc123"})`
 
 ### `/workflows deactivate` - Deactivate current workflow
 Call `gobby-workflows.end_workflow` with:

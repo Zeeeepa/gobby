@@ -68,7 +68,7 @@ class TestBlockManualTransitionToConditionalSteps:
         """Manual transition to step with conditional auto-transition is blocked."""
         # Setup mock state in "work" step
         mock_state = MagicMock()
-        mock_state.workflow_name = "autonomous-task"
+        mock_state.workflow_name = "auto-task"
         mock_state.step = "work"
         mock_state_manager.get_state.return_value = mock_state
 
@@ -219,7 +219,7 @@ class TestBlockSessionTaskModification:
         """Cannot modify session_task when a real workflow is active."""
         # Setup mock state with active workflow and existing session_task
         mock_state = MagicMock(spec=WorkflowState)
-        mock_state.workflow_name = "autonomous-task"
+        mock_state.workflow_name = "auto-task"
         mock_state.variables = {"session_task": "gt-parent-123"}
         mock_state_manager.get_state.return_value = mock_state
 
@@ -234,7 +234,7 @@ class TestBlockSessionTaskModification:
 
         assert result["success"] is False
         assert "Cannot modify session_task" in result["error"]
-        assert "autonomous-task" in result["error"]
+        assert "auto-task" in result["error"]
         assert "gt-parent-123" in result["error"]
 
     def test_allows_session_task_modification_with_lifecycle_workflow(
@@ -284,7 +284,7 @@ class TestBlockSessionTaskModification:
         """Can set session_task for the first time even with active workflow."""
         # Workflow active but session_task not yet set
         mock_state = MagicMock(spec=WorkflowState)
-        mock_state.workflow_name = "autonomous-task"
+        mock_state.workflow_name = "auto-task"
         mock_state.variables = {}  # No session_task yet
         mock_state_manager.get_state.return_value = mock_state
 
@@ -304,7 +304,7 @@ class TestBlockSessionTaskModification:
     ):
         """Setting session_task to same value is allowed (idempotent)."""
         mock_state = MagicMock(spec=WorkflowState)
-        mock_state.workflow_name = "autonomous-task"
+        mock_state.workflow_name = "auto-task"
         mock_state.variables = {"session_task": "gt-same-task"}
         mock_state_manager.get_state.return_value = mock_state
 
@@ -323,7 +323,7 @@ class TestBlockSessionTaskModification:
     ):
         """Other variables can still be modified when workflow is active."""
         mock_state = MagicMock(spec=WorkflowState)
-        mock_state.workflow_name = "autonomous-task"
+        mock_state.workflow_name = "auto-task"
         mock_state.variables = {"session_task": "gt-task-123", "other_var": "old"}
         mock_state_manager.get_state.return_value = mock_state
 
@@ -343,7 +343,7 @@ class TestBlockSessionTaskModification:
     ):
         """Error message suggests using end_workflow first."""
         mock_state = MagicMock(spec=WorkflowState)
-        mock_state.workflow_name = "autonomous-task"
+        mock_state.workflow_name = "auto-task"
         mock_state.variables = {"session_task": "gt-current"}
         mock_state_manager.get_state.return_value = mock_state
 

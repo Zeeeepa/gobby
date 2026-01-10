@@ -60,7 +60,7 @@ Tauri wrapper around web UI if native features needed later.
 
 ### Flow 1: Task Selection (Most Important)
 
-**Current pain**: Copy/paste task IDs between tmux sessions, type `/gobby:workflows autonomous-task session_task=gt-123456`
+**Current pain**: Copy/paste task IDs between tmux sessions, type `/gobby:workflows auto-task session_task=gt-123456`
 
 **TUI solution**:
 ```

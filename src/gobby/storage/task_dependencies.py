@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class DependencyCycleError(Exception):
 
 
 class TaskDependencyManager:
-    def __init__(self, db: LocalDatabase):
+    def __init__(self, db: DatabaseProtocol):
         self.db = db
 
     def add_dependency(

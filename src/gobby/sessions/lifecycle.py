@@ -15,7 +15,7 @@ from gobby.config.app import SessionLifecycleConfig
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
 from gobby.sessions.transcripts.codex import CodexTranscriptParser
 from gobby.sessions.transcripts.gemini import GeminiTranscriptParser
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager
 
@@ -31,7 +31,7 @@ class SessionLifecycleManager:
     2. process_pending_transcripts - processes transcripts for expired sessions
     """
 
-    def __init__(self, db: LocalDatabase, config: SessionLifecycleConfig):
+    def __init__(self, db: DatabaseProtocol, config: SessionLifecycleConfig):
         self.db = db
         self.config = config
         self.session_manager = LocalSessionManager(db)

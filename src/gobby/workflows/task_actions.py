@@ -9,14 +9,14 @@ Provides functions for integrating the task system with the workflow engine:
 import logging
 from typing import Any
 
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 from gobby.storage.tasks import LocalTaskManager, Task
 
 logger = logging.getLogger(__name__)
 
 
 def persist_decomposed_tasks(
-    db: LocalDatabase,
+    db: DatabaseProtocol,
     project_id: str,
     tasks_data: list[dict[str, Any]],
     workflow_name: str,
@@ -101,7 +101,7 @@ def persist_decomposed_tasks(
 
 
 def update_task_from_workflow(
-    db: LocalDatabase,
+    db: DatabaseProtocol,
     task_id: str,
     status: str | None = None,
     verification: str | None = None,
@@ -155,7 +155,7 @@ def update_task_from_workflow(
 
 
 def get_workflow_tasks(
-    db: LocalDatabase,
+    db: DatabaseProtocol,
     workflow_name: str,
     project_id: str | None = None,
     include_closed: bool = False,
@@ -194,7 +194,7 @@ def get_workflow_tasks(
 
 
 def get_next_workflow_task(
-    db: LocalDatabase,
+    db: DatabaseProtocol,
     workflow_name: str,
     project_id: str | None = None,
 ) -> Task | None:
@@ -226,7 +226,7 @@ def get_next_workflow_task(
 
 
 def mark_workflow_task_complete(
-    db: LocalDatabase,
+    db: DatabaseProtocol,
     task_id: str,
     verification_result: str | None = None,
 ) -> Task | None:

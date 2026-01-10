@@ -1,0 +1,236 @@
+name: auto-orchestrator
+description: |
+  Multi-agent orchestration workflow that spawns workers in worktrees,
+  monitors progress, triggers reviews, and cleans up on completion.
+
+  Key features:
+  - Spawns agents in isolated worktrees for parallel work
+  - Provider assignment by role (coding vs review)
+  - Monitors concurrent agent progress
+  - Routes completed work to review step
+  - Cleans up merged worktrees
+  - Loops until session_task tree is complete
+
+  Usage:
+    1. Create a parent task with subtasks (or expand an existing task)
+    2. Activate this workflow with:
+       - session_task: Parent task ID to complete
+       - coding_provider: Provider for implementation (default: gemini)
+       - review_provider: Provider for reviews (default: claude)
+       - max_concurrent: Max parallel agents (default: 3)
+    3. Workflow spawns workers, monitors, reviews, cleans up
+    4. Exits when all subtasks are closed
+
+version: "1.0"
+type: step
+
+# Session-scoped variables (set on activation or use defaults)
+variables:
+  session_task: null          # Parent task ID - required
+  coding_provider: "gemini"   # Provider for implementation tasks
+  coding_model: null          # Optional model override for coding
+  review_provider: "claude"   # Provider for code review
+  review_model: "claude-opus-4-5"  # Model for thorough reviews
+  max_concurrent: 3           # Max parallel agents
+  terminal: "ghostty"         # Terminal to spawn in
+  poll_interval_seconds: 30   # How often to check agent status
+  # Internal state
+  spawned_agents: []          # List of {agent_id, worktree_id, task_id}
+  completed_agents: []        # Agents finished, awaiting review
+  reviewed_agents: []         # Agents that passed review
+  # Failsafe
+  premature_stop_max_attempts: 3
+
+steps:
+  - name: spawn_workers
+    description: "Spawn agents in worktrees for ready tasks"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Spawning workers for ready tasks.
+
+          Session task: {{ variables.session_task }}
+          Max concurrent: {{ variables.max_concurrent }}
+          Coding provider: {{ variables.coding_provider }}
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - Read
+      - Glob
+      - TodoWrite
+
+    # Use orchestrate_ready_tasks tool from gobby-tasks:
+    # - Pass coding_provider and coding_model from workflow variables
+    # - Tool spawns agents with correct provider assignment
+    # - Returns spawned/skipped lists to track in spawned_agents
+    #
+    # Call: gobby-tasks.orchestrate_ready_tasks(
+    #   parent_task_id=session_task,
+    #   coding_provider=variables.coding_provider,
+    #   coding_model=variables.coding_model,
+    #   max_concurrent=variables.max_concurrent,
+    #   terminal=variables.terminal
+    # )
+
+    transitions:
+      - to: monitor
+        when: "len(variables.get('spawned_agents', [])) > 0"
+      - to: complete
+        when: "task_tree_complete(variables.session_task)"
+
+  - name: monitor
+    description: "Monitor running agents and handle completions"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Monitoring {{ len(variables.spawned_agents) }} running agent(s).
+
+          Poll interval: {{ variables.poll_interval_seconds }}s
+
+          Checking agent status and handling completions...
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - Read
+      - TodoWrite
+
+    # Logic:
+    # 1. Poll running agents via gobby-agents.list_running_agents
+    # 2. For completed agents:
+    #    - Get result via get_agent_result
+    #    - Move from spawned_agents to completed_agents
+    # 3. If completed_agents has items, transition to review
+    # 4. If spawned_agents empty and no completed, back to spawn_workers
+    # 5. Otherwise continue monitoring
+
+    transitions:
+      - to: review
+        when: "len(variables.get('completed_agents', [])) > 0"
+      - to: spawn_workers
+        when: "len(variables.get('spawned_agents', [])) == 0"
+      - to: complete
+        when: "task_tree_complete(variables.session_task)"
+      # Loop back to self after poll interval (implemented by orchestrator)
+      - to: monitor
+        when: "len(variables.get('spawned_agents', [])) > 0"
+
+  - name: review
+    description: "Review completed work and route results"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Reviewing completed work.
+
+          Review provider: {{ variables.review_provider }}
+          Review model: {{ variables.review_model }}
+
+          Completed agents awaiting review: {{ len(variables.completed_agents) }}
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - Read
+      - Grep
+      - Glob
+      - TodoWrite
+
+    # Use spawn_review_agent tool from gobby-tasks:
+    # - Pass review_provider and review_model from workflow variables
+    # - Review agent validates task and uses validate_task() to mark status
+    #
+    # For each completed agent:
+    # 1. Check if task has validation_status
+    # 2. If not validated, spawn review agent:
+    #    gobby-tasks.spawn_review_agent(
+    #      task_id=task_id,
+    #      review_provider=variables.review_provider,
+    #      review_model=variables.review_model,
+    #      terminal=variables.terminal
+    #    )
+    # 3. If validated/passed, move to reviewed_agents
+    # 4. If validation failed, task returns to open for rework
+
+    transitions:
+      - to: cleanup
+        when: "len(variables.get('reviewed_agents', [])) > 0"
+      - to: monitor
+        when: "len(variables.get('spawned_agents', [])) > 0"
+      - to: spawn_workers
+        when: "len(variables.get('spawned_agents', [])) == 0 and len(variables.get('reviewed_agents', [])) == 0"
+      - to: complete
+        when: "task_tree_complete(variables.session_task)"
+
+  - name: cleanup
+    description: "Clean up merged worktrees"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: Cleaning up completed worktrees.
+
+          Reviewed agents ready for cleanup: {{ len(variables.reviewed_agents) }}
+
+    allowed_tools:
+      - mcp__gobby__call_tool
+      - mcp__gobby__get_tool_schema
+      - Bash
+      - TodoWrite
+
+    # Use cleanup_reviewed_worktrees tool from gobby-tasks:
+    # - Merges worktree branches to base_branch (e.g., dev, main)
+    # - Marks worktrees as merged in database
+    # - Deletes git worktrees and database records
+    # - Updates workflow state (clears reviewed_agents)
+    #
+    # Call: gobby-tasks.cleanup_reviewed_worktrees(
+    #   parent_session_id=<orchestrator_session_id>,
+    #   merge_to_base=true,
+    #   delete_worktrees=true,
+    #   delete_branches=false
+    # )
+    #
+    # On task tree completion, also run:
+    # gobby-tasks.cleanup_stale_worktrees(older_than_hours=24)
+
+    transitions:
+      - to: spawn_workers
+        when: "not task_tree_complete(variables.session_task)"
+      - to: complete
+        when: "task_tree_complete(variables.session_task)"
+
+  - name: complete
+    description: "Orchestration finished - all work complete"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          ORCHESTRATOR: All work complete!
+
+          Session task {{ variables.session_task }} and all subtasks are closed.
+
+          The auto-orchestrator workflow will now exit.
+          Summary:
+          - Total agents spawned: {{ len(variables.get('spawned_agents', []) + variables.get('completed_agents', []) + variables.get('reviewed_agents', [])) }}
+
+          You may stop the session or start a new orchestration.
+
+# Exit condition for entire workflow
+exit_condition: "task_tree_complete(variables.session_task)"
+
+# Handler for premature stop attempts
+on_premature_stop:
+  action: guide_continuation
+  message: |
+    Orchestration incomplete. There are still running agents or uncompleted subtasks.
+
+    Current state:
+    - Running agents: Check spawned_agents count
+    - Completed awaiting review: Check completed_agents count
+    - Ready for cleanup: Check reviewed_agents count
+
+    Continue monitoring or wait for agents to complete.

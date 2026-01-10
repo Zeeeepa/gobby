@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
 
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 
 if TYPE_CHECKING:
     from gobby.workflows.definitions import WorkflowState
@@ -269,7 +269,7 @@ def order_tasks_hierarchically(tasks: list[Task]) -> list[Task]:
 
 
 class LocalTaskManager:
-    def __init__(self, db: LocalDatabase):
+    def __init__(self, db: DatabaseProtocol):
         self.db = db
         self._change_listeners: list[Callable[[], Any]] = []
 

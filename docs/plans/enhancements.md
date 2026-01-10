@@ -1018,8 +1018,8 @@ Enable fully autonomous task execution where the agent works through the task qu
 
 **Implemented Components:**
 
-- ✅ `autonomous-loop.yaml` lifecycle workflow for automatic session chaining
-- ✅ `autonomous-task.yaml` step-based workflow with task-driven execution, exit conditions, and premature stop handling
+- ✅ `auto-loop.yaml` lifecycle workflow for automatic session chaining
+- ✅ `auto-task.yaml` step-based workflow with task-driven execution, exit conditions, and premature stop handling
 - ✅ `StopRegistry` class (`src/gobby/autonomous/stop_registry.py`) - thread-safe stop signal management
 - ✅ `ProgressTracker` class (`src/gobby/autonomous/progress_tracker.py`) - progress monitoring
 - ✅ `StuckDetector` class (`src/gobby/autonomous/stuck_detector.py`) - loop and stagnation detection
@@ -1287,19 +1287,19 @@ The original plan called for a dedicated `gobby-loop` MCP server and CLI command
 This was superseded by integrating with existing systems:
 
 - **Stop signals**: Use `POST /sessions/{session_id}/stop` HTTP endpoint
-- **Workflow control**: Use `gobby workflows activate/deactivate autonomous-task`
+- **Workflow control**: Use `gobby workflows activate/deactivate auto-task`
 - **Variables**: Use `gobby-workflows.set_variable` MCP tool
 
 #### Phase 9.9: Workflow Files ✅ COMPLETE
 
-- [x] `autonomous-task.yaml` step-based workflow with exit conditions
-- [x] `autonomous-loop.yaml` lifecycle workflow for session chaining
+- [x] `auto-task.yaml` step-based workflow with exit conditions
+- [x] `auto-loop.yaml` lifecycle workflow for session chaining
 - [x] Installed to `~/.gobby/workflows/` via `gobby install`
 
 #### Phase 9.10: Integration Testing 🔶 PARTIAL
 
 - [x] Tests in `tests/autonomous/test_autonomous.py`
-- [x] Tests in `tests/workflows/test_autonomous_task.py`
+- [x] Tests in `tests/workflows/test_auto_task.py`
 - [ ] Full end-to-end integration testing
 
 ---

@@ -2,7 +2,7 @@ import json
 import logging
 from datetime import UTC, datetime
 
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 
 from .definitions import WorkflowState
 
@@ -14,7 +14,7 @@ class WorkflowStateManager:
     Manages persistence of WorkflowState and Handoffs.
     """
 
-    def __init__(self, db: LocalDatabase):
+    def __init__(self, db: DatabaseProtocol):
         self.db = db
 
     def get_state(self, session_id: str) -> WorkflowState | None:

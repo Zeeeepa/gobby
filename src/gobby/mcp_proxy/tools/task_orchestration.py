@@ -5,7 +5,7 @@ Provides tools for autonomous multi-agent task orchestration:
 - orchestrate_ready_tasks: Spawn agents in worktrees for ready subtasks
 
 Combines task readiness with worktree/agent spawning for the
-autonomous-orchestrator workflow.
+auto-orchestrator workflow.
 """
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ def create_orchestration_registry(
         model: str | None = None,
         terminal: str = "auto",
         mode: str = "terminal",
-        workflow: str | None = "autonomous-task",
+        workflow: str | None = "auto-task",
         max_concurrent: int = 3,
         parent_session_id: str | None = None,
         project_path: str | None = None,
@@ -84,7 +84,7 @@ def create_orchestration_registry(
         Gets ready subtasks under a parent task, creates worktrees for each,
         and spawns agents to work on them. Returns list of spawned agent/worktree pairs.
 
-        Used by the autonomous-orchestrator workflow to parallelize work.
+        Used by the auto-orchestrator workflow to parallelize work.
 
         Provider assignment:
         - coding_provider/coding_model: Use these for implementation tasks (preferred)
@@ -96,7 +96,7 @@ def create_orchestration_registry(
             model: Fallback model override
             terminal: Terminal for terminal mode (default: auto)
             mode: Execution mode (terminal, embedded, headless)
-            workflow: Workflow for spawned agents (default: autonomous-task)
+            workflow: Workflow for spawned agents (default: auto-task)
             max_concurrent: Maximum concurrent agents to spawn (default: 3)
             parent_session_id: Parent session ID for context (required)
             project_path: Path to project directory
@@ -610,7 +610,7 @@ def create_orchestration_registry(
         name="orchestrate_ready_tasks",
         description=(
             "Spawn agents in worktrees for ready subtasks under a parent task. "
-            "Used by autonomous-orchestrator workflow for parallel execution. "
+            "Used by auto-orchestrator workflow for parallel execution. "
             "Supports role-based provider assignment: explicitly passed params > workflow variables > defaults. "
             "Workflow variables: coding_provider, coding_model, terminal, max_concurrent."
         ),
@@ -659,7 +659,7 @@ def create_orchestration_registry(
                 "workflow": {
                     "type": "string",
                     "description": "Workflow for spawned agents",
-                    "default": "autonomous-task",
+                    "default": "auto-task",
                 },
                 "max_concurrent": {
                     "type": "integer",
@@ -796,7 +796,7 @@ def create_orchestration_registry(
 
         Checks all spawned agents for completion/failure and moves them to
         appropriate lists (completed_agents, failed_agents). Used by the
-        autonomous-orchestrator workflow's monitor step.
+        auto-orchestrator workflow's monitor step.
 
         Args:
             parent_session_id: Parent session ID (orchestrator session)
@@ -977,7 +977,7 @@ def create_orchestration_registry(
         description=(
             "Poll running agents and update tracking lists. "
             "Checks spawned_agents, moves completed to completed_agents and failed to failed_agents. "
-            "Used by autonomous-orchestrator monitor step."
+            "Used by auto-orchestrator monitor step."
         ),
         input_schema={
             "type": "object",
@@ -1011,7 +1011,7 @@ def create_orchestration_registry(
         """
         Spawn a review agent for a completed task.
 
-        Used by the autonomous-orchestrator workflow's review step to validate
+        Used by the auto-orchestrator workflow's review step to validate
         completed work before merging/cleanup.
 
         Args:
@@ -1264,7 +1264,7 @@ def create_orchestration_registry(
         name="spawn_review_agent",
         description=(
             "Spawn a review agent for a completed task. "
-            "Used by autonomous-orchestrator workflow for code review. "
+            "Used by auto-orchestrator workflow for code review. "
             "Uses review_provider/review_model for thorough analysis."
         ),
         input_schema={
@@ -1571,7 +1571,7 @@ def create_orchestration_registry(
         description=(
             "Process completed agents and route to review or cleanup. "
             "Spawns review agents for validation, handles retries for failures, "
-            "escalates unrecoverable errors. Used by autonomous-orchestrator review step."
+            "escalates unrecoverable errors. Used by auto-orchestrator review step."
         ),
         input_schema={
             "type": "object",
@@ -1640,7 +1640,7 @@ def create_orchestration_registry(
         (stored in worktree.base_branch), allowing the orchestrator to work
         on any branch (dev, main, feature branches, etc.).
 
-        Used by the autonomous-orchestrator workflow's cleanup step.
+        Used by the auto-orchestrator workflow's cleanup step.
 
         Args:
             parent_session_id: Parent session ID (orchestrator session)
@@ -1932,7 +1932,7 @@ def create_orchestration_registry(
         description=(
             "Clean up worktrees for reviewed agents. "
             "Merges branches to base branch (from worktree.base_branch), marks as merged, deletes worktrees. "
-            "Used by autonomous-orchestrator cleanup step."
+            "Used by auto-orchestrator cleanup step."
         ),
         input_schema={
             "type": "object",

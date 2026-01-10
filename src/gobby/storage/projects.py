@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class Project:
 class LocalProjectManager:
     """Manager for local project storage."""
 
-    def __init__(self, db: LocalDatabase):
+    def __init__(self, db: DatabaseProtocol):
         """Initialize with database connection."""
         self.db = db
 

@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +133,7 @@ class Tool:
 class LocalMCPManager:
     """Manager for local MCP server and tool storage."""
 
-    def __init__(self, db: LocalDatabase):
+    def __init__(self, db: DatabaseProtocol):
         """Initialize with database connection."""
         self.db = db
 

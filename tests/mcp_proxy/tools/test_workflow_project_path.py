@@ -207,7 +207,7 @@ class TestActivateWorkflowWithProjectPath:
         mock_step = MagicMock()
         mock_step.name = "work"
         mock_workflow = MagicMock()
-        mock_workflow.name = "autonomous-task"
+        mock_workflow.name = "auto-task"
         mock_workflow.type = "step"
         mock_workflow.steps = [mock_step]
         mock_workflow.variables = {}
@@ -221,7 +221,7 @@ class TestActivateWorkflowWithProjectPath:
 
             result = call_tool(
                 registry, "activate_workflow",
-                name="autonomous-task",
+                name="auto-task",
                 session_id="test-session",
             )
 

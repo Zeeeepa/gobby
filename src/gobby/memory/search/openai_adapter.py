@@ -17,7 +17,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from gobby.storage.database import LocalDatabase
+    from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ class OpenAISearchAdapter:
 
     def __init__(
         self,
-        db: LocalDatabase,
+        db: DatabaseProtocol,
         embedding_model: str = "text-embedding-3-small",
         embedding_dim: int = 1536,
         api_key: str | None = None,

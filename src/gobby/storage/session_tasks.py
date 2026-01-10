@@ -2,7 +2,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 from gobby.storage.tasks import Task
 
 logger = logging.getLogger(__name__)
@@ -13,7 +13,7 @@ SessionTaskAction = Literal["worked_on", "discovered", "mentioned", "closed"]
 class SessionTaskManager:
     VALID_ACTIONS = {"worked_on", "discovered", "mentioned", "closed"}
 
-    def __init__(self, db: LocalDatabase):
+    def __init__(self, db: DatabaseProtocol):
         self.db = db
 
     def link_task(

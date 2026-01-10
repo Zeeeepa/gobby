@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 from gobby.utils.id import generate_prefixed_id
 
 logger = logging.getLogger(__name__)
@@ -69,7 +69,7 @@ class Artifact:
 class LocalArtifactManager:
     """Manages session artifacts in local SQLite database."""
 
-    def __init__(self, db: LocalDatabase):
+    def __init__(self, db: DatabaseProtocol):
         self.db = db
         self._change_listeners: list[Callable[[], Any]] = []
 

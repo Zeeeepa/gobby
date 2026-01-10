@@ -1718,3 +1718,50 @@ class TestMetricsCleanupLoopDetailed:
 
             # Cleanup should have been called twice (once erroring, once successful)
             assert call_count == 2
+
+
+class TestGobbyRunnerDualWrite:
+    """Tests for dual-write database initialization."""
+
+    def test_init_uses_dual_write_in_project_context(self, tmp_path, mock_config):
+        """Test that DualWriteDatabase is used when in project context."""
+        # Create project context
+        project_dir = tmp_path / "project"
+        project_dir.mkdir()
+        gobby_dir = project_dir / ".gobby"
+        gobby_dir.mkdir()
+        (gobby_dir / "project.json").write_text('{"id": "test-project"}')
+
+        mock_config.hub_database_path = str(tmp_path / "hub.db")
+
+        patches = create_base_patches(mock_config=mock_config)
+
+        with ExitStack() as stack:
+            [stack.enter_context(p) for p in patches]
+
+            # Patch getcwd to return our project directory
+            with patch("os.getcwd", return_value=str(project_dir)):
+                with patch("gobby.runner.DualWriteDatabase") as mock_dual_write:
+                    runner = GobbyRunner()
+
+                    # DualWriteDatabase should be instantiated
+                    mock_dual_write.assert_called_once()
+
+    def test_init_uses_single_db_without_project_context(self, tmp_path, mock_config):
+        """Test that LocalDatabase is used when not in project context."""
+        # No project context (no .gobby/project.json)
+        non_project_dir = tmp_path / "no_project"
+        non_project_dir.mkdir()
+
+        patches = create_base_patches(mock_config=mock_config)
+
+        with ExitStack() as stack:
+            mocks = [stack.enter_context(p) for p in patches]
+
+            # Patch getcwd to return non-project directory
+            with patch("os.getcwd", return_value=str(non_project_dir)):
+                with patch("gobby.runner.DualWriteDatabase") as mock_dual_write:
+                    runner = GobbyRunner()
+
+                    # DualWriteDatabase should NOT be called
+                    mock_dual_write.assert_not_called()

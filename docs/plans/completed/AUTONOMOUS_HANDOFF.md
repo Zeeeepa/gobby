@@ -554,10 +554,10 @@ async def _handle_start_new_session(
         return {"error": str(e)}
 ```
 
-### Example Workflow: `autonomous-loop.yaml`
+### Example Workflow: `auto-loop.yaml`
 
 ```yaml
-name: autonomous-loop
+name: auto-loop
 description: Ralph-style iterative execution until completion
 priority: 100
 
@@ -612,7 +612,7 @@ triggers:
 
 - [x] Add `_handle_start_new_session` to `src/gobby/workflows/actions.py`
 - [x] Register action in `_register_defaults()`
-- [x] Create `src/gobby/install/shared/workflows/autonomous-loop.yaml`
+- [x] Create `src/gobby/install/shared/workflows/auto-loop.yaml`
 - [ ] Add unit tests (mock subprocess.Popen)
 - [ ] Integration test with real session chaining
 - [ ] Document in CLAUDE.md

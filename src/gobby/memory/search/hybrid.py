@@ -18,7 +18,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from gobby.storage.database import LocalDatabase
+    from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class HybridSearcher:
 
     def __init__(
         self,
-        db: LocalDatabase,
+        db: DatabaseProtocol,
         tfidf_weight: float = 0.5,
         openai_weight: float = 0.5,
         rrf_k: int = 60,

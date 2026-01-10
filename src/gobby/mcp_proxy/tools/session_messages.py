@@ -895,7 +895,7 @@ def create_session_messages_registry(
             Mark the autonomous loop as complete for a session.
 
             This sets stop_reason='completed' in the workflow state, which
-            signals the autonomous-loop workflow to NOT chain a new session
+            signals the auto-loop workflow to NOT chain a new session
             when this session ends.
 
             Use this when:
@@ -936,7 +936,7 @@ def create_session_messages_registry(
                 # Create minimal state just to hold the variable
                 state = WorkflowState(
                     session_id=session.id,
-                    workflow_name="autonomous-loop",
+                    workflow_name="auto-loop",
                     step="active",
                 )
 

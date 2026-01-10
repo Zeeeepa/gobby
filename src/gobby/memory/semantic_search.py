@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, TypedDict
 
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 from gobby.storage.memories import Memory
 
 logger = logging.getLogger(__name__)
@@ -103,7 +103,7 @@ class SemanticMemorySearch:
 
     def __init__(
         self,
-        db: LocalDatabase,
+        db: DatabaseProtocol,
         embedding_model: str = DEFAULT_EMBEDDING_MODEL,
         embedding_dim: int = DEFAULT_EMBEDDING_DIM,
         openai_api_key: str | None = None,

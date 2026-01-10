@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 from gobby.utils.id import generate_prefixed_id
 
 logger = logging.getLogger(__name__)
@@ -92,7 +92,7 @@ class Memory:
 
 
 class LocalMemoryManager:
-    def __init__(self, db: LocalDatabase):
+    def __init__(self, db: DatabaseProtocol):
         self.db = db
         self._change_listeners: list[Callable[[], Any]] = []
 

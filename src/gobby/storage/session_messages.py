@@ -8,7 +8,7 @@ import logging
 from typing import Any
 
 from gobby.sessions.transcripts.base import ParsedMessage
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class LocalSessionMessageManager:
     """Manages storage of session messages and processing state."""
 
-    def __init__(self, database: LocalDatabase):
+    def __init__(self, database: DatabaseProtocol):
         self.db = database
 
     async def store_messages(self, session_id: str, messages: list[ParsedMessage]) -> int:

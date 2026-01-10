@@ -19,7 +19,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 if TYPE_CHECKING:
-    from gobby.storage.database import LocalDatabase
+    from gobby.storage.database import DatabaseProtocol
 
 __all__ = [
     "SearchBackend",
@@ -100,7 +100,7 @@ class SearchBackend(Protocol):
 
 def get_search_backend(
     backend_type: str,
-    db: LocalDatabase | None = None,
+    db: DatabaseProtocol | None = None,
     **kwargs: Any,
 ) -> SearchBackend:
     """

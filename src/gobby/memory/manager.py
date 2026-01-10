@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from gobby.config.app import MemoryConfig
 from gobby.memory.context import build_memory_context
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 from gobby.storage.memories import LocalMemoryManager, Memory
 
 if TYPE_CHECKING:
@@ -25,7 +25,7 @@ class MemoryManager:
 
     def __init__(
         self,
-        db: LocalDatabase,
+        db: DatabaseProtocol,
         config: MemoryConfig,
         openai_api_key: str | None = None,
         compressor: TextCompressor | None = None,

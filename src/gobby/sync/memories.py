@@ -6,7 +6,7 @@ from pathlib import Path
 
 from gobby.config.app import MemorySyncConfig
 from gobby.memory.manager import MemoryManager
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class MemorySyncManager:
 
     def __init__(
         self,
-        db: LocalDatabase,
+        db: DatabaseProtocol,
         memory_manager: MemoryManager | None,
         config: MemorySyncConfig,
         export_path: str = ".gobby/memories.jsonl",

@@ -7,14 +7,75 @@ import re
 import sqlite3
 import threading
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 if TYPE_CHECKING:
     from gobby.storage.artifacts import LocalArtifactManager
 
 logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class DatabaseProtocol(Protocol):
+    """
+    Protocol defining the database interface.
+
+    Both LocalDatabase and DualWriteDatabase implement this protocol,
+    allowing them to be used interchangeably by storage managers.
+    """
+
+    @property
+    def db_path(self) -> Any:
+        """Return database path."""
+        ...
+
+    @property
+    def connection(self) -> sqlite3.Connection:
+        """Get database connection (for reads)."""
+        ...
+
+    @property
+    def artifact_manager(self) -> Any:
+        """Get artifact manager."""
+        ...
+
+    def execute(self, sql: str, params: tuple[Any, ...] = ()) -> sqlite3.Cursor:
+        """Execute SQL statement."""
+        ...
+
+    def executemany(
+        self, sql: str, params_list: list[tuple[Any, ...]]
+    ) -> sqlite3.Cursor:
+        """Execute SQL statement with multiple parameter sets."""
+        ...
+
+    def fetchone(self, sql: str, params: tuple[Any, ...] = ()) -> sqlite3.Row | None:
+        """Execute query and fetch one row."""
+        ...
+
+    def fetchall(self, sql: str, params: tuple[Any, ...] = ()) -> list[sqlite3.Row]:
+        """Execute query and fetch all rows."""
+        ...
+
+    def safe_update(
+        self,
+        table: str,
+        values: dict[str, Any],
+        where: str,
+        where_params: tuple[Any, ...],
+    ) -> sqlite3.Cursor:
+        """Safely execute an UPDATE statement with dynamic columns."""
+        ...
+
+    def transaction(self) -> AbstractContextManager[sqlite3.Connection]:
+        """Context manager for database transactions."""
+        ...
+
+    def close(self) -> None:
+        """Close database connection."""
+        ...
 
 # Default database path
 DEFAULT_DB_PATH = Path.home() / ".gobby" / "gobby.db"

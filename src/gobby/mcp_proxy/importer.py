@@ -5,7 +5,7 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from gobby.config.app import DaemonConfig
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 from gobby.storage.mcp import LocalMCPManager
 from gobby.storage.projects import LocalProjectManager
 from gobby.utils.json_helpers import extract_json_object
@@ -25,7 +25,7 @@ class MCPServerImporter:
     def __init__(
         self,
         config: DaemonConfig,
-        db: LocalDatabase,
+        db: DatabaseProtocol,
         current_project_id: str,
         mcp_client_manager: "MCPClientManager | None" = None,
     ):

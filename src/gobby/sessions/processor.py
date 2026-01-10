@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 from gobby.sessions.transcripts import get_parser
 from gobby.sessions.transcripts.base import TranscriptParser
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 from gobby.storage.session_messages import LocalSessionMessageManager
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class SessionMessageProcessor:
 
     def __init__(
         self,
-        db: LocalDatabase,
+        db: DatabaseProtocol,
         poll_interval: float = 2.0,
         websocket_server: "WebSocketServer | None" = None,
     ):

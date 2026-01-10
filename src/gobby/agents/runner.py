@@ -25,7 +25,7 @@ from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
 
 if TYPE_CHECKING:
-    from gobby.storage.database import LocalDatabase
+    from gobby.storage.database import DatabaseProtocol
     from gobby.storage.sessions import LocalSessionManager
 
 logger = logging.getLogger(__name__)
@@ -167,7 +167,7 @@ class AgentRunner:
 
     def __init__(
         self,
-        db: LocalDatabase,
+        db: DatabaseProtocol,
         session_storage: LocalSessionManager,
         executors: dict[str, AgentExecutor],
         max_agent_depth: int = 1,
