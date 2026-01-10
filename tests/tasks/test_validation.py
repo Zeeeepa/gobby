@@ -148,7 +148,7 @@ class TestGetLastCommitDiff:
         assert mock_run.call_args.kwargs.get("cwd") == "/project/path"
 
 
-class TestGetRecentCommitsMergedEdgeCases:
+class TestGetRecentCommitsEdgeCases:
     """Additional edge case tests for get_recent_commits function."""
 
     @patch("gobby.tasks.validation.run_git_command")
@@ -193,7 +193,7 @@ class TestGetRecentCommitsMergedEdgeCases:
         assert commits[0]["subject"] == "fix: handle a|b|c case in parser"
 
 
-class TestGetCommitsSinceMergedTruncation:
+class TestGetCommitsSinceTruncation:
     """Tests for get_commits_since truncation behavior."""
 
     @patch("gobby.tasks.validation.run_git_command")
@@ -220,7 +220,7 @@ class TestGetCommitsSinceMergedTruncation:
         assert "... [diff truncated] ..." not in result
 
 
-class TestFindMatchingFilesMergedEdgeCases:
+class TestFindMatchingFilesEdgeCases:
     """Additional tests for find_matching_files function."""
 
     def test_find_matching_files_early_exit_max_files(self, tmp_path):
@@ -293,7 +293,7 @@ class TestFindMatchingFilesMergedEdgeCases:
         assert files[0] == test_file
 
 
-class TestReadFilesContentMergedEdgeCases:
+class TestReadFilesContentEdgeCases:
     """Additional tests for read_files_content function."""
 
     def test_read_files_content_early_truncation(self, tmp_path):
@@ -434,7 +434,7 @@ class TestGetValidationContextSmartEdgeCases:
             assert "... [context truncated] ..." in context
 
 
-class TestGetGitDiffMergedEdgeCases:
+class TestGetGitDiffEdgeCases:
     """Additional edge case tests for get_git_diff function."""
 
     @patch("gobby.tasks.validation.run_git_command")
@@ -716,7 +716,7 @@ class TestTaskValidatorCustomPrompt:
         assert call_args.kwargs["system_prompt"] == "Generate clear criteria"
 
 
-class TestExtractFilePatternsFromTextMergedCases:
+class TestExtractFilePatternsEdgeCases:
     """Additional tests for extract_file_patterns_from_text."""
 
     def test_skip_www_urls(self):
@@ -1244,11 +1244,18 @@ class TestGetValidationContextSmartMerged:
     """Tests for get_validation_context_smart function."""
 
     @patch("gobby.tasks.validation.run_git_command")
-    def test_includes_uncommitted_changes(self, mock_run):
+    @patch("gobby.tasks.validation.get_multi_commit_diff")
+    @patch("gobby.tasks.validation.get_recent_commits")
+    def test_includes_uncommitted_changes(self, mock_commits, mock_diff, mock_run):
         # Mock staged and unstaged diffs
+        # Note: get_validation_context_smart calls 'diff --cached' (staged) first, then 'diff' (unstaged)
         mock_staged = MagicMock(returncode=0, stdout="staged diff content")
         mock_unstaged = MagicMock(returncode=0, stdout="unstaged diff content")
-        mock_run.side_effect = [mock_unstaged, mock_staged]
+        mock_run.side_effect = [mock_staged, mock_unstaged]
+
+        # Prevent further strategies
+        mock_diff.return_value = None
+        mock_commits.return_value = []
 
         context = get_validation_context_smart("Test task")
         assert context is not None

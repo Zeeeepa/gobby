@@ -51,6 +51,16 @@ class MemoryConfig(BaseModel):
         default=True,
         description="Use semantic (embedding-based) search for memory recall",
     )
+    search_backend: str = Field(
+        default="tfidf",
+        description=(
+            "Search backend for memory recall. Options: "
+            "'tfidf' (default, zero-dependency local search), "
+            "'openai' (embedding-based semantic search), "
+            "'hybrid' (combines TF-IDF + OpenAI with RRF), "
+            "'text' (simple substring matching)"
+        ),
+    )
     embedding_provider: str = Field(
         default="openai",
         description="Provider for embedding generation (openai, litellm)",
@@ -193,6 +203,15 @@ Guidelines:
         """Validate value is between 0.0 and 1.0."""
         if not (0.0 <= v <= 1.0):
             raise ValueError("Value must be between 0.0 and 1.0")
+        return v
+
+    @field_validator("search_backend")
+    @classmethod
+    def validate_search_backend(cls, v: str) -> str:
+        """Validate search_backend is a supported option."""
+        valid_backends = {"tfidf", "openai", "hybrid", "text"}
+        if v not in valid_backends:
+            raise ValueError(f"Invalid search_backend '{v}'. Must be one of: {sorted(valid_backends)}")
         return v
 
 
