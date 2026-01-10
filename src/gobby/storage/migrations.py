@@ -1012,6 +1012,22 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         DROP TABLE IF EXISTS skills;
         """,
     ),
+    (
+        47,
+        "Create memory_crossrefs table for linking related memories",
+        """
+        CREATE TABLE IF NOT EXISTS memory_crossrefs (
+            source_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+            target_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+            similarity REAL NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            PRIMARY KEY (source_id, target_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_crossrefs_source ON memory_crossrefs(source_id);
+        CREATE INDEX IF NOT EXISTS idx_crossrefs_target ON memory_crossrefs(target_id);
+        CREATE INDEX IF NOT EXISTS idx_crossrefs_similarity ON memory_crossrefs(similarity DESC);
+        """,
+    ),
 ]
 
 
