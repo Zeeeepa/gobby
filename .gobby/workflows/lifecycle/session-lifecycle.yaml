@@ -14,14 +14,13 @@ variables:
   auto_decompose: true
   # Enable TDD mode for task expansion (test-implementation pairs)
   tdd_mode: true
-  # Enable memory injection (used by memory_inject action)
-  memory_injection_enabled: true
-  # Default limit for memory injection per query
-  memory_injection_limit: 10
-  # Minimum importance threshold for memory injection (0.0-1.0)
-  memory_injection_min_importance: 0.3
   # NOTE: session_task enforcement has been moved to the autonomous-task step workflow.
   # Use activate_workflow(name="autonomous-task", variables={"session_task": "gt-..."}, session_id=...) for task-scoped sessions.
+
+  # Validation delegation - use a faster/cheaper model for linting and tests
+  # Set to null to disable delegation (run inline)
+  validation_model: "haiku"
+  validation_timeout: 1800  # 30 minutes for full test suite
 
 triggers:
   on_stop:
@@ -29,6 +28,9 @@ triggers:
     - action: require_commit_before_stop
 
   on_session_start:
+    # Capture baseline dirty files for session-aware commit detection
+    # Must run FIRST so baseline is captured before any modifications
+    - action: capture_baseline_dirty_files
     # Context handoff - inject previous session summary
     - action: inject_context
       when: "event.data.get('source') == 'clear'"
@@ -54,11 +56,31 @@ triggers:
     # Memory sync - import from JSONL for Git persistence
     - action: memory_sync_import
 
+    # Validation delegation instructions - teach LLM to delegate ruff/mypy/pytest to faster model
+    - action: inject_message
+      when: "variables.get('validation_model')"
+      content: |
+        ## Validation Delegation
+
+        When running validation commands (ruff, mypy, pytest), delegate to a faster model:
+
+        ```python
+        call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
+            "prompt": "Run validation and report results:\n\nuv run ruff check src/ && uv run mypy src/ && uv run pytest",
+            "mode": "headless",
+            "model": "{{ variables.validation_model }}",
+            "timeout": {{ variables.validation_timeout }},
+        })
+        ```
+
+        This saves tokens and cost by using {{ variables.validation_model }} for output-heavy validation tasks.
+        The agent will return structured results you can analyze.
+
   on_before_agent:
     # Memory recall - inject memories relevant to the user's prompt via semantic search
     - action: memory_recall_relevant
       limit: 5
-      min_importance: 0.3
+      min_importance: 0.7
 
   on_before_tool:
     # Task enforcement - require active task before file modifications
