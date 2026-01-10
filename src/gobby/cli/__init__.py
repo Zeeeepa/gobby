@@ -14,6 +14,7 @@ from .extensions import hooks, plugins, webhooks
 from .github import github
 from .init import init
 from .install import install, uninstall
+from .linear import linear
 from .mcp import mcp_server
 from .mcp_proxy import mcp_proxy
 from .memory import memory
@@ -58,6 +59,7 @@ cli.add_command(merge)
 cli.add_command(artifacts)
 cli.add_command(db)
 cli.add_command(github)
+cli.add_command(linear)
 cli.add_command(hooks)
 cli.add_command(plugins)
 cli.add_command(webhooks)

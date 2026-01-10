@@ -1052,6 +1052,13 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         ALTER TABLE tasks ADD COLUMN linear_team_id TEXT;
         """,
     ),
+    (
+        51,
+        "Add linear_team_id column to projects table",
+        """
+        ALTER TABLE projects ADD COLUMN linear_team_id TEXT;
+        """,
+    ),
 ]
 
 
