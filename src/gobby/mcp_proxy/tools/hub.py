@@ -12,16 +12,28 @@ These tools query the hub database directly (not the project db).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.database import LocalDatabase
 
+__all__ = ["create_hub_registry", "HubToolRegistry"]
+
+
+class HubToolRegistry(InternalToolRegistry):
+    """Registry for hub query tools with test-friendly get_tool method."""
+
+    def get_tool(self, name: str) -> Callable[..., Any] | None:
+        """Get a tool function by name (for testing)."""
+        tool = self._tools.get(name)
+        return tool.func if tool else None
+
 
 def create_hub_registry(
     hub_db_path: Path,
-) -> InternalToolRegistry:
+) -> HubToolRegistry:
     """
     Create a hub query tool registry with cross-project tools.
 
@@ -31,7 +43,7 @@ def create_hub_registry(
     Returns:
         InternalToolRegistry with hub query tools registered
     """
-    registry = InternalToolRegistry(
+    registry = HubToolRegistry(
         name="gobby-hub",
         description="Hub (cross-project) queries - list_all_projects, list_cross_project_tasks, list_cross_project_sessions, hub_stats",
     )
@@ -145,7 +157,7 @@ def create_hub_registry(
             if status:
                 rows = hub_db.fetchall(
                     """
-                    SELECT id, project_id, title, status, type, priority, created_at, updated_at
+                    SELECT id, project_id, title, status, task_type, priority, created_at, updated_at
                     FROM tasks
                     WHERE status = ?
                     ORDER BY updated_at DESC
@@ -156,7 +168,7 @@ def create_hub_registry(
             else:
                 rows = hub_db.fetchall(
                     """
-                    SELECT id, project_id, title, status, type, priority, created_at, updated_at
+                    SELECT id, project_id, title, status, task_type, priority, created_at, updated_at
                     FROM tasks
                     ORDER BY updated_at DESC
                     LIMIT ?
@@ -170,7 +182,7 @@ def create_hub_registry(
                     "project_id": row["project_id"],
                     "title": row["title"],
                     "status": row["status"],
-                    "type": row["type"],
+                    "task_type": row["task_type"],
                     "priority": row["priority"],
                     "created_at": row["created_at"],
                     "updated_at": row["updated_at"],
@@ -212,9 +224,9 @@ def create_hub_registry(
         try:
             rows = hub_db.fetchall(
                 """
-                SELECT id, project_id, cli_type, start_time, end_time, status, machine_id
+                SELECT id, project_id, source, status, machine_id, created_at, updated_at
                 FROM sessions
-                ORDER BY start_time DESC
+                ORDER BY created_at DESC
                 LIMIT ?
                 """,
                 (limit,),
@@ -224,11 +236,11 @@ def create_hub_registry(
                 {
                     "id": row["id"],
                     "project_id": row["project_id"],
-                    "cli_type": row["cli_type"],
-                    "start_time": row["start_time"],
-                    "end_time": row["end_time"],
+                    "source": row["source"],
                     "status": row["status"],
                     "machine_id": row["machine_id"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
                 }
                 for row in rows
             ]
