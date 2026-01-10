@@ -293,7 +293,6 @@ class WorkflowEngine:
             config=self.action_executor.config,
             mcp_manager=self.action_executor.mcp_manager,
             memory_manager=self.action_executor.memory_manager,
-            skill_learner=self.action_executor.skill_learner,
             memory_sync_manager=self.action_executor.memory_sync_manager,
         )
 
@@ -638,7 +637,6 @@ class WorkflowEngine:
             config=self.action_executor.config,
             mcp_manager=self.action_executor.mcp_manager,
             memory_manager=self.action_executor.memory_manager,
-            skill_learner=self.action_executor.skill_learner,
             memory_sync_manager=self.action_executor.memory_sync_manager,
             event_data=event.data,  # Pass hook event data (prompt_text, etc.)
         )
@@ -805,7 +803,6 @@ class WorkflowEngine:
             config=self.action_executor.config,
             mcp_manager=self.action_executor.mcp_manager,
             memory_manager=self.action_executor.memory_manager,
-            skill_learner=self.action_executor.skill_learner,
             memory_sync_manager=self.action_executor.memory_sync_manager,
             event_data=event.data,  # Pass hook event data (prompt_text, etc.)
         )

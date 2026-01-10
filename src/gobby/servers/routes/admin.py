@@ -174,14 +174,6 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             except Exception as e:
                 logger.warning(f"Failed to get memory stats: {e}")
 
-        # Get skill statistics using efficient count query
-        skill_stats = {"count": 0}
-        if server.skill_learner is not None:
-            try:
-                skill_stats["count"] = server.skill_learner.storage.count_skills()
-            except Exception as e:
-                logger.warning(f"Failed to get skill stats: {e}")
-
         # Get plugin status
         plugin_stats: dict[str, Any] = {"enabled": False, "loaded": 0, "handlers": 0}
         if hasattr(server, "_hook_manager") and server._hook_manager is not None:
@@ -220,12 +212,11 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             "process": process_metrics,
             "background_tasks": background_tasks,
             "mcp_servers": mcp_health,
-            # Count of tools from internal gobby-* registries (tasks, memory, skills)
+            # Count of tools from internal gobby-* registries (tasks, memory)
             "internal_tools_count": internal_tools_count,
             "sessions": session_stats,
             "tasks": task_stats,
             "memory": memory_stats,
-            "skills": skill_stats,
             "plugins": plugin_stats,
             "response_time_ms": response_time_ms,
         }
