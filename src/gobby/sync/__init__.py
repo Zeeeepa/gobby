@@ -10,10 +10,20 @@ from gobby.sync.github import (
     GitHubSyncError,
     GitHubSyncService,
 )
+from gobby.sync.linear import (
+    LinearNotFoundError,
+    LinearRateLimitError,
+    LinearSyncError,
+    LinearSyncService,
+)
 
 __all__ = [
     "GitHubSyncService",
     "GitHubSyncError",
     "GitHubRateLimitError",
     "GitHubNotFoundError",
+    "LinearSyncService",
+    "LinearSyncError",
+    "LinearRateLimitError",
+    "LinearNotFoundError",
 ]
