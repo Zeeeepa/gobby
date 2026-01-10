@@ -159,107 +159,119 @@ class TaskSyncManager:
             # Phase 1: Import Tasks (Upsert)
             pending_deps: list[tuple[str, str]] = []
 
-            with self.db.transaction() as conn:
-                for line in lines:
-                    if not line.strip():
-                        continue
+            # Temporarily disable foreign keys to allow inserting child tasks
+            # before their parents (JSONL order may not be parent-first)
+            self.db.execute("PRAGMA foreign_keys = OFF")
 
-                    data = json.loads(line)
-                    task_id = data["id"]
-                    updated_at_file = datetime.fromisoformat(data["updated_at"])
+            try:
+                with self.db.transaction() as conn:
+                    for line in lines:
+                        if not line.strip():
+                            continue
 
-                    # Check if task exists
-                    existing_row = self.db.fetchone(
-                        "SELECT updated_at FROM tasks WHERE id = ?", (task_id,)
-                    )
+                        data = json.loads(line)
+                        task_id = data["id"]
+                        updated_at_file = datetime.fromisoformat(data["updated_at"])
 
-                    should_update = False
-                    if not existing_row:
-                        should_update = True
-                        imported_count += 1
-                    else:
-                        updated_at_db = datetime.fromisoformat(existing_row["updated_at"])
-                        if updated_at_file > updated_at_db:
-                            should_update = True
-                            updated_count += 1
-                        else:
-                            skipped_count += 1
-
-                    if should_update:
-                        # Use INSERT OR REPLACE to handle upsert generically
-                        # Note: Labels not in JSONL currently based on export logic
-                        # Note: We need to respect the exact fields from JSONL
-
-                        # Handle commits array (stored as JSON in SQLite)
-                        commits_json = json.dumps(data["commits"]) if data.get("commits") else None
-
-                        # Handle validation object (extract fields)
-                        validation = data.get("validation") or {}
-                        validation_status = validation.get("status")
-                        validation_feedback = validation.get("feedback")
-                        validation_fail_count = validation.get("fail_count", 0)
-                        validation_criteria = validation.get("criteria")
-                        validation_override_reason = validation.get("override_reason")
-
-                        conn.execute(
-                            """
-                            INSERT OR REPLACE INTO tasks (
-                                id, project_id, title, description, parent_task_id,
-                                status, priority, task_type, created_at, updated_at,
-                                commits, validation_status, validation_feedback,
-                                validation_fail_count, validation_criteria,
-                                validation_override_reason, escalated_at, escalation_reason
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                            (
-                                task_id,
-                                data.get("project_id"),
-                                data["title"],
-                                data.get("description"),
-                                data.get(
-                                    "parent_id"
-                                ),  # Note: JSONL uses parent_id, not parent_task_id
-                                data["status"],
-                                data.get("priority", 2),
-                                data.get("task_type", "task"),
-                                data["created_at"],
-                                data["updated_at"],
-                                commits_json,
-                                validation_status,
-                                validation_feedback,
-                                validation_fail_count,
-                                validation_criteria,
-                                validation_override_reason,
-                                data.get("escalated_at"),
-                                data.get("escalation_reason"),
-                            ),
+                        # Check if task exists
+                        existing_row = self.db.fetchone(
+                            "SELECT updated_at FROM tasks WHERE id = ?", (task_id,)
                         )
 
-                    # Collect dependencies for Phase 2
-                    if "deps_on" in data:
-                        for dep_id in data["deps_on"]:
-                            pending_deps.append((task_id, dep_id))
+                        should_update = False
+                        if not existing_row:
+                            should_update = True
+                            imported_count += 1
+                        else:
+                            updated_at_db = datetime.fromisoformat(existing_row["updated_at"])
+                            if updated_at_file > updated_at_db:
+                                should_update = True
+                                updated_count += 1
+                            else:
+                                skipped_count += 1
 
-            # Phase 2: Import Dependencies
-            # We blindly re-insert dependencies. Since we can't easily track deletion of dependencies
-            # without full diff, we'll ensure they exist.
-            # To handle strict syncing, we might want to clear existing deps for these tasks,
-            # but that's risky. For now, additive only for dependencies (or ignore if exist).
+                        if should_update:
+                            # Use INSERT OR REPLACE to handle upsert generically
+                            # Note: Labels not in JSONL currently based on export logic
+                            # Note: We need to respect the exact fields from JSONL
 
-            with self.db.transaction() as conn:
-                for task_id, depends_on in pending_deps:
-                    # Check if both exist (they should, unless depends_on is missing from file/db)
-                    conn.execute(
-                        """
-                        INSERT OR IGNORE INTO task_dependencies (task_id, depends_on, dep_type, created_at)
-                        VALUES (?, ?, 'blocks', ?)
-                        """,
-                        (task_id, depends_on, datetime.now(UTC).isoformat()),
-                    )
+                            # Handle commits array (stored as JSON in SQLite)
+                            commits_json = (
+                                json.dumps(data["commits"]) if data.get("commits") else None
+                            )
 
-            logger.info(
-                f"Import complete: {imported_count} imported, {updated_count} updated, {skipped_count} skipped"
-            )
+                            # Handle validation object (extract fields)
+                            validation = data.get("validation") or {}
+                            validation_status = validation.get("status")
+                            validation_feedback = validation.get("feedback")
+                            validation_fail_count = validation.get("fail_count", 0)
+                            validation_criteria = validation.get("criteria")
+                            validation_override_reason = validation.get("override_reason")
+
+                            conn.execute(
+                                """
+                                INSERT OR REPLACE INTO tasks (
+                                    id, project_id, title, description, parent_task_id,
+                                    status, priority, task_type, created_at, updated_at,
+                                    commits, validation_status, validation_feedback,
+                                    validation_fail_count, validation_criteria,
+                                    validation_override_reason, escalated_at, escalation_reason
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """,
+                                (
+                                    task_id,
+                                    data.get("project_id"),
+                                    data["title"],
+                                    data.get("description"),
+                                    data.get(
+                                        "parent_id"
+                                    ),  # Note: JSONL uses parent_id, not parent_task_id
+                                    data["status"],
+                                    data.get("priority", 2),
+                                    data.get("task_type", "task"),
+                                    data["created_at"],
+                                    data["updated_at"],
+                                    commits_json,
+                                    validation_status,
+                                    validation_feedback,
+                                    validation_fail_count,
+                                    validation_criteria,
+                                    validation_override_reason,
+                                    data.get("escalated_at"),
+                                    data.get("escalation_reason"),
+                                ),
+                            )
+
+                        # Collect dependencies for Phase 2
+                        if "deps_on" in data:
+                            for dep_id in data["deps_on"]:
+                                pending_deps.append((task_id, dep_id))
+
+                # Phase 2: Import Dependencies
+                # We blindly re-insert dependencies. Since we can't easily track deletion
+                # of dependencies without full diff, we'll ensure they exist.
+                # To handle strict syncing, we might want to clear existing deps for these
+                # tasks, but that's risky. For now, additive only for deps (or ignore if exist).
+
+                with self.db.transaction() as conn:
+                    for task_id, depends_on in pending_deps:
+                        # Check if both exist (they should, unless depends_on is missing)
+                        conn.execute(
+                            """
+                            INSERT OR IGNORE INTO task_dependencies (
+                                task_id, depends_on, dep_type, created_at
+                            ) VALUES (?, ?, 'blocks', ?)
+                            """,
+                            (task_id, depends_on, datetime.now(UTC).isoformat()),
+                        )
+
+                logger.info(
+                    f"Import complete: {imported_count} imported, "
+                    f"{updated_count} updated, {skipped_count} skipped"
+                )
+            finally:
+                # Re-enable foreign keys
+                self.db.execute("PRAGMA foreign_keys = ON")
 
         except Exception as e:
             logger.error(f"Failed to import tasks: {e}", exc_info=True)
