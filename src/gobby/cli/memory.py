@@ -500,3 +500,102 @@ def export_graph(
         url = f"file://{output_file.absolute()}"
         click.echo("Opening in browser...")
         webbrowser.open(url)
+
+
+@memory.command("migrate-v2")
+@click.option("--project", "-p", "project_id", help="Project ID filter")
+@click.option("--threshold", "-t", type=float, default=0.3, help="Crossref similarity threshold")
+@click.option("--max-links", "-n", type=int, default=5, help="Max crossrefs per memory")
+@click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
+@click.pass_context
+def migrate_v2(
+    ctx: click.Context,
+    project_id: str | None,
+    threshold: float,
+    max_links: int,
+    dry_run: bool,
+) -> None:
+    """Migrate to Memory V2 (TF-IDF search + cross-references).
+
+    This command performs a one-time migration to enable Memory V2 features:
+
+    1. Builds the TF-IDF search index for all existing memories
+    2. Creates cross-references between semantically similar memories
+
+    The migration is safe to run multiple times - it will rebuild the index
+    and recreate cross-references based on current similarities.
+
+    After migration, ensure your config has Memory V2 settings:
+
+    \b
+        memory:
+          search_backend: "tfidf"
+          auto_crossref: true
+          crossref_threshold: 0.3
+          crossref_max_links: 5
+    """
+    manager = get_memory_manager(ctx)
+
+    # Get all memories
+    click.echo("Fetching memories...")
+    memories = manager.list_memories(project_id=project_id, limit=10000)
+
+    if not memories:
+        click.echo("No memories found. Nothing to migrate.")
+        return
+
+    click.echo(f"Found {len(memories)} memories to migrate.")
+
+    if dry_run:
+        click.echo("\n[DRY RUN] Would perform the following:")
+        click.echo(f"  1. Build TF-IDF search index for {len(memories)} memories")
+        click.echo(
+            f"  2. Create cross-references with threshold={threshold}, max_links={max_links}"
+        )
+        click.echo("\nRun without --dry-run to execute migration.")
+        return
+
+    # Step 1: Build TF-IDF search index
+    click.echo("\nStep 1: Building TF-IDF search index...")
+    result = manager.reindex_search()
+
+    if result.get("success"):
+        click.echo(f"  Index built with {result.get('memory_count', 0)} memories")
+        if "vocabulary_size" in result:
+            click.echo(f"  Vocabulary size: {result['vocabulary_size']}")
+    else:
+        click.echo(f"  Error: {result.get('error', 'Unknown error')}", err=True)
+        raise SystemExit(1)
+
+    # Step 2: Backfill cross-references
+    click.echo("\nStep 2: Creating cross-references...")
+    crossref_count = 0
+    errors = []
+
+    with click.progressbar(memories, label="Processing memories") as bar:
+        for mem in bar:
+            try:
+                count = manager._create_crossrefs(
+                    mem,
+                    threshold=threshold,
+                    max_links=max_links,
+                )
+                crossref_count += count
+            except Exception as e:
+                errors.append(f"{mem.id}: {e}")
+
+    click.echo(f"  Created {crossref_count} cross-references")
+
+    if errors:
+        click.echo(f"\n  Errors ({len(errors)}):")
+        for error in errors[:10]:
+            click.echo(f"    - {error}")
+        if len(errors) > 10:
+            click.echo(f"    ... and {len(errors) - 10} more")
+
+    click.echo("\nMigration complete!")
+    click.echo("\nTo enable auto cross-referencing for new memories, add to config.yaml:")
+    click.echo("  memory:")
+    click.echo("    auto_crossref: true")
+    click.echo(f"    crossref_threshold: {threshold}")
+    click.echo(f"    crossref_max_links: {max_links}")
