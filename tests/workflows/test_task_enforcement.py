@@ -1265,6 +1265,121 @@ class TestRequireActiveTask:
         assert result is not None
         assert result["decision"] == "block"
 
+    async def test_claude_plan_file_allows_without_task(
+        self, mock_config, mock_task_manager, workflow_state
+    ):
+        """Writing to Claude Code plan file is allowed without a task.
+
+        Claude stores plan files in ~/.claude/plans/ directory. This allows
+        plan mode to work even when no task is claimed.
+        """
+        result = await require_active_task(
+            task_manager=mock_task_manager,
+            session_id="test-session",
+            config=mock_config,
+            event_data={
+                "tool_name": "Write",
+                "tool_input": {
+                    "file_path": "/Users/josh/.claude/plans/my-plan-abc123.md"
+                },
+            },
+            project_id="proj-123",
+            workflow_state=workflow_state,
+        )
+
+        assert result is None  # Allowed
+        mock_task_manager.list_tasks.assert_not_called()
+
+    async def test_claude_plan_file_edit_allows_without_task(
+        self, mock_config, mock_task_manager, workflow_state
+    ):
+        """Editing Claude Code plan file is allowed without a task."""
+        result = await require_active_task(
+            task_manager=mock_task_manager,
+            session_id="test-session",
+            config=mock_config,
+            event_data={
+                "tool_name": "Edit",
+                "tool_input": {
+                    "file_path": "/Users/josh/.claude/plans/plan-12345.md"
+                },
+            },
+            project_id="proj-123",
+            workflow_state=workflow_state,
+        )
+
+        assert result is None  # Allowed
+
+    async def test_non_plan_file_still_requires_task(
+        self, mock_config, mock_task_manager, workflow_state
+    ):
+        """Writing to non-plan file still requires a task."""
+        mock_task_manager.list_tasks.return_value = []
+
+        result = await require_active_task(
+            task_manager=mock_task_manager,
+            session_id="test-session",
+            config=mock_config,
+            event_data={
+                "tool_name": "Write",
+                "tool_input": {
+                    "file_path": "/Users/josh/project/src/main.py"
+                },
+            },
+            project_id="proj-123",
+            workflow_state=workflow_state,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+
+    async def test_plan_mode_variable_allows_without_task(
+        self, mock_config, mock_task_manager, workflow_state
+    ):
+        """When plan_mode=True, protected tools are allowed."""
+        workflow_state.variables["plan_mode"] = True
+
+        result = await require_active_task(
+            task_manager=mock_task_manager,
+            session_id="test-session",
+            config=mock_config,
+            event_data={
+                "tool_name": "Edit",
+                "tool_input": {
+                    "file_path": "/Users/josh/project/src/some_file.py"
+                },
+            },
+            project_id="proj-123",
+            workflow_state=workflow_state,
+        )
+
+        assert result is None  # Allowed
+        mock_task_manager.list_tasks.assert_not_called()
+
+    async def test_plan_mode_false_still_requires_task(
+        self, mock_config, mock_task_manager, workflow_state
+    ):
+        """When plan_mode=False, task is still required."""
+        workflow_state.variables["plan_mode"] = False
+        mock_task_manager.list_tasks.return_value = []
+
+        result = await require_active_task(
+            task_manager=mock_task_manager,
+            session_id="test-session",
+            config=mock_config,
+            event_data={
+                "tool_name": "Write",
+                "tool_input": {
+                    "file_path": "/Users/josh/project/src/main.py"
+                },
+            },
+            project_id="proj-123",
+            workflow_state=workflow_state,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+
 
 # =============================================================================
 # Tests for validate_session_task_scope

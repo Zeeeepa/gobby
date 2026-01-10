@@ -471,7 +471,24 @@ async def require_active_task(
         logger.debug(f"require_active_task: Tool '{tool_name}' not protected, allowing")
         return None
 
-    # Tool is protected - check for active task
+    # Tool is protected - but check for plan mode exceptions first
+
+    # Check if target is a Claude Code plan file (stored in ~/.claude/plans/)
+    # This allows writes during plan mode without requiring a task
+    tool_input = event_data.get("tool_input", {}) or {}
+    file_path = tool_input.get("file_path", "")
+    if file_path and "/.claude/plans/" in file_path:
+        logger.debug(
+            f"require_active_task: Target is Claude plan file '{file_path}', allowing"
+        )
+        return None
+
+    # Check for plan_mode variable (set via EnterPlanMode tool detection or manually)
+    if workflow_state and workflow_state.variables.get("plan_mode"):
+        logger.debug(f"require_active_task: plan_mode=True in session {session_id}, allowing")
+        return None
+
+    # Check for active task
 
     # Session-scoped check: task_claimed variable (set by AFTER_TOOL detection)
     # This is the primary enforcement - each session must explicitly claim a task
