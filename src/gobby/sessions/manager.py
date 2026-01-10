@@ -370,3 +370,155 @@ class SessionManager:
                 "parent_session_id": session.parent_session_id,
             }
         return None
+
+    def get_session_artifacts(
+        self,
+        session_id: str,
+        artifact_type: str | None = None,
+        limit: int = 10,
+        include_parent: bool = False,
+    ) -> list:
+        """
+        Get artifacts for a session using LocalArtifactManager.
+
+        Args:
+            session_id: Session ID to get artifacts for
+            artifact_type: Optional filter by artifact type
+            limit: Maximum number of artifacts to return
+            include_parent: Whether to include parent session artifacts
+
+        Returns:
+            List of Artifact objects
+        """
+        from gobby.storage.artifacts import LocalArtifactManager
+
+        # Get artifact manager using storage's database
+        artifact_manager = LocalArtifactManager(self._storage.db)
+
+        all_artifacts = []
+
+        # Get artifacts for this session
+        artifacts = artifact_manager.list_artifacts(
+            session_id=session_id,
+            artifact_type=artifact_type,
+            limit=limit,
+        )
+        all_artifacts.extend(artifacts)
+
+        # If include_parent, traverse session lineage
+        if include_parent:
+            session = self._storage.get(session_id)
+            if session and session.parent_session_id:
+                parent_artifacts = artifact_manager.list_artifacts(
+                    session_id=session.parent_session_id,
+                    artifact_type=artifact_type,
+                    limit=limit,
+                )
+                all_artifacts.extend(parent_artifacts)
+
+        # Sort by created_at (newest first) and apply limit
+        all_artifacts.sort(key=lambda a: a.created_at, reverse=True)
+        return all_artifacts[:limit]
+
+    def generate_handoff_context(
+        self,
+        session_id: str,
+        max_artifacts: int = 10,
+        max_context_size: int = 50000,
+        include_parent_artifacts: bool = False,
+    ) -> str:
+        """
+        Generate handoff context including artifacts for a session.
+
+        Args:
+            session_id: Session ID to generate context for
+            max_artifacts: Maximum number of artifacts to include (default: 10)
+            max_context_size: Maximum context size in characters (default: 50000)
+            include_parent_artifacts: Whether to include parent session artifacts
+
+        Returns:
+            Formatted context string with artifacts
+        """
+        # Get session info
+        session = self.get_session(session_id)
+        if not session:
+            return ""
+
+        context_parts = []
+
+        # Add session header
+        context_parts.append(f"## Session Context: {session.get('title', session_id)}")
+        if session.get("git_branch"):
+            context_parts.append(f"Branch: {session['git_branch']}")
+
+        # Get artifacts
+        artifacts = self.get_session_artifacts(
+            session_id=session_id,
+            limit=max_artifacts,
+            include_parent=include_parent_artifacts,
+        )
+
+        if artifacts:
+            context_parts.append("\n## Session Artifacts\n")
+
+            current_size = sum(len(p) for p in context_parts)
+
+            for artifact in artifacts:
+                artifact_text = self._format_artifact(artifact)
+
+                # Check size limit
+                if current_size + len(artifact_text) > max_context_size:
+                    context_parts.append("\n_[Artifacts truncated due to size limit]_")
+                    break
+
+                context_parts.append(artifact_text)
+                current_size += len(artifact_text)
+
+        return "\n".join(context_parts)
+
+    def _format_artifact(self, artifact) -> str:
+        """
+        Format an artifact for inclusion in handoff context.
+
+        Args:
+            artifact: Artifact object to format
+
+        Returns:
+            Formatted artifact string
+        """
+        parts = []
+
+        # Header with type and source
+        header = f"### {artifact.artifact_type.upper()}"
+        if artifact.source_file:
+            location = artifact.source_file
+            if artifact.line_start:
+                location += f":{artifact.line_start}"
+                if artifact.line_end and artifact.line_end != artifact.line_start:
+                    location += f"-{artifact.line_end}"
+            header += f" - {location}"
+        parts.append(header)
+
+        # Format content based on type
+        if artifact.artifact_type == "code":
+            # Use language from metadata if available
+            language = ""
+            if artifact.metadata and "language" in artifact.metadata:
+                language = artifact.metadata["language"]
+            parts.append(f"```{language}")
+            parts.append(artifact.content)
+            parts.append("```")
+        elif artifact.artifact_type == "diff":
+            parts.append("```diff")
+            parts.append(artifact.content)
+            parts.append("```")
+        elif artifact.artifact_type == "error":
+            parts.append("```")
+            parts.append(artifact.content)
+            parts.append("```")
+        else:
+            # Plain text for other types
+            parts.append(artifact.content)
+
+        parts.append("")  # Empty line after artifact
+        return "\n".join(parts)
