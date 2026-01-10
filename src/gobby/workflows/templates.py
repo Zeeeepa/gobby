@@ -19,7 +19,9 @@ class TemplateEngine:
 
         self.env = Environment(
             loader=loader,
-            autoescape=select_autoescape(["html", "xml"]),
+            # Disable autoescape for inline templates (default_for_string=False)
+            # We generate markdown, not HTML - escaping breaks apostrophes etc.
+            autoescape=select_autoescape(["html", "xml"], default_for_string=False),
             trim_blocks=True,
             lstrip_blocks=True,
         )

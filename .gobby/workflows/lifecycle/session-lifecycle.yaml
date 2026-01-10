@@ -1,5 +1,5 @@
 name: session-lifecycle
-description: "Unified session lifecycle: context handoff, memory, and skills"
+description: "Unified session lifecycle: context handoff and memory"
 type: lifecycle
 
 settings:
@@ -23,7 +23,9 @@ variables:
 triggers:
   on_stop:
     # Commit enforcement - block stop if task has uncommitted changes
+    # Skip in plan mode (set via gobby-workflows.set_variable when entering plan mode)
     - action: require_commit_before_stop
+      when: "not variables.get('plan_mode')"
 
   on_session_start:
     # Capture baseline dirty files for session-aware commit detection
@@ -74,8 +76,9 @@ triggers:
     - action: require_validation_delegation
 
     # Task enforcement - require active task before file modifications
-    # Enable via config: workflow.require_task_before_edit: true
+    # Skip in plan mode (planning only writes to plan files)
     - action: require_active_task
+      when: "not variables.get('plan_mode')"
 
   on_session_end:
     # Session summary generation
@@ -136,6 +139,9 @@ triggers:
 
         Focus on actionable insights and context that would be valuable when resuming work later.
         Use only ASCII-safe characters - avoid Unicode em-dashes, smart quotes, or special characters.
+
+    # Memory extraction - extract learnings to memory
+    - action: memory_extract
 
     # Memory sync - export to JSONL for Git persistence
     - action: memory_sync_export
