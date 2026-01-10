@@ -1,23 +1,30 @@
 # Gobby Dashboard UI
 
+> **Last Updated:** January 2026
+> **Related:** [Design System](../design/design-system.md) | [UI Approach](../design/ui-approach.md) | [Tailwind Config](../design/tailwind.config.ts)
+
 ## Overview
 
-A web-based dashboard for Gobby that provides visual management of multi-CLI agents, tasks, worktrees, MCP servers, and cross-session context. Unlike Auto-Claude's monolithic Electron app, Gobby's UI is a thin client connecting to the existing daemon infrastructure.
+A multi-tier UI for Gobby providing visual management of multi-CLI agents, tasks, worktrees, MCP servers, and cross-session context. The UI is a thin client connecting to the existing daemon infrastructure via REST API and MCP tools.
 
-**Key Differentiator:** The only dashboard that unifies Claude Code, Gemini CLI, and Codex agents in a single view with shared task tracking, memory, and MCP tool access.
+**Key Differentiator:** The only dashboard that unifies Claude Code, Gemini CLI, and Codex agents in a single view with shared task tracking, memory, workflow orchestration, and MCP tool access.
 
 ## Build Order
 
 ```text
-Phase 1: Web Dashboard Foundation (React + FastAPI static serving)
+Phase 0: TUI Dashboard (Textual - Python)           ← NEW: MVP priority
+    ↓
+Phase 1: Web Dashboard Foundation (Next.js + shadcn/ui)
     ↓
 Phase 2: Real-time Updates (WebSocket events)
     ↓
-Phase 3: Task Graph Visualization (D3.js/Cytoscape)
+Phase 3: Task Graph Visualization (Cytoscape.js)
     ↓
-Phase 4: Worktree Orchestrator (agent spawning, merge preview)
+Phase 4: Agent Orchestrator (spawning, monitoring, autonomous loops)
     ↓
-Phase 5: MCP Observatory (tool analytics, server health)
+Phase 5: MCP Observatory (tool analytics, semantic search)
+    ↓
+Phase 6: Mobile PWA (remote agent access)           ← NEW: Core requirement
     ↓
 Phase 7: Tauri Wrapper (native app, system tray)
 ```
@@ -475,145 +482,318 @@ Search and manage cross-session memories.
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-## API Endpoints
+## API Architecture
 
-### REST API Extensions
+### Design Pattern: REST + MCP Tools
 
-The UI requires additional REST endpoints beyond the existing daemon API.
+Gobby uses a hybrid API approach:
+- **REST endpoints** for admin/status, session management, hooks
+- **MCP tools** for all CRUD operations (tasks, agents, worktrees, memory, workflows)
+
+The UI calls MCP tools via `/mcp/tools/call` endpoint or the unified proxy `/mcp/{server}/{tool}`.
+
+### REST Endpoints (Current Implementation)
 
 ```python
-# Dashboard
-GET  /api/ui/dashboard          # Aggregated dashboard data
-GET  /api/ui/activity           # Recent activity feed
+# Admin
+GET  /admin/status              # Health, uptime, memory, MCP health, session/task stats
+GET  /admin/metrics             # Prometheus-compatible metrics
+GET  /admin/config              # Daemon configuration
+POST /admin/shutdown            # Graceful shutdown
 
-# Sessions (extended)
-GET  /api/sessions              # List sessions with filters
-GET  /api/sessions/{id}         # Session detail with transcript
-GET  /api/sessions/{id}/handoff # Handoff context
+# Sessions
+POST /sessions/register         # Register new session
+GET  /sessions                  # List sessions with filters (project_id, status, source, limit)
+GET  /sessions/{id}             # Session details
+GET  /sessions/{id}/messages    # Session messages with pagination
+POST /sessions/find_current     # Find by external_id + machine_id + source
+POST /sessions/find_parent      # Find parent with handoff_ready status
+POST /sessions/update_status    # Update session status
+POST /sessions/{id}/stop        # Send stop signal to session
+GET  /sessions/{id}/stop        # Check for pending stop signal
+DELETE /sessions/{id}/stop      # Clear stop signal
 
-# Tasks (extended)
-GET  /api/tasks/graph           # Task dependency graph data
-POST /api/tasks/{id}/assign     # Assign task to worktree
+# MCP Tool Discovery & Execution
+GET  /mcp/servers               # List all MCP servers with status
+GET  /mcp/{server}/tools        # List tools from specific server
+GET  /mcp/tools                 # List all tools (optionally with metrics)
+POST /mcp/tools/schema          # Get full inputSchema for a tool
+POST /mcp/tools/call            # Execute a tool
+POST /mcp/{server}/tools/{tool} # Unified proxy endpoint
+POST /mcp/tools/recommend       # AI-powered tool recommendations
+POST /mcp/tools/search          # Semantic similarity search
+POST /mcp/tools/embed           # Generate embeddings for tools
+POST /mcp/refresh               # Refresh tools, detect schema changes
 
-# Worktrees
-GET  /api/worktrees             # List worktrees
-POST /api/worktrees             # Create worktree
-GET  /api/worktrees/{id}        # Worktree detail
-POST /api/worktrees/{id}/spawn  # Spawn agent in worktree
-POST /api/worktrees/{id}/merge  # Start merge process
-DELETE /api/worktrees/{id}      # Delete worktree
+# MCP Server Management
+POST /mcp/servers               # Add new MCP server
+DELETE /mcp/servers/{name}      # Remove MCP server
+POST /mcp/servers/import        # Import from project/GitHub
 
-# MCP
-GET  /api/mcp/servers           # Server list with status
-GET  /api/mcp/servers/{name}    # Server detail with tools
-GET  /api/mcp/analytics         # Tool call analytics
-GET  /api/mcp/calls             # Recent tool calls
+# Hooks
+POST /hooks/execute             # Execute CLI hook (claude/gemini/codex)
 
-# Memory
-GET  /api/memories              # List memories with search
-POST /api/memories              # Create memory
-PUT  /api/memories/{id}         # Update memory
-DELETE /api/memories/{id}       # Forget memory
-GET  /api/memories/stats        # Memory statistics
-
+# Plugins & Webhooks
+GET  /plugins                   # List loaded plugins
+POST /plugins/reload            # Reload plugin by name
+GET  /webhooks                  # List webhook endpoints
+POST /webhooks/test             # Test webhook
 ```
 
-### WebSocket Events
+### MCP Tools (Internal Servers)
 
-Real-time updates via WebSocket connection.
+All CRUD operations go through internal MCP servers. Total: **106+ tools**
+
+| Server | Tools | Key Operations |
+|--------|-------|----------------|
+| `gobby-tasks` | 35 | create, update, close, expand, validate, dependencies, sync |
+| `gobby-agents` | 9 | start, cancel, list, get_result, can_spawn |
+| `gobby-worktrees` | 14 | create, claim, release, sync, spawn_agent_in_worktree |
+| `gobby-memory` | 9 | create, recall, update, delete, get_related, export_graph |
+| `gobby-workflows` | 10 | activate, end, get_status, set_variable, request_transition |
+| `gobby-sessions` | 6 | get, list, get_messages, search, get_handoff_context |
+| `gobby-artifacts` | 4 | search, list, get, get_timeline |
+| `gobby-metrics` | 4 | get_tool_metrics, get_top_tools, get_failing_tools |
+| `gobby-hub` | 4 | Cross-project queries (list_all_projects, cross_project_tasks)
+
+**Example: Creating a task via MCP**
+```typescript
+const result = await fetch('/mcp/tools/call', {
+  method: 'POST',
+  body: JSON.stringify({
+    server_name: 'gobby-tasks',
+    tool_name: 'create_task',
+    arguments: { title: 'Fix bug', task_type: 'bug', priority: 1 }
+  })
+});
+```
+
+### WebSocket Events (Current Implementation)
+
+Real-time updates via WebSocket on port 8766.
 
 ```typescript
-// Client subscribes to events
-ws.send({ type: "subscribe", channels: ["sessions", "tasks", "worktrees", "mcp"] });
+// Client subscribes to specific events
+ws.send({ type: "subscribe", events: ["session-start", "session-end", "agent_started"] });
 
-// Server sends events
-interface WSEvent {
-  type: string;
-  channel: string;
-  payload: any;
-  timestamp: string;
-}
-
-// Event types by channel
-type SessionEvent =
-  | { type: "session.started"; payload: Session }
-  | { type: "session.ended"; payload: { id: string; summary: string } }
-  | { type: "session.tool_call"; payload: ToolCall };
-
-type TaskEvent =
-  | { type: "task.created"; payload: Task }
-  | { type: "task.updated"; payload: Task }
-  | { type: "task.closed"; payload: Task }
-  | { type: "task.expanded"; payload: { parent: Task; subtasks: Task[] } };
-
-type WorktreeEvent =
-  | { type: "worktree.created"; payload: Worktree }
-  | { type: "worktree.agent_spawned"; payload: { worktree: Worktree; session: Session } }
-  | { type: "worktree.merged"; payload: Worktree }
-  | { type: "worktree.deleted"; payload: { id: string } };
-
-type MCPEvent =
-  | { type: "mcp.server_connected"; payload: MCPServer }
-  | { type: "mcp.server_disconnected"; payload: { name: string } }
-  | { type: "mcp.tool_called"; payload: ToolCall };
+// Unsubscribe
+ws.send({ type: "unsubscribe", events: ["session-start"] });
 ```
+
+#### Hook Events (via HookEventBroadcaster)
+
+```typescript
+interface HookEvent {
+  type: "hook_event";
+  event_type: "session-start" | "session-end" | "pre-tool-use" | "post-tool-use"
+            | "pre-compact" | "stop" | "user-prompt-submit"
+            | "subagent-start" | "subagent-stop" | "notification";
+  timestamp: string;
+  data: Record<string, any>;
+  session_id: string | null;
+  task_id: string | null;
+  result: { continue: boolean; message?: string };
+}
+```
+
+#### Agent Lifecycle Events
+
+```typescript
+interface AgentEvent {
+  type: "agent_event";
+  event: "agent_started" | "agent_completed" | "agent_failed" | "agent_cancelled" | "agent_timeout";
+  run_id: string;
+  parent_session_id: string;
+  timestamp: string;
+  session_id: string | null;
+  mode: "terminal" | "embedded" | "headless";
+  provider: string;
+  pid?: number;
+}
+```
+
+#### Autonomous Execution Events
+
+```typescript
+interface AutonomousEvent {
+  type: "autonomous_event";
+  event: "loop_started" | "loop_stopped" | "progress_recorded"
+       | "task_started" | "stuck_detected" | "stop_requested";
+  session_id: string;
+  timestamp: string;
+  // Additional fields vary by event type
+  task_id?: string;
+  progress_type?: string;
+  layer?: string;
+  reason?: string;
+  final_summary?: string;
+}
+```
+
+#### Session Message Streaming
+
+```typescript
+interface SessionMessageEvent {
+  type: "session_message";
+  session_id: string;
+  message: {
+    index: number;
+    role: "user" | "assistant" | "tool";
+    content: string;
+    content_type: string;
+    tool_name?: string;
+    timestamp: string;
+  };
+}
+```
+
+#### Missing Events (TODO for UI)
+
+The following events from the original spec are NOT yet implemented:
+- `task.created`, `task.updated`, `task.closed`, `task.expanded`
+- `worktree.created`, `worktree.merged` (methods defined but not emitted)
+- `mcp.server_connected`, `mcp.server_disconnected`, `mcp.tool_called`
+
+**Workaround:** Poll `/admin/status` or use React Query with short intervals.
 
 ## Data Models (TypeScript)
 
-```typescript
-// Core types for the UI
+> **Schema Version:** 47 (as of January 2026)
 
+```typescript
+// ============================================
+// SESSION (13 new fields since original spec)
+// ============================================
 interface Session {
   id: string;
-  cli_type: "claude" | "gemini" | "codex";
+  external_id: string;              // Was: cli_type
+  machine_id: string;
+  source: "claude_code" | "gemini" | "codex" | "antigravity";
   project_id: string;
-  worktree_id: string | null;
-  status: "active" | "ended" | "compacted";
-  started_at: string;
-  ended_at: string | null;
-  tool_calls: number;
-  tasks_touched: string[];
-  handoff_context: string | null;
+  title: string | null;
+  status: "active" | "ended" | "handoff_ready";
+  git_branch: string | null;
+
+  // Agent tracking (NEW)
+  parent_session_id: string | null;
+  agent_depth: number;              // 0 = human, 1+ = spawned agent
+  spawned_by_agent_id: string | null;
+  agent_run_id: string | null;
+  workflow_name: string | null;
+
+  // Context (NEW)
+  summary_markdown: string | null;
+  compact_markdown: string | null;  // Handoff context
+  context_injected: boolean;
+  original_prompt: string | null;
+
+  // Token usage (NEW)
+  usage_input_tokens: number;
+  usage_output_tokens: number;
+  usage_cache_creation_tokens: number;
+  usage_cache_read_tokens: number;
+  usage_total_cost_usd: number;
+
+  // Terminal pickup (NEW)
+  terminal_context: {
+    tty: string;
+    parent_pid: number;
+    term_session_id: string;
+    tmux_pane?: string;
+  } | null;
+
+  created_at: string;
+  updated_at: string;
 }
 
+// ============================================
+// TASK (20 new fields since original spec)
+// ============================================
 interface Task {
   id: string;  // gt-xxxxxx
   project_id: string;
   parent_task_id: string | null;
   title: string;
   description: string | null;
-  status: "open" | "in_progress" | "closed" | "failed";
-  priority: 1 | 2 | 3;
+  status: "open" | "in_progress" | "closed" | "failed" | "escalated" | "needs_decomposition";
+  priority: 0 | 1 | 2 | 3 | 4;  // 0=critical, 4=backlog
   task_type: "bug" | "feature" | "task" | "epic" | "chore";
+  assignee: string | null;
   labels: string[];
-  blockers: string[];  // Task IDs that block this
-  blocking: string[];  // Task IDs this blocks
-  worktree_id: string | null;
+  closed_reason: string | null;
+
+  // Session tracking (NEW)
+  created_in_session_id: string | null;
+  closed_in_session_id: string | null;
+
+  // Commit tracking (NEW)
+  commits: string[];                // Array of commit SHAs
+  closed_commit_sha: string | null;
+  closed_at: string | null;
+
+  // Validation system (NEW)
+  validation_status: "pending" | "passed" | "failed" | "skipped" | null;
+  validation_feedback: string | null;
+  validation_criteria: string | null;
+  use_external_validator: boolean;
+  validation_fail_count: number;
+  validation_override_reason: string | null;
+
+  // Task expansion (NEW)
+  test_strategy: string | null;
+  complexity_score: number | null;
+  estimated_subtasks: number | null;
+  expansion_context: string | null;
+
+  // Workflow integration (NEW)
+  workflow_name: string | null;
+  verification: string | null;
+  sequence_order: number | null;
+
+  // Escalation (NEW)
+  escalated_at: string | null;
+  escalation_reason: string | null;
+
   created_at: string;
   updated_at: string;
 }
 
-interface TaskGraph {
-  nodes: TaskNode[];
-  edges: TaskEdge[];
+// Dependencies now in separate table
+interface TaskDependency {
+  id: number;
+  task_id: string;
+  depends_on: string;
+  dep_type: "blocks" | "related" | "discovered-from";
+  created_at: string;
 }
 
-interface TaskNode {
+// ============================================
+// AGENT RUN (NEW - tracks spawned agents)
+// ============================================
+interface AgentRun {
   id: string;
-  label: string;
-  status: Task["status"];
-  priority: Task["priority"];
-  type: Task["task_type"];
+  parent_session_id: string;
+  child_session_id: string | null;
+  workflow_name: string | null;
+  provider: "claude" | "gemini" | "codex";
+  model: string | null;
+  status: "pending" | "running" | "success" | "error" | "timeout" | "cancelled";
+  prompt: string;
+  result: string | null;
+  error: string | null;
+  tool_calls_count: number;
+  turns_used: number;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
-interface TaskEdge {
-  source: string;
-  target: string;
-  type: "blocks" | "related" | "parent";
-}
-
+// ============================================
+// WORKTREE (simplified - removed commits_ahead/behind)
+// ============================================
 interface Worktree {
-  id: string;  // wt-xxxxxx
+  id: string;
   project_id: string;
   task_id: string | null;
   branch_name: string;
@@ -621,46 +801,98 @@ interface Worktree {
   base_branch: string;
   agent_session_id: string | null;
   status: "active" | "stale" | "merged" | "abandoned";
-  commits_ahead: number;
-  commits_behind: number;
-  has_conflicts: boolean;
+  merged_at: string | null;        // NEW
+  merge_state: "pending" | "resolved" | null;  // NEW
   created_at: string;
   updated_at: string;
 }
 
-interface MCPServer {
-  name: string;
-  transport: "http" | "stdio" | "websocket";
-  url: string | null;
-  status: "connected" | "disconnected" | "reconnecting" | "disabled";
-  tools_count: number;
-  calls_24h: number;
-  last_connected: string | null;
-}
-
-interface ToolCall {
-  id: string;
-  server_name: string;
-  tool_name: string;
-  session_id: string;
-  arguments: Record<string, any>;
-  result: any;
-  duration_ms: number;
-  timestamp: string;
-}
-
+// ============================================
+// MEMORY (added source tracking, cross-refs)
+// ============================================
 interface Memory {
   id: string;
   content: string;
   memory_type: "fact" | "preference" | "pattern" | "context";
   importance: number;  // 0.0 - 1.0
-  project_id: string | null;  // null = global
+  project_id: string | null;
   tags: string[];
-  recall_count: number;
+
+  // Source tracking (NEW)
+  source_type: "user" | "session" | "inferred";
+  source_session_id: string | null;
+
+  // Usage analytics (NEW)
+  access_count: number;
+  last_accessed_at: string | null;
+
   created_at: string;
   updated_at: string;
 }
 
+interface MemoryCrossRef {
+  source_id: string;
+  target_id: string;
+  similarity: number;  // 0.0 - 1.0
+  created_at: string;
+}
+
+// ============================================
+// SESSION ARTIFACTS (NEW - code snippets, diffs)
+// ============================================
+interface SessionArtifact {
+  id: string;
+  session_id: string;
+  artifact_type: "code" | "diff" | "error" | "test" | "plan";
+  content: string;
+  metadata_json: Record<string, any> | null;
+  source_file: string | null;
+  line_start: number | null;
+  line_end: number | null;
+  created_at: string;
+}
+
+// ============================================
+// MCP & TOOLS
+// ============================================
+interface MCPServer {
+  name: string;
+  transport: "http" | "stdio" | "websocket";
+  url: string | null;
+  command: string | null;
+  args: string[] | null;
+  enabled: boolean;
+  status: "connected" | "disconnected" | "reconnecting";
+  tools_count: number;
+  description: string | null;
+}
+
+interface ToolMetrics {
+  server_name: string;
+  tool_name: string;
+  call_count: number;
+  success_count: number;
+  failure_count: number;
+  avg_latency_ms: number;
+  p99_latency_ms: number;
+}
+
+// ============================================
+// WORKFLOW STATE
+// ============================================
+interface WorkflowState {
+  session_id: string;
+  workflow_name: string;
+  current_step: string;
+  step_action_count: number;
+  total_action_count: number;
+  artifacts: string[];  // JSON array of completed artifacts
+  variables: Record<string, any>;
+  reflection_pending: boolean;
+  task_list: string | null;
+  current_task_index: number | null;
+  updated_at: string;
+}
 ```
 
 ## Keyboard Shortcuts
@@ -735,13 +967,63 @@ ui:
 
 ## Implementation Checklist
 
+### Phase 0: TUI Dashboard (MVP Priority)
+
+> **Framework:** [Textual](https://textual.textualize.io/) (Python)
+> **Goal:** Fast, keyboard-driven task management without leaving terminal
+
+#### 0.1: Project Setup
+
+- [ ] Create `src/gobby/tui/` package
+- [ ] Add Textual dependency to pyproject.toml
+- [ ] Create `gobby ui` CLI command to launch TUI
+- [ ] Set up hot-reload for development
+
+#### 0.2: Core Layout
+
+- [ ] Main app with header (daemon status, shortcuts)
+- [ ] Sidebar navigation (Tasks, Sessions, Agents, Memory, Metrics)
+- [ ] Footer with command hints
+- [ ] Keyboard navigation (j/k, Tab, Enter, Esc)
+
+#### 0.3: Task View (Critical)
+
+- [ ] Task list with status columns (Ready, In Progress, Blocked)
+- [ ] Task detail panel (side drawer)
+- [ ] Quick actions: Start task (sets session_task), expand, close
+- [ ] Copy task ID to clipboard on Enter
+- [ ] Filter by type, priority, parent
+
+#### 0.4: Session View
+
+- [ ] Session timeline (newest first)
+- [ ] Provider badge (Claude/Gemini/Codex)
+- [ ] Token/cost display
+- [ ] Pickup action (copies handoff context)
+
+#### 0.5: Agent View
+
+- [ ] Running agents list with status
+- [ ] Agent tree (parent/child hierarchy)
+- [ ] Cancel action
+- [ ] Progress indicators
+
+#### 0.6: Connect to Daemon
+
+- [ ] REST API client for data fetching
+- [ ] WebSocket client for real-time updates
+- [ ] Auto-reconnect on daemon restart
+
 ### Phase 1: Web Dashboard Foundation
+
+> **Framework:** Next.js 14+ with shadcn/ui
+> **Goal:** Full-featured web UI with mobile support
 
 #### 1.1: Project Setup
 
 - [ ] Create `ui/` directory in gobby repo
-- [ ] Initialize Vite + React + TypeScript project
-- [ ] Configure Tailwind CSS
+- [ ] Initialize Next.js 14 with App Router
+- [ ] Configure Tailwind CSS with design tokens (see docs/design/tailwind.config.ts)
 - [ ] Set up ESLint + Prettier
 - [ ] Add build script to package UI assets
 
@@ -888,15 +1170,16 @@ ui:
 - [ ] Add call detail modal (args, result, duration)
 - [ ] Add export functionality
 
-### Phase 6: Memory & Skills Browser
+### Phase 6: Memory Browser
 
 #### 6.1: Memory View
 
-- [ ] Create memory list with search
-- [ ] Add filters (type, project, importance)
-- [ ] Implement memory detail view
+- [ ] Create memory list with search (semantic via `/mcp/tools/search`)
+- [ ] Add filters (type, project, importance, tags)
+- [ ] Implement memory detail view with cross-references
 - [ ] Add create/edit memory modal
 - [ ] Add forget (delete) action
+- [ ] Integrate existing vis.js graph (export_memory_graph)
 
 #### 6.2: Memory Stats
 
@@ -904,8 +1187,32 @@ ui:
 - [ ] Show counts by type
 - [ ] Show counts by project
 - [ ] Display average importance
+- [ ] Show cross-reference count
 
-- [ ] Display exported file paths
+### Phase 6.5: Mobile PWA (Core Requirement)
+
+> **Goal:** Remote agent monitoring from phone
+
+#### 6.5.1: PWA Setup
+
+- [ ] Configure service worker for offline support
+- [ ] Add web app manifest
+- [ ] Enable push notifications (via Firebase or similar)
+- [ ] Configure Cloudflare tunnel for remote access
+
+#### 6.5.2: Mobile-Optimized Views
+
+- [ ] Agent status dashboard (running/completed)
+- [ ] One-tap cancel agent
+- [ ] Task quick-view (ready tasks, tap to copy ID)
+- [ ] Session cost summary
+
+#### 6.5.3: Remote Access
+
+- [ ] `gobby tunnel start` command
+- [ ] QR code for mobile setup
+- [ ] Token-based authentication
+- [ ] Connection status indicator
 
 ### Phase 7: Tauri Wrapper
 
@@ -940,77 +1247,96 @@ ui:
 
 | # | Question | Decision | Rationale |
 |---|----------|----------|-----------|
-| 1 | **UI Framework** | React + Vite | Large ecosystem, good TypeScript support, fast builds |
-| 2 | **Styling** | Tailwind CSS | Rapid prototyping, no context switching |
-| 3 | **State Management** | Zustand + React Query | Simple global state + excellent server state handling |
-| 4 | **Graph Library** | Cytoscape.js | Powerful, well-documented, good performance |
-| 5 | **Charts** | Recharts | Simple API, React-native, good defaults |
-| 6 | **Native Wrapper** | Tauri | 10-30x smaller than Electron, Rust performance |
-| 7 | **Deployment** | Static files served by daemon | Zero additional infrastructure, single port |
-| 8 | **WebSocket Protocol** | JSON messages with channels | Simple, debuggable, standard pattern |
-| 9 | **Initial Focus** | Web-only MVP | Fastest path to usable UI, native later |
-| 10 | **Port Strategy** | Same port as API | Simpler CORS, single origin |
+| 1 | **TUI Framework** | Textual (Python) | Native Python, hot reload, CSS-like styling |
+| 2 | **Web Framework** | Next.js 14 + shadcn/ui | SSR, App Router, accessible components |
+| 3 | **Styling** | Tailwind CSS | Design tokens in `docs/design/tailwind.config.ts` |
+| 4 | **State Management** | TanStack Query | Built-in caching, real-time sync |
+| 5 | **Graph Library** | Cytoscape.js | Powerful, well-documented, good performance |
+| 6 | **Icons** | Phosphor | Per design-principles skill |
+| 7 | **Native Wrapper** | Tauri | 10-30x smaller than Electron |
+| 8 | **Deployment** | Static files served by daemon | Zero additional infrastructure |
+| 9 | **Initial Focus** | TUI-first, then Web | Validates patterns before web investment |
+| 10 | **Mobile Access** | PWA + Cloudflare Tunnel | Works offline, remote access, push notifications |
+| 11 | **API Pattern** | REST + MCP Tools | REST for admin, MCP for CRUD operations |
+| 12 | **Real-time** | WebSocket on port 8766 | Already implemented, event subscriptions |
 
 ## Future Enhancements
 
 ### Terminal Embedding (P3)
 
-- Embed xterm.js terminal in UI
+- Embed xterm.js terminal in Web UI
 - Connect to worktree shells
 - View agent output in real-time
 - Send commands to running agents
 
 ### Collaborative Features (P4)
 
-- Multi-user session viewing
+- Multi-user session viewing (via hub database)
 - Real-time cursors in task graph
 - Comment threads on tasks
 - Activity notifications
 
-### AI Assistant (P4)
+### AI Assistant (PARTIAL - via MCP tools)
 
-- Chat interface in UI
-- Quick actions via natural language
-- "Create a task for..." → task created
-- "What should I work on?" → suggestion
+Already available via MCP:
+- `suggest_next_task` - "What should I work on?"
+- `expand_task` - AI-powered task breakdown
+- `recommend_tools` - Tool suggestions for tasks
 
-### Mobile Companion (P5)
+Future:
+- Dedicated chat interface in UI
+- Natural language task creation
 
-- React Native mobile app
-- View-only dashboard
-- Push notifications for events
-- Quick task status updates
+### Cross-Project Dashboard (via gobby-hub)
 
-## Appendix A: Agent Interrupt Mechanism (Planned)
+Already available:
+- `list_all_projects` - All projects in hub
+- `list_cross_project_tasks` - Tasks across projects
+- `hub_stats` - Aggregate statistics
 
-To enable "human-on-the-loop" control (pausing, stopping, intervening), the daemon must track and manage the lifecycle of agent subprocesses.
+Future:
+- Visual cross-project view in UI
+- Project switching without restart
 
-### Technical Design
+## Appendix A: Agent Interrupt Mechanism (IMPLEMENTED)
 
-1. **PID Persistence**:
-   - The `sessions` table will be updated to store the Process ID (`pid`) of the spawned agent process (e.g., `claude`, `gemini`).
-   - This allows the daemon to re-attach or signal the process even after a daemon restart.
+The daemon now tracks and manages agent lifecycle with full stop signal support.
 
-2. **Signal Management**:
-   - We will implement a new action `interrupt_session(session_id, signal="SIGINT")`.
-   - `SIGINT` (Ctrl+C equivalent): Requests the agent to pause or gracefully stop after the current step.
-   - `SIGTERM`: Forcefully terminates the session.
+### Current Implementation
 
-3. **Process Lifecycle**:
-   - `start_new_session`: Spawns process -> Captures PID -> Updates DB `sessions.pid`.
-   - `interrupt_session`: Retrieves PID from DB -> Sends `os.kill(pid, signal)`.
+1. **Agent Registry** (`src/gobby/agents/registry.py`):
+   - `RunningAgentRegistry` tracks in-memory agent processes
+   - Stores `run_id`, `session_id`, `mode`, `provider`, `pid`
+   - Emits WebSocket events on lifecycle changes
 
-### Database Schema Update (Planned)
+2. **Stop Signal System** (`session_stop_signals` table):
+   - `POST /sessions/{id}/stop` - Send stop request
+   - `GET /sessions/{id}/stop` - Check for pending signal
+   - `DELETE /sessions/{id}/stop` - Clear signal
+   - Autonomous agents poll for stop signals
 
-```sql
-ALTER TABLE sessions ADD COLUMN pid INTEGER;
-```
+3. **Agent Cancellation** (via MCP tools):
+   ```typescript
+   // Cancel a running agent
+   await callTool('gobby-agents', 'cancel_agent', { run_id: 'xxx' });
+   ```
 
-### Action Interface (Planned)
+4. **WebSocket Events**:
+   - `agent_started`, `agent_completed`, `agent_failed`, `agent_cancelled`, `agent_timeout`
+   - `autonomous_event` with `stop_requested` event
 
-```python
-def _handle_interrupt_session(session_id: str, signal: str = "SIGINT"):
-    session = session_manager.get(session_id)
-    if session.pid:
-        os.kill(session.pid, getattr(signal, signal))
-```
+### UI Integration Points
+
+| Action | API Call | WebSocket Event |
+|--------|----------|-----------------|
+| Cancel agent | `POST /sessions/{id}/stop` | `agent_cancelled` |
+| View running | `gobby-agents.list_running_agents` | `agent_started` |
+| Monitor progress | Subscribe to `agent_event` | Real-time updates |
+
+### Stuck Detection
+
+The autonomous workflow system (`src/gobby/workflows/actions.py`) includes stuck detection:
+- Task selection loops
+- Validation loops
+- Tool repetition
+- Emits `stuck_detected` event with suggested actions
