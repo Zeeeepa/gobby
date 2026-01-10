@@ -5,5 +5,6 @@ for external services like GitHub and Linear.
 """
 
 from gobby.integrations.github import GitHubIntegration
+from gobby.integrations.linear import LinearIntegration
 
-__all__ = ["GitHubIntegration"]
+__all__ = ["GitHubIntegration", "LinearIntegration"]
