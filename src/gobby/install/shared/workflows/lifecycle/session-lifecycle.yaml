@@ -17,6 +17,11 @@ variables:
   # NOTE: session_task enforcement has been moved to the autonomous-task step workflow.
   # Use activate_workflow(name="autonomous-task", variables={"session_task": "gt-..."}, session_id=...) for task-scoped sessions.
 
+  # Validation delegation - use a faster/cheaper model for linting and tests
+  # Set to null to disable delegation (run inline)
+  validation_model: "haiku"
+  validation_timeout: 1800  # 30 minutes for full test suite
+
 triggers:
   on_stop:
     # Commit enforcement - block stop if task has uncommitted changes
@@ -50,6 +55,26 @@ triggers:
 
     # Memory sync - import from JSONL for Git persistence
     - action: memory_sync_import
+
+    # Validation delegation instructions - teach LLM to delegate ruff/mypy/pytest to faster model
+    - action: inject_message
+      when: "variables.get('validation_model')"
+      content: |
+        ## Validation Delegation
+
+        When running validation commands (ruff, mypy, pytest), delegate to a faster model:
+
+        ```python
+        call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
+            "prompt": "Run validation and report results:\n\nuv run ruff check src/ && uv run mypy src/ && uv run pytest",
+            "mode": "headless",
+            "model": "{{ variables.validation_model }}",
+            "timeout": {{ variables.validation_timeout }},
+        })
+        ```
+
+        This saves tokens and cost by using {{ variables.validation_model }} for output-heavy validation tasks.
+        The agent will return structured results you can analyze.
 
   on_before_agent:
     # Memory recall - inject memories relevant to the user's prompt via semantic search
