@@ -984,8 +984,14 @@ class TaskHierarchyBuilder:
     ) -> list[CreatedTask]:
         """Create a test→implementation pair for TDD mode.
 
-        Creates a test task that blocks the implementation task.
+        Creates a test task with the implementation task as its child.
+        The implementation task is also blocked by the test task via dependency.
         Only called when tdd_mode=True and for non-epic tasks.
+
+        Structure:
+            parent_task_id (if provided)
+            └── test_task (red light)
+                └── impl_task (green light) - child of test_task
 
         Args:
             title: Original task title
@@ -996,7 +1002,7 @@ class TaskHierarchyBuilder:
         Returns:
             List of [test_task, implementation_task]
         """
-        # Create test task first
+        # Create test task first (red light)
         test_title = f"Write tests for: {title}"
         test_description = (
             f"Write failing tests for: {title}\n\n"
@@ -1010,7 +1016,7 @@ class TaskHierarchyBuilder:
             labels=labels,
         )
 
-        # Create implementation task
+        # Create implementation task as child of test task (green light)
         impl_description = description or ""
         if impl_description:
             impl_description += "\n\n"
@@ -1021,7 +1027,7 @@ class TaskHierarchyBuilder:
         impl_task = self._create_task(
             title=title,
             task_type="task",
-            parent_task_id=parent_task_id,
+            parent_task_id=test_task.id,  # Green light is child of red light
             description=impl_description,
             labels=labels,
         )
