@@ -452,6 +452,25 @@ def create_workflows_registry(
                 "error": f"Step '{to_step}' not found. Available: {[s.name for s in definition.steps]}",
             }
 
+        # Block manual transitions to steps that have conditional auto-transitions
+        # These steps should only be reached when their conditions are met
+        current_step_def = next(
+            (s for s in definition.steps if s.name == state.step), None
+        )
+        if current_step_def and current_step_def.transitions:
+            for transition in current_step_def.transitions:
+                if transition.to == to_step and transition.when:
+                    # This step has a conditional transition - block manual transition
+                    return {
+                        "success": False,
+                        "error": (
+                            f"Step '{to_step}' has a conditional auto-transition "
+                            f"(when: {transition.when}). Manual transitions to this step "
+                            f"are blocked to prevent workflow circumvention. "
+                            f"The transition will occur automatically when the condition is met."
+                        ),
+                    }
+
         old_step = state.step
         state.step = to_step
         state.step_entered_at = datetime.now(UTC)
@@ -556,6 +575,20 @@ def create_workflows_registry(
                 variables={},
             )
 
+        # Block modification of session_task when a real workflow is active
+        # This prevents circumventing workflows by changing the tracked task
+        if name == "session_task" and state.workflow_name != "__lifecycle__":
+            current_value = state.variables.get("session_task")
+            if current_value is not None and value != current_value:
+                return {
+                    "success": False,
+                    "error": (
+                        f"Cannot modify session_task while workflow '{state.workflow_name}' is active. "
+                        f"Current value: {current_value}. "
+                        f"Use end_workflow() first if you need to change the tracked task."
+                    ),
+                }
+
         # Set the variable
         state.variables[name] = value
         _state_manager.save_state(state)
@@ -569,8 +602,8 @@ def create_workflows_registry(
             "all_variables": state.variables,
         }
 
-        # Add deprecation warning for session_task variable
-        if name == "session_task" and value:
+        # Add deprecation warning for session_task variable (when no workflow active)
+        if name == "session_task" and value and state.workflow_name == "__lifecycle__":
             result["warning"] = (
                 "DEPRECATED: Setting session_task directly is deprecated. "
                 "Use activate_workflow(name='autonomous-task', variables={'session_task': ...}) instead "
