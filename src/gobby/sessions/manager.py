@@ -375,8 +375,9 @@ class SessionManager:
         self,
         session_id: str,
         artifact_type: str | None = None,
-        limit: int = 10,
-        include_parent: bool = False,
+        limit: int | None = None,
+        include_parent: bool | None = None,
+        max_lineage_depth: int | None = None,
     ) -> list:
         """
         Get artifacts for a session using LocalArtifactManager.
@@ -384,13 +385,23 @@ class SessionManager:
         Args:
             session_id: Session ID to get artifacts for
             artifact_type: Optional filter by artifact type
-            limit: Maximum number of artifacts to return
-            include_parent: Whether to include parent session artifacts
+            limit: Maximum number of artifacts to return (default from config)
+            include_parent: Whether to include parent session artifacts (default from config)
+            max_lineage_depth: Maximum depth to traverse session lineage (default from config)
 
         Returns:
             List of Artifact objects
         """
         from gobby.storage.artifacts import LocalArtifactManager
+
+        # Get defaults from config
+        config = self._config.artifact_handoff if self._config else None
+        if limit is None:
+            limit = config.max_artifacts_in_handoff if config else 10
+        if include_parent is None:
+            include_parent = config.include_parent_artifacts if config else True
+        if max_lineage_depth is None:
+            max_lineage_depth = config.max_lineage_depth if config else 3
 
         # Get artifact manager using storage's database
         artifact_manager = LocalArtifactManager(self._storage.db)
@@ -405,16 +416,23 @@ class SessionManager:
         )
         all_artifacts.extend(artifacts)
 
-        # If include_parent, traverse session lineage
+        # If include_parent, traverse full session lineage up to max_lineage_depth
         if include_parent:
-            session = self._storage.get(session_id)
-            if session and session.parent_session_id:
+            current_session = self._storage.get(session_id)
+            depth = 0
+
+            while current_session and current_session.parent_session_id and depth < max_lineage_depth:
+                parent_id = current_session.parent_session_id
                 parent_artifacts = artifact_manager.list_artifacts(
-                    session_id=session.parent_session_id,
+                    session_id=parent_id,
                     artifact_type=artifact_type,
                     limit=limit,
                 )
                 all_artifacts.extend(parent_artifacts)
+
+                # Move up the lineage chain
+                current_session = self._storage.get(parent_id)
+                depth += 1
 
         # Sort by created_at (newest first) and apply limit
         all_artifacts.sort(key=lambda a: a.created_at, reverse=True)
@@ -423,22 +441,31 @@ class SessionManager:
     def generate_handoff_context(
         self,
         session_id: str,
-        max_artifacts: int = 10,
-        max_context_size: int = 50000,
-        include_parent_artifacts: bool = False,
+        max_artifacts: int | None = None,
+        max_context_size: int | None = None,
+        include_parent_artifacts: bool | None = None,
     ) -> str:
         """
         Generate handoff context including artifacts for a session.
 
         Args:
             session_id: Session ID to generate context for
-            max_artifacts: Maximum number of artifacts to include (default: 10)
-            max_context_size: Maximum context size in characters (default: 50000)
-            include_parent_artifacts: Whether to include parent session artifacts
+            max_artifacts: Maximum number of artifacts to include (default from config)
+            max_context_size: Maximum context size in characters (default from config)
+            include_parent_artifacts: Whether to include parent session artifacts (default from config)
 
         Returns:
             Formatted context string with artifacts
         """
+        # Get defaults from config
+        config = self._config.artifact_handoff if self._config else None
+        if max_artifacts is None:
+            max_artifacts = config.max_artifacts_in_handoff if config else 10
+        if max_context_size is None:
+            max_context_size = config.max_context_size if config else 50000
+        if include_parent_artifacts is None:
+            include_parent_artifacts = config.include_parent_artifacts if config else True
+
         # Get session info
         session = self.get_session(session_id)
         if not session:
