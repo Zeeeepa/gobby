@@ -1002,7 +1002,7 @@ def create_orchestration_registry(
     async def spawn_review_agent(
         task_id: str,
         review_provider: Literal["claude", "gemini", "codex", "antigravity"] = "claude",
-        review_model: str | None = "opus-4",
+        review_model: str | None = "claude-opus-4-5",
         terminal: str = "auto",
         mode: str = "terminal",
         parent_session_id: str | None = None,
@@ -1017,7 +1017,7 @@ def create_orchestration_registry(
         Args:
             task_id: ID of the task to review
             review_provider: LLM provider for review (default: claude)
-            review_model: Model for review (default: opus-4 for thorough analysis)
+            review_model: Model for review (default: claude-opus-4-5 for thorough analysis)
             terminal: Terminal for terminal mode (default: auto)
             mode: Execution mode (terminal, embedded, headless)
             parent_session_id: Parent session ID for context (required)
@@ -1281,8 +1281,8 @@ def create_orchestration_registry(
                 },
                 "review_model": {
                     "type": "string",
-                    "description": "Model for review (default: opus-4 for thorough analysis)",
-                    "default": "opus-4",
+                    "description": "Model for review (default: claude-opus-4-5 for thorough analysis)",
+                    "default": "claude-opus-4-5",
                 },
                 "terminal": {
                     "type": "string",
@@ -1381,7 +1381,7 @@ def create_orchestration_registry(
         effective_review_model = (
             review_model
             or workflow_vars.get("review_model")
-            or "opus-4"
+            or "claude-opus-4-5"
         )
 
         reviews_spawned: list[dict[str, Any]] = []

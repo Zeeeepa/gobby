@@ -30,7 +30,7 @@ variables:
   coding_provider: "gemini"   # Provider for implementation tasks
   coding_model: null          # Optional model override for coding
   review_provider: "claude"   # Provider for code review
-  review_model: "opus-4"      # Model for thorough reviews
+  review_model: "claude-opus-4-5"  # Model for thorough reviews
   max_concurrent: 3           # Max parallel agents
   terminal: "ghostty"         # Terminal to spawn in
   poll_interval_seconds: 30   # How often to check agent status
