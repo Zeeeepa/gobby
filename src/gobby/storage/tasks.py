@@ -82,6 +82,9 @@ class Task:
     github_issue_number: int | None = None
     github_pr_number: int | None = None
     github_repo: str | None = None
+    # Linear integration fields
+    linear_issue_id: str | None = None
+    linear_team_id: str | None = None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Task":
@@ -149,6 +152,8 @@ class Task:
             ),
             github_pr_number=row["github_pr_number"] if "github_pr_number" in keys else None,
             github_repo=row["github_repo"] if "github_repo" in keys else None,
+            linear_issue_id=row["linear_issue_id"] if "linear_issue_id" in keys else None,
+            linear_team_id=row["linear_team_id"] if "linear_team_id" in keys else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -190,6 +195,8 @@ class Task:
             "github_issue_number": self.github_issue_number,
             "github_pr_number": self.github_pr_number,
             "github_repo": self.github_repo,
+            "linear_issue_id": self.linear_issue_id,
+            "linear_team_id": self.linear_team_id,
         }
 
     def to_brief(self) -> dict[str, Any]:
@@ -320,6 +327,8 @@ class LocalTaskManager:
         github_issue_number: int | None = None,
         github_pr_number: int | None = None,
         github_repo: str | None = None,
+        linear_issue_id: str | None = None,
+        linear_team_id: str | None = None,
     ) -> Task:
         """Create a new task with collision handling."""
         max_retries = 3
@@ -347,8 +356,9 @@ class LocalTaskManager:
                             estimated_subtasks, expansion_context,
                             validation_criteria, use_external_validator, validation_fail_count,
                             workflow_name, verification, sequence_order,
-                            github_issue_number, github_pr_number, github_repo
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
+                            github_issue_number, github_pr_number, github_repo,
+                            linear_issue_id, linear_team_id
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             task_id,
@@ -376,6 +386,8 @@ class LocalTaskManager:
                             github_issue_number,
                             github_pr_number,
                             github_repo,
+                            linear_issue_id,
+                            linear_team_id,
                         ),
                     )
 
@@ -467,6 +479,8 @@ class LocalTaskManager:
         github_issue_number: int | None | Any = UNSET,
         github_pr_number: int | None | Any = UNSET,
         github_repo: str | None | Any = UNSET,
+        linear_issue_id: str | None | Any = UNSET,
+        linear_team_id: str | None | Any = UNSET,
     ) -> Task:
         """Update task fields."""
         # Validate status transitions from needs_decomposition
@@ -588,6 +602,12 @@ class LocalTaskManager:
         if github_repo is not UNSET:
             updates.append("github_repo = ?")
             params.append(github_repo)
+        if linear_issue_id is not UNSET:
+            updates.append("linear_issue_id = ?")
+            params.append(linear_issue_id)
+        if linear_team_id is not UNSET:
+            updates.append("linear_team_id = ?")
+            params.append(linear_team_id)
 
         if not updates:
             return self.get_task(task_id)

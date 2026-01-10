@@ -1044,6 +1044,14 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         ALTER TABLE projects ADD COLUMN github_repo TEXT;
         """,
     ),
+    (
+        50,
+        "Add Linear integration columns to tasks table",
+        """
+        ALTER TABLE tasks ADD COLUMN linear_issue_id TEXT;
+        ALTER TABLE tasks ADD COLUMN linear_team_id TEXT;
+        """,
+    ),
 ]
 
 
