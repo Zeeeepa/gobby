@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 if TYPE_CHECKING:
     from gobby.compression import TextCompressor
 
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol, LocalDatabase
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager  # noqa: F401
 from gobby.workflows.artifact_actions import capture_artifact, read_artifact
@@ -106,7 +106,7 @@ class ActionExecutor:
 
     def __init__(
         self,
-        db: LocalDatabase,
+        db: DatabaseProtocol,
         session_manager: LocalSessionManager,
         template_engine: TemplateEngine,
         llm_service: Any | None = None,
@@ -887,10 +887,16 @@ class ActionExecutor:
     async def _handle_require_validation_delegation(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
-        """Block direct validation commands and require delegation to Haiku."""
+        """Block direct validation commands and require delegation to Haiku.
+
+        Child agents (those with parent_session_id or agent_depth > 0) are allowed
+        to run validation commands directly to prevent infinite delegation loops.
+        """
         return await require_validation_delegation(
             workflow_state=context.state,
             event_data=context.event_data,
+            session_manager=context.session_manager,
+            session_id=context.session_id,
         )
 
     async def _handle_webhook(self, context: ActionContext, **kwargs: Any) -> dict[str, Any] | None:

@@ -13,6 +13,7 @@ from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
 
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
+    from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.tasks import LocalTaskManager
     from gobby.workflows.definitions import WorkflowState
 
@@ -562,6 +563,8 @@ async def require_active_task(
 async def require_validation_delegation(
     workflow_state: "WorkflowState | None",
     event_data: dict[str, Any] | None = None,
+    session_manager: "LocalSessionManager | None" = None,
+    session_id: str | None = None,
 ) -> dict[str, Any] | None:
     """
     Block direct execution of validation tools (ruff, mypy, pytest) in Bash.
@@ -570,9 +573,15 @@ async def require_validation_delegation(
     Bash commands containing validation tools and blocks them with instructions
     to delegate to a Haiku agent instead.
 
+    Child agents (those with a parent_session_id or agent_depth > 0) are allowed
+    to run validation commands directly, since they were likely spawned specifically
+    for validation. This prevents infinite delegation loops.
+
     Args:
         workflow_state: Workflow state with variables (validation_model, etc.)
         event_data: Hook event data containing tool_name and tool_input
+        session_manager: Optional session manager to check if this is a child agent
+        session_id: Optional session ID to look up the session
 
     Returns:
         Dict with decision="block" if validation command detected,
@@ -587,6 +596,20 @@ async def require_validation_delegation(
     if not validation_model:
         logger.debug("require_validation_delegation: No validation_model set, allowing")
         return None
+
+    # Check if this is a child agent - child agents are allowed to run validation
+    # This prevents infinite delegation loops where a child spawned for validation
+    # would also be blocked from running validation commands
+    if session_manager and session_id:
+        session = session_manager.get(session_id)
+        if session:
+            # Allow if this is a child agent (has parent or agent_depth > 0)
+            if session.parent_session_id or (session.agent_depth and session.agent_depth > 0):
+                logger.debug(
+                    f"require_validation_delegation: Child agent (depth={session.agent_depth}, "
+                    f"parent={session.parent_session_id}), allowing validation commands"
+                )
+                return None
 
     # Get the tool being called
     if not event_data:
