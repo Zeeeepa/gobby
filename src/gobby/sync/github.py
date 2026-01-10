@@ -231,3 +231,55 @@ class GitHubSyncService:
             logger.info(f"Created PR #{pr_number} for task {task_id}")
 
         return result_dict
+
+    def map_gobby_labels_to_github(
+        self,
+        gobby_labels: list[str],
+        prefix: str = "",
+    ) -> list[str]:
+        """Map gobby labels to GitHub label format.
+
+        Args:
+            gobby_labels: List of gobby label strings.
+            prefix: Optional prefix to add to each label.
+
+        Returns:
+            List of GitHub-formatted labels.
+        """
+        if not gobby_labels:
+            return []
+
+        github_labels = []
+        for label in gobby_labels:
+            if prefix:
+                github_labels.append(f"{prefix}{label}")
+            else:
+                github_labels.append(label)
+
+        return github_labels
+
+    def map_github_labels_to_gobby(
+        self,
+        github_labels: list[str],
+        strip_prefix: str = "",
+    ) -> list[str]:
+        """Map GitHub labels to gobby label format.
+
+        Args:
+            github_labels: List of GitHub label strings.
+            strip_prefix: Optional prefix to strip from each label.
+
+        Returns:
+            List of gobby-formatted labels.
+        """
+        if not github_labels:
+            return []
+
+        gobby_labels = []
+        for label in github_labels:
+            if strip_prefix and label.startswith(strip_prefix):
+                gobby_labels.append(label[len(strip_prefix) :])
+            else:
+                gobby_labels.append(label)
+
+        return gobby_labels
