@@ -260,12 +260,12 @@ class TestGetTimeline:
         mock_db = MagicMock()
         mock_artifact_manager = MagicMock()
 
-        # Artifacts should come back oldest first (ascending order)
+        # list_artifacts returns newest first by default, timeline reverses to oldest first
         mock_artifacts = [
             MagicMock(
-                id="art-1",
-                created_at="2024-01-01T00:00:00Z",
-                to_dict=lambda: {"id": "art-1", "created_at": "2024-01-01T00:00:00Z"},
+                id="art-3",
+                created_at="2024-01-01T02:00:00Z",
+                to_dict=lambda: {"id": "art-3", "created_at": "2024-01-01T02:00:00Z"},
             ),
             MagicMock(
                 id="art-2",
@@ -273,9 +273,9 @@ class TestGetTimeline:
                 to_dict=lambda: {"id": "art-2", "created_at": "2024-01-01T01:00:00Z"},
             ),
             MagicMock(
-                id="art-3",
-                created_at="2024-01-01T02:00:00Z",
-                to_dict=lambda: {"id": "art-3", "created_at": "2024-01-01T02:00:00Z"},
+                id="art-1",
+                created_at="2024-01-01T00:00:00Z",
+                to_dict=lambda: {"id": "art-1", "created_at": "2024-01-01T00:00:00Z"},
             ),
         ]
         mock_artifact_manager.list_artifacts.return_value = mock_artifacts
