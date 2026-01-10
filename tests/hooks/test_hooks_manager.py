@@ -529,48 +529,6 @@ class TestHookManagerConfigLoadError:
             manager.shutdown()
 
 
-class TestHookManagerSkillLearner:
-    """Tests for SkillLearner initialization."""
-
-    def test_init_creates_skill_learner_with_llm_service(
-        self, temp_dir: Path, mock_daemon_client: MagicMock
-    ):
-        """Test that SkillLearner is created when LLM service is provided."""
-        mock_llm_service = MagicMock()
-
-        with patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient:
-            MockDaemonClient.return_value = mock_daemon_client
-
-            manager = HookManager(
-                daemon_host="localhost",
-                daemon_port=8765,
-                llm_service=mock_llm_service,
-                log_file=str(temp_dir / "logs" / "hook-manager.log"),
-            )
-
-            assert manager._skill_learner is not None
-
-            manager.shutdown()
-
-    def test_init_no_skill_learner_without_llm_service(
-        self, temp_dir: Path, mock_daemon_client: MagicMock
-    ):
-        """Test that SkillLearner is None when LLM service is not provided."""
-        with patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient:
-            MockDaemonClient.return_value = mock_daemon_client
-
-            manager = HookManager(
-                daemon_host="localhost",
-                daemon_port=8765,
-                llm_service=None,
-                log_file=str(temp_dir / "logs" / "hook-manager.log"),
-            )
-
-            assert manager._skill_learner is None
-
-            manager.shutdown()
-
-
 class TestHookManagerWorkflowBlocking:
     """Tests for workflow blocking behavior."""
 
@@ -1682,7 +1640,6 @@ class TestArtifactCaptureHookProcessing:
     def test_processes_assistant_messages(self, temp_dir: Path):
         """Test that ArtifactCaptureHook processes assistant messages."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
-
         from gobby.storage.artifacts import LocalArtifactManager
         from gobby.storage.database import LocalDatabase
         from gobby.storage.migrations import run_migrations
@@ -1702,7 +1659,6 @@ class TestArtifactCaptureHookProcessing:
     def test_ignores_user_messages(self, temp_dir: Path):
         """Test that ArtifactCaptureHook ignores user messages."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
-
         from gobby.storage.artifacts import LocalArtifactManager
         from gobby.storage.database import LocalDatabase
         from gobby.storage.migrations import run_migrations
@@ -1732,7 +1688,6 @@ class TestArtifactCaptureHookCodeExtraction:
     def test_extracts_code_blocks_from_message(self, temp_dir: Path):
         """Test that code blocks are extracted and stored as artifacts."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
-
         from gobby.storage.artifacts import LocalArtifactManager
         from gobby.storage.database import LocalDatabase
         from gobby.storage.migrations import run_migrations
@@ -1787,7 +1742,6 @@ function greet() {
     def test_code_block_includes_language_metadata(self, temp_dir: Path):
         """Test that extracted code blocks have language metadata."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
-
         from gobby.storage.artifacts import LocalArtifactManager
         from gobby.storage.database import LocalDatabase
         from gobby.storage.migrations import run_migrations
@@ -1835,7 +1789,6 @@ class TestArtifactCaptureHookFileReferences:
     def test_extracts_file_paths_from_message(self, temp_dir: Path):
         """Test that file references are extracted and stored."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
-
         from gobby.storage.artifacts import LocalArtifactManager
         from gobby.storage.database import LocalDatabase
         from gobby.storage.migrations import run_migrations
@@ -1882,7 +1835,6 @@ class TestArtifactCaptureHookSessionLinking:
     def test_artifacts_linked_to_session_id(self, temp_dir: Path):
         """Test that artifacts are linked to the correct session_id."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
-
         from gobby.storage.artifacts import LocalArtifactManager
         from gobby.storage.database import LocalDatabase
         from gobby.storage.migrations import run_migrations
@@ -1943,7 +1895,6 @@ class TestArtifactCaptureHookDuplicateDetection:
     def test_duplicate_content_not_restored(self, temp_dir: Path):
         """Test that duplicate content is not stored again."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
-
         from gobby.storage.artifacts import LocalArtifactManager
         from gobby.storage.database import LocalDatabase
         from gobby.storage.migrations import run_migrations
@@ -1999,7 +1950,6 @@ def duplicate():
     def test_similar_but_different_content_stored(self, temp_dir: Path):
         """Test that similar but different content is stored separately."""
         from gobby.hooks.artifact_capture import ArtifactCaptureHook
-
         from gobby.storage.artifacts import LocalArtifactManager
         from gobby.storage.database import LocalDatabase
         from gobby.storage.migrations import run_migrations

@@ -485,26 +485,6 @@ class TestAdminEndpoints:
         data = response.json()
         assert data["memory"]["count"] == 0
 
-    def test_status_check_with_skill_learner(self, session_storage: LocalSessionManager) -> None:
-        """Test status check includes skill stats."""
-        mock_skill_learner = MagicMock()
-        mock_skill_learner.storage = MagicMock()
-        mock_skill_learner.storage.count_skills.return_value = 5
-
-        server = HTTPServer(
-            port=8765,
-            test_mode=True,
-            session_manager=session_storage,
-            skill_learner=mock_skill_learner,
-        )
-
-        client = TestClient(server.app)
-        response = client.get("/admin/status")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["skills"]["count"] == 5
-
     def test_shutdown_creates_background_task(self, basic_http_server: HTTPServer) -> None:
         """Test shutdown endpoint creates background task."""
         client = TestClient(basic_http_server.app)
