@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.storage.sessions import LocalSessionManager, Session
@@ -46,6 +46,9 @@ class ChildSessionConfig:
 
     git_branch: str | None = None
     """Git branch for the session."""
+
+    lifecycle_variables: dict[str, Any] | None = None
+    """Lifecycle variables for the session."""
 
 
 class ChildSessionManager:

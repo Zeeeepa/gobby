@@ -58,6 +58,15 @@ class AgentConfig:
     task: str | None = None
     """Task ID or 'next' for auto-select."""
 
+    agent: str | None = None
+    """Named agent definition to use."""
+
+    lifecycle_variables: dict[str, Any] | None = None
+    """Lifecycle variables to override parent settings."""
+
+    default_variables: dict[str, Any] | None = None
+    """Default variables for the agent."""
+
     session_context: str = "summary_markdown"
     """Context source: summary_markdown, compact_markdown, session_id:<id>, transcript:<n>, file:<path>."""
 
@@ -192,7 +201,11 @@ class AgentRunner:
         )
         self._run_storage = LocalAgentRunManager(db)
         self._workflow_loader = workflow_loader or WorkflowLoader()
+        from gobby.agents.definitions import AgentDefinitionLoader
+
+        self._agent_loader = AgentDefinitionLoader()
         self._workflow_state_manager = WorkflowStateManager(db)
+
         self.logger = logger
 
         # Thread-safe in-memory tracking of running agents
@@ -279,6 +292,40 @@ class AgentRunner:
                 turns_used=0,
             )
 
+        # Load agent definition if specified
+        if config.agent:
+            agent_def = self._agent_loader.load(config.agent)
+            if agent_def:
+                # Merge definition into config (config takes precedence if explicitly set?)
+                # Actually, definition provides defaults/overrides.
+                # Logic:
+                # 1. Use workflow from definition if not in config
+                # 2. Use model from definition if not in config
+                # 3. Merge lifecycle_variables
+
+                if not config.workflow:
+                    config.workflow = agent_def.workflow
+
+                if not config.model:
+                    config.model = agent_def.model
+
+                # Merge lifecycle variables (definition wins? or config? usually definition sets policy)
+                def_lifecycle = agent_def.lifecycle_variables or {}
+                config_lifecycle = config.lifecycle_variables or {}
+                # Config overrides definition? Or vice versa?
+                # The Plan says "Child session created with lifecycle_variables merged in"
+                # Let's say config overrides definition (standard)
+                config.lifecycle_variables = {**def_lifecycle, **config_lifecycle}
+
+                # Merge default variables
+                def_vars = agent_def.default_variables or {}
+                config_vars = config.default_variables or {}
+                config.default_variables = {**def_vars, **config_vars}
+
+                self.logger.info(f"Loaded agent definition '{config.agent}'")
+            else:
+                self.logger.warning(f"Agent definition '{config.agent}' not found")
+
         # Get effective workflow name (prefers 'workflow' over legacy 'workflow_name')
         effective_workflow = config.get_effective_workflow()
 
@@ -317,6 +364,7 @@ class AgentRunner:
                     workflow_name=effective_workflow,
                     title=config.title,
                     git_branch=config.git_branch,
+                    lifecycle_variables=config.lifecycle_variables,
                 )
             )
         except ValueError as e:

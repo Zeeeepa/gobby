@@ -115,7 +115,9 @@ def create_agents_registry(
     @registry.tool(
         name="start_agent",
         description=(
-            "Spawn a subagent to execute a task. Infers context from current project/session. "
+            "Spawn a subagent to execute a task. Can use a named agent definition "
+            "(e.g. 'validation-runner') or raw parameters. "
+            "Infers context from current project/session. "
             "Use get_agent_result to poll for completion."
         ),
     )
@@ -123,6 +125,7 @@ def create_agents_registry(
         prompt: str,
         workflow: str | None = None,
         task: str | None = None,
+        agent: str | None = None,
         session_context: str = "summary_markdown",
         mode: str = "in_process",
         terminal: str = "auto",
@@ -144,6 +147,7 @@ def create_agents_registry(
             prompt: The task/prompt for the agent.
             workflow: Workflow name or path to execute.
             task: Task ID or 'next' for auto-select.
+            agent: Named agent definition to use.
             session_context: Context source (summary_markdown, compact_markdown,
                            session_id:<id>, transcript:<n>, file:<path>).
             mode: Execution mode (in_process, terminal, embedded, headless).
@@ -257,6 +261,7 @@ def create_agents_registry(
             source=source,
             workflow=workflow,
             task=task,
+            agent=agent,
             session_context=session_context,
             mode=mode,
             terminal=terminal,

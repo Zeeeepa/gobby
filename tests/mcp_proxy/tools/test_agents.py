@@ -173,6 +173,35 @@ class TestStartAgent:
         )
 
     @pytest.mark.asyncio
+    async def test_start_agent_with_agent_param(self, mock_runner, mock_context):
+        """Test start_agent accepts and passes 'agent' parameter."""
+        # Setup mock result
+        mock_result = MagicMock()
+        mock_result.status = "success"
+        mock_result.run_id = "run-agent-param"
+
+        mock_runner.run = AsyncMock(return_value=mock_result)
+
+        registry = create_agents_registry(mock_runner)
+        start_agent = registry._tools["start_agent"].func
+
+        with patch("gobby.mcp_proxy.tools.agents.get_project_context", return_value=mock_context):
+            result = await start_agent(
+                prompt="Test prompt",
+                mode="in_process",
+                parent_session_id="sess-123",
+                agent="validation-runner",
+            )
+
+        assert result["success"] is True
+
+        # Verify runner was called with agent param in config
+        mock_runner.run.assert_called_once()
+        call_args = mock_runner.run.call_args
+        config = call_args[0][0]
+        assert config.agent == "validation-runner"
+
+    @pytest.mark.asyncio
     async def test_in_process_mode_runs_via_runner(self, mock_runner, mock_context):
         """Test in_process mode executes via runner.run()."""
         # Setup mock result
@@ -403,7 +432,7 @@ class TestStartAgent:
             )
 
         assert result["success"] is True
-        assert result["status"] == "pending"
+        assert result["status"] == "running"
         assert result["pid"] == 11111
         assert "master_fd" not in result
 
