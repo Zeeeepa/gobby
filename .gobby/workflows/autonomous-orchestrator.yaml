@@ -61,13 +61,18 @@ steps:
       - Glob
       - TodoWrite
 
-    # Logic implemented by orchestrator tool (gt-e69f5e):
-    # 1. Get ready subtasks under session_task
-    # 2. For each (up to max_concurrent - currently_running):
-    #    - Create worktree with branch task/<task-id>
-    #    - Spawn agent with task context and autonomous-task workflow
-    #    - Track agent in spawned_agents
-    # 3. Transition to monitor
+    # Use orchestrate_ready_tasks tool from gobby-tasks:
+    # - Pass coding_provider and coding_model from workflow variables
+    # - Tool spawns agents with correct provider assignment
+    # - Returns spawned/skipped lists to track in spawned_agents
+    #
+    # Call: gobby-tasks.orchestrate_ready_tasks(
+    #   parent_task_id=session_task,
+    #   coding_provider=variables.coding_provider,
+    #   coding_model=variables.coding_model,
+    #   max_concurrent=variables.max_concurrent,
+    #   terminal=variables.terminal
+    # )
 
     transitions:
       - to: monitor
@@ -134,13 +139,21 @@ steps:
       - Glob
       - TodoWrite
 
-    # Logic (gt-d02ac5):
-    # 1. For each completed agent:
-    #    - Check if task has validation_status
-    #    - If not validated, spawn review agent with review_provider
-    #    - If validated/passed, move to reviewed_agents
-    #    - If validation failed, may need re-work (back to spawn_workers with that task)
-    # 2. Transition to cleanup when reviewed_agents has items
+    # Use spawn_review_agent tool from gobby-tasks:
+    # - Pass review_provider and review_model from workflow variables
+    # - Review agent validates task and uses validate_task() to mark status
+    #
+    # For each completed agent:
+    # 1. Check if task has validation_status
+    # 2. If not validated, spawn review agent:
+    #    gobby-tasks.spawn_review_agent(
+    #      task_id=task_id,
+    #      review_provider=variables.review_provider,
+    #      review_model=variables.review_model,
+    #      terminal=variables.terminal
+    #    )
+    # 3. If validated/passed, move to reviewed_agents
+    # 4. If validation failed, task returns to open for rework
 
     transitions:
       - to: cleanup
