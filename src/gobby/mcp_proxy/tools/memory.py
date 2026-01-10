@@ -85,13 +85,16 @@ def create_memory_registry(
 
     @registry.tool(
         name="recall_memory",
-        description="Recall memories based on query and filters.",
+        description="Recall memories based on query and filters. Supports tag-based filtering.",
     )
     def recall_memory(
         query: str | None = None,
         project_id: str | None = None,
         limit: int = 10,
         min_importance: float | None = None,
+        tags_all: list[str] | None = None,
+        tags_any: list[str] | None = None,
+        tags_none: list[str] | None = None,
     ) -> dict[str, Any]:
         """
         Recall memories.
@@ -101,6 +104,9 @@ def create_memory_registry(
             project_id: Optional project to filter by
             limit: Maximum number of memories to return
             min_importance: Minimum importance threshold
+            tags_all: Memory must have ALL of these tags
+            tags_any: Memory must have at least ONE of these tags
+            tags_none: Memory must have NONE of these tags
         """
         try:
             memories = memory_manager.recall(
@@ -108,6 +114,9 @@ def create_memory_registry(
                 project_id=project_id,
                 limit=limit,
                 min_importance=min_importance,
+                tags_all=tags_all,
+                tags_any=tags_any,
+                tags_none=tags_none,
             )
             return {
                 "success": True,
@@ -149,13 +158,16 @@ def create_memory_registry(
 
     @registry.tool(
         name="list_memories",
-        description="List all memories with optional filtering.",
+        description="List all memories with optional filtering. Supports tag-based filtering.",
     )
     def list_memories(
         project_id: str | None = None,
         memory_type: str | None = None,
         min_importance: float | None = None,
         limit: int = 50,
+        tags_all: list[str] | None = None,
+        tags_any: list[str] | None = None,
+        tags_none: list[str] | None = None,
     ) -> dict[str, Any]:
         """
         List all memories with optional filtering.
@@ -165,6 +177,9 @@ def create_memory_registry(
             memory_type: Filter by memory type (fact, preference, pattern, context)
             min_importance: Minimum importance threshold (0.0-1.0)
             limit: Maximum number of memories to return
+            tags_all: Memory must have ALL of these tags
+            tags_any: Memory must have at least ONE of these tags
+            tags_none: Memory must have NONE of these tags
         """
         try:
             memories = memory_manager.list_memories(
@@ -172,6 +187,9 @@ def create_memory_registry(
                 memory_type=memory_type,
                 min_importance=min_importance,
                 limit=limit,
+                tags_all=tags_all,
+                tags_any=tags_any,
+                tags_none=tags_none,
             )
             return {
                 "success": True,
