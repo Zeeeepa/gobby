@@ -1008,50 +1008,6 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
 ]
 
 
-def _migrate_machine_ids(db: LocalDatabase) -> None:
-    """Migration 46: Normalize all session machine_ids to use Gobby's machine_id.
-
-    This ensures cross-CLI consistency by using the machine_id from
-    ~/.gobby/machine_id instead of CLI-provided values.
-    """
-    from gobby.utils.machine_id import get_machine_id
-
-    gobby_machine_id = get_machine_id()
-    if not gobby_machine_id:
-        logger.warning("Could not get Gobby machine_id, skipping machine_id normalization")
-        return
-
-    # Count sessions with different machine_ids
-    result = db.fetchone(
-        "SELECT COUNT(*) as count FROM sessions WHERE machine_id != ?",
-        (gobby_machine_id,),
-    )
-    count = result["count"] if result else 0
-
-    if count > 0:
-        logger.info(f"Normalizing {count} sessions to machine_id: {gobby_machine_id[:8]}...")
-        db.execute(
-            "UPDATE sessions SET machine_id = ?, updated_at = datetime('now')",
-            (gobby_machine_id,),
-        )
-        logger.info(f"Updated {count} sessions to use Gobby's machine_id")
-    else:
-        logger.debug("All sessions already have correct machine_id")
-
-
-# Data migrations that use Python callables (added after SQL migrations list)
-DATA_MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
-    (
-        46,
-        "Normalize session machine_ids to use Gobby's machine_id",
-        _migrate_machine_ids,
-    ),
-]
-
-# Combine SQL and data migrations
-MIGRATIONS.extend(DATA_MIGRATIONS)
-
-
 def get_current_version(db: LocalDatabase) -> int:
     """Get current schema version from database."""
     try:
