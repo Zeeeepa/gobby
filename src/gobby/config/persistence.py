@@ -73,6 +73,18 @@ class MemoryConfig(BaseModel):
         default=True,
         description="Automatically generate embeddings when memories are created",
     )
+    auto_crossref: bool = Field(
+        default=False,
+        description="Automatically create cross-references between similar memories",
+    )
+    crossref_threshold: float = Field(
+        default=0.3,
+        description="Minimum similarity score to create a cross-reference (0.0-1.0)",
+    )
+    crossref_max_links: int = Field(
+        default=5,
+        description="Maximum number of cross-references to create per memory",
+    )
     access_debounce_seconds: int = Field(
         default=60,
         description="Minimum seconds between access stat updates for the same memory",
@@ -197,12 +209,20 @@ Guidelines:
             raise ValueError("Value must be non-negative")
         return v
 
-    @field_validator("importance_threshold", "decay_rate", "decay_floor")
+    @field_validator("importance_threshold", "decay_rate", "decay_floor", "crossref_threshold")
     @classmethod
     def validate_probability(cls, v: float) -> float:
         """Validate value is between 0.0 and 1.0."""
         if not (0.0 <= v <= 1.0):
             raise ValueError("Value must be between 0.0 and 1.0")
+        return v
+
+    @field_validator("crossref_max_links")
+    @classmethod
+    def validate_positive_links(cls, v: int) -> int:
+        """Validate crossref_max_links is positive."""
+        if v < 1:
+            raise ValueError("crossref_max_links must be at least 1")
         return v
 
     @field_validator("search_backend")
@@ -211,7 +231,9 @@ Guidelines:
         """Validate search_backend is a supported option."""
         valid_backends = {"tfidf", "openai", "hybrid", "text"}
         if v not in valid_backends:
-            raise ValueError(f"Invalid search_backend '{v}'. Must be one of: {sorted(valid_backends)}")
+            raise ValueError(
+                f"Invalid search_backend '{v}'. Must be one of: {sorted(valid_backends)}"
+            )
         return v
 
 
