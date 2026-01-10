@@ -226,3 +226,4 @@ bmad-custom-src/
 .quint/
 .DS_Store
 .scripts/
+.gobby/config.yaml

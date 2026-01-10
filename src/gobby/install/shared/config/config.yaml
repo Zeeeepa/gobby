@@ -42,7 +42,7 @@ gobby-tasks:
   validation:
     enabled: true
     provider: claude
-    model: claude-haiku-4-5
+    model: claude-opus-4-5
     system_prompt: "You are a QA validator. Output ONLY valid JSON. No markdown, no explanation, no code blocks. Just the raw JSON object."
     criteria_system_prompt: "You are a QA engineer writing acceptance criteria. CRITICAL: Only include requirements explicitly stated in the task. Do NOT invent specific values, thresholds, timeouts, or edge cases that are not mentioned. Vague tasks get vague criteria. Use markdown checkboxes."
     # Custom prompt for generating validation criteria. Available placeholders: {title}, {description}
