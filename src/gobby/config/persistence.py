@@ -4,8 +4,6 @@ Persistence configuration module.
 Contains storage and sync-related Pydantic config models:
 - MemoryConfig: Memory system settings (extraction, injection, decay)
 - MemorySyncConfig: Memory file sync settings (stealth mode, debounce)
-- SkillSyncConfig: Skill file sync settings
-- SkillConfig: Skill learning settings
 
 Extracted from app.py using Strangler Fig pattern for code decomposition.
 """
@@ -15,8 +13,6 @@ from pydantic import BaseModel, Field, field_validator
 __all__ = [
     "MemoryConfig",
     "MemorySyncConfig",
-    "SkillSyncConfig",
-    "SkillConfig",
 ]
 
 
@@ -36,7 +32,7 @@ class MemoryConfig(BaseModel):
         description="Maximum number of memories to inject per session",
     )
     importance_threshold: float = Field(
-        default=0.3,
+        default=0.7,
         description="Minimum importance score for memory injection",
     )
     decay_enabled: bool = Field(
@@ -83,36 +79,40 @@ class MemoryConfig(BaseModel):
         default="""You are an expert at extracting long-term knowledge from development session transcripts.
 Respond with ONLY valid JSON - no markdown, no explanations, no code blocks.
 
-Analyze the following session summary and extract any NEW facts, preferences, or patterns worth remembering for future sessions.
+Analyze the following session summary and extract ONLY facts, preferences, or patterns that are:
+1. Worth remembering for future sessions (importance >= 0.7)
+2. NOT already documented in CLAUDE.md or obvious from project structure
 
-CRITICAL QUALITY FILTER:
-- DO NOT extract information already in CLAUDE.md or generic knowledge.
-- DO NOT extract transient session logs ("User ran X command", "Test failed").
-- DO NOT extract internal implementation details like variable names unless critical.
-- DO NOT create duplicate memories. If something is fundamental (e.g., project architecture), assume it's already known.
-- ONLY extract high-value insights:
-    *   Specific bugs/gotchas found ("Feature X fails when Y")
-    *   Explicit User Preferences ("Always use library Z")
-    *   New architectural decisions ("We serve frontend from /api")
+STRICT QUALITY FILTER - Return empty array [] unless the insight is HIGH VALUE:
+- NO transient session context ("Sprint X status", "Task Y was completed")
+- NO generic debugging tips or workflow advice
+- NO implementation details unless they prevent bugs
+- NO information that would be stale in a week
+
+ONLY EXTRACT:
+- Specific gotchas/bugs discovered ("Feature X fails silently when Y")
+- Explicit user preferences stated in conversation ("Always use Z approach")
+- Critical architectural decisions not in docs ("Service A must call B before C")
 
 Session Summary:
 {summary}
 
-Return a JSON array directly (empty array [] if nothing passes the filter):
+Return a JSON array (empty [] is preferred over low-value extractions):
 [
   {{
-    "content": "The specific fact, preference, or pattern to remember",
-    "memory_type": "fact|preference|pattern|context",
-    "importance": 0.5,
-    "tags": ["optional", "tags"]
+    "content": "Specific, actionable insight worth remembering",
+    "memory_type": "fact|preference|pattern",
+    "importance": 0.7,
+    "tags": ["relevant", "tags"]
   }}
 ]
 
-Guidelines:
-- "fact": Permanent truths about the codebase (not temporary states)
-- "pattern": Reusable solutions
-- "preference": Explicit user directives
-- Importance > 0.8 is reserved for CRITICAL information that prevents bugs.""",
+Importance scale (minimum 0.7 to be extracted):
+- 0.7-0.8: Useful preferences or patterns
+- 0.8-0.9: Important architectural facts
+- 0.9-1.0: Critical bug-prevention knowledge
+
+When in doubt, DO NOT extract. Empty arrays are better than noise.""",
         description="Prompt template for session memory extraction (use {summary} placeholder)",
     )
 
@@ -212,71 +212,3 @@ class MemorySyncConfig(BaseModel):
         if v < 0:
             raise ValueError("Value must be non-negative")
         return v
-
-
-class SkillSyncConfig(BaseModel):
-    """Skill synchronization configuration (Git sync)."""
-
-    enabled: bool = Field(
-        default=True,
-        description="Enable skill synchronization to filesystem",
-    )
-    stealth: bool = Field(
-        default=False,
-        description="If True, store in ~/.gobby/ (local only). If False, store in .gobby/ (git committed).",
-    )
-    export_debounce: float = Field(
-        default=5.0,
-        description="Seconds to wait before exporting after a change",
-    )
-
-    @field_validator("export_debounce")
-    @classmethod
-    def validate_positive(cls, v: float) -> float:
-        """Validate value is non-negative."""
-        if v < 0:
-            raise ValueError("Value must be non-negative")
-        return v
-
-
-class SkillConfig(BaseModel):
-    """Skill learning configuration.
-
-    Skills are exported to .claude/skills/<name>/ in Claude Code native format,
-    making them automatically available to Claude Code sessions.
-    """
-
-    enabled: bool = Field(
-        default=True,
-        description="Enable skill learning system",
-    )
-    provider: str = Field(
-        default="claude",
-        description="LLM provider to use for skill extraction",
-    )
-    model: str = Field(
-        default="claude-haiku-4-5",
-        description="Model to use for skill extraction",
-    )
-    prompt: str = Field(
-        default="""You are an expert at extracting reusable developer skills from transcripts.
-Respond with ONLY valid JSON - no markdown, no explanations, no code blocks.
-
-Analyze the following session transcript and extract any reusable skills.
-A "skill" is a repeatable process or pattern that can be used in future sessions.
-
-Transcript:
-{transcript}
-
-Return a JSON array directly:
-[
-  {{
-    "name": "short-kebab-case-name",
-    "description": "Brief description of what the skill does",
-    "trigger_pattern": "regex|pattern|to|match",
-    "instructions": "Markdown instructions on how to perform the skill",
-    "tags": ["tag1", "tag2"]
-  }}
-]""",
-        description="Prompt template for skill extraction (use {transcript} placeholder)",
-    )
