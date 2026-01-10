@@ -232,7 +232,26 @@ class LocalMemoryManager:
         min_importance: float | None = None,
         limit: int = 50,
         offset: int = 0,
+        tags_all: list[str] | None = None,
+        tags_any: list[str] | None = None,
+        tags_none: list[str] | None = None,
     ) -> list[Memory]:
+        """
+        List memories with optional filtering.
+
+        Args:
+            project_id: Filter by project ID (or None for global)
+            memory_type: Filter by memory type
+            min_importance: Minimum importance threshold
+            limit: Maximum number of results
+            offset: Number of results to skip
+            tags_all: Memory must have ALL of these tags
+            tags_any: Memory must have at least ONE of these tags
+            tags_none: Memory must have NONE of these tags
+
+        Returns:
+            List of matching memories
+        """
         query = "SELECT * FROM memories WHERE 1=1"
         params: list[Any] = []
 
@@ -248,11 +267,19 @@ class LocalMemoryManager:
             query += " AND importance >= ?"
             params.append(min_importance)
 
+        # Fetch more results to allow for tag filtering
+        fetch_limit = limit * 3 if (tags_all or tags_any or tags_none) else limit
         query += " ORDER BY importance DESC, created_at DESC LIMIT ? OFFSET ?"
-        params.extend([limit, offset])
+        params.extend([fetch_limit, offset])
 
         rows = self.db.fetchall(query, tuple(params))
-        return [Memory.from_row(row) for row in rows]
+        memories = [Memory.from_row(row) for row in rows]
+
+        # Apply tag filters
+        if tags_all or tags_any or tags_none:
+            memories = self._filter_by_tags(memories, tags_all, tags_any, tags_none)
+
+        return memories[:limit]
 
     def update_access_stats(self, memory_id: str, accessed_at: str) -> None:
         """
@@ -278,7 +305,24 @@ class LocalMemoryManager:
         query_text: str,
         project_id: str | None = None,
         limit: int = 20,
+        tags_all: list[str] | None = None,
+        tags_any: list[str] | None = None,
+        tags_none: list[str] | None = None,
     ) -> list[Memory]:
+        """
+        Search memories by content with optional tag filtering.
+
+        Args:
+            query_text: Text to search for in memory content
+            project_id: Optional project ID to filter by
+            limit: Maximum number of results
+            tags_all: Memory must have ALL of these tags
+            tags_any: Memory must have at least ONE of these tags
+            tags_none: Memory must have NONE of these tags
+
+        Returns:
+            List of matching memories
+        """
         # Escape LIKE wildcards in query_text
         escaped_query = query_text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         sql = "SELECT * FROM memories WHERE content LIKE ? ESCAPE '\\'"
@@ -288,11 +332,61 @@ class LocalMemoryManager:
             sql += " AND (project_id = ? OR project_id IS NULL)"
             params.append(project_id)
 
+        # Fetch more results than needed to allow for tag filtering
+        fetch_limit = limit * 3 if (tags_all or tags_any or tags_none) else limit
         sql += " ORDER BY importance DESC LIMIT ?"
-        params.append(limit)
+        params.append(fetch_limit)
 
         rows = self.db.fetchall(sql, tuple(params))
-        return [Memory.from_row(row) for row in rows]
+        memories = [Memory.from_row(row) for row in rows]
+
+        # Apply tag filters in Python
+        if tags_all or tags_any or tags_none:
+            memories = self._filter_by_tags(memories, tags_all, tags_any, tags_none)
+
+        return memories[:limit]
+
+    def _filter_by_tags(
+        self,
+        memories: list[Memory],
+        tags_all: list[str] | None = None,
+        tags_any: list[str] | None = None,
+        tags_none: list[str] | None = None,
+    ) -> list[Memory]:
+        """
+        Filter memories by tag criteria.
+
+        Args:
+            memories: List of memories to filter
+            tags_all: Memory must have ALL of these tags
+            tags_any: Memory must have at least ONE of these tags
+            tags_none: Memory must have NONE of these tags
+
+        Returns:
+            Filtered list of memories
+        """
+        result = []
+        for memory in memories:
+            memory_tags = set(memory.tags) if memory.tags else set()
+
+            # Check tags_all: memory must have ALL specified tags
+            if tags_all:
+                if not set(tags_all).issubset(memory_tags):
+                    continue
+
+            # Check tags_any: memory must have at least ONE specified tag
+            if tags_any:
+                if not memory_tags.intersection(tags_any):
+                    continue
+
+            # Check tags_none: memory must have NONE of the specified tags
+            if tags_none:
+                if memory_tags.intersection(tags_none):
+                    continue
+
+            result.append(memory)
+
+        return result
 
     # --- Cross-reference methods ---
 

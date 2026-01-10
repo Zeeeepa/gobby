@@ -283,7 +283,9 @@ class MemoryManager:
         Returns:
             List of related Memory objects, sorted by similarity
         """
-        crossrefs = self.storage.get_crossrefs(memory_id, limit=limit, min_similarity=min_similarity)
+        crossrefs = self.storage.get_crossrefs(
+            memory_id, limit=limit, min_similarity=min_similarity
+        )
 
         # Get the actual Memory objects
         memories = []
@@ -305,6 +307,9 @@ class MemoryManager:
         memory_type: str | None = None,
         use_semantic: bool | None = None,
         search_mode: str | None = None,
+        tags_all: list[str] | None = None,
+        tags_any: list[str] | None = None,
+        tags_none: list[str] | None = None,
     ) -> list[Memory]:
         """
         Retrieve memories.
@@ -320,6 +325,9 @@ class MemoryManager:
             memory_type: Filter by memory type
             use_semantic: Use semantic search (deprecated, use search_mode instead)
             search_mode: Search mode - "auto" (default), "tfidf", "openai", "hybrid", "text"
+            tags_all: Memory must have ALL of these tags
+            tags_any: Memory must have at least ONE of these tags
+            tags_none: Memory must have NONE of these tags
         """
         threshold = (
             min_importance if min_importance is not None else self.config.importance_threshold
@@ -333,6 +341,9 @@ class MemoryManager:
                 min_importance=threshold,
                 use_semantic=use_semantic,
                 search_mode=search_mode,
+                tags_all=tags_all,
+                tags_any=tags_any,
+                tags_none=tags_none,
             )
         else:
             # Just get top memories
@@ -341,6 +352,9 @@ class MemoryManager:
                 memory_type=memory_type,
                 min_importance=threshold,
                 limit=limit,
+                tags_all=tags_all,
+                tags_any=tags_any,
+                tags_none=tags_none,
             )
 
         # Update access stats for retrieved memories
@@ -356,6 +370,9 @@ class MemoryManager:
         min_importance: float | None = None,
         use_semantic: bool | None = None,
         search_mode: str | None = None,
+        tags_all: list[str] | None = None,
+        tags_any: list[str] | None = None,
+        tags_none: list[str] | None = None,
     ) -> list[Memory]:
         """
         Perform search using the configured search backend.
@@ -381,7 +398,9 @@ class MemoryManager:
         # Use the search backend
         try:
             self._ensure_search_backend_fitted()
-            results = self.search_backend.search(query, top_k=limit * 2)
+            # Fetch more results to allow for filtering
+            fetch_multiplier = 3 if (tags_all or tags_any or tags_none) else 2
+            results = self.search_backend.search(query, top_k=limit * fetch_multiplier)
 
             # Get the actual Memory objects
             memory_ids = [mid for mid, _ in results]
@@ -395,6 +414,9 @@ class MemoryManager:
                             continue
                     if min_importance and memory.importance < min_importance:
                         continue
+                    # Apply tag filters
+                    if not self._passes_tag_filter(memory, tags_all, tags_any, tags_none):
+                        continue
                     memories.append(memory)
                     if len(memories) >= limit:
                         break
@@ -403,15 +425,42 @@ class MemoryManager:
 
         except Exception as e:
             logger.warning(f"Search backend failed, falling back to text search: {e}")
-            # Fall back to text search
+            # Fall back to text search with tag filtering
             memories = self.storage.search_memories(
                 query_text=query,
                 project_id=project_id,
                 limit=limit * 2,
+                tags_all=tags_all,
+                tags_any=tags_any,
+                tags_none=tags_none,
             )
             if min_importance:
                 memories = [m for m in memories if m.importance >= min_importance]
             return memories[:limit]
+
+    def _passes_tag_filter(
+        self,
+        memory: Memory,
+        tags_all: list[str] | None = None,
+        tags_any: list[str] | None = None,
+        tags_none: list[str] | None = None,
+    ) -> bool:
+        """Check if a memory passes the tag filter criteria."""
+        memory_tags = set(memory.tags) if memory.tags else set()
+
+        # Check tags_all: memory must have ALL specified tags
+        if tags_all and not set(tags_all).issubset(memory_tags):
+            return False
+
+        # Check tags_any: memory must have at least ONE specified tag
+        if tags_any and not memory_tags.intersection(tags_any):
+            return False
+
+        # Check tags_none: memory must have NONE of the specified tags
+        if tags_none and memory_tags.intersection(tags_none):
+            return False
+
+        return True
 
     def recall_as_context(
         self,
@@ -563,14 +612,32 @@ class MemoryManager:
         min_importance: float | None = None,
         limit: int = 50,
         offset: int = 0,
+        tags_all: list[str] | None = None,
+        tags_any: list[str] | None = None,
+        tags_none: list[str] | None = None,
     ) -> list[Memory]:
-        """Passthrough to storage list."""
+        """
+        List memories with optional filtering.
+
+        Args:
+            project_id: Filter by project ID (or None for global)
+            memory_type: Filter by memory type
+            min_importance: Minimum importance threshold
+            limit: Maximum results
+            offset: Offset for pagination
+            tags_all: Memory must have ALL of these tags
+            tags_any: Memory must have at least ONE of these tags
+            tags_none: Memory must have NONE of these tags
+        """
         return self.storage.list_memories(
             project_id=project_id,
             memory_type=memory_type,
             min_importance=min_importance,
             limit=limit,
             offset=offset,
+            tags_all=tags_all,
+            tags_any=tags_any,
+            tags_none=tags_none,
         )
 
     def content_exists(self, content: str, project_id: str | None = None) -> bool:
