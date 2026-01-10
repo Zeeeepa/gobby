@@ -86,6 +86,15 @@ def get_terminal_context() -> dict[str, str | int | None]:
     # Tmux pane (if running in tmux)
     context["tmux_pane"] = os.environ.get("TMUX_PANE")
 
+    # Kitty terminal window ID
+    context["kitty_window_id"] = os.environ.get("KITTY_WINDOW_ID")
+
+    # Alacritty IPC socket path (unique per instance)
+    context["alacritty_socket"] = os.environ.get("ALACRITTY_SOCKET")
+
+    # Generic terminal program identifier (set by many terminals)
+    context["term_program"] = os.environ.get("TERM_PROGRAM")
+
     return context
 
 
