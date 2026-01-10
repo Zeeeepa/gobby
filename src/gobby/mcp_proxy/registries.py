@@ -174,13 +174,13 @@ def setup_internal_registries(
         manager.add_registry(worktrees_registry)
         logger.debug("Worktrees registry initialized")
 
-    # Initialize hub registry (cross-project queries) if config has hub_database_path
-    if _config is not None and hasattr(_config, "hub_database_path"):
+    # Initialize hub registry (cross-project queries) if config has database_path
+    if _config is not None and hasattr(_config, "database_path"):
         from pathlib import Path
 
         from gobby.mcp_proxy.tools.hub import create_hub_registry
 
-        hub_db_path = Path(_config.hub_database_path).expanduser()
+        hub_db_path = Path(_config.database_path).expanduser()
         hub_registry = create_hub_registry(hub_db_path=hub_db_path)
         manager.add_registry(hub_registry)
         logger.debug("Hub registry initialized")

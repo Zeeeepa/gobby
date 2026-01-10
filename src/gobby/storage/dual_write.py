@@ -6,12 +6,57 @@ import logging
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from gobby.storage.database import LocalDatabase
 
 logger = logging.getLogger(__name__)
+
+
+class DualWriteConnection:
+    """
+    Wrapper around two SQLite connections that forwards writes to both.
+
+    Used within DualWriteDatabase.transaction() to ensure writes
+    within the transaction go to both databases. Duck-types as
+    sqlite3.Connection for the execute/executemany methods.
+    """
+
+    def __init__(
+        self,
+        project_conn: sqlite3.Connection,
+        hub_conn: sqlite3.Connection | None,
+        log_hub_error: Any,
+    ):
+        self._project_conn = project_conn
+        self._hub_conn = hub_conn
+        self._log_hub_error = log_hub_error
+
+    def execute(self, sql: str, params: tuple[Any, ...] = ()) -> sqlite3.Cursor:
+        """Execute SQL on both connections."""
+        result = self._project_conn.execute(sql, params)
+        if self._hub_conn is not None:
+            try:
+                self._hub_conn.execute(sql, params)
+            except Exception as e:
+                self._log_hub_error("transaction execute", e)
+        return result
+
+    def executemany(self, sql: str, params_list: list[tuple[Any, ...]]) -> sqlite3.Cursor:
+        """Execute SQL with multiple params on both connections."""
+        result = self._project_conn.executemany(sql, params_list)
+        if self._hub_conn is not None:
+            try:
+                self._hub_conn.executemany(sql, params_list)
+            except Exception as e:
+                self._log_hub_error("transaction executemany", e)
+        return result
+
+    # Forward other common Connection methods to project connection
+    def __getattr__(self, name: str) -> Any:
+        """Forward unknown attributes to project connection."""
+        return getattr(self._project_conn, name)
 
 
 class DualWriteDatabase:
@@ -100,27 +145,37 @@ class DualWriteDatabase:
         """
         Context manager for transactions on both databases.
 
-        Commits/rollbacks are attempted on both, but hub failures don't
-        affect the project transaction result.
+        Yields a DualWriteConnection that forwards execute() calls to both
+        project and hub connections. Commits/rollbacks are attempted on both,
+        but hub failures don't affect the project transaction result.
         """
         # Start both transactions
         project_conn = self.project_db.connection
         project_conn.execute("BEGIN")
 
         hub_conn = self.hub_db.connection
+        hub_in_transaction = False
         try:
             hub_conn.execute("BEGIN")
             hub_in_transaction = True
         except Exception as e:
             self._log_hub_error("transaction begin", e)
-            hub_in_transaction = False
+
+        # Create wrapper that forwards to both connections
+        dual_conn = DualWriteConnection(
+            project_conn,
+            hub_conn if hub_in_transaction else None,
+            self._log_hub_error,
+        )
 
         try:
-            yield project_conn
+            # Cast to Connection for type compatibility - DualWriteConnection
+            # duck-types as Connection via __getattr__
+            yield cast(sqlite3.Connection, dual_conn)
             # Commit project first (primary)
             project_conn.execute("COMMIT")
             # Then hub (secondary)
-            if hub_in_transaction:
+            if hub_in_transaction and hub_conn is not None:
                 try:
                     hub_conn.execute("COMMIT")
                 except Exception as e:
@@ -128,7 +183,7 @@ class DualWriteDatabase:
         except Exception:
             # Rollback both
             project_conn.execute("ROLLBACK")
-            if hub_in_transaction:
+            if hub_in_transaction and hub_conn is not None:
                 try:
                     hub_conn.execute("ROLLBACK")
                 except Exception as e:

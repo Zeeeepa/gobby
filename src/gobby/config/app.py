@@ -200,11 +200,7 @@ class DaemonConfig(BaseModel):
     # Local storage
     database_path: str = Field(
         default="~/.gobby/gobby.db",
-        description="Path to SQLite database file (project-local when in a project)",
-    )
-    hub_database_path: str = Field(
-        default="~/.gobby/gobby-hub.db",
-        description="Path to global hub database for cross-project queries",
+        description="Path to hub database for cross-project queries. Project-local databases are always at .gobby/gobby.db",
     )
 
     # Sub-configs

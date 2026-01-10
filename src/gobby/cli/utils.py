@@ -231,7 +231,7 @@ def init_local_storage() -> None:
 
     cwd = Path.cwd()
     project_json = cwd / ".gobby" / "project.json"
-    hub_db_path = Path(config.hub_database_path).expanduser()
+    hub_db_path = Path(config.database_path).expanduser()
 
     # Ensure hub db directory exists
     hub_db_path.parent.mkdir(parents=True, exist_ok=True)

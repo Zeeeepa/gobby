@@ -22,7 +22,7 @@ def _get_project_db_path() -> Path | None:
 
 def _get_hub_db_path(config: DaemonConfig) -> Path:
     """Get hub database path from config."""
-    return Path(config.hub_database_path).expanduser()
+    return Path(config.database_path).expanduser()
 
 
 def _sync_table_to_hub(
@@ -109,6 +109,7 @@ def _sync_table_from_hub(
 
 # Tables to sync (order matters for foreign keys)
 SYNC_TABLES = [
+    "projects",  # Must be first - other tables reference project_id
     "sessions",
     "session_messages",
     "tasks",
