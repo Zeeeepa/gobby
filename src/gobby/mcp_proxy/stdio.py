@@ -254,10 +254,9 @@ def create_stdio_mcp_server() -> FastMCP:
     # Initialize basic managers (mocked/simplified for this refactor example)
     session_manager = None
     memory_manager = None
-    skill_learner = None
 
     # Setup internal registries using extracted function
-    _ = setup_internal_registries(config, session_manager, memory_manager, skill_learner)
+    _ = setup_internal_registries(config, session_manager, memory_manager)
 
     # Initialize MCP server and daemon proxy
     mcp = FastMCP("gobby")
