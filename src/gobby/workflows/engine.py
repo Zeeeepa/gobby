@@ -238,6 +238,9 @@ class WorkflowEngine:
             # Detect gobby-tasks calls for session-scoped task claiming
             self._detect_task_claim(event, state)
 
+            # Detect Claude Code plan mode entry/exit
+            self._detect_plan_mode(event, state)
+
             self.state_manager.save_state(state)  # Persist updates
 
         return HookResponse(decision="allow")
@@ -547,6 +550,7 @@ class WorkflowEngine:
                         step="",
                     )
                 self._detect_task_claim(event, state)
+                self._detect_plan_mode(event, state)
                 self.state_manager.save_state(state)
 
         # Check for premature stop in active step workflows on STOP events
@@ -1199,3 +1203,28 @@ class WorkflowEngine:
                     logger.info(f"Auto-linked task {task_id} to session {state.session_id}")
                 except Exception as e:
                     logger.warning(f"Failed to auto-link task {task_id}: {e}")
+
+    def _detect_plan_mode(self, event: HookEvent, state: WorkflowState) -> None:
+        """Detect Claude Code plan mode entry/exit and set workflow variable.
+
+        Sets `plan_mode: true` when EnterPlanMode tool is called, allowing
+        file modifications without an active task (planning writes to plan files).
+
+        Clears `plan_mode: false` when ExitPlanMode tool is called, re-enabling
+        task enforcement for actual implementation work.
+
+        Args:
+            event: The AFTER_TOOL hook event
+            state: Current workflow state (modified in place)
+        """
+        if not event.data:
+            return
+
+        tool_name = event.data.get("tool_name", "")
+
+        if tool_name == "EnterPlanMode":
+            state.variables["plan_mode"] = True
+            logger.info(f"Session {state.session_id}: plan_mode=True (entered plan mode)")
+        elif tool_name == "ExitPlanMode":
+            state.variables["plan_mode"] = False
+            logger.info(f"Session {state.session_id}: plan_mode=False (exited plan mode)")
