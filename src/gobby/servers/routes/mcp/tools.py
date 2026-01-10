@@ -453,6 +453,16 @@ def create_mcp_router() -> APIRouter:
             if server._internal_manager and server._internal_manager.is_internal(server_name):
                 registry = server._internal_manager.get_registry(server_name)
                 if registry:
+                    # Check if tool exists before calling - return helpful 404 if not
+                    if not registry.get_schema(tool_name):
+                        available = [t["name"] for t in registry.list_tools()]
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"Tool '{tool_name}' not found on '{server_name}'. "
+                            f"Available: {', '.join(available)}. "
+                            f"Use list_tools(server='{server_name}') to see all tools, "
+                            f"or get_tool_schema(server_name='{server_name}', tool_name='...') for full schema.",
+                        )
                     try:
                         result = await registry.call(tool_name, arguments or {})
                         response_time_ms = (time.perf_counter() - start_time) * 1000
@@ -1027,6 +1037,16 @@ def create_mcp_router() -> APIRouter:
             if server._internal_manager and server._internal_manager.is_internal(server_name):
                 registry = server._internal_manager.get_registry(server_name)
                 if registry:
+                    # Check if tool exists before calling - return helpful 404 if not
+                    if not registry.get_schema(tool_name):
+                        available = [t["name"] for t in registry.list_tools()]
+                        raise HTTPException(
+                            status_code=404,
+                            detail=f"Tool '{tool_name}' not found on '{server_name}'. "
+                            f"Available: {', '.join(available)}. "
+                            f"Use list_tools(server='{server_name}') to see all tools, "
+                            f"or get_tool_schema(server_name='{server_name}', tool_name='...') for full schema.",
+                        )
                     try:
                         result = await registry.call(tool_name, args or {})
                         response_time_ms = (time.perf_counter() - start_time) * 1000
