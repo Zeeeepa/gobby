@@ -3,13 +3,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from gobby.memory.manager import MemoryManager
-from gobby.skills import SkillLearner
 from gobby.workflows.actions import ActionContext, ActionExecutor
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.memory_actions import (
     _content_fingerprint,
     memory_extract,
-    memory_inject,
     memory_recall_relevant,
     memory_save,
     memory_sync_export,
@@ -27,14 +25,11 @@ def mock_mem_services():
         "config": MagicMock(),
         "mcp_manager": AsyncMock(),
         "memory_manager": MagicMock(spec=MemoryManager),
-        "skill_learner": AsyncMock(spec=SkillLearner),
         "memory_sync_manager": AsyncMock(),
     }
     # Manually attach config mocks because spec might strict on attributes not in class __init__
     services["memory_manager"].config = MagicMock()
     services["memory_manager"].config.enabled = True
-    services["skill_learner"].config = MagicMock()
-    services["skill_learner"].config.enabled = True
     return services
 
 
@@ -49,7 +44,6 @@ def mem_action_executor(temp_db, session_manager, mock_mem_services):
         config=mock_mem_services["config"],
         mcp_manager=mock_mem_services["mcp_manager"],
         memory_manager=mock_mem_services["memory_manager"],
-        skill_learner=mock_mem_services["skill_learner"],
         memory_sync_manager=mock_mem_services["memory_sync_manager"],
     )
     # Ensure handlers are registered
@@ -74,75 +68,8 @@ def mem_action_context(temp_db, session_manager, mem_workflow_state, mock_mem_se
         llm_service=mock_mem_services["llm_service"],
         mcp_manager=mock_mem_services["mcp_manager"],
         memory_manager=mock_mem_services["memory_manager"],
-        skill_learner=mock_mem_services["skill_learner"],
         memory_sync_manager=mock_mem_services["memory_sync_manager"],
     )
-
-
-@pytest.mark.asyncio
-async def test_memory_inject_recall(
-    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
-):
-    # Setup session
-    session = session_manager.register(
-        external_id="mem-ext",
-        machine_id="test-machine",
-        source="test-source",
-        project_id=sample_project["id"],
-    )
-    mem_action_context.session_id = session.id
-    mem_action_context.state.session_id = session.id
-
-    # Mock recall
-    mock_mem_services["memory_manager"].config.enabled = True
-    mock_mem_services["memory_manager"].config.injection_limit = 10
-
-    m1 = MagicMock()
-    m1.memory_type = "fact"
-    m1.content = "Memory 1"
-    m2 = MagicMock()
-    m2.memory_type = "learning"
-    m2.content = "Memory 2"
-
-    mock_mem_services["memory_manager"].recall.return_value = [m1, m2]
-
-    # Execute - pass explicit limit to match assertion
-    result = await mem_action_executor.execute(
-        "memory_inject", mem_action_context, min_importance=0.7, limit=10
-    )
-
-    # Verify
-    assert result is not None
-    assert "inject_context" in result
-    assert "Memory 1" in result["inject_context"]
-
-    mock_mem_services["memory_manager"].recall.assert_called_with(
-        project_id=str(sample_project["id"]), min_importance=0.7, limit=10
-    )
-
-
-@pytest.mark.asyncio
-async def test_skills_learn(
-    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
-):
-    session = session_manager.register(
-        external_id="learn-ext",
-        machine_id="test-machine",
-        source="test-source",
-        project_id=sample_project["id"],
-    )
-    mem_action_context.session_id = session.id
-
-    mock_mem_services["skill_learner"].config.enabled = True
-    mock_skill = MagicMock()
-    mock_skill.name = "NewSkill"
-    mock_mem_services["skill_learner"].learn_from_session.return_value = [mock_skill]
-
-    result = await mem_action_executor.execute("skills_learn", mem_action_context)
-
-    assert result is not None
-    assert result["skills_learned"] == 1
-    mock_mem_services["skill_learner"].learn_from_session.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -297,148 +224,6 @@ async def test_memory_extract_disabled(mem_action_executor, mem_action_context, 
 
 
 # --- Selective Injection Tests ---
-
-
-@pytest.mark.asyncio
-async def test_memory_inject_uses_workflow_variable_limit(
-    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
-):
-    """Test memory_inject uses memory_injection_limit workflow variable as default."""
-    session = session_manager.register(
-        external_id="threshold-ext",
-        machine_id="test-machine",
-        source="test-source",
-        project_id=sample_project["id"],
-    )
-    mem_action_context.session_id = session.id
-    mem_action_context.state.session_id = session.id
-
-    # Set workflow variables for memory injection
-    mem_action_context.state.variables = {
-        "memory_injection_enabled": True,
-        "memory_injection_limit": 5,
-    }
-
-    m1 = MagicMock()
-    m1.memory_type = "fact"
-    m1.content = "High importance memory"
-    mock_mem_services["memory_manager"].recall.return_value = [m1]
-
-    # Call without limit kwarg - should use workflow variable default
-    result = await mem_action_executor.execute("memory_inject", mem_action_context)
-
-    assert result is not None
-    assert "inject_context" in result
-    # Verify recall was called with workflow variable limit
-    mock_mem_services["memory_manager"].recall.assert_called_with(
-        project_id=str(sample_project["id"]),
-        min_importance=0.3,  # Default from function
-        limit=5,  # From workflow variable
-    )
-
-
-@pytest.mark.asyncio
-async def test_memory_inject_enforces_limit(
-    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
-):
-    """Test memory_inject respects memory_injection_limit workflow variable."""
-    session = session_manager.register(
-        external_id="limit-ext",
-        machine_id="test-machine",
-        source="test-source",
-        project_id=sample_project["id"],
-    )
-    mem_action_context.session_id = session.id
-    mem_action_context.state.session_id = session.id
-
-    # Set workflow variable for limit
-    mem_action_context.state.variables = {
-        "memory_injection_enabled": True,
-        "memory_injection_limit": 3,
-    }
-
-    # Return 3 memories (limit)
-    memories = [MagicMock(memory_type="fact", content=f"Memory {i}") for i in range(3)]
-    mock_mem_services["memory_manager"].recall.return_value = memories
-
-    result = await mem_action_executor.execute("memory_inject", mem_action_context)
-
-    assert result is not None
-    assert result["count"] == 3
-    # Verify limit was passed to recall from workflow variable
-    call_kwargs = mock_mem_services["memory_manager"].recall.call_args[1]
-    assert call_kwargs["limit"] == 3
-
-
-@pytest.mark.asyncio
-async def test_memory_inject_kwargs_override_workflow_variables(
-    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
-):
-    """Test that kwargs can override workflow variable values."""
-    session = session_manager.register(
-        external_id="override-ext",
-        machine_id="test-machine",
-        source="test-source",
-        project_id=sample_project["id"],
-    )
-    mem_action_context.session_id = session.id
-    mem_action_context.state.session_id = session.id
-
-    # Workflow variable values (would be 10 if not overridden)
-    mem_action_context.state.variables = {
-        "memory_injection_enabled": True,
-        "memory_injection_limit": 10,
-    }
-
-    m1 = MagicMock(memory_type="fact", content="Memory")
-    mock_mem_services["memory_manager"].recall.return_value = [m1]
-
-    # Call with overriding kwargs
-    result = await mem_action_executor.execute(
-        "memory_inject",
-        mem_action_context,
-        min_importance=0.8,
-        limit=2,
-    )
-
-    assert result is not None
-    # Verify kwargs overrode workflow variable
-    mock_mem_services["memory_manager"].recall.assert_called_with(
-        project_id=str(sample_project["id"]),
-        min_importance=0.8,
-        limit=2,
-    )
-
-
-@pytest.mark.asyncio
-async def test_memory_inject_returns_count(
-    mem_action_executor, mem_action_context, session_manager, sample_project, mock_mem_services
-):
-    """Test memory_inject returns count for observability."""
-    session = session_manager.register(
-        external_id="count-ext",
-        machine_id="test-machine",
-        source="test-source",
-        project_id=sample_project["id"],
-    )
-    mem_action_context.session_id = session.id
-    mem_action_context.state.session_id = session.id
-
-    mock_mem_services["memory_manager"].config.enabled = True
-    mock_mem_services["memory_manager"].config.importance_threshold = 0.3
-    mock_mem_services["memory_manager"].config.injection_limit = 10
-
-    memories = [MagicMock(memory_type="fact", content=f"Memory {i}") for i in range(5)]
-    mock_mem_services["memory_manager"].recall.return_value = memories
-
-    result = await mem_action_executor.execute("memory_inject", mem_action_context)
-
-    assert result is not None
-    assert "count" in result
-    assert result["count"] == 5
-
-
-# --- memory_save Action Tests ---
 
 
 @pytest.mark.asyncio
@@ -780,174 +565,6 @@ class TestMemorySyncExportDirect:
 
         assert result == {"exported": {"memories": 7}}
         mock_manager.export_to_files.assert_awaited_once()
-
-
-class TestMemoryInjectDirect:
-    """Direct tests for memory_inject function."""
-
-    @pytest.mark.asyncio
-    async def test_memory_inject_no_memory_manager(self):
-        """Test memory_inject returns None when memory_manager is None."""
-        result = await memory_inject(
-            memory_manager=None,
-            session_manager=MagicMock(),
-            session_id="test-session",
-        )
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_memory_inject_no_project_id_from_session(self):
-        """Test memory_inject returns None when session has no project_id."""
-        mock_memory_manager = MagicMock()
-        mock_session_manager = MagicMock()
-        mock_session = MagicMock()
-        mock_session.project_id = None
-        mock_session_manager.get.return_value = mock_session
-
-        result = await memory_inject(
-            memory_manager=mock_memory_manager,
-            session_manager=mock_session_manager,
-            session_id="test-session",
-            project_id=None,
-        )
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_memory_inject_no_session_found(self):
-        """Test memory_inject returns None when session not found."""
-        mock_memory_manager = MagicMock()
-        mock_session_manager = MagicMock()
-        mock_session_manager.get.return_value = None
-
-        result = await memory_inject(
-            memory_manager=mock_memory_manager,
-            session_manager=mock_session_manager,
-            session_id="test-session",
-            project_id=None,
-        )
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_memory_inject_with_query_semantic_search(self):
-        """Test memory_inject uses semantic search when query provided."""
-        mock_memory_manager = MagicMock()
-        mock_session_manager = MagicMock()
-        mock_session = MagicMock()
-        mock_session.project_id = "proj-123"
-        mock_session_manager.get.return_value = mock_session
-
-        # Create mock memories
-        m1 = MagicMock()
-        m1.memory_type = "fact"
-        m1.content = "Test memory content"
-        mock_memory_manager.recall.return_value = [m1]
-
-        result = await memory_inject(
-            memory_manager=mock_memory_manager,
-            session_manager=mock_session_manager,
-            session_id="test-session",
-            query="search query",
-            project_id="proj-123",
-        )
-
-        assert result is not None
-        assert "inject_context" in result
-        assert result["count"] == 1
-
-        # Verify semantic search was used
-        mock_memory_manager.recall.assert_called_once()
-        call_kwargs = mock_memory_manager.recall.call_args[1]
-        assert call_kwargs["query"] == "search query"
-        assert call_kwargs["use_semantic"] is True
-
-    @pytest.mark.asyncio
-    async def test_memory_inject_no_memories_found(self):
-        """Test memory_inject returns appropriate result when no memories found."""
-        mock_memory_manager = MagicMock()
-        mock_session_manager = MagicMock()
-        mock_memory_manager.recall.return_value = []
-
-        result = await memory_inject(
-            memory_manager=mock_memory_manager,
-            session_manager=mock_session_manager,
-            session_id="test-session",
-            project_id="proj-123",
-        )
-
-        assert result == {"injected": False, "reason": "No memories found", "count": 0}
-
-    @pytest.mark.asyncio
-    async def test_memory_inject_with_min_similarity_filter(self):
-        """Test memory_inject filters by min_similarity when query provided."""
-        mock_memory_manager = MagicMock()
-        mock_session_manager = MagicMock()
-
-        # Create memories with different similarities
-        m1 = MagicMock()
-        m1.memory_type = "fact"
-        m1.content = "High similarity"
-        m1.similarity = 0.9
-
-        m2 = MagicMock()
-        m2.memory_type = "fact"
-        m2.content = "Low similarity"
-        m2.similarity = 0.3
-
-        mock_memory_manager.recall.return_value = [m1, m2]
-
-        result = await memory_inject(
-            memory_manager=mock_memory_manager,
-            session_manager=mock_session_manager,
-            session_id="test-session",
-            query="test query",
-            project_id="proj-123",
-            min_similarity=0.5,
-        )
-
-        assert result is not None
-        # Only m1 should pass the similarity threshold
-        assert result["count"] == 1
-        assert "High similarity" in result["inject_context"]
-
-    @pytest.mark.asyncio
-    async def test_memory_inject_empty_context_after_build(self):
-        """Test memory_inject handles empty context after build_memory_context."""
-        mock_memory_manager = MagicMock()
-        mock_session_manager = MagicMock()
-
-        # Create a memory that results in empty context
-        m1 = MagicMock()
-        m1.memory_type = "unknown_type"
-        m1.content = ""
-        mock_memory_manager.recall.return_value = [m1]
-
-        with patch("gobby.memory.context.build_memory_context", return_value=""):
-            result = await memory_inject(
-                memory_manager=mock_memory_manager,
-                session_manager=mock_session_manager,
-                session_id="test-session",
-                project_id="proj-123",
-            )
-
-        assert result == {"injected": False, "count": 0}
-
-    @pytest.mark.asyncio
-    async def test_memory_inject_exception_handling(self):
-        """Test memory_inject handles exceptions gracefully."""
-        mock_memory_manager = MagicMock()
-        mock_session_manager = MagicMock()
-        mock_memory_manager.recall.side_effect = Exception("Database error")
-
-        result = await memory_inject(
-            memory_manager=mock_memory_manager,
-            session_manager=mock_session_manager,
-            session_id="test-session",
-            project_id="proj-123",
-        )
-
-        assert result is not None
-        assert "error" in result
-        assert "Database error" in result["error"]
 
 
 class TestMemoryExtractDirect:
@@ -1766,87 +1383,6 @@ class TestMemoryRecallRelevantDirect:
 
 
 # Additional edge case tests for improved coverage
-
-
-class TestMemoryInjectEdgeCases:
-    """Additional edge case tests for memory_inject."""
-
-    @pytest.mark.asyncio
-    async def test_memory_inject_without_query_uses_importance_based(self):
-        """Test memory_inject uses importance-based retrieval when no query."""
-        mock_memory_manager = MagicMock()
-        mock_session_manager = MagicMock()
-
-        m1 = MagicMock()
-        m1.memory_type = "fact"
-        m1.content = "Test memory"
-        mock_memory_manager.recall.return_value = [m1]
-
-        result = await memory_inject(
-            memory_manager=mock_memory_manager,
-            session_manager=mock_session_manager,
-            session_id="test-session",
-            query=None,  # No query
-            project_id="proj-123",
-        )
-
-        assert result is not None
-        assert result["count"] == 1
-
-        # Verify importance-based retrieval was used (no query, no use_semantic)
-        call_kwargs = mock_memory_manager.recall.call_args[1]
-        assert "query" not in call_kwargs
-        assert "use_semantic" not in call_kwargs
-
-    @pytest.mark.asyncio
-    async def test_memory_inject_uses_explicit_project_id(self):
-        """Test memory_inject uses explicit project_id over session."""
-        mock_memory_manager = MagicMock()
-        mock_session_manager = MagicMock()
-
-        # Session has different project_id
-        mock_session = MagicMock()
-        mock_session.project_id = "session-proj"
-        mock_session_manager.get.return_value = mock_session
-
-        mock_memory_manager.recall.return_value = []
-
-        await memory_inject(
-            memory_manager=mock_memory_manager,
-            session_manager=mock_session_manager,
-            session_id="test-session",
-            project_id="explicit-proj",  # Explicit project_id
-        )
-
-        # Should use explicit project_id
-        call_kwargs = mock_memory_manager.recall.call_args[1]
-        assert call_kwargs["project_id"] == "explicit-proj"
-
-    @pytest.mark.asyncio
-    async def test_memory_inject_min_similarity_no_memories_pass(self):
-        """Test memory_inject when no memories pass similarity threshold."""
-        mock_memory_manager = MagicMock()
-        mock_session_manager = MagicMock()
-
-        # All memories below similarity threshold
-        m1 = MagicMock()
-        m1.memory_type = "fact"
-        m1.content = "Low similarity memory"
-        m1.similarity = 0.2
-
-        mock_memory_manager.recall.return_value = [m1]
-
-        with patch("gobby.memory.context.build_memory_context", return_value=""):
-            result = await memory_inject(
-                memory_manager=mock_memory_manager,
-                session_manager=mock_session_manager,
-                session_id="test-session",
-                query="test query",
-                project_id="proj-123",
-                min_similarity=0.5,  # Higher than memory's similarity
-            )
-
-        assert result == {"injected": False, "count": 0}
 
 
 class TestMemoryRecallRelevantEdgeCases:

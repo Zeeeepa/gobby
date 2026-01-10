@@ -662,39 +662,11 @@ class WorkflowVariablesConfig(BaseModel):
         default=True,
         description="Enable TDD mode for task expansion (test-implementation pairs)",
     )
-    memory_injection_enabled: bool = Field(
-        default=True,
-        description="Enable memory injection (controls memory_inject action)",
-    )
-    memory_injection_limit: int = Field(
-        default=10,
-        description="Default limit for memory injection per query",
-    )
-    memory_injection_min_importance: float = Field(
-        default=0.3,
-        description="Minimum importance threshold (0.0-1.0) for memory filtering",
-    )
     session_task: str | list[str] | None = Field(
         default=None,
         description="Task(s) to complete before stopping. "
         "Values: None (no enforcement), task ID, list of IDs, or '*' (all ready tasks)",
     )
-
-    @field_validator("memory_injection_limit")
-    @classmethod
-    def validate_memory_limit(cls, v: int) -> int:
-        """Validate memory limit is positive."""
-        if v <= 0:
-            raise ValueError("memory_injection_limit must be positive")
-        return v
-
-    @field_validator("memory_injection_min_importance")
-    @classmethod
-    def validate_memory_importance(cls, v: float) -> float:
-        """Validate importance threshold is between 0 and 1."""
-        if not 0 <= v <= 1:
-            raise ValueError("memory_injection_min_importance must be between 0 and 1")
-        return v
 
 
 def merge_workflow_variables(

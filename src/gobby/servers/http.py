@@ -28,7 +28,6 @@ from gobby.memory.manager import MemoryManager
 
 # Re-export for backward compatibility
 from gobby.servers.models import SessionRegisterRequest  # noqa: F401
-from gobby.skills import SkillLearner
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.sync.tasks import TaskSyncManager
@@ -61,10 +60,8 @@ class HTTPServer:
         message_processor: Any | None = None,
         message_manager: Any | None = None,  # LocalSessionMessageManager
         memory_manager: "MemoryManager | None" = None,
-        skill_learner: "SkillLearner | None" = None,
         llm_service: "LLMService | None" = None,
         memory_sync_manager: Any | None = None,
-        skill_sync_manager: Any | None = None,
         task_expander: Any | None = None,
         task_validator: Any | None = None,
         metrics_manager: Any | None = None,
@@ -90,7 +87,6 @@ class HTTPServer:
             message_processor: SessionMessageProcessor instance
             message_manager: LocalSessionMessageManager instance for retrieval
             memory_manager: MemoryManager instance
-            skill_learner: SkillLearner instance
             llm_service: LLMService instance
         """
         self.port = port
@@ -104,11 +100,9 @@ class HTTPServer:
         self.message_processor = message_processor
         self.message_manager = message_manager
         self.memory_manager = memory_manager
-        self.skill_learner = skill_learner
         self.websocket_server = websocket_server
         self.llm_service = llm_service
         self.memory_sync_manager = memory_sync_manager
-        self.skill_sync_manager = skill_sync_manager
         self.task_expander = task_expander
         self.task_validator = task_validator
         self.metrics_manager = metrics_manager
@@ -153,20 +147,17 @@ class HTTPServer:
             # Get compressor from memory_manager if available
             compressor = getattr(memory_manager, "compressor", None) if memory_manager else None
 
-            # Setup internal registries (gobby-tasks, gobby-memory, gobby-skills, etc.)
+            # Setup internal registries (gobby-tasks, gobby-memory, etc.)
             self._internal_manager = setup_internal_registries(
                 _config=config,
                 _session_manager=None,  # Not needed for internal registries
                 memory_manager=memory_manager,
-                skill_learner=skill_learner,
                 task_manager=task_manager,
                 sync_manager=task_sync_manager,
                 task_expander=self.task_expander,
                 task_validator=self.task_validator,
                 message_manager=message_manager,
-                skill_storage=skill_learner.storage if skill_learner else None,
                 local_session_manager=session_manager,
-                skill_sync_manager=skill_sync_manager,
                 metrics_manager=self.metrics_manager,
                 llm_service=self.llm_service,
                 agent_runner=self.agent_runner,
@@ -220,7 +211,6 @@ class HTTPServer:
                 llm_service=self.llm_service,
                 session_manager=session_manager,
                 memory_manager=memory_manager,
-                skill_learner=skill_learner,
                 config_manager=mcp_db_manager,
                 semantic_search=semantic_search,
                 tool_filter=tool_filter,
@@ -308,7 +298,6 @@ class HTTPServer:
                 "mcp_manager": self.mcp_manager,
                 "message_processor": self.message_processor,
                 "memory_sync_manager": self.memory_sync_manager,
-                "skill_sync_manager": self.skill_sync_manager,
             }
             if self.config:
                 # Pass full log file path from config

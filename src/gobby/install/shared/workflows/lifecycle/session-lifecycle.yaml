@@ -14,12 +14,6 @@ variables:
   auto_decompose: true
   # Enable TDD mode for task expansion (test-implementation pairs)
   tdd_mode: true
-  # Enable memory injection (used by memory_inject action)
-  memory_injection_enabled: true
-  # Default limit for memory injection per query
-  memory_injection_limit: 10
-  # Minimum importance threshold for memory injection (0.0-1.0)
-  memory_injection_min_importance: 0.3
   # NOTE: session_task enforcement has been moved to the autonomous-task step workflow.
   # Use activate_workflow(name="autonomous-task", variables={"session_task": "gt-..."}, session_id=...) for task-scoped sessions.
 

@@ -20,6 +20,7 @@ from gobby.cli.utils import get_install_dir
 from .shared import (
     configure_mcp_server_json,
     install_cli_content,
+    install_gobby_commands_symlink,
     install_shared_content,
     remove_mcp_server_json,
 )
@@ -120,6 +121,14 @@ def install_claude(project_path: Path) -> dict[str, Any]:
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
     result["commands_installed"] = cli.get("commands", [])
     result["plugins_installed"] = shared.get("plugins", [])
+
+    # Create symlink for gobby commands (.gobby/commands/gobby -> .claude/commands/gobby)
+    symlink_result = install_gobby_commands_symlink("claude", claude_path, project_path)
+    if symlink_result.get("symlink_created"):
+        result["commands_installed"].append("gobby/ (symlink)")
+    elif symlink_result.get("symlink_path") and not symlink_result.get("symlink_created"):
+        # Symlink already exists
+        result["commands_installed"].append("gobby/ (symlink, existing)")
 
     # Backup existing settings.json if it exists
     backup_file = None

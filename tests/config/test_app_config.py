@@ -30,8 +30,6 @@ from gobby.config.app import (
     RecommendToolsConfig,
     SessionLifecycleConfig,
     SessionSummaryConfig,
-    SkillConfig,
-    SkillSyncConfig,
     TaskExpansionConfig,
     TaskValidationConfig,
     TitleSynthesisConfig,
@@ -758,17 +756,6 @@ class TestMemoryConfig:
             MemoryConfig(decay_rate=-0.1)
 
 
-class TestSkillConfig:
-    """Tests for SkillConfig."""
-
-    def test_default_values(self):
-        """Test default skill config."""
-        config = SkillConfig()
-        assert config.enabled is True
-        assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
-
-
 # ==============================================================================
 # Additional tests for config module decomposition coverage (gt-dfa0d7)
 # These tests verify all config classes can be instantiated correctly
@@ -965,22 +952,6 @@ class TestMemorySyncConfig:
             MemorySyncConfig(export_debounce=-1.0)
 
 
-class TestSkillSyncConfig:
-    """Tests for SkillSyncConfig."""
-
-    def test_default_values(self):
-        """Test default skill sync config."""
-        config = SkillSyncConfig()
-        assert config.enabled is True
-        assert config.stealth is False
-        assert config.export_debounce == 5.0
-
-    def test_debounce_validation(self):
-        """Test export debounce validation."""
-        with pytest.raises(ValidationError):
-            SkillSyncConfig(export_debounce=-1.0)
-
-
 class TestMetricsConfig:
     """Tests for MetricsConfig."""
 
@@ -1047,11 +1018,9 @@ class TestDaemonConfigComposition:
         assert isinstance(config.workflow, WorkflowConfig)
         assert isinstance(config.metrics, MetricsConfig)
 
-        # Memory & Skills
+        # Memory
         assert isinstance(config.memory, MemoryConfig)
         assert isinstance(config.memory_sync, MemorySyncConfig)
-        assert isinstance(config.skill_sync, SkillSyncConfig)
-        assert isinstance(config.skills, SkillConfig)
 
     def test_getters_return_correct_configs(self):
         """Test all getter methods return correct configs."""
@@ -1064,8 +1033,6 @@ class TestDaemonConfigComposition:
         assert config.get_mcp_client_proxy_config() is config.mcp_client_proxy
         assert config.get_memory_config() is config.memory
         assert config.get_memory_sync_config() is config.memory_sync
-        assert config.get_skill_sync_config() is config.skill_sync
-        assert config.get_skills_config() is config.skills
         assert config.get_gobby_tasks_config() is config.gobby_tasks
         assert config.get_metrics_config() is config.metrics
 
@@ -1124,11 +1091,9 @@ class TestAllConfigClassesInstantiate:
             MetricsConfig(),
             MemoryConfig(),
             MemorySyncConfig(),
-            SkillSyncConfig(),
-            SkillConfig(),
             DaemonConfig(),
         ]
 
-        assert len(configs) == 31
+        assert len(configs) == 29
         for config in configs:
             assert config is not None

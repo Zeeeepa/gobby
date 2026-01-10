@@ -16,7 +16,6 @@ from .mcp_proxy import mcp_proxy
 from .memory import memory
 from .merge import merge
 from .sessions import sessions
-from .skills import skills
 from .tasks import tasks
 from .workflows import workflows
 from .worktrees import worktrees
@@ -47,7 +46,6 @@ cli.add_command(install)
 cli.add_command(uninstall)
 cli.add_command(tasks)
 cli.add_command(memory)
-cli.add_command(skills)
 cli.add_command(sessions)
 cli.add_command(agents)
 cli.add_command(worktrees)

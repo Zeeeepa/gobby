@@ -677,8 +677,6 @@ class TestWorkflowVariablesConfigDefaults:
         assert config.require_task_before_edit is False
         assert config.auto_decompose is True
         assert config.tdd_mode is True
-        assert config.memory_injection_enabled is True
-        assert config.memory_injection_limit == 10
         assert config.session_task is None
 
     def test_all_fields_have_correct_types(self) -> None:
@@ -689,8 +687,6 @@ class TestWorkflowVariablesConfigDefaults:
         assert isinstance(config.require_task_before_edit, bool)
         assert isinstance(config.auto_decompose, bool)
         assert isinstance(config.tdd_mode, bool)
-        assert isinstance(config.memory_injection_enabled, bool)
-        assert isinstance(config.memory_injection_limit, int)
         # session_task can be None, str, or list
 
 
@@ -705,19 +701,11 @@ class TestWorkflowVariablesConfigCustom:
             require_task_before_edit=True,
             auto_decompose=False,
             tdd_mode=False,
-            memory_injection_enabled=False,
         )
         assert config.require_task_before_edit is True
         assert config.auto_decompose is False
         assert config.tdd_mode is False
-        assert config.memory_injection_enabled is False
 
-    def test_custom_memory_injection_limit(self) -> None:
-        """Test setting custom memory_injection_limit."""
-        from gobby.config.tasks import WorkflowVariablesConfig
-
-        config = WorkflowVariablesConfig(memory_injection_limit=25)
-        assert config.memory_injection_limit == 25
 
     def test_session_task_string_value(self) -> None:
         """Test session_task with single task ID string."""
@@ -744,27 +732,6 @@ class TestWorkflowVariablesConfigCustom:
 class TestWorkflowVariablesConfigValidation:
     """Test WorkflowVariablesConfig validation."""
 
-    def test_memory_injection_limit_must_be_positive(self) -> None:
-        """Test that memory_injection_limit must be positive."""
-        from gobby.config.tasks import WorkflowVariablesConfig
-
-        with pytest.raises(ValidationError) as exc_info:
-            WorkflowVariablesConfig(memory_injection_limit=0)
-        assert "positive" in str(exc_info.value).lower()
-
-    def test_memory_injection_limit_negative_rejected(self) -> None:
-        """Test that negative memory_injection_limit is rejected."""
-        from gobby.config.tasks import WorkflowVariablesConfig
-
-        with pytest.raises(ValidationError) as exc_info:
-            WorkflowVariablesConfig(memory_injection_limit=-5)
-        assert "positive" in str(exc_info.value).lower()
-
-
-# =============================================================================
-# WorkflowVariablesConfig Merge Logic Tests
-# =============================================================================
-
 
 class TestWorkflowVariablesMergeWithDB:
     """Tests for merging YAML defaults with DB session overrides.
@@ -782,8 +749,6 @@ class TestWorkflowVariablesMergeWithDB:
             "require_task_before_edit": False,
             "auto_decompose": True,
             "tdd_mode": True,
-            "memory_injection_enabled": True,
-            "memory_injection_limit": 10,
             "session_task": None,
         }
 
@@ -800,7 +765,6 @@ class TestWorkflowVariablesMergeWithDB:
         config = WorkflowVariablesConfig(**effective)
         assert config.auto_decompose is True
         assert config.tdd_mode is True
-        assert config.memory_injection_limit == 10
 
     def test_partial_db_overrides_merge_correctly(self) -> None:
         """Partial DB overrides merge with YAML defaults."""
@@ -810,8 +774,6 @@ class TestWorkflowVariablesMergeWithDB:
             "require_task_before_edit": False,
             "auto_decompose": True,
             "tdd_mode": True,
-            "memory_injection_enabled": True,
-            "memory_injection_limit": 10,
             "session_task": None,
         }
 
@@ -828,7 +790,6 @@ class TestWorkflowVariablesMergeWithDB:
         assert effective["auto_decompose"] is False  # From DB
         assert effective["session_task"] == "gt-xyz789"  # From DB
         assert effective["tdd_mode"] is True  # From YAML (not overridden)
-        assert effective["memory_injection_limit"] == 10  # From YAML
 
         # Validate through config class
         config = WorkflowVariablesConfig(**effective)
@@ -844,8 +805,6 @@ class TestWorkflowVariablesMergeWithDB:
             "require_task_before_edit": False,
             "auto_decompose": True,
             "tdd_mode": True,
-            "memory_injection_enabled": True,
-            "memory_injection_limit": 10,
             "session_task": None,
         }
 
@@ -854,8 +813,6 @@ class TestWorkflowVariablesMergeWithDB:
             "require_task_before_edit": True,
             "auto_decompose": False,
             "tdd_mode": False,
-            "memory_injection_enabled": False,
-            "memory_injection_limit": 5,
             "session_task": ["gt-aaa", "gt-bbb"],
         }
 
@@ -869,8 +826,6 @@ class TestWorkflowVariablesMergeWithDB:
         assert config.require_task_before_edit is True
         assert config.auto_decompose is False
         assert config.tdd_mode is False
-        assert config.memory_injection_enabled is False
-        assert config.memory_injection_limit == 5
         assert config.session_task == ["gt-aaa", "gt-bbb"]
 
     def test_invalid_db_values_rejected_wrong_type_bool(self) -> None:
@@ -886,44 +841,6 @@ class TestWorkflowVariablesMergeWithDB:
 
         # Pydantic should coerce or reject
         # "not_a_bool" as string is truthy but shouldn't be valid
-        with pytest.raises(ValidationError):
-            WorkflowVariablesConfig(**effective)
-
-    def test_invalid_db_values_rejected_memory_limit_zero(self) -> None:
-        """Invalid memory_injection_limit=0 from DB is rejected."""
-        from gobby.config.tasks import WorkflowVariablesConfig
-
-        yaml_defaults = {"memory_injection_limit": 10}
-        db_overrides = {"memory_injection_limit": 0}
-
-        effective = {**yaml_defaults, **db_overrides}
-
-        with pytest.raises(ValidationError) as exc_info:
-            WorkflowVariablesConfig(**effective)
-        assert "positive" in str(exc_info.value).lower()
-
-    def test_invalid_db_values_rejected_memory_limit_negative(self) -> None:
-        """Invalid negative memory_injection_limit from DB is rejected."""
-        from gobby.config.tasks import WorkflowVariablesConfig
-
-        yaml_defaults = {"memory_injection_limit": 10}
-        db_overrides = {"memory_injection_limit": -100}
-
-        effective = {**yaml_defaults, **db_overrides}
-
-        with pytest.raises(ValidationError) as exc_info:
-            WorkflowVariablesConfig(**effective)
-        assert "positive" in str(exc_info.value).lower()
-
-    def test_invalid_db_values_rejected_wrong_type_int(self) -> None:
-        """Invalid type for memory_injection_limit from DB is rejected."""
-        from gobby.config.tasks import WorkflowVariablesConfig
-
-        yaml_defaults = {"memory_injection_limit": 10}
-        db_overrides = {"memory_injection_limit": "not_an_int"}
-
-        effective = {**yaml_defaults, **db_overrides}
-
         with pytest.raises(ValidationError):
             WorkflowVariablesConfig(**effective)
 
@@ -968,14 +885,12 @@ class TestMergeWorkflowVariablesFunction:
         yaml_defaults = {
             "auto_decompose": True,
             "tdd_mode": True,
-            "memory_injection_limit": 10,
         }
 
         effective = merge_workflow_variables(yaml_defaults, None)
 
         assert effective["auto_decompose"] is True
         assert effective["tdd_mode"] is True
-        assert effective["memory_injection_limit"] == 10
 
     def test_merge_with_empty_overrides(self) -> None:
         """When db_overrides is empty dict, returns YAML defaults."""
@@ -993,7 +908,6 @@ class TestMergeWorkflowVariablesFunction:
         yaml_defaults = {
             "auto_decompose": True,
             "tdd_mode": True,
-            "memory_injection_limit": 10,
         }
         db_overrides = {"auto_decompose": False}
 
@@ -1001,7 +915,6 @@ class TestMergeWorkflowVariablesFunction:
 
         assert effective["auto_decompose"] is False  # From DB
         assert effective["tdd_mode"] is True  # From YAML
-        assert effective["memory_injection_limit"] == 10  # From YAML
 
     def test_merge_full_overrides(self) -> None:
         """Full DB overrides take precedence."""
@@ -1011,16 +924,12 @@ class TestMergeWorkflowVariablesFunction:
             "require_task_before_edit": False,
             "auto_decompose": True,
             "tdd_mode": True,
-            "memory_injection_enabled": True,
-            "memory_injection_limit": 10,
             "session_task": None,
         }
         db_overrides = {
             "require_task_before_edit": True,
             "auto_decompose": False,
             "tdd_mode": False,
-            "memory_injection_enabled": False,
-            "memory_injection_limit": 5,
             "session_task": "gt-xyz",
         }
 
@@ -1030,8 +939,6 @@ class TestMergeWorkflowVariablesFunction:
         assert effective["require_task_before_edit"] is True
         assert effective["auto_decompose"] is False
         assert effective["tdd_mode"] is False
-        assert effective["memory_injection_enabled"] is False
-        assert effective["memory_injection_limit"] == 5
         assert effective["session_task"] == "gt-xyz"
 
     def test_validation_enabled_by_default(self) -> None:
@@ -1043,24 +950,6 @@ class TestMergeWorkflowVariablesFunction:
 
         # Should have all fields from model defaults
         assert "require_task_before_edit" in effective
-        assert "memory_injection_limit" in effective
-
-    def test_validation_rejects_invalid_values(self) -> None:
-        """Invalid values are rejected when validation is enabled."""
-        from gobby.config.tasks import merge_workflow_variables
-
-        with pytest.raises(ValidationError):
-            merge_workflow_variables({"memory_injection_limit": 0})
-
-    def test_validation_disabled_skips_validation(self) -> None:
-        """When validate=False, validation is skipped."""
-        from gobby.config.tasks import merge_workflow_variables
-
-        # Invalid value but with validation disabled
-        effective = merge_workflow_variables({"memory_injection_limit": 0}, None, validate=False)
-
-        # Should pass through without validation
-        assert effective["memory_injection_limit"] == 0
 
     def test_returns_dict_for_action_access(self) -> None:
         """Returns dict that actions can access like effective['key']."""
@@ -1106,7 +995,6 @@ class TestBackwardCompatibilityLayer:
         old_config_values = {
             "require_task_before_edit": True,  # From WorkflowConfig
             "tdd_mode": False,  # From TaskExpansionConfig
-            "memory_injection_limit": 5,  # From MemoryConfig
         }
 
         # New workflow YAML has empty variables (not specified)
@@ -1120,7 +1008,6 @@ class TestBackwardCompatibilityLayer:
         # Old config values should be used
         assert effective["require_task_before_edit"] is True
         assert effective["tdd_mode"] is False
-        assert effective["memory_injection_limit"] == 5
 
     def test_new_location_takes_precedence_over_old(self) -> None:
         """New workflow YAML location takes precedence over old config.yaml."""
@@ -1130,7 +1017,6 @@ class TestBackwardCompatibilityLayer:
         old_config_values = {
             "require_task_before_edit": True,
             "tdd_mode": False,
-            "memory_injection_limit": 5,
         }
 
         # New workflow YAML variables (takes precedence)
@@ -1147,7 +1033,6 @@ class TestBackwardCompatibilityLayer:
         assert effective["require_task_before_edit"] is False  # From YAML
         assert effective["tdd_mode"] is True  # From YAML
         # Old config value used where YAML doesn't override
-        assert effective["memory_injection_limit"] == 5  # From old config
 
     def test_both_locations_missing_uses_hardcoded_defaults(self) -> None:
         """When both old config and new YAML are missing, use hardcoded defaults."""
@@ -1167,8 +1052,6 @@ class TestBackwardCompatibilityLayer:
         assert effective["require_task_before_edit"] is False
         assert effective["auto_decompose"] is True
         assert effective["tdd_mode"] is True
-        assert effective["memory_injection_enabled"] is True
-        assert effective["memory_injection_limit"] == 10
         assert effective["session_task"] is None
 
     def test_deprecation_warning_logged_for_old_location(self) -> None:

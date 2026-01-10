@@ -17,13 +17,10 @@ if TYPE_CHECKING:
     from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
     from gobby.memory.manager import MemoryManager
     from gobby.sessions.manager import SessionManager
-    from gobby.skills import SkillLearner
     from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
-    from gobby.storage.skills import LocalSkillManager
     from gobby.storage.tasks import LocalTaskManager
     from gobby.storage.worktrees import LocalWorktreeManager
-    from gobby.sync.skills import SkillSyncManager
     from gobby.sync.tasks import TaskSyncManager
     from gobby.tasks.expansion import TaskExpander
     from gobby.tasks.validation import TaskValidator
@@ -36,15 +33,12 @@ def setup_internal_registries(
     _config: DaemonConfig | None,
     _session_manager: SessionManager | None = None,
     memory_manager: MemoryManager | None = None,
-    skill_learner: SkillLearner | None = None,
     task_manager: LocalTaskManager | None = None,
     sync_manager: TaskSyncManager | None = None,
     task_expander: TaskExpander | None = None,
     task_validator: TaskValidator | None = None,
     message_manager: LocalSessionMessageManager | None = None,
-    skill_storage: LocalSkillManager | None = None,
     local_session_manager: LocalSessionManager | None = None,
-    skill_sync_manager: SkillSyncManager | None = None,
     metrics_manager: ToolMetricsManager | None = None,
     llm_service: LLMService | None = None,
     agent_runner: AgentRunner | None = None,
@@ -55,21 +49,18 @@ def setup_internal_registries(
     compressor: TextCompressor | None = None,
 ) -> InternalRegistryManager:
     """
-    Setup internal MCP registries (tasks, messages, memory, skills, metrics, agents, worktrees).
+    Setup internal MCP registries (tasks, messages, memory, metrics, agents, worktrees).
 
     Args:
         _config: Daemon configuration (reserved for future use)
         _session_manager: Session manager (reserved for future use)
         memory_manager: Memory manager for memory operations
-        skill_learner: Skill learner for skill extraction
         task_manager: Task storage manager
         sync_manager: Task sync manager for git sync
         task_expander: Task expander for AI expansion
         task_validator: Task validator for validation
         message_manager: Message storage manager
-        skill_storage: Skill storage manager
         local_session_manager: Local session manager for session CRUD
-        skill_sync_manager: Skill sync manager for skill export
         metrics_manager: Tool metrics manager for metrics operations
         llm_service: LLM service for AI-powered operations
         agent_runner: Agent runner for spawning subagents
@@ -135,19 +126,6 @@ def setup_internal_registries(
         )
         manager.add_registry(memory_registry)
         logger.debug("Memory registry initialized")
-
-    # Initialize skills registry if skill_storage is available
-    if skill_storage is not None:
-        from gobby.mcp_proxy.tools.skills import create_skills_registry
-
-        skills_registry = create_skills_registry(
-            storage=skill_storage,
-            learner=skill_learner,
-            session_manager=local_session_manager,
-            sync_manager=skill_sync_manager,
-        )
-        manager.add_registry(skills_registry)
-        logger.debug("Skills registry initialized")
 
     # Initialize workflows registry (always available)
     from gobby.mcp_proxy.tools.workflows import create_workflows_registry

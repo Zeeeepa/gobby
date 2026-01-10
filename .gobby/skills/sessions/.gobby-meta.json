@@ -1,5 +1,0 @@
-{
-  "id": "sessions",
-  "trigger_pattern": "/sessions",
-  "tags": ["gobby", "sessions", "context", "mcp"]
-}

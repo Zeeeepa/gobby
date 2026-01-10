@@ -18,18 +18,15 @@ from gobby.servers.http import HTTPServer
 from gobby.servers.websocket import WebSocketConfig, WebSocketServer
 from gobby.sessions.lifecycle import SessionLifecycleManager
 from gobby.sessions.processor import SessionMessageProcessor
-from gobby.skills import SkillLearner
 from gobby.storage.database import LocalDatabase
 from gobby.storage.mcp import LocalMCPManager
 from gobby.storage.migrations import run_migrations
 from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.sessions import LocalSessionManager
-from gobby.storage.skills import LocalSkillManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.sync.memories import MemorySyncManager
-from gobby.sync.skills import SkillSyncManager
 from gobby.sync.tasks import TaskSyncManager
 from gobby.tasks.expansion import TaskExpander
 from gobby.tasks.validation import TaskValidator
@@ -59,12 +56,11 @@ class GobbyRunner:
         self.database = LocalDatabase()
         run_migrations(self.database)
         self.session_manager = LocalSessionManager(self.database)
-        self.skill_storage = LocalSkillManager(self.database)
         self.message_manager = LocalSessionMessageManager(self.database)
         self.task_manager = LocalTaskManager(self.database)
         self.session_task_manager = SessionTaskManager(self.database)
 
-        # Initialize LLM Service (needed for SkillLearner)
+        # Initialize LLM Service
         self.llm_service: LLMService | None = None  # Added type hint
         try:
             self.llm_service = create_llm_service(self.config)
@@ -83,7 +79,7 @@ class GobbyRunner:
             except Exception as e:
                 logger.debug(f"TextCompressor not initialized: {e}")
 
-        # Initialize Memory & Skills
+        # Initialize Memory Manager
         self.memory_manager: MemoryManager | None = None  # Added type hint
         if hasattr(self.config, "memory"):
             try:
@@ -94,18 +90,6 @@ class GobbyRunner:
                 )
             except Exception as e:
                 logger.error(f"Failed to initialize MemoryManager: {e}")
-
-        self.skill_learner: SkillLearner | None = None  # Added type hint
-        if hasattr(self.config, "skills") and self.llm_service:
-            try:
-                self.skill_learner = SkillLearner(
-                    storage=self.skill_storage,
-                    message_manager=self.message_manager,
-                    llm_service=self.llm_service,
-                    config=self.config.skills,
-                )
-            except Exception as e:
-                logger.error(f"Failed to initialize SkillLearner: {e}")
 
         # MCP Proxy Manager - Initialize early for tool access
         # LocalMCPManager handles server/tool storage in SQLite
@@ -144,20 +128,6 @@ class GobbyRunner:
                     logger.debug("MemorySyncManager initialized and listener attached")
                 except Exception as e:
                     logger.error(f"Failed to initialize MemorySyncManager: {e}")
-
-        # Initialize Skill Sync Manager & Wire up listeners
-        self.skill_sync_manager: SkillSyncManager | None = None
-        if hasattr(self.config, "skill_sync") and self.config.skill_sync.enabled:
-            try:
-                self.skill_sync_manager = SkillSyncManager(
-                    skill_manager=self.skill_storage,
-                    config=self.config.skill_sync,
-                )
-                # Wire up listener to trigger export on changes
-                self.skill_storage.add_change_listener(self.skill_sync_manager.trigger_export)
-                logger.debug("SkillSyncManager initialized and listener attached")
-            except Exception as e:
-                logger.error(f"Failed to initialize SkillSyncManager: {e}")
 
         # Session Message Processor (Phase 6)
         # Created here and passed to HTTPServer which injects it into HookManager
@@ -238,11 +208,9 @@ class GobbyRunner:
             task_sync_manager=self.task_sync_manager,
             message_manager=self.message_manager,
             memory_manager=self.memory_manager,
-            skill_learner=self.skill_learner,
             llm_service=self.llm_service,
             message_processor=self.message_processor,
             memory_sync_manager=self.memory_sync_manager,
-            skill_sync_manager=self.skill_sync_manager,
             task_expander=self.task_expander,
             task_validator=self.task_validator,
             metrics_manager=self.metrics_manager,

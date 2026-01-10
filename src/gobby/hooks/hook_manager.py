@@ -46,14 +46,12 @@ from gobby.memory.manager import MemoryManager
 from gobby.sessions.manager import SessionManager
 from gobby.sessions.summary import SummaryFileGenerator
 from gobby.sessions.transcripts.claude import ClaudeTranscriptParser
-from gobby.skills import SkillLearner
 from gobby.storage.agents import LocalAgentRunManager
 from gobby.storage.database import LocalDatabase
 from gobby.storage.memories import LocalMemoryManager
 from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.sessions import LocalSessionManager
-from gobby.storage.skills import LocalSkillManager
 from gobby.storage.tasks import LocalTaskManager
 from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.utils.daemon_client import DaemonClient
@@ -98,7 +96,6 @@ class HookManager:
         mcp_manager: Any | None = None,
         message_processor: Any | None = None,
         memory_sync_manager: Any | None = None,
-        skill_sync_manager: Any | None = None,
     ):
         """
         Initialize HookManager with subsystems.
@@ -115,7 +112,6 @@ class HookManager:
             mcp_manager: Optional MCPClientManager instance
             message_processor: SessionMessageProcessor instance
             memory_sync_manager: Optional MemorySyncManager instance
-            skill_sync_manager: Optional SkillSyncManager instance
         """
         self.daemon_host = daemon_host
         self.daemon_port = daemon_port
@@ -127,7 +123,6 @@ class HookManager:
         self.mcp_manager = mcp_manager
         self._message_processor = message_processor
         self.memory_sync_manager = memory_sync_manager
-        self.skill_sync_manager = skill_sync_manager
 
         # Capture event loop for thread-safe broadcasting (if running in async context)
         self._loop: asyncio.AbstractEventLoop | None
@@ -178,9 +173,8 @@ class HookManager:
         self._session_storage = LocalSessionManager(self._database)
         self._session_task_manager = SessionTaskManager(self._database)
 
-        # Initialize Memory & Skills (Phase 4)
+        # Initialize Memory storage
         self._memory_storage = LocalMemoryManager(self._database)
-        self._skill_storage = LocalSkillManager(self._database)
         self._message_manager = LocalSessionMessageManager(self._database)
         self._task_manager = LocalTaskManager(self._database)
 
@@ -208,32 +202,13 @@ class HookManager:
         memory_config = (
             self._config.memory if self._config and hasattr(self._config, "memory") else None
         )
-        skill_config = (
-            self._config.skills if self._config and hasattr(self._config, "skills") else None
-        )
 
         if not memory_config:
             from gobby.config.app import MemoryConfig
 
             memory_config = MemoryConfig()
-        if not skill_config:
-            from gobby.config.app import SkillConfig
-
-            skill_config = SkillConfig()
 
         self._memory_manager = MemoryManager(self._database, memory_config)
-
-        # SkillLearner needs LLM service. If not provided, it might fail or we skip.
-        # But llm_service is passed to HookManager.
-        if self._llm_service:
-            self._skill_learner: SkillLearner | None = SkillLearner(
-                storage=self._skill_storage,
-                message_manager=self._message_manager,
-                llm_service=self._llm_service,
-                config=skill_config,
-            )
-        else:
-            self._skill_learner = None
 
         # Initialize Workflow Engine (Phase 0-2 + 3 Integration)
         from gobby.workflows.actions import ActionExecutor
@@ -269,9 +244,7 @@ class HookManager:
             config=self._config,
             mcp_manager=self.mcp_manager,
             memory_manager=self._memory_manager,
-            skill_learner=self._skill_learner,
             memory_sync_manager=self.memory_sync_manager,
-            skill_sync_manager=self.skill_sync_manager,
             task_manager=self._task_manager,
             session_task_manager=self._session_task_manager,
             stop_registry=self._stop_registry,

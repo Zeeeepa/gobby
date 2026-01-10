@@ -45,7 +45,6 @@ All data lives in SQLite on your machine—no cloud dependencies, works offline.
 |------------|-------------|-----------|------------|-----------|
 | Multi-model orchestration | No | No | No | **Yes** |
 | Persistent memory | Session only | Session only | Session only | **Cross-session** |
-| Long-term skill learning | No | No | No | **Yes** |
 | Lazy tool discovery | No | No | No | **Yes (~96% savings)** |
 | Workflow enforcement | Hooks only | Limited | No | **Full YAML workflows** |
 | Task tracking | No | No | No | **Yes (with git sync)** |
@@ -146,9 +145,6 @@ args = ["run", "gobby", "mcp-server"]
 | `gobby memory list` | List stored memories |
 | `gobby memory add` | Add a new memory |
 | `gobby memory sync` | Sync memories to/from JSONL |
-| `gobby skills list` | List learned skills |
-| `gobby skills learn` | Learn skills from a session |
-| `gobby skills export` | Export skills to markdown files |
 | `gobby mcp-proxy search-tools` | Semantic search for tools |
 | `gobby mcp-proxy recommend-tools` | Get tool recommendations (with `--mode` option) |
 
@@ -211,15 +207,6 @@ See [docs/guides/tasks.md](docs/guides/tasks.md) for the full Task System guide.
 - `list_memories` - List all memories with filtering (type, importance, project)
 - `get_memory`, `update_memory` - CRUD operations
 - `memory_stats` - Get statistics (count by type, average importance)
-
-**Skill Management** (`gobby-skills`):
-
-- `learn_skill_from_session` - Extract skills from completed sessions via LLM
-- `create_skill`, `get_skill`, `update_skill`, `delete_skill` - CRUD operations
-- `list_skills` - List available skills with filtering
-- `match_skills` - Find skills matching a prompt (trigger pattern)
-- `apply_skill` - Return skill instructions and mark as used
-- `export_skills` - Export skills to `.gobby/skills/` as markdown files
 
 ## Configuration
 
@@ -323,7 +310,7 @@ recommend_tools:
 | Path | Description |
 |------|-------------|
 | `~/.gobby/config.yaml` | Daemon configuration |
-| `~/.gobby/gobby.db` | SQLite database (sessions, projects, tasks, memories, skills, MCP servers) |
+| `~/.gobby/gobby.db` | SQLite database (sessions, projects, tasks, memories, MCP servers) |
 | `~/.gobby/logs/` | Log files |
 | `~/.gobby/session_summaries/` | Generated session summaries |
 | `.gobby/project.json` | Project-level configuration |
@@ -331,7 +318,6 @@ recommend_tools:
 | `.gobby/tasks_meta.json` | Task sync metadata |
 | `.gobby/memories.jsonl` | Memory data for git sync |
 | `.gobby/memories_meta.json` | Memory sync metadata |
-| `.gobby/skills/` | Exported skill markdown files |
 
 ## Architecture
 
@@ -364,7 +350,7 @@ Gobby HTTP Server (:8765)
 - **Session Manager** - Tracks sessions with metadata, status, parent relationships, and handoff context
 - **Workflow Engine** - YAML-defined lifecycle and phase-based workflows with LLM-powered actions
 - **MCP Proxy** - Connects to downstream servers (Supabase, Context7, etc.) with progressive tool discovery
-- **Internal Tool Registry** - Domain-specific tools (`gobby-tasks`, `gobby-memory`, `gobby-skills`) accessed via the proxy pattern
+- **Internal Tool Registry** - Domain-specific tools (`gobby-tasks`, `gobby-memory`) accessed via the proxy pattern
 - **Session Handoff** - LLM-powered session summaries with git status, file changes, and context injection
 
 ### Autonomous Session Handoff
@@ -487,7 +473,6 @@ See [ROADMAP.md](ROADMAP.md) for the full implementation plan with sprint orderi
 | **Workflow Engine** | YAML-defined workflows with lifecycle triggers, phase enforcement, and LLM actions | [WORKFLOWS.md](docs/plans/WORKFLOWS.md) |
 | **WebSocket Broadcasting** | Real-time hook event streaming to connected clients | [HOOK_EXTENSIONS.md](docs/plans/HOOK_EXTENSIONS.md) |
 | **Memory System** | Persistent memory with remember/recall/forget operations, JSONL sync | [MEMORY.md](docs/plans/MEMORY.md) |
-| **Skill Learning** | Extract skills from sessions via LLM, trigger matching, auto-apply | [MEMORY.md](docs/plans/MEMORY.md) |
 | **Semantic Tool Search** | Embeddings-based tool discovery with OpenAI, hybrid recommend_tools | [MCP_PROXY_IMPROVEMENTS.md](docs/plans/MCP_PROXY_IMPROVEMENTS.md) |
 | **Autonomous Handoff** | Pre-compact context extraction and session chaining | [AUTONOMOUS_HANDOFF.md](docs/plans/AUTONOMOUS_HANDOFF.md) |
 
@@ -514,7 +499,7 @@ See [ROADMAP.md](ROADMAP.md) for the full implementation plan with sprint orderi
 **MVP (Complete)**
 1. **Observable Gobby** — WebSocket event streaming + task system
 2. **Workflow Engine** — Context sources, Jinja2 templating, 7 built-in workflow templates
-3. **Memory-First Agents** — Persistent memory, skill learning, MCP tools, CLI, and JSONL sync
+3. **Memory-First Agents** — Persistent memory, MCP tools, CLI, and JSONL sync
 
 **In Progress**
 4. **Extensible Gobby** — Webhooks and Python plugin system

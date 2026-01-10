@@ -71,6 +71,74 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
     return installed
 
 
+def install_gobby_commands_symlink(cli_name: str, cli_path: Path, project_path: Path) -> dict[str, Any]:
+    """Create symlink from CLI commands directory to .gobby/commands/gobby/.
+
+    This allows git-tracked commands in .gobby/commands/gobby/ to be discovered
+    by Claude Code (and other CLIs) via symlink.
+
+    Args:
+        cli_name: Name of the CLI (e.g., "claude")
+        cli_path: Path to CLI config directory (e.g., .claude)
+        project_path: Path to project root
+
+    Returns:
+        Dict with 'success', 'symlink_created', 'symlink_path', and 'error' keys
+    """
+    result: dict[str, Any] = {
+        "success": False,
+        "symlink_created": False,
+        "symlink_path": None,
+        "error": None,
+    }
+
+    # Source: .gobby/commands/gobby/ (git-tracked)
+    source_dir = project_path / ".gobby" / "commands" / "gobby"
+    if not source_dir.exists():
+        # No gobby commands to symlink
+        result["success"] = True
+        return result
+
+    # Target: .claude/commands/gobby/ or similar
+    target_commands_dir = cli_path / "commands"
+    target_dir = target_commands_dir / "gobby"
+
+    # Ensure parent directory exists
+    target_commands_dir.mkdir(parents=True, exist_ok=True)
+
+    # If target already exists, check if it's a symlink pointing to correct place
+    if target_dir.exists() or target_dir.is_symlink():
+        if target_dir.is_symlink():
+            existing_target = target_dir.resolve()
+            if existing_target == source_dir.resolve():
+                # Already correctly configured
+                result["success"] = True
+                result["symlink_path"] = str(target_dir)
+                return result
+            # Remove incorrect symlink
+            target_dir.unlink()
+        elif target_dir.is_dir():
+            # It's a real directory - remove it (it was probably copied before)
+            shutil.rmtree(target_dir)
+        else:
+            # It's a file - remove it
+            target_dir.unlink()
+
+    # Create relative symlink for portability
+    # From .claude/commands/gobby -> ../../.gobby/commands/gobby
+    relative_source = Path("..") / ".." / ".gobby" / "commands" / "gobby"
+
+    try:
+        target_dir.symlink_to(relative_source)
+        result["success"] = True
+        result["symlink_created"] = True
+        result["symlink_path"] = str(target_dir)
+    except OSError as e:
+        result["error"] = f"Failed to create symlink: {e}"
+
+    return result
+
+
 def install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]]:
     """Install CLI-specific skills/workflows/commands (layered on top of shared).
 

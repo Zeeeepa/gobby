@@ -1,5 +1,0 @@
-{
-  "id": "agents",
-  "trigger_pattern": "/agents",
-  "tags": ["gobby", "agents", "subagents", "mcp"]
-}

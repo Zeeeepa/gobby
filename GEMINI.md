@@ -101,4 +101,4 @@ Gobby uses a proxy pattern for tools.
 * **Get Schema:** `mcp_get_tool_schema(server_name="gobby-tasks", tool_name="create_task")`
 * **Call Tool:** `mcp_call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={...})`
 
-*Note: Replace "gobby-tasks" with "gobby-memory" or "gobby-skills" for other internal domains.*
+*Note: Replace "gobby-tasks" with "gobby-memory" for other internal domains.*

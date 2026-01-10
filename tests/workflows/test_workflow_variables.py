@@ -39,7 +39,6 @@ class TestWorkflowDefinitionVariables:
           auto_decompose: true
           tdd_mode: false
           session_task: null
-          memory_injection_limit: 10
         steps: []
         """
 
@@ -56,7 +55,6 @@ class TestWorkflowDefinitionVariables:
             "auto_decompose": True,
             "tdd_mode": False,
             "session_task": None,
-            "memory_injection_limit": 10,
         }
 
     def test_load_workflow_without_variables(self):

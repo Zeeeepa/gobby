@@ -39,8 +39,6 @@ from gobby.config.logging import LoggingSettings
 from gobby.config.persistence import (
     MemoryConfig,
     MemorySyncConfig,
-    SkillConfig,
-    SkillSyncConfig,
 )
 from gobby.config.servers import MCPClientProxyConfig, WebSocketSettings
 from gobby.config.sessions import (
@@ -85,8 +83,6 @@ __all__ = [
     # From gobby.config.persistence
     "MemoryConfig",
     "MemorySyncConfig",
-    "SkillConfig",
-    "SkillSyncConfig",
     # From gobby.config.servers
     "MCPClientProxyConfig",
     "WebSocketSettings",
@@ -280,14 +276,6 @@ class DaemonConfig(BaseModel):
         default_factory=MemorySyncConfig,
         description="Memory synchronization configuration",
     )
-    skill_sync: SkillSyncConfig = Field(
-        default_factory=SkillSyncConfig,
-        description="Skill synchronization configuration",
-    )
-    skills: SkillConfig = Field(
-        default_factory=SkillConfig,
-        description="Skill learning configuration",
-    )
     message_tracking: MessageTrackingConfig = Field(
         default_factory=MessageTrackingConfig,
         description="Session message tracking configuration",
@@ -336,14 +324,6 @@ class DaemonConfig(BaseModel):
     def get_memory_sync_config(self) -> MemorySyncConfig:
         """Get memory sync configuration."""
         return self.memory_sync
-
-    def get_skill_sync_config(self) -> SkillSyncConfig:
-        """Get skill sync configuration."""
-        return self.skill_sync
-
-    def get_skills_config(self) -> SkillConfig:
-        """Get skills configuration."""
-        return self.skills
 
     def get_gobby_tasks_config(self) -> GobbyTasksConfig:
         """Get gobby-tasks configuration."""

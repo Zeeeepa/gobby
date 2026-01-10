@@ -360,31 +360,6 @@ async def test_switch_mode(action_executor, action_context):
 
 
 @pytest.mark.asyncio
-async def test_memory_inject(action_executor, action_context, mock_services):
-    action_context.memory_manager = mock_services["memory_manager"]
-    # strings might fail build_memory_context if it expects objects
-    mem1 = MagicMock()
-    mem1.content = "Memory 1"
-    mem1.memory_type = "fact"
-    mem2 = MagicMock()
-    mem2.content = "Memory 2"
-    mem2.memory_type = "fact"
-
-    mock_services["memory_manager"].recall.return_value = [mem1, mem2]
-    mock_services["memory_manager"].config.enabled = True
-
-    result = await action_executor.execute(
-        "memory_inject", action_context, project_id="test-project"
-    )
-
-    assert result is not None
-    if "error" in result:
-        pytest.fail(f"memory_inject failed: {result['error']}")
-    assert result["count"] == 2
-    assert "Memory 1" in result["inject_context"]
-
-
-@pytest.mark.asyncio
 async def test_memory_extract(
     action_executor, action_context, mock_services, session_manager, sample_project
 ):
@@ -511,54 +486,6 @@ async def test_memory_extract_full_coverage(
     mock_services["memory_manager"].remember.assert_called_once()
     call_args = mock_services["memory_manager"].remember.call_args
     assert call_args.kwargs["content"] == "Valid Memory"
-
-
-@pytest.mark.asyncio
-async def test_memory_inject_full_coverage(
-    action_executor, action_context, mock_services, session_manager, sample_project
-):
-    """Test all branches of memory_inject."""
-    mock_services["memory_manager"].config.enabled = True
-    action_context.memory_manager = mock_services["memory_manager"]
-
-    # 1. Test Project ID resolution failure (no kwargs, no session project)
-    # Create session without project (if possible, or mock session manager to return None)
-    # Actually session_manager.get returns None if not found
-    action_context.session_id = "unknown-session"
-    res = await action_executor.execute("memory_inject", action_context)
-    # Should return None because no project_id found
-    assert res is None
-
-    # 2. Test No Memories Found
-    # Setup valid session
-    session = session_manager.register(
-        external_id="inject-test",
-        machine_id="test-machine",
-        source="test-source",
-        project_id=sample_project["id"],
-    )
-    action_context.session_id = session.id
-
-    mock_services["memory_manager"].recall.return_value = []
-    res = await action_executor.execute("memory_inject", action_context)
-    assert res["injected"] is False
-    assert res["reason"] == "No memories found"
-
-    # 3. Test Build Context Empty (e.g. valid memories but build returns empty?)
-    # Mock recall to return something
-    mock_services["memory_manager"].recall.return_value = [MagicMock()]
-
-    # We need to patch build_memory_context since it's imported inside the function
-    with patch("gobby.memory.context.build_memory_context", return_value=""):
-        res = await action_executor.execute("memory_inject", action_context)
-        assert res["injected"] is False
-
-    # 4. Test Success
-    mock_services["memory_manager"].recall.return_value = [MagicMock()]
-    with patch("gobby.memory.context.build_memory_context", return_value="Context string"):
-        res = await action_executor.execute("memory_inject", action_context)
-        assert res["inject_context"] == "Context string"
-        assert res["count"] == 1
 
 
 @pytest.mark.asyncio

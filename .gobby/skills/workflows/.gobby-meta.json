@@ -1,5 +1,0 @@
-{
-  "id": "workflows",
-  "trigger_pattern": "/workflows",
-  "tags": ["gobby", "workflows", "state-machine", "mcp"]
-}

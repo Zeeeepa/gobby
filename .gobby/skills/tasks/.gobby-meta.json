@@ -1,5 +1,0 @@
-{
-  "id": "tasks",
-  "trigger_pattern": "/tasks",
-  "tags": ["gobby", "tasks", "project-management", "mcp"]
-}

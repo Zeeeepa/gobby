@@ -33,7 +33,6 @@ from gobby.workflows.llm_actions import call_llm
 from gobby.workflows.mcp_actions import call_mcp_tool
 from gobby.workflows.memory_actions import (
     memory_extract,
-    memory_inject,
     memory_recall_relevant,
     memory_save,
     memory_sync_export,
@@ -91,7 +90,6 @@ class ActionContext:
     config: Any | None = None
     mcp_manager: Any | None = None
     memory_manager: Any | None = None
-    skill_learner: Any | None = None
     memory_sync_manager: Any | None = None
     event_data: dict[str, Any] | None = None  # Hook event data (e.g., prompt_text)
 
@@ -115,9 +113,7 @@ class ActionExecutor:
         config: Any | None = None,
         mcp_manager: Any | None = None,
         memory_manager: Any | None = None,
-        skill_learner: Any | None = None,
         memory_sync_manager: Any | None = None,
-        skill_sync_manager: Any | None = None,
         task_manager: Any | None = None,
         session_task_manager: Any | None = None,
         stop_registry: Any | None = None,
@@ -133,9 +129,7 @@ class ActionExecutor:
         self.config = config
         self.mcp_manager = mcp_manager
         self.memory_manager = memory_manager
-        self.skill_learner = skill_learner
         self.memory_sync_manager = memory_sync_manager
-        self.skill_sync_manager = skill_sync_manager
         self.task_manager = task_manager
         self.session_task_manager = session_task_manager
         self.stop_registry = stop_registry
@@ -237,15 +231,11 @@ class ActionExecutor:
         self.register("update_workflow_task", self._handle_update_workflow_task)
         self.register("call_mcp_tool", self._handle_call_mcp_tool)
         # Memory actions - underscore pattern (memory_*)
-        self.register("memory_inject", self._handle_memory_inject)
         self.register("memory_extract", self._handle_memory_extract)
         self.register("memory_save", self._handle_save_memory)
         self.register("memory_recall_relevant", self._handle_memory_recall_relevant)
         self.register("memory_sync_import", self._handle_memory_sync_import)
         self.register("memory_sync_export", self._handle_memory_sync_export)
-        # Skills
-        self.register("skills_learn", self._handle_skills_learn)
-        self.register("skills_sync_export", self._handle_skills_sync_export)
         self.register("extract_handoff_context", self._handle_extract_handoff_context)
         self.register("start_new_session", self._handle_start_new_session)
         self.register("mark_loop_complete", self._handle_mark_loop_complete)
@@ -693,46 +683,6 @@ class ActionExecutor:
         """Format HandoffContext as markdown for injection."""
         return format_handoff_as_markdown(ctx, prompt_template)
 
-    async def _handle_memory_inject(
-        self, context: ActionContext, **kwargs: Any
-    ) -> dict[str, Any] | None:
-        """Inject memory context into the session.
-
-        Supports query-based semantic search for context-aware injection.
-
-        Args (from workflow YAML):
-            query: Search query for semantic retrieval (recommended)
-            limit: Max memories to inject (defaults to memory_injection_limit variable)
-            min_importance: Minimum importance threshold
-            min_similarity: Minimum similarity for semantic search
-            project_id: Override project ID
-
-        Workflow variables used:
-            memory_injection_enabled: If false, injection is skipped
-            memory_injection_limit: Default limit when not specified in action
-            memory_injection_min_importance: Default importance threshold (0.0-1.0)
-        """
-        # Check workflow variable for enabled state
-        variables = context.state.variables or {}
-        if not variables.get("memory_injection_enabled", True):
-            logger.debug("memory_inject: Disabled by workflow variable")
-            return None
-
-        # Get defaults from workflow variables
-        default_limit = variables.get("memory_injection_limit", 10)
-        default_importance = variables.get("memory_injection_min_importance", 0.3)
-
-        return await memory_inject(
-            memory_manager=context.memory_manager,
-            session_manager=context.session_manager,
-            session_id=context.session_id,
-            query=kwargs.get("query"),
-            project_id=kwargs.get("project_id"),
-            min_importance=kwargs.get("min_importance", default_importance),
-            limit=kwargs.get("limit", default_limit),
-            min_similarity=kwargs.get("min_similarity"),
-        )
-
     async def _handle_memory_extract(
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
@@ -743,66 +693,6 @@ class ActionExecutor:
             session_manager=context.session_manager,
             session_id=context.session_id,
         )
-
-    async def _handle_skills_learn(
-        self, context: ActionContext, **kwargs: Any
-    ) -> dict[str, Any] | None:
-        """
-        Trigger skill learning from session.
-        """
-        if not context.skill_learner:
-            return None
-
-        # Safe config check
-        config = getattr(context.skill_learner, "config", None)
-        if not config or not getattr(config, "enabled", False):
-            return None
-
-        # Fire and forget?
-        # The hook workflow is usually awaited.
-        # Skill learning might be slow (LLM call).
-        # We should probably run it in background or allow it to take time if it's session-end.
-        # But for session-end, we want it to finish before daemon shutdown if possible?
-        # Actually session-end hook usually just waits for response decision.
-
-        # Let's await it. The user sees "Gobby is thinking..." effectively.
-
-        session = context.session_manager.get(context.session_id)
-        if not session:
-            return {"error": "Session not found"}
-
-        try:
-            # We can't await if we want fire-and-forget.
-            # But if we want to ensure it runs, we should await.
-            # Given this is "Action", it implies synchronous execution in workflow steps.
-            # If user wants async, we might need a specific "async: true" flag in workflow engine,
-            # but here we just implement the logic.
-
-            # Optimized: check if we should even try (e.g. min turns)
-            # SkillLearner.learn_from_session handles checks.
-
-            new_skills = await context.skill_learner.learn_from_session(session)
-
-            return {"skills_learned": len(new_skills), "skill_names": [s.name for s in new_skills]}
-        except Exception as e:
-            logger.error(f"skills_learn: Failed: {e}", exc_info=True)
-            return {"error": str(e)}
-
-    async def _handle_skills_sync_export(
-        self, context: ActionContext, **kwargs: Any
-    ) -> dict[str, Any] | None:
-        """Export skills to filesystem for CLI discovery."""
-        if not self.skill_sync_manager:
-            return None
-
-        try:
-            results = await self.skill_sync_manager.export_to_all_formats()
-            total = sum(results.values())
-            logger.info(f"skills_sync_export: Exported {total} skills")
-            return {"exported": total, "by_format": results}
-        except Exception as e:
-            logger.error(f"skills_sync_export: Failed: {e}", exc_info=True)
-            return {"error": str(e)}
 
     async def _handle_save_memory(
         self, context: ActionContext, **kwargs: Any

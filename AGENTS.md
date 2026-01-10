@@ -57,7 +57,6 @@ Use progressive disclosure to minimize tokens:
 | `gobby-agents` | Subagent spawning with context injection |
 | `gobby-worktrees` | Git worktree management |
 | `gobby-memory` | Persistent memory across sessions |
-| `gobby-skills` | Reusable instruction templates |
 | `gobby-workflows` | Workflow activation, session variables |
 | `gobby-sessions` | Session lookup, handoff context |
 | `gobby-metrics` | Tool metrics and statistics |
@@ -243,11 +242,9 @@ call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
 })
 ```
 
-## Memory & Skills
+## Memory
 
 **Memory** (`gobby-memory`): `remember`, `recall`, `forget` - persistent facts across sessions
-
-**Skills** (`gobby-skills`): `create_skill`, `apply_skill`, `match_skills` - reusable instructions
 
 ## Hook Events
 

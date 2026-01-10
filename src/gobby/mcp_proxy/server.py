@@ -35,7 +35,6 @@ class GobbyDaemonTools:
         llm_service: Any | None = None,
         session_manager: Any | None = None,
         memory_manager: Any | None = None,
-        skill_learner: Any | None = None,
         config_manager: Any | None = None,
         semantic_search: Any | None = None,
         tool_filter: Any | None = None,

@@ -1,5 +1,0 @@
-{
-  "id": "memory",
-  "trigger_pattern": "/memory",
-  "tags": ["gobby", "memory", "persistence", "mcp"]
-}

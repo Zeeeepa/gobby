@@ -57,8 +57,6 @@ from gobby.config.logging import LoggingSettings
 from gobby.config.persistence import (
     MemoryConfig,
     MemorySyncConfig,
-    SkillConfig,
-    SkillSyncConfig,
 )
 
 # Server configs
@@ -114,8 +112,6 @@ __all__ = [
     # Persistence configs
     "MemoryConfig",
     "MemorySyncConfig",
-    "SkillConfig",
-    "SkillSyncConfig",
     # Server configs
     "MCPClientProxyConfig",
     "WebSocketSettings",

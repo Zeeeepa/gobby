@@ -14,10 +14,9 @@ This document defines the implementation order across all Gobby planning documen
 | TASKS                  | `docs/plans/completed/TASKS.md`                    | Persistent task tracking system (includes V2 enhancements) |
 | SESSION_TRACKING       | `docs/plans/completed/SESSION_TRACKING.md`         | Async JSONL processing, multi-CLI message storage          |
 | SESSION_MANAGEMENT     | `docs/plans/completed/SESSION_MANAGEMENT.md`       | Session CRUD tools, handoff MCP tools                      |
-| SKILLS                 | `docs/plans/completed/SKILLS.md`                   | Skills module decoupling (from memory)                     |
 | HOOK_EXTENSIONS        | `docs/plans/completed/HOOK_EXTENSIONS.md`          | WebSocket events, webhooks, plugins                        |
 | MCP_PROXY_IMPROVEMENTS | `docs/plans/completed/MCP_PROXY_IMPROVEMENTS.md`   | Tool metrics, semantic search, self-healing                |
-| MEMORY                 | `docs/plans/completed/MEMORY.md`                   | Persistent memory and skill learning                       |
+| MEMORY                 | `docs/plans/completed/MEMORY.md`                   | Persistent memory system                                   |
 | AUTONOMOUS_HANDOFF     | `docs/plans/completed/AUTONOMOUS_HANDOFF.md`       | Pre-compact context extraction, session chaining           |
 | SUBAGENTS              | `docs/plans/completed/SUBAGENTS.md`                | Multi-provider agent spawning system                       |
 
@@ -133,12 +132,11 @@ End-to-End Testing → Documentation (should be last)
 ### "Memory-First Agents" ✅
 
 - Persistent memory across sessions (remember/recall/forget operations)
-- Skill learning from session trajectories via LLM extraction
-- MCP tools for memory and skill management (`gobby-memory`, `gobby-skills`)
-- CLI commands for memory and skill operations
-- JSONL sync for memories and skills (`.gobby/memories.jsonl`, `.gobby/skills/`)
+- MCP tools for memory management (`gobby-memory`)
+- CLI commands for memory operations
+- JSONL sync for memories (`.gobby/memories.jsonl`)
 - Cross-CLI memory sharing via unified storage
-- **Value**: Agents that learn and remember like coworkers, not contractors
+- **Value**: Agents that remember like coworkers, not contractors
 
 ### "Extensible" 🔶
 
@@ -197,7 +195,6 @@ End-to-End Testing → Documentation (should be last)
 ### "Intelligence Layer"
 
 - [ ] Artifact Index with FTS5
-- [ ] Enhanced skill routing: USE_EXISTING, IMPROVE, CREATE_NEW, COMPOSE
 - [ ] Semantic memory search with sqlite-vec
 - **Value**: Agents that get smarter over time
 
