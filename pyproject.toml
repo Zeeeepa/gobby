@@ -177,7 +177,6 @@ dev = [
     "pytest-mock>=3.14.0",
     "ruff>=0.8.0",
     "types-PyYAML>=6.0.12.12",
-    "pyrefly>=0.1.0",
 ]
 
 [tool.coverage.run]
