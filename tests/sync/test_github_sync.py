@@ -323,3 +323,133 @@ class TestLabelMapping:
 
         # Should preserve special characters
         assert len(github_labels) == 2
+
+
+class TestGitHubSyncIntegration:
+    """Integration tests for full GitHubSyncService workflows."""
+
+    @pytest.mark.asyncio
+    async def test_import_and_sync_workflow(
+        self, mock_mcp_manager, mock_task_manager
+    ):
+        """Test full workflow: import issues, then sync back."""
+        # Setup: GitHub MCP returns realistic issue data
+        mock_mcp_manager.has_server.return_value = True
+        mock_mcp_manager.health = {"github": MagicMock(state="connected")}
+
+        # First call returns issues, second call updates issue
+        mock_mcp_manager.call_tool.side_effect = [
+            # list_issues response
+            {
+                "issues": [
+                    {
+                        "number": 42,
+                        "title": "Original Title",
+                        "body": "Original description",
+                        "labels": [{"name": "bug"}],
+                        "state": "open",
+                    }
+                ]
+            },
+            # update_issue response
+            {"number": 42, "title": "Updated Title", "state": "open"},
+        ]
+
+        # Create mock task with github fields
+        mock_task = MagicMock()
+        mock_task.id = "gt-test123"
+        mock_task.github_issue_number = 42
+        mock_task.github_repo = "owner/repo"
+        mock_task.title = "Updated Title"
+        mock_task.description = "Updated description"
+        mock_task_manager.create_task.return_value = mock_task
+        mock_task_manager.get_task.return_value = mock_task
+
+        service = GitHubSyncService(
+            mcp_manager=mock_mcp_manager,
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        # Import issues
+        imported = await service.import_github_issues(repo="owner/repo")
+        assert len(imported) == 1
+
+        # Sync back to GitHub
+        result = await service.sync_task_to_github(task_id="gt-test123")
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_create_pr_after_task_completion(
+        self, mock_mcp_manager, mock_task_manager
+    ):
+        """Test workflow: complete task and create PR."""
+        mock_mcp_manager.has_server.return_value = True
+        mock_mcp_manager.health = {"github": MagicMock(state="connected")}
+        mock_mcp_manager.call_tool.return_value = {
+            "number": 123,
+            "url": "https://github.com/owner/repo/pull/123",
+            "state": "open",
+        }
+
+        mock_task = MagicMock()
+        mock_task.id = "gt-completed"
+        mock_task.title = "Implement feature X"
+        mock_task.description = "Added feature X as requested"
+        mock_task.github_repo = "owner/repo"
+        mock_task.github_issue_number = 42
+        mock_task_manager.get_task.return_value = mock_task
+
+        service = GitHubSyncService(
+            mcp_manager=mock_mcp_manager,
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        result = await service.create_pr_for_task(
+            task_id="gt-completed",
+            head_branch="feature/x",
+            base_branch="main",
+        )
+
+        assert result["number"] == 123
+        # Verify task was updated with PR number
+        mock_task_manager.update_task.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_error_recovery_network_failure(
+        self, mock_mcp_manager, mock_task_manager
+    ):
+        """Test error handling when network fails."""
+        mock_mcp_manager.has_server.return_value = True
+        mock_mcp_manager.health = {"github": MagicMock(state="connected")}
+        mock_mcp_manager.call_tool.side_effect = Exception("Network error")
+
+        service = GitHubSyncService(
+            mcp_manager=mock_mcp_manager,
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        # Should raise the network error
+        with pytest.raises(Exception, match="Network error"):
+            await service.import_github_issues(repo="owner/repo")
+
+    @pytest.mark.asyncio
+    async def test_handles_empty_issue_list(
+        self, mock_mcp_manager, mock_task_manager
+    ):
+        """Test handling of repo with no issues."""
+        mock_mcp_manager.has_server.return_value = True
+        mock_mcp_manager.health = {"github": MagicMock(state="connected")}
+        mock_mcp_manager.call_tool.return_value = {"issues": []}
+
+        service = GitHubSyncService(
+            mcp_manager=mock_mcp_manager,
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        result = await service.import_github_issues(repo="owner/repo")
+        assert result == []
+        mock_task_manager.create_task.assert_not_called()
