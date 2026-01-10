@@ -1,0 +1,233 @@
+"""GitHub sync service that orchestrates between gobby tasks and GitHub.
+
+This service delegates all GitHub operations to the official GitHub MCP server
+(@modelcontextprotocol/server-github), avoiding custom API client code.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING, Any, cast
+
+from gobby.integrations.github import GitHubIntegration
+
+if TYPE_CHECKING:
+    from gobby.mcp_proxy.manager import MCPClientManager
+    from gobby.storage.tasks import LocalTaskManager
+
+__all__ = ["GitHubSyncService"]
+
+logger = logging.getLogger(__name__)
+
+
+class GitHubSyncService:
+    """Service for syncing gobby tasks with GitHub issues and PRs.
+
+    This service orchestrates bidirectional sync between gobby tasks and GitHub:
+    - Import GitHub issues as gobby tasks
+    - Sync task updates back to GitHub issues
+    - Create PRs from completed tasks
+
+    All GitHub operations are delegated to the official GitHub MCP server.
+
+    Attributes:
+        mcp_manager: MCPClientManager for accessing GitHub MCP server.
+        task_manager: LocalTaskManager for gobby task CRUD.
+        project_id: Gobby project ID for creating tasks.
+        github_repo: Default GitHub repo in "owner/repo" format.
+        github: GitHubIntegration instance for availability checks.
+    """
+
+    def __init__(
+        self,
+        mcp_manager: MCPClientManager,
+        task_manager: LocalTaskManager,
+        project_id: str,
+        github_repo: str | None = None,
+    ) -> None:
+        """Initialize GitHubSyncService.
+
+        Args:
+            mcp_manager: MCPClientManager for GitHub MCP server access.
+            task_manager: LocalTaskManager for gobby task operations.
+            project_id: Gobby project ID for creating tasks.
+            github_repo: Default GitHub repo in "owner/repo" format.
+        """
+        self.mcp_manager = mcp_manager
+        self.task_manager = task_manager
+        self.project_id = project_id
+        self.github_repo = github_repo
+        self.github = GitHubIntegration(mcp_manager)
+
+    def is_available(self) -> bool:
+        """Check if GitHub MCP server is available.
+
+        Returns:
+            True if GitHub MCP server is available, False otherwise.
+        """
+        return self.github.is_available()
+
+    async def import_github_issues(
+        self,
+        repo: str,
+        labels: list[str] | None = None,
+        state: str = "open",
+    ) -> list[dict[str, Any]]:
+        """Import GitHub issues as gobby tasks.
+
+        Fetches issues from GitHub via the MCP server and creates corresponding
+        gobby tasks with linked github_issue_number and github_repo fields.
+
+        Args:
+            repo: GitHub repo in "owner/repo" format.
+            labels: Optional list of labels to filter issues.
+            state: Issue state to filter ("open", "closed", "all").
+
+        Returns:
+            List of created task dictionaries.
+
+        Raises:
+            RuntimeError: If GitHub MCP server is unavailable.
+        """
+        self.github.require_available()
+
+        # Call GitHub MCP to list issues
+        args: dict[str, Any] = {"owner": repo.split("/")[0], "repo": repo.split("/")[1]}
+        if labels:
+            args["labels"] = ",".join(labels)
+        if state:
+            args["state"] = state
+
+        result = await self.mcp_manager.call_tool(
+            server_name="github",
+            tool_name="list_issues",
+            arguments=args,
+        )
+
+        issues = result.get("issues", [])
+        created_tasks = []
+
+        for issue in issues:
+            # Create gobby task linked to GitHub issue
+            task = self.task_manager.create_task(
+                project_id=self.project_id,
+                title=issue.get("title", "Untitled Issue"),
+                description=issue.get("body", ""),
+                github_issue_number=issue.get("number"),
+                github_repo=repo,
+            )
+            created_tasks.append(task.to_dict())
+
+        logger.info(f"Imported {len(created_tasks)} issues from {repo}")
+        return created_tasks
+
+    async def sync_task_to_github(self, task_id: str) -> dict[str, Any]:
+        """Sync a gobby task to its linked GitHub issue.
+
+        Updates the GitHub issue title and body to match the task.
+
+        Args:
+            task_id: ID of the task to sync.
+
+        Returns:
+            Result from GitHub MCP update_issue call.
+
+        Raises:
+            RuntimeError: If GitHub MCP server is unavailable.
+            ValueError: If task has no linked GitHub issue.
+        """
+        self.github.require_available()
+
+        task = self.task_manager.get_task(task_id)
+
+        if not task.github_issue_number:
+            raise ValueError(
+                f"Task {task_id} has no linked GitHub issue. "
+                "Set github_issue_number to sync."
+            )
+
+        repo = task.github_repo or self.github_repo
+        if not repo:
+            raise ValueError(
+                f"Task {task_id} has no github_repo set and no default repo configured."
+            )
+
+        owner, repo_name = repo.split("/")
+
+        result = await self.mcp_manager.call_tool(
+            server_name="github",
+            tool_name="update_issue",
+            arguments={
+                "owner": owner,
+                "repo": repo_name,
+                "issue_number": task.github_issue_number,
+                "title": task.title,
+                "body": task.description or "",
+            },
+        )
+
+        logger.info(f"Synced task {task_id} to GitHub issue #{task.github_issue_number}")
+        return cast(dict[str, Any], result)
+
+    async def create_pr_for_task(
+        self,
+        task_id: str,
+        head_branch: str,
+        base_branch: str = "main",
+        draft: bool = False,
+    ) -> dict[str, Any]:
+        """Create a GitHub PR for a task.
+
+        Creates a pull request on GitHub and links it to the task.
+
+        Args:
+            task_id: ID of the task to create PR for.
+            head_branch: Branch containing the changes.
+            base_branch: Branch to merge into (default: "main").
+            draft: Whether to create as draft PR.
+
+        Returns:
+            Result from GitHub MCP create_pull_request call.
+
+        Raises:
+            RuntimeError: If GitHub MCP server is unavailable.
+        """
+        self.github.require_available()
+
+        task = self.task_manager.get_task(task_id)
+
+        repo = task.github_repo or self.github_repo
+        if not repo:
+            raise ValueError(
+                f"Task {task_id} has no github_repo set and no default repo configured."
+            )
+
+        owner, repo_name = repo.split("/")
+
+        # Create PR via GitHub MCP
+        result = await self.mcp_manager.call_tool(
+            server_name="github",
+            tool_name="create_pull_request",
+            arguments={
+                "owner": owner,
+                "repo": repo_name,
+                "title": task.title,
+                "body": task.description or "",
+                "head": head_branch,
+                "base": base_branch,
+                "draft": draft,
+            },
+        )
+
+        # Update task with PR number if available
+        result_dict = cast(dict[str, Any], result)
+        pr_number = result_dict.get("number")
+        if pr_number:
+            self.task_manager.update_task(
+                task_id,
+                github_pr_number=pr_number,
+                github_repo=repo,
+            )
+            logger.info(f"Created PR #{pr_number} for task {task_id}")
+
+        return result_dict
