@@ -73,15 +73,11 @@ def fetch_rich_status(http_port: int, timeout: float = 2.0) -> dict[str, Any]:
             status_kwargs["tasks_ready"] = tasks.get("ready", 0)
             status_kwargs["tasks_blocked"] = tasks.get("blocked", 0)
 
-        # Memory & Skills
+        # Memory
         memory = data.get("memory", {})
         if memory and memory.get("count", 0) > 0:
             status_kwargs["memories_count"] = memory.get("count", 0)
             status_kwargs["memories_avg_importance"] = memory.get("avg_importance", 0.0)
-
-        skills = data.get("skills", {})
-        if skills and skills.get("count", 0) > 0:
-            status_kwargs["skills_count"] = skills.get("count", 0)
 
     except (httpx.ConnectError, httpx.TimeoutException):
         # Daemon not responding - return empty
@@ -118,10 +114,9 @@ def format_status_message(
     tasks_in_progress: int | None = None,
     tasks_ready: int | None = None,
     tasks_blocked: int | None = None,
-    # Memory & Skills
+    # Memory
     memories_count: int | None = None,
     memories_avg_importance: float | None = None,
-    skills_count: int | None = None,
     **kwargs: Any,
 ) -> str:
     """
@@ -237,19 +232,13 @@ def format_status_message(
             lines.append(f"  {' | '.join(parts)}")
         lines.append("")
 
-    # Memory & Skills section (only show if we have data)
-    if memories_count is not None or skills_count is not None:
-        lines.append("Memory & Skills:")
-        parts = []
-        if memories_count is not None:
-            mem_str = f"Memories: {memories_count}"
-            if memories_avg_importance is not None:
-                mem_str += f" (avg importance: {memories_avg_importance:.2f})"
-            parts.append(mem_str)
-        if skills_count is not None:
-            parts.append(f"Skills: {skills_count}")
-        for part in parts:
-            lines.append(f"  {part}")
+    # Memory section (only show if we have data)
+    if memories_count is not None:
+        lines.append("Memory:")
+        mem_str = f"Memories: {memories_count}"
+        if memories_avg_importance is not None:
+            mem_str += f" (avg importance: {memories_avg_importance:.2f})"
+        lines.append(f"  {mem_str}")
         lines.append("")
 
     # Paths section (only when running)

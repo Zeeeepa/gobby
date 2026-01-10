@@ -181,18 +181,16 @@ class TestFormatStatusMessage:
         assert "Ready: 5" in result
         assert "Blocked: 3" in result
 
-    def test_memory_and_skills_section(self):
-        """Test memory and skills section."""
+    def test_memory_section(self):
+        """Test memory section."""
         result = format_status_message(
             running=True,
             memories_count=50,
             memories_avg_importance=0.65,
-            skills_count=10,
         )
 
-        assert "Memory & Skills:" in result
+        assert "Memory:" in result
         assert "Memories: 50 (avg importance: 0.65)" in result
-        assert "Skills: 10" in result
 
     def test_process_metrics(self):
         """Test process metrics (memory, CPU)."""
