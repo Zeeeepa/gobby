@@ -41,6 +41,8 @@ dependencies = [
     "llmlingua>=0.2.0",
     "transformers>=4.35.0",
     "torch>=2.0.0",
+    # scikit-learn for TF-IDF memory search
+    "scikit-learn>=1.0.0",
 ]
 
 [project.scripts]
