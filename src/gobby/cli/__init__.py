@@ -11,6 +11,7 @@ from .artifacts import artifacts
 from .daemon import restart, start, status, stop
 from .db import db
 from .extensions import hooks, plugins, webhooks
+from .github import github
 from .init import init
 from .install import install, uninstall
 from .mcp import mcp_server
@@ -56,6 +57,7 @@ cli.add_command(workflows)
 cli.add_command(merge)
 cli.add_command(artifacts)
 cli.add_command(db)
+cli.add_command(github)
 cli.add_command(hooks)
 cli.add_command(plugins)
 cli.add_command(webhooks)

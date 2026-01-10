@@ -21,6 +21,7 @@ class Project:
     github_url: str | None
     created_at: str
     updated_at: str
+    github_repo: str | None = None  # GitHub repo in "owner/repo" format
 
     @classmethod
     def from_row(cls, row: Any) -> "Project":
@@ -32,6 +33,7 @@ class Project:
             github_url=row["github_url"],
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+            github_repo=row["github_repo"] if "github_repo" in row.keys() else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -41,6 +43,7 @@ class Project:
             "name": self.name,
             "repo_path": self.repo_path,
             "github_url": self.github_url,
+            "github_repo": self.github_repo,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -131,7 +134,7 @@ class LocalProjectManager:
         if not fields:
             return self.get(project_id)
 
-        allowed = {"name", "repo_path", "github_url"}
+        allowed = {"name", "repo_path", "github_url", "github_repo"}
         fields = {k: v for k, v in fields.items() if k in allowed}
         if not fields:
             return self.get(project_id)

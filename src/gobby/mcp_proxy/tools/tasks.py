@@ -29,6 +29,7 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 # Import extracted registries for internal merging
 from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 from gobby.mcp_proxy.tools.task_expansion import create_expansion_registry
+from gobby.mcp_proxy.tools.task_github import create_github_sync_registry
 from gobby.mcp_proxy.tools.task_orchestration import create_orchestration_registry
 from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 from gobby.mcp_proxy.tools.task_sync import create_sync_registry
@@ -56,6 +57,7 @@ __all__ = ["create_task_registry"]
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
     from gobby.config.app import DaemonConfig
+    from gobby.mcp_proxy.manager import MCPClientManager
     from gobby.worktrees.git import WorktreeGitManager
 
 # Reasons for which commit linking and validation are skipped when closing tasks
@@ -117,6 +119,7 @@ def create_task_registry(
     worktree_storage: "LocalWorktreeManager | None" = None,
     git_manager: "WorktreeGitManager | None" = None,
     project_id: str | None = None,
+    mcp_manager: "MCPClientManager | None" = None,
 ) -> InternalToolRegistry:
     """
     Create a task tool registry with all task-related tools.
@@ -131,6 +134,7 @@ def create_task_registry(
         worktree_storage: LocalWorktreeManager for orchestration (optional)
         git_manager: WorktreeGitManager for orchestration (optional)
         project_id: Default project ID for orchestration (optional)
+        mcp_manager: MCPClientManager for GitHub integration (optional)
 
     Returns:
         InternalToolRegistry with all task tools registered
@@ -1260,6 +1264,18 @@ def create_task_registry(
             project_id=project_id,
         )
         for tool_name, tool in orchestration_registry._tools.items():
+            registry._tools[tool_name] = tool
+
+    # Merge GitHub sync tools from extracted module (Strangler Fig pattern)
+    # Only if mcp_manager is available (required for GitHub MCP access)
+    if mcp_manager is not None:
+        github_registry = create_github_sync_registry(
+            task_manager=task_manager,
+            mcp_manager=mcp_manager,
+            project_manager=project_manager,
+            project_id=project_id,
+        )
+        for tool_name, tool in github_registry._tools.items():
             registry._tools[tool_name] = tool
 
     return registry

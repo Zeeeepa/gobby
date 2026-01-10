@@ -1037,6 +1037,13 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         ALTER TABLE tasks ADD COLUMN github_repo TEXT;
         """,
     ),
+    (
+        49,
+        "Add github_repo column to projects table",
+        """
+        ALTER TABLE projects ADD COLUMN github_repo TEXT;
+        """,
+    ),
 ]
 
 
