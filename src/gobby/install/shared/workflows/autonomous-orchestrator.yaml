@@ -181,13 +181,21 @@ steps:
       - Bash
       - TodoWrite
 
-    # Logic (gt-62fc20):
-    # 1. For each reviewed agent:
-    #    - Get worktree status
-    #    - If merged/mergeable, delete worktree
-    #    - Remove from reviewed_agents
-    # 2. Check if more ready tasks exist - if so, back to spawn_workers
-    # 3. If all done, transition to complete
+    # Use cleanup_reviewed_worktrees tool from gobby-tasks:
+    # - Merges worktree branches to base_branch (e.g., dev, main)
+    # - Marks worktrees as merged in database
+    # - Deletes git worktrees and database records
+    # - Updates workflow state (clears reviewed_agents)
+    #
+    # Call: gobby-tasks.cleanup_reviewed_worktrees(
+    #   parent_session_id=<orchestrator_session_id>,
+    #   merge_to_base=true,
+    #   delete_worktrees=true,
+    #   delete_branches=false
+    # )
+    #
+    # On task tree completion, also run:
+    # gobby-tasks.cleanup_stale_worktrees(older_than_hours=24)
 
     transitions:
       - to: spawn_workers
