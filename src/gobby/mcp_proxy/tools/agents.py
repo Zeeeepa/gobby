@@ -513,6 +513,15 @@ def create_agents_registry(
                     "child_session_id": child_session.id,
                 }
 
+            # IMPORTANT: For headless mode with -p flag, hooks are NOT called.
+            # Claude's print mode bypasses the hook system entirely.
+            # We must manually mark the agent run as started.
+            try:
+                runner._run_storage.start(agent_run.id)
+                logger.info(f"Manually started headless agent run {agent_run.id}")
+            except Exception as e:
+                logger.warning(f"Failed to manually start agent run: {e}")
+
             # Register in running agents registry
             running_agent = RunningAgent(
                 run_id=agent_run.id,
@@ -526,11 +535,59 @@ def create_agents_registry(
             )
             agent_registry.add(running_agent)
 
+            # Start background task to monitor process completion
+            import asyncio
+
+            async def monitor_headless_process() -> None:
+                """Monitor headless process and update status on completion."""
+                try:
+                    process = headless_result.process
+                    if process is None:
+                        return
+
+                    # Wait for process to complete
+                    loop = asyncio.get_running_loop()
+                    return_code = await loop.run_in_executor(None, process.wait)
+
+                    # Capture output
+                    output = ""
+                    if process.stdout:
+                        output = process.stdout.read() or ""
+
+                    # Update agent run status
+                    if return_code == 0:
+                        runner._run_storage.complete(
+                            agent_run.id,
+                            result=output,
+                            tool_calls_count=0,
+                            turns_used=1,
+                        )
+                        logger.info(f"Headless agent {agent_run.id} completed successfully")
+                    else:
+                        runner._run_storage.fail(
+                            agent_run.id, error=f"Process exited with code {return_code}"
+                        )
+                        logger.warning(f"Headless agent {agent_run.id} failed with code {return_code}")
+
+                    # Remove from running agents registry
+                    agent_registry.remove(agent_run.id)
+
+                except Exception as e:
+                    logger.error(f"Error monitoring headless process: {e}")
+                    try:
+                        runner._run_storage.fail(agent_run.id, error=str(e))
+                        agent_registry.remove(agent_run.id)
+                    except Exception:
+                        pass
+
+            # Schedule monitoring task
+            asyncio.create_task(monitor_headless_process())
+
             return {
                 "success": True,
                 "run_id": agent_run.id,
                 "child_session_id": child_session.id,
-                "status": "pending",
+                "status": "running",  # Now "running" since we manually started it
                 "message": f"Agent spawned headless (PID: {headless_result.pid})",
                 "pid": headless_result.pid,
             }

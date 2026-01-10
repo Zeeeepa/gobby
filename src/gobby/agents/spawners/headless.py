@@ -67,13 +67,15 @@ class HeadlessSpawner:
                 spawn_env.update(env)
 
             # Spawn process with captured output
+            # Use DEVNULL for stdin since headless mode uses -p flag (print mode)
+            # which reads prompt from CLI args, not stdin. A pipe stdin would hang.
             process = subprocess.Popen(
                 command,
                 cwd=cwd,
                 env=spawn_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                stdin=subprocess.PIPE,
+                stdin=subprocess.DEVNULL,
                 text=True,
                 bufsize=1,  # Line buffered
             )
