@@ -187,9 +187,29 @@ def create_orchestration_registry(
         tasks_skipped = ready_tasks[available_slots:]
 
         # Resolve effective provider and model for implementation tasks
-        # coding_provider/coding_model take precedence if specified
-        effective_provider = coding_provider if coding_provider else provider
-        effective_model = coding_model if coding_model else model
+        # Priority: explicit parameter > workflow variable > default
+        from gobby.workflows.state_manager import WorkflowStateManager
+
+        workflow_vars: dict[str, Any] = {}
+        if parent_session_id:
+            state_manager = WorkflowStateManager(task_manager.db)
+            state = state_manager.get_state(parent_session_id)
+            if state:
+                workflow_vars = state.variables
+
+        # Provider assignment chain: parameter > workflow var > default
+        effective_provider = (
+            coding_provider
+            or workflow_vars.get("coding_provider")
+            or provider
+        )
+        effective_model = (
+            coding_model
+            or workflow_vars.get("coding_model")
+            or model
+        )
+        # Also capture terminal from workflow if not explicitly set
+        effective_terminal = terminal if terminal != "auto" else workflow_vars.get("terminal", "auto")
 
         spawned: list[dict[str, Any]] = []
         skipped: list[dict[str, Any]] = []
@@ -359,7 +379,7 @@ def create_orchestration_registry(
                     task=task.id,
                     session_context="summary_markdown",
                     mode=mode,
-                    terminal=terminal,
+                    terminal=effective_terminal,
                     worktree_id=worktree.id,
                     provider=effective_provider,
                     model=effective_model,
@@ -414,7 +434,7 @@ def create_orchestration_registry(
                         workflow_name=workflow,
                         agent_depth=child_session.agent_depth,
                         max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
-                        terminal=terminal,
+                        terminal=effective_terminal,
                         prompt=prompt,
                     )
 
@@ -572,7 +592,9 @@ def create_orchestration_registry(
         name="orchestrate_ready_tasks",
         description=(
             "Spawn agents in worktrees for ready subtasks under a parent task. "
-            "Used by autonomous-orchestrator workflow for parallel execution."
+            "Used by autonomous-orchestrator workflow for parallel execution. "
+            "Supports role-based provider assignment: explicitly passed params > workflow variables > defaults. "
+            "Workflow variables: coding_provider, coding_model, terminal, max_concurrent."
         ),
         input_schema={
             "type": "object",
@@ -583,12 +605,27 @@ def create_orchestration_registry(
                 },
                 "provider": {
                     "type": "string",
-                    "description": "LLM provider for spawned agents (claude, gemini, codex, antigravity)",
-                    "default": "claude",
+                    "description": "Fallback LLM provider (claude, gemini, codex, antigravity)",
+                    "default": "gemini",
                 },
                 "model": {
                     "type": "string",
-                    "description": "Optional model override",
+                    "description": "Fallback model override",
+                    "default": None,
+                },
+                "coding_provider": {
+                    "type": "string",
+                    "description": (
+                        "LLM provider for implementation tasks. "
+                        "Overrides 'provider' for coding work."
+                    ),
+                    "default": None,
+                },
+                "coding_model": {
+                    "type": "string",
+                    "description": (
+                        "Model for implementation tasks. Overrides 'model' for coding work."
+                    ),
                     "default": None,
                 },
                 "terminal": {
@@ -728,6 +765,318 @@ def create_orchestration_registry(
             "required": ["parent_task_id"],
         },
         func=get_orchestration_status,
+    )
+
+    # --- spawn_review_agent ---
+
+    async def spawn_review_agent(
+        task_id: str,
+        review_provider: Literal["claude", "gemini", "codex", "antigravity"] = "claude",
+        review_model: str | None = "opus-4",
+        terminal: str = "auto",
+        mode: str = "terminal",
+        parent_session_id: str | None = None,
+        project_path: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Spawn a review agent for a completed task.
+
+        Used by the autonomous-orchestrator workflow's review step to validate
+        completed work before merging/cleanup.
+
+        Args:
+            task_id: ID of the task to review
+            review_provider: LLM provider for review (default: claude)
+            review_model: Model for review (default: opus-4 for thorough analysis)
+            terminal: Terminal for terminal mode (default: auto)
+            mode: Execution mode (terminal, embedded, headless)
+            parent_session_id: Parent session ID for context (required)
+            project_path: Path to project directory
+
+        Returns:
+            Dict with:
+            - success: bool
+            - agent_id: ID of spawned review agent
+            - session_id: Child session ID
+            - error: Optional error message
+        """
+        if agent_runner is None:
+            return {
+                "success": False,
+                "error": "Agent runner not configured. Cannot spawn review agent.",
+            }
+
+        if parent_session_id is None:
+            return {
+                "success": False,
+                "error": "parent_session_id is required for spawning review agent",
+            }
+
+        # Resolve project ID
+        resolved_project_id = project_id
+        if project_path:
+            ctx = get_project_context(Path(project_path))
+            if ctx:
+                resolved_project_id = ctx.get("id")
+
+        if not resolved_project_id:
+            resolved_project_id = get_current_project_id()
+
+        if not resolved_project_id:
+            return {
+                "success": False,
+                "error": "Could not resolve project ID",
+            }
+
+        # Get the task
+        task = task_manager.get_task(task_id)
+        if not task:
+            return {
+                "success": False,
+                "error": f"Task {task_id} not found",
+            }
+
+        # Get worktree for the task
+        worktree = worktree_storage.get_by_task(task_id)
+        if not worktree:
+            return {
+                "success": False,
+                "error": f"No worktree found for task {task_id}",
+            }
+
+        # Build review prompt
+        review_prompt = _build_review_prompt(task, worktree)
+
+        # Check spawn depth
+        can_spawn, reason, _depth = agent_runner.can_spawn(parent_session_id)
+        if not can_spawn:
+            return {
+                "success": False,
+                "error": reason,
+            }
+
+        # Prepare agent run
+        from gobby.agents.runner import AgentConfig
+        from gobby.llm.executor import AgentResult
+        from gobby.utils.machine_id import get_machine_id
+
+        machine_id = get_machine_id()
+
+        config = AgentConfig(
+            prompt=review_prompt,
+            parent_session_id=parent_session_id,
+            project_id=resolved_project_id,
+            machine_id=machine_id,
+            source=review_provider,
+            workflow=None,  # Review doesn't need a workflow
+            task=task_id,
+            session_context="summary_markdown",
+            mode=mode,
+            terminal=terminal,
+            worktree_id=worktree.id,
+            provider=review_provider,
+            model=review_model,
+            max_turns=20,  # Reviews should be shorter
+            timeout=300.0,  # 5 minutes
+            project_path=worktree.worktree_path,
+        )
+
+        prepare_result = agent_runner.prepare_run(config)
+        if isinstance(prepare_result, AgentResult):
+            return {
+                "success": False,
+                "error": prepare_result.error or "Failed to prepare review agent run",
+            }
+
+        context = prepare_result
+        if context.session is None or context.run is None:
+            return {
+                "success": False,
+                "error": "Internal error: context missing session or run",
+            }
+
+        child_session = context.session
+        agent_run = context.run
+
+        # Spawn the review agent
+        if mode == "terminal":
+            from gobby.agents.spawn import TerminalSpawner
+
+            spawner = TerminalSpawner()
+            spawn_result = spawner.spawn_agent(
+                cli=review_provider,
+                cwd=worktree.worktree_path,
+                session_id=child_session.id,
+                parent_session_id=parent_session_id,
+                agent_run_id=agent_run.id,
+                project_id=resolved_project_id,
+                workflow_name=None,
+                agent_depth=child_session.agent_depth,
+                max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
+                terminal=terminal,
+                prompt=review_prompt,
+            )
+
+            if not spawn_result.success:
+                return {
+                    "success": False,
+                    "error": spawn_result.error or "Terminal spawn failed",
+                }
+
+            return {
+                "success": True,
+                "task_id": task_id,
+                "agent_id": agent_run.id,
+                "session_id": child_session.id,
+                "worktree_id": worktree.id,
+                "terminal_type": spawn_result.terminal_type,
+                "pid": spawn_result.pid,
+                "provider": review_provider,
+                "model": review_model,
+            }
+
+        elif mode == "embedded":
+            from gobby.agents.spawn import EmbeddedSpawner
+
+            embedded_spawner = EmbeddedSpawner()
+            embedded_result = embedded_spawner.spawn_agent(
+                cli=review_provider,
+                cwd=worktree.worktree_path,
+                session_id=child_session.id,
+                parent_session_id=parent_session_id,
+                agent_run_id=agent_run.id,
+                project_id=resolved_project_id,
+                workflow_name=None,
+                agent_depth=child_session.agent_depth,
+                max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
+                prompt=review_prompt,
+            )
+
+            if not embedded_result.success:
+                return {
+                    "success": False,
+                    "error": embedded_result.error or "Embedded spawn failed",
+                }
+
+            return {
+                "success": True,
+                "task_id": task_id,
+                "agent_id": agent_run.id,
+                "session_id": child_session.id,
+                "worktree_id": worktree.id,
+                "provider": review_provider,
+                "model": review_model,
+            }
+
+        else:  # headless
+            from gobby.agents.spawn import HeadlessSpawner
+
+            headless_spawner = HeadlessSpawner()
+            headless_result = headless_spawner.spawn_agent(
+                cli=review_provider,
+                cwd=worktree.worktree_path,
+                session_id=child_session.id,
+                parent_session_id=parent_session_id,
+                agent_run_id=agent_run.id,
+                project_id=resolved_project_id,
+                workflow_name=None,
+                agent_depth=child_session.agent_depth,
+                max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
+                prompt=review_prompt,
+            )
+
+            if not headless_result.success:
+                return {
+                    "success": False,
+                    "error": headless_result.error or "Headless spawn failed",
+                }
+
+            return {
+                "success": True,
+                "task_id": task_id,
+                "agent_id": agent_run.id,
+                "session_id": child_session.id,
+                "worktree_id": worktree.id,
+                "pid": headless_result.pid,
+                "provider": review_provider,
+                "model": review_model,
+            }
+
+    def _build_review_prompt(task: Any, worktree: Any) -> str:
+        """Build a review prompt for a completed task."""
+        prompt_parts = [
+            "# Code Review Request",
+            f"\n## Task: {task.title}",
+            f"Task ID: {task.id}",
+            f"Branch: {worktree.branch_name}",
+        ]
+
+        if task.description:
+            prompt_parts.append(f"\n## Task Description\n{task.description}")
+
+        if task.validation_criteria:
+            prompt_parts.append(f"\n## Validation Criteria\n{task.validation_criteria}")
+
+        prompt_parts.append(
+            "\n## Review Instructions\n"
+            "1. Review the code changes on this branch\n"
+            "2. Check that the implementation matches the task description\n"
+            "3. Verify tests exist and pass (if applicable)\n"
+            "4. Check for code quality, security issues, and best practices\n"
+            "5. Use validate_task() to mark as valid/invalid with feedback\n"
+            "6. If valid, the task can proceed to merge\n"
+            "7. If invalid, provide clear feedback for the implementer"
+        )
+
+        return "\n".join(prompt_parts)
+
+    registry.register(
+        name="spawn_review_agent",
+        description=(
+            "Spawn a review agent for a completed task. "
+            "Used by autonomous-orchestrator workflow for code review. "
+            "Uses review_provider/review_model for thorough analysis."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "task_id": {
+                    "type": "string",
+                    "description": "ID of the task to review",
+                },
+                "review_provider": {
+                    "type": "string",
+                    "description": "LLM provider for review (claude, gemini, codex, antigravity)",
+                    "default": "claude",
+                },
+                "review_model": {
+                    "type": "string",
+                    "description": "Model for review (default: opus-4 for thorough analysis)",
+                    "default": "opus-4",
+                },
+                "terminal": {
+                    "type": "string",
+                    "description": "Terminal for terminal mode (auto, ghostty, iterm2, etc.)",
+                    "default": "auto",
+                },
+                "mode": {
+                    "type": "string",
+                    "description": "Execution mode (terminal, embedded, headless)",
+                    "default": "terminal",
+                },
+                "parent_session_id": {
+                    "type": "string",
+                    "description": "Parent session ID for context (required)",
+                },
+                "project_path": {
+                    "type": "string",
+                    "description": "Path to project directory",
+                    "default": None,
+                },
+            },
+            "required": ["task_id", "parent_session_id"],
+        },
+        func=spawn_review_agent,
     )
 
     return registry
