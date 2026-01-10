@@ -313,3 +313,102 @@ def test_tasks_escalation_columns(tmp_path):
     # Check for escalation columns
     assert "escalated_at" in columns, "escalated_at column missing from tasks"
     assert "escalation_reason" in columns, "escalation_reason column missing from tasks"
+
+
+# =============================================================================
+# GitHub Integration: GitHub Columns Migration Tests
+# =============================================================================
+
+
+def test_github_columns_exist_after_migration(tmp_path):
+    """Test that GitHub integration columns are added to tasks table."""
+    db_path = tmp_path / "github_cols.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Get tasks table info
+    rows = db.fetchall("PRAGMA table_info(tasks)")
+    columns = {row["name"] for row in rows}
+
+    # Check for GitHub columns
+    assert "github_issue_number" in columns, "github_issue_number column missing from tasks"
+    assert "github_pr_number" in columns, "github_pr_number column missing from tasks"
+    assert "github_repo" in columns, "github_repo column missing from tasks"
+
+
+def test_github_columns_allow_null(tmp_path):
+    """Test that GitHub columns allow NULL values (for existing tasks)."""
+    db_path = tmp_path / "github_null.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create a project first (required for task)
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+
+    # Insert a task without GitHub fields (NULL)
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-1", "test-project", "Test Task"),
+    )
+
+    # Verify task was created with NULL GitHub fields
+    row = db.fetchone(
+        "SELECT github_issue_number, github_pr_number, github_repo FROM tasks WHERE id = ?",
+        ("task-1",),
+    )
+    assert row is not None
+    assert row["github_issue_number"] is None
+    assert row["github_pr_number"] is None
+    assert row["github_repo"] is None
+
+
+def test_github_columns_store_values(tmp_path):
+    """Test that GitHub columns store integer and text values correctly."""
+    db_path = tmp_path / "github_values.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create project
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+
+    # Insert task with GitHub fields
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, github_issue_number, github_pr_number, github_repo, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-1", "test-project", "Test Task", 123, 456, "owner/repo"),
+    )
+
+    # Verify GitHub fields stored correctly
+    row = db.fetchone(
+        "SELECT github_issue_number, github_pr_number, github_repo FROM tasks WHERE id = ?",
+        ("task-1",),
+    )
+    assert row is not None
+    assert row["github_issue_number"] == 123
+    assert row["github_pr_number"] == 456
+    assert row["github_repo"] == "owner/repo"
+
+
+def test_github_migration_number_is_48(tmp_path):
+    """Test that GitHub columns are added in migration 48."""
+    from gobby.storage.migrations import MIGRATIONS
+
+    # Find migration 48
+    migration_48 = None
+    for version, description, sql in MIGRATIONS:
+        if version == 48:
+            migration_48 = (version, description, sql)
+            break
+
+    assert migration_48 is not None, "Migration 48 not found in MIGRATIONS list"
+    assert "github" in migration_48[1].lower(), "Migration 48 should be for GitHub columns"
