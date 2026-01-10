@@ -197,7 +197,104 @@ class MemoryManager:
                 # Don't fail the remember if embedding fails
                 logger.warning(f"Auto-embed failed for {memory.id}: {e}")
 
+        # Auto cross-reference if enabled
+        if getattr(self.config, "auto_crossref", False):
+            try:
+                self._create_crossrefs(memory)
+            except Exception as e:
+                # Don't fail the remember if crossref fails
+                logger.warning(f"Auto-crossref failed for {memory.id}: {e}")
+
         return memory
+
+    def _create_crossrefs(
+        self,
+        memory: Memory,
+        threshold: float | None = None,
+        max_links: int | None = None,
+    ) -> int:
+        """
+        Find and link similar memories.
+
+        Uses the search backend to find memories similar to the given one
+        and creates cross-references for those above the threshold.
+
+        Args:
+            memory: The memory to find links for
+            threshold: Minimum similarity to create link (default from config)
+            max_links: Maximum links to create (default from config)
+
+        Returns:
+            Number of cross-references created
+        """
+        # Get thresholds from config or use defaults
+        if threshold is None:
+            threshold = getattr(self.config, "crossref_threshold", None)
+            if threshold is None:
+                threshold = 0.3
+        if max_links is None:
+            max_links = getattr(self.config, "crossref_max_links", None)
+            if max_links is None:
+                max_links = 5
+
+        # Ensure search backend is fitted
+        self._ensure_search_backend_fitted()
+
+        # Search for similar memories
+        similar = self.search_backend.search(memory.content, top_k=max_links + 1)
+
+        # Create cross-references
+        created = 0
+        for other_id, score in similar:
+            # Skip self-reference
+            if other_id == memory.id:
+                continue
+
+            # Skip below threshold
+            if score < threshold:
+                continue
+
+            # Create the crossref
+            self.storage.create_crossref(memory.id, other_id, score)
+            created += 1
+
+            if created >= max_links:
+                break
+
+        if created > 0:
+            logger.debug(f"Created {created} crossrefs for memory {memory.id}")
+
+        return created
+
+    def get_related(
+        self,
+        memory_id: str,
+        limit: int = 5,
+        min_similarity: float = 0.0,
+    ) -> list[Memory]:
+        """
+        Get memories linked to this one via cross-references.
+
+        Args:
+            memory_id: The memory ID to find related memories for
+            limit: Maximum number of results
+            min_similarity: Minimum similarity threshold
+
+        Returns:
+            List of related Memory objects, sorted by similarity
+        """
+        crossrefs = self.storage.get_crossrefs(memory_id, limit=limit, min_similarity=min_similarity)
+
+        # Get the actual Memory objects
+        memories = []
+        for ref in crossrefs:
+            # Get the "other" memory in the relationship
+            other_id = ref.target_id if ref.source_id == memory_id else ref.source_id
+            memory = self.get_memory(other_id)
+            if memory:
+                memories.append(memory)
+
+        return memories
 
     def recall(
         self,
