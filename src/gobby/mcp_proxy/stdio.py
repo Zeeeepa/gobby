@@ -192,23 +192,64 @@ class DaemonProxy:
             timeout=60.0,
         )
 
-    async def add_mcp_server(self, **kwargs: Any) -> dict[str, Any]:
-        """Add an MCP server - not available via stdio."""
-        return {"success": False, "error": "add_mcp_server not available via stdio proxy"}
+    async def add_mcp_server(
+        self,
+        name: str,
+        transport: str,
+        url: str | None = None,
+        headers: dict[str, str] | None = None,
+        command: str | None = None,
+        args: list[str] | None = None,
+        env: dict[str, str] | None = None,
+        enabled: bool = True,
+    ) -> dict[str, Any]:
+        """Add a new MCP server to the daemon's configuration."""
+        return await self._request(
+            "POST",
+            "/mcp/servers",
+            json={
+                "name": name,
+                "transport": transport,
+                "url": url,
+                "headers": headers,
+                "command": command,
+                "args": args,
+                "env": env,
+                "enabled": enabled,
+            },
+        )
 
     async def remove_mcp_server(self, name: str) -> dict[str, Any]:
-        """Remove an MCP server - not available via stdio."""
-        return {"success": False, "error": "remove_mcp_server not available via stdio proxy"}
+        """Remove an MCP server from the daemon's configuration."""
+        return await self._request("DELETE", f"/mcp/servers/{name}")
 
-    async def import_mcp_server(self, **kwargs: Any) -> dict[str, Any]:
-        """Import an MCP server - not available via stdio."""
-        return {"success": False, "error": "import_mcp_server not available via stdio proxy"}
+    async def import_mcp_server(
+        self,
+        from_project: str | None = None,
+        servers: list[str] | None = None,
+        github_url: str | None = None,
+        query: str | None = None,
+    ) -> dict[str, Any]:
+        """Import MCP servers from various sources."""
+        return await self._request(
+            "POST",
+            "/mcp/servers/import",
+            json={
+                "from_project": from_project,
+                "servers": servers,
+                "github_url": github_url,
+                "query": query,
+            },
+        )
 
     async def init_project(
         self, name: str | None = None, github_url: str | None = None
     ) -> dict[str, Any]:
-        """Initialize a project - not available via stdio."""
-        return {"success": False, "error": "init_project not available via stdio proxy"}
+        """Initialize a project - use 'gobby init' CLI command instead."""
+        return {
+            "success": False,
+            "error": "init_project requires CLI access. Run 'gobby init' from your terminal.",
+        }
 
 
 def create_stdio_mcp_server() -> FastMCP:
