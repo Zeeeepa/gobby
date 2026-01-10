@@ -525,8 +525,7 @@ def create_task_registry(
         task = task_manager.update_task(task_id, **kwargs)
         if not task:
             return {"error": f"Task {task_id} not found"}
-        result: dict[str, Any] = task.to_dict()
-        return result
+        return task.to_brief()
 
     registry.register(
         name="update_task",
@@ -883,7 +882,7 @@ def create_task_registry(
         except Exception:
             pass  # Best-effort worktree update, don't fail the close
 
-        response: dict[str, Any] = closed_task.to_dict()
+        response: dict[str, Any] = closed_task.to_brief()
         response["validated"] = not should_skip
         if no_commit_needed:
             response["no_commit_needed"] = True

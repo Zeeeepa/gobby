@@ -552,7 +552,7 @@ class TestUpdateTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         updated_task = MagicMock()
-        updated_task.to_dict.return_value = {"id": "gt-abc123", "title": "Updated Title"}
+        updated_task.to_brief.return_value = {"id": "gt-abc123", "title": "Updated Title"}
         mock_task_manager.update_task.return_value = updated_task
 
         result = await registry.call(
@@ -581,7 +581,7 @@ class TestUpdateTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         updated_task = MagicMock()
-        updated_task.to_dict.return_value = {"id": "gt-abc123"}
+        updated_task.to_brief.return_value = {"id": "gt-abc123"}
         mock_task_manager.update_task.return_value = updated_task
 
         await registry.call(
@@ -625,7 +625,7 @@ class TestUpdateTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         updated_task = MagicMock()
-        updated_task.to_dict.return_value = {"id": "gt-abc123", "status": "closed"}
+        updated_task.to_brief.return_value = {"id": "gt-abc123", "status": "closed"}
         mock_task_manager.update_task.return_value = updated_task
 
         await registry.call("update_task", {"task_id": "gt-abc123", "status": "closed"})
@@ -770,7 +770,7 @@ class TestCloseTaskTool:
         mock_task.id = "gt-abc123"
         mock_task.commits = None
         mock_task.project_id = "proj-1"
-        mock_task.to_dict.return_value = {"id": "gt-abc123", "status": "closed"}
+        mock_task.to_brief.return_value = {"id": "gt-abc123", "status": "closed"}
         mock_task_manager.get_task.return_value = mock_task
         mock_task_manager.close_task.return_value = mock_task
 
@@ -836,7 +836,7 @@ class TestCloseTaskTool:
         mock_task.commits = ["abc123"]
         mock_task.project_id = "proj-1"
         mock_task.validation_criteria = None
-        mock_task.to_dict.return_value = {"id": "gt-abc123", "status": "closed"}
+        mock_task.to_brief.return_value = {"id": "gt-abc123", "status": "closed"}
         mock_task_manager.get_task.return_value = mock_task
         mock_task_manager.close_task.return_value = mock_task
         mock_task_manager.list_tasks.return_value = []  # No children
@@ -867,7 +867,7 @@ class TestCloseTaskTool:
         mock_task.commits = ["abc123"]
         mock_task.project_id = "proj-1"
         mock_task.validation_criteria = None
-        mock_task.to_dict.return_value = {"id": "gt-abc123", "status": "closed"}
+        mock_task.to_brief.return_value = {"id": "gt-abc123", "status": "closed"}
         mock_task_manager.get_task.return_value = mock_task
         mock_task_manager.link_commit.return_value = mock_task
         mock_task_manager.close_task.return_value = mock_task
@@ -896,7 +896,7 @@ class TestCloseTaskTool:
         mock_task.commits = ["abc123"]
         mock_task.project_id = "proj-1"
         mock_task.validation_criteria = "Must pass tests"
-        mock_task.to_dict.return_value = {"id": "gt-abc123", "status": "closed"}
+        mock_task.to_brief.return_value = {"id": "gt-abc123", "status": "closed"}
         mock_task_manager.get_task.return_value = mock_task
         mock_task_manager.close_task.return_value = mock_task
         mock_task_manager.list_tasks.return_value = []
