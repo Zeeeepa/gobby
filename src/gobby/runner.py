@@ -340,6 +340,46 @@ class GobbyRunner:
             except Exception as e:
                 logger.error(f"Error in metrics cleanup loop: {e}")
 
+    def _check_memory_v2_migration(self) -> None:
+        """Check if Memory V2 migration is needed and log a suggestion.
+
+        Checks if there are memories in the database but few/no cross-references,
+        suggesting the user run `gobby memory migrate-v2`.
+        """
+        if not self.memory_manager:
+            return
+
+        try:
+            # Get memory count
+            memories = self.memory_manager.list_memories(limit=1)
+            if not memories:
+                # No memories, nothing to migrate
+                return
+
+            # Get total memory count for the threshold
+            all_memories = self.memory_manager.list_memories(limit=10000)
+            memory_count = len(all_memories)
+
+            if memory_count < 5:
+                # Too few memories to warrant migration check
+                return
+
+            # Get crossref count
+            from gobby.storage.memories import LocalMemoryManager
+
+            storage = LocalMemoryManager(self.database)
+            crossrefs = storage.get_all_crossrefs(limit=1)
+
+            if not crossrefs and memory_count >= 5:
+                logger.warning(
+                    f"Memory V2 migration recommended: {memory_count} memories found "
+                    "but no cross-references. Run 'gobby memory migrate-v2' to enable "
+                    "semantic search and automatic memory linking."
+                )
+        except Exception as e:
+            # Don't fail startup on migration check errors
+            logger.debug(f"Memory migration check failed (non-fatal): {e}")
+
     def _setup_signal_handlers(self) -> None:
         loop = asyncio.get_running_loop()
 
@@ -369,6 +409,9 @@ class GobbyRunner:
                     logger.info(f"Startup metrics cleanup: removed {deleted} old entries")
             except Exception as e:
                 logger.warning(f"Metrics cleanup failed: {e}")
+
+            # Check for pending Memory V2 migration
+            self._check_memory_v2_migration()
 
             # Start Message Processor
             if self.message_processor:
