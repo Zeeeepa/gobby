@@ -18,7 +18,8 @@ from gobby.servers.http import HTTPServer
 from gobby.servers.websocket import WebSocketConfig, WebSocketServer
 from gobby.sessions.lifecycle import SessionLifecycleManager
 from gobby.sessions.processor import SessionMessageProcessor
-from gobby.storage.database import LocalDatabase
+from gobby.storage.database import DatabaseProtocol, LocalDatabase
+from gobby.storage.dual_write import DualWriteDatabase
 from gobby.storage.mcp import LocalMCPManager
 from gobby.storage.migrations import run_migrations
 from gobby.storage.session_messages import LocalSessionMessageManager
@@ -52,9 +53,8 @@ class GobbyRunner:
         self._shutdown_requested = False
         self._metrics_cleanup_task: asyncio.Task[None] | None = None
 
-        # Initialize local storage
-        self.database = LocalDatabase()
-        run_migrations(self.database)
+        # Initialize local storage with dual-write if in project context
+        self.database = self._init_database()
         self.session_manager = LocalSessionManager(self.database)
         self.message_manager = LocalSessionMessageManager(self.database)
         self.task_manager = LocalTaskManager(self.database)
@@ -245,6 +245,45 @@ class GobbyRunner:
 
             # Register agent event callback for WebSocket broadcasting
             self._setup_agent_event_broadcasting()
+
+    def _init_database(self) -> DatabaseProtocol:
+        """
+        Initialize database with dual-write if in project context.
+
+        If a .gobby/project.json exists in cwd, uses DualWriteDatabase to write
+        to both project-local (.gobby/gobby.db) and hub (~/.gobby/gobby-hub.db).
+        Otherwise, uses hub database only.
+        """
+        import os
+
+        cwd = Path(os.getcwd())
+        project_json = cwd / ".gobby" / "project.json"
+        hub_db_path = Path(self.config.hub_database_path).expanduser()
+
+        # Ensure hub db directory exists
+        hub_db_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if project_json.exists():
+            # In project context: dual-write to project-local and hub
+            project_db_path = cwd / ".gobby" / "gobby.db"
+            project_db_path.parent.mkdir(parents=True, exist_ok=True)
+
+            project_db = LocalDatabase(project_db_path)
+            hub_db = LocalDatabase(hub_db_path)
+
+            # Run migrations on both
+            run_migrations(project_db)
+            run_migrations(hub_db)
+
+            logger.info(f"Dual-write enabled: {project_db_path} + {hub_db_path}")
+            return DualWriteDatabase(project_db, hub_db)
+        else:
+            # No project context: use hub database only
+            hub_db = LocalDatabase(hub_db_path)
+            run_migrations(hub_db)
+
+            logger.info(f"Single database mode: {hub_db_path}")
+            return hub_db
 
     def _setup_agent_event_broadcasting(self) -> None:
         """Set up WebSocket broadcasting for agent lifecycle events."""
