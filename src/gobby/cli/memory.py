@@ -428,3 +428,48 @@ def extract_codebase(
         click.echo(f"  Errors: {len(result.errors)}")
         for error in result.errors[:5]:
             click.echo(f"    - {error}")
+
+
+@memory.command("sync")
+@click.option("--import", "do_import", is_flag=True, help="Import memories from JSONL")
+@click.option("--export", "do_export", is_flag=True, help="Export memories to JSONL")
+@click.option("--quiet", "-q", is_flag=True, help="Suppress output")
+@click.pass_context
+def sync_memories(ctx: click.Context, do_import: bool, do_export: bool, quiet: bool) -> None:
+    """Sync memories with .gobby/memories.jsonl.
+
+    If neither --import nor --export specified, does both.
+    """
+    from gobby.sync.memories import MemorySyncManager
+
+    config: DaemonConfig = ctx.obj["config"]
+    manager = get_memory_manager(ctx)
+    db = LocalDatabase()
+
+    sync_manager = MemorySyncManager(
+        db=db,
+        memory_manager=manager,
+        config=config.memory_sync,
+    )
+
+    # Default to both if neither specified
+    if not do_import and not do_export:
+        do_import = True
+        do_export = True
+
+    if do_import:
+        if not quiet:
+            click.echo("Importing memories...")
+        count = asyncio.run(sync_manager.import_from_files())
+        if not quiet:
+            click.echo(f"  Imported {count} memories")
+
+    if do_export:
+        if not quiet:
+            click.echo("Exporting memories...")
+        count = asyncio.run(sync_manager.export_to_files())
+        if not quiet:
+            click.echo(f"  Exported {count} memories")
+
+    if not quiet:
+        click.echo("Sync completed")

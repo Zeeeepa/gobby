@@ -46,7 +46,7 @@ def mock_memory_manager():
 
 @pytest.fixture
 def sync_config():
-    return MemorySyncConfig(enabled=True, stealth=True, export_debounce=0.1)
+    return MemorySyncConfig(enabled=True, export_debounce=0.1)
 
 
 @pytest.fixture
@@ -55,32 +55,34 @@ def sync_manager(mock_db, mock_memory_manager, sync_config):
 
 
 @pytest.mark.asyncio
-async def test_get_sync_dir_stealth(sync_manager):
-    sync_manager.config.stealth = True
-    path = sync_manager._get_sync_dir()
-    assert path == Path("~/.gobby/sync").expanduser()
+async def test_get_export_path_absolute(sync_manager, tmp_path):
+    """Test that absolute paths are returned as-is."""
+    sync_manager.export_path = tmp_path / "memories.jsonl"
+    path = sync_manager._get_export_path()
+    assert path == tmp_path / "memories.jsonl"
 
 
 @pytest.mark.asyncio
-async def test_get_sync_dir_project(sync_manager):
-    sync_manager.config.stealth = False
+async def test_get_export_path_relative_with_project(sync_manager):
+    """Test that relative paths resolve against project context."""
+    sync_manager.export_path = Path(".gobby/memories.jsonl")
     mock_context = {"path": "/tmp/project"}
     with patch("gobby.utils.project_context.get_project_context", return_value=mock_context):
-        path = sync_manager._get_sync_dir()
+        path = sync_manager._get_export_path()
         # Compare resolved paths (handles macOS /tmp -> /private/tmp symlink)
-        expected = (Path("/tmp/project") / ".gobby" / "sync").resolve()
+        expected = (Path("/tmp/project") / ".gobby" / "memories.jsonl").resolve()
         assert path == expected
 
 
 @pytest.mark.asyncio
 async def test_export_to_files(sync_manager, tmp_path):
-    # Override _get_sync_dir to use tmp_path
-    sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
+    # Override export_path to use tmp_path
+    mem_file = tmp_path / "memories.jsonl"
+    sync_manager.export_path = mem_file
 
     count = await sync_manager.export_to_files()
 
     # Check memories.jsonl
-    mem_file = tmp_path / "memories.jsonl"
     assert mem_file.exists()
     lines = mem_file.read_text().splitlines()
     assert len(lines) == 1
@@ -92,10 +94,10 @@ async def test_export_to_files(sync_manager, tmp_path):
 @pytest.mark.asyncio
 async def test_import_from_files(sync_manager, tmp_path):
     """Test importing memories from JSONL file."""
-    sync_manager._get_sync_dir = MagicMock(return_value=tmp_path)
+    mem_file = tmp_path / "memories.jsonl"
+    sync_manager.export_path = mem_file
 
     # Create dummy memory file
-    mem_file = tmp_path / "memories.jsonl"
     mem_file.write_text(
         json.dumps({"content": "imported memory", "type": "fact", "importance": 0.8}) + "\n"
     )

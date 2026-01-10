@@ -16,9 +16,8 @@ class MemorySyncManager:
     Manages synchronization of memories between the database and filesystem.
 
     Supports:
-    - JSONL export/import for memories
+    - JSONL export/import for memories (to .gobby/memories.jsonl)
     - Debounced auto-export on changes
-    - Stealth mode (storage in ~/.gobby vs .gobby/)
     """
 
     def __init__(
@@ -26,10 +25,12 @@ class MemorySyncManager:
         db: LocalDatabase,
         memory_manager: MemoryManager | None,
         config: MemorySyncConfig,
+        export_path: str = ".gobby/memories.jsonl",
     ):
         self.db = db
         self.memory_manager = memory_manager
         self.config = config
+        self.export_path = Path(export_path)
 
         # Debounce state
         self._export_task: asyncio.Task[None] | None = None
@@ -79,15 +80,13 @@ class MemorySyncManager:
             wait_time = max(0.1, self.config.export_debounce - elapsed)
             await asyncio.sleep(wait_time)
 
-    def _get_sync_dir(self) -> Path:
-        """Get the directory for syncing.
+    def _get_export_path(self) -> Path:
+        """Get the path for the memories.jsonl file.
 
-        Returns an absolute path to the sync directory.
-        - In stealth mode: ~/.gobby/sync
-        - Otherwise: Uses project context if available, falls back to ~/.gobby/sync
+        Returns the export_path, resolving relative paths against the project context.
         """
-        if self.config.stealth:
-            return Path("~/.gobby/sync").expanduser().resolve()
+        if self.export_path.is_absolute():
+            return self.export_path
 
         # Try to get project path from project context
         try:
@@ -96,12 +95,12 @@ class MemorySyncManager:
             project_ctx = get_project_context()
             if project_ctx and project_ctx.get("path"):
                 project_path = Path(project_ctx["path"]).expanduser().resolve()
-                return project_path / ".gobby" / "sync"
+                return project_path / self.export_path
         except Exception:
             pass
 
-        # Fall back to user home directory for stability
-        return Path("~/.gobby/sync").expanduser().resolve()
+        # Fall back to current working directory
+        return Path.cwd() / self.export_path
 
     async def import_from_files(self) -> int:
         """
@@ -116,8 +115,7 @@ class MemorySyncManager:
         if not self.memory_manager:
             return 0
 
-        sync_dir = self._get_sync_dir()
-        memories_file = sync_dir / "memories.jsonl"
+        memories_file = self._get_export_path()
         if not memories_file.exists():
             return 0
 
@@ -136,13 +134,12 @@ class MemorySyncManager:
         if not self.memory_manager:
             return 0
 
-        sync_dir = self._get_sync_dir()
-        return await asyncio.to_thread(self._export_to_files_sync, sync_dir)
+        memories_file = self._get_export_path()
+        return await asyncio.to_thread(self._export_to_files_sync, memories_file)
 
-    def _export_to_files_sync(self, sync_dir: Path) -> int:
+    def _export_to_files_sync(self, memories_file: Path) -> int:
         """Synchronous implementation of export."""
-        sync_dir.mkdir(parents=True, exist_ok=True)
-        memories_file = sync_dir / "memories.jsonl"
+        memories_file.parent.mkdir(parents=True, exist_ok=True)
         return self._export_memories_sync(memories_file)
 
     def _import_memories_sync(self, file_path: Path) -> int:

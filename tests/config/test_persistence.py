@@ -33,24 +33,6 @@ class TestMemorySyncConfigImport:
         assert MemorySyncConfig is not None
 
 
-class TestSkillSyncConfigImport:
-    """Test that SkillSyncConfig can be imported from the persistence module."""
-
-    def test_import_from_persistence_module(self) -> None:
-        """Test importing SkillSyncConfig from config.persistence (RED phase target)."""
-        from gobby.config.persistence import SkillSyncConfig
-
-        assert SkillSyncConfig is not None
-
-
-class TestSkillConfigImport:
-    """Test that SkillConfig can be imported from the persistence module."""
-
-    def test_import_from_persistence_module(self) -> None:
-        """Test importing SkillConfig from config.persistence (RED phase target)."""
-        from gobby.config.persistence import SkillConfig
-
-        assert SkillConfig is not None
 
 
 # =============================================================================
@@ -241,19 +223,11 @@ class TestMemorySyncConfigDefaults:
 
         config = MemorySyncConfig()
         assert config.enabled is True
-        assert config.stealth is False
         assert config.export_debounce == 5.0
 
 
 class TestMemorySyncConfigCustom:
     """Test MemorySyncConfig with custom values."""
-
-    def test_stealth_mode(self) -> None:
-        """Test enabling stealth mode (local storage only)."""
-        from gobby.config.persistence import MemorySyncConfig
-
-        config = MemorySyncConfig(stealth=True)
-        assert config.stealth is True
 
     def test_disabled_sync(self) -> None:
         """Test disabling memory sync."""
@@ -285,124 +259,6 @@ class TestMemorySyncConfigValidation:
         with pytest.raises(ValidationError) as exc_info:
             MemorySyncConfig(export_debounce=-1.0)
         assert "non-negative" in str(exc_info.value).lower()
-
-
-# =============================================================================
-# SkillSyncConfig Tests
-# =============================================================================
-
-
-class TestSkillSyncConfigDefaults:
-    """Test SkillSyncConfig default values."""
-
-    def test_default_instantiation(self) -> None:
-        """Test SkillSyncConfig creates with all defaults."""
-        from gobby.config.persistence import SkillSyncConfig
-
-        config = SkillSyncConfig()
-        assert config.enabled is True
-        assert config.stealth is False
-        assert config.export_debounce == 5.0
-
-
-class TestSkillSyncConfigCustom:
-    """Test SkillSyncConfig with custom values."""
-
-    def test_stealth_mode(self) -> None:
-        """Test enabling stealth mode."""
-        from gobby.config.persistence import SkillSyncConfig
-
-        config = SkillSyncConfig(stealth=True)
-        assert config.stealth is True
-
-    def test_disabled_sync(self) -> None:
-        """Test disabling skill sync."""
-        from gobby.config.persistence import SkillSyncConfig
-
-        config = SkillSyncConfig(enabled=False)
-        assert config.enabled is False
-
-    def test_custom_debounce(self) -> None:
-        """Test setting custom export debounce."""
-        from gobby.config.persistence import SkillSyncConfig
-
-        config = SkillSyncConfig(export_debounce=15.0)
-        assert config.export_debounce == 15.0
-
-
-class TestSkillSyncConfigValidation:
-    """Test SkillSyncConfig validation."""
-
-    def test_export_debounce_non_negative(self) -> None:
-        """Test that export_debounce must be non-negative."""
-        from gobby.config.persistence import SkillSyncConfig
-
-        config = SkillSyncConfig(export_debounce=0.0)
-        assert config.export_debounce == 0.0
-
-        with pytest.raises(ValidationError) as exc_info:
-            SkillSyncConfig(export_debounce=-0.5)
-        assert "non-negative" in str(exc_info.value).lower()
-
-
-# =============================================================================
-# SkillConfig Tests
-# =============================================================================
-
-
-class TestSkillConfigDefaults:
-    """Test SkillConfig default values."""
-
-    def test_default_instantiation(self) -> None:
-        """Test SkillConfig creates with all defaults."""
-        from gobby.config.persistence import SkillConfig
-
-        config = SkillConfig()
-        assert config.enabled is True
-        assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
-
-    def test_prompt_present(self) -> None:
-        """Test default prompt is present."""
-        from gobby.config.persistence import SkillConfig
-
-        config = SkillConfig()
-        assert config.prompt is not None
-        assert len(config.prompt) > 0
-        assert "{transcript}" in config.prompt
-
-
-class TestSkillConfigCustom:
-    """Test SkillConfig with custom values."""
-
-    def test_disabled_skills(self) -> None:
-        """Test disabling skill learning."""
-        from gobby.config.persistence import SkillConfig
-
-        config = SkillConfig(enabled=False)
-        assert config.enabled is False
-
-    def test_custom_provider(self) -> None:
-        """Test setting custom provider."""
-        from gobby.config.persistence import SkillConfig
-
-        config = SkillConfig(provider="gemini")
-        assert config.provider == "gemini"
-
-    def test_custom_model(self) -> None:
-        """Test setting custom model."""
-        from gobby.config.persistence import SkillConfig
-
-        config = SkillConfig(model="claude-sonnet-4-5")
-        assert config.model == "claude-sonnet-4-5"
-
-    def test_custom_prompt(self) -> None:
-        """Test setting custom prompt."""
-        from gobby.config.persistence import SkillConfig
-
-        custom_prompt = "Custom prompt with {transcript}"
-        config = SkillConfig(prompt=custom_prompt)
-        assert config.prompt == custom_prompt
 
 
 # =============================================================================
@@ -438,28 +294,6 @@ class TestMemorySyncConfigFromAppPy:
 
         config = MemorySyncConfig()
         assert config.enabled is True
-        assert config.stealth is False
-
-
-class TestSkillSyncConfigFromAppPy:
-    """Verify SkillSyncConfig tests pass when importing from app.py."""
-
-    def test_import_from_app_py(self) -> None:
-        """Test importing SkillSyncConfig from app.py works (baseline)."""
-        from gobby.config.app import SkillSyncConfig
-
-        config = SkillSyncConfig()
-        assert config.enabled is True
         assert config.export_debounce == 5.0
 
 
-class TestSkillConfigFromAppPy:
-    """Verify SkillConfig tests pass when importing from app.py."""
-
-    def test_import_from_app_py(self) -> None:
-        """Test importing SkillConfig from app.py works (baseline)."""
-        from gobby.config.app import SkillConfig
-
-        config = SkillConfig()
-        assert config.enabled is True
-        assert config.provider == "claude"

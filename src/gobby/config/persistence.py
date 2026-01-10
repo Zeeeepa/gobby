@@ -203,10 +203,6 @@ class MemorySyncConfig(BaseModel):
         default=True,
         description="Enable memory synchronization to filesystem",
     )
-    stealth: bool = Field(
-        default=False,
-        description="If True, store in ~/.gobby/ (local only). If False, store in .gobby/ (git committed).",
-    )
     export_debounce: float = Field(
         default=5.0,
         description="Seconds to wait before exporting after a change",

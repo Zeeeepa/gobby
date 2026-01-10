@@ -938,13 +938,7 @@ class TestMemorySyncConfig:
         """Test default memory sync config."""
         config = MemorySyncConfig()
         assert config.enabled is True
-        assert config.stealth is False
         assert config.export_debounce == 5.0
-
-    def test_stealth_mode(self):
-        """Test stealth mode config."""
-        config = MemorySyncConfig(stealth=True)
-        assert config.stealth is True
 
     def test_debounce_validation(self):
         """Test export debounce validation."""
