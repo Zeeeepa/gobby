@@ -440,3 +440,63 @@ def sync_memories(ctx: click.Context, do_import: bool, do_export: bool, quiet: b
 
     if not quiet:
         click.echo("Sync completed")
+
+
+@memory.command("graph")
+@click.option("--output", "-o", "output_path", help="Output file path (default: memory_graph.html)")
+@click.option("--open", "open_browser", is_flag=True, help="Open in browser after export")
+@click.option("--project", "-p", "project_id", help="Project ID filter")
+@click.option("--title", "-t", default="Memory Knowledge Graph", help="Graph title")
+@click.pass_context
+def export_graph(
+    ctx: click.Context,
+    output_path: str | None,
+    open_browser: bool,
+    project_id: str | None,
+    title: str,
+) -> None:
+    """Export memories as an interactive knowledge graph.
+
+    Creates a standalone HTML file with vis.js visualization showing
+    memories as nodes and cross-references as edges.
+
+    Nodes are colored by type and sized by importance.
+    """
+    import webbrowser
+    from pathlib import Path
+
+    from gobby.memory.viz import export_memory_graph
+    from gobby.storage.memories import LocalMemoryManager
+
+    manager = get_memory_manager(ctx)
+    db = LocalDatabase()
+    storage = LocalMemoryManager(db)
+
+    # Get memories
+    memories = manager.list_memories(project_id=project_id, limit=1000)
+    if not memories:
+        click.echo("No memories found.")
+        return
+
+    # Get cross-references
+    crossrefs = storage.get_all_crossrefs(project_id=project_id, limit=5000)
+
+    click.echo(f"Exporting {len(memories)} memories with {len(crossrefs)} cross-references...")
+
+    # Generate HTML
+    html_content = export_memory_graph(memories, crossrefs, title=title)
+
+    # Determine output path
+    if output_path is None:
+        output_path = "memory_graph.html"
+    output_file = Path(output_path)
+
+    # Write file
+    output_file.write_text(html_content)
+    click.echo(f"Graph exported to: {output_file.absolute()}")
+
+    # Open in browser if requested
+    if open_browser:
+        url = f"file://{output_file.absolute()}"
+        click.echo("Opening in browser...")
+        webbrowser.open(url)
