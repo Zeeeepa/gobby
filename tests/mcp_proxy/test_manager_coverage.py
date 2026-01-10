@@ -847,7 +847,7 @@ class TestMCPClientManagerCallTool:
             state=ConnectionState.CONNECTED,
         )
 
-        with patch.object(manager, "get_session", return_value=mock_session):
+        with patch.object(manager, "get_client_session", return_value=mock_session):
             result = await manager.call_tool("test-server", "test-tool", {"arg": "val"})
 
         assert result == {"result": "success"}
@@ -878,7 +878,7 @@ class TestMCPClientManagerCallTool:
             state=ConnectionState.CONNECTED,
         )
 
-        with patch.object(manager, "get_session", return_value=mock_session):
+        with patch.object(manager, "get_client_session", return_value=mock_session):
             with pytest.raises(asyncio.TimeoutError):
                 await manager.call_tool("test-server", "slow-tool", None, timeout=0.01)
 
@@ -906,7 +906,7 @@ class TestMCPClientManagerCallTool:
             state=ConnectionState.CONNECTED,
         )
 
-        with patch.object(manager, "get_session", return_value=mock_session):
+        with patch.object(manager, "get_client_session", return_value=mock_session):
             await manager.call_tool("test-server", "test-tool", {})
 
         mock_metrics.record_call.assert_called_once()
@@ -939,7 +939,7 @@ class TestMCPClientManagerCallTool:
             state=ConnectionState.CONNECTED,
         )
 
-        with patch.object(manager, "get_session", return_value=mock_session):
+        with patch.object(manager, "get_client_session", return_value=mock_session):
             with pytest.raises(Exception, match="Tool failed"):
                 await manager.call_tool("test-server", "test-tool", {})
 
@@ -972,7 +972,7 @@ class TestMCPClientManagerCallTool:
             state=ConnectionState.CONNECTED,
         )
 
-        with patch.object(manager, "get_session", return_value=mock_session):
+        with patch.object(manager, "get_client_session", return_value=mock_session):
             # Should not raise despite metrics failure
             result = await manager.call_tool("test-server", "test-tool", {})
 
@@ -1002,7 +1002,7 @@ class TestMCPClientManagerReadResource:
             state=ConnectionState.CONNECTED,
         )
 
-        with patch.object(manager, "get_session", return_value=mock_session):
+        with patch.object(manager, "get_client_session", return_value=mock_session):
             result = await manager.read_resource("test-server", "file://test.txt")
 
         assert result == {"content": "resource data"}
@@ -1027,7 +1027,7 @@ class TestMCPClientManagerReadResource:
             state=ConnectionState.CONNECTED,
         )
 
-        with patch.object(manager, "get_session", return_value=mock_session):
+        with patch.object(manager, "get_client_session", return_value=mock_session):
             with pytest.raises(Exception, match="Read failed"):
                 await manager.read_resource("test-server", "file://test.txt")
 
@@ -1061,7 +1061,7 @@ class TestMCPClientManagerListTools:
             state=ConnectionState.CONNECTED,
         )
 
-        with patch.object(manager, "get_session", return_value=mock_session):
+        with patch.object(manager, "get_client_session", return_value=mock_session):
             result = await manager.list_tools("test-server")
 
         assert "test-server" in result
@@ -1090,7 +1090,7 @@ class TestMCPClientManagerListTools:
             state=ConnectionState.CONNECTED,
         )
 
-        with patch.object(manager, "get_session", return_value=mock_session):
+        with patch.object(manager, "get_client_session", return_value=mock_session):
             result = await manager.list_tools("test-server")
 
         assert result["test-server"] == []
@@ -1116,7 +1116,7 @@ class TestMCPClientManagerListTools:
             state=ConnectionState.CONNECTED,
         )
 
-        with patch.object(manager, "get_session", return_value=mock_session):
+        with patch.object(manager, "get_client_session", return_value=mock_session):
             result = await manager.list_tools("test-server")
 
         assert result["test-server"] == []
@@ -1707,12 +1707,12 @@ class TestMCPClientManagerNullSession:
                 await manager.ensure_connected("test-server")
 
 
-class TestMCPClientManagerGetSession:
-    """Tests for get_session method."""
+class TestMCPClientManagerGetClientSession:
+    """Tests for get_client_session method."""
 
     @pytest.mark.asyncio
-    async def test_get_session_delegates_to_ensure_connected(self):
-        """Test get_session calls ensure_connected."""
+    async def test_get_client_session_delegates_to_ensure_connected(self):
+        """Test get_client_session calls ensure_connected."""
         config = MCPServerConfig(
             name="test-server",
             project_id="test-project",
@@ -1725,7 +1725,7 @@ class TestMCPClientManagerGetSession:
         mock_session = MagicMock()
 
         with patch.object(manager, "ensure_connected", return_value=mock_session) as mock_ensure:
-            result = await manager.get_session("test-server")
+            result = await manager.get_client_session("test-server")
 
         mock_ensure.assert_called_once_with("test-server")
         assert result is mock_session
@@ -1759,7 +1759,7 @@ class TestMCPClientManagerCallToolMetricsEdgeCases:
             state=ConnectionState.CONNECTED,
         )
 
-        with patch.object(manager, "get_session", return_value=mock_session):
+        with patch.object(manager, "get_client_session", return_value=mock_session):
             result = await manager.call_tool("test-server", "test-tool", {})
 
         assert result == {"result": "success"}
@@ -1791,7 +1791,7 @@ class TestMCPClientManagerCallToolMetricsEdgeCases:
             state=ConnectionState.CONNECTED,
         )
 
-        with patch.object(manager, "get_session", return_value=mock_session):
+        with patch.object(manager, "get_client_session", return_value=mock_session):
             await manager.call_tool("test-server", "test-tool", {})
 
         # Should use config's project_id
@@ -1840,7 +1840,7 @@ class TestMCPClientManagerListToolsAllServers:
             state=ConnectionState.CONNECTED,
         )
 
-        with patch.object(manager, "get_session", return_value=mock_session):
+        with patch.object(manager, "get_client_session", return_value=mock_session):
             result = await manager.list_tools()  # No server_name = all connected
 
         assert "server1" in result

@@ -565,9 +565,9 @@ class MCPClientManager:
                 f"{retry_config.max_retries + 1} attempts: {last_error}"
             ) from last_error
 
-    async def get_session(self, server_name: str) -> ClientSession:
+    async def get_client_session(self, server_name: str) -> ClientSession:
         """
-        Get active session for server, connecting lazily if needed.
+        Get active MCP client session for server, connecting lazily if needed.
 
         Args:
             server_name: Name of server
@@ -593,7 +593,7 @@ class MCPClientManager:
         start_time = time.perf_counter()
         success = False
         try:
-            session = await self.get_session(server_name)
+            session = await self.get_client_session(server_name)
             if timeout:
                 result = await asyncio.wait_for(
                     session.call_tool(tool_name, arguments or {}), timeout=timeout
@@ -630,7 +630,7 @@ class MCPClientManager:
     async def read_resource(self, server_name: str, uri: str) -> Any:
         """Read a resource from a specific server."""
         try:
-            session = await self.get_session(server_name)
+            session = await self.get_client_session(server_name)
             # Ensure uri is string and cast for type checker if needed,
             # though runtime usually handles string -> AnyUrl coercion in pydantic
             result = await session.read_resource(cast(Any, str(uri)))
@@ -656,7 +656,7 @@ class MCPClientManager:
 
         for name in servers:
             try:
-                session = await self.get_session(name)
+                session = await self.get_client_session(name)
                 tools = await session.list_tools()
                 # Assuming tools is a ListToolsResult or similar Pydantic model
                 # We need to serialize it or return it as is.
