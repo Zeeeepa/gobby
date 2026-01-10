@@ -23,10 +23,12 @@ from gobby.llm import LLMProvider, LLMService
 from gobby.tasks.validation import (
     TaskValidator,
     ValidationResult,
+    extract_file_patterns_from_text,
     find_matching_files,
     get_commits_since,
     get_git_diff,
     get_last_commit_diff,
+    get_multi_commit_diff,
     get_recent_commits,
     get_validation_context_smart,
     read_files_content,
@@ -79,7 +81,7 @@ class TestRunGitCommand:
         assert result is None
 
 
-class TestGetMultiCommitDiffMerged:
+class TestGetLastCommitDiff:
     """Tests for get_last_commit_diff function."""
 
     @patch("gobby.tasks.validation.run_git_command")
@@ -867,6 +869,8 @@ class TestPathHandling:
         files = find_matching_files(["test.py"], base_dir=Path(tmp_path))
         assert len(files) == 1
         assert files[0] == test_file
+
+
 # ============================================================================
 # Merged Tests from test_task_validation.py (Renamed to avoid shadowing)
 # ============================================================================
@@ -913,7 +917,8 @@ class TestGetGitDiffMerged:
     @patch("gobby.tasks.validation.run_git_command")
     def test_get_git_diff_exception(self, mock_run):
         mock_run.side_effect = Exception("Git error")
-        assert get_git_diff() is None
+        with pytest.raises(Exception):
+            get_git_diff()
 
     @patch("gobby.tasks.validation.run_git_command")
     def test_get_git_diff_truncate(self, mock_run):
@@ -1066,8 +1071,8 @@ class TestGetRecentCommitsMerged:
     @patch("gobby.tasks.validation.run_git_command")
     def test_get_recent_commits_exception(self, mock_run):
         mock_run.side_effect = Exception("Git error")
-        commits = get_recent_commits(5)
-        assert commits == []
+        with pytest.raises(Exception):
+            get_recent_commits(5)
 
 
 class TestGetMultiCommitDiffMerged:

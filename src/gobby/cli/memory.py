@@ -290,6 +290,30 @@ def init(
             click.echo(f"    - {error}")
 
 
+@memory.command("reindex")
+@click.pass_context
+def reindex_search(ctx: click.Context) -> None:
+    """Rebuild the TF-IDF search index for memories.
+
+    Forces a complete rebuild of the search index from all stored memories.
+    This is useful after bulk operations or to recover from index corruption.
+    """
+    manager = get_memory_manager(ctx)
+
+    click.echo("Rebuilding memory search index...")
+    result = manager.reindex_search()
+
+    if result.get("success"):
+        click.echo("Done!")
+        click.echo(f"  Memories indexed: {result.get('memory_count', 0)}")
+        click.echo(f"  Backend: {result.get('backend_type', 'unknown')}")
+        if "vocabulary_size" in result:
+            click.echo(f"  Vocabulary size: {result['vocabulary_size']}")
+    else:
+        click.echo(f"Error: {result.get('error', 'Unknown error')}", err=True)
+        raise SystemExit(1)
+
+
 @memory.command("sync")
 @click.option("--import", "do_import", is_flag=True, help="Import memories from JSONL")
 @click.option("--export", "do_export", is_flag=True, help="Export memories to JSONL")

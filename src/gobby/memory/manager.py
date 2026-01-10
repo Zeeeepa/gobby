@@ -106,6 +106,50 @@ class MemoryManager:
         """Mark that the search backend needs to be refitted."""
         self._search_backend_fitted = False
 
+    def reindex_search(self) -> dict[str, Any]:
+        """
+        Force rebuild of the search index.
+
+        This method explicitly rebuilds the TF-IDF (or other configured)
+        search index from all stored memories. Useful for:
+        - Initial index building
+        - Recovery after corruption
+        - After bulk memory operations
+
+        Returns:
+            Dict with index statistics including memory_count, backend_type, etc.
+        """
+        # Get all memories
+        memories = self.storage.list_memories(limit=10000)
+        memory_tuples = [(m.id, m.content) for m in memories]
+
+        # Force refit the backend
+        backend = self.search_backend
+        backend_type = getattr(self.config, "search_backend", "tfidf")
+
+        try:
+            backend.fit(memory_tuples)
+            self._search_backend_fitted = True
+
+            # Get backend stats
+            stats = backend.get_stats() if hasattr(backend, "get_stats") else {}
+
+            return {
+                "success": True,
+                "memory_count": len(memory_tuples),
+                "backend_type": backend_type,
+                "fitted": True,
+                **stats,
+            }
+        except Exception as e:
+            logger.error(f"Failed to reindex search backend: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "memory_count": len(memory_tuples),
+                "backend_type": backend_type,
+            }
+
     async def remember(
         self,
         content: str,
