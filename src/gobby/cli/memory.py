@@ -34,10 +34,10 @@ def memory() -> None:
 @click.option("--importance", "-i", type=float, default=0.5, help="Importance (0.0 - 1.0)")
 @click.option("--project", "-p", "project_id", help="Project ID")
 @click.pass_context
-def remember(
+def create(
     ctx: click.Context, content: str, memory_type: str, importance: float, project_id: str | None
 ) -> None:
-    """Store a new memory."""
+    """Create a new memory."""
     manager = get_memory_manager(ctx)
     memory = asyncio.run(
         manager.remember(
@@ -48,7 +48,7 @@ def remember(
             source_type="cli",
         )
     )
-    click.echo(f"Stored memory: {memory.id} - {memory.content}")
+    click.echo(f"Created memory: {memory.id} - {memory.content}")
 
 
 @memory.command()
@@ -75,12 +75,12 @@ def recall(ctx: click.Context, query: str | None, project_id: str | None, limit:
 @memory.command()
 @click.argument("memory_id")
 @click.pass_context
-def forget(ctx: click.Context, memory_id: str) -> None:
-    """Delete a memory."""
+def delete(ctx: click.Context, memory_id: str) -> None:
+    """Delete a memory by ID."""
     manager = get_memory_manager(ctx)
     success = manager.forget(memory_id)
     if success:
-        click.echo(f"Forgot memory: {memory_id}")
+        click.echo(f"Deleted memory: {memory_id}")
     else:
         click.echo(f"Memory not found: {memory_id}")
 
@@ -243,156 +243,16 @@ def embedding_stats(ctx: click.Context, project_id: str | None) -> None:
 
 @memory.command("init")
 @click.option("--path", "-p", "project_path", default=".", help="Project path to scan")
-@click.option("--scan/--no-scan", default=True, help="Scan codebase for patterns")
-@click.option(
-    "--import-claude-md/--no-import-claude-md",
-    "import_md",
-    default=True,
-    help="Import from CLAUDE.md/GEMINI.md/CODEX.md",
-)
-@click.option("--max-files", "-n", default=20, help="Maximum files to sample for codebase scan")
-@click.option("--project", "project_id", help="Project ID for memories")
-@click.pass_context
-def init_memory(
-    ctx: click.Context,
-    project_path: str,
-    scan: bool,
-    import_md: bool,
-    max_files: int,
-    project_id: str | None,
-) -> None:
-    """Initialize memory from codebase and agent markdown files.
-
-    This unified command orchestrates:
-    - extract-codebase: Scan code for patterns and conventions
-    - extract-agent-md: Import from CLAUDE.md, GEMINI.md, CODEX.md
-    """
-    from gobby.memory.extractor import MemoryExtractor
-
-    manager = get_memory_manager(ctx)
-    config: DaemonConfig = ctx.obj["config"]
-
-    if not scan and not import_md:
-        click.echo("Nothing to do. Use --scan and/or --import-claude-md")
-        return
-
-    # Get LLM service
-    llm_service = None
-    try:
-        from gobby.llm.service import LLMService
-
-        llm_service = LLMService(config)
-    except Exception as e:
-        click.echo(f"Warning: LLM service not available: {e}", err=True)
-        click.echo("Memory init requires an LLM. Configure llm_providers in config.yaml")
-        raise SystemExit(1) from None
-
-    extractor = MemoryExtractor(manager, llm_service)
-    total_created = 0
-    total_skipped = 0
-
-    click.echo(f"Initializing memory for project at {project_path}...")
-
-    # Step 1: Extract from agent markdown files
-    if import_md:
-        click.echo("\n[1/2] Extracting from agent markdown files...")
-        result = asyncio.run(
-            extractor.extract_from_agent_md(project_path=project_path, project_id=project_id)
-        )
-        total_created += result.created
-        total_skipped += result.skipped
-        click.echo(f"  Created: {result.created}, Skipped: {result.skipped}")
-        if result.errors:
-            for error in result.errors[:3]:
-                click.echo(f"  Error: {error}")
-
-    # Step 2: Extract from codebase
-    if scan:
-        step = "2/2" if import_md else "1/1"
-        click.echo(f"\n[{step}] Scanning codebase for patterns...")
-        result = asyncio.run(
-            extractor.extract_from_codebase(
-                project_path=project_path,
-                project_id=project_id,
-                max_files=max_files,
-            )
-        )
-        total_created += result.created
-        total_skipped += result.skipped
-        click.echo(f"  Created: {result.created}, Skipped: {result.skipped}")
-        if result.errors:
-            for error in result.errors[:3]:
-                click.echo(f"  Error: {error}")
-
-    click.echo("\n" + "=" * 40)
-    click.echo("Memory initialization complete!")
-    click.echo(f"  Total created: {total_created}")
-    click.echo(f"  Total skipped (duplicates): {total_skipped}")
-
-
-@memory.command("extract-agent-md")
-@click.option("--path", "-p", "project_path", default=".", help="Project path to scan")
-@click.option("--file", "-f", "file_path", help="Specific file to extract from")
-@click.option("--project", "project_id", help="Project ID for memories")
-@click.pass_context
-def extract_agent_md(
-    ctx: click.Context,
-    project_path: str,
-    file_path: str | None,
-    project_id: str | None,
-) -> None:
-    """Extract memories from agent markdown files (CLAUDE.md, GEMINI.md, CODEX.md)."""
-
-    from gobby.memory.extractor import MemoryExtractor
-
-    manager = get_memory_manager(ctx)
-    config: DaemonConfig = ctx.obj["config"]
-
-    # Get LLM service if available
-    llm_service = None
-    try:
-        from gobby.llm.service import LLMService
-
-        llm_service = LLMService(config)
-    except Exception as e:
-        click.echo(f"Warning: LLM service not available: {e}", err=True)
-        click.echo("Extraction requires an LLM. Configure llm_providers in config.yaml")
-        raise SystemExit(1) from None
-
-    extractor = MemoryExtractor(manager, llm_service)
-
-    click.echo("Extracting memories from agent markdown files...")
-
-    if file_path:
-        result = asyncio.run(
-            extractor.extract_from_agent_md(file_path=file_path, project_id=project_id)
-        )
-    else:
-        result = asyncio.run(
-            extractor.extract_from_agent_md(project_path=project_path, project_id=project_id)
-        )
-
-    click.echo("Done!")
-    click.echo(f"  Created: {result.created}")
-    click.echo(f"  Skipped (duplicates): {result.skipped}")
-    if result.errors:
-        click.echo(f"  Errors: {len(result.errors)}")
-        for error in result.errors[:5]:
-            click.echo(f"    - {error}")
-
-
-@memory.command("extract-codebase")
-@click.option("--path", "-p", "project_path", default=".", help="Project path to scan")
 @click.option("--max-files", "-n", default=20, help="Maximum files to sample")
 @click.option("--project", "project_id", help="Project ID for memories")
 @click.pass_context
-def extract_codebase(
+def init(
     ctx: click.Context,
     project_path: str,
     max_files: int,
     project_id: str | None,
 ) -> None:
-    """Extract patterns and conventions from codebase."""
+    """Initialize memory by extracting patterns and conventions from codebase."""
     from gobby.memory.extractor import MemoryExtractor
 
     manager = get_memory_manager(ctx)

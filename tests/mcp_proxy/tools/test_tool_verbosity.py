@@ -11,7 +11,7 @@ from gobby.mcp_proxy.tools.worktrees import create_worktrees_registry
 
 @pytest.mark.asyncio
 async def test_memory_verbosity_reduction():
-    """Verify remember/update don't echo back full content."""
+    """Verify create/update don't echo back full content."""
     mock_manager = AsyncMock()
     # Mock return value behaves like a Memory object
     mock_memory = MagicMock()
@@ -22,8 +22,8 @@ async def test_memory_verbosity_reduction():
 
     registry = create_memory_registry(mock_manager)
 
-    # Test remember
-    result = await registry.call("remember", {"content": "test"})
+    # Test create_memory
+    result = await registry.call("create_memory", {"content": "test"})
     assert result["success"] is True
     assert result["memory"]["id"] == "mem-123"
     # Should NOT contain content in the improved version

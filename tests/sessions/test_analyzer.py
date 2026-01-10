@@ -737,7 +737,7 @@ def test_non_gobby_tasks_mcp_calls():
                         "name": "mcp_call_tool",
                         "input": {
                             "server_name": "gobby-memory",  # Not gobby-tasks
-                            "tool_name": "remember",
+                            "tool_name": "create_memory",
                             "arguments": {"key": "value"},
                         },
                     },

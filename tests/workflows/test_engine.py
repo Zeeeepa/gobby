@@ -659,7 +659,7 @@ class TestDetectTaskClaim:
                 "tool_name": "mcp__gobby__call_tool",
                 "tool_input": {
                     "server_name": "gobby-memory",  # Different server
-                    "tool_name": "remember",
+                    "tool_name": "create_memory",
                     "arguments": {"content": "test"},
                 },
                 "tool_output": {"status": "success"},

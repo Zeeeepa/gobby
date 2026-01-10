@@ -2,10 +2,13 @@
 Internal MCP tools for Gobby Memory System.
 
 Exposes functionality for:
-- Storing memories (remember)
-- Retrieving memories (recall)
-- Deleting memories (forget)
-- Initializing memory from codebase (init_memory)
+- Creating memories (create_memory)
+- Retrieving memories (recall_memory)
+- Deleting memories (delete_memory)
+- Listing memories (list_memories)
+- Getting memory details (get_memory)
+- Updating memories (update_memory)
+- Memory statistics (memory_stats)
 
 These tools are registered with the InternalToolRegistry and accessed
 via the downstream proxy pattern (call_tool).
@@ -38,14 +41,14 @@ def create_memory_registry(
     """
     registry = InternalToolRegistry(
         name="gobby-memory",
-        description="Memory management - remember, recall, forget",
+        description="Memory management - create_memory, recall_memory, delete_memory",
     )
 
     @registry.tool(
-        name="remember",
-        description="Store a new memory.",
+        name="create_memory",
+        description="Create a new memory.",
     )
-    async def remember(
+    async def create_memory(
         content: str,
         memory_type: str = "fact",
         importance: float = 0.5,
@@ -53,7 +56,7 @@ def create_memory_registry(
         tags: list[str] | None = None,
     ) -> dict[str, Any]:
         """
-        Store a new memory.
+        Create a new memory.
 
         Args:
             content: The memory content to store
@@ -81,10 +84,10 @@ def create_memory_registry(
             return {"success": False, "error": str(e)}
 
     @registry.tool(
-        name="recall",
+        name="recall_memory",
         description="Recall memories based on query and filters.",
     )
-    def recall(
+    def recall_memory(
         query: str | None = None,
         project_id: str | None = None,
         limit: int = 10,
@@ -125,10 +128,10 @@ def create_memory_registry(
             return {"success": False, "error": str(e)}
 
     @registry.tool(
-        name="forget",
+        name="delete_memory",
         description="Delete a memory by ID.",
     )
-    def forget(memory_id: str) -> dict[str, Any]:
+    def delete_memory(memory_id: str) -> dict[str, Any]:
         """
         Delete a memory by ID.
 
@@ -276,84 +279,6 @@ def create_memory_registry(
         try:
             stats = memory_manager.get_stats(project_id=project_id)
             return {"success": True, "stats": stats}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    @registry.tool(
-        name="init_memory",
-        description="Initialize memory from codebase and agent markdown files (CLAUDE.md, etc.).",
-    )
-    async def init_memory(
-        project_path: str = ".",
-        scan_codebase: bool = True,
-        import_agent_md: bool = True,
-        max_files: int = 20,
-        project_id: str | None = None,
-    ) -> dict[str, Any]:
-        """
-        Initialize memory from codebase and agent markdown files.
-
-        This unified operation orchestrates:
-        - extract-codebase: Scan code for patterns and conventions
-        - extract-agent-md: Import from CLAUDE.md, GEMINI.md, CODEX.md
-
-        Args:
-            project_path: Path to project directory (default: current)
-            scan_codebase: Whether to scan codebase for patterns (default: True)
-            import_agent_md: Whether to import from agent markdown files (default: True)
-            max_files: Maximum files to sample for codebase scan (default: 20)
-            project_id: Optional project ID to associate memories with
-        """
-        if not llm_service:
-            return {
-                "success": False,
-                "error": "LLM service not available. Memory init requires an LLM.",
-            }
-
-        if not scan_codebase and not import_agent_md:
-            return {
-                "success": False,
-                "error": "Nothing to do. Enable scan_codebase and/or import_agent_md.",
-            }
-
-        try:
-            from gobby.memory.extractor import MemoryExtractor
-
-            extractor = MemoryExtractor(memory_manager, llm_service)
-            total_created = 0
-            total_skipped = 0
-            all_errors: list[str] = []
-
-            # Step 1: Extract from agent markdown files
-            if import_agent_md:
-                result = await extractor.extract_from_agent_md(
-                    project_path=project_path, project_id=project_id
-                )
-                total_created += result.created
-                total_skipped += result.skipped
-                all_errors.extend(result.errors)
-
-            # Step 2: Extract from codebase
-            if scan_codebase:
-                result = await extractor.extract_from_codebase(
-                    project_path=project_path,
-                    project_id=project_id,
-                    max_files=max_files,
-                )
-                total_created += result.created
-                total_skipped += result.skipped
-                all_errors.extend(result.errors)
-
-            return {
-                "success": True,
-                "created": total_created,
-                "skipped": total_skipped,
-                "errors": all_errors[:5] if all_errors else [],
-                "operations": {
-                    "agent_md": import_agent_md,
-                    "codebase": scan_codebase,
-                },
-            }
         except Exception as e:
             return {"success": False, "error": str(e)}
 
