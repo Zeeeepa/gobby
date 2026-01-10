@@ -11,7 +11,6 @@ from mcp.server.fastmcp import FastMCP
 from gobby.compression.compressor import TextCompressor
 from gobby.config.app import DaemonConfig
 from gobby.mcp_proxy.manager import MCPClientManager
-from gobby.mcp_proxy.services.code_execution import CodeExecutionService
 from gobby.mcp_proxy.services.recommendation import RecommendationService, SearchMode
 from gobby.mcp_proxy.services.response_transformer import ResponseTransformerService
 from gobby.mcp_proxy.services.server_mgmt import ServerManagementService
@@ -62,7 +61,6 @@ class GobbyDaemonTools:
             response_transformer=response_transformer,
         )
         self.server_mgmt = ServerManagementService(mcp_manager, config_manager, config)
-        self.code_execution = CodeExecutionService(llm_service=llm_service, config=config)
         self.recommendation = RecommendationService(
             llm_service,
             mcp_manager,
@@ -154,24 +152,6 @@ class GobbyDaemonTools:
     ) -> dict[str, Any]:
         """Import server."""
         return await self.server_mgmt.import_server(from_project, github_url, query, servers)
-
-    # --- Code Execution ---
-
-    async def execute_code(
-        self,
-        code: str,
-        language: str = "python",
-        context: str | None = None,
-        timeout: int = 30,
-    ) -> dict[str, Any]:
-        """Execute code."""
-        return await self.code_execution.execute_code(code, language, context, timeout)
-
-    async def process_large_dataset(
-        self, data: Any, operation: str, parameters: dict[str, Any] | None = None, timeout: int = 60
-    ) -> dict[str, Any]:
-        """Process dataset."""
-        return await self.code_execution.process_dataset(data, operation, parameters, timeout)
 
     # --- Recommendation ---
 
@@ -560,10 +540,6 @@ def create_mcp_server(tools_handler: GobbyDaemonTools) -> FastMCP:
     mcp.add_tool(tools_handler.add_mcp_server)
     mcp.add_tool(tools_handler.remove_mcp_server)
     mcp.add_tool(tools_handler.import_mcp_server)
-
-    # Code Execution
-    mcp.add_tool(tools_handler.execute_code)
-    mcp.add_tool(tools_handler.process_large_dataset)
 
     # Recommendation
     mcp.add_tool(tools_handler.recommend_tools)
