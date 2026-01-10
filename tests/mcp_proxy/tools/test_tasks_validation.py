@@ -677,3 +677,176 @@ class TestValidationToolSchemas:
         input_schema = schema.get("inputSchema", schema)
         assert "task_id" in input_schema["properties"]
         assert "task_id" in input_schema.get("required", [])
+
+
+# ============================================================================
+# run_fix_attempt MCP Tool Tests
+# ============================================================================
+
+
+class TestRunFixAttemptTool:
+    """Tests for run_fix_attempt MCP tool."""
+
+    @pytest.mark.asyncio
+    async def test_run_fix_attempt_no_agent_runner(self, mock_task_manager, validation_registry):
+        """Test run_fix_attempt returns error when agent runner not configured."""
+        # Default registry has no agent_runner
+        result = await validation_registry.call("run_fix_attempt", {"task_id": "t1"})
+
+        assert result["success"] is False
+        assert "agent runner not configured" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_run_fix_attempt_task_not_found(self, mock_task_manager, mock_task_validator):
+        """Test run_fix_attempt with non-existent task."""
+        mock_task_manager.get_task.return_value = None
+
+        mock_agent_runner = AsyncMock()
+
+        with patch("gobby.mcp_proxy.tools.task_validation.ValidationHistoryManager"):
+            registry = create_validation_registry(
+                task_manager=mock_task_manager,
+                task_validator=mock_task_validator,
+                agent_runner=mock_agent_runner,
+            )
+
+            result = await registry.call("run_fix_attempt", {"task_id": "nonexistent"})
+
+        assert result["success"] is False
+        assert "not found" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_run_fix_attempt_no_issues(self, mock_task_manager, mock_task_validator):
+        """Test run_fix_attempt with no issues and no validation feedback."""
+        task = Task(
+            id="t1",
+            title="Task without feedback",
+            project_id="p1",
+            status="in_progress",
+            priority=2,
+            task_type="task",
+            validation_feedback=None,
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task
+
+        mock_agent_runner = AsyncMock()
+
+        with patch("gobby.mcp_proxy.tools.task_validation.ValidationHistoryManager"):
+            registry = create_validation_registry(
+                task_manager=mock_task_manager,
+                task_validator=mock_task_validator,
+                agent_runner=mock_agent_runner,
+            )
+
+            result = await registry.call("run_fix_attempt", {"task_id": "t1"})
+
+        assert result["success"] is False
+        assert "no issues" in result["error"].lower()
+
+    def test_run_fix_attempt_tool_registered(self, validation_registry):
+        """Test that run_fix_attempt is registered."""
+        tools = validation_registry.list_tools()
+        tool_names = [t["name"] for t in tools]
+        assert "run_fix_attempt" in tool_names
+
+
+# ============================================================================
+# validate_and_fix MCP Tool Tests
+# ============================================================================
+
+
+class TestValidateAndFixTool:
+    """Tests for validate_and_fix MCP tool."""
+
+    @pytest.mark.asyncio
+    async def test_validate_and_fix_task_not_found(self, mock_task_manager, validation_registry):
+        """Test validate_and_fix with non-existent task."""
+        mock_task_manager.get_task.return_value = None
+
+        result = await validation_registry.call("validate_and_fix", {"task_id": "nonexistent"})
+
+        assert result["success"] is False
+        assert "not found" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_validate_and_fix_parent_task(
+        self, mock_task_manager, mock_task_validator, validation_registry
+    ):
+        """Test validate_and_fix for parent task delegates to validate_task."""
+        parent_task = Task(
+            id="t1",
+            title="Parent task",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="epic",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = parent_task
+
+        # Has children
+        child_task = Task(
+            id="c1",
+            title="Child",
+            project_id="p1",
+            status="closed",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.list_tasks.return_value = [child_task]
+
+        result = await validation_registry.call("validate_and_fix", {"task_id": "t1"})
+
+        assert result["success"] is True
+        assert result["is_parent_task"] is True
+
+    @pytest.mark.asyncio
+    async def test_validate_and_fix_valid_first_try(
+        self, mock_task_manager, mock_task_validator, validation_registry
+    ):
+        """Test validate_and_fix succeeds on first validation."""
+        task = Task(
+            id="t1",
+            title="Already correct task",
+            project_id="p1",
+            status="in_progress",
+            priority=2,
+            task_type="task",
+            validation_criteria="- Tests pass",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task
+        mock_task_manager.list_tasks.return_value = []  # No children (leaf task)
+
+        mock_task_validator.validate_task.return_value = ValidationResult(
+            status="valid",
+            feedback="All criteria met",
+        )
+
+        result = await validation_registry.call("validate_and_fix", {"task_id": "t1"})
+
+        assert result["success"] is True
+        assert result["is_valid"] is True
+        assert result["iterations"] == 1
+
+    def test_validate_and_fix_tool_registered(self, validation_registry):
+        """Test that validate_and_fix is registered."""
+        tools = validation_registry.list_tools()
+        tool_names = [t["name"] for t in tools]
+        assert "validate_and_fix" in tool_names
+
+    def test_validate_and_fix_schema(self, validation_registry):
+        """Test validate_and_fix has correct input schema."""
+        schema = validation_registry.get_schema("validate_and_fix")
+        assert schema is not None
+        input_schema = schema.get("inputSchema", schema)
+        assert "task_id" in input_schema["properties"]
+        assert "max_retries" in input_schema["properties"]
+        assert "auto_fix" in input_schema["properties"]
+        assert "fix_timeout" in input_schema["properties"]
