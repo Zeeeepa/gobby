@@ -495,6 +495,41 @@ class TestGenerateValidationCriteriaTool:
                 "generate_validation_criteria", {"task_id": "nonexistent"}
             )
 
+    @pytest.mark.asyncio
+    async def test_generate_criteria_passes_labels_to_validator(
+        self, mock_task_manager, mock_task_validator, validation_registry
+    ):
+        """Test that task labels are passed to generate_criteria for pattern injection."""
+        task = Task(
+            id="t1",
+            title="Implement feature with TDD",
+            description="Use test-driven development",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            validation_criteria=None,
+            labels=["tdd", "refactoring"],  # Labels should be passed to generate_criteria
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task
+        mock_task_manager.list_tasks.return_value = []  # No children
+
+        mock_task_validator.generate_criteria.return_value = (
+            "## Deliverable\n- [ ] Feature works\n\n## Tdd Pattern Criteria\n- [ ] Tests written"
+        )
+
+        result = await validation_registry.call("generate_validation_criteria", {"task_id": "t1"})
+
+        # Verify generate_criteria was called with labels
+        mock_task_validator.generate_criteria.assert_called_once()
+        call_kwargs = mock_task_validator.generate_criteria.call_args.kwargs
+        assert call_kwargs.get("labels") == ["tdd", "refactoring"]
+
+        assert result["generated"] is True
+        assert result["validation_criteria"] is not None
+
 
 # ============================================================================
 # get_validation_status MCP Tool Tests

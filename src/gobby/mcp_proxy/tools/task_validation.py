@@ -490,6 +490,7 @@ def create_validation_registry(
             criteria = await task_validator.generate_criteria(
                 title=task.title,
                 description=task.description,
+                labels=task.labels,
             )
 
             if not criteria:
