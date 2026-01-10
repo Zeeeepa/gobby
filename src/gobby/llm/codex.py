@@ -10,11 +10,9 @@ Auth priority:
 2. OPENAI_API_KEY environment variable (BYOK mode)
 """
 
-import asyncio
 import json
 import logging
 import os
-import shutil
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -31,8 +29,6 @@ class CodexProvider(LLMProvider):
     Supports two authentication modes:
     - subscription: Read API key from ~/.codex/auth.json (after `codex login`)
     - api_key: Use OPENAI_API_KEY environment variable (BYOK)
-
-    Code execution uses `codex exec` for sandbox access when available.
     """
 
     @property
@@ -44,11 +40,6 @@ class CodexProvider(LLMProvider):
     def auth_mode(self) -> AuthMode:
         """Return the authentication mode for this provider."""
         return self._auth_mode
-
-    @property
-    def supports_code_execution(self) -> bool:
-        """Codex supports code execution via `codex exec`."""
-        return self._codex_cli_available
 
     def __init__(
         self,
@@ -66,7 +57,6 @@ class CodexProvider(LLMProvider):
         self.config = config
         self.logger = logger
         self._client = None
-        self._codex_cli_available = False
 
         # Determine auth mode from config or parameter
         self._auth_mode: AuthMode = "subscription"  # Default
@@ -74,14 +64,6 @@ class CodexProvider(LLMProvider):
             self._auth_mode = auth_mode
         elif config.llm_providers and config.llm_providers.codex:
             self._auth_mode = config.llm_providers.codex.auth_mode
-
-        # Check if Codex CLI is available (for code execution)
-        self._codex_cli_path = shutil.which("codex")
-        if self._codex_cli_path:
-            self._codex_cli_available = True
-            self.logger.debug(f"Codex CLI found at: {self._codex_cli_path}")
-        else:
-            self.logger.debug("Codex CLI not found - code execution disabled")
 
         # Get API key based on auth mode
         api_key = self._get_api_key()
@@ -238,113 +220,6 @@ class CodexProvider(LLMProvider):
         except Exception as e:
             self.logger.error(f"Failed to synthesize title with Codex: {e}")
             return None
-
-    async def execute_code(
-        self,
-        code: str,
-        language: str = "python",
-        context: str | None = None,
-        timeout: int | None = None,
-        prompt_template: str | None = None,
-    ) -> dict[str, Any]:
-        """
-        Execute code using Codex CLI's sandbox.
-
-        Uses `codex exec` with sandbox mode for safe code execution.
-        Falls back to error if Codex CLI is not available.
-        """
-        if not self._codex_cli_available:
-            return {
-                "success": False,
-                "error": "Code execution requires Codex CLI. "
-                "Install with: npm install -g @openai/codex",
-                "language": language,
-            }
-
-        if language.lower() != "python":
-            return {
-                "success": False,
-                "error": f"Language '{language}' not supported. Only Python is currently supported.",
-                "language": language,
-            }
-
-        # Build task description for Codex
-        if context:
-            task = f"""Execute the following Python code and return the result.
-
-Context: {context}
-
-Code:
-```python
-{code}
-```
-
-Execute the code and return only the output."""
-        else:
-            task = f"""Execute the following Python code and return the result.
-
-Code:
-```python
-{code}
-```
-
-Execute the code and return only the output."""
-
-        # Use codex exec with JSON output
-        actual_timeout = timeout if timeout is not None else 30
-
-        try:
-            # Run codex exec asynchronously
-            process = await asyncio.create_subprocess_exec(
-                "codex",
-                "exec",
-                "--json",
-                task,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=actual_timeout)
-
-            if process.returncode == 0:
-                try:
-                    result = json.loads(stdout.decode())
-                    return {
-                        "success": True,
-                        "result": result.get("output", stdout.decode()),
-                        "language": language,
-                        "context": context,
-                    }
-                except json.JSONDecodeError:
-                    return {
-                        "success": True,
-                        "result": stdout.decode().strip(),
-                        "language": language,
-                        "context": context,
-                    }
-            else:
-                return {
-                    "success": False,
-                    "error": stderr.decode() or "Codex exec failed",
-                    "error_type": "CodexExecError",
-                    "language": language,
-                }
-
-        except TimeoutError:
-            return {
-                "success": False,
-                "error": f"Code execution timed out after {actual_timeout} seconds",
-                "error_type": "TimeoutError",
-                "timeout": actual_timeout,
-            }
-        except Exception as e:
-            self.logger.error(f"Codex code execution failed: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "language": language,
-            }
 
     async def generate_text(
         self,

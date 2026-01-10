@@ -63,18 +63,12 @@ class ClaudeLLMProvider(LLMProvider):
     Claude implementation of LLMProvider using claude_agent_sdk.
 
     Uses subscription-based authentication through Claude CLI.
-    Supports code execution via Claude's sandbox.
     """
 
     @property
     def provider_name(self) -> str:
         """Return provider name."""
         return "claude"
-
-    @property
-    def supports_code_execution(self) -> bool:
-        """Claude supports code execution via sandbox."""
-        return True
 
     def __init__(self, config: DaemonConfig):
         """
@@ -268,131 +262,6 @@ class ClaudeLLMProvider(LLMProvider):
         except Exception as e:
             self.logger.error(f"Failed to synthesize title with Claude: {e}")
             return None
-
-    async def execute_code(
-        self,
-        code: str,
-        language: str = "python",
-        context: str | None = None,
-        timeout: float | int | None = None,
-        prompt_template: str | None = None,
-    ) -> dict[str, Any]:
-        """
-        Execute code using Claude's code execution sandbox via CLI.
-
-        Uses the Claude Agent SDK with subscription-based auth through the CLI.
-        The code_execution tool provides sandboxed Python execution.
-        """
-        cli_path = self._verify_cli_path()
-        if not cli_path:
-            return {
-                "success": False,
-                "error": "Claude CLI not found",
-                "language": language,
-            }
-
-        if language.lower() != "python":
-            return {
-                "success": False,
-                "error": f"Language '{language}' not supported. Only Python is currently supported.",
-            }
-
-        # Build prompt - prompt_template is required
-        if not prompt_template:
-            raise ValueError(
-                "prompt_template is required for execute_code. "
-                "Configure 'code_execution.prompt' in ~/.gobby/config.yaml"
-            )
-        prompt = prompt_template.format(code=code, context=context or "", language=language)
-
-        # Determine timeout
-        code_exec_config = self.config.code_execution
-        actual_timeout = timeout if timeout is not None else code_exec_config.default_timeout
-
-        # Configure Claude Agent SDK
-        # Note: code_execution is an internal tool that provides sandboxed execution
-        # Do NOT add explicit sandbox config - it breaks this tool
-        options = ClaudeAgentOptions(
-            system_prompt="You are a code execution assistant. Execute the provided code using the code_execution tool and return the results. Always use the code_execution tool - never just describe what the code would do.",
-            max_turns=code_exec_config.max_turns,
-            model=code_exec_config.model,
-            allowed_tools=["code_execution"],
-            permission_mode="bypassPermissions",
-            cli_path=cli_path,
-        )
-
-        # Track execution time
-        start_time = time.time()
-
-        # Run async query
-        async def _run_query() -> str:
-            result_text = ""
-            tool_results: list[str] = []
-            final_result: str | None = None
-            async for message in query(prompt=prompt, options=options):
-                self.logger.debug(f"Message type: {type(message).__name__}")
-                if isinstance(message, ResultMessage):
-                    # ResultMessage contains the final result from the agent
-                    if message.result:
-                        final_result = message.result
-                    self.logger.debug(f"ResultMessage: result={message.result}")
-                elif isinstance(message, UserMessage):
-                    # UserMessage may contain tool results
-                    for block in message.content:
-                        if isinstance(block, ToolResultBlock):
-                            # Capture actual tool execution output
-                            tool_results.append(str(block.content))
-                            self.logger.debug(f"ToolResultBlock (UserMessage): {block.content}")
-                elif isinstance(message, AssistantMessage):
-                    for block in message.content:
-                        if isinstance(block, TextBlock):
-                            result_text += block.text
-                        elif isinstance(block, ToolResultBlock):
-                            # Capture actual code execution output
-                            tool_results.append(str(block.content))
-                            self.logger.debug(
-                                f"ToolResultBlock (AssistantMessage): {block.content}"
-                            )
-                        elif isinstance(block, ToolUseBlock):
-                            self.logger.debug(
-                                f"ToolUseBlock: tool={block.name}, input={block.input}"
-                            )
-            # Priority: tool_results > final_result (summary) > text
-            # We want the actual execution output, not the summary
-            if tool_results:
-                return "\n".join(tool_results)
-            if final_result:
-                return final_result
-            return result_text
-
-        try:
-            result_text = await asyncio.wait_for(_run_query(), timeout=actual_timeout)
-
-            execution_time = time.time() - start_time
-
-            return {
-                "success": True,
-                "result": result_text.strip(),
-                "language": language,
-                "execution_time": round(execution_time, 2),
-                "context": context,
-            }
-
-        except TimeoutError:
-            return {
-                "success": False,
-                "error": f"Code execution timed out after {actual_timeout} seconds",
-                "error_type": "TimeoutError",
-                "timeout": actual_timeout,
-            }
-        except Exception as e:
-            self.logger.error(f"Code execution failed: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "language": language,
-            }
 
     async def generate_text(
         self,

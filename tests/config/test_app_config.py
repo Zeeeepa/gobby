@@ -10,7 +10,6 @@ import yaml
 from pydantic import ValidationError
 
 from gobby.config.app import (
-    CodeExecutionConfig,
     CompactHandoffConfig,
     ContextInjectionConfig,
     DaemonConfig,
@@ -199,29 +198,6 @@ class TestSessionSummaryConfig:
         assert config.prompt == "Custom prompt"
 
 
-class TestCodeExecutionConfig:
-    """Tests for CodeExecutionConfig."""
-
-    def test_default_values(self):
-        """Test default code execution config."""
-        config = CodeExecutionConfig()
-        assert config.enabled is True
-        assert config.provider == "claude"
-        assert config.model == "claude-sonnet-4-5"
-        assert config.max_turns == 5
-        assert config.default_timeout == 30
-
-    def test_max_turns_validation(self):
-        """Test max_turns must be positive."""
-        with pytest.raises(ValidationError):
-            CodeExecutionConfig(max_turns=0)
-
-    def test_timeout_validation(self):
-        """Test timeout must be positive."""
-        with pytest.raises(ValidationError):
-            CodeExecutionConfig(default_timeout=0)
-
-
 class TestMCPClientProxyConfig:
     """Tests for MCPClientProxyConfig."""
 
@@ -324,7 +300,6 @@ class TestDaemonConfig:
     def test_sub_config_access(self):
         """Test accessing sub-configurations."""
         config = DaemonConfig()
-        assert config.get_code_execution_config() == config.code_execution
         assert config.get_recommend_tools_config() == config.recommend_tools
         assert config.get_mcp_client_proxy_config() == config.mcp_client_proxy
 
@@ -999,7 +974,6 @@ class TestDaemonConfigComposition:
         # LLM
         assert isinstance(config.llm_providers, LLMProvidersConfig)
         assert isinstance(config.title_synthesis, TitleSynthesisConfig)
-        assert isinstance(config.code_execution, CodeExecutionConfig)
         assert isinstance(config.recommend_tools, RecommendToolsConfig)
 
         # Hooks
@@ -1020,7 +994,6 @@ class TestDaemonConfigComposition:
         """Test all getter methods return correct configs."""
         config = DaemonConfig()
 
-        assert config.get_code_execution_config() is config.code_execution
         assert config.get_recommend_tools_config() is config.recommend_tools
         assert config.get_tool_summarizer_config() is config.tool_summarizer
         assert config.get_import_mcp_server_config() is config.import_mcp_server
@@ -1051,7 +1024,7 @@ class TestDaemonConfigComposition:
 
 
 class TestAllConfigClassesInstantiate:
-    """Verify all 31 config classes can be instantiated with defaults."""
+    """Verify all 30 config classes can be instantiated with defaults."""
 
     def test_all_classes_instantiate(self):
         """Test all config classes instantiate without error."""
@@ -1062,7 +1035,6 @@ class TestAllConfigClassesInstantiate:
             CompactHandoffConfig(),
             ContextInjectionConfig(),
             SessionSummaryConfig(),
-            CodeExecutionConfig(),
             ToolSummarizerConfig(),
             RecommendToolsConfig(),
             ImportMCPServerConfig(),
@@ -1088,6 +1060,6 @@ class TestAllConfigClassesInstantiate:
             DaemonConfig(),
         ]
 
-        assert len(configs) == 29
+        assert len(configs) == 28
         for config in configs:
             assert config is not None

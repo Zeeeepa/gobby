@@ -171,25 +171,6 @@ class GeminiProvider(LLMProvider):
             self.logger.error(f"Failed to synthesize title with Gemini: {e}")
             return None
 
-    async def execute_code(
-        self,
-        code: str,
-        language: str = "python",
-        context: str | None = None,
-        timeout: int | None = None,
-        prompt_template: str | None = None,
-    ) -> dict[str, Any]:
-        """
-        Execute code using Gemini.
-
-        NOTE: Currently not supported as it requires a sandbox.
-        """
-        return {
-            "success": False,
-            "error": "Code execution is not yet supported for Gemini provider. A sandbox environment is required.",
-            "language": language,
-        }
-
     async def generate_text(
         self,
         prompt: str,

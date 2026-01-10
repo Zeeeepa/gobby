@@ -79,7 +79,7 @@ class TestRunGitCommand:
         assert result is None
 
 
-class TestGetLastCommitDiff:
+class TestGetMultiCommitDiffMerged:
     """Tests for get_last_commit_diff function."""
 
     @patch("gobby.tasks.validation.run_git_command")
@@ -146,7 +146,7 @@ class TestGetLastCommitDiff:
         assert mock_run.call_args.kwargs.get("cwd") == "/project/path"
 
 
-class TestGetRecentCommitsEdgeCases:
+class TestGetRecentCommitsMergedEdgeCases:
     """Additional edge case tests for get_recent_commits function."""
 
     @patch("gobby.tasks.validation.run_git_command")
@@ -191,7 +191,7 @@ class TestGetRecentCommitsEdgeCases:
         assert commits[0]["subject"] == "fix: handle a|b|c case in parser"
 
 
-class TestGetCommitsSinceTruncation:
+class TestGetCommitsSinceMergedTruncation:
     """Tests for get_commits_since truncation behavior."""
 
     @patch("gobby.tasks.validation.run_git_command")
@@ -218,7 +218,7 @@ class TestGetCommitsSinceTruncation:
         assert "... [diff truncated] ..." not in result
 
 
-class TestFindMatchingFilesEdgeCases:
+class TestFindMatchingFilesMergedEdgeCases:
     """Additional tests for find_matching_files function."""
 
     def test_find_matching_files_early_exit_max_files(self, tmp_path):
@@ -291,7 +291,7 @@ class TestFindMatchingFilesEdgeCases:
         assert files[0] == test_file
 
 
-class TestReadFilesContentEdgeCases:
+class TestReadFilesContentMergedEdgeCases:
     """Additional tests for read_files_content function."""
 
     def test_read_files_content_early_truncation(self, tmp_path):
@@ -432,7 +432,7 @@ class TestGetValidationContextSmartEdgeCases:
             assert "... [context truncated] ..." in context
 
 
-class TestGetGitDiffEdgeCases:
+class TestGetGitDiffMergedEdgeCases:
     """Additional edge case tests for get_git_diff function."""
 
     @patch("gobby.tasks.validation.run_git_command")
@@ -642,6 +642,10 @@ class TestTaskValidatorCustomPrompt:
         llm.get_provider.return_value = provider
         return llm
 
+    @pytest.fixture
+    def config(self):
+        return TaskValidationConfig(enabled=True, provider="claude", model="test-model")
+
     @pytest.mark.asyncio
     async def test_validate_with_custom_prompt_config(self, mock_llm):
         """Test validation uses custom prompt from config."""
@@ -710,7 +714,7 @@ class TestTaskValidatorCustomPrompt:
         assert call_args.kwargs["system_prompt"] == "Generate clear criteria"
 
 
-class TestExtractFilePatternsEdgeCases:
+class TestExtractFilePatternsFromTextMergedCases:
     """Additional tests for extract_file_patterns_from_text."""
 
     def test_skip_www_urls(self):

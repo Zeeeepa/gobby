@@ -141,6 +141,9 @@ class MemoryManager:
             tags=tags,
         )
 
+        # Mark search index for refit since we added new content
+        self.mark_search_refit_needed()
+
         # Auto-embed if enabled
         if getattr(self.config, "auto_embed", False) and self._openai_api_key:
             try:
@@ -406,7 +409,11 @@ class MemoryManager:
 
     def forget(self, memory_id: str) -> bool:
         """Forget a memory."""
-        return self.storage.delete_memory(memory_id)
+        result = self.storage.delete_memory(memory_id)
+        if result:
+            # Mark search index for refit since we removed content
+            self.mark_search_refit_needed()
+        return result
 
     def list_memories(
         self,
@@ -458,12 +465,18 @@ class MemoryManager:
         Raises:
             ValueError: If memory not found
         """
-        return self.storage.update_memory(
+        result = self.storage.update_memory(
             memory_id=memory_id,
             content=content,
             importance=importance,
             tags=tags,
         )
+
+        # Mark search index for refit if content changed
+        if content is not None:
+            self.mark_search_refit_needed()
+
+        return result
 
     def get_stats(self, project_id: str | None = None) -> dict[str, Any]:
         """

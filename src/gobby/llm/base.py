@@ -13,13 +13,12 @@ class LLMProvider(ABC):
     """
     Abstract base class for LLM providers.
 
-    Defines the interface for generating summaries, synthesizing titles,
-    and executing code across different providers (Claude, Codex, Gemini, LiteLLM).
+    Defines the interface for generating summaries and synthesizing titles
+    across different providers (Claude, Codex, Gemini, LiteLLM).
 
     Properties:
         provider_name: Unique identifier for this provider (e.g., "claude", "codex")
         auth_mode: How this provider authenticates ("subscription", "api_key", "adc")
-        supports_code_execution: Whether this provider can execute code in a sandbox
     """
 
     @property
@@ -45,19 +44,6 @@ class LLMProvider(ABC):
             Authentication mode: "subscription", "api_key", or "adc"
         """
         return "subscription"
-
-    @property
-    def supports_code_execution(self) -> bool:
-        """
-        Return whether this provider supports sandbox code execution.
-
-        Default implementation returns False. Override in subclasses
-        that have sandbox code execution capabilities.
-
-        Returns:
-            True if provider can execute code in a sandbox
-        """
-        return False
 
     @abstractmethod
     async def generate_summary(
@@ -88,30 +74,6 @@ class LLMProvider(ABC):
 
         Returns:
             Synthesized title or None if failed.
-        """
-        pass
-
-    @abstractmethod
-    async def execute_code(
-        self,
-        code: str,
-        language: str = "python",
-        context: str | None = None,
-        timeout: int | None = None,
-        prompt_template: str | None = None,
-    ) -> dict[str, Any]:
-        """
-        Execute code in a sandbox.
-
-        Args:
-            code: Code to execute.
-            language: Language (default: python).
-            context: Context/instructions for the execution.
-            timeout: Timeout in seconds.
-            prompt_template: Optional override for the prompt.
-
-        Returns:
-            Dict with 'success', 'result', 'error', etc.
         """
         pass
 

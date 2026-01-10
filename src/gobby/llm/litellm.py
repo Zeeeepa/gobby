@@ -185,27 +185,6 @@ class LiteLLMProvider(LLMProvider):
             self.logger.error(f"Failed to synthesize title with LiteLLM: {e}")
             return None
 
-    async def execute_code(
-        self,
-        code: str,
-        language: str = "python",
-        context: str | None = None,
-        timeout: int | None = None,
-        prompt_template: str | None = None,
-    ) -> dict[str, Any]:
-        """
-        Execute code using LiteLLM.
-
-        NOTE: Not supported as LiteLLM providers don't have sandbox access.
-        """
-        return {
-            "success": False,
-            "error": "Code execution is not supported for LiteLLM provider. "
-            "LiteLLM providers do not have sandbox access. "
-            "Use Claude provider for code execution.",
-            "language": language,
-        }
-
     async def generate_text(
         self,
         prompt: str,
