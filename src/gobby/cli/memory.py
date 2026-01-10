@@ -314,6 +314,51 @@ def reindex_search(ctx: click.Context) -> None:
         raise SystemExit(1)
 
 
+@memory.command("related")
+@click.argument("memory_id")
+@click.option("--limit", "-n", default=5, help="Max results")
+@click.option("--min-similarity", "-s", type=float, default=0.0, help="Minimum similarity (0.0-1.0)")
+@click.pass_context
+def related_memories(
+    ctx: click.Context,
+    memory_id: str,
+    limit: int,
+    min_similarity: float,
+) -> None:
+    """Show memories related to a specific memory via cross-references.
+
+    Cross-references are created automatically when memories are stored
+    (if auto_crossref is enabled in config). They link semantically similar
+    memories together.
+    """
+    manager = get_memory_manager(ctx)
+
+    # First verify the memory exists
+    memory = manager.get_memory(memory_id)
+    if not memory:
+        click.echo(f"Memory not found: {memory_id}", err=True)
+        raise SystemExit(1)
+
+    click.echo(f"Memories related to: {memory_id}")
+    click.echo(f"  Content: {memory.content[:60]}{'...' if len(memory.content) > 60 else ''}")
+    click.echo()
+
+    related = manager.get_related(
+        memory_id=memory_id,
+        limit=limit,
+        min_similarity=min_similarity,
+    )
+
+    if not related:
+        click.echo("No related memories found.")
+        click.echo("Note: Cross-references are created when auto_crossref is enabled in config.")
+        return
+
+    for i, mem in enumerate(related, 1):
+        click.echo(f"{i}. [{mem.id[:8]}] ({mem.memory_type}, {mem.importance:.2f})")
+        click.echo(f"   {mem.content[:80]}{'...' if len(mem.content) > 80 else ''}")
+
+
 @memory.command("sync")
 @click.option("--import", "do_import", is_flag=True, help="Import memories from JSONL")
 @click.option("--export", "do_export", is_flag=True, help="Export memories to JSONL")

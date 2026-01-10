@@ -25,7 +25,6 @@ from gobby.config.extensions import (
     WebSocketBroadcastConfig,
 )
 from gobby.config.features import (
-    CodeExecutionConfig,
     ImportMCPServerConfig,
     MetricsConfig,
     ProjectVerificationConfig,
@@ -70,7 +69,6 @@ __all__ = [
     "WebhooksConfig",
     "WebSocketBroadcastConfig",
     # From gobby.config.features
-    "CodeExecutionConfig",
     "ImportMCPServerConfig",
     "MetricsConfig",
     "ProjectVerificationConfig",
@@ -157,8 +155,8 @@ def expand_env_vars(content: str) -> str:
 # MessageTrackingConfig, SessionLifecycleConfig
 # moved to gobby.config.sessions (re-exported above)
 
-# CodeExecutionConfig, ToolSummarizerConfig, RecommendToolsConfig,
-# ImportMCPServerConfig, MetricsConfig, ProjectVerificationConfig
+# ToolSummarizerConfig, RecommendToolsConfig, ImportMCPServerConfig,
+# MetricsConfig, ProjectVerificationConfig
 # moved to gobby.config.features (re-exported above)
 
 # WebSocketBroadcastConfig, WebhookEndpointConfig, WebhooksConfig,
@@ -250,10 +248,6 @@ class DaemonConfig(BaseModel):
         default_factory=TitleSynthesisConfig,
         description="Title synthesis configuration",
     )
-    code_execution: CodeExecutionConfig = Field(
-        default_factory=CodeExecutionConfig,
-        description="Code execution configuration",
-    )
     recommend_tools: RecommendToolsConfig = Field(
         default_factory=RecommendToolsConfig,
         description="Tool recommendation configuration",
@@ -302,10 +296,6 @@ class DaemonConfig(BaseModel):
         default_factory=CompressionConfig,
         description="LLMLingua-2 prompt compression configuration",
     )
-
-    def get_code_execution_config(self) -> CodeExecutionConfig:
-        """Get code execution configuration."""
-        return self.code_execution
 
     def get_recommend_tools_config(self) -> RecommendToolsConfig:
         """Get recommend_tools configuration."""

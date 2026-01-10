@@ -2,7 +2,6 @@
 Feature configuration module.
 
 Contains MCP proxy and tool feature Pydantic config models:
-- CodeExecutionConfig: Code execution MCP tool settings
 - ToolSummarizerConfig: Tool description summarization settings
 - RecommendToolsConfig: Tool recommendation settings
 - ImportMCPServerConfig: MCP server import settings
@@ -15,7 +14,6 @@ Extracted from app.py using Strangler Fig pattern for code decomposition.
 from pydantic import BaseModel, Field, field_validator
 
 __all__ = [
-    "CodeExecutionConfig",
     "ToolSummarizerConfig",
     "RecommendToolsConfig",
     "ImportMCPServerConfig",
@@ -23,63 +21,6 @@ __all__ = [
     "ProjectVerificationConfig",
     "DEFAULT_IMPORT_MCP_SERVER_PROMPT",
 ]
-
-
-class CodeExecutionConfig(BaseModel):
-    """Code execution configuration for MCP tools."""
-
-    enabled: bool = Field(
-        default=True,
-        description="Enable code execution MCP tools (execute_code, process_large_dataset)",
-    )
-    provider: str = Field(
-        default="claude",
-        description="LLM provider to use for code execution",
-    )
-    model: str = Field(
-        default="claude-sonnet-4-5",
-        description="Model to use for code execution (must support code_execution tool)",
-    )
-    prompt: str | None = Field(
-        default=None,
-        description="Custom prompt template for code execution",
-    )
-    max_turns: int = Field(
-        default=5,
-        description="Maximum turns for code execution conversations",
-    )
-    default_timeout: int = Field(
-        default=30,
-        description="Default timeout in seconds for code execution",
-    )
-    max_dataset_preview: int = Field(
-        default=3,
-        description="Maximum number of dataset items to show in preview",
-    )
-
-    @field_validator("max_turns")
-    @classmethod
-    def validate_max_turns(cls, v: int) -> int:
-        """Validate max_turns is positive."""
-        if v <= 0:
-            raise ValueError("max_turns must be positive")
-        return v
-
-    @field_validator("default_timeout")
-    @classmethod
-    def validate_timeout(cls, v: int) -> int:
-        """Validate timeout is positive."""
-        if v <= 0:
-            raise ValueError("default_timeout must be positive")
-        return v
-
-    @field_validator("max_dataset_preview")
-    @classmethod
-    def validate_preview(cls, v: int) -> int:
-        """Validate preview size is positive."""
-        if v <= 0:
-            raise ValueError("max_dataset_preview must be positive")
-        return v
 
 
 class ToolSummarizerConfig(BaseModel):

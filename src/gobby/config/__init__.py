@@ -36,7 +36,6 @@ from gobby.config.extensions import (
 
 # Feature configs
 from gobby.config.features import (
-    CodeExecutionConfig,
     ImportMCPServerConfig,
     MetricsConfig,
     ProjectVerificationConfig,
@@ -98,7 +97,6 @@ __all__ = [
     "WebhooksConfig",
     "WebSocketBroadcastConfig",
     # Feature configs
-    "CodeExecutionConfig",
     "ImportMCPServerConfig",
     "MetricsConfig",
     "ProjectVerificationConfig",
