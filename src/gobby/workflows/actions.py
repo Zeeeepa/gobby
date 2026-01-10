@@ -66,6 +66,7 @@ from gobby.workflows.task_enforcement_actions import (
     require_active_task,
     require_commit_before_stop,
     require_task_complete,
+    require_validation_delegation,
     validate_session_task_scope,
 )
 from gobby.workflows.templates import TemplateEngine
@@ -245,6 +246,9 @@ class ActionExecutor:
         self.register("require_task_complete", self._handle_require_task_complete)
         self.register("validate_session_task_scope", self._handle_validate_session_task_scope)
         self.register("capture_baseline_dirty_files", self._handle_capture_baseline_dirty_files)
+        self.register(
+            "require_validation_delegation", self._handle_require_validation_delegation
+        )
         # Webhook
         self.register("webhook", self._handle_webhook)
         # Stop signal actions
@@ -874,6 +878,15 @@ class ActionExecutor:
         """
         return await validate_session_task_scope(
             task_manager=self.task_manager,
+            workflow_state=context.state,
+            event_data=context.event_data,
+        )
+
+    async def _handle_require_validation_delegation(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Block direct validation commands and require delegation to Haiku."""
+        return await require_validation_delegation(
             workflow_state=context.state,
             event_data=context.event_data,
         )

@@ -56,25 +56,13 @@ triggers:
     # Memory sync - import from JSONL for Git persistence
     - action: memory_sync_import
 
-    # Validation delegation instructions - teach LLM to delegate ruff/mypy/pytest to faster model
+    # Validation delegation notice - direct ruff/mypy/pytest commands will be blocked
     - action: inject_message
       when: "variables.get('validation_model')"
       content: |
         ## Validation Delegation
 
-        When running validation commands (ruff, mypy, pytest), delegate to a faster model:
-
-        ```python
-        call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
-            "prompt": "Run validation and report results:\n\nuv run ruff check src/ && uv run mypy src/ && uv run pytest",
-            "mode": "headless",
-            "model": "{{ variables.validation_model }}",
-            "timeout": {{ variables.validation_timeout }},
-        })
-        ```
-
-        This saves tokens and cost by using {{ variables.validation_model }} for output-heavy validation tasks.
-        The agent will return structured results you can analyze.
+        Direct `ruff`, `mypy`, and `pytest` commands are blocked. Delegate to {{ variables.validation_model }} via `gobby-agents.start_agent(mode="headless")`. The hook will provide the exact command when blocked.
 
   on_before_agent:
     # Memory recall - inject memories relevant to the user's prompt via semantic search
@@ -83,6 +71,9 @@ triggers:
       min_importance: 0.7
 
   on_before_tool:
+    # Validation delegation - block direct ruff/mypy/pytest and require delegation
+    - action: require_validation_delegation
+
     # Task enforcement - require active task before file modifications
     # Enable via config: workflow.require_task_before_edit: true
     - action: require_active_task
