@@ -15,9 +15,51 @@ if TYPE_CHECKING:
     from gobby.mcp_proxy.manager import MCPClientManager
     from gobby.storage.tasks import LocalTaskManager
 
-__all__ = ["GitHubSyncService"]
+__all__ = [
+    "GitHubSyncService",
+    "GitHubSyncError",
+    "GitHubRateLimitError",
+    "GitHubNotFoundError",
+]
 
 logger = logging.getLogger(__name__)
+
+
+class GitHubSyncError(Exception):
+    """Base exception for GitHub sync errors."""
+
+    pass
+
+
+class GitHubRateLimitError(GitHubSyncError):
+    """Raised when GitHub API rate limit is exceeded.
+
+    Attributes:
+        reset_at: Unix timestamp when rate limit resets.
+    """
+
+    def __init__(self, message: str, reset_at: int | None = None) -> None:
+        super().__init__(message)
+        self.reset_at = reset_at
+
+
+class GitHubNotFoundError(GitHubSyncError):
+    """Raised when a GitHub resource is not found.
+
+    Attributes:
+        resource: Type of resource (e.g., "issue", "repo", "pr").
+        resource_id: Identifier of the missing resource.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        resource: str | None = None,
+        resource_id: int | str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.resource = resource
+        self.resource_id = resource_id
 
 
 class GitHubSyncService:
@@ -165,6 +207,13 @@ class GitHubSyncService:
                 "body": task.description or "",
             },
         )
+
+        # Validate response
+        if result is None or not isinstance(result, dict):
+            raise GitHubSyncError(
+                f"Invalid response from GitHub MCP when updating issue "
+                f"#{task.github_issue_number}: expected dict, got {type(result).__name__}"
+            )
 
         logger.info(f"Synced task {task_id} to GitHub issue #{task.github_issue_number}")
         return cast(dict[str, Any], result)
