@@ -208,6 +208,10 @@ class ClaudeCodeAdapter(BaseAdapter):
                     )
                 if response.metadata.get("terminal_tty"):
                     context_lines.append(f"tty: {response.metadata['terminal_tty']}")
+                if response.metadata.get("terminal_parent_pid"):
+                    context_lines.append(
+                        f"parent_pid: {response.metadata['terminal_parent_pid']}"
+                    )
                 # Add terminal-specific session IDs (only one will be present)
                 for key in [
                     "terminal_iterm_session_id",
