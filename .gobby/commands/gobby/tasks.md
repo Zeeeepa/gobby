@@ -1,5 +1,6 @@
 ---
 description: This skill should be used when the user asks to "/tasks", "task management", "create task", "list tasks", "close task". Manage gobby tasks - create, list, close, expand, suggest, validate, and show tasks.
+version: "1.0"
 ---
 
 # /tasks - Task Management Skill
