@@ -76,43 +76,50 @@ class MemoryConfig(BaseModel):
         description="Model to use for memory extraction",
     )
     extraction_prompt: str = Field(
-        default="""You are an expert at extracting long-term knowledge from development session transcripts.
-Respond with ONLY valid JSON - no markdown, no explanations, no code blocks.
+        default="""Extract memories for a plan/act/reflect agent loop. Return ONLY valid JSON.
 
-Analyze the following session summary and extract ONLY facts, preferences, or patterns that are:
-1. Worth remembering for future sessions (importance >= 0.7)
-2. NOT already documented in CLAUDE.md or obvious from project structure
+PURPOSE: These memories help the agent:
+- PLAN: Recall relevant context before proposing approaches
+- ACT: Remember lessons from similar past situations before tool use
+- REFLECT: Build knowledge from what worked and what didn't
 
-STRICT QUALITY FILTER - Return empty array [] unless the insight is HIGH VALUE:
-- NO transient session context ("Sprint X status", "Task Y was completed")
-- NO generic debugging tips or workflow advice
-- NO implementation details unless they prevent bugs
-- NO information that would be stale in a week
+PRIORITY ORDER (extract in this order of importance):
 
-ONLY EXTRACT:
-- Specific gotchas/bugs discovered ("Feature X fails silently when Y")
-- Explicit user preferences stated in conversation ("Always use Z approach")
-- Critical architectural decisions not in docs ("Service A must call B before C")
+1. USER-STATED PREFERENCES (importance: 0.9)
+   When the user explicitly says "I want X", "always do Y", "never do Z", "I prefer..."
+   These are HIGHEST priority - the user knows their codebase and workflow.
+
+2. DISCOVERED GOTCHAS (importance: 0.85)
+   Bugs, failures, or surprises: "X fails when Y", "Don't forget to Z before W"
+   Things that would help avoid repeating mistakes.
+
+3. ARCHITECTURAL DECISIONS (importance: 0.8)
+   Non-obvious choices: "We use X pattern for Y", "Service A depends on B"
+   Only if NOT already in CLAUDE.md.
+
+4. REUSABLE PATTERNS (importance: 0.75)
+   Approaches that worked well and could apply to similar future tasks.
+
+DO NOT EXTRACT:
+- Transient status ("completed task X", "sprint Y progress")
+- Generic advice that applies to any project
+- Information already in CLAUDE.md
+- Implementation details (variable names, line numbers)
 
 Session Summary:
 {summary}
 
-Return a JSON array (empty [] is preferred over low-value extractions):
+Return JSON array (empty [] if nothing meets criteria):
 [
   {{
-    "content": "Specific, actionable insight worth remembering",
-    "memory_type": "fact|preference|pattern",
-    "importance": 0.7,
-    "tags": ["relevant", "tags"]
+    "content": "Specific memory - quote user when capturing preferences",
+    "memory_type": "preference|pattern|fact",
+    "importance": 0.75,
+    "tags": ["relevant-topic"]
   }}
 ]
 
-Importance scale (minimum 0.7 to be extracted):
-- 0.7-0.8: Useful preferences or patterns
-- 0.8-0.9: Important architectural facts
-- 0.9-1.0: Critical bug-prevention knowledge
-
-When in doubt, DO NOT extract. Empty arrays are better than noise.""",
+For user preferences, use their words: "User prefers X over Y" or "User wants Z".""",
         description="Prompt template for session memory extraction (use {summary} placeholder)",
     )
 
