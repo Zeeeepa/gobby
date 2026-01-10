@@ -23,7 +23,9 @@ variables:
 triggers:
   on_stop:
     # Commit enforcement - block stop if task has uncommitted changes
+    # Skip in plan mode (set via gobby-workflows.set_variable when entering plan mode)
     - action: require_commit_before_stop
+      when: "not variables.get('plan_mode')"
 
   on_session_start:
     # Capture baseline dirty files for session-aware commit detection
