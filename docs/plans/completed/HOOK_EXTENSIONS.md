@@ -315,7 +315,7 @@ CREATE INDEX idx_webhook_deliveries_event ON webhook_deliveries(event_type);
 
 ## Implementation Checklist
 
-### Phase 1: WebSocket Event Broadcasting ✅ COMPLETE (Tests/Docs Pending)
+### Phase 1: WebSocket Event Broadcasting ✅ COMPLETE
 
 #### Infrastructure Setup
 - [x] Add `websocket_server` reference to HTTPServer class (`src/servers/http.py`)
@@ -334,7 +334,7 @@ CREATE INDEX idx_webhook_deliveries_event ON webhook_deliveries(event_type);
 - [x] Add `subscriptions` dict to WebSocket connection state
 - [x] Filter broadcasts based on client subscriptions (default: all events)
 - [x] Add `{"type": "unsubscribe", "events": [...]}` support
-- [ ] Document subscription protocol in WebSocket event schema docs
+- [x] Document subscription protocol in WebSocket event schema docs
 
 #### Configuration
 - [x] Add `HookExtensionsConfig` to `src/config/app.py`
@@ -347,186 +347,186 @@ CREATE INDEX idx_webhook_deliveries_event ON webhook_deliveries(event_type);
 - [x] Handle broadcast errors gracefully (log, don't fail)
 
 #### Testing
-- [ ] Unit tests for `HookEventBroadcaster`
-- [ ] Integration test: WebSocket client receives hook events
-- [ ] Test event filtering
-- [ ] Test error handling when no clients connected
+- [x] Unit tests for `HookEventBroadcaster` (tests/hooks/test_broadcaster.py)
+- [x] Integration test: WebSocket client receives hook events
+- [x] Test event filtering
+- [x] Test error handling when no clients connected
 
 ---
 
-### Phase 2: Config-Driven Webhooks
+### Phase 2: Config-Driven Webhooks ✅ COMPLETE
 
 #### Core Implementation
-- [ ] Create `src/hooks/webhooks.py` module
-- [ ] Create `WebhookDispatcher` class
-- [ ] Implement `trigger(event_type, event, response)` async method
-- [ ] Implement endpoint matching by event type
-- [ ] Implement HTTP POST with configurable headers
+- [x] Create `src/hooks/webhooks.py` module
+- [x] Create `WebhookDispatcher` class
+- [x] Implement `trigger(event_type, event, response)` async method
+- [x] Implement endpoint matching by event type
+- [x] Implement HTTP POST with configurable headers
 
 #### Retry Logic
-- [ ] Implement exponential backoff retry
-- [ ] Add `timeout` per endpoint
-- [ ] Add `retry_count` per endpoint
-- [ ] Log failures with context
+- [x] Implement exponential backoff retry
+- [x] Add `timeout` per endpoint
+- [x] Add `retry_count` per endpoint
+- [x] Log failures with context
 
 #### Blocking Webhooks
-- [ ] Implement `can_block` option
-- [ ] Parse webhook response for `decision` field
-- [ ] Return `HookResponse` from blocking webhook
-- [ ] Add timeout protection for blocking webhooks
+- [x] Implement `can_block` option
+- [x] Parse webhook response for `decision` field
+- [x] Return `HookResponse` from blocking webhook
+- [x] Add timeout protection for blocking webhooks
 
 #### Configuration
-- [ ] Add `WebhooksConfig` to `src/config/app.py`
-- [ ] Add `WebhookEndpointConfig` for endpoint definitions
-- [ ] Support environment variable substitution in headers (`${VAR}`)
-- [ ] Validate webhook URLs on config load
+- [x] Add `WebhooksConfig` to `src/config/app.py`
+- [x] Add `WebhookEndpointConfig` for endpoint definitions
+- [x] Support environment variable substitution in headers (`${VAR}`)
+- [x] Validate webhook URLs on config load
 
 #### Integration
-- [ ] Initialize `WebhookDispatcher` in HTTP server lifespan
-- [ ] Call dispatcher in `/hooks/execute` endpoint
-- [ ] Add webhook delivery logging (optional, if table created)
+- [x] Initialize `WebhookDispatcher` in HTTP server lifespan
+- [x] Call dispatcher in `/hooks/execute` endpoint
+- [x] Add webhook delivery logging (optional, if table created)
 
 #### Fire-and-Forget Delivery (Decision 4)
-- [ ] Implement async webhook dispatch (no blocking on response)
-- [ ] Add `log_deliveries: true/false` config option (default: false)
-- [ ] Document that webhook reliability is the endpoint's responsibility
+- [x] Implement async webhook dispatch (no blocking on response)
+- [x] Add `log_deliveries: true/false` config option (default: false)
+- [x] Document that webhook reliability is the endpoint's responsibility
 
 #### Testing
-- [ ] Unit tests for `WebhookDispatcher`
-- [ ] Integration test with mock webhook server
-- [ ] Test retry logic
-- [ ] Test blocking webhook flow
-- [ ] Test environment variable substitution
+- [x] Unit tests for `WebhookDispatcher` (tests/hooks/test_webhooks.py)
+- [x] Integration test with mock webhook server
+- [x] Test retry logic
+- [x] Test blocking webhook flow
+- [x] Test environment variable substitution
 
 ---
 
-### Phase 3: Python Plugin System
+### Phase 3: Python Plugin System ✅ COMPLETE
 
 #### Plugin Infrastructure
-- [ ] Create `src/hooks/plugins.py` module
-- [ ] Define `HookPlugin` base class with `name`, `version`, `on_load()`, `on_unload()`
-- [ ] Define `@hook_handler` decorator with `event_type` and `priority` params
-- [ ] Create `PluginLoader` class for discovery and loading
-- [ ] Create `PluginRegistry` for handler registration
+- [x] Create `src/hooks/plugins.py` module
+- [x] Define `HookPlugin` base class with `name`, `version`, `on_load()`, `on_unload()`
+- [x] Define `@hook_handler` decorator with `event_type` and `priority` params
+- [x] Create `PluginLoader` class for discovery and loading
+- [x] Create `PluginRegistry` for handler registration
 
 #### Plugin Discovery
-- [ ] Implement `discover_plugins(dirs: list[str])` method
-- [ ] Scan directories for `.py` files
-- [ ] Import modules dynamically
-- [ ] Find `HookPlugin` subclasses
-- [ ] Handle import errors gracefully
+- [x] Implement `discover_plugins(dirs: list[str])` method
+- [x] Scan directories for `.py` files
+- [x] Import modules dynamically
+- [x] Find `HookPlugin` subclasses
+- [x] Handle import errors gracefully
 
 #### Plugin Lifecycle
-- [ ] Implement `load_plugin(path, config)` method
-- [ ] Call `on_load()` with plugin-specific config
-- [ ] Register handlers by event type
-- [ ] Implement `unload_plugin(name)` method
-- [ ] Call `on_unload()` on daemon shutdown
+- [x] Implement `load_plugin(path, config)` method
+- [x] Call `on_load()` with plugin-specific config
+- [x] Register handlers by event type
+- [x] Implement `unload_plugin(name)` method
+- [x] Call `on_unload()` on daemon shutdown
 
 #### Handler Execution
-- [ ] Implement `execute_handlers(event_type, event)` method
-- [ ] Sort handlers by priority
-- [ ] Execute pre-handlers (priority < 50) before core handler
-- [ ] Execute post-handlers (priority >= 50) after core handler
-- [ ] Short-circuit on `deny` response from pre-handler
-- [ ] Pass handler errors to logger, don't fail
+- [x] Implement `execute_handlers(event_type, event)` method
+- [x] Sort handlers by priority
+- [x] Execute pre-handlers (priority < 50) before core handler
+- [x] Execute post-handlers (priority >= 50) after core handler
+- [x] Short-circuit on `deny` response from pre-handler
+- [x] Pass handler errors to logger, don't fail
 
 #### Configuration
-- [ ] Add `PluginsConfig` to `src/config/app.py`
-- [ ] Add `plugin_dirs` list
-- [ ] Add `plugins` dict for per-plugin config and enablement
-- [ ] Add `auto_discover` boolean
+- [x] Add `PluginsConfig` to `src/config/app.py`
+- [x] Add `plugin_dirs` list
+- [x] Add `plugins` dict for per-plugin config and enablement
+- [x] Add `auto_discover` boolean
 
 #### Integration
-- [ ] Initialize `PluginLoader` in HTTP server lifespan
-- [ ] Inject `PluginRegistry` into `HookManager`
-- [ ] Modify `HookManager.handle()` to call plugin handlers
-- [ ] Add plugin status to `/admin/status` endpoint
+- [x] Initialize `PluginLoader` in HTTP server lifespan
+- [x] Inject `PluginRegistry` into `HookManager`
+- [x] Modify `HookManager.handle()` to call plugin handlers
+- [x] Add plugin status to `/admin/status` endpoint
 
 #### Testing
-- [ ] Unit tests for `PluginLoader`
-- [ ] Unit tests for `PluginRegistry`
-- [ ] Integration test with sample plugin
-- [ ] Test priority ordering
-- [ ] Test deny short-circuit
-- [ ] Test plugin error isolation
+- [x] Unit tests for `PluginLoader` (tests/hooks/test_plugins.py)
+- [x] Unit tests for `PluginRegistry`
+- [x] Integration test with sample plugin
+- [x] Test priority ordering
+- [x] Test deny short-circuit
+- [x] Test plugin error isolation
 
 ---
 
-### Phase 4: Workflow Integration
+### Phase 4: Workflow Integration ✅ COMPLETE
 
 #### Webhook as Workflow Action
-- [ ] Add `webhook` action type to workflow engine
-- [ ] Implement `WebhookAction` class in `src/workflows/actions/`
-- [ ] Support `url`, `event`, `can_block`, `headers` params
-- [ ] Integrate with existing webhook infrastructure
+- [x] Add `webhook` action type to workflow engine
+- [x] Implement `WebhookAction` class in `src/workflows/webhook.py`
+- [x] Support `url`, `event`, `can_block`, `headers` params
+- [x] Integrate with existing webhook infrastructure
 
 #### Plugin-Defined Actions
-- [ ] Allow plugins to register custom workflow actions
-- [ ] Add `register_action(name, handler)` to plugin interface
-- [ ] Expose registered actions to workflow engine
+- [x] Allow plugins to register custom workflow actions
+- [x] Add `register_action(name, handler)` to plugin interface
+- [x] Expose registered actions to workflow engine
 
 #### Plugin-Defined Conditions
-- [ ] Allow plugins to register custom condition evaluators
-- [ ] Add `register_condition(name, evaluator)` to plugin interface
-- [ ] Expose registered conditions for workflow `when` clauses
+- [x] Allow plugins to register custom condition evaluators
+- [x] Add `register_condition(name, evaluator)` to plugin interface
+- [x] Expose registered conditions for workflow `when` clauses
 
 #### Documentation
-- [ ] Document webhook action YAML syntax
-- [ ] Document plugin action registration
-- [ ] Add examples to workflow templates
+- [x] Document webhook action YAML syntax (docs/guides/webhooks-and-plugins.md)
+- [x] Document plugin action registration
+- [x] Add examples to workflow templates
 
 ---
 
-### Phase 5: CLI & Monitoring
+### Phase 5: CLI & Monitoring ✅ COMPLETE
 
 #### CLI Commands
-- [ ] Add `gobby hooks` command group
-- [ ] Implement `gobby hooks list` - show registered handlers
-- [ ] Implement `gobby hooks test <event>` - trigger test event
-- [ ] Implement `gobby plugins list` - show loaded plugins
-- [ ] Implement `gobby plugins reload [plugin_name]` - reload all or specific plugin
-- [ ] Implement `gobby webhooks list` - show configured webhooks
-- [ ] Implement `gobby webhooks test <endpoint>` - test webhook delivery
+- [x] Add `gobby hooks` command group (src/gobby/cli/extensions.py)
+- [x] Implement `gobby hooks list` - show registered handlers
+- [x] Implement `gobby hooks test <event>` - trigger test event
+- [x] Implement `gobby plugins list` - show loaded plugins
+- [x] Implement `gobby plugins reload [plugin_name]` - reload all or specific plugin
+- [x] Implement `gobby webhooks list` - show configured webhooks
+- [x] Implement `gobby webhooks test <endpoint>` - test webhook delivery
 
 #### Stateless Plugin Reload (Decision 5)
-- [ ] Call `on_unload()` on existing plugin instances before reload
-- [ ] Re-import modules and re-instantiate plugins
-- [ ] Clear and re-register all handlers from reloaded plugins
-- [ ] Document that reload clears plugin state (pytest model)
+- [x] Call `on_unload()` on existing plugin instances before reload
+- [x] Re-import modules and re-instantiate plugins
+- [x] Clear and re-register all handlers from reloaded plugins
+- [x] Document that reload clears plugin state (pytest model)
 
 #### MCP Tools
-- [ ] Add `list_hook_handlers()` MCP tool
-- [ ] Add `test_hook_event(event_type, data)` MCP tool
-- [ ] Add `list_plugins()` MCP tool
-- [ ] Add `reload_plugins()` MCP tool
+- [x] Add `list_hook_handlers()` MCP tool (src/gobby/mcp_proxy/server.py:301)
+- [x] Add `test_hook_event(event_type, data)` MCP tool (server.py:355)
+- [x] Add `list_plugins()` MCP tool (server.py:434)
+- [x] Add `reload_plugin()` MCP tool (server.py:473)
 
 #### Observability
-- [ ] Add hook event metrics (count by type)
-- [ ] Add webhook delivery metrics (success/failure rate)
-- [ ] Add plugin handler metrics (execution time)
-- [ ] Expose metrics via `/admin/metrics` endpoint
+- [x] Add hook event metrics (count by type) - src/gobby/utils/metrics.py
+- [x] Add webhook delivery metrics (success/failure rate)
+- [x] Add plugin handler metrics (execution time)
+- [x] Expose metrics via `/admin/metrics` endpoint
 
 ---
 
-### Phase 6: Documentation
+### Phase 6: Documentation ✅ COMPLETE
 
-- [ ] Update CLAUDE.md with hook extension configuration
-- [ ] Create `docs/hook-extensions.md` user guide
-- [ ] Document WebSocket event schema (including subscription protocol)
-- [ ] Document webhook payload format
-- [ ] Document plugin interface
+- [x] Update CLAUDE.md with hook extension configuration (minimal reference at line 193)
+- [x] Create `docs/guides/webhooks-and-plugins.md` user guide (725 lines)
+- [x] Document WebSocket event schema (including subscription protocol)
+- [x] Document webhook payload format
+- [x] Document plugin interface
 
 #### Plugin Security Model (Decision 2)
-- [ ] Add "Security Model" section explaining trust model
-- [ ] Document: "Plugins run with full daemon privileges. Only enable plugins you trust."
-- [ ] Add warning message when enabling plugins via config
-- [ ] Consider `--i-trust-this-plugin` flag for explicit acknowledgment
+- [x] Add "Security Model" section explaining trust model
+- [x] Document: "Plugins run with full daemon privileges. Only enable plugins you trust."
+- [x] Add warning message when enabling plugins via config
+- [x] Consider `--i-trust-this-plugin` flag for explicit acknowledgment (deferred - documented in guide)
 
 #### Examples
-- [ ] Add example plugins to `examples/plugins/`
-- [ ] Add example webhook integration (Slack notification)
-- [ ] Add "Code Guardian" example plugin demonstrating:
+- [x] Add example plugins to `examples/plugins/`
+- [x] Add example webhook integration (Slack notification in webhooks-and-plugins.md)
+- [x] Add "Code Guardian" example plugin (`examples/plugins/code_guardian.py`) demonstrating:
   - Hook handlers for `PRE_TOOL_CALL` and `POST_TOOL_CALL`
   - Event blocking and content modification
   - Context injection for reporting
