@@ -217,13 +217,45 @@ def kill_all_gobby_daemons() -> int:
 
 
 def init_local_storage() -> None:
-    """Initialize local SQLite storage and run migrations."""
+    """Initialize local SQLite storage with dual-write if in project context.
+
+    If a .gobby/project.json exists in cwd, uses DualWriteDatabase to write
+    to both project-local (.gobby/gobby.db) and hub (~/.gobby/gobby-hub.db).
+    Otherwise, uses hub database only.
+    """
     from gobby.storage.database import LocalDatabase
+    from gobby.storage.dual_write import DualWriteDatabase
     from gobby.storage.migrations import run_migrations
 
-    # Create database and run migrations
-    db = LocalDatabase()
-    run_migrations(db)
+    config = load_config(create_default=False)
+
+    cwd = Path.cwd()
+    project_json = cwd / ".gobby" / "project.json"
+    hub_db_path = Path(config.hub_database_path).expanduser()
+
+    # Ensure hub db directory exists
+    hub_db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if project_json.exists():
+        # In project context: dual-write to project-local and hub
+        project_db_path = cwd / ".gobby" / "gobby.db"
+        project_db_path.parent.mkdir(parents=True, exist_ok=True)
+
+        project_db = LocalDatabase(project_db_path)
+        hub_db = LocalDatabase(hub_db_path)
+
+        # Run migrations on both
+        run_migrations(project_db)
+        run_migrations(hub_db)
+
+        # Create and return dual-write database
+        DualWriteDatabase(project_db, hub_db)
+        logger.debug(f"Dual-write enabled: {project_db_path} + {hub_db_path}")
+    else:
+        # No project context: use hub database only
+        hub_db = LocalDatabase(hub_db_path)
+        run_migrations(hub_db)
+        logger.debug(f"Single database mode: {hub_db_path}")
 
 
 def get_install_dir() -> Path:
