@@ -1,6 +1,6 @@
 # Gobby Project Documentation
 
-> **Generated:** 2025-12-15 | **Scan Level:** Exhaustive | **Version:** 0.1.0
+> **Generated:** 2026-01-10 | **Scan Level:** Exhaustive | **Version:** 0.2.0
 
 ## Project Overview
 
