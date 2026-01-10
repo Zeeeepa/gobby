@@ -55,21 +55,42 @@ def create(
 @click.argument("query", required=False)
 @click.option("--project", "-p", "project_id", help="Project ID")
 @click.option("--limit", "-n", default=10, help="Max results")
+@click.option("--tags-all", "tags_all", help="Require ALL tags (comma-separated)")
+@click.option("--tags-any", "tags_any", help="Require ANY tag (comma-separated)")
+@click.option("--tags-none", "tags_none", help="Exclude memories with these tags (comma-separated)")
 @click.pass_context
-def recall(ctx: click.Context, query: str | None, project_id: str | None, limit: int) -> None:
-    """Retrieve memories."""
+def recall(
+    ctx: click.Context,
+    query: str | None,
+    project_id: str | None,
+    limit: int,
+    tags_all: str | None,
+    tags_any: str | None,
+    tags_none: str | None,
+) -> None:
+    """Retrieve memories with optional tag filtering."""
     manager = get_memory_manager(ctx)
+
+    # Parse comma-separated tags
+    tags_all_list = [t.strip() for t in tags_all.split(",") if t.strip()] if tags_all else None
+    tags_any_list = [t.strip() for t in tags_any.split(",") if t.strip()] if tags_any else None
+    tags_none_list = [t.strip() for t in tags_none.split(",") if t.strip()] if tags_none else None
+
     memories = manager.recall(
         query=query,
         project_id=project_id,
         limit=limit,
+        tags_all=tags_all_list,
+        tags_any=tags_any_list,
+        tags_none=tags_none_list,
     )
     if not memories:
         click.echo("No memories found.")
         return
 
     for mem in memories:
-        click.echo(f"[{mem.id[:8]}] ({mem.memory_type}, {mem.importance}) {mem.content}")
+        tags_str = f" [{', '.join(mem.tags)}]" if mem.tags else ""
+        click.echo(f"[{mem.id[:8]}] ({mem.memory_type}, {mem.importance}){tags_str} {mem.content}")
 
 
 @memory.command()
@@ -90,6 +111,9 @@ def delete(ctx: click.Context, memory_id: str) -> None:
 @click.option("--min-importance", "-i", type=float, help="Minimum importance threshold")
 @click.option("--limit", "-n", default=50, help="Max results")
 @click.option("--project", "-p", "project_id", help="Project ID")
+@click.option("--tags-all", "tags_all", help="Require ALL tags (comma-separated)")
+@click.option("--tags-any", "tags_any", help="Require ANY tag (comma-separated)")
+@click.option("--tags-none", "tags_none", help="Exclude memories with these tags (comma-separated)")
 @click.pass_context
 def list_memories(
     ctx: click.Context,
@@ -97,14 +121,26 @@ def list_memories(
     min_importance: float | None,
     project_id: str | None,
     limit: int,
+    tags_all: str | None,
+    tags_any: str | None,
+    tags_none: str | None,
 ) -> None:
     """List all memories with optional filtering."""
     manager = get_memory_manager(ctx)
+
+    # Parse comma-separated tags
+    tags_all_list = [t.strip() for t in tags_all.split(",") if t.strip()] if tags_all else None
+    tags_any_list = [t.strip() for t in tags_any.split(",") if t.strip()] if tags_any else None
+    tags_none_list = [t.strip() for t in tags_none.split(",") if t.strip()] if tags_none else None
+
     memories = manager.list_memories(
         project_id=project_id,
         memory_type=memory_type,
         min_importance=min_importance,
         limit=limit,
+        tags_all=tags_all_list,
+        tags_any=tags_any_list,
+        tags_none=tags_none_list,
     )
     if not memories:
         click.echo("No memories found.")
@@ -317,7 +353,9 @@ def reindex_search(ctx: click.Context) -> None:
 @memory.command("related")
 @click.argument("memory_id")
 @click.option("--limit", "-n", default=5, help="Max results")
-@click.option("--min-similarity", "-s", type=float, default=0.0, help="Minimum similarity (0.0-1.0)")
+@click.option(
+    "--min-similarity", "-s", type=float, default=0.0, help="Minimum similarity (0.0-1.0)"
+)
 @click.pass_context
 def related_memories(
     ctx: click.Context,
