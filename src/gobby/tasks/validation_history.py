@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 from gobby.tasks.validation_models import Issue
 
 if TYPE_CHECKING:
-    from gobby.storage.database import DatabaseProtocol, LocalDatabase
+    from gobby.storage.database import DatabaseProtocol
 
 logger = logging.getLogger(__name__)
 

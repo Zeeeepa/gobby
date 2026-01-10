@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 if TYPE_CHECKING:
     from gobby.compression import TextCompressor
 
-from gobby.storage.database import DatabaseProtocol, LocalDatabase
+from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
 from gobby.storage.tasks import LocalTaskManager  # noqa: F401
 from gobby.workflows.artifact_actions import capture_artifact, read_artifact
