@@ -76,8 +76,9 @@ triggers:
     - action: require_validation_delegation
 
     # Task enforcement - require active task before file modifications
-    # Enable via config: workflow.require_task_before_edit: true
+    # Skip in plan mode (planning only writes to plan files)
     - action: require_active_task
+      when: "not variables.get('plan_mode')"
 
   on_session_end:
     # Session summary generation
