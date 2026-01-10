@@ -100,6 +100,9 @@ def setup_internal_registries(
                 task_validator=task_validator,
                 config=_config,
                 agent_runner=agent_runner,
+                worktree_storage=worktree_storage,
+                git_manager=git_manager,
+                project_id=project_id,
             )
             manager.add_registry(tasks_registry)
             logger.debug("Tasks registry initialized")

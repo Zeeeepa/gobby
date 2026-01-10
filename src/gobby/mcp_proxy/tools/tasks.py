@@ -29,6 +29,7 @@ from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 # Import extracted registries for internal merging
 from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 from gobby.mcp_proxy.tools.task_expansion import create_expansion_registry
+from gobby.mcp_proxy.tools.task_orchestration import create_orchestration_registry
 from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 from gobby.mcp_proxy.tools.task_validation import create_validation_registry
@@ -55,6 +56,7 @@ __all__ = ["create_task_registry"]
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
     from gobby.config.app import DaemonConfig
+    from gobby.worktrees.git import WorktreeGitManager
 
 # Reasons for which commit linking and validation are skipped when closing tasks
 SKIP_REASONS: frozenset[str] = frozenset(
@@ -112,6 +114,9 @@ def create_task_registry(
     task_validator: TaskValidator | None = None,
     config: "DaemonConfig | None" = None,
     agent_runner: "AgentRunner | None" = None,
+    worktree_storage: "LocalWorktreeManager | None" = None,
+    git_manager: "WorktreeGitManager | None" = None,
+    project_id: str | None = None,
 ) -> InternalToolRegistry:
     """
     Create a task tool registry with all task-related tools.
@@ -123,6 +128,9 @@ def create_task_registry(
         task_validator: TaskValidator instance (optional)
         config: DaemonConfig instance (optional)
         agent_runner: AgentRunner instance for external validator agent mode (optional)
+        worktree_storage: LocalWorktreeManager for orchestration (optional)
+        git_manager: WorktreeGitManager for orchestration (optional)
+        project_id: Default project ID for orchestration (optional)
 
     Returns:
         InternalToolRegistry with all task tools registered
@@ -1240,5 +1248,18 @@ def create_task_registry(
     )
     for tool_name, tool in sync_registry._tools.items():
         registry._tools[tool_name] = tool
+
+    # Merge orchestration tools from extracted module (Strangler Fig pattern)
+    # Only if worktree_storage is available (required for orchestration)
+    if worktree_storage is not None:
+        orchestration_registry = create_orchestration_registry(
+            task_manager=task_manager,
+            worktree_storage=worktree_storage,
+            git_manager=git_manager,
+            agent_runner=agent_runner,
+            project_id=project_id,
+        )
+        for tool_name, tool in orchestration_registry._tools.items():
+            registry._tools[tool_name] = tool
 
     return registry
