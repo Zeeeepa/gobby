@@ -495,18 +495,44 @@ task_validation:
 
 Bidirectional sync between `gobby-tasks` and GitHub Issues. Import issues as tasks, create PRs from completed tasks, sync status changes.
 
-### MCP Tools (gobby-github)
+**Architecture:** Delegates to the official [GitHub MCP server](https://github.com/modelcontextprotocol/servers/tree/main/src/github) (`@modelcontextprotocol/server-github`) for all GitHub API operations. Gobby provides the sync orchestration layer and task mapping—not a custom GitHub client.
+
+**Optional Integration:** GitHub integration is optional. Code gracefully handles the absence of the GitHub MCP server.
+
+### Prerequisites
+
+The user must have the GitHub MCP server configured:
+
+```bash
+# Install the official GitHub MCP server
+npx @modelcontextprotocol/server-github
+```
+
+Or add to gobby's MCP config:
+
+```yaml
+# Via gobby CLI
+gobby mcp add github --transport stdio --command npx --args '["@modelcontextprotocol/server-github"]'
+```
+
+### MCP Tools (gobby-tasks extensions)
+
+These tools extend `gobby-tasks` rather than creating a separate `gobby-github` server:
 
 ```python
 @mcp.tool()
-def connect_github(
+def link_github_repo(
     repo: str,                              # owner/repo format
-    token: str | None = None,               # Uses GITHUB_TOKEN env if not provided
 ) -> dict:
-    """Connect project to GitHub repository."""
+    """
+    Link current project to a GitHub repository.
+
+    Stores repo in project config for future sync operations.
+    Validates GitHub MCP server is available.
+    """
 
 @mcp.tool()
-def import_issues(
+def import_github_issues(
     labels: list[str] | None = None,
     state: str = "open",                    # open, closed, all
     limit: int = 50,
@@ -514,85 +540,100 @@ def import_issues(
     """
     Import GitHub issues as gobby-tasks.
 
-    Creates tasks with:
+    Delegates to GitHub MCP's list_issues tool, then creates tasks with:
     - Title and description from issue
     - Labels mapped to task labels
-    - GitHub issue number stored in metadata
+    - github_issue_number stored on task
+
+    Returns error if GitHub MCP unavailable.
     """
 
 @mcp.tool()
-def sync_task_to_issue(task_id: str) -> dict:
-    """Push task status/updates to linked GitHub issue."""
+def sync_task_to_github(task_id: str) -> dict:
+    """
+    Push task status/updates to linked GitHub issue.
+
+    Delegates to GitHub MCP's update_issue tool.
+    """
 
 @mcp.tool()
-def create_pr_from_task(
+def create_pr_for_task(
     task_id: str,
-    worktree_id: str | None = None,         # Use current worktree if not specified
+    head_branch: str | None = None,         # Defaults to current branch
+    base_branch: str = "main",
     draft: bool = False,
 ) -> dict:
     """
-    Create GitHub PR from completed task.
+    Create GitHub PR from task.
 
     - Uses task title for PR title
-    - Generates PR description from task + changes
-    - Links PR to issue (if task imported from issue)
+    - Generates PR description from task + commits
+    - Links PR to issue (if task has github_issue_number)
+    - Stores github_pr_number on task
+
+    Delegates to GitHub MCP's create_pull_request tool.
     """
 
 @mcp.tool()
-def get_pr_status(task_id: str) -> dict:
-    """Get status of PR linked to task (checks, reviews, etc.)."""
+def get_github_pr_status(task_id: str) -> dict:
+    """
+    Get status of PR linked to task (checks, reviews, etc.).
 
-@mcp.tool()
-def sync_from_github() -> dict:
-    """Pull latest issue/PR updates into gobby-tasks."""
+    Delegates to GitHub MCP's get_pull_request tool.
+    """
 ```
 
 ### Phase 3: CLI Commands
 
 ```bash
-gobby github connect OWNER/REPO [--token TOKEN]
+gobby github link OWNER/REPO              # Link project to repo
 gobby github import [--labels LABEL,...] [--state open|closed|all] [--limit N]
 gobby github sync [--direction in|out|both]
-gobby github pr create TASK_ID [--worktree WORKTREE_ID] [--draft]
-gobby github pr status TASK_ID
-gobby github disconnect
+gobby github pr TASK_ID [--branch BRANCH] [--draft]
+gobby github unlink
+gobby github status                       # Show linked repo + MCP availability
 ```
 
 ### Phase 3: Configuration
 
 ```yaml
 github:
-  enabled: false
-  repo: null                                # owner/repo
-  token_env: "GITHUB_TOKEN"                 # Environment variable for token
+  enabled: true                             # Enable GitHub integration features
   auto_sync: false                          # Auto-sync on task changes
   import_labels: []                         # Only import issues with these labels
   create_pr_on_close: false                 # Auto-create PR when task closed
   link_issues: true                         # Link PRs to issues
+  # Note: repo stored per-project in .gobby/project.json
+  # Note: auth handled by GitHub MCP server config (GITHUB_PERSONAL_ACCESS_TOKEN)
 ```
 
 ### Phase 3: Implementation Checklist
 
-#### Phase 3.1: GitHub Client
+#### Phase 3.1: Task Schema Update
 
-- [ ] Create `src/integrations/github.py` with GitHub API client
-- [ ] Implement issue listing/fetching
-- [ ] Implement PR creation
-- [ ] Implement status sync
-- [ ] Handle rate limiting and pagination
+- [ ] Add migration for `github_issue_number`, `github_pr_number`, `github_repo` columns on tasks table
+- [ ] Update Task dataclass and storage layer
+- [ ] Add to dual-write database (project + hub)
 
-#### Phase 3.2: Task Mapping
+#### Phase 3.2: GitHub MCP Detection
 
-- [ ] Add `github_issue_number` and `github_pr_number` to tasks table
-- [ ] Implement issue → task mapping
-- [ ] Implement task → issue sync
-- [ ] Handle label mapping
+- [ ] Create `src/gobby/integrations/github.py` with `GitHubIntegration` class
+- [ ] Implement `is_available()` - check if GitHub MCP server is configured and responsive
+- [ ] Implement graceful error messages when GitHub MCP unavailable
+- [ ] Cache availability check (don't call on every operation)
 
-#### Phase 3.3: MCP Tools & CLI
+#### Phase 3.3: Sync Orchestration
 
-- [ ] Create `src/mcp_proxy/tools/github.py`
-- [ ] Register as `gobby-github` internal server
-- [ ] Add CLI commands
+- [ ] Implement `import_github_issues()` - calls GitHub MCP, creates tasks
+- [ ] Implement `sync_task_to_github()` - calls GitHub MCP to update issue
+- [ ] Implement `create_pr_for_task()` - calls GitHub MCP to create PR
+- [ ] Handle label mapping (gobby labels ↔ GitHub labels)
+
+#### Phase 3.4: MCP Tools & CLI
+
+- [ ] Add GitHub tools to `gobby-tasks` registry (not separate server)
+- [ ] Add `gobby github` CLI command group
+- [ ] Add project config field for linked GitHub repo
 
 ---
 
@@ -602,72 +643,133 @@ github:
 
 Sync `gobby-tasks` with Linear for teams using Linear for project management.
 
-### MCP Tools (gobby-linear)
+**Architecture:** Delegates to the official [Linear MCP server](https://github.com/jerhadf/linear-mcp-server) for all Linear API operations. Gobby provides the sync orchestration layer and task mapping—not a custom Linear client.
+
+**Optional Integration:** Linear integration is **highly optional**. Most users won't have Linear. Code must gracefully handle the absence of the Linear MCP server with zero impact on other functionality.
+
+### Prerequisites
+
+The user must have the Linear MCP server configured:
+
+```bash
+# Install the Linear MCP server
+npx linear-mcp-server
+```
+
+Or add to gobby's MCP config:
+
+```yaml
+# Via gobby CLI
+gobby mcp add linear --transport stdio --command npx --args '["linear-mcp-server"]'
+```
+
+### MCP Tools (gobby-tasks extensions)
+
+These tools extend `gobby-tasks` rather than creating a separate `gobby-linear` server:
 
 ```python
 @mcp.tool()
-def connect_linear(
+def link_linear_team(
     team_id: str,
-    api_key: str | None = None,
 ) -> dict:
-    """Connect project to Linear team."""
+    """
+    Link current project to a Linear team.
+
+    Stores team_id in project config for future sync operations.
+    Validates Linear MCP server is available.
+    """
 
 @mcp.tool()
-def import_issues(
+def import_linear_issues(
     state: str | None = None,               # Filter by state
     labels: list[str] | None = None,
     limit: int = 50,
 ) -> dict:
-    """Import Linear issues as gobby-tasks."""
+    """
+    Import Linear issues as gobby-tasks.
+
+    Delegates to Linear MCP, then creates tasks with:
+    - Title and description from issue
+    - linear_issue_id stored on task
+    - State mapped to gobby status
+
+    Returns error if Linear MCP unavailable.
+    """
 
 @mcp.tool()
 def sync_task_to_linear(task_id: str) -> dict:
-    """Push task status to linked Linear issue."""
+    """
+    Push task status to linked Linear issue.
+
+    Delegates to Linear MCP's update issue functionality.
+    """
 
 @mcp.tool()
-def create_linear_issue(task_id: str) -> dict:
-    """Create Linear issue from gobby-task."""
+def create_linear_issue_for_task(task_id: str) -> dict:
+    """
+    Create Linear issue from gobby-task.
 
-@mcp.tool()
-def sync_from_linear() -> dict:
-    """Pull latest Linear updates."""
+    - Uses task title/description
+    - Maps gobby status to Linear state
+    - Stores linear_issue_id on task
+
+    Delegates to Linear MCP.
+    """
+```
+
+### Phase 4: CLI Commands
+
+```bash
+gobby linear link TEAM_ID                 # Link project to Linear team
+gobby linear import [--state STATE] [--labels LABEL,...] [--limit N]
+gobby linear sync [--direction in|out|both]
+gobby linear push TASK_ID                 # Create Linear issue from task
+gobby linear unlink
+gobby linear status                       # Show linked team + MCP availability
 ```
 
 ### Phase 4: Configuration
 
 ```yaml
 linear:
-  enabled: false
-  team_id: null
-  api_key_env: "LINEAR_API_KEY"
-  auto_sync: false
+  enabled: true                             # Enable Linear integration features
+  auto_sync: false                          # Auto-sync on task changes
   state_mapping:                            # Map gobby status to Linear states
     open: "Todo"
     in_progress: "In Progress"
     closed: "Done"
     failed: "Canceled"
+  # Note: team_id stored per-project in .gobby/project.json
+  # Note: auth handled by Linear MCP server config (LINEAR_API_KEY)
 ```
 
 ### Phase 4: Implementation Checklist
 
-#### Phase 4.1: Linear Client
+#### Phase 4.1: Task Schema Update
 
-- [ ] Create `src/integrations/linear.py` with Linear GraphQL client
-- [ ] Implement issue listing/fetching
-- [ ] Implement issue creation/update
-- [ ] Handle pagination
+- [ ] Add migration for `linear_issue_id`, `linear_team_id` columns on tasks table
+- [ ] Update Task dataclass and storage layer
+- [ ] Add to dual-write database (project + hub)
 
-#### Phase 4.2: Task Mapping
+#### Phase 4.2: Linear MCP Detection
 
-- [ ] Add `linear_issue_id` to tasks table
-- [ ] Implement bidirectional sync
-- [ ] Map states and labels
+- [ ] Create `src/gobby/integrations/linear.py` with `LinearIntegration` class
+- [ ] Implement `is_available()` - check if Linear MCP server is configured and responsive
+- [ ] Implement graceful degradation - Linear features silently disabled when unavailable
+- [ ] Cache availability check
 
-#### Phase 4.3: MCP Tools & CLI
+#### Phase 4.3: Sync Orchestration
 
-- [ ] Create `src/mcp_proxy/tools/linear.py`
-- [ ] Register as `gobby-linear` internal server
-- [ ] Add CLI commands
+- [ ] Implement `import_linear_issues()` - calls Linear MCP, creates tasks
+- [ ] Implement `sync_task_to_linear()` - calls Linear MCP to update issue
+- [ ] Implement `create_linear_issue_for_task()` - calls Linear MCP to create issue
+- [ ] Handle state mapping (gobby status ↔ Linear workflow states)
+
+#### Phase 4.4: MCP Tools & CLI
+
+- [ ] Add Linear tools to `gobby-tasks` registry (not separate server)
+- [ ] Add `gobby linear` CLI command group
+- [ ] Add project config field for linked Linear team
 
 ---
 
@@ -1311,8 +1413,8 @@ This was superseded by integrating with existing systems:
 | 1 | **Worktree management location** | Moved to SUBAGENTS.md | Tightly coupled with subagent spawning |
 | 2 | **Merge conflict context** | Configurable line window | Balance token efficiency vs context quality |
 | 3 | **QA loop limit** | 3 retries default | Prevent infinite loops while allowing recovery |
-| 4 | **GitHub auth** | Environment variable | Standard pattern, works with gh CLI |
-| 5 | **Linear auth** | API key | Linear's standard auth method |
+| 4 | **GitHub integration** | Delegate to official GitHub MCP | Avoid duplicating GitHub API client; MCP provides rate limiting, auth |
+| 5 | **Linear integration** | Delegate to official Linear MCP | Same rationale; Linear is highly optional, graceful degradation required |
 | 6 | **Pipeline phases** | Fixed 5-phase model | Clear structure, matches Auto-Claude pattern |
 | 7 | **External validator** | Separate agent context | Avoids bias from implementation agent |
 | 8 | **Loop state persistence** | Tasks (not workflow variables) | Workflow vars reset on session end; tasks survive |
