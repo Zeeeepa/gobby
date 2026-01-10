@@ -268,3 +268,58 @@ class TestGitHubSyncServicePR:
         mock_task_manager.update_task.assert_called()
         update_call = mock_task_manager.update_task.call_args
         assert update_call is not None
+
+
+class TestLabelMapping:
+    """Test label mapping functions."""
+
+    def test_map_gobby_labels_to_github_basic(self, sync_service):
+        """map_gobby_labels_to_github converts internal labels to GitHub format."""
+        gobby_labels = ["bug", "high-priority", "backend"]
+        github_labels = sync_service.map_gobby_labels_to_github(gobby_labels)
+
+        assert isinstance(github_labels, list)
+        assert len(github_labels) == 3
+
+    def test_map_gobby_labels_to_github_empty(self, sync_service):
+        """map_gobby_labels_to_github handles empty labels."""
+        github_labels = sync_service.map_gobby_labels_to_github([])
+        assert github_labels == []
+
+    def test_map_gobby_labels_to_github_with_prefix(self, sync_service):
+        """map_gobby_labels_to_github can add prefix to labels."""
+        gobby_labels = ["bug"]
+        github_labels = sync_service.map_gobby_labels_to_github(
+            gobby_labels, prefix="gobby:"
+        )
+        assert "gobby:bug" in github_labels
+
+    def test_map_github_labels_to_gobby_basic(self, sync_service):
+        """map_github_labels_to_gobby parses GitHub labels to internal format."""
+        github_labels = ["bug", "enhancement", "documentation"]
+        gobby_labels = sync_service.map_github_labels_to_gobby(github_labels)
+
+        assert isinstance(gobby_labels, list)
+        assert len(gobby_labels) == 3
+
+    def test_map_github_labels_to_gobby_empty(self, sync_service):
+        """map_github_labels_to_gobby handles empty labels."""
+        gobby_labels = sync_service.map_github_labels_to_gobby([])
+        assert gobby_labels == []
+
+    def test_map_github_labels_to_gobby_strips_prefix(self, sync_service):
+        """map_github_labels_to_gobby strips gobby: prefix."""
+        github_labels = ["gobby:bug", "gobby:feature"]
+        gobby_labels = sync_service.map_github_labels_to_gobby(
+            github_labels, strip_prefix="gobby:"
+        )
+        assert "bug" in gobby_labels
+        assert "feature" in gobby_labels
+
+    def test_map_labels_special_characters(self, sync_service):
+        """Label mapping handles special characters in label names."""
+        gobby_labels = ["feature/new-ui", "p0:critical"]
+        github_labels = sync_service.map_gobby_labels_to_github(gobby_labels)
+
+        # Should preserve special characters
+        assert len(github_labels) == 2
