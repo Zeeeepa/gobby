@@ -29,7 +29,33 @@
 - [ ] Implement `unsubscribe(events[])` method
 - [ ] Track active subscriptions to resubscribe on reconnect
 
-## 2.2 Daemon Event Emission
+## 2.2 Event Bus Architecture
+
+> **Critical:** MCP tools run in-process with the daemon. They need access to an event bus to emit events that reach the WebSocket server.
+
+### 2.2.0 Event Wiring Infrastructure
+
+The daemon already has `HookEventBroadcaster` for hook events (`session_start`, `pre_tool_use`, etc.). We need to extend this pattern for domain events.
+
+- [ ] Create `DataEventBus` singleton in `src/gobby/events/bus.py`
+- [ ] Define `DataEvent` protocol with `event_type`, `payload`, `timestamp`
+- [ ] Register event bus in daemon startup (`runner.py`)
+- [ ] Inject event bus into MCP tool handlers via dependency injection
+- [ ] Connect event bus to WebSocket server's broadcast method
+- [ ] Add event type constants: `task.*`, `worktree.*`, `mcp.*`, `memory.*`
+
+```python
+# Example wiring in MCP tool
+class TaskOperations:
+    def __init__(self, db: TaskDatabase, event_bus: DataEventBus):
+        self.db = db
+        self.event_bus = event_bus
+
+    async def create_task(self, title: str, ...) -> Task:
+        task = await self.db.create_task(title, ...)
+        await self.event_bus.emit("task.created", {"task": task.to_dict()})
+        return task
+```
 
 ### 2.2.1 Task Events
 

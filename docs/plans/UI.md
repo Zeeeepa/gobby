@@ -647,14 +647,17 @@ interface SessionMessageEvent {
 }
 ```
 
-#### Missing Events (TODO for UI)
+#### Missing Events (Implemented in Phase 2)
 
-The following events from the original spec are NOT yet implemented:
+The following domain events require the `DataEventBus` wiring from Phase 2:
+
 - `task.created`, `task.updated`, `task.closed`, `task.expanded`
 - `worktree.created`, `worktree.merged` (methods defined but not emitted)
 - `mcp.server_connected`, `mcp.server_disconnected`, `mcp.tool_called`
 
-**Workaround:** Poll `/admin/status` or use React Query with short intervals.
+**Architecture:** See Phase 2 spec (`docs/specs/ui/phase-2-realtime.md`) section 2.2.0 for the event bus architecture. MCP tools emit events via an injected `DataEventBus` singleton that connects to the WebSocket broadcast.
+
+**Workaround (before Phase 2):** Poll `/admin/status` or use React Query with short intervals.
 
 ## Data Models (TypeScript)
 
@@ -1243,6 +1246,23 @@ ui:
 - [ ] Create AppImage/Flatpak for Linux
 - [ ] Set up release workflow
 
+## Scope Boundaries: TUI vs Web
+
+The TUI and Web UI serve different purposes and should NOT duplicate complex features.
+
+| Feature | TUI (Phase 0) | Web (Phase 1+) | Notes |
+|---------|---------------|----------------|-------|
+| Task list | ✅ DataTable | ✅ DataTable | Both, universal |
+| Task graph | ❌ | ✅ Cytoscape.js | Web only, requires canvas |
+| Kanban board | ❌ | ✅ Drag-drop | Web only, requires DOM |
+| Session timeline | ✅ DataTable | ✅ Visual timeline | Both work |
+| Agent tree | ✅ Text indentation | ✅ Visual tree | TUI simpler |
+| Memory search | ✅ Text list | ✅ Card grid | Both work |
+| Dependency tree | ✅ Text expansion | ✅ Interactive graph | TUI inline text |
+| Mobile/touch | ❌ | ✅ PWA | Web only |
+
+**Principle:** TUI stays lean and keyboard-focused. Web handles visual complexity.
+
 ## Decisions
 
 | # | Question | Decision | Rationale |
@@ -1259,6 +1279,8 @@ ui:
 | 10 | **Mobile Access** | PWA + Cloudflare Tunnel | Works offline, remote access, push notifications |
 | 11 | **API Pattern** | REST + MCP Tools | REST for admin, MCP for CRUD operations |
 | 12 | **Real-time** | WebSocket on port 8766 | Already implemented, event subscriptions |
+| 13 | **Remote Auth** | **MANDATORY** token auth | Remote = RCE risk, no "trust tunnel" option |
+| 14 | **Event Wiring** | DataEventBus singleton | MCP tools emit via injected event bus |
 
 ## Future Enhancements
 

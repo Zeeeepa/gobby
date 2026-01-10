@@ -4,6 +4,26 @@
 > **Goal:** Fast, keyboard-driven task management without leaving terminal
 > **Priority:** MVP - This is the first UI to build
 
+## Scope Boundaries
+
+The TUI is optimized for **speed and keyboard efficiency**. It deliberately excludes complex visualizations that are better suited to the web UI.
+
+### TUI Does (Phase 0)
+- **Tables and lists** - Task list, session timeline, agent list, memory search
+- **Text-based trees** - Dependency trees as indented text, agent hierarchy
+- **Quick actions** - Copy task ID, set session_task, cancel agent
+- **Keyboard navigation** - vim-style movement, shortcuts for everything
+
+### Web Only (Phase 1+)
+- **Kanban board** - Drag-and-drop column layout
+- **Task graph visualization** - Cytoscape.js interactive dependency graph
+- **Rich editing** - Inline markdown editing, drag-to-reorder
+- **Mobile/touch** - PWA, swipe gestures, responsive layouts
+
+This separation ensures the TUI stays fast and focused while the web UI handles visual complexity.
+
+---
+
 ## 0.1 Project Setup
 
 - [ ] Create `src/gobby/tui/` package with `__init__.py`
@@ -48,7 +68,7 @@
 - [ ] `e` key: expand task with AI (calls expand_task MCP tool)
 - [ ] `c` key: close task (calls close_task MCP tool)
 - [ ] `n` key: create new task (opens modal)
-- [ ] `d` key: show dependency tree (inline expansion)
+- [ ] `d` key: show dependency tree (text-based inline expansion, not graph)
 
 ### 0.3.4 Create Task Modal
 
@@ -89,7 +109,7 @@
 ### 0.5.1 Running Agents
 
 - [ ] Create `AgentListView` showing running agents
-- [ ] Display agent tree hierarchy (parent/child)
+- [ ] Display agent tree hierarchy as indented text (parent/child)
 - [ ] Show status: Running, Pending, Completed, Failed
 - [ ] Display tool call count and elapsed time
 - [ ] Show linked task and worktree

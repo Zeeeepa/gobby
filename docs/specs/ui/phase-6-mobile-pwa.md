@@ -134,12 +134,16 @@
 
 ## 6.6 Remote Access
 
+> **SECURITY CRITICAL:** Remote access enables code execution on your machine. Authentication is MANDATORY, not optional. The combination of Agent spawning (Phase 4) + Remote access = Remote Code Execution.
+
 ### 6.6.1 Tunnel Command
 
 - [ ] Create `gobby tunnel start` CLI command
 - [ ] Use Cloudflare Quick Tunnels (trycloudflare.com)
-- [ ] Display tunnel URL in terminal
+- [ ] **MUST** generate auth token automatically on tunnel start (not optional)
+- [ ] Display tunnel URL + token in terminal (warn about sharing)
 - [ ] Generate QR code for mobile setup
+- [ ] Refuse to start tunnel if auth generation fails
 
 ### 6.6.2 QR Code Setup
 
@@ -147,14 +151,20 @@
 - [ ] Display in TUI and Web UI
 - [ ] Mobile app scans and saves configuration
 - [ ] Test connection before saving
+- [ ] Show security warning about QR code sensitivity
 
-### 6.6.3 Authentication
+### 6.6.3 Authentication (MANDATORY)
 
-- [ ] Generate random auth token on tunnel start
-- [ ] Store token in daemon config
-- [ ] Validate token on all API requests
-- [ ] Token refresh mechanism
+> **Non-negotiable:** All non-localhost traffic MUST be authenticated. There is no "trust the tunnel" option.
+
+- [ ] Generate cryptographically secure auth token on tunnel start (32+ bytes)
+- [ ] Store token in daemon config (encrypted at rest preferred)
+- [ ] Validate token on ALL API requests from non-localhost origins
+- [ ] Block requests without valid token (401 Unauthorized)
+- [ ] Token refresh mechanism with rotation
 - [ ] Revoke token on tunnel stop
+- [ ] Rate limit failed auth attempts (prevent brute force)
+- [ ] Log all authentication failures for security audit
 
 ### 6.6.4 Connection Management
 
