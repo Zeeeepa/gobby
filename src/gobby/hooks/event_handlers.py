@@ -320,18 +320,26 @@ class EventHandlers:
             context_parts.append("\n## Active Task Context\n")
             context_parts.append(f"You are working on task: {task_title} ({event.task_id})")
 
+        # Build metadata with terminal context (filter out nulls)
+        metadata: dict[str, Any] = {
+            "session_id": session_id,
+            "parent_session_id": parent_session_id,
+            "machine_id": machine_id,
+            "project_id": project_id,
+            "external_id": external_id,
+            "task_id": event.task_id,
+        }
+        if terminal_context:
+            # Only include non-null terminal values
+            for key, value in terminal_context.items():
+                if value is not None:
+                    metadata[f"terminal_{key}"] = value
+
         return HookResponse(
             decision="allow",
             context="\n".join(context_parts) if context_parts else None,
             system_message=system_message,
-            metadata={
-                "session_id": session_id,
-                "parent_session_id": parent_session_id,
-                "machine_id": machine_id,
-                "project_id": project_id,
-                "external_id": external_id,
-                "task_id": event.task_id,
-            },
+            metadata=metadata,
         )
 
     def handle_session_end(self, event: HookEvent) -> HookResponse:

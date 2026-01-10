@@ -70,6 +70,36 @@ def get_project_context(cwd: Path | None = None) -> dict[str, Any] | None:
         return None
 
 
+def get_workflow_project_path(cwd: Path | None = None) -> Path | None:
+    """
+    Get the project path for workflow lookup.
+
+    In a worktree, returns parent_project_path (where workflows live).
+    In a main project, returns the project_path.
+
+    This allows worktree agents to discover workflows from the parent project
+    without needing to explicitly pass the project_path parameter.
+
+    Args:
+        cwd: Current working directory to start search from.
+
+    Returns:
+        Path to use for workflow discovery, or None if no project found.
+    """
+    ctx = get_project_context(cwd)
+    if not ctx:
+        return None
+
+    # If in a worktree, use parent project for workflows
+    parent = ctx.get("parent_project_path")
+    if parent:
+        return Path(parent)
+
+    # Otherwise use current project path
+    project_path = ctx.get("project_path")
+    return Path(project_path) if project_path else None
+
+
 def get_project_mcp_dir(project_name: str) -> Path:
     """
     Get the directory for project-specific MCP configuration.

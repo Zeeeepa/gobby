@@ -24,6 +24,7 @@ from typing import Any
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.database import LocalDatabase
 from gobby.storage.sessions import LocalSessionManager
+from gobby.utils.project_context import get_workflow_project_path
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
@@ -71,11 +72,17 @@ def create_workflows_registry(
 
         Args:
             name: Workflow name (without .yaml extension)
-            project_path: Optional project directory path
+            project_path: Project directory path. Auto-discovered from cwd if not provided.
 
         Returns:
             Workflow definition details
         """
+        # Auto-discover project path if not provided
+        if not project_path:
+            discovered = get_workflow_project_path()
+            if discovered:
+                project_path = str(discovered)
+
         proj = Path(project_path) if project_path else None
         definition = _loader.load_workflow(name, proj)
 
@@ -114,7 +121,7 @@ def create_workflows_registry(
         description="List available workflow definitions from project and global directories.",
     )
     def list_workflows(
-        project_path: str,
+        project_path: str | None = None,
         workflow_type: str | None = None,
         global_only: bool = False,
     ) -> dict[str, Any]:
@@ -125,7 +132,7 @@ def create_workflows_registry(
         directories. Project workflows shadow global ones with the same name.
 
         Args:
-            project_path: Project directory path (required). Pass cwd for current project.
+            project_path: Project directory path. Auto-discovered from cwd if not provided.
             workflow_type: Filter by type ("step" or "lifecycle")
             global_only: If True, only show global workflows (ignore project)
 
@@ -134,11 +141,17 @@ def create_workflows_registry(
         """
         import yaml
 
+        # Auto-discover project path if not provided
+        if not project_path:
+            discovered = get_workflow_project_path()
+            if discovered:
+                project_path = str(discovered)
+
         search_dirs = list(_loader.global_dirs)
-        proj = Path(project_path)
+        proj = Path(project_path) if project_path else None
 
         # Include project workflows unless global_only (project searched first to shadow global)
-        if not global_only:
+        if not global_only and proj:
             project_dir = proj / ".gobby" / "workflows"
             if project_dir.exists():
                 search_dirs.insert(0, project_dir)
@@ -203,7 +216,7 @@ def create_workflows_registry(
             session_id: Required session ID (must be provided to prevent cross-session bleed)
             initial_step: Optional starting step (defaults to first step)
             variables: Optional initial variables to set (merged with workflow defaults)
-            project_path: Optional project directory path
+            project_path: Project directory path. Auto-discovered from cwd if not provided.
 
         Returns:
             Success status, workflow info, and current step.
@@ -212,8 +225,7 @@ def create_workflows_registry(
             activate_workflow(
                 name="autonomous-task",
                 variables={"session_task": "gt-abc123"},
-                session_id="...",
-                project_path="..."
+                session_id="..."
             )
 
         Errors if:
@@ -222,6 +234,12 @@ def create_workflows_registry(
             - Workflow not found
             - Workflow is lifecycle type (those auto-run, not manually activated)
         """
+        # Auto-discover project path if not provided
+        if not project_path:
+            discovered = get_workflow_project_path()
+            if discovered:
+                project_path = str(discovered)
+
         proj = Path(project_path) if project_path else None
 
         # Load workflow
@@ -399,11 +417,17 @@ def create_workflows_registry(
             reason: Reason for transition
             session_id: Required session ID (must be provided to prevent cross-session bleed)
             force: Skip exit condition checks
-            project_path: Optional project directory path
+            project_path: Project directory path. Auto-discovered from cwd if not provided.
 
         Returns:
             Success status and new step info
         """
+        # Auto-discover project path if not provided
+        if not project_path:
+            discovered = get_workflow_project_path()
+            if discovered:
+                project_path = str(discovered)
+
         proj = Path(project_path) if project_path else None
 
         # Require explicit session_id to prevent cross-session bleed
@@ -629,7 +653,7 @@ def create_workflows_registry(
             source_path: Path to the workflow YAML file
             workflow_name: Override the workflow name (defaults to name in file)
             is_global: Install to global ~/.gobby/workflows instead of project
-            project_path: Project directory path (required if not is_global)
+            project_path: Project directory path. Auto-discovered from cwd if not provided.
 
         Returns:
             Success status and destination path
@@ -661,9 +685,15 @@ def create_workflows_registry(
         if is_global:
             dest_dir = Path.home() / ".gobby" / "workflows"
         else:
+            # Auto-discover project path if not provided
+            if not project_path:
+                discovered = get_workflow_project_path()
+                if discovered:
+                    project_path = str(discovered)
+
             proj = Path(project_path) if project_path else None
             if not proj:
-                return {"success": False, "error": "project_path required when not using is_global"}
+                return {"success": False, "error": "project_path required when not using is_global (could not auto-discover)"}
             dest_dir = proj / ".gobby" / "workflows"
 
         dest_dir.mkdir(parents=True, exist_ok=True)

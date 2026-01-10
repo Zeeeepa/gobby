@@ -13,9 +13,9 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 
 from __future__ import annotations
 
+import json
 import logging
 import platform
-import shutil
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
@@ -137,9 +137,11 @@ def _copy_project_json_to_worktree(
     worktree_path: str | Path,
 ) -> None:
     """
-    Copy .gobby/project.json from main repo to worktree.
+    Copy .gobby/project.json from main repo to worktree, adding parent reference.
 
-    This ensures worktree sessions use the same project_id as the parent repo.
+    This ensures worktree sessions:
+    - Use the same project_id as the parent repo
+    - Can discover the parent project path for workflow lookup
 
     Args:
         repo_path: Path to main repository
@@ -154,10 +156,18 @@ def _copy_project_json_to_worktree(
             worktree_gobby_dir.mkdir(parents=True, exist_ok=True)
             worktree_project_json = worktree_gobby_dir / "project.json"
             if not worktree_project_json.exists():
-                shutil.copy2(main_project_json, worktree_project_json)
-                logger.info(f"Copied project.json to worktree: {worktree_project_json}")
+                # Read, add parent reference, write
+                with open(main_project_json) as f:
+                    data = json.load(f)
+
+                data["parent_project_path"] = str(Path(repo_path).resolve())
+
+                with open(worktree_project_json, "w") as f:
+                    json.dump(data, f, indent=2)
+
+                logger.info("Created project.json in worktree with parent reference")
         except Exception as e:
-            logger.warning(f"Failed to copy project.json to worktree: {e}")
+            logger.warning(f"Failed to create project.json in worktree: {e}")
 
 
 def _install_provider_hooks(

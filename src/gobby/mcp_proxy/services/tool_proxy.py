@@ -36,12 +36,46 @@ class ToolProxyService:
         tool_filter: "ToolFilterService | None" = None,
         fallback_resolver: "ToolFallbackResolver | None" = None,
         response_transformer: "ResponseTransformerService | None" = None,
+        validate_arguments: bool = True,
     ):
         self._mcp_manager = mcp_manager
         self._internal_manager = internal_manager
         self._tool_filter = tool_filter
         self._fallback_resolver = fallback_resolver
         self._response_transformer = response_transformer
+        self._validate_arguments = validate_arguments
+
+    def _check_arguments(
+        self,
+        arguments: dict[str, Any],
+        schema: dict[str, Any],
+    ) -> list[str]:
+        """
+        Validate arguments against JSON schema.
+
+        Returns list of validation errors, empty if valid.
+        """
+        errors = []
+        properties = schema.get("properties", {})
+        required = schema.get("required", [])
+
+        # Check for unknown parameters (likely typos like workflow_name vs name)
+        for key in arguments:
+            if key not in properties:
+                # Find similar parameter names for better error message
+                similar = [p for p in properties if p in key or key in p]
+                if similar:
+                    errors.append(f"Unknown parameter '{key}'. Did you mean '{similar[0]}'?")
+                else:
+                    valid_params = list(properties.keys())
+                    errors.append(f"Unknown parameter '{key}'. Valid parameters: {valid_params}")
+
+        # Check for missing required parameters
+        for req in required:
+            if req not in arguments:
+                errors.append(f"Missing required parameter '{req}'")
+
+        return errors
 
     async def list_tools(
         self,
@@ -114,21 +148,43 @@ class ToolProxyService:
         tool_name: str,
         arguments: dict[str, Any] | None = None,
     ) -> Any:
-        """Execute a tool.
+        """Execute a tool with optional pre-validation.
 
-        On error, includes fallback_suggestions if a fallback resolver is configured.
-        Returns a dict with {success: False, error: ..., fallback_suggestions: [...]}
-        on failure, or the raw tool result on success.
+        Pre-validates arguments against the tool's schema before execution.
+        On validation error, returns the schema in the error response so
+        the caller can self-correct in one round-trip.
+
+        On execution error, includes fallback_suggestions if a fallback resolver
+        is configured.
 
         If a response_transformer is configured, large string fields in the response
         will be compressed using LLMLingua.
         """
+        args = arguments or {}
+
+        # Pre-validate arguments if enabled
+        if self._validate_arguments and args:
+            schema_result = await self.get_tool_schema(server_name, tool_name)
+            if schema_result.get("success"):
+                input_schema = schema_result.get("tool", {}).get("inputSchema", {})
+                if input_schema:
+                    validation_errors = self._check_arguments(args, input_schema)
+                    if validation_errors:
+                        return {
+                            "success": False,
+                            "error": f"Invalid arguments: {validation_errors}",
+                            "hint": "Review the schema below and retry with correct parameters",
+                            "schema": input_schema,
+                            "server_name": server_name,
+                            "tool_name": tool_name,
+                        }
+
         try:
             # Check internal tools first
             if self._internal_manager and self._internal_manager.is_internal(server_name):
                 registry = self._internal_manager.get_registry(server_name)
                 if registry:
-                    result = await registry.call(tool_name, arguments or {})
+                    result = await registry.call(tool_name, args)
                     # Apply response transformation if configured
                     if self._response_transformer:
                         result = self._response_transformer.transform_response(result)
