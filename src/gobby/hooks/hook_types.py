@@ -5,7 +5,7 @@ This module defines all Claude Code hook types and their associated input/output
 using Pydantic for validation. Each hook type has specific input and output schemas
 that ensure type safety and validation across the hook execution pipeline.
 
-Hook Types (9 total):
+Hook Types (13 total):
 1. session-start: Triggered when a Claude Code session starts
 2. session-end: Triggered when a session ends
 3. user-prompt-submit: Triggered before user prompt is submitted
@@ -13,8 +13,12 @@ Hook Types (9 total):
 5. post-tool-use: Triggered after a tool is executed
 6. pre-compact: Triggered before context window compaction
 7. stop: Triggered when agent stops
-8. subagent-stop: Triggered when a subagent stops
-9. notification: Triggered for system notifications
+8. subagent-start: Triggered when a subagent starts
+9. subagent-stop: Triggered when a subagent stops
+10. notification: Triggered for system notifications
+11. before-model: Triggered before model inference (Gemini)
+12. after-model: Triggered after model inference (Gemini)
+13. permission-request: Triggered when permission is requested (Claude)
 
 Example:
     ```python
@@ -74,6 +78,15 @@ class HookType(str, Enum):
 
     NOTIFICATION = "notification"
     """Triggered for system notifications and alerts"""
+
+    BEFORE_MODEL = "before-model"
+    """Triggered before model inference (Gemini only)"""
+
+    AFTER_MODEL = "after-model"
+    """Triggered after model inference (Gemini only)"""
+
+    PERMISSION_REQUEST = "permission-request"
+    """Triggered when permission is requested (Claude only)"""
 
 
 class SessionStartSource(str, Enum):
@@ -449,6 +462,83 @@ class NotificationOutput(HookOutput):
     pass  # Uses base HookOutput fields (status="queued" typical)
 
 
+# ==================== Before Model Hook (Gemini) ====================
+
+
+class BeforeModelInput(HookInput):
+    """
+    Input model for before-model hook.
+
+    Triggered before model inference (Gemini only). Can be used to
+    modify or inspect prompts before they are sent to the model.
+    """
+
+    external_id: str = Field(..., min_length=1, description="Unique session identifier")
+    model_name: str | None = Field(default=None, description="Name of the model being used")
+    prompt: str | None = Field(default=None, description="Prompt being sent to model")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    machine_id: str | None = Field(default=None, description="Unique machine identifier")
+
+
+class BeforeModelOutput(HookOutput):
+    """Output model for before-model hook."""
+
+    pass  # Uses base HookOutput fields only
+
+
+# ==================== After Model Hook (Gemini) ====================
+
+
+class AfterModelInput(HookInput):
+    """
+    Input model for after-model hook.
+
+    Triggered after model inference (Gemini only). Can be used to
+    inspect or log model responses.
+    """
+
+    external_id: str = Field(..., min_length=1, description="Unique session identifier")
+    model_name: str | None = Field(default=None, description="Name of the model used")
+    response: str | None = Field(default=None, description="Model response")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    machine_id: str | None = Field(default=None, description="Unique machine identifier")
+
+
+class AfterModelOutput(HookOutput):
+    """Output model for after-model hook."""
+
+    pass  # Uses base HookOutput fields only
+
+
+# ==================== Permission Request Hook (Claude) ====================
+
+
+class PermissionRequestInput(HookInput):
+    """
+    Input model for permission-request hook.
+
+    Triggered when Claude Code requests permission for an action (Claude only).
+    """
+
+    external_id: str = Field(..., min_length=1, description="Unique session identifier")
+    permission_type: str = Field(..., min_length=1, description="Type of permission requested")
+    resource: str | None = Field(default=None, description="Resource requiring permission")
+    action: str | None = Field(default=None, description="Action requiring permission")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    machine_id: str | None = Field(default=None, description="Unique machine identifier")
+
+
+class PermissionRequestOutput(HookOutput):
+    """
+    Output model for permission-request hook.
+
+    Returns permission decision.
+    """
+
+    granted: bool = Field(default=True, description="Whether permission is granted")
+    reason: str | None = Field(default=None, description="Reason for decision")
+
+
 # ==================== Type Mappings ====================
 
 # Mapping of hook types to their input/output model classes
@@ -463,6 +553,9 @@ HOOK_INPUT_MODELS: dict[HookType, type[HookInput]] = {
     HookType.SUBAGENT_START: SubagentStartInput,
     HookType.SUBAGENT_STOP: SubagentStopInput,
     HookType.NOTIFICATION: NotificationInput,
+    HookType.BEFORE_MODEL: BeforeModelInput,
+    HookType.AFTER_MODEL: AfterModelInput,
+    HookType.PERMISSION_REQUEST: PermissionRequestInput,
 }
 
 HOOK_OUTPUT_MODELS: dict[HookType, type[HookOutput]] = {
@@ -476,4 +569,7 @@ HOOK_OUTPUT_MODELS: dict[HookType, type[HookOutput]] = {
     HookType.SUBAGENT_START: SubagentStartOutput,
     HookType.SUBAGENT_STOP: SubagentStopOutput,
     HookType.NOTIFICATION: NotificationOutput,
+    HookType.BEFORE_MODEL: BeforeModelOutput,
+    HookType.AFTER_MODEL: AfterModelOutput,
+    HookType.PERMISSION_REQUEST: PermissionRequestOutput,
 }

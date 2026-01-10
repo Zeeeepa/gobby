@@ -27,12 +27,17 @@ EVENT_TYPE_TO_HOOK_TYPE: dict[str, HookType] = {
     "session_end": HookType.SESSION_END,
     "before_agent": HookType.USER_PROMPT_SUBMIT,
     "after_agent": HookType.STOP,
+    "stop": HookType.STOP,
     "before_tool": HookType.PRE_TOOL_USE,
     "after_tool": HookType.POST_TOOL_USE,
+    "before_tool_selection": HookType.PRE_TOOL_USE,  # Maps to same as before_tool
     "pre_compact": HookType.PRE_COMPACT,
     "subagent_start": HookType.SUBAGENT_START,
     "subagent_stop": HookType.SUBAGENT_STOP,
     "notification": HookType.NOTIFICATION,
+    "before_model": HookType.BEFORE_MODEL,
+    "after_model": HookType.AFTER_MODEL,
+    "permission_request": HookType.PERMISSION_REQUEST,
 }
 
 
