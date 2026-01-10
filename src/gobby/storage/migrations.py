@@ -1028,6 +1028,15 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         CREATE INDEX IF NOT EXISTS idx_crossrefs_similarity ON memory_crossrefs(similarity DESC);
         """,
     ),
+    (
+        48,
+        "Add GitHub integration columns to tasks table",
+        """
+        ALTER TABLE tasks ADD COLUMN github_issue_number INTEGER;
+        ALTER TABLE tasks ADD COLUMN github_pr_number INTEGER;
+        ALTER TABLE tasks ADD COLUMN github_repo TEXT;
+        """,
+    ),
 ]
 
 
