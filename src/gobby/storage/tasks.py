@@ -317,6 +317,9 @@ class LocalTaskManager:
         workflow_name: str | None = None,
         verification: str | None = None,
         sequence_order: int | None = None,
+        github_issue_number: int | None = None,
+        github_pr_number: int | None = None,
+        github_repo: str | None = None,
     ) -> Task:
         """Create a new task with collision handling."""
         max_retries = 3
@@ -343,8 +346,9 @@ class LocalTaskManager:
                             validation_status, test_strategy, complexity_score,
                             estimated_subtasks, expansion_context,
                             validation_criteria, use_external_validator, validation_fail_count,
-                            workflow_name, verification, sequence_order
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)
+                            workflow_name, verification, sequence_order,
+                            github_issue_number, github_pr_number, github_repo
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             task_id,
@@ -369,6 +373,9 @@ class LocalTaskManager:
                             workflow_name,
                             verification,
                             sequence_order,
+                            github_issue_number,
+                            github_pr_number,
+                            github_repo,
                         ),
                     )
 
@@ -457,6 +464,9 @@ class LocalTaskManager:
         sequence_order: int | None | Any = UNSET,
         escalated_at: str | None | Any = UNSET,
         escalation_reason: str | None | Any = UNSET,
+        github_issue_number: int | None | Any = UNSET,
+        github_pr_number: int | None | Any = UNSET,
+        github_repo: str | None | Any = UNSET,
     ) -> Task:
         """Update task fields."""
         # Validate status transitions from needs_decomposition
@@ -569,6 +579,15 @@ class LocalTaskManager:
         if escalation_reason is not UNSET:
             updates.append("escalation_reason = ?")
             params.append(escalation_reason)
+        if github_issue_number is not UNSET:
+            updates.append("github_issue_number = ?")
+            params.append(github_issue_number)
+        if github_pr_number is not UNSET:
+            updates.append("github_pr_number = ?")
+            params.append(github_pr_number)
+        if github_repo is not UNSET:
+            updates.append("github_repo = ?")
+            params.append(github_repo)
 
         if not updates:
             return self.get_task(task_id)
