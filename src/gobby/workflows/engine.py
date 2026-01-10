@@ -434,7 +434,10 @@ class WorkflowEngine:
         Returns:
             Merged HookResponse with combined context and first non-allow decision.
         """
-        project_path = event.data.get("cwd") if event.data else None
+        # Use event.cwd (top-level attribute set by adapter) with fallback to event.data
+        # This ensures consistent project_path across all calls, preventing duplicate
+        # workflow discovery when cwd is in data but not on the event object
+        project_path = event.cwd or (event.data.get("cwd") if event.data else None)
 
         # Discover all lifecycle workflows
         workflows = self.loader.discover_lifecycle_workflows(project_path)
