@@ -78,6 +78,10 @@ class Task:
     # Escalation fields
     escalated_at: str | None = None
     escalation_reason: str | None = None
+    # GitHub integration fields
+    github_issue_number: int | None = None
+    github_pr_number: int | None = None
+    github_repo: str | None = None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Task":
@@ -140,6 +144,11 @@ class Task:
             commits=json.loads(row["commits"]) if "commits" in keys and row["commits"] else None,
             escalated_at=row["escalated_at"] if "escalated_at" in keys else None,
             escalation_reason=row["escalation_reason"] if "escalation_reason" in keys else None,
+            github_issue_number=(
+                row["github_issue_number"] if "github_issue_number" in keys else None
+            ),
+            github_pr_number=row["github_pr_number"] if "github_pr_number" in keys else None,
+            github_repo=row["github_repo"] if "github_repo" in keys else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -178,6 +187,9 @@ class Task:
             "commits": self.commits,
             "escalated_at": self.escalated_at,
             "escalation_reason": self.escalation_reason,
+            "github_issue_number": self.github_issue_number,
+            "github_pr_number": self.github_pr_number,
+            "github_repo": self.github_repo,
         }
 
     def to_brief(self) -> dict[str, Any]:
