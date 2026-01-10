@@ -65,6 +65,7 @@ gobby memory add "API uses JWT auth" --type fact --importance 0.8
 # Global memory (available in all projects)
 gobby memory add "Always use conventional commits" --type preference --global
 
+
 # With tags
 gobby memory add "Use pnpm, not npm" --type preference --tags "tooling,package-manager"
 ```
@@ -94,16 +95,6 @@ gobby memory list --include-global
 ### Managing Memories
 
 ```bash
-# Show memory details
-gobby memory show mm-abc123
-
-# Update a memory
-gobby memory update mm-abc123 --importance 0.9
-gobby memory update mm-abc123 --content "Updated content"
-
-# Delete a memory
-gobby memory delete mm-abc123
-
 # Get statistics
 gobby memory stats
 ```
@@ -236,20 +227,7 @@ Gobby automatically injects relevant memories at session start via the `memory-l
 </project-memory>
 ```
 
-### Configuration
-
-In `~/.gobby/config.yaml`:
-
-```yaml
-memory:
-  enabled: true
-  auto_extract: true           # Extract memories from sessions automatically
-  injection_limit: 10          # Max memories to inject at session start
-  importance_threshold: 0.3    # Min importance for injection
-  decay_enabled: true          # Reduce importance of unused memories over time
-  decay_rate: 0.05             # How much to decay per period
   decay_floor: 0.1             # Never decay below this importance
-```
 
 ## Git Synchronization
 
@@ -257,10 +235,8 @@ Memories can be synced to `.gobby/memories.jsonl` for version control and team s
 
 ### File Format
 
-```jsonl
 {"id":"mm-abc123","memory_type":"fact","content":"Uses PostgreSQL","importance":0.8,"tags":["database"]}
 {"id":"mm-def456","memory_type":"preference","content":"Prefers functional style","importance":0.6,"tags":[]}
-```
 
 ### Automatic Sync
 
@@ -293,8 +269,6 @@ Memories work seamlessly across Claude Code, Gemini CLI, and Codex CLI:
 1. **Unified Storage**: All memories stored in `~/.gobby/gobby.db`
 2. **Project Binding**: Memories linked to projects via `.gobby/project.json`
 3. **Session Source Tracking**: Each memory tracks which CLI created it
-
-### Example Flow
 
 ### CLI-Specific Notes
 
@@ -398,12 +372,6 @@ triggers:
 
 ### Sync conflicts
 
-When importing from `.gobby/memories.jsonl`:
-
-- Existing memories with same ID are updated
-- New memories are created
-- Deletions require manual cleanup
-
 ## File Locations
 
 | Path | Description |
@@ -416,5 +384,4 @@ When importing from `.gobby/memories.jsonl`:
 ## Related Documentation
 
 - [MEMORY.md](../plans/MEMORY.md) - Implementation plan and data model
-- [SKILLS.md](../plans/SKILLS.md) - Skill learning system (related)
 - [tasks.md](tasks.md) - Task tracking system

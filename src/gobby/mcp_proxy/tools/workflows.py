@@ -693,7 +693,10 @@ def create_workflows_registry(
 
             proj = Path(project_path) if project_path else None
             if not proj:
-                return {"success": False, "error": "project_path required when not using is_global (could not auto-discover)"}
+                return {
+                    "success": False,
+                    "error": "project_path required when not using is_global (could not auto-discover)",
+                }
             dest_dir = proj / ".gobby" / "workflows"
 
         dest_dir.mkdir(parents=True, exist_ok=True)

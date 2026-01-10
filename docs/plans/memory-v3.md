@@ -7,6 +7,7 @@ Memory V3 transforms gobby-memory from a monolithic implementation into a **plug
 **Strategic rationale:** Like Microsoft making Excel compatible with Lotus 1-2-3, reducing switching costs accelerates adoption. Users already invested in Mem0 or MemU can use Gobby's orchestration layer without migrating their memory infrastructure.
 
 **Key changes:**
+
 - **Backend protocol** - Standardized interface for memory operations
 - **Pluggable backends** - SQLite (built-in), MemU, Mem0, custom
 - **Multimodal support** - Image attachments for browser automation (Playwright, Puppeteer)
@@ -14,6 +15,7 @@ Memory V3 transforms gobby-memory from a monolithic implementation into a **plug
 - **Capability detection** - Graceful degradation for feature differences
 
 **What stays the same:**
+
 - MCP tool interface (`remember`, `recall`, `forget`, etc.)
 - Workflow integration and hooks
 - Session linking and project scoping
@@ -580,6 +582,7 @@ class SqliteMemoryBackend:
 ```
 
 **Key changes from current implementation:**
+
 1. Extract to separate `backends/` package
 2. Implement full `MemoryBackend` protocol
 3. Add `MediaAttachment` support (new `media` JSON column)
@@ -1410,6 +1413,7 @@ and the error message below the submit button.
 **Goal:** Extract protocol, refactor current implementation, maintain 100% compatibility.
 
 **Tasks:**
+
 - [ ] Create `src/gobby/memory/protocol.py` with types and protocol
 - [ ] Create `src/gobby/memory/backends/` package
 - [ ] Move current implementation to `backends/sqlite.py`
@@ -1421,6 +1425,7 @@ and the error message below the submit button.
 - [ ] All existing tests must pass unchanged
 
 **Files:**
+
 ```
 src/gobby/memory/
 ├── protocol.py        # NEW: Types and protocol
@@ -1436,6 +1441,7 @@ src/gobby/memory/
 **Goal:** Add image attachment support to SQLite backend.
 
 **Tasks:**
+
 - [ ] Add `media` JSON column to memories table (migration)
 - [ ] Implement `MediaAttachment` storage/retrieval in SQLite backend
 - [ ] Add `remember_with_image()` helper to MemoryManager
@@ -1446,6 +1452,7 @@ src/gobby/memory/
 - [ ] Add tests for multimodal operations
 
 **Migration:**
+
 ```sql
 ALTER TABLE memories ADD COLUMN media TEXT;  -- JSON array of MediaAttachment
 ```
@@ -1455,6 +1462,7 @@ ALTER TABLE memories ADD COLUMN media TEXT;  -- JSON array of MediaAttachment
 **Goal:** Add MemU-style markdown export/import to SQLite backend.
 
 **Tasks:**
+
 - [ ] Implement `export_markdown()` in SQLite backend
 - [ ] Implement `import_markdown()` in SQLite backend
 - [ ] Add markdown parsing utilities
@@ -1468,6 +1476,7 @@ ALTER TABLE memories ADD COLUMN media TEXT;  -- JSON array of MediaAttachment
 **Goal:** Integrate MemU as an alternative backend.
 
 **Tasks:**
+
 - [ ] Create `backends/memu.py`
 - [ ] Implement full `MemoryBackend` protocol
 - [ ] Handle MemU-specific features (categories, LLM retrieval)
@@ -1481,6 +1490,7 @@ ALTER TABLE memories ADD COLUMN media TEXT;  -- JSON array of MediaAttachment
 **Goal:** Integrate Mem0 as an alternative backend.
 
 **Tasks:**
+
 - [ ] Create `backends/mem0.py`
 - [ ] Implement `MemoryBackend` protocol
 - [ ] Handle Mem0-specific features (graph relationships)
@@ -1493,6 +1503,7 @@ ALTER TABLE memories ADD COLUMN media TEXT;  -- JSON array of MediaAttachment
 ### Phase 6: Documentation & Polish
 
 **Tasks:**
+
 - [ ] Update `docs/guides/memory.md` with backend selection
 - [ ] Add backend comparison table
 - [ ] Add migration guide (SQLite → MemU/Mem0)
@@ -1523,6 +1534,7 @@ Memory V3 is **additive** to V2. The TF-IDF search, cross-references, and visual
 4. External backend integrations (MemU, Mem0)
 
 **V2 features in V3 context:**
+
 - TF-IDF search → SQLite backend capability (`KEYWORD_SEARCH`)
 - Cross-references → SQLite backend capability (`CROSS_REFERENCES`)
 - Visualization → Utility function, works with any backend

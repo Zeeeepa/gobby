@@ -8,7 +8,6 @@ This document outlines high-value features inspired by trending AI projects. The
 
 - [Auto-Claude](https://github.com/AndyMik90/Auto-Claude) - Multi-agent orchestration with worktree isolation (Phases 1-5)
 - [Continuous-Claude v2](https://github.com/parcadei/Continuous-Claude-v2) - Ledger-based state, artifact indexing (Phase 6)
-- [SkillForge](https://github.com/tripleyak/SkillForge) - Intelligent skill routing and quality scoring (Phase 7)
 - [KnowNote](https://github.com/MrSibe/KnowNote) - Local-first semantic search with sqlite-vec (Phase 8)
 - Original Design - Task-driven autonomous execution with multi-surface termination controls (Phase 9)
 
@@ -30,8 +29,6 @@ Phase 4: Linear Integration (new gobby-linear internal server)
 Phase 5: Structured Pipeline Workflows (BMAD integration)
     ↓
 Phase 6: Artifact Index (searchable session history with FTS5)
-    ↓
-Phase 7: Enhanced Skill Routing (intelligent skill matching)
     ↓
 Phase 8: Semantic Memory Search (sqlite-vec local vectors)
     ↓
@@ -976,196 +973,6 @@ artifact_index:
 
 ---
 
-## Phase 7: Enhanced Skill Routing
-
-### Phase 7: Overview
-
-Implement intelligent skill routing inspired by [SkillForge](https://github.com/tripleyak/SkillForge). Instead of simple pattern matching, use a multi-factor routing system that decides: USE_EXISTING, IMPROVE_EXISTING, CREATE_NEW, or COMPOSE.
-
-**Inspiration:** SkillForge's 4-phase pipeline with 11 analytical lenses and quality scoring.
-
-**Goal:** Transform `match_skills` from simple regex matching to intelligent routing that considers skill quality, specificity, and composition potential.
-
-### Routing Decisions
-
-| Decision | Description | When to Use |
-| :--- | :--- | :--- |
-| `USE_EXISTING` | Apply existing skill as-is | High-quality skill with exact match |
-| `IMPROVE_EXISTING` | Update skill with new context | Good skill but missing recent patterns |
-| `CREATE_NEW` | Generate new skill | No relevant skills or all low quality |
-| `COMPOSE` | Combine multiple skills | Task spans multiple skill domains |
-
-### Quality Scoring
-
-```python
-@dataclass
-class SkillQuality:
-    specificity: float        # 0-1: How targeted is this skill?
-    completeness: float       # 0-1: Does it cover all aspects?
-    currency: float           # 0-1: How recent is the skill?
-    success_rate: float       # 0-1: Historical success when applied
-    usage_count: int          # Times skill has been used
-    composite_score: float    # Weighted combination
-```
-
-### Analytical Lenses
-
-Evaluate skills through multiple perspectives:
-
-1. **Domain Fit** - Does the skill's domain match the request?
-2. **Scope Alignment** - Is the skill too broad or too narrow?
-3. **Recency** - Was the skill created/updated recently?
-4. **Success History** - Has this skill worked well before?
-5. **Trigger Precision** - Does the trigger pattern match accurately?
-6. **Instruction Quality** - Are instructions clear and actionable?
-7. **Context Requirements** - Does the skill require specific context?
-8. **Composition Potential** - Can this skill combine with others?
-9. **Update Candidate** - Would this skill benefit from updates?
-10. **Conflict Detection** - Does this skill conflict with others?
-11. **Evolution Score** - How has this skill evolved over time?
-
-### Enhanced Data Model
-
-```sql
--- Add quality metrics to skills table
-ALTER TABLE skills ADD COLUMN specificity REAL DEFAULT 0.5;
-ALTER TABLE skills ADD COLUMN completeness REAL DEFAULT 0.5;
-ALTER TABLE skills ADD COLUMN success_rate REAL DEFAULT 0.5;
-ALTER TABLE skills ADD COLUMN usage_count INTEGER DEFAULT 0;
-ALTER TABLE skills ADD COLUMN last_used_at TEXT;
-ALTER TABLE skills ADD COLUMN last_updated_at TEXT;
-ALTER TABLE skills ADD COLUMN domain TEXT;                    -- e.g., "testing", "git", "deployment"
-ALTER TABLE skills ADD COLUMN parent_skill_id TEXT;           -- For skill evolution tracking
-
--- Skill application history
-CREATE TABLE skill_applications (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    skill_id TEXT NOT NULL,
-    session_id TEXT NOT NULL,
-    success BOOLEAN,
-    feedback TEXT,                            -- Optional user feedback
-    applied_at TEXT NOT NULL,
-    FOREIGN KEY (skill_id) REFERENCES skills(id),
-    FOREIGN KEY (session_id) REFERENCES sessions(id)
-);
-```
-
-### MCP Tools (gobby-skills enhanced)
-
-```python
-@mcp.tool()
-def route_skill(
-    prompt: str,
-    context: str | None = None,
-) -> dict:
-    """
-    Intelligent skill routing for a given prompt.
-
-    Returns:
-    - decision: USE_EXISTING | IMPROVE_EXISTING | CREATE_NEW | COMPOSE
-    - matched_skills: List of relevant skills with quality scores
-    - routing_reasoning: Explanation of routing decision
-    - recommended_action: Specific next step
-    """
-
-@mcp.tool()
-def analyze_skill_quality(skill_id: str) -> dict:
-    """
-    Analyze a skill through all 11 lenses.
-
-    Returns quality breakdown and improvement suggestions.
-    """
-
-@mcp.tool()
-def compose_skills(
-    skill_ids: list[str],
-    composition_prompt: str,
-) -> dict:
-    """
-    Combine multiple skills into a composite skill.
-
-    Creates new skill with instructions merged from inputs.
-    """
-
-@mcp.tool()
-def improve_skill(
-    skill_id: str,
-    context: str,
-    preserve_original: bool = True,          # Create new version vs update in place
-) -> dict:
-    """
-    Improve a skill based on new context or feedback.
-
-    If preserve_original=True, creates new skill with parent_skill_id reference.
-    """
-
-@mcp.tool()
-def record_skill_application(
-    skill_id: str,
-    success: bool,
-    feedback: str | None = None,
-) -> dict:
-    """Record whether skill application succeeded and update metrics."""
-```
-
-### Phase 7: Configuration
-
-```yaml
-skill_routing:
-  enabled: true
-  quality_weights:                            # Weights for composite score
-    specificity: 0.25
-    completeness: 0.20
-    currency: 0.15
-    success_rate: 0.30
-    usage_count: 0.10
-  min_quality_threshold: 0.4                  # Below this, suggest CREATE_NEW
-  composition_similarity_threshold: 0.6       # Min similarity for COMPOSE suggestion
-  auto_improve_threshold: 0.7                 # Above this, suggest IMPROVE vs CREATE
-  domains:                                    # Domain classification hints
-    - testing
-    - git
-    - deployment
-    - documentation
-    - debugging
-    - refactoring
-```
-
-### Phase 7: Implementation Checklist
-
-#### Phase 7.1: Quality Scoring
-
-- [ ] Add quality columns to skills table (migration)
-- [ ] Create `src/skills/quality.py` with `SkillQualityAnalyzer`
-- [ ] Implement all 11 analytical lenses
-- [ ] Implement composite score calculation
-
-#### Phase 7.2: Routing Logic
-
-- [ ] Create `src/skills/router.py` with `SkillRouter`
-- [ ] Implement `route_skill()` with multi-factor decision
-- [ ] Add skill similarity calculation (embedding-based)
-- [ ] Implement composition potential detection
-
-#### Phase 7.3: Application Tracking
-
-- [ ] Create `skill_applications` table (migration)
-- [ ] Implement `record_skill_application()`
-- [ ] Update `success_rate` on each application
-- [ ] Decay old success data over time
-
-#### Phase 7.4: MCP Tools
-
-- [ ] Update `src/mcp_proxy/tools/skills.py`
-- [ ] Add `route_skill`, `analyze_skill_quality`, `compose_skills`, `improve_skill`
-- [ ] Update `match_skills` to use router internally
-
-#### Phase 7.5: CLI Commands
-
-- [ ] Add `gobby skill route "prompt"` command
-- [ ] Add `gobby skill analyze SKILL_ID`
-- [ ] Add `gobby skill compose SKILL_ID1 SKILL_ID2 ...`
-
 ---
 
 ## Phase 8: Memory V2 - Semantic Search & Relationships
@@ -1194,6 +1001,7 @@ This phase overhauls gobby-memory with Memora-inspired enhancements:
 ### Why This Changed
 
 The original sqlite-vec approach had issues:
+
 - Native extension loading causes platform compatibility problems
 - sentence-transformers adds ~500MB dependency
 - TF-IDF achieves similar results for memory recall with zero dependencies
@@ -1209,6 +1017,7 @@ Enable fully autonomous task execution where the agent works through the task qu
 **Status: COMPLETE** - Implemented via workflow system rather than a dedicated `gobby-loop` server.
 
 **Implemented Components:**
+
 - ✅ `autonomous-loop.yaml` lifecycle workflow for automatic session chaining
 - ✅ `autonomous-task.yaml` step-based workflow with task-driven execution, exit conditions, and premature stop handling
 - ✅ `StopRegistry` class (`src/gobby/autonomous/stop_registry.py`) - thread-safe stop signal management
@@ -1476,6 +1285,7 @@ autonomous_loop:
 
 The original plan called for a dedicated `gobby-loop` MCP server and CLI commands.
 This was superseded by integrating with existing systems:
+
 - **Stop signals**: Use `POST /sessions/{session_id}/stop` HTTP endpoint
 - **Workflow control**: Use `gobby workflows activate/deactivate autonomous-task`
 - **Variables**: Use `gobby-workflows.set_variable` MCP tool
@@ -1535,4 +1345,5 @@ This was superseded by integrating with existing systems:
 4. **External integrations** - GitHub/Linear after core intelligence is solid
 
 **Dependencies:**
+
 - Phase 1 (Merge Resolution) requires SUBAGENTS.md Phase 4 (`gobby-worktrees`)

@@ -4,7 +4,7 @@ This document contains Mermaid diagrams visualizing the Gobby workflow system, b
 
 ## Session Lifecycle (`session-lifecycle.yaml`)
 
-This diagram illustrates the lifecycle triggers and actions that occur during a session, using the `session-lifecycle.yaml` workflow. It shows how context handoff, memory operations, and skill learning are orchestrated at different points in the session.
+This diagram illustrates the lifecycle triggers and actions that occur during a session, using the `session-lifecycle.yaml` workflow. It shows how context handoff and memory operations are orchestrated at different points in the session.
 
 ```mermaid
 graph TD
@@ -37,8 +37,6 @@ graph TD
         check_reason -->|clear| gen_handoff[Action: generate_handoff<br/>Session Summary]
         end_event --> mem_extract[Action: memory_extract]
         end_event --> mem_export[Action: memory_sync_export]
-        end_event --> learn[Action: skills_learn]
-        end_event --> skills_export[Action: skills_sync_export]
     end
 
     %% on_pre_compact

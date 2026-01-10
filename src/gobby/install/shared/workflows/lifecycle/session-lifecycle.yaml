@@ -17,8 +17,8 @@ variables:
 
   # Validation delegation - use a faster/cheaper model for linting and tests
   # Set to null to disable delegation (run inline)
-  validation_model: "haiku"
-  validation_timeout: 1800 # 30 minutes for full test suite
+  #validation_model: "haiku"
+  #validation_timeout: 1800 # 30 minutes for full test suite
 
 triggers:
   on_stop:
@@ -130,8 +130,7 @@ triggers:
         ```
         {git_status}
         ```
-
-        ## Claude's Todo List
+        ## Agent Todo List
         {todo_list}
 
         ## Next Steps

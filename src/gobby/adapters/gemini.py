@@ -270,15 +270,11 @@ class GeminiAdapter(BaseAdapter):
                     context_lines.append(f"project_id: {response.metadata['project_id']}")
                 # Add terminal context (non-null values only)
                 if response.metadata.get("terminal_term_program"):
-                    context_lines.append(
-                        f"terminal: {response.metadata['terminal_term_program']}"
-                    )
+                    context_lines.append(f"terminal: {response.metadata['terminal_term_program']}")
                 if response.metadata.get("terminal_tty"):
                     context_lines.append(f"tty: {response.metadata['terminal_tty']}")
                 if response.metadata.get("terminal_parent_pid"):
-                    context_lines.append(
-                        f"parent_pid: {response.metadata['terminal_parent_pid']}"
-                    )
+                    context_lines.append(f"parent_pid: {response.metadata['terminal_parent_pid']}")
                 # Add terminal-specific session IDs
                 for key in [
                     "terminal_iterm_session_id",
@@ -290,9 +286,7 @@ class GeminiAdapter(BaseAdapter):
                 ]:
                     if response.metadata.get(key):
                         friendly_name = key.replace("terminal_", "").replace("_", " ")
-                        context_lines.append(
-                            f"{friendly_name}: {response.metadata[key]}"
-                        )
+                        context_lines.append(f"{friendly_name}: {response.metadata[key]}")
                 hook_specific["hookEventName"] = hook_event_name
                 # Append to existing additionalContext if present
                 existing = hook_specific.get("additionalContext", "")

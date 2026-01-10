@@ -46,7 +46,6 @@ This document defines the implementation order across all Gobby planning documen
 | Session Tracking Integration | SESSION_TRACKING Phases 3-4                |
 | Multi-CLI Parsers & API      | SESSION_TRACKING Phases 5-6                |
 | Memory Storage & Operations  | MEMORY Phases 1-2                          |
-| Skill Learning               | MEMORY Phases 3-4                          |
 | Memory MCP/CLI               | MEMORY Phases 5-6                          |
 | Memory Sync & Enhancements   | MEMORY Phases 7-10                         |
 | Webhooks                     | HOOK_EXTENSIONS Phase 2                    |
@@ -72,7 +71,6 @@ This document defines the implementation order across all Gobby planning documen
 | GitHub Integration           | ENHANCEMENTS Phase 4       |                                                             |
 | Linear Integration           | ENHANCEMENTS Phase 5       |                                                             |
 | Artifact Index               | ENHANCEMENTS Phase 6       |                                                             |
-| Enhanced Skill Routing       | ENHANCEMENTS Phase 7       |                                                             |
 | Semantic Memory Search       | ENHANCEMENTS Phase 8       |                                                             |
 | Web Dashboard                | UI Phases 1-7              |                                                             |
 | End-to-End Testing           | WORKFLOWS Phases 9-11      |                                                             |
@@ -86,7 +84,7 @@ Remaining work can run in parallel if multiple contributors are available:
 
 ### Track A: Intelligence
 
-Artifact Index → Enhanced Skill Routing → Semantic Memory Search
+Artifact Index → Semantic Memory Search
 
 ### Track B: Integrations
 
@@ -212,7 +210,7 @@ End-to-End Testing → Documentation (should be last)
 - [ ] Real-time WebSocket updates
 - [ ] Task graph visualization (Cytoscape.js)
 - [ ] MCP Observatory (server health, tool analytics)
-- [ ] Memory & Skills browser
+- [ ] Memory browser
 - **Value**: See everything happening across all agents
 
 ### "Production Ready" (Final)
