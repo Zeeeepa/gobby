@@ -169,7 +169,7 @@ def expand_env_vars(content: str) -> str:
 
 # MCPClientProxyConfig moved to gobby.config.servers (re-exported above)
 # LLMProviderConfig and LLMProvidersConfig moved to gobby.config.llm_providers (re-exported above)
-# MemoryConfig, MemorySyncConfig, SkillConfig, SkillSyncConfig
+# MemoryConfig, MemorySyncConfig
 # moved to gobby.config.persistence (re-exported above)
 
 

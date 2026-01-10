@@ -706,7 +706,6 @@ class TestWorkflowVariablesConfigCustom:
         assert config.auto_decompose is False
         assert config.tdd_mode is False
 
-
     def test_session_task_string_value(self) -> None:
         """Test session_task with single task ID string."""
         from gobby.config.tasks import WorkflowVariablesConfig

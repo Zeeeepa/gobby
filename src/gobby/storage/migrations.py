@@ -1005,6 +1005,13 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         ALTER TABLE sessions ADD COLUMN terminal_context TEXT;
         """,
     ),
+    (
+        46,
+        "Drop skills table",
+        """
+        DROP TABLE IF EXISTS skills;
+        """,
+    ),
 ]
 
 

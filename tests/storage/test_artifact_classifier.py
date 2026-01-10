@@ -629,7 +629,9 @@ class TestClassificationResult:
         """Test that ClassificationResult has metadata field."""
         from gobby.storage.artifact_classifier import ArtifactType, ClassificationResult
 
-        result = ClassificationResult(artifact_type=ArtifactType.CODE, metadata={"language": "python"})
+        result = ClassificationResult(
+            artifact_type=ArtifactType.CODE, metadata={"language": "python"}
+        )
         assert result.metadata == {"language": "python"}
 
     def test_classification_result_metadata_defaults_empty(self):
@@ -643,7 +645,9 @@ class TestClassificationResult:
         """Test that ClassificationResult has to_dict method."""
         from gobby.storage.artifact_classifier import ArtifactType, ClassificationResult
 
-        result = ClassificationResult(artifact_type=ArtifactType.CODE, metadata={"language": "python"})
+        result = ClassificationResult(
+            artifact_type=ArtifactType.CODE, metadata={"language": "python"}
+        )
         d = result.to_dict()
 
         assert d["artifact_type"] == "code"

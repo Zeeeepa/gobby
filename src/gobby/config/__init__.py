@@ -9,7 +9,7 @@ Module structure:
 - logging.py: LoggingSettings
 - servers.py: WebSocket and MCP proxy configs
 - llm_providers.py: LLM provider configurations
-- persistence.py: Memory and skill storage configs
+- persistence.py: Memory storage configs
 - tasks.py: Task expansion, validation, and workflow configs
 - extensions.py: Hook extension configs (webhooks, plugins)
 - sessions.py: Session lifecycle and tracking configs

@@ -196,35 +196,6 @@ async def test_mark_session_status(action_executor, action_context, mock_service
     mock_services["session_manager"].update_status.assert_called_with("test-session", "completed")
 
 
-@pytest.mark.skip(reason="Mocking issues with return values")
-@pytest.mark.asyncio
-async def test_skills_learn(action_executor, action_context, mock_services):
-    # Mock skill learner
-    # ActionContext needs skill_learner
-    mock_learner = MagicMock()
-    # Configure config for check
-    mock_learner.config = MagicMock()
-    mock_learner.config.enabled = True
-
-    action_context.skill_learner = mock_learner
-
-    # Mock learn_from_session (used by the action)
-    mock_learner.learn_from_session = AsyncMock(return_value=[MagicMock(name="skill1")])
-
-    # Mock session
-    mock_services["session_manager"].get.return_value = MagicMock()
-
-    result = await action_executor.execute(
-        "skills_learn", action_context, content="I learned X", category="python"
-    )
-
-    if result and "error" in result:
-        pytest.fail(f"Skills Learn Action failed: {result['error']}")
-
-    assert result["skills_learned"] == 1
-    assert result["skill_names"] == ["skill1"]
-
-
 @pytest.mark.skip(reason="Mocking issues with content_exists")
 @pytest.mark.asyncio
 async def test_memory_actions(action_executor, action_context, mock_services):

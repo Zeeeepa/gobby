@@ -210,7 +210,6 @@ class TestInstallCommand:
         mock_install_claude.return_value = {
             "success": True,
             "hooks_installed": ["SessionStart", "SessionEnd"],
-            "skills_installed": ["skill1"],
             "workflows_installed": [],
             "commands_installed": [],
             "plugins_installed": [],
@@ -250,7 +249,6 @@ class TestInstallCommand:
         mock_install_gemini.return_value = {
             "success": True,
             "hooks_installed": ["SessionStart"],
-            "skills_installed": [],
             "workflows_installed": ["workflow1"],
             "commands_installed": ["cmd1"],
             "plugins_installed": ["plugin1"],
@@ -294,7 +292,6 @@ class TestInstallCommand:
         mock_install_codex.return_value = {
             "success": True,
             "files_installed": ["/home/user/.gobby/hooks/codex/hook_dispatcher.py"],
-            "skills_installed": [],
             "workflows_installed": [],
             "commands_installed": [],
             "plugins_installed": [],
@@ -467,7 +464,6 @@ class TestInstallCommand:
         mock_install_antigravity.return_value = {
             "success": True,
             "hooks_installed": ["SessionStart", "SessionEnd"],
-            "skills_installed": ["skill1"],
             "workflows_installed": ["workflow1"],
             "commands_installed": ["cmd1"],
             "plugins_installed": ["plugin1"],
@@ -480,7 +476,7 @@ class TestInstallCommand:
         assert result.exit_code == 0
         assert "Antigravity Agent" in result.output
         assert "Installed 2 hooks" in result.output
-        assert "Installed 1 skills" in result.output
+
         assert "Installed 1 workflows" in result.output
         mock_install_antigravity.assert_called_once()
 
@@ -514,7 +510,6 @@ class TestInstallCommand:
         mock_install_claude.return_value = {
             "success": True,
             "hooks_installed": ["SessionStart"],
-            "skills_installed": [],
             "workflows_installed": [],
             "commands_installed": [],
             "plugins_installed": [],
@@ -522,7 +517,6 @@ class TestInstallCommand:
         mock_install_gemini.return_value = {
             "success": True,
             "hooks_installed": ["SessionStart"],
-            "skills_installed": [],
             "workflows_installed": [],
             "commands_installed": [],
             "plugins_installed": [],
@@ -572,7 +566,6 @@ class TestInstallCommand:
         mock_install_claude.return_value = {
             "success": True,
             "hooks_installed": ["SessionStart"],
-            "skills_installed": [],
             "workflows_installed": [],
             "commands_installed": [],
             "plugins_installed": [],
@@ -609,7 +602,6 @@ class TestInstallCommand:
             "success": False,
             "error": "Missing source files",
             "hooks_installed": [],
-            "skills_installed": [],
         }
 
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):
@@ -646,7 +638,6 @@ class TestInstallCommand:
         mock_install_claude.return_value = {
             "success": True,
             "hooks_installed": ["SessionStart"],
-            "skills_installed": [],
             "workflows_installed": [],
             "commands_installed": [],
             "plugins_installed": [],
@@ -682,7 +673,6 @@ class TestInstallCommand:
         mock_install_claude.return_value = {
             "success": True,
             "hooks_installed": ["SessionStart"],
-            "skills_installed": [],
             "workflows_installed": [],
             "commands_installed": [],
             "plugins_installed": [],
@@ -718,7 +708,6 @@ class TestInstallCommand:
         mock_install_codex.return_value = {
             "success": True,
             "files_installed": ["/home/user/.gobby/hooks/codex/hook_dispatcher.py"],
-            "skills_installed": [],
             "workflows_installed": [],
             "commands_installed": [],
             "plugins_installed": [],
@@ -785,7 +774,6 @@ class TestUninstallCommand:
             "success": True,
             "hooks_removed": ["SessionStart", "SessionEnd"],
             "files_removed": ["hook_dispatcher.py"],
-            "skills_removed": ["skill1"],
         }
 
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):
@@ -799,7 +787,7 @@ class TestUninstallCommand:
         assert "Claude Code" in result.output
         assert "Removed 2 hooks" in result.output
         assert "Removed 1 files" in result.output
-        assert "Removed 1 skills" in result.output
+
         mock_uninstall_claude.assert_called_once()
 
     @patch("gobby.cli.install.uninstall_gemini")
@@ -1089,7 +1077,6 @@ class TestInstallCommandDirectInvocation:
         mock_install_claude.return_value = {
             "success": True,
             "hooks_installed": ["SessionStart"],
-            "skills_installed": [],
             "workflows_installed": [],
             "commands_installed": [],
             "plugins_installed": [],
@@ -1158,7 +1145,6 @@ class TestInstallEdgeCases:
         mock_install_claude.return_value = {
             "success": True,
             "hooks_installed": ["SessionStart"],
-            "skills_installed": [],
             "workflows_installed": [],
             "commands_installed": [],
             "plugins_installed": [],
@@ -1166,7 +1152,6 @@ class TestInstallEdgeCases:
         mock_install_gemini.return_value = {
             "success": True,
             "hooks_installed": ["SessionStart"],
-            "skills_installed": [],
             "workflows_installed": [],
             "commands_installed": [],
             "plugins_installed": [],
@@ -1207,7 +1192,6 @@ class TestInstallEdgeCases:
         mock_install_claude.return_value = {
             "success": True,
             "hooks_installed": ["SessionStart"],
-            "skills_installed": [],
             "workflows_installed": [],
             "commands_installed": [],
             "plugins_installed": [],
@@ -1384,7 +1368,6 @@ class TestInstallFullOutput:
         mock_install_claude.return_value = {
             "success": True,
             "hooks_installed": ["SessionStart", "SessionEnd", "PreToolUse"],
-            "skills_installed": ["task-management", "code-review"],
             "workflows_installed": ["plan-execute", "test-driven"],
             "commands_installed": ["validate", "sync"],
             "plugins_installed": ["task-hooks", "session-tracker"],
@@ -1398,8 +1381,7 @@ class TestInstallFullOutput:
         assert "Installed 3 hooks" in result.output
         assert "SessionStart" in result.output
         assert "SessionEnd" in result.output
-        assert "Installed 2 skills" in result.output
-        assert "task-management" in result.output
+
         assert "Installed 2 workflows" in result.output
         assert "plan-execute" in result.output
         assert "Installed 2 commands" in result.output
@@ -1432,7 +1414,6 @@ class TestInstallFullOutput:
         mock_install_gemini.return_value = {
             "success": True,
             "hooks_installed": ["SessionStart", "BeforeAgent"],
-            "skills_installed": ["gemini-skill"],
             "workflows_installed": ["gemini-workflow"],
             "commands_installed": ["gemini-cmd"],
             "plugins_installed": ["gemini-plugin"],
@@ -1445,7 +1426,7 @@ class TestInstallFullOutput:
         assert result.exit_code == 0
         assert "Gemini CLI" in result.output
         assert "Installed 2 hooks" in result.output
-        assert "Installed 1 skills" in result.output
+
         assert "Installed 1 workflows" in result.output
         assert "Installed 1 commands" in result.output
         assert "Installed 1 plugins" in result.output
@@ -1476,7 +1457,6 @@ class TestInstallFullOutput:
             "success": False,
             "error": "Missing hooks template",
             "hooks_installed": [],
-            "skills_installed": [],
         }
 
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):
@@ -1511,7 +1491,6 @@ class TestInstallFullOutput:
         mock_install_codex.return_value = {
             "success": True,
             "files_installed": ["/home/user/.gobby/hooks/codex/hook_dispatcher.py"],
-            "skills_installed": ["codex-skill"],
             "workflows_installed": ["codex-workflow"],
             "commands_installed": ["codex-cmd"],
             "plugins_installed": ["codex-plugin"],
@@ -1525,7 +1504,7 @@ class TestInstallFullOutput:
         assert result.exit_code == 0
         assert "Codex" in result.output
         assert "Installed Codex notify integration" in result.output
-        assert "Installed 1 skills" in result.output
+
         assert "Installed 1 workflows" in result.output
         assert "Installed 1 commands" in result.output
         assert "Installed 1 plugins" in result.output
@@ -1590,7 +1569,6 @@ class TestInstallFullOutput:
         mock_install_antigravity.return_value = {
             "success": True,
             "hooks_installed": ["SessionStart", "SessionEnd"],
-            "skills_installed": ["antigravity-skill"],
             "workflows_installed": ["antigravity-workflow"],
             "commands_installed": ["antigravity-cmd"],
             "plugins_installed": ["antigravity-plugin"],
@@ -1603,7 +1581,7 @@ class TestInstallFullOutput:
         assert result.exit_code == 0
         assert "Antigravity Agent" in result.output
         assert "Installed 2 hooks" in result.output
-        assert "Installed 1 skills" in result.output
+
         assert "Installed 1 workflows" in result.output
         assert "Installed 1 commands" in result.output
         assert "Installed 1 plugins" in result.output
@@ -1634,7 +1612,6 @@ class TestInstallFullOutput:
             "success": False,
             "error": "Missing hook dispatcher",
             "hooks_installed": [],
-            "skills_installed": [],
         }
 
         with runner.isolated_filesystem(temp_dir=str(temp_dir)):

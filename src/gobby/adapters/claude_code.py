@@ -194,7 +194,9 @@ class ClaudeCodeAdapter(BaseAdapter):
                 # Build context with all available identifiers
                 context_lines = [f"session_id: {session_id}"]
                 if response.metadata.get("parent_session_id"):
-                    context_lines.append(f"parent_session_id: {response.metadata['parent_session_id']}")
+                    context_lines.append(
+                        f"parent_session_id: {response.metadata['parent_session_id']}"
+                    )
                 if response.metadata.get("machine_id"):
                     context_lines.append(f"machine_id: {response.metadata['machine_id']}")
                 if response.metadata.get("project_id"):

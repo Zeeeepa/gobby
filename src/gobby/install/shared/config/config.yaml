@@ -33,18 +33,18 @@ gobby-tasks:
     model: claude-opus-4-5
     codebase_research_enabled: true
     research_max_steps: 10
-    research_system_prompt: 'You are a senior developer researching a codebase. Use tools to find relevant code.'
+    research_system_prompt: "You are a senior developer researching a codebase. Use tools to find relevant code."
     web_research_enabled: true
     max_subtasks: 10
-    default_strategy: auto  # auto, phased, sequential, or parallel
-    timeout: 300.0  # Max time for entire expansion (5 minutes)
-    research_timeout: 60.0  # Max time for research phase (1 minute)
+    default_strategy: auto # auto, phased, sequential, or parallel
+    timeout: 300.0 # Max time for entire expansion (5 minutes)
+    research_timeout: 60.0 # Max time for research phase (1 minute)
   validation:
     enabled: true
     provider: claude
     model: claude-haiku-4-5
-    system_prompt: 'You are a QA validator. Output ONLY valid JSON. No markdown, no explanation, no code blocks. Just the raw JSON object.'
-    criteria_system_prompt: 'You are a QA engineer writing acceptance criteria. CRITICAL: Only include requirements explicitly stated in the task. Do NOT invent specific values, thresholds, timeouts, or edge cases that are not mentioned. Vague tasks get vague criteria. Use markdown checkboxes.'
+    system_prompt: "You are a QA validator. Output ONLY valid JSON. No markdown, no explanation, no code blocks. Just the raw JSON object."
+    criteria_system_prompt: "You are a QA engineer writing acceptance criteria. CRITICAL: Only include requirements explicitly stated in the task. Do NOT invent specific values, thresholds, timeouts, or edge cases that are not mentioned. Vague tasks get vague criteria. Use markdown checkboxes."
     # Custom prompt for generating validation criteria. Available placeholders: {title}, {description}
     # criteria_prompt: |
     #   Generate acceptance criteria for:
@@ -53,19 +53,19 @@ gobby-tasks:
     #
     #   Return a bulleted list of testable conditions.
     # Validation loop control
-    max_iterations: 10  # Max validation attempts before escalation
-    max_consecutive_errors: 3  # Max consecutive errors before stopping
-    recurring_issue_threshold: 3  # Same issue count before escalation
-    issue_similarity_threshold: 0.8  # Similarity threshold for recurring issues (0-1)
+    max_iterations: 10 # Max validation attempts before escalation
+    max_consecutive_errors: 3 # Max consecutive errors before stopping
+    recurring_issue_threshold: 3 # Same issue count before escalation
+    issue_similarity_threshold: 0.8 # Similarity threshold for recurring issues (0-1)
     # Build verification
-    run_build_first: true  # Run build/test before LLM validation
+    run_build_first: true # Run build/test before LLM validation
     # build_command: null  # Custom build command (auto-detect if not set)
     # External validator
-    use_external_validator: false  # Use different LLM for validation
+    use_external_validator: false # Use different LLM for validation
     # external_validator_model: null  # Model for external validation
     # Escalation settings
-    escalation_enabled: true  # Enable task escalation on failures
-    escalation_notify: none  # Notification method: webhook, slack, or none
+    escalation_enabled: true # Enable task escalation on failures
+    escalation_notify: none # Notification method: webhook, slack, or none
     # escalation_webhook_url: null  # Webhook URL for escalation notifications
 llm_providers:
   claude:
@@ -88,23 +88,23 @@ hook_extensions:
   websocket:
     enabled: true
     broadcast_events:
-    - session-start
-    - session-end
-    - pre-tool-use
-    - post-tool-use
+      - session-start
+      - session-end
+      - pre-tool-use
+      - post-tool-use
     include_payload: true
   plugins:
-    enabled: false  # Set to true to enable plugins (runs with daemon privileges)
+    enabled: false # Set to true to enable plugins (runs with daemon privileges)
     plugin_dirs:
       - ~/.gobby/plugins
       - .gobby/plugins
     auto_discover: true
     plugins:
       code-guardian:
-        enabled: true  # Will load when plugins.enabled is true
+        enabled: true # Will load when plugins.enabled is true
         config:
           checks: [ruff]
-          block_on_error: false  # Start permissive, user can enable blocking
+          block_on_error: false # Start permissive, user can enable blocking
           auto_fix: true
 workflow:
   enabled: true
@@ -245,16 +245,16 @@ title_synthesis:
   enabled: true
   provider: claude
   model: claude-haiku-4-5
-  prompt: 'Generate a concise 3-6 word title summarizing the user''s intent.
+  prompt: "Generate a concise 3-6 word title summarizing the user's intent.
 
     Use title case. Be specific and descriptive. Focus on the task/goal.
 
     Respond with ONLY the title, no explanation or quotes.
 
 
-    User''s first message:
+    User's first message:
 
-    {user_prompt}'
+    {user_prompt}"
 code_execution:
   enabled: true
   provider: claude
@@ -262,8 +262,7 @@ code_execution:
   max_turns: 5
   default_timeout: 30
   max_dataset_preview: 3
-  prompt:
-    'Execute the following code and return the result.
+  prompt: "Execute the following code and return the result.
 
     Context: {context}
 
@@ -275,12 +274,13 @@ code_execution:
     {code}
     ```
 
-    Return the execution output or any errors encountered.'
+    Return the execution output or any errors encountered."
 recommend_tools:
   enabled: true
   provider: claude
   model: claude-sonnet-4-5
-  prompt: 'You are a tool recommendation assistant for Claude Code with access to
+  prompt:
+    'You are a tool recommendation assistant for Claude Code with access to
     MCP servers.
 
 
@@ -388,7 +388,7 @@ tool_summarizer:
     Description: {description}
 
     Summary:
-  system_prompt: 'You are a technical summarizer. Create concise tool descriptions.'
+  system_prompt: "You are a technical summarizer. Create concise tool descriptions."
   server_description_prompt: |
     Write a single concise sentence describing what the '{server_name}' MCP server does based on its tools.
 
@@ -396,28 +396,4 @@ tool_summarizer:
     {tools_list}
 
     Description (1 sentence, try to keep under 100 characters):
-  server_description_system_prompt: 'You write concise technical descriptions.'
-skills:
-  enabled: true
-  provider: claude
-  model: claude-haiku-4-5
-  prompt: |
-    'You are an expert at extracting reusable developer skills from transcripts.
-    Respond with ONLY valid JSON - no markdown, no explanations, no code blocks.
-
-    Analyze the following session transcript and extract any reusable skills.
-    A "skill" is a repeatable process or pattern that can be used in future sessions.
-
-    Transcript:
-    {transcript}
-
-    Return a JSON array directly:
-    [
-      {{
-        "name": "short-kebab-case-name",
-        "description": "Brief description of what the skill does",
-        "trigger_pattern": "regex|pattern|to|match",
-        "instructions": "Markdown instructions on how to perform the skill",
-        "tags": ["tag1", "tag2"]
-      }}
-    ]'
+  server_description_system_prompt: "You write concise technical descriptions."

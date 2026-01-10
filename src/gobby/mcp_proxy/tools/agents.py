@@ -567,7 +567,9 @@ def create_agents_registry(
                         runner._run_storage.fail(
                             agent_run.id, error=f"Process exited with code {return_code}"
                         )
-                        logger.warning(f"Headless agent {agent_run.id} failed with code {return_code}")
+                        logger.warning(
+                            f"Headless agent {agent_run.id} failed with code {return_code}"
+                        )
 
                     # Remove from running agents registry
                     agent_registry.remove(agent_run.id)

@@ -481,7 +481,7 @@ def create_expansion_registry(
                 }
 
             # Resolve TDD mode from workflow state if resolver provided
-            tdd_mode = resolve_tdd_mode(session_id) if resolve_tdd_mode else None
+            llm_tdd_mode = resolve_tdd_mode(session_id) if resolve_tdd_mode else None
 
             llm_result = await task_expander.expand_task(
                 task_id=spec_task.id,
@@ -491,7 +491,7 @@ def create_expansion_registry(
                 "Each task should be specific and implementable.",
                 enable_web_research=False,
                 enable_code_context=False,
-                tdd_mode=tdd_mode,
+                tdd_mode=llm_tdd_mode,
             )
 
             if "error" in llm_result:

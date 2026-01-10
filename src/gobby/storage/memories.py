@@ -20,7 +20,7 @@ class Memory:
     created_at: str
     updated_at: str
     project_id: str | None = None
-    source_type: Literal["user", "session", "skill", "inferred"] | None = None
+    source_type: Literal["user", "session", "inferred"] | None = None
     source_session_id: str | None = None
     importance: float = 0.5
     access_count: int = 0

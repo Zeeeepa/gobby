@@ -1,14 +1,13 @@
 """
 Claude Code installation for Gobby hooks.
 
-This module handles installing and uninstalling Gobby hooks, skills,
+This module handles installing and uninstalling Gobby hooks
 and workflows for Claude Code CLI.
 """
 
 import json
 import logging
 import os
-import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 def install_claude(project_path: Path) -> dict[str, Any]:
-    """Install Gobby integration for Claude Code (hooks, skills, workflows).
+    """Install Gobby integration for Claude Code (hooks, workflows).
 
     Args:
         project_path: Path to the project root
@@ -41,7 +40,6 @@ def install_claude(project_path: Path) -> dict[str, Any]:
     result: dict[str, Any] = {
         "success": False,
         "hooks_installed": hooks_installed,
-        "skills_installed": [],
         "workflows_installed": [],
         "commands_installed": [],
         "mcp_configured": False,
@@ -101,7 +99,7 @@ def install_claude(project_path: Path) -> dict[str, Any]:
         result["error"] = f"Failed to copy hook files: {e}"
         return result
 
-    # Install shared content (skills, workflows)
+    # Install shared content (workflows)
     try:
         shared = install_shared_content(claude_path, project_path)
     except Exception as e:
@@ -117,7 +115,6 @@ def install_claude(project_path: Path) -> dict[str, Any]:
         result["error"] = f"Failed to install CLI content: {e}"
         return result
 
-    result["skills_installed"] = shared["skills"] + cli["skills"]
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
     result["commands_installed"] = cli.get("commands", [])
     result["plugins_installed"] = shared.get("plugins", [])
@@ -246,12 +243,11 @@ def uninstall_claude(project_path: Path) -> dict[str, Any]:
     """
     hooks_removed: list[str] = []
     files_removed: list[str] = []
-    skills_removed: list[str] = []
+
     result: dict[str, Any] = {
         "success": False,
         "hooks_removed": hooks_removed,
         "files_removed": files_removed,
-        "skills_removed": skills_removed,
         "mcp_removed": False,
         "error": None,
     }
@@ -259,7 +255,6 @@ def uninstall_claude(project_path: Path) -> dict[str, Any]:
     claude_path = project_path / ".claude"
     settings_file = claude_path / "settings.json"
     hooks_dir = claude_path / "hooks"
-    skills_dir = claude_path / "skills"
 
     if not settings_file.exists():
         result["error"] = f"Settings file not found: {settings_file}"
@@ -356,18 +351,6 @@ def uninstall_claude(project_path: Path) -> dict[str, Any]:
         if file_path.exists():
             file_path.unlink()
             files_removed.append(filename)
-
-    # Remove Gobby skills
-    install_dir = get_install_dir()
-    install_skills_dir = install_dir / "claude" / "skills"
-
-    if install_skills_dir.exists():
-        for skill_dir in install_skills_dir.iterdir():
-            if skill_dir.is_dir():
-                target_skill_dir = skills_dir / skill_dir.name
-                if target_skill_dir.exists():
-                    shutil.rmtree(target_skill_dir)
-                    skills_removed.append(skill_dir.name)
 
     # Remove MCP server from global settings (~/.claude.json)
     global_settings = Path.home() / ".claude.json"

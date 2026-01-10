@@ -178,7 +178,7 @@ class WorkflowEngine:
                 self.state_manager.save_state(state)
                 logger.debug(f"Reset premature_stop_count on tool call for session {session_id}")
 
-            tool_name = eval_context["tool_name"]
+            tool_name = str(eval_context["tool_name"])
 
             # Check blocked list
             if tool_name in current_step.blocked_tools:
@@ -1122,7 +1122,7 @@ class WorkflowEngine:
         tool_output = event.data.get("tool_output", {}) or {}
 
         # Check if this is a gobby-tasks call via MCP proxy
-        # Tool name could be "call_tool" (from Skill) or "mcp__gobby__call_tool" (direct)
+        # Tool name could be "call_tool" (from legacy) or "mcp__gobby__call_tool" (direct)
         if tool_name not in ("call_tool", "mcp__gobby__call_tool"):
             return
 

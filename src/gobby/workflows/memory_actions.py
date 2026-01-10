@@ -140,7 +140,7 @@ async def memory_extract(
                 memory_type = "fact"
 
             importance = mem_data.get("importance", 0.5)
-            if not isinstance(importance, (int, float)):
+            if not isinstance(importance, int | float):
                 importance = 0.5
             importance = max(0.0, min(1.0, float(importance)))
 
@@ -221,7 +221,7 @@ async def memory_save(
         memory_type = "fact"
 
     # Validate importance
-    if not isinstance(importance, (int, float)):
+    if not isinstance(importance, int | float):
         importance = 0.5
     importance = max(0.0, min(1.0, float(importance)))
 

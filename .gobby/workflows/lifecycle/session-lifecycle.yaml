@@ -14,13 +14,11 @@ variables:
   auto_decompose: true
   # Enable TDD mode for task expansion (test-implementation pairs)
   tdd_mode: true
-  # NOTE: session_task enforcement has been moved to the autonomous-task step workflow.
-  # Use activate_workflow(name="autonomous-task", variables={"session_task": "gt-..."}, session_id=...) for task-scoped sessions.
 
   # Validation delegation - use a faster/cheaper model for linting and tests
   # Set to null to disable delegation (run inline)
   validation_model: "haiku"
-  validation_timeout: 1800  # 30 minutes for full test suite
+  validation_timeout: 1800 # 30 minutes for full test suite
 
 triggers:
   on_stop:
@@ -31,6 +29,7 @@ triggers:
     # Capture baseline dirty files for session-aware commit detection
     # Must run FIRST so baseline is captured before any modifications
     - action: capture_baseline_dirty_files
+
     # Context handoff - inject previous session summary
     - action: inject_context
       when: "event.data.get('source') == 'clear'"
@@ -138,17 +137,8 @@ triggers:
         Focus on actionable insights and context that would be valuable when resuming work later.
         Use only ASCII-safe characters - avoid Unicode em-dashes, smart quotes, or special characters.
 
-    # Memory extraction - extract learnings to memory
-    - action: memory_extract
-
     # Memory sync - export to JSONL for Git persistence
     - action: memory_sync_export
-
-    # Skills learning - extract reusable skills from session
-    - action: skills_learn
-
-    # Skills export - export to filesystem for CLI discovery
-    - action: skills_sync_export
 
   on_pre_compact:
     # Extract structured context before compaction

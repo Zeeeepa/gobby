@@ -33,8 +33,6 @@ class TestMemorySyncConfigImport:
         assert MemorySyncConfig is not None
 
 
-
-
 # =============================================================================
 # MemoryConfig Tests
 # =============================================================================
@@ -295,5 +293,3 @@ class TestMemorySyncConfigFromAppPy:
         config = MemorySyncConfig()
         assert config.enabled is True
         assert config.export_debounce == 5.0
-
-

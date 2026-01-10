@@ -1,7 +1,7 @@
 """
 Shared content installation for Gobby hooks.
 
-This module handles installing shared skills, workflows, and plugins
+This module handles installing shared workflows and plugins
 that are used across all CLI integrations (Claude, Gemini, Codex, etc.).
 """
 
@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list[str]]:
     """Install shared content from src/install/shared/.
 
-    Skills are CLI-specific and go to {cli_path}/skills/.
     Workflows are cross-CLI and go to {project_path}/.gobby/workflows/.
     Plugins are global and go to ~/.gobby/plugins/.
 
@@ -33,20 +32,7 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
         Dict with lists of installed items by type
     """
     shared_dir = get_install_dir() / "shared"
-    installed: dict[str, list[str]] = {"skills": [], "workflows": [], "plugins": []}
-
-    # Install shared skills to CLI directory
-    shared_skills = shared_dir / "skills"
-    if shared_skills.exists():
-        target_skills = cli_path / "skills"
-        target_skills.mkdir(parents=True, exist_ok=True)
-        for skill_dir in shared_skills.iterdir():
-            if skill_dir.is_dir():
-                target_skill = target_skills / skill_dir.name
-                if target_skill.exists():
-                    shutil.rmtree(target_skill)
-                copytree(skill_dir, target_skill)
-                installed["skills"].append(skill_dir.name)
+    installed: dict[str, list[str]] = {"workflows": [], "plugins": []}
 
     # Install shared workflows to .gobby/workflows/ (cross-CLI)
     shared_workflows = shared_dir / "workflows"
@@ -71,7 +57,9 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
     return installed
 
 
-def install_gobby_commands_symlink(cli_name: str, cli_path: Path, project_path: Path) -> dict[str, Any]:
+def install_gobby_commands_symlink(
+    cli_name: str, cli_path: Path, project_path: Path
+) -> dict[str, Any]:
     """Create symlink from CLI commands directory to .gobby/commands/gobby/.
 
     This allows git-tracked commands in .gobby/commands/gobby/ to be discovered
@@ -140,7 +128,7 @@ def install_gobby_commands_symlink(cli_name: str, cli_path: Path, project_path: 
 
 
 def install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]]:
-    """Install CLI-specific skills/workflows/commands (layered on top of shared).
+    """Install CLI-specific workflows/commands (layered on top of shared).
 
     CLI-specific content can add to or override shared content.
 
@@ -152,20 +140,7 @@ def install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]
         Dict with lists of installed items by type
     """
     cli_dir = get_install_dir() / cli_name
-    installed: dict[str, list[str]] = {"skills": [], "workflows": [], "commands": []}
-
-    # CLI-specific skills (can override shared)
-    cli_skills = cli_dir / "skills"
-    if cli_skills.exists():
-        target_skills = target_path / "skills"
-        target_skills.mkdir(parents=True, exist_ok=True)
-        for skill_dir in cli_skills.iterdir():
-            if skill_dir.is_dir():
-                target_skill = target_skills / skill_dir.name
-                if target_skill.exists():
-                    shutil.rmtree(target_skill)
-                copytree(skill_dir, target_skill)
-                installed["skills"].append(skill_dir.name)
+    installed: dict[str, list[str]] = {"workflows": [], "commands": []}
 
     # CLI-specific workflows
     cli_workflows = cli_dir / "workflows"

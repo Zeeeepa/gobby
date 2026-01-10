@@ -1886,7 +1886,9 @@ class TestArtifactCaptureHookRegistration:
 
         # Check that artifact capture hook is registered
         # The hook should be accessible via the manager
-        assert hasattr(manager, "_artifact_capture_hook") or hasattr(manager, "artifact_capture_hook")
+        assert hasattr(manager, "_artifact_capture_hook") or hasattr(
+            manager, "artifact_capture_hook"
+        )
 
 
 class TestArtifactCaptureHookDuplicateDetection:

@@ -34,7 +34,6 @@ def install_codex_notify() -> dict[str, Any]:
     result: dict[str, Any] = {
         "success": False,
         "files_installed": files_installed,
-        "skills_installed": [],
         "workflows_installed": [],
         "commands_installed": [],
         "config_updated": False,
@@ -61,14 +60,14 @@ def install_codex_notify() -> dict[str, Any]:
     target_notify.chmod(0o755)
     files_installed.append(str(target_notify))
 
-    # Install shared content - skills to ~/.codex, workflows to ~/.gobby
+    # Install shared content - workflows to ~/.gobby
     codex_home = Path.home() / ".codex"
     gobby_home = Path.home()  # workflows go to ~/.gobby/workflows/
+
     shared = install_shared_content(codex_home, gobby_home)
     # Install CLI-specific content (can override shared)
     cli = install_cli_content("codex", codex_home)
 
-    result["skills_installed"] = shared["skills"] + cli["skills"]
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
     result["commands_installed"] = cli.get("commands", [])
     result["plugins_installed"] = shared.get("plugins", [])

@@ -226,10 +226,7 @@ def install(
             click.echo(f"Installed {len(result['hooks_installed'])} hooks")
             for hook in result["hooks_installed"]:
                 click.echo(f"  - {hook}")
-            if result["skills_installed"]:
-                click.echo(f"Installed {len(result['skills_installed'])} skills")
-                for skill in result["skills_installed"]:
-                    click.echo(f"  - {skill}")
+
             if result.get("workflows_installed"):
                 click.echo(f"Installed {len(result['workflows_installed'])} workflows")
                 for workflow in result["workflows_installed"]:
@@ -266,10 +263,7 @@ def install(
             click.echo(f"Installed {len(result['hooks_installed'])} hooks")
             for hook in result["hooks_installed"]:
                 click.echo(f"  - {hook}")
-            if result.get("skills_installed"):
-                click.echo(f"Installed {len(result['skills_installed'])} skills")
-                for skill in result["skills_installed"]:
-                    click.echo(f"  - {skill}")
+
             if result.get("workflows_installed"):
                 click.echo(f"Installed {len(result['workflows_installed'])} workflows")
                 for workflow in result["workflows_installed"]:
@@ -317,10 +311,6 @@ def install(
                 else:
                     click.echo("~/.codex/config.toml already configured")
 
-                if result.get("skills_installed"):
-                    click.echo(f"Installed {len(result['skills_installed'])} skills")
-                    for skill in result["skills_installed"]:
-                        click.echo(f"  - {skill}")
                 if result.get("workflows_installed"):
                     click.echo(f"Installed {len(result['workflows_installed'])} workflows")
                     for workflow in result["workflows_installed"]:
@@ -381,10 +371,7 @@ def install(
             click.echo(f"Installed {len(result['hooks_installed'])} hooks")
             for hook in result["hooks_installed"]:
                 click.echo(f"  - {hook}")
-            if result["skills_installed"]:
-                click.echo(f"Installed {len(result['skills_installed'])} skills")
-                for skill in result["skills_installed"]:
-                    click.echo(f"  - {skill}")
+
             if result.get("workflows_installed"):
                 click.echo(f"Installed {len(result['workflows_installed'])} workflows")
                 for workflow in result["workflows_installed"]:
@@ -529,8 +516,7 @@ def uninstall(claude_flag: bool, gemini_flag: bool, codex_flag: bool, all_flag: 
                     click.echo(f"  - {hook}")
             if result["files_removed"]:
                 click.echo(f"Removed {len(result['files_removed'])} files")
-            if result["skills_removed"]:
-                click.echo(f"Removed {len(result['skills_removed'])} skills")
+
             if not result["hooks_removed"] and not result["files_removed"]:
                 click.echo("  (no hooks found to remove)")
         else:

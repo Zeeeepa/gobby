@@ -145,7 +145,7 @@ def format_status_message(
         tasks_blocked: Number of blocked tasks
         memories_count: Total number of memories
         memories_avg_importance: Average memory importance
-        skills_count: Number of skills
+
 
     Returns:
         Formatted status message string

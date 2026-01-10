@@ -187,9 +187,7 @@ class HookManager:
         from gobby.storage.artifacts import LocalArtifactManager
 
         self._artifact_manager = LocalArtifactManager(self._database)
-        self._artifact_capture_hook = ArtifactCaptureHook(
-            artifact_manager=self._artifact_manager
-        )
+        self._artifact_capture_hook = ArtifactCaptureHook(artifact_manager=self._artifact_manager)
 
         # Initialize autonomous execution components
         self._stop_registry = StopRegistry(self._database)

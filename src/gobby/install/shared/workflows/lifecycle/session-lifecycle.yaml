@@ -1,26 +1,24 @@
 name: session-lifecycle
-description: "Unified session lifecycle: context handoff, memory, and skills"
+description: "Unified session lifecycle: context handoff and memory"
 type: lifecycle
 
 settings:
-  priority: 10  # Run first - critical for handoff before other LLM calls
+  priority: 10 # Run first - critical for handoff before other LLM calls
 
 # Session-scoped variables (can be overridden per session)
 # These provide runtime control over behavior settings
 variables:
   # Task enforcement - require active task before file modifications
-  require_task_before_edit: false
+  require_task_before_edit: true
   # Auto-decompose multi-step task descriptions into subtasks
   auto_decompose: true
   # Enable TDD mode for task expansion (test-implementation pairs)
   tdd_mode: true
-  # NOTE: session_task enforcement has been moved to the autonomous-task step workflow.
-  # Use activate_workflow(name="autonomous-task", variables={"session_task": "gt-..."}, session_id=...) for task-scoped sessions.
 
   # Validation delegation - use a faster/cheaper model for linting and tests
   # Set to null to disable delegation (run inline)
   validation_model: "haiku"
-  validation_timeout: 1800  # 30 minutes for full test suite
+  validation_timeout: 1800 # 30 minutes for full test suite
 
 triggers:
   on_stop:
@@ -31,11 +29,12 @@ triggers:
     # Capture baseline dirty files for session-aware commit detection
     # Must run FIRST so baseline is captured before any modifications
     - action: capture_baseline_dirty_files
+
     # Context handoff - inject previous session summary
     - action: inject_context
       when: "event.data.get('source') == 'clear'"
       source: previous_session_summary
-      require: true  # Block if handoff context missing
+      require: true # Block if handoff context missing
       template: |
         ## Previous Session Context
         *Injected by Gobby session handoff*
@@ -46,7 +45,7 @@ triggers:
     - action: inject_context
       when: "event.data.get('source') == 'compact'"
       source: compact_handoff
-      require: true  # Block if handoff context missing
+      require: true # Block if handoff context missing
       template: |
         ## Continuation Context
         *Injected by Gobby compact handoff*
@@ -143,12 +142,6 @@ triggers:
 
     # Memory sync - export to JSONL for Git persistence
     - action: memory_sync_export
-
-    # Skills learning - extract reusable skills from session
-    - action: skills_learn
-
-    # Skills export - export to filesystem for CLI discovery
-    - action: skills_sync_export
 
   on_pre_compact:
     # Extract structured context before compaction

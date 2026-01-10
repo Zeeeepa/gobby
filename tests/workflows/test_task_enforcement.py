@@ -8,7 +8,6 @@ import pytest
 
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.task_enforcement_actions import (
-    _get_dirty_files,
     capture_baseline_dirty_files,
     require_active_task,
     require_commit_before_stop,

@@ -1,7 +1,7 @@
 """
 Gemini CLI installation for Gobby hooks.
 
-This module handles installing and uninstalling Gobby hooks, skills,
+This module handles installing and uninstalling Gobby hooks
 and workflows for Gemini CLI.
 """
 
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def install_gemini(project_path: Path) -> dict[str, Any]:
-    """Install Gobby integration for Gemini CLI (hooks, skills, workflows).
+    """Install Gobby integration for Gemini CLI (hooks, workflows).
 
     Args:
         project_path: Path to the project root
@@ -37,7 +37,6 @@ def install_gemini(project_path: Path) -> dict[str, Any]:
     result: dict[str, Any] = {
         "success": False,
         "hooks_installed": hooks_installed,
-        "skills_installed": [],
         "workflows_installed": [],
         "commands_installed": [],
         "mcp_configured": False,
@@ -76,12 +75,11 @@ def install_gemini(project_path: Path) -> dict[str, Any]:
     copy2(dispatcher_file, target_dispatcher)
     target_dispatcher.chmod(0o755)
 
-    # Install shared content (skills, workflows)
+    # Install shared content (workflows)
     shared = install_shared_content(gemini_path, project_path)
     # Install CLI-specific content (can override shared)
     cli = install_cli_content("gemini", gemini_path)
 
-    result["skills_installed"] = shared["skills"] + cli["skills"]
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
     result["commands_installed"] = cli.get("commands", [])
     result["plugins_installed"] = shared.get("plugins", [])

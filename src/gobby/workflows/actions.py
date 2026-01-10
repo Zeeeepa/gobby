@@ -246,9 +246,7 @@ class ActionExecutor:
         self.register("require_task_complete", self._handle_require_task_complete)
         self.register("validate_session_task_scope", self._handle_validate_session_task_scope)
         self.register("capture_baseline_dirty_files", self._handle_capture_baseline_dirty_files)
-        self.register(
-            "require_validation_delegation", self._handle_require_validation_delegation
-        )
+        self.register("require_validation_delegation", self._handle_require_validation_delegation)
         # Webhook
         self.register("webhook", self._handle_webhook)
         # Stop signal actions

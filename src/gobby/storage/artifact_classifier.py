@@ -51,19 +51,53 @@ class ClassificationResult:
 # Language detection patterns (more specific patterns first)
 _LANGUAGE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     # Python
-    ("python", re.compile(r"^\s*(def\s+\w+|class\s+\w+|import\s+\w+|from\s+\w+\s+import|async\s+def\s+\w+|@\w+)", re.MULTILINE)),
+    (
+        "python",
+        re.compile(
+            r"^\s*(def\s+\w+|class\s+\w+|import\s+\w+|from\s+\w+\s+import|async\s+def\s+\w+|@\w+)",
+            re.MULTILINE,
+        ),
+    ),
     # TypeScript (must be before JavaScript - has interface/type)
-    ("typescript", re.compile(r"^\s*(interface\s+\w+|type\s+\w+\s*=|:\s*(string|number|boolean|any)\b)", re.MULTILINE)),
+    (
+        "typescript",
+        re.compile(
+            r"^\s*(interface\s+\w+|type\s+\w+\s*=|:\s*(string|number|boolean|any)\b)", re.MULTILINE
+        ),
+    ),
     # JavaScript
-    ("javascript", re.compile(r"^\s*(function\s+\w+|const\s+\w+\s*=|let\s+\w+\s*=|var\s+\w+\s*=|=>\s*\{)", re.MULTILINE)),
+    (
+        "javascript",
+        re.compile(
+            r"^\s*(function\s+\w+|const\s+\w+\s*=|let\s+\w+\s*=|var\s+\w+\s*=|=>\s*\{)",
+            re.MULTILINE,
+        ),
+    ),
     # Rust
-    ("rust", re.compile(r"^\s*(fn\s+\w+|impl\s+|struct\s+\w+|enum\s+\w+|use\s+\w+|pub\s+fn)", re.MULTILINE)),
+    (
+        "rust",
+        re.compile(
+            r"^\s*(fn\s+\w+|impl\s+|struct\s+\w+|enum\s+\w+|use\s+\w+|pub\s+fn)", re.MULTILINE
+        ),
+    ),
     # Go
     ("go", re.compile(r"^\s*(func\s+\w+|func\s+\(\w+|package\s+\w+|import\s+\()", re.MULTILINE)),
     # SQL
-    ("sql", re.compile(r"^\s*(SELECT\s+|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|CREATE\s+TABLE|DROP\s+TABLE)", re.IGNORECASE | re.MULTILINE)),
+    (
+        "sql",
+        re.compile(
+            r"^\s*(SELECT\s+|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM|CREATE\s+TABLE|DROP\s+TABLE)",
+            re.IGNORECASE | re.MULTILINE,
+        ),
+    ),
     # Shell/Bash
-    ("bash", re.compile(r"(^#!/bin/(ba)?sh|^\s*for\s+\w+\s+in\s+|^\s*if\s+\[\[?\s+|^\s*while\s+|echo\s+[\"'])", re.MULTILINE)),
+    (
+        "bash",
+        re.compile(
+            r"(^#!/bin/(ba)?sh|^\s*for\s+\w+\s+in\s+|^\s*if\s+\[\[?\s+|^\s*while\s+|echo\s+[\"'])",
+            re.MULTILINE,
+        ),
+    ),
 ]
 
 # Markdown code fence pattern
@@ -263,7 +297,7 @@ def classify_artifact(content: str) -> ClassificationResult:
 
     # Check for error messages/stack traces
     if _is_error(content):
-        metadata: dict[str, Any] = {}
+        metadata = {}
         # Try to extract error type
         error_match = re.search(r"^(\w+Error):", content, re.MULTILINE)
         if error_match:
@@ -274,20 +308,30 @@ def classify_artifact(content: str) -> ClassificationResult:
     # (TypeScript interfaces look like YAML otherwise)
     detected_lang = _detect_language(content)
     if detected_lang:
-        return ClassificationResult(artifact_type=ArtifactType.CODE, metadata={"language": detected_lang})
+        return ClassificationResult(
+            artifact_type=ArtifactType.CODE, metadata={"language": detected_lang}
+        )
 
     # Check for structured data formats
     if _is_json(content):
-        return ClassificationResult(artifact_type=ArtifactType.STRUCTURED_DATA, metadata={"format": "json"})
+        return ClassificationResult(
+            artifact_type=ArtifactType.STRUCTURED_DATA, metadata={"format": "json"}
+        )
 
     if _is_xml(content):
-        return ClassificationResult(artifact_type=ArtifactType.STRUCTURED_DATA, metadata={"format": "xml"})
+        return ClassificationResult(
+            artifact_type=ArtifactType.STRUCTURED_DATA, metadata={"format": "xml"}
+        )
 
     if _is_toml(content):
-        return ClassificationResult(artifact_type=ArtifactType.STRUCTURED_DATA, metadata={"format": "toml"})
+        return ClassificationResult(
+            artifact_type=ArtifactType.STRUCTURED_DATA, metadata={"format": "toml"}
+        )
 
     if _is_yaml(content):
-        return ClassificationResult(artifact_type=ArtifactType.STRUCTURED_DATA, metadata={"format": "yaml"})
+        return ClassificationResult(
+            artifact_type=ArtifactType.STRUCTURED_DATA, metadata={"format": "yaml"}
+        )
 
     # Check for command output
     if _is_command_output(content):

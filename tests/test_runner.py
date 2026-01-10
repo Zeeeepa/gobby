@@ -73,7 +73,7 @@ def create_base_patches(
         patch("gobby.runner.LocalDatabase"),
         patch("gobby.runner.run_migrations"),
         patch("gobby.runner.LocalSessionManager"),
-        patch("gobby.runner.LocalSkillManager"),
+        patch("gobby.runner.LocalSessionManager"),
         patch("gobby.runner.LocalSessionMessageManager"),
         patch("gobby.runner.LocalTaskManager"),
         patch("gobby.runner.SessionTaskManager"),
@@ -86,7 +86,7 @@ def create_base_patches(
         patch("gobby.runner.SessionLifecycleManager", return_value=AsyncMock()),
         patch("gobby.runner.create_llm_service", return_value=None),
         patch("gobby.runner.MemoryManager", return_value=None),
-        patch("gobby.runner.SkillLearner", return_value=None),
+        patch("gobby.runner.MemoryManager", return_value=None),
         patch("gobby.runner.HTTPServer", return_value=mock_http),
     ]
 
@@ -434,63 +434,6 @@ class TestGobbyRunnerInitialization:
             runner = GobbyRunner()
             assert runner.memory_manager is None
 
-    def test_init_with_skill_learner(self):
-        """Test that SkillLearner is initialized when skills config and LLM exist."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
-        mock_config.websocket = None
-        mock_config.session_lifecycle = MagicMock()
-        mock_config.message_tracking = None
-        mock_config.memory_sync = MagicMock()
-        mock_config.memory_sync.enabled = False
-        mock_config.skills = MagicMock()
-
-        mock_llm_service = MagicMock()
-        mock_llm_service.enabled_providers = ["test"]
-        mock_skill_learner = MagicMock()
-
-        patches = create_base_patches(mock_config=mock_config)
-        patches = [p for p in patches if "create_llm_service" not in str(p)]
-        patches = [p for p in patches if "SkillLearner" not in str(p)]
-        patches.append(patch("gobby.runner.create_llm_service", return_value=mock_llm_service))
-        patches.append(patch("gobby.runner.SkillLearner", return_value=mock_skill_learner))
-
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
-
-            runner = GobbyRunner()
-
-            assert runner.llm_service == mock_llm_service
-            assert runner.skill_learner == mock_skill_learner
-
-    def test_init_skill_learner_exception(self):
-        """Test that SkillLearner initialization exception is handled."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
-        mock_config.websocket = None
-        mock_config.session_lifecycle = MagicMock()
-        mock_config.message_tracking = None
-        mock_config.memory_sync = MagicMock()
-        mock_config.memory_sync.enabled = False
-        mock_config.skills = MagicMock()
-
-        mock_llm_service = MagicMock()
-        mock_llm_service.enabled_providers = ["test"]
-
-        patches = create_base_patches(mock_config=mock_config)
-        patches = [p for p in patches if "create_llm_service" not in str(p)]
-        patches = [p for p in patches if "SkillLearner" not in str(p)]
-        patches.append(patch("gobby.runner.create_llm_service", return_value=mock_llm_service))
-        patches.append(
-            patch("gobby.runner.SkillLearner", side_effect=Exception("Skill learner error"))
-        )
-
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
-
-            runner = GobbyRunner()
-            assert runner.skill_learner is None
-
     def test_init_with_memory_sync_manager(self):
         """Test MemorySyncManager initialization when enabled."""
         mock_config = MagicMock()
@@ -549,53 +492,6 @@ class TestGobbyRunnerInitialization:
 
             runner = GobbyRunner()
             assert runner.memory_sync_manager is None
-
-    def test_init_with_skill_sync_manager(self):
-        """Test SkillSyncManager initialization when enabled."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
-        mock_config.websocket = None
-        mock_config.session_lifecycle = MagicMock()
-        mock_config.message_tracking = None
-        mock_config.memory_sync = MagicMock()
-        mock_config.memory_sync.enabled = False
-        mock_config.skill_sync = MagicMock()
-        mock_config.skill_sync.enabled = True
-
-        mock_skill_sync_manager = MagicMock()
-
-        patches = create_base_patches(mock_config=mock_config)
-        patches.append(patch("gobby.runner.SkillSyncManager", return_value=mock_skill_sync_manager))
-
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
-
-            runner = GobbyRunner()
-
-            assert runner.skill_sync_manager == mock_skill_sync_manager
-
-    def test_init_skill_sync_manager_exception(self):
-        """Test SkillSyncManager initialization exception is handled."""
-        mock_config = MagicMock()
-        mock_config.daemon_port = 8765
-        mock_config.websocket = None
-        mock_config.session_lifecycle = MagicMock()
-        mock_config.message_tracking = None
-        mock_config.memory_sync = MagicMock()
-        mock_config.memory_sync.enabled = False
-        mock_config.skill_sync = MagicMock()
-        mock_config.skill_sync.enabled = True
-
-        patches = create_base_patches(mock_config=mock_config)
-        patches.append(
-            patch("gobby.runner.SkillSyncManager", side_effect=Exception("Skill sync error"))
-        )
-
-        with ExitStack() as stack:
-            [stack.enter_context(p) for p in patches]
-
-            runner = GobbyRunner()
-            assert runner.skill_sync_manager is None
 
     def test_init_with_message_processor(self):
         """Test SessionMessageProcessor initialization when message_tracking enabled."""
@@ -1550,7 +1446,11 @@ class TestMessageProcessorWebSocketIntegration:
 
             runner = GobbyRunner()
 
+            # Verify parser manager initialization
+            # assert runner.parser_manager is not None
+
             # Verify websocket server was passed to message processor
+            assert runner.message_processor is not None
             assert runner.message_processor.websocket_server == mock_ws_server
 
 
@@ -1732,7 +1632,7 @@ class TestMetricsCleanupLoopDetailed:
             runner = GobbyRunner()
             cleanup_call_count = 0
 
-            def mock_cleanup():
+            def mock_cleanup(retention_days: int = 30):
                 nonlocal cleanup_call_count
                 cleanup_call_count += 1
                 return 5 if cleanup_call_count == 1 else 0
@@ -1793,7 +1693,7 @@ class TestMetricsCleanupLoopDetailed:
             runner = GobbyRunner()
             call_count = 0
 
-            def mock_cleanup():
+            def mock_cleanup(retention_days: int = 30):
                 nonlocal call_count
                 call_count += 1
                 if call_count == 1:
