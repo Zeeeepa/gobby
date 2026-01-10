@@ -434,14 +434,35 @@ class MCPTestClient:
         return response.json().get("servers", [])
 
     def list_tools(self, server: str | None = None) -> list[dict[str, Any]]:
-        """List tools, optionally filtered by server."""
+        """List tools, optionally filtered by server.
+
+        Returns a flat list of tools, each with 'server' key added.
+        """
         params = {}
         if server:
-            params["server"] = server
+            # API uses server_filter parameter
+            params["server_filter"] = server
 
         response = self.client.get("/mcp/tools", params=params)
         response.raise_for_status()
-        return response.json().get("tools", [])
+        data = response.json()
+
+        # Handle both dict (by server) and list (flat) formats
+        tools_data = data.get("tools", data)
+
+        if isinstance(tools_data, dict):
+            # Convert dict format to flat list
+            flat_tools = []
+            for srv_name, srv_tools in tools_data.items():
+                for tool in srv_tools:
+                    tool_copy = dict(tool)
+                    tool_copy["server"] = srv_name
+                    flat_tools.append(tool_copy)
+            return flat_tools
+        elif isinstance(tools_data, list):
+            return tools_data
+        else:
+            return []
 
     def call_tool(
         self,
@@ -456,13 +477,18 @@ class MCPTestClient:
             "arguments": arguments or {},
         }
 
-        response = self.client.post("/mcp/call", json=payload)
+        # Endpoint is /mcp/tools/call
+        response = self.client.post("/mcp/tools/call", json=payload)
         response.raise_for_status()
         return response.json()
 
     def get_tool_schema(self, server_name: str, tool_name: str) -> dict[str, Any]:
         """Get full schema for a tool."""
-        response = self.client.get(f"/mcp/tools/{server_name}/{tool_name}/schema")
+        # Endpoint is POST /mcp/tools/schema with JSON body
+        response = self.client.post(
+            "/mcp/tools/schema",
+            json={"server_name": server_name, "tool_name": tool_name},
+        )
         response.raise_for_status()
         return response.json()
 
@@ -496,14 +522,35 @@ class AsyncMCPTestClient:
         return response.json().get("servers", [])
 
     async def list_tools(self, server: str | None = None) -> list[dict[str, Any]]:
-        """List tools, optionally filtered by server."""
+        """List tools, optionally filtered by server.
+
+        Returns a flat list of tools, each with 'server' key added.
+        """
         params = {}
         if server:
-            params["server"] = server
+            # API uses server_filter parameter
+            params["server_filter"] = server
 
         response = await self.client.get("/mcp/tools", params=params)
         response.raise_for_status()
-        return response.json().get("tools", [])
+        data = response.json()
+
+        # Handle both dict (by server) and list (flat) formats
+        tools_data = data.get("tools", data)
+
+        if isinstance(tools_data, dict):
+            # Convert dict format to flat list
+            flat_tools = []
+            for srv_name, srv_tools in tools_data.items():
+                for tool in srv_tools:
+                    tool_copy = dict(tool)
+                    tool_copy["server"] = srv_name
+                    flat_tools.append(tool_copy)
+            return flat_tools
+        elif isinstance(tools_data, list):
+            return tools_data
+        else:
+            return []
 
     async def call_tool(
         self,
@@ -518,7 +565,8 @@ class AsyncMCPTestClient:
             "arguments": arguments or {},
         }
 
-        response = await self.client.post("/mcp/call", json=payload)
+        # Endpoint is /mcp/tools/call
+        response = await self.client.post("/mcp/tools/call", json=payload)
         response.raise_for_status()
         return response.json()
 
