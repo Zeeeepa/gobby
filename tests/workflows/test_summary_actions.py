@@ -256,6 +256,122 @@ class TestFormatTurnsForLlm:
 
 
 # =============================================================================
+# Tests for extract_todowrite_state
+# =============================================================================
+
+
+class TestExtractTodowriteState:
+    """Tests for the extract_todowrite_state helper function."""
+
+    def test_extract_empty_turns(self):
+        """Test extraction from empty turns list."""
+        from gobby.workflows.summary_actions import extract_todowrite_state
+
+        result = extract_todowrite_state([])
+        assert result == ""
+
+    def test_extract_no_todowrite(self):
+        """Test extraction when no TodoWrite tool use exists."""
+        from gobby.workflows.summary_actions import extract_todowrite_state
+
+        turns = [
+            {"message": {"role": "user", "content": "Hello"}},
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": "Hi there"}],
+                }
+            },
+        ]
+        result = extract_todowrite_state(turns)
+        assert result == ""
+
+    def test_extract_todowrite_found(self):
+        """Test extracting TodoWrite from transcript."""
+        from gobby.workflows.summary_actions import extract_todowrite_state
+
+        turns = [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "TodoWrite",
+                            "input": {
+                                "todos": [
+                                    {"content": "Task 1", "status": "completed"},
+                                    {"content": "Task 2", "status": "in_progress"},
+                                    {"content": "Task 3", "status": "pending"},
+                                ]
+                            },
+                        }
+                    ],
+                }
+            }
+        ]
+        result = extract_todowrite_state(turns)
+        assert "- [x] Task 1" in result
+        assert "- [>] Task 2" in result
+        assert "- [ ] Task 3" in result
+
+    def test_extract_todowrite_uses_most_recent(self):
+        """Test that extraction uses the most recent TodoWrite."""
+        from gobby.workflows.summary_actions import extract_todowrite_state
+
+        turns = [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "TodoWrite",
+                            "input": {"todos": [{"content": "Old task", "status": "pending"}]},
+                        }
+                    ],
+                }
+            },
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "TodoWrite",
+                            "input": {"todos": [{"content": "New task", "status": "completed"}]},
+                        }
+                    ],
+                }
+            },
+        ]
+        result = extract_todowrite_state(turns)
+        assert "New task" in result
+        assert "Old task" not in result
+
+    def test_extract_todowrite_empty_todos(self):
+        """Test extraction when TodoWrite has empty todos list."""
+        from gobby.workflows.summary_actions import extract_todowrite_state
+
+        turns = [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "TodoWrite",
+                            "input": {"todos": []},
+                        }
+                    ],
+                }
+            }
+        ]
+        result = extract_todowrite_state(turns)
+        assert result == ""
+
+
+# =============================================================================
 # Tests for synthesize_title
 # =============================================================================
 

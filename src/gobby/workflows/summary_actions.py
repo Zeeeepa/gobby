@@ -52,6 +52,53 @@ def format_turns_for_llm(turns: list[dict[str, Any]]) -> str:
     return "\n\n".join(formatted)
 
 
+def extract_todowrite_state(turns: list[dict[str, Any]]) -> str:
+    """Extract the last TodoWrite tool call's todos list from transcript.
+
+    Scans turns in reverse to find the most recent TodoWrite tool call
+    and formats it as a markdown checklist.
+
+    Args:
+        turns: List of transcript turns
+
+    Returns:
+        Formatted markdown string with todo list, or empty string if not found
+    """
+    for turn in reversed(turns):
+        message = turn.get("message", {})
+        content = message.get("content", [])
+
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "tool_use":
+                    if block.get("name") == "TodoWrite":
+                        tool_input = block.get("input", {})
+                        todos = tool_input.get("todos", [])
+
+                        if not todos:
+                            return ""
+
+                        # Format as markdown checklist
+                        lines: list[str] = []
+                        for todo in todos:
+                            content_text = todo.get("content", "")
+                            status = todo.get("status", "pending")
+
+                            # Map status to checkbox style
+                            if status == "completed":
+                                checkbox = "[x]"
+                            elif status == "in_progress":
+                                checkbox = "[>]"
+                            else:
+                                checkbox = "[ ]"
+
+                            lines.append(f"- {checkbox} {content_text}")
+
+                        return "\n".join(lines)
+
+    return ""
+
+
 async def synthesize_title(
     session_manager: Any,
     session_id: str,
@@ -217,6 +264,9 @@ async def generate_summary(
     git_status = get_git_status()
     file_changes = get_file_changes()
 
+    # Extract TodoWrite state from transcript
+    todo_list = extract_todowrite_state(recent_turns)
+
     # 3. Call LLM
     try:
         llm_context = {
@@ -226,6 +276,7 @@ async def generate_summary(
             "last_messages": last_messages_str,
             "git_status": git_status,
             "file_changes": file_changes,
+            "todo_list": todo_list or "(No active todo list)",
             "previous_summary": previous_summary or "",
             "mode": mode,
         }

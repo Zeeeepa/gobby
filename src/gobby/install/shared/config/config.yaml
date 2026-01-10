@@ -224,10 +224,9 @@ session_summary:
     ```
 
 
-    ## Claude Specific Todo List (or equivalent if provided by another LLM)
+    ## Claude''s Todo List
 
-    [This section will be automatically populated with the actual TodoWrite list if
-    it exists]
+    {todo_list}
 
 
     ## Next Steps

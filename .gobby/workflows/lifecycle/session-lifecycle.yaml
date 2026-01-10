@@ -128,8 +128,8 @@ triggers:
         {git_status}
         ```
 
-        ## Claude Specific Todo List (or equivalent if provided by another LLM)
-        [This section will be automatically populated with the actual TodoWrite list if it exists]
+        ## Claude's Todo List
+        {todo_list}
 
         ## Next Steps
         [Concrete, numbered suggestions for what to do when resuming work. Be specific and actionable.]
