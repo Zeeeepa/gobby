@@ -92,6 +92,33 @@ gobby memory list --limit 10
 gobby memory list --include-global
 ```
 
+### Tag Filtering
+
+Filter memories using boolean tag logic with `--tags-all`, `--tags-any`, and `--tags-none`:
+
+```bash
+# Require ALL specified tags (AND logic)
+gobby memory recall --tags-all "auth,security"
+
+# Require ANY of the specified tags (OR logic)
+gobby memory recall --tags-any "frontend,ui,react"
+
+# Exclude memories with these tags (NOT logic)
+gobby memory recall --tags-none "deprecated,legacy"
+
+# Combine filters for precise queries
+gobby memory recall "API" --tags-all "backend" --tags-none "deprecated"
+
+# Works with list command too
+gobby memory list --type fact --tags-any "database,storage"
+```
+
+| Flag | Logic | Description |
+|------|-------|-------------|
+| `--tags-all` | AND | Memory must have ALL specified tags |
+| `--tags-any` | OR | Memory must have at least ONE of the tags |
+| `--tags-none` | NOT | Memory must have NONE of the specified tags |
+
 ### Managing Memories
 
 ```bash
@@ -135,16 +162,23 @@ Retrieve memories with optional filtering:
 
 ```python
 # Semantic search
-call_tool(server_name="gobby-memory", tool_name="recall", arguments={
+call_tool(server_name="gobby-memory", tool_name="recall_memory", arguments={
     "query": "testing setup"
 })
 
 # With filters
-call_tool(server_name="gobby-memory", tool_name="recall", arguments={
+call_tool(server_name="gobby-memory", tool_name="recall_memory", arguments={
     "memory_type": "preference",
     "min_importance": 0.5,
-    "limit": 10,
-    "include_global": True
+    "limit": 10
+})
+
+# With tag filtering (AND/OR/NOT logic)
+call_tool(server_name="gobby-memory", tool_name="recall_memory", arguments={
+    "query": "API design",
+    "tags_all": ["backend", "api"],     # Must have ALL these tags
+    "tags_any": ["rest", "graphql"],    # Must have at least ONE
+    "tags_none": ["deprecated"]         # Must not have any of these
 })
 ```
 
@@ -156,6 +190,12 @@ List all memories with filtering:
 call_tool(server_name="gobby-memory", tool_name="list_memories", arguments={
     "memory_type": "fact",
     "limit": 20
+})
+
+# With tag filtering
+call_tool(server_name="gobby-memory", tool_name="list_memories", arguments={
+    "tags_any": ["architecture", "design-decision"],
+    "min_importance": 0.6
 })
 ```
 
