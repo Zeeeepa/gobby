@@ -199,6 +199,51 @@ class TestGetWorkflowProjectPath:
         # Should still work - project_path is added by get_project_context
         assert result is not None
 
+    def test_handles_nested_worktree_scenario(self, tmp_path: Path):
+        """Verify function handles nested worktree scenario by following parent chain."""
+        # Scenario: worktree of a worktree should still resolve to original parent
+        # In practice, worktrees should always point to the main project, not to
+        # another worktree, but we test this to ensure consistent behavior.
+
+        original_project = tmp_path / "original"
+        original_project.mkdir()
+
+        # First worktree
+        worktree1 = tmp_path / "worktree1"
+        worktree1.mkdir()
+        gobby_dir1 = worktree1 / ".gobby"
+        gobby_dir1.mkdir()
+        (gobby_dir1 / "project.json").write_text(json.dumps({
+            "id": "wt1-id",
+            "parent_project_path": str(original_project)
+        }))
+
+        # get_workflow_project_path should return the parent path
+        result = get_workflow_project_path(worktree1)
+
+        assert result is not None
+        assert result == original_project
+
+    def test_returns_from_subdirectory(self, tmp_path: Path):
+        """Verify function works when called from a subdirectory of the project."""
+        project = tmp_path / "project"
+        project.mkdir()
+        gobby_dir = project / ".gobby"
+        gobby_dir.mkdir()
+        (gobby_dir / "project.json").write_text(json.dumps({
+            "id": "proj-id",
+            "name": "test-project"
+        }))
+
+        # Create nested subdirectory
+        subdir = project / "src" / "lib" / "utils"
+        subdir.mkdir(parents=True)
+
+        result = get_workflow_project_path(subdir)
+
+        assert result is not None
+        assert result.resolve() == project.resolve()
+
 
 class TestReadParentProjectPath:
     """Tests for reading parent_project_path from existing worktree project.json."""
@@ -314,7 +359,7 @@ class TestEdgeCases:
         worktree.mkdir()
 
         # Mock json.dump to raise an exception
-        with patch("json.dump", side_effect=IOError("Write failed")):
+        with patch("json.dump", side_effect=OSError("Write failed")):
             # Should not raise - function handles errors gracefully with warning
             _copy_project_json_to_worktree(main_repo, worktree)
 
