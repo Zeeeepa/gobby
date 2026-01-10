@@ -40,7 +40,6 @@ def test_migrations_fresh_db(tmp_path):
         "session_tasks",
         "session_messages",
         "memories",
-        "skills",
         "tool_embeddings",
         "task_validation_history",
     ]
@@ -412,3 +411,127 @@ def test_github_migration_number_is_48(tmp_path):
 
     assert migration_48 is not None, "Migration 48 not found in MIGRATIONS list"
     assert "github" in migration_48[1].lower(), "Migration 48 should be for GitHub columns"
+
+
+# =============================================================================
+# Task ID Redesign: seq_num and path_cache Migration Tests
+# =============================================================================
+
+
+def test_seq_num_and_path_cache_columns_exist(tmp_path):
+    """Test that seq_num and path_cache columns are added to tasks table."""
+    db_path = tmp_path / "seq_num_cols.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Get tasks table info
+    rows = db.fetchall("PRAGMA table_info(tasks)")
+    columns = {row["name"] for row in rows}
+
+    # Check for new columns
+    assert "seq_num" in columns, "seq_num column missing from tasks"
+    assert "path_cache" in columns, "path_cache column missing from tasks"
+
+
+def test_seq_num_unique_index_per_project(tmp_path):
+    """Test that seq_num is unique per project via index."""
+    db_path = tmp_path / "seq_num_index.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Check for unique index on (project_id, seq_num)
+    rows = db.fetchall("SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name='tasks'")
+    index_names = {row["name"] for row in rows}
+
+    assert "idx_tasks_seq_num" in index_names, "idx_tasks_seq_num index missing"
+
+    # Verify it's unique
+    for row in rows:
+        if row["name"] == "idx_tasks_seq_num":
+            assert "UNIQUE" in row["sql"].upper(), "idx_tasks_seq_num should be UNIQUE"
+
+
+def test_path_cache_index_exists(tmp_path):
+    """Test that path_cache index exists for efficient lookups."""
+    db_path = tmp_path / "path_cache_index.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Check for index on path_cache
+    rows = db.fetchall("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='tasks'")
+    index_names = {row["name"] for row in rows}
+
+    assert "idx_tasks_path_cache" in index_names, "idx_tasks_path_cache index missing"
+
+
+def test_seq_num_allows_null(tmp_path):
+    """Test that seq_num allows NULL values (for existing tasks pre-backfill)."""
+    db_path = tmp_path / "seq_num_null.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create a project first (required for task)
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+
+    # Insert task without seq_num (simulating pre-backfill state)
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-1", "test-project", "Test Task"),
+    )
+
+    # Should work without seq_num
+    row = db.fetchone("SELECT seq_num, path_cache FROM tasks WHERE id = ?", ("task-1",))
+    assert row is not None
+    assert row["seq_num"] is None, "seq_num should be NULL when not set"
+    assert row["path_cache"] is None, "path_cache should be NULL when not set"
+
+
+def test_seq_num_stores_integer_values(tmp_path):
+    """Test that seq_num stores integer values correctly."""
+    db_path = tmp_path / "seq_num_values.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create project
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+
+    # Insert task with seq_num
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, seq_num, path_cache, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-1", "test-project", "Test Task", 42, "1.2.42"),
+    )
+
+    # Verify values stored correctly
+    row = db.fetchone("SELECT seq_num, path_cache FROM tasks WHERE id = ?", ("task-1",))
+    assert row is not None
+    assert row["seq_num"] == 42
+    assert row["path_cache"] == "1.2.42"
+
+
+def test_seq_num_migration_number_is_52(tmp_path):
+    """Test that seq_num and path_cache are added in migration 52."""
+    from gobby.storage.migrations import MIGRATIONS
+
+    # Find migration 52
+    migration_52 = None
+    for version, description, sql in MIGRATIONS:
+        if version == 52:
+            migration_52 = (version, description, sql)
+            break
+
+    assert migration_52 is not None, "Migration 52 not found in MIGRATIONS list"
+    assert "seq_num" in migration_52[2].lower(), "Migration 52 should add seq_num column"
+    assert "path_cache" in migration_52[2].lower(), "Migration 52 should add path_cache column"

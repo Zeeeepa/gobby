@@ -1059,6 +1059,16 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         ALTER TABLE projects ADD COLUMN linear_team_id TEXT;
         """,
     ),
+    (
+        52,
+        "Add seq_num and path_cache columns to tasks table for human-friendly IDs",
+        """
+        ALTER TABLE tasks ADD COLUMN seq_num INTEGER;
+        ALTER TABLE tasks ADD COLUMN path_cache TEXT;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_seq_num ON tasks(project_id, seq_num);
+        CREATE INDEX IF NOT EXISTS idx_tasks_path_cache ON tasks(path_cache);
+        """,
+    ),
 ]
 
 
