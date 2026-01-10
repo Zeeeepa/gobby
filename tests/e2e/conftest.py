@@ -1,0 +1,588 @@
+"""
+E2E test configuration and fixtures for Gobby daemon.
+
+Provides fixtures for:
+- Spawning isolated daemon processes
+- Waiting for daemon readiness
+- Capturing daemon logs
+- Cleaning up orphan processes
+- CLI event simulation
+- MCP client connections
+"""
+
+import json
+import os
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+from collections.abc import AsyncGenerator, Generator
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import httpx
+import pytest
+import pytest_asyncio
+
+# Mark all tests in this directory as e2e tests
+pytestmark = pytest.mark.e2e
+
+
+@dataclass
+class DaemonInstance:
+    """Represents a running daemon instance."""
+
+    process: subprocess.Popen[bytes]
+    pid: int
+    http_port: int
+    ws_port: int
+    project_dir: Path
+    gobby_dir: Path
+    log_file: Path
+    error_log_file: Path
+    db_path: Path
+    config_path: Path
+
+    @property
+    def http_url(self) -> str:
+        """HTTP base URL."""
+        return f"http://localhost:{self.http_port}"
+
+    @property
+    def ws_url(self) -> str:
+        """WebSocket URL."""
+        return f"ws://localhost:{self.ws_port}"
+
+    def is_alive(self) -> bool:
+        """Check if daemon process is still running."""
+        return self.process.poll() is None
+
+    def read_logs(self) -> str:
+        """Read stdout logs."""
+        if self.log_file.exists():
+            return self.log_file.read_text()
+        return ""
+
+    def read_error_logs(self) -> str:
+        """Read stderr logs."""
+        if self.error_log_file.exists():
+            return self.error_log_file.read_text()
+        return ""
+
+
+def find_free_port() -> int:
+    """Find an available port on localhost."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(("localhost", 0))
+        return s.getsockname()[1]
+
+
+def wait_for_port(port: int, timeout: float = 10.0) -> bool:
+    """Wait for a port to become available for connection."""
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            with socket.create_connection(("localhost", port), timeout=0.5):
+                return True
+        except (ConnectionRefusedError, OSError, TimeoutError):
+            time.sleep(0.1)
+    return False
+
+
+def wait_for_daemon_health(port: int, timeout: float = 15.0) -> bool:
+    """Wait for daemon to respond to health check."""
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            response = httpx.get(f"http://localhost:{port}/admin/status", timeout=1.0)
+            if response.status_code == 200:
+                return True
+        except (httpx.ConnectError, httpx.TimeoutException):
+            time.sleep(0.3)
+    return False
+
+
+def terminate_process_tree(pid: int, timeout: float = 5.0) -> None:
+    """Terminate a process and all its children."""
+    import psutil
+
+    try:
+        parent = psutil.Process(pid)
+        children = parent.children(recursive=True)
+
+        # Terminate children first
+        for child in children:
+            try:
+                child.terminate()
+            except psutil.NoSuchProcess:
+                pass
+
+        # Wait for children
+        gone, alive = psutil.wait_procs(children, timeout=timeout / 2)
+
+        # Force kill remaining children
+        for p in alive:
+            try:
+                p.kill()
+            except psutil.NoSuchProcess:
+                pass
+
+        # Terminate parent
+        try:
+            parent.terminate()
+            parent.wait(timeout=timeout / 2)
+        except psutil.TimeoutExpired:
+            parent.kill()
+            parent.wait(timeout=1.0)
+        except psutil.NoSuchProcess:
+            pass
+
+    except psutil.NoSuchProcess:
+        pass
+
+
+@pytest.fixture(scope="function")
+def e2e_project_dir() -> Generator[Path, None, None]:
+    """Create an isolated project directory for E2E tests."""
+    with tempfile.TemporaryDirectory(prefix="gobby_e2e_") as tmpdir:
+        project_dir = Path(tmpdir)
+        gobby_dir = project_dir / ".gobby"
+        gobby_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create project.json
+        project_json = gobby_dir / "project.json"
+        project_json.write_text(
+            json.dumps(
+                {
+                    "id": "e2e-test-project",
+                    "name": "E2E Test Project",
+                    "repo_path": str(project_dir),
+                }
+            )
+        )
+
+        yield project_dir
+
+
+@pytest.fixture(scope="function")
+def e2e_config(e2e_project_dir: Path) -> Generator[tuple[Path, int, int], None, None]:
+    """Create an isolated config file with unique ports."""
+    http_port = find_free_port()
+    ws_port = find_free_port()
+
+    gobby_home = e2e_project_dir / ".gobby-home"
+    gobby_home.mkdir(parents=True, exist_ok=True)
+
+    config_path = gobby_home / "config.yaml"
+    db_path = gobby_home / "gobby.db"
+    log_dir = gobby_home / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    config_content = f"""
+daemon_port: {http_port}
+database_path: "{db_path}"
+
+websocket:
+  enabled: true
+  port: {ws_port}
+  ping_interval: 30
+  ping_timeout: 10
+
+logging:
+  client: "{log_dir}/client.log"
+  client_error: "{log_dir}/client_error.log"
+
+session_lifecycle:
+  idle_timeout_minutes: 60
+  max_sessions_per_machine: 10
+  cleanup_interval_minutes: 5
+
+gobby_tasks:
+  expansion:
+    enabled: false
+  validation:
+    enabled: false
+"""
+
+    config_path.write_text(config_content)
+    yield config_path, http_port, ws_port
+
+
+@pytest.fixture(scope="function")
+def daemon_instance(
+    e2e_project_dir: Path,
+    e2e_config: tuple[Path, int, int],
+) -> Generator[DaemonInstance, None, None]:
+    """
+    Spawn an isolated daemon instance for E2E testing.
+
+    Yields a DaemonInstance with running daemon, then cleans up on teardown.
+    """
+    config_path, http_port, ws_port = e2e_config
+    gobby_home = config_path.parent
+    log_dir = gobby_home / "logs"
+
+    log_file = log_dir / "daemon.log"
+    error_log_file = log_dir / "daemon_error.log"
+
+    # Environment with custom config
+    env = os.environ.copy()
+    env["GOBBY_CONFIG"] = str(config_path)
+    env["GOBBY_HOME"] = str(gobby_home)
+    # Disable any LLM providers to avoid external calls
+    env["ANTHROPIC_API_KEY"] = ""
+    env["OPENAI_API_KEY"] = ""
+    env["GEMINI_API_KEY"] = ""
+
+    # Start daemon process
+    with open(log_file, "w") as log_f, open(error_log_file, "w") as err_f:
+        process = subprocess.Popen(
+            [sys.executable, "-m", "gobby.runner", "--config", str(config_path)],
+            stdout=log_f,
+            stderr=err_f,
+            stdin=subprocess.DEVNULL,
+            cwd=str(e2e_project_dir),
+            env=env,
+            start_new_session=True,
+        )
+
+    instance = DaemonInstance(
+        process=process,
+        pid=process.pid,
+        http_port=http_port,
+        ws_port=ws_port,
+        project_dir=e2e_project_dir,
+        gobby_dir=e2e_project_dir / ".gobby",
+        log_file=log_file,
+        error_log_file=error_log_file,
+        db_path=gobby_home / "gobby.db",
+        config_path=config_path,
+    )
+
+    # Wait for daemon to be healthy
+    if not wait_for_daemon_health(http_port, timeout=20.0):
+        # Daemon failed to start - capture logs for debugging
+        logs = instance.read_logs()
+        error_logs = instance.read_error_logs()
+        terminate_process_tree(process.pid)
+        pytest.fail(
+            f"Daemon failed to start within timeout.\nLogs:\n{logs}\nError logs:\n{error_logs}"
+        )
+
+    yield instance
+
+    # Cleanup
+    if instance.is_alive():
+        terminate_process_tree(instance.pid)
+
+
+@pytest_asyncio.fixture
+async def async_daemon_instance(
+    daemon_instance: DaemonInstance,
+) -> AsyncGenerator[DaemonInstance, None]:
+    """Async-compatible daemon instance fixture."""
+    yield daemon_instance
+
+
+@pytest.fixture(scope="function")
+def daemon_client(daemon_instance: DaemonInstance) -> Generator[httpx.Client, None, None]:
+    """HTTP client configured for daemon instance."""
+    with httpx.Client(base_url=daemon_instance.http_url, timeout=10.0) as client:
+        yield client
+
+
+@pytest_asyncio.fixture
+async def async_daemon_client(
+    daemon_instance: DaemonInstance,
+) -> AsyncGenerator[httpx.AsyncClient, None]:
+    """Async HTTP client configured for daemon instance."""
+    async with httpx.AsyncClient(base_url=daemon_instance.http_url, timeout=10.0) as client:
+        yield client
+
+
+# --- CLI Event Helpers ---
+
+
+class CLIEventSimulator:
+    """Helper for simulating CLI hook events and session registration."""
+
+    def __init__(self, daemon_url: str):
+        self.daemon_url = daemon_url
+        self.client = httpx.Client(base_url=daemon_url, timeout=10.0)
+
+    def close(self) -> None:
+        """Close the HTTP client."""
+        self.client.close()
+
+    def register_session(
+        self,
+        external_id: str,
+        machine_id: str = "test-machine",
+        source: str = "Claude Code",
+        project_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Register a new session via /sessions/register endpoint."""
+        payload = {
+            "external_id": external_id,
+            "machine_id": machine_id,
+            "source": source,
+        }
+        if project_id:
+            payload["project_id"] = project_id
+
+        response = self.client.post("/sessions/register", json=payload)
+        response.raise_for_status()
+        return response.json()
+
+    def session_start(
+        self,
+        session_id: str,
+        machine_id: str = "test-machine",
+        source: str = "claude",
+        project_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Simulate session start hook event via /hooks/execute endpoint."""
+        input_data = {
+            "session_id": session_id,
+            "machine_id": machine_id,
+        }
+        if project_id:
+            input_data["project_id"] = project_id
+
+        payload = {
+            "hook_type": "session-start",
+            "source": source,
+            "input_data": input_data,
+        }
+
+        response = self.client.post("/hooks/execute", json=payload)
+        response.raise_for_status()
+        return response.json()
+
+    def session_end(
+        self,
+        session_id: str,
+        machine_id: str = "test-machine",
+        source: str = "claude",
+    ) -> dict[str, Any]:
+        """Simulate session end hook event via /hooks/execute endpoint."""
+        payload = {
+            "hook_type": "session-end",
+            "source": source,
+            "input_data": {
+                "session_id": session_id,
+                "machine_id": machine_id,
+            },
+        }
+
+        response = self.client.post("/hooks/execute", json=payload)
+        response.raise_for_status()
+        return response.json()
+
+    def tool_use(
+        self,
+        session_id: str,
+        tool_name: str,
+        tool_input: dict[str, Any] | None = None,
+        source: str = "claude",
+    ) -> dict[str, Any]:
+        """Simulate tool use hook event via /hooks/execute endpoint."""
+        payload = {
+            "hook_type": "tool-use",
+            "source": source,
+            "input_data": {
+                "session_id": session_id,
+                "tool_name": tool_name,
+                "tool_input": tool_input or {},
+            },
+        }
+
+        response = self.client.post("/hooks/execute", json=payload)
+        response.raise_for_status()
+        return response.json()
+
+
+@pytest.fixture(scope="function")
+def cli_events(daemon_instance: DaemonInstance) -> Generator[CLIEventSimulator, None, None]:
+    """CLI event simulator for daemon instance."""
+    simulator = CLIEventSimulator(daemon_instance.http_url)
+    yield simulator
+    simulator.close()
+
+
+# --- MCP Client Helpers ---
+
+
+class MCPTestClient:
+    """Helper for testing MCP proxy functionality."""
+
+    def __init__(self, daemon_url: str):
+        self.daemon_url = daemon_url
+        self.client = httpx.Client(base_url=daemon_url, timeout=30.0)
+
+    def close(self) -> None:
+        """Close the HTTP client."""
+        self.client.close()
+
+    def list_servers(self) -> list[dict[str, Any]]:
+        """List available MCP servers."""
+        response = self.client.get("/mcp/servers")
+        response.raise_for_status()
+        return response.json().get("servers", [])
+
+    def list_tools(self, server: str | None = None) -> list[dict[str, Any]]:
+        """List tools, optionally filtered by server."""
+        params = {}
+        if server:
+            params["server"] = server
+
+        response = self.client.get("/mcp/tools", params=params)
+        response.raise_for_status()
+        return response.json().get("tools", [])
+
+    def call_tool(
+        self,
+        server_name: str,
+        tool_name: str,
+        arguments: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Call an MCP tool."""
+        payload = {
+            "server_name": server_name,
+            "tool_name": tool_name,
+            "arguments": arguments or {},
+        }
+
+        response = self.client.post("/mcp/call", json=payload)
+        response.raise_for_status()
+        return response.json()
+
+    def get_tool_schema(self, server_name: str, tool_name: str) -> dict[str, Any]:
+        """Get full schema for a tool."""
+        response = self.client.get(f"/mcp/tools/{server_name}/{tool_name}/schema")
+        response.raise_for_status()
+        return response.json()
+
+
+@pytest.fixture(scope="function")
+def mcp_client(daemon_instance: DaemonInstance) -> Generator[MCPTestClient, None, None]:
+    """MCP test client for daemon instance."""
+    client = MCPTestClient(daemon_instance.http_url)
+    yield client
+    client.close()
+
+
+# --- Async MCP Client ---
+
+
+class AsyncMCPTestClient:
+    """Async helper for testing MCP proxy functionality."""
+
+    def __init__(self, daemon_url: str):
+        self.daemon_url = daemon_url
+        self.client = httpx.AsyncClient(base_url=daemon_url, timeout=30.0)
+
+    async def close(self) -> None:
+        """Close the HTTP client."""
+        await self.client.aclose()
+
+    async def list_servers(self) -> list[dict[str, Any]]:
+        """List available MCP servers."""
+        response = await self.client.get("/mcp/servers")
+        response.raise_for_status()
+        return response.json().get("servers", [])
+
+    async def list_tools(self, server: str | None = None) -> list[dict[str, Any]]:
+        """List tools, optionally filtered by server."""
+        params = {}
+        if server:
+            params["server"] = server
+
+        response = await self.client.get("/mcp/tools", params=params)
+        response.raise_for_status()
+        return response.json().get("tools", [])
+
+    async def call_tool(
+        self,
+        server_name: str,
+        tool_name: str,
+        arguments: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Call an MCP tool."""
+        payload = {
+            "server_name": server_name,
+            "tool_name": tool_name,
+            "arguments": arguments or {},
+        }
+
+        response = await self.client.post("/mcp/call", json=payload)
+        response.raise_for_status()
+        return response.json()
+
+
+@pytest_asyncio.fixture
+async def async_mcp_client(
+    daemon_instance: DaemonInstance,
+) -> AsyncGenerator[AsyncMCPTestClient, None]:
+    """Async MCP test client for daemon instance."""
+    client = AsyncMCPTestClient(daemon_instance.http_url)
+    yield client
+    await client.close()
+
+
+# --- Process Cleanup ---
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_orphan_processes() -> Generator[None, None, None]:
+    """Clean up any orphan gobby processes after test session."""
+    yield
+
+    # Post-session cleanup
+    import psutil
+
+    current_pid = os.getpid()
+    for proc in psutil.process_iter(["pid", "cmdline"]):
+        try:
+            if proc.pid == current_pid:
+                continue
+
+            cmdline = " ".join(proc.cmdline())
+            if "gobby.runner" in cmdline and "e2e" in cmdline:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=3)
+                except psutil.TimeoutExpired:
+                    proc.kill()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+
+
+# --- Utility Fixtures ---
+
+
+@pytest.fixture
+def wait_for_condition():
+    """Fixture providing a polling utility for async conditions."""
+
+    def _wait(
+        condition_fn,
+        timeout: float = 5.0,
+        poll_interval: float = 0.1,
+        description: str = "condition",
+    ) -> bool:
+        """Wait for a condition function to return True."""
+        start = time.time()
+        while time.time() - start < timeout:
+            try:
+                if condition_fn():
+                    return True
+            except Exception:
+                pass
+            time.sleep(poll_interval)
+        return False
+
+    return _wait
