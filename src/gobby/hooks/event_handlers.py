@@ -146,7 +146,8 @@ class EventHandlers:
 
         # Resolve project_id (auto-creates if needed)
         project_id = self._resolve_project_id(input_data.get("project_id"), cwd)
-        machine_id = event.machine_id or self._get_machine_id()
+        # Always use Gobby's machine_id for cross-CLI consistency
+        machine_id = self._get_machine_id()
 
         self.logger.debug(
             f"SESSION_START: cli={cli_source}, project={project_id}, source={session_source}"
@@ -348,7 +349,8 @@ class EventHandlers:
         # If not in mapping, query database
         if not session_id and external_id and self._session_manager:
             self.logger.debug(f"external_id {external_id} not in mapping, querying database")
-            machine_id = event.machine_id or self._get_machine_id()
+            # Always use Gobby's machine_id for cross-CLI consistency
+            machine_id = self._get_machine_id()
             session_id = self._session_manager.lookup_session_id(
                 external_id, source=event.source.value, machine_id=machine_id
             )
