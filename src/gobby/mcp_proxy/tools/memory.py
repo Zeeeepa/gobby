@@ -41,7 +41,7 @@ def create_memory_registry(
     """
     registry = InternalToolRegistry(
         name="gobby-memory",
-        description="Memory management - create_memory, recall_memory, delete_memory",
+        description="Memory management - create_memory, recall_memory, delete_memory, get_related_memories",
     )
 
     @registry.tool(
@@ -222,6 +222,53 @@ def create_memory_registry(
                 }
             else:
                 return {"success": False, "error": f"Memory {memory_id} not found"}
+        except ValueError as e:
+            return {"success": False, "error": str(e)}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    @registry.tool(
+        name="get_related_memories",
+        description="Get memories related to a specific memory via cross-references.",
+    )
+    def get_related_memories(
+        memory_id: str,
+        limit: int = 5,
+        min_similarity: float = 0.0,
+    ) -> dict[str, Any]:
+        """
+        Get memories linked to a specific memory via cross-references.
+
+        Cross-references are automatically created based on semantic similarity
+        when memories are stored (if auto_crossref is enabled in config).
+
+        Args:
+            memory_id: The ID of the memory to find related memories for
+            limit: Maximum number of related memories to return
+            min_similarity: Minimum similarity threshold (0.0-1.0)
+        """
+        try:
+            memories = memory_manager.get_related(
+                memory_id=memory_id,
+                limit=limit,
+                min_similarity=min_similarity,
+            )
+            return {
+                "success": True,
+                "memory_id": memory_id,
+                "related": [
+                    {
+                        "id": m.id,
+                        "content": m.content,
+                        "type": m.memory_type,
+                        "importance": m.importance,
+                        "created_at": m.created_at,
+                        "tags": m.tags,
+                    }
+                    for m in memories
+                ],
+                "count": len(memories),
+            }
         except ValueError as e:
             return {"success": False, "error": str(e)}
         except Exception as e:
