@@ -89,6 +89,9 @@ class TaskSyncManager:
                     # Escalation fields
                     "escalated_at": task.escalated_at,
                     "escalation_reason": task.escalation_reason,
+                    # Human-friendly IDs (preserve across sync)
+                    "seq_num": task.seq_num,
+                    "path_cache": task.path_cache,
                 }
                 export_data.append(task_dict)
 
@@ -173,17 +176,22 @@ class TaskSyncManager:
                         task_id = data["id"]
                         updated_at_file = datetime.fromisoformat(data["updated_at"])
 
-                        # Check if task exists
+                        # Check if task exists (also fetch seq_num/path_cache to preserve)
                         existing_row = self.db.fetchone(
-                            "SELECT updated_at FROM tasks WHERE id = ?", (task_id,)
+                            "SELECT updated_at, seq_num, path_cache FROM tasks WHERE id = ?",
+                            (task_id,),
                         )
 
                         should_update = False
+                        existing_seq_num = None
+                        existing_path_cache = None
                         if not existing_row:
                             should_update = True
                             imported_count += 1
                         else:
                             updated_at_db = datetime.fromisoformat(existing_row["updated_at"])
+                            existing_seq_num = existing_row["seq_num"]
+                            existing_path_cache = existing_row["path_cache"]
                             if updated_at_file > updated_at_db:
                                 should_update = True
                                 updated_count += 1
@@ -215,8 +223,9 @@ class TaskSyncManager:
                                     status, priority, task_type, created_at, updated_at,
                                     commits, validation_status, validation_feedback,
                                     validation_fail_count, validation_criteria,
-                                    validation_override_reason, escalated_at, escalation_reason
-                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    validation_override_reason, escalated_at, escalation_reason,
+                                    seq_num, path_cache
+                                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 """,
                                 (
                                     task_id,
@@ -239,6 +248,9 @@ class TaskSyncManager:
                                     validation_override_reason,
                                     data.get("escalated_at"),
                                     data.get("escalation_reason"),
+                                    # Preserve existing seq_num/path_cache if JSONL doesn't have them
+                                    data.get("seq_num") or existing_seq_num,
+                                    data.get("path_cache") or existing_path_cache,
                                 ),
                             )
 
