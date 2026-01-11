@@ -513,7 +513,7 @@ def export_graph(
 
 @memory.command("migrate-v2")
 @click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
-@click.option("--threshold", "-t", type=float, default=0.3, help="Crossref similarity threshold")
+@click.option("--threshold", "-T", type=float, default=0.3, help="Crossref similarity threshold")
 @click.option("--max-links", "-n", type=int, default=5, help="Max crossrefs per memory")
 @click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
 @click.pass_context

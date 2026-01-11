@@ -42,8 +42,10 @@ def workflows() -> None:
 
 
 @workflows.command("list")
-@click.option("--all", "show_all", is_flag=True, help="Show all workflows including step-based")
-@click.option("--global", "global_only", is_flag=True, help="Show only global workflows")
+@click.option(
+    "--all", "-a", "show_all", is_flag=True, help="Show all workflows including step-based"
+)
+@click.option("--global", "-g", "global_only", is_flag=True, help="Show only global workflows")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 @click.pass_context
 def list_workflows(
@@ -585,7 +587,7 @@ def mark_artifact(
 @workflows.command("import")
 @click.argument("source")
 @click.option("--name", "-n", help="Override workflow name")
-@click.option("--global", "is_global", is_flag=True, help="Install to global directory")
+@click.option("--global", "-g", "is_global", is_flag=True, help="Install to global directory")
 @click.pass_context
 def import_workflow(ctx: click.Context, source: str, name: str | None, is_global: bool) -> None:
     """Import a workflow from a file or URL."""

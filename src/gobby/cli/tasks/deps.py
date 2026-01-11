@@ -23,6 +23,7 @@ DependencyType = Literal["blocks", "related", "discovered-from"]
 @click.argument("blocker_id", metavar="BLOCKER")
 @click.option(
     "--type",
+    "-t",
     "dep_type",
     default="blocks",
     help="Dependency type (blocks, related, discovered-from)",

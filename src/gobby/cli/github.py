@@ -145,9 +145,10 @@ def github_unlink() -> None:
 
 @github.command("import")
 @click.argument("repo", required=False)
-@click.option("--labels", help="Comma-separated labels to filter issues")
+@click.option("--labels", "-l", help="Comma-separated labels to filter issues")
 @click.option(
     "--state",
+    "-s",
     type=click.Choice(["open", "closed", "all"]),
     default="open",
     help="Issue state filter",
@@ -222,9 +223,9 @@ def github_sync(task_id: str, json_format: bool) -> None:
 
 @github.command("pr")
 @click.argument("task_id")
-@click.option("--head", "head_branch", required=True, help="Branch with changes")
-@click.option("--base", "base_branch", default="main", help="Branch to merge into")
-@click.option("--draft", is_flag=True, help="Create as draft PR")
+@click.option("--head", "-h", "head_branch", required=True, help="Branch with changes")
+@click.option("--base", "-b", "base_branch", default="main", help="Branch to merge into")
+@click.option("--draft", "-d", is_flag=True, help="Create as draft PR")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def github_pr(
     task_id: str,

@@ -88,8 +88,8 @@ def list_commits(task_id: str) -> None:
 
 
 @commit_cmd.command("auto")
-@click.option("--task", "task_id", default=None, help="Filter to specific task ID")
-@click.option("--since", default=None, help="Git --since parameter (e.g., '1 week ago')")
+@click.option("--task", "-t", "task_id", default=None, help="Filter to specific task ID")
+@click.option("--since", "-s", default=None, help="Git --since parameter (e.g., '1 week ago')")
 def auto_link(task_id: str | None, since: str | None) -> None:
     """Auto-link commits that mention task IDs.
 
@@ -128,7 +128,7 @@ def auto_link(task_id: str | None, since: str | None) -> None:
 
 @click.command("diff")
 @click.argument("task_id", metavar="TASK")
-@click.option("--uncommitted", is_flag=True, help="Include uncommitted changes")
+@click.option("--uncommitted", "-u", is_flag=True, help="Include uncommitted changes")
 @click.option("--stats", is_flag=True, help="Show stats only (no diff content)")
 def diff_cmd(task_id: str, uncommitted: bool, stats: bool) -> None:
     """Show diff for all commits linked to a task.

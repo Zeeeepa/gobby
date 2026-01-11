@@ -181,7 +181,7 @@ def show_worktree(worktree_id: str, json_format: bool) -> None:
 
 @worktrees.command("delete")
 @click.argument("worktree_id")
-@click.option("--force", is_flag=True, help="Force delete even if active")
+@click.option("--force", "-f", is_flag=True, help="Force delete even if active")
 @click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
 def delete_worktree(worktree_id: str, force: bool, yes: bool) -> None:
     """Delete a worktree."""

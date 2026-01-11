@@ -166,7 +166,7 @@ def show_session(session_id: str, json_format: bool) -> None:
 @click.argument("session_id")
 @click.option("--limit", "-n", default=50, help="Max messages to show")
 @click.option("--role", "-r", help="Filter by role (user, assistant, tool)")
-@click.option("--offset", default=0, help="Skip first N messages")
+@click.option("--offset", "-o", default=0, help="Skip first N messages")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def show_messages(
     session_id: str,
@@ -342,7 +342,7 @@ def session_stats(project_ref: str | None) -> None:
 
 @sessions.command("create-handoff")
 @click.option("--session-id", "-s", help="Session ID (defaults to current active session)")
-@click.option("--compact", is_flag=True, default=False, help="Generate compact summary only")
+@click.option("--compact", "-c", is_flag=True, default=False, help="Generate compact summary only")
 @click.option(
     "--full", "full_summary", is_flag=True, default=False, help="Generate full LLM summary only"
 )

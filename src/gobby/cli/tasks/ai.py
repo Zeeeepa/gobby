@@ -14,11 +14,17 @@ from gobby.utils.project_context import get_project_context
 
 @click.command("validate")
 @click.argument("task_id", metavar="TASK")
-@click.option("--summary", default=None, help="Changes summary text (required for leaf tasks)")
 @click.option(
-    "--file", "summary_file", type=click.Path(exists=True), help="File containing changes summary"
+    "--summary", "-s", default=None, help="Changes summary text (required for leaf tasks)"
 )
-@click.option("--max-iterations", type=int, default=1, help="Max validation retry attempts")
+@click.option(
+    "--file",
+    "-f",
+    "summary_file",
+    type=click.Path(exists=True),
+    help="File containing changes summary",
+)
+@click.option("--max-iterations", "-i", type=int, default=1, help="Max validation retry attempts")
 @click.option("--external", is_flag=True, help="Use external validator agent")
 @click.option("--skip-build", is_flag=True, help="Skip build verification before validation")
 @click.option("--history", is_flag=True, help="Show validation history instead of validating")
@@ -643,11 +649,11 @@ def _analyze_task_complexity(manager: LocalTaskManager, task: Task) -> dict[str,
 
 
 @click.command("expand-all")
-@click.option("--max", "max_tasks", default=5, help="Maximum tasks to expand")
+@click.option("--max", "-m", "max_tasks", default=5, help="Maximum tasks to expand")
 @click.option("--min-complexity", default=1, help="Only expand tasks with complexity >= this")
 @click.option("--type", "task_type", help="Filter by task type")
 @click.option("--web-research/--no-web-research", default=False, help="Enable web research")
-@click.option("--dry-run", is_flag=True, help="Show what would be expanded without doing it")
+@click.option("--dry-run", "-d", is_flag=True, help="Show what would be expanded without doing it")
 def expand_all_cmd(
     max_tasks: int,
     min_complexity: int,
@@ -870,7 +876,7 @@ def import_spec_cmd(file: str, spec_type: str, parent_task_id: str | None) -> No
 
 
 @click.command("suggest")
-@click.option("--type", "task_type", help="Filter by task type")
+@click.option("--type", "-t", "task_type", help="Filter by task type")
 @click.option("--no-prefer-subtasks", is_flag=True, help="Don't prefer leaf tasks over parents")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def suggest_cmd(task_type: str | None, no_prefer_subtasks: bool, json_format: bool) -> None:

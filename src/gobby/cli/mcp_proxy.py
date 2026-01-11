@@ -251,8 +251,8 @@ def call_tool(
 @click.option("--transport", "-t", required=True, type=click.Choice(["http", "stdio", "websocket"]))
 @click.option("--url", "-u", help="Server URL (for http/websocket)")
 @click.option("--command", "-c", help="Command to run (for stdio)")
-@click.option("--args", "cmd_args", help="Command arguments as JSON array (for stdio)")
-@click.option("--env", help="Environment variables as JSON object")
+@click.option("--args", "-A", "cmd_args", help="Command arguments as JSON array (for stdio)")
+@click.option("--env", "-e", help="Environment variables as JSON object")
 @click.option("--headers", help="HTTP headers as JSON object")
 @click.option("--disabled", is_flag=True, help="Add server as disabled")
 @click.pass_context
@@ -436,7 +436,7 @@ def recommend_tools(
 @click.argument("query")
 @click.option("--top-k", "-k", type=int, default=10, help="Max results to return")
 @click.option("--min-similarity", "-s", type=float, default=0.0, help="Min similarity threshold")
-@click.option("--server", help="Filter by server name")
+@click.option("--server", "-S", help="Filter by server name")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 @click.pass_context
 def search_tools(

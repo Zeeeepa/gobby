@@ -62,6 +62,7 @@ def agents() -> None:
 @click.option("--max-turns", default=10, help="Maximum turns")
 @click.option(
     "--context",
+    "-c",
     "session_context",
     default="summary_markdown",
     help="Context source (summary_markdown, compact_markdown, transcript:<n>, file:<path>)",
@@ -417,7 +418,7 @@ def agent_stats(session_id: str | None) -> None:
 
 @agents.command("cleanup")
 @click.option("--timeout", "-t", default=30, help="Timeout in minutes for stale runs")
-@click.option("--dry-run", is_flag=True, help="Show what would be cleaned up")
+@click.option("--dry-run", "-d", is_flag=True, help="Show what would be cleaned up")
 def cleanup_agents(timeout: int, dry_run: bool) -> None:
     """Clean up stale agent runs."""
     manager = get_agent_run_manager()

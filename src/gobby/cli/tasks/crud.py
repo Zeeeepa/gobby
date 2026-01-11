@@ -24,6 +24,7 @@ from gobby.utils.project_context import get_project_context
 @click.command("list")
 @click.option(
     "--status",
+    "-s",
     help="Filter by status (open, in_progress, closed, blocked). Comma-separated for multiple.",
 )
 @click.option(
@@ -32,14 +33,14 @@ from gobby.utils.project_context import get_project_context
     help="Shorthand for --status open,in_progress (all active work)",
 )
 @click.option("--project", "-p", "project_ref", help="Filter by project (name or UUID)")
-@click.option("--assignee", help="Filter by assignee")
+@click.option("--assignee", "-a", help="Filter by assignee")
 @click.option(
     "--ready", is_flag=True, help="Show only ready tasks (open/in_progress with no blocking deps)"
 )
 @click.option(
     "--blocked", is_flag=True, help="Show only blocked tasks (open with unresolved blockers)"
 )
-@click.option("--limit", default=50, help="Max tasks to show")
+@click.option("--limit", "-l", default=50, help="Max tasks to show")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def list_tasks(
     status: str | None,
@@ -364,10 +365,10 @@ def show_task(task_id: str) -> None:
 
 @click.command("update")
 @click.argument("task_id", metavar="TASK")
-@click.option("--title", help="New title")
-@click.option("--status", help="New status")
+@click.option("--title", "-T", help="New title")
+@click.option("--status", "-s", help="New status")
 @click.option("--priority", type=int, help="New priority")
-@click.option("--assignee", help="New assignee")
+@click.option("--assignee", "-a", help="New assignee")
 @click.option("--parent", "parent_task_id", help="Parent task (#N, path, or UUID)")
 def update_task(
     task_id: str,
@@ -414,7 +415,7 @@ def update_task(
 
 @click.command("close")
 @click.argument("task_id", metavar="TASK")
-@click.option("--reason", default="completed", help="Reason for closing")
+@click.option("--reason", "-r", default="completed", help="Reason for closing")
 @click.option("--skip-validation", is_flag=True, help="Skip validation checks")
 @click.option("--force", "-f", is_flag=True, help="Alias for --skip-validation")
 def close_task_cmd(task_id: str, reason: str, skip_validation: bool, force: bool) -> None:
@@ -480,7 +481,7 @@ def reopen_task_cmd(task_id: str, reason: str | None) -> None:
 
 @click.command("delete")
 @click.argument("task_id", metavar="TASK")
-@click.option("--cascade", is_flag=True, help="Delete child tasks")
+@click.option("--cascade", "-c", is_flag=True, help="Delete child tasks")
 @click.confirmation_option(prompt="Are you sure you want to delete this task?")
 def delete_task(task_id: str, cascade: bool) -> None:
     """Delete a task.

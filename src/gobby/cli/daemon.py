@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 @click.command()
 @click.option(
     "--verbose",
+    "-v",
     is_flag=True,
     help="Enable verbose debug output",
 )
@@ -202,6 +203,7 @@ def stop(ctx: click.Context) -> None:
 @click.command()
 @click.option(
     "--verbose",
+    "-v",
     is_flag=True,
     help="Enable verbose debug output",
 )
