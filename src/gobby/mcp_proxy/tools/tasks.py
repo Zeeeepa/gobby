@@ -39,6 +39,7 @@ from gobby.storage.session_tasks import SessionTaskManager
 from gobby.storage.task_dependencies import TaskDependencyManager
 from gobby.storage.tasks import (
     LocalTaskManager,
+    TaskNotFoundError,
 )
 from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.sync.tasks import TaskSyncManager
@@ -52,7 +53,7 @@ from gobby.utils.project_init import initialize_project
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.state_manager import WorkflowStateManager
 
-__all__ = ["create_task_registry"]
+__all__ = ["create_task_registry", "resolve_task_id_for_mcp"]
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
@@ -107,6 +108,63 @@ def _infer_test_strategy(title: str, description: str | None) -> str | None:
         if pattern in text:
             return "manual"
     return None
+
+
+def _is_path_format(ref: str) -> bool:
+    """Check if a reference is in path format (e.g., 1.2.3)."""
+    if "." not in ref:
+        return False
+    parts = ref.split(".")
+    return all(part.isdigit() for part in parts)
+
+
+def resolve_task_id_for_mcp(
+    task_manager: LocalTaskManager,
+    task_id: str,
+    project_id: str | None = None,
+) -> str:
+    """Resolve a task reference to its UUID for MCP tools.
+
+    Supports multiple reference formats:
+      - #N: Project-scoped seq_num (e.g., #1, #47) - requires project_id
+      - 1.2.3: Path cache format - requires project_id
+      - UUID: Direct UUID lookup (validated to exist)
+
+    Args:
+        task_manager: The task manager
+        task_id: Task reference in any supported format
+        project_id: Project ID for scoped lookups (#N and path formats).
+                   If not provided, will try to get from project context.
+
+    Returns:
+        The resolved task UUID
+
+    Raises:
+        TaskNotFoundError: If the reference cannot be resolved
+        ValueError: If the format is invalid or deprecated (gt-*)
+    """
+    # Get project_id from context if not provided
+    if project_id is None:
+        ctx = get_project_context()
+        project_id = ctx.get("id") if ctx else None
+
+    # Check for #N format or path format (requires project_id)
+    if project_id and (task_id.startswith("#") or _is_path_format(task_id)):
+        return task_manager.resolve_task_reference(task_id, project_id)
+
+    # Check for deprecated gt-* format
+    if task_id.startswith("gt-"):
+        raise ValueError(
+            f"The 'gt-*' task ID format is deprecated. "
+            f"Use '#N' format instead (e.g., #1, #47). "
+            f"Got: {task_id}"
+        )
+
+    # UUID format: validate it exists by trying to get it
+    task = task_manager.get_task(task_id)
+    if task is None:
+        raise TaskNotFoundError(f"Task with UUID '{task_id}' not found")
+    return task_id
 
 
 def create_task_registry(
@@ -460,15 +518,23 @@ def create_task_registry(
 
     def get_task(task_id: str) -> dict[str, Any]:
         """Get task details including dependencies."""
-        task = task_manager.get_task(task_id)
+        # Resolve task reference (supports #N, path, UUID formats)
+        try:
+            resolved_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except TaskNotFoundError as e:
+            return {"error": str(e), "found": False}
+        except ValueError as e:
+            return {"error": str(e), "found": False}
+
+        task = task_manager.get_task(resolved_id)
         if not task:
             return {"error": f"Task {task_id} not found", "found": False}
 
         result: dict[str, Any] = task.to_dict()
 
         # Enrich with dependency info
-        blockers = dep_manager.get_blockers(task_id)
-        blocking = dep_manager.get_blocking(task_id)
+        blockers = dep_manager.get_blockers(resolved_id)
+        blocking = dep_manager.get_blocking(resolved_id)
 
         result["dependencies"] = {
             "blocked_by": [b.to_dict() for b in blockers],
@@ -479,11 +545,11 @@ def create_task_registry(
 
     registry.register(
         name="get_task",
-        description="Get task details including dependencies.",
+        description="Get task details including dependencies. Task ID can be #N (e.g., #1), path (e.g., 1.2.3), or UUID.",
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "The ID of the task to retrieve"},
+                "task_id": {"type": "string", "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
             },
             "required": ["task_id"],
         },
@@ -506,6 +572,14 @@ def create_task_registry(
         sequence_order: int | None = None,
     ) -> dict[str, Any]:
         """Update task fields."""
+        # Resolve task reference (supports #N, path, UUID formats)
+        try:
+            resolved_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except TaskNotFoundError as e:
+            return {"error": str(e)}
+        except ValueError as e:
+            return {"error": str(e)}
+
         # Build kwargs only for non-None values to avoid overwriting with NULL
         kwargs: dict[str, Any] = {}
         if title is not None:
@@ -524,7 +598,15 @@ def create_task_registry(
             kwargs["validation_criteria"] = validation_criteria
         if parent_task_id is not None:
             # Empty string means "clear parent" - convert to None for storage layer
-            kwargs["parent_task_id"] = parent_task_id if parent_task_id else None
+            # Also resolve parent_task_id if it's a reference format
+            if parent_task_id:
+                try:
+                    resolved_parent = resolve_task_id_for_mcp(task_manager, parent_task_id)
+                    kwargs["parent_task_id"] = resolved_parent
+                except (TaskNotFoundError, ValueError):
+                    kwargs["parent_task_id"] = parent_task_id  # Fall back to original
+            else:
+                kwargs["parent_task_id"] = None
         if test_strategy is not None:
             kwargs["test_strategy"] = test_strategy
         if workflow_name is not None:
@@ -534,7 +616,7 @@ def create_task_registry(
         if sequence_order is not None:
             kwargs["sequence_order"] = sequence_order
 
-        task = task_manager.update_task(task_id, **kwargs)
+        task = task_manager.update_task(resolved_id, **kwargs)
         if not task:
             return {"error": f"Task {task_id} not found"}
         return task.to_brief()
@@ -545,7 +627,7 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task ID"},
+                "task_id": {"type": "string", "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
                 "title": {"type": "string", "description": "New title", "default": None},
                 "description": {
                     "type": "string",
@@ -604,7 +686,11 @@ def create_task_registry(
 
     def add_label(task_id: str, label: str) -> dict[str, Any]:
         """Add a label to a task."""
-        task = task_manager.add_label(task_id, label)
+        try:
+            resolved_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": str(e)}
+        task = task_manager.add_label(resolved_id, label)
         if not task:
             return {"error": f"Task {task_id} not found"}
         result: dict[str, Any] = task.to_dict()
@@ -616,7 +702,7 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task ID"},
+                "task_id": {"type": "string", "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
                 "label": {"type": "string", "description": "Label to add"},
             },
             "required": ["task_id", "label"],
@@ -626,7 +712,11 @@ def create_task_registry(
 
     def remove_label(task_id: str, label: str) -> dict[str, Any]:
         """Remove a label from a task."""
-        task = task_manager.remove_label(task_id, label)
+        try:
+            resolved_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": str(e)}
+        task = task_manager.remove_label(resolved_id, label)
         if not task:
             return {"error": f"Task {task_id} not found"}
         result: dict[str, Any] = task.to_dict()
@@ -638,7 +728,7 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task ID"},
+                "task_id": {"type": "string", "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
                 "label": {"type": "string", "description": "Label to remove"},
             },
             "required": ["task_id", "label"],
@@ -662,7 +752,7 @@ def create_task_registry(
         For leaf tasks: optionally validates with LLM if changes_summary provided.
 
         Args:
-            task_id: Task ID to close
+            task_id: Task reference (#N, path, or UUID)
             reason: Reason for closing
             changes_summary: Summary of changes (enables LLM validation for leaf tasks)
             skip_validation: Skip all validation checks
@@ -676,13 +766,21 @@ def create_task_registry(
         Returns:
             Closed task or error with validation feedback
         """
-        task = task_manager.get_task(task_id)
+        # Resolve task reference (supports #N, path, UUID formats)
+        try:
+            resolved_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except TaskNotFoundError as e:
+            return {"error": str(e)}
+        except ValueError as e:
+            return {"error": str(e)}
+
+        task = task_manager.get_task(resolved_id)
         if not task:
             return {"error": f"Task {task_id} not found"}
 
         # Link commit if provided (convenience for link + close in one call)
         if commit_sha:
-            task = task_manager.link_commit(task_id, commit_sha)
+            task = task_manager.link_commit(resolved_id, commit_sha)
 
         # Get project repo_path for git commands
         repo_path = get_project_repo_path(task.project_id)
@@ -716,7 +814,7 @@ def create_task_registry(
 
         if not should_skip:
             # Check if task has children (is a parent task)
-            children = task_manager.list_tasks(parent_task_id=task_id, limit=1000)
+            children = task_manager.list_tasks(parent_task_id=resolved_id, limit=1000)
 
             if children:
                 # Parent task: must have all children closed
@@ -796,7 +894,7 @@ def create_task_registry(
                         f"Skipping LLM validation for task {task.id}: doc-only changes"
                     )
                     task_manager.update_task(
-                        task_id,
+                        resolved_id,
                         validation_status="valid",
                         validation_feedback="Auto-validated: documentation-only changes",
                     )
@@ -811,7 +909,7 @@ def create_task_registry(
                     )
                     # Store validation result regardless of pass/fail
                     task_manager.update_task(
-                        task_id,
+                        resolved_id,
                         validation_status=result.status,
                         validation_feedback=result.feedback,
                     )
@@ -862,7 +960,7 @@ def create_task_registry(
         # Store override reason if validation was skipped or no commit was needed
         store_override = should_skip or no_commit_needed
         closed_task = task_manager.close_task(
-            task_id,
+            resolved_id,
             reason=reason,
             closed_in_session_id=session_id,
             closed_commit_sha=commit_sha,
@@ -872,7 +970,7 @@ def create_task_registry(
         # Auto-link session if provided
         if session_id:
             try:
-                session_task_manager.link_task(session_id, task_id, "closed")
+                session_task_manager.link_task(session_id, resolved_id, "closed")
             except Exception:
                 pass  # Best-effort linking, don't fail the close
 
@@ -880,7 +978,7 @@ def create_task_registry(
         try:
             reason_normalized = reason.lower()
             worktree_manager = LocalWorktreeManager(task_manager.db)
-            wt = worktree_manager.get_by_task(task_id)
+            wt = worktree_manager.get_by_task(resolved_id)
             if wt:
                 if reason_normalized in (
                     "wont_fix",
@@ -906,7 +1004,7 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task ID"},
+                "task_id": {"type": "string", "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
                 "reason": {
                     "type": "string",
                     "description": 'Reason for closing. Use "duplicate", "already_implemented", "wont_fix", or "obsolete" to auto-skip validation and commit check.',
@@ -964,21 +1062,26 @@ def create_task_registry(
         """Reopen a closed task.
 
         Args:
-            task_id: Task ID to reopen
+            task_id: Task reference (#N, path, or UUID)
             reason: Optional reason for reopening
 
         Returns:
             Reopened task or error
         """
         try:
-            task = task_manager.reopen_task(task_id, reason=reason)
+            resolved_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": str(e)}
+
+        try:
+            task = task_manager.reopen_task(resolved_id, reason=reason)
 
             # Reactivate any associated worktrees that were marked merged/abandoned
             try:
                 from gobby.storage.worktrees import WorktreeStatus
 
                 worktree_manager = LocalWorktreeManager(task_manager.db)
-                wt = worktree_manager.get_by_task(task_id)
+                wt = worktree_manager.get_by_task(resolved_id)
                 if wt and wt.status in (
                     WorktreeStatus.MERGED.value,
                     WorktreeStatus.ABANDONED.value,
@@ -997,7 +1100,7 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task ID to reopen"},
+                "task_id": {"type": "string", "description": "Task reference to reopen: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
                 "reason": {
                     "type": "string",
                     "description": "Optional reason for reopening the task",
@@ -1011,13 +1114,18 @@ def create_task_registry(
 
     def delete_task(task_id: str, cascade: bool = True) -> dict[str, Any]:
         """Delete a task and its children by default."""
-        deleted = task_manager.delete_task(task_id, cascade=cascade)
+        try:
+            resolved_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"success": False, "error": str(e)}
+
+        deleted = task_manager.delete_task(resolved_id, cascade=cascade)
         if not deleted:
             return {"success": False, "error": f"Task {task_id} not found"}
 
         return {
             "success": True,
-            "deleted_task_id": task_id,
+            "deleted_task_id": resolved_id,
         }
 
     registry.register(
@@ -1026,7 +1134,7 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task ID"},
+                "task_id": {"type": "string", "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
                 "cascade": {
                     "type": "boolean",
                     "description": "If True, delete all child tasks as well. Defaults to True.",
@@ -1139,8 +1247,13 @@ def create_task_registry(
             return {"error": "session_id is required"}
 
         try:
-            session_task_manager.link_task(session_id, task_id, action)
-            return {"linked": True, "task_id": task_id, "session_id": session_id, "action": action}
+            resolved_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": str(e)}
+
+        try:
+            session_task_manager.link_task(session_id, resolved_id, action)
+            return {"linked": True, "task_id": resolved_id, "session_id": session_id, "action": action}
         except ValueError as e:
             return {"error": str(e)}
 
@@ -1150,7 +1263,7 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task ID"},
+                "task_id": {"type": "string", "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
                 "session_id": {
                     "type": "string",
                     "description": "Session ID (optional, defaults to linking context if available)",
@@ -1187,8 +1300,12 @@ def create_task_registry(
 
     def get_task_sessions(task_id: str) -> dict[str, Any]:
         """Get all sessions that touched a task."""
-        sessions = session_task_manager.get_task_sessions(task_id)
-        return {"task_id": task_id, "sessions": sessions}
+        try:
+            resolved_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": str(e)}
+        sessions = session_task_manager.get_task_sessions(resolved_id)
+        return {"task_id": resolved_id, "sessions": sessions}
 
     registry.register(
         name="get_task_sessions",
@@ -1196,7 +1313,7 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task ID"},
+                "task_id": {"type": "string", "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
             },
             "required": ["task_id"],
         },
