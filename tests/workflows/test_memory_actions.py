@@ -12,6 +12,7 @@ from gobby.workflows.memory_actions import (
     memory_save,
     memory_sync_export,
     memory_sync_import,
+    reset_memory_injection_tracking,
 )
 from gobby.workflows.templates import TemplateEngine
 
@@ -1414,3 +1415,285 @@ class TestMemoryRecallRelevantEdgeCases:
         # Verify recall was called with None project_id
         call_kwargs = mock_memory_manager.recall.call_args[1]
         assert call_kwargs["project_id"] is None
+
+
+# =============================================================================
+# MEMORY DEDUPLICATION TESTS
+# =============================================================================
+
+
+class TestMemoryDeduplication:
+    """Tests for memory injection deduplication per session."""
+
+    @pytest.mark.asyncio
+    async def test_memory_recall_tracks_injected_ids_in_state(self):
+        """Test that memory_recall_relevant tracks injected memory IDs in state."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+
+        m1 = MagicMock()
+        m1.id = "mem-001"
+        m1.memory_type = "fact"
+        m1.content = "Test memory 1"
+        m2 = MagicMock()
+        m2.id = "mem-002"
+        m2.memory_type = "fact"
+        m2.content = "Test memory 2"
+        mock_memory_manager.recall.return_value = [m1, m2]
+
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+        )
+
+        result = await memory_recall_relevant(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            prompt_text="a longer prompt text here",
+            project_id="proj-123",
+            state=state,
+        )
+
+        assert result is not None
+        assert result["injected"] is True
+        assert result["count"] == 2
+
+        # Verify IDs were tracked in state
+        assert "_injected_memory_ids" in state.variables
+        assert set(state.variables["_injected_memory_ids"]) == {"mem-001", "mem-002"}
+
+    @pytest.mark.asyncio
+    async def test_memory_recall_deduplicates_on_second_call(self):
+        """Test that second call with same memories returns empty."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+
+        m1 = MagicMock()
+        m1.id = "mem-001"
+        m1.memory_type = "fact"
+        m1.content = "Test memory"
+        mock_memory_manager.recall.return_value = [m1]
+
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+        )
+
+        # First call
+        result1 = await memory_recall_relevant(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            prompt_text="first prompt text here",
+            project_id="proj-123",
+            state=state,
+        )
+
+        assert result1 is not None
+        assert result1["injected"] is True
+        assert result1["count"] == 1
+
+        # Second call with same memory
+        result2 = await memory_recall_relevant(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            prompt_text="second prompt text here",
+            project_id="proj-123",
+            state=state,
+        )
+
+        assert result2 is not None
+        assert result2["injected"] is False
+        assert result2["count"] == 0
+        assert result2.get("skipped") == 1
+
+    @pytest.mark.asyncio
+    async def test_memory_recall_allows_new_memories_after_first_call(self):
+        """Test that new memories are still injected on subsequent calls."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+
+        m1 = MagicMock()
+        m1.id = "mem-001"
+        m1.memory_type = "fact"
+        m1.content = "Test memory 1"
+
+        m2 = MagicMock()
+        m2.id = "mem-002"
+        m2.memory_type = "fact"
+        m2.content = "Test memory 2"
+
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+        )
+
+        # First call - returns m1
+        mock_memory_manager.recall.return_value = [m1]
+        result1 = await memory_recall_relevant(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            prompt_text="first prompt text here",
+            project_id="proj-123",
+            state=state,
+        )
+
+        assert result1["count"] == 1
+
+        # Second call - returns m1 and m2, but only m2 is new
+        mock_memory_manager.recall.return_value = [m1, m2]
+        result2 = await memory_recall_relevant(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            prompt_text="second prompt text here",
+            project_id="proj-123",
+            state=state,
+        )
+
+        assert result2 is not None
+        assert result2["injected"] is True
+        assert result2["count"] == 1  # Only m2 is new
+
+        # Verify both IDs are now tracked
+        assert set(state.variables["_injected_memory_ids"]) == {"mem-001", "mem-002"}
+
+    @pytest.mark.asyncio
+    async def test_memory_recall_works_without_state(self):
+        """Test that memory_recall_relevant works when state is None (no dedup)."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+
+        m1 = MagicMock()
+        m1.id = "mem-001"
+        m1.memory_type = "fact"
+        m1.content = "Test memory"
+        mock_memory_manager.recall.return_value = [m1]
+
+        # Call without state - should work without deduplication
+        result = await memory_recall_relevant(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            prompt_text="prompt text here for test",
+            project_id="proj-123",
+            state=None,
+        )
+
+        assert result is not None
+        assert result["injected"] is True
+        assert result["count"] == 1
+
+
+class TestResetMemoryInjectionTracking:
+    """Tests for reset_memory_injection_tracking function."""
+
+    def test_reset_clears_injected_ids(self):
+        """Test that reset clears the injected memory IDs."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+        )
+        state.variables = {"_injected_memory_ids": ["mem-001", "mem-002", "mem-003"]}
+
+        result = reset_memory_injection_tracking(state=state)
+
+        assert result["success"] is True
+        assert result["cleared"] == 3
+        assert state.variables["_injected_memory_ids"] == []
+
+    def test_reset_returns_zero_when_no_ids(self):
+        """Test that reset returns 0 cleared when no IDs exist."""
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+        )
+        state.variables = {}
+
+        result = reset_memory_injection_tracking(state=state)
+
+        assert result["success"] is True
+        assert result["cleared"] == 0
+
+    def test_reset_handles_none_state(self):
+        """Test that reset handles None state gracefully."""
+        result = reset_memory_injection_tracking(state=None)
+
+        assert result["success"] is False
+        assert result["cleared"] == 0
+        assert result["reason"] == "no_state"
+
+    def test_reset_handles_state_without_variables(self):
+        """Test that reset handles state without variables attribute."""
+        state = MagicMock()
+        state.variables = None
+
+        result = reset_memory_injection_tracking(state=state)
+
+        assert result["success"] is True
+        assert result["cleared"] == 0
+
+    @pytest.mark.asyncio
+    async def test_reset_allows_reinjection(self):
+        """Test that after reset, memories can be injected again."""
+        mock_memory_manager = MagicMock()
+        mock_memory_manager.config.enabled = True
+
+        m1 = MagicMock()
+        m1.id = "mem-001"
+        m1.memory_type = "fact"
+        m1.content = "Test memory"
+        mock_memory_manager.recall.return_value = [m1]
+
+        state = WorkflowState(
+            session_id="test-session",
+            workflow_name="test-workflow",
+            step="test-step",
+        )
+
+        # First call - memory is injected
+        result1 = await memory_recall_relevant(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            prompt_text="first prompt text here",
+            project_id="proj-123",
+            state=state,
+        )
+        assert result1["count"] == 1
+
+        # Second call - memory is deduplicated
+        result2 = await memory_recall_relevant(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            prompt_text="second prompt text here",
+            project_id="proj-123",
+            state=state,
+        )
+        assert result2["count"] == 0
+        assert result2.get("skipped") == 1
+
+        # Reset tracking
+        reset_result = reset_memory_injection_tracking(state=state)
+        assert reset_result["cleared"] == 1
+
+        # Third call - memory is injected again
+        result3 = await memory_recall_relevant(
+            memory_manager=mock_memory_manager,
+            session_manager=MagicMock(),
+            session_id="test-session",
+            prompt_text="third prompt text here",
+            project_id="proj-123",
+            state=state,
+        )
+        assert result3["count"] == 1
+        assert result3["injected"] is True
