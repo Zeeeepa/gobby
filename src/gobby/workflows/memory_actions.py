@@ -362,3 +362,34 @@ async def memory_recall_relevant(
     except Exception as e:
         logger.error(f"memory_recall_relevant: Failed: {e}", exc_info=True)
         return {"error": str(e)}
+
+
+def reset_memory_injection_tracking(state: Any | None = None) -> dict[str, Any]:
+    """Reset the memory injection tracking, allowing previously injected memories to be recalled again.
+
+    This should be called on pre_compact hook or /clear command so memories can be
+    re-injected after context loss.
+
+    Args:
+        state: WorkflowState containing the injection tracking in variables
+
+    Returns:
+        Dict with cleared count and success status
+    """
+    if state is None:
+        logger.debug("reset_memory_injection_tracking: No state provided")
+        return {"success": False, "cleared": 0, "reason": "no_state"}
+
+    variables = getattr(state, "variables", None)
+    if variables is None:
+        logger.debug("reset_memory_injection_tracking: No variables in state")
+        return {"success": True, "cleared": 0}
+
+    injected_ids = variables.get("_injected_memory_ids", [])
+    cleared_count = len(injected_ids)
+
+    if cleared_count > 0:
+        variables["_injected_memory_ids"] = []
+        logger.info(f"reset_memory_injection_tracking: Cleared {cleared_count} injected memory IDs")
+
+    return {"success": True, "cleared": cleared_count}
