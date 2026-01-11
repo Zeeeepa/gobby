@@ -19,6 +19,7 @@ import json
 import click
 import httpx
 
+from gobby.cli.utils import resolve_project_ref
 from gobby.storage.database import LocalDatabase
 from gobby.storage.worktrees import LocalWorktreeManager
 
@@ -106,14 +107,15 @@ def create_worktree(
 
 @worktrees.command("list")
 @click.option("--status", "-s", help="Filter by status (active, stale, merged, abandoned)")
-@click.option("--project", "-p", "project_id", help="Filter by project ID")
+@click.option("--project", "-p", "project_ref", help="Filter by project (name or UUID)")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def list_worktrees(
     status: str | None,
-    project_id: str | None,
+    project_ref: str | None,
     json_format: bool,
 ) -> None:
     """List worktrees."""
+    project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_worktree_manager()
 
     worktrees_list = manager.list_worktrees(status=status, project_id=project_id)

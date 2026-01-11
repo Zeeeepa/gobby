@@ -34,7 +34,18 @@ class LocalSessionMessageManager:
             return 0
 
         def _store_blocking() -> int:
-            """Blocking DB insert operations to run in thread."""
+            # Check if session exists to avoid FOREIGN KEY constraint errors
+            # This can happen when sessions are created in hub-only mode but
+            # message processor is using the project database
+            session_exists = self.db.fetchone(
+                "SELECT 1 FROM sessions WHERE id = ?", (session_id,)
+            )
+            if not session_exists:
+                logger.debug(
+                    f"Session {session_id} not found in database, skipping message storage"
+                )
+                return 0
+
             count = 0
             for msg in messages:
                 # Convert dicts to JSON strings for storage

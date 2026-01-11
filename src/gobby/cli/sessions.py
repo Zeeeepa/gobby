@@ -8,6 +8,7 @@ from typing import Any
 
 import click
 
+from gobby.cli.utils import resolve_project_ref
 from gobby.storage.database import LocalDatabase
 from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager
@@ -55,19 +56,20 @@ def sessions() -> None:
 
 
 @sessions.command("list")
-@click.option("--project", "-p", "project_id", help="Filter by project ID")
+@click.option("--project", "-p", "project_ref", help="Filter by project (name or UUID)")
 @click.option("--status", "-s", help="Filter by status (active, completed, handoff_ready)")
 @click.option("--source", help="Filter by source (claude_code, gemini, codex)")
 @click.option("--limit", "-n", default=20, help="Max sessions to show")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def list_sessions(
-    project_id: str | None,
+    project_ref: str | None,
     status: str | None,
     source: str | None,
     limit: int,
     json_format: bool,
 ) -> None:
     """List sessions with optional filtering."""
+    project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_session_manager()
     sessions_list = manager.list(
         project_id=project_id,
@@ -228,17 +230,18 @@ def show_messages(
 @sessions.command("search")
 @click.argument("query")
 @click.option("--session", "-s", "session_id", help="Search within specific session")
-@click.option("--project", "-p", "project_id", help="Search within project")
+@click.option("--project", "-p", "project_ref", help="Search within project (name or UUID)")
 @click.option("--limit", "-n", default=20, help="Max results")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def search_messages(
     query: str,
     session_id: str | None,
-    project_id: str | None,
+    project_ref: str | None,
     limit: int,
     json_format: bool,
 ) -> None:
     """Search messages across sessions."""
+    project_id = resolve_project_ref(project_ref) if project_ref else None
     message_manager = get_message_manager()
 
     results = asyncio.run(
@@ -299,9 +302,10 @@ def delete_session(session_id: str) -> None:
 
 
 @sessions.command("stats")
-@click.option("--project", "-p", "project_id", help="Filter by project")
-def session_stats(project_id: str | None) -> None:
+@click.option("--project", "-p", "project_ref", help="Filter by project (name or UUID)")
+def session_stats(project_ref: str | None) -> None:
     """Show session statistics."""
+    project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_session_manager()
     message_manager = get_message_manager()
 

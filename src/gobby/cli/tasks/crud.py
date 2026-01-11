@@ -17,6 +17,7 @@ from gobby.cli.tasks._utils import (
     resolve_task_id,
     sort_tasks_for_tree,
 )
+from gobby.cli.utils import resolve_project_ref
 from gobby.utils.project_context import get_project_context
 
 
@@ -30,6 +31,7 @@ from gobby.utils.project_context import get_project_context
     is_flag=True,
     help="Shorthand for --status open,in_progress (all active work)",
 )
+@click.option("--project", "-p", "project_ref", help="Filter by project (name or UUID)")
 @click.option("--assignee", help="Filter by assignee")
 @click.option(
     "--ready", is_flag=True, help="Show only ready tasks (open/in_progress with no blocking deps)"
@@ -42,6 +44,7 @@ from gobby.utils.project_context import get_project_context
 def list_tasks(
     status: str | None,
     active: bool,
+    project_ref: str | None,
     assignee: str | None,
     ready: bool,
     blocked: bool,
@@ -67,8 +70,7 @@ def list_tasks(
         else:
             status_filter = status
 
-    project_ctx = get_project_context()
-    project_id = project_ctx.get("id") if project_ctx else None
+    project_id = resolve_project_ref(project_ref)
 
     manager = get_task_manager()
 
@@ -137,16 +139,24 @@ def list_tasks(
 
 @click.command("ready")
 @click.option("--limit", "-n", default=10, help="Max results")
-@click.option("--priority", "-p", type=int, help="Filter by priority")
+@click.option("--project", "-p", "project_ref", help="Filter by project (name or UUID)")
+@click.option("--priority", type=int, help="Filter by priority")
 @click.option("--type", "-t", "task_type", help="Filter by type")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 @click.option("--flat", is_flag=True, help="Flat list without tree hierarchy")
 def ready_tasks(
-    limit: int, priority: int | None, task_type: str | None, json_format: bool, flat: bool
+    limit: int,
+    project_ref: str | None,
+    priority: int | None,
+    task_type: str | None,
+    json_format: bool,
+    flat: bool,
 ) -> None:
     """List tasks with no unresolved blocking dependencies."""
+    project_id = resolve_project_ref(project_ref)
     manager = get_task_manager()
     tasks_list = manager.list_ready_tasks(
+        project_id=project_id,
         priority=priority,
         task_type=task_type,
         limit=limit,
@@ -190,14 +200,16 @@ def ready_tasks(
 
 @click.command("blocked")
 @click.option("--limit", "-n", default=20, help="Max results")
+@click.option("--project", "-p", "project_ref", help="Filter by project (name or UUID)")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
-def blocked_tasks(limit: int, json_format: bool) -> None:
+def blocked_tasks(limit: int, project_ref: str | None, json_format: bool) -> None:
     """List blocked tasks with what blocks them."""
     from gobby.storage.task_dependencies import TaskDependencyManager
 
+    project_id = resolve_project_ref(project_ref)
     manager = get_task_manager()
     dep_manager = TaskDependencyManager(manager.db)
-    blocked_list = manager.list_blocked_tasks(limit=limit)
+    blocked_list = manager.list_blocked_tasks(project_id=project_id, limit=limit)
 
     if json_format:
         # Build detailed structure for JSON output
@@ -241,13 +253,15 @@ def blocked_tasks(limit: int, json_format: bool) -> None:
 
 
 @click.command("stats")
+@click.option("--project", "-p", "project_ref", help="Filter by project (name or UUID)")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
-def task_stats(json_format: bool) -> None:
+def task_stats(project_ref: str | None, json_format: bool) -> None:
     """Show task statistics."""
+    project_id = resolve_project_ref(project_ref)
     manager = get_task_manager()
 
     # Get counts by status
-    all_tasks = manager.list_tasks(limit=10000)
+    all_tasks = manager.list_tasks(project_id=project_id, limit=10000)
     total = len(all_tasks)
     by_status = {"open": 0, "in_progress": 0, "closed": 0}
     by_priority = {1: 0, 2: 0, 3: 0}
@@ -261,8 +275,8 @@ def task_stats(json_format: bool) -> None:
             by_type[task.task_type] = by_type.get(task.task_type, 0) + 1
 
     # Get ready and blocked counts
-    ready_count = len(manager.list_ready_tasks(limit=10000))
-    blocked_count = len(manager.list_blocked_tasks(limit=10000))
+    ready_count = len(manager.list_ready_tasks(project_id=project_id, limit=10000))
+    blocked_count = len(manager.list_blocked_tasks(project_id=project_id, limit=10000))
 
     stats = {
         "total": total,

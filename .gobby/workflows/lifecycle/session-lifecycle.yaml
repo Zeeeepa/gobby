@@ -58,12 +58,12 @@ triggers:
     - action: memory_sync_import
 
     # Validation delegation notice - direct ruff/mypy/pytest commands will be blocked
-    #- action: inject_message
-    #  when: "variables.get('validation_model')"
-    #  content: |
-    #    ## Validation Delegation
+    - action: inject_message
+      when: "variables.get('validation_model')"
+      content: |
+        ## Validation Delegation
 
-    #    Direct `ruff`, `mypy`, and `pytest` commands are blocked. Delegate to {{ variables.validation_model }} via `gobby-agents.start_agent(mode="headless")`. The hook will provide the exact command when blocked.
+        Direct `ruff`, `mypy`, and `pytest` commands are blocked. Delegate to {{ variables.validation_model }} via `gobby-agents.start_agent(mode="headless")`. The hook will provide the exact command when blocked.
 
   on_before_agent:
     # Memory recall - inject memories relevant to the user's prompt via semantic search
@@ -81,9 +81,9 @@ triggers:
       when: "not variables.get('plan_mode')"
 
   on_session_end:
-    # Session summary generation
+    # Session summary generation - runs on /clear or /exit
     - action: generate_handoff
-      when: "event.data.get('reason') == 'clear'"
+      when: "event.data.get('reason') in ('clear', 'user_exit', 'exit')"
       include:
         - artifacts
         - pending_tasks

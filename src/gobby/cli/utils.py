@@ -12,8 +12,59 @@ import click
 import psutil
 
 from gobby.config.app import load_config
+from gobby.storage.database import LocalDatabase
+from gobby.storage.projects import LocalProjectManager
+from gobby.utils.project_context import get_project_context
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_project_ref(project_ref: str | None, exit_on_not_found: bool = True) -> str | None:
+    """Resolve a project reference (name or UUID) to project ID.
+
+    Accepts:
+    - Project name (e.g., "gobby")
+    - Project UUID
+    - None (returns current project from context)
+
+    Args:
+        project_ref: Project name, UUID, or None
+        exit_on_not_found: If True (default), exit the CLI when an explicit
+            project_ref is provided but not found
+
+    Returns:
+        Project ID string, or None if not found/no context
+    """
+    if not project_ref:
+        # Use current project context
+        ctx = get_project_context()
+        return ctx.get("id") if ctx else None
+
+    db = LocalDatabase()
+    manager = LocalProjectManager(db)
+
+    # Try as direct UUID first
+    project = manager.get(project_ref)
+    if project:
+        return project.id
+
+    # Try as project name
+    project = manager.get_by_name(project_ref)
+    if project:
+        return project.id
+
+    # Not found
+    click.echo(f"Project not found: {project_ref}", err=True)
+    if exit_on_not_found:
+        raise SystemExit(1)
+    return None
+
+
+def list_project_names() -> list[str]:
+    """List all project names for shell completion."""
+    db = LocalDatabase()
+    manager = LocalProjectManager(db)
+    return [p.name for p in manager.list()]
 
 
 def setup_logging(verbose: bool = False) -> None:

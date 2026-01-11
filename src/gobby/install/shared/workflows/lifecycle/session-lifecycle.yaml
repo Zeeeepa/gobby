@@ -81,9 +81,9 @@ triggers:
       when: "not variables.get('plan_mode')"
 
   on_session_end:
-    # Session summary generation
+    # Session summary generation - runs on /clear or /exit
     - action: generate_handoff
-      when: "event.data.get('reason') == 'clear'"
+      when: "event.data.get('reason') in ('clear', 'user_exit', 'exit')"
       include:
         - artifacts
         - pending_tasks

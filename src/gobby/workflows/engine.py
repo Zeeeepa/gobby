@@ -108,6 +108,14 @@ class WorkflowEngine:
             logger.error(f"Workflow '{state.workflow_name}' not found for session {session_id}")
             return HookResponse(decision="allow")
 
+        # Skip step handling for lifecycle workflows - they only use triggers
+        if workflow.type == "lifecycle":
+            logger.debug(
+                f"Skipping step workflow handling for lifecycle workflow '{workflow.name}' "
+                f"in session {session_id}"
+            )
+            return HookResponse(decision="allow")
+
         # 4. Process event
         # Logic matches WORKFLOWS.md "Evaluation Flow"
 

@@ -2,6 +2,7 @@ import asyncio
 
 import click
 
+from gobby.cli.utils import resolve_project_ref
 from gobby.config.app import DaemonConfig
 from gobby.memory.manager import MemoryManager
 from gobby.storage.database import LocalDatabase
@@ -32,12 +33,13 @@ def memory() -> None:
     "--type", "-t", "memory_type", default="fact", help="Type of memory (fact, preference, etc.)"
 )
 @click.option("--importance", "-i", type=float, default=0.5, help="Importance (0.0 - 1.0)")
-@click.option("--project", "-p", "project_id", help="Project ID")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
 @click.pass_context
 def create(
-    ctx: click.Context, content: str, memory_type: str, importance: float, project_id: str | None
+    ctx: click.Context, content: str, memory_type: str, importance: float, project_ref: str | None
 ) -> None:
     """Create a new memory."""
+    project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_memory_manager(ctx)
     memory = asyncio.run(
         manager.remember(
@@ -53,7 +55,7 @@ def create(
 
 @memory.command()
 @click.argument("query", required=False)
-@click.option("--project", "-p", "project_id", help="Project ID")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
 @click.option("--limit", "-n", default=10, help="Max results")
 @click.option("--tags-all", "tags_all", help="Require ALL tags (comma-separated)")
 @click.option("--tags-any", "tags_any", help="Require ANY tag (comma-separated)")
@@ -62,13 +64,14 @@ def create(
 def recall(
     ctx: click.Context,
     query: str | None,
-    project_id: str | None,
+    project_ref: str | None,
     limit: int,
     tags_all: str | None,
     tags_any: str | None,
     tags_none: str | None,
 ) -> None:
     """Retrieve memories with optional tag filtering."""
+    project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_memory_manager(ctx)
 
     # Parse comma-separated tags
@@ -110,7 +113,7 @@ def delete(ctx: click.Context, memory_id: str) -> None:
 @click.option("--type", "-t", "memory_type", help="Filter by memory type")
 @click.option("--min-importance", "-i", type=float, help="Minimum importance threshold")
 @click.option("--limit", "-n", default=50, help="Max results")
-@click.option("--project", "-p", "project_id", help="Project ID")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
 @click.option("--tags-all", "tags_all", help="Require ALL tags (comma-separated)")
 @click.option("--tags-any", "tags_any", help="Require ANY tag (comma-separated)")
 @click.option("--tags-none", "tags_none", help="Exclude memories with these tags (comma-separated)")
@@ -119,13 +122,14 @@ def list_memories(
     ctx: click.Context,
     memory_type: str | None,
     min_importance: float | None,
-    project_id: str | None,
+    project_ref: str | None,
     limit: int,
     tags_all: str | None,
     tags_any: str | None,
     tags_none: str | None,
 ) -> None:
     """List all memories with optional filtering."""
+    project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_memory_manager(ctx)
 
     # Parse comma-separated tags
@@ -211,10 +215,11 @@ def update_memory(
 
 
 @memory.command("stats")
-@click.option("--project", "-p", "project_id", help="Project ID")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
 @click.pass_context
-def memory_stats(ctx: click.Context, project_id: str | None) -> None:
+def memory_stats(ctx: click.Context, project_ref: str | None) -> None:
     """Show memory system statistics."""
+    project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_memory_manager(ctx)
     stats = manager.get_stats(project_id=project_id)
 
@@ -228,10 +233,10 @@ def memory_stats(ctx: click.Context, project_id: str | None) -> None:
 
 
 @memory.command("rebuild-embeddings")
-@click.option("--project", "-p", "project_id", help="Project ID filter")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
 @click.option("--force", "-f", is_flag=True, help="Force re-embed all memories")
 @click.pass_context
-def rebuild_embeddings(ctx: click.Context, project_id: str | None, force: bool) -> None:
+def rebuild_embeddings(ctx: click.Context, project_ref: str | None, force: bool) -> None:
     """Rebuild semantic search embeddings for memories.
 
     Generates vector embeddings for memories that don't have them,
@@ -239,6 +244,7 @@ def rebuild_embeddings(ctx: click.Context, project_id: str | None, force: bool) 
 
     Requires OPENAI_API_KEY in config (llm_providers.api_keys.OPENAI_API_KEY).
     """
+    project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_memory_manager(ctx)
 
     click.echo("Rebuilding memory embeddings...")
@@ -262,10 +268,11 @@ def rebuild_embeddings(ctx: click.Context, project_id: str | None, force: bool) 
 
 
 @memory.command("embedding-stats")
-@click.option("--project", "-p", "project_id", help="Project ID filter")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
 @click.pass_context
-def embedding_stats(ctx: click.Context, project_id: str | None) -> None:
+def embedding_stats(ctx: click.Context, project_ref: str | None) -> None:
     """Show embedding statistics for semantic search."""
+    project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_memory_manager(ctx)
     stats = manager.get_embedding_stats(project_id=project_id)
 
@@ -278,19 +285,20 @@ def embedding_stats(ctx: click.Context, project_id: str | None) -> None:
 
 
 @memory.command("init")
-@click.option("--path", "-p", "project_path", default=".", help="Project path to scan")
+@click.option("--path", "project_path", default=".", help="Project path to scan")
 @click.option("--max-files", "-n", default=20, help="Maximum files to sample")
-@click.option("--project", "project_id", help="Project ID for memories")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
 @click.pass_context
 def init(
     ctx: click.Context,
     project_path: str,
     max_files: int,
-    project_id: str | None,
+    project_ref: str | None,
 ) -> None:
     """Initialize memory by extracting patterns and conventions from codebase."""
     from gobby.memory.extractor import MemoryExtractor
 
+    project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_memory_manager(ctx)
     config: DaemonConfig = ctx.obj["config"]
 
@@ -445,14 +453,14 @@ def sync_memories(ctx: click.Context, do_import: bool, do_export: bool, quiet: b
 @memory.command("graph")
 @click.option("--output", "-o", "output_path", help="Output file path (default: memory_graph.html)")
 @click.option("--open", "open_browser", is_flag=True, help="Open in browser after export")
-@click.option("--project", "-p", "project_id", help="Project ID filter")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
 @click.option("--title", "-t", default="Memory Knowledge Graph", help="Graph title")
 @click.pass_context
 def export_graph(
     ctx: click.Context,
     output_path: str | None,
     open_browser: bool,
-    project_id: str | None,
+    project_ref: str | None,
     title: str,
 ) -> None:
     """Export memories as an interactive knowledge graph.
@@ -468,6 +476,7 @@ def export_graph(
     from gobby.memory.viz import export_memory_graph
     from gobby.storage.memories import LocalMemoryManager
 
+    project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_memory_manager(ctx)
     db = LocalDatabase()
     storage = LocalMemoryManager(db)
@@ -503,14 +512,14 @@ def export_graph(
 
 
 @memory.command("migrate-v2")
-@click.option("--project", "-p", "project_id", help="Project ID filter")
+@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
 @click.option("--threshold", "-t", type=float, default=0.3, help="Crossref similarity threshold")
 @click.option("--max-links", "-n", type=int, default=5, help="Max crossrefs per memory")
 @click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
 @click.pass_context
 def migrate_v2(
     ctx: click.Context,
-    project_id: str | None,
+    project_ref: str | None,
     threshold: float,
     max_links: int,
     dry_run: bool,
@@ -534,6 +543,7 @@ def migrate_v2(
           crossref_threshold: 0.3
           crossref_max_links: 5
     """
+    project_id = resolve_project_ref(project_ref) if project_ref else None
     manager = get_memory_manager(ctx)
 
     # Get all memories

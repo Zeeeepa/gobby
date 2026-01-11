@@ -1,0 +1,1 @@
+../../.gobby/commands/gobby-worktrees.md
