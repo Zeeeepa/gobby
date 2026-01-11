@@ -208,7 +208,7 @@ def install(
     mcp_result = install_default_mcp_servers()
     if mcp_result["success"]:
         if mcp_result["servers_added"]:
-            click.echo(f"Added MCP servers: {', '.join(mcp_result['servers_added'])}")
+            click.echo(f"Added MCP servers to proxy: {', '.join(mcp_result['servers_added'])}")
         if mcp_result["servers_skipped"]:
             click.echo(f"MCP servers already configured: {', '.join(mcp_result['servers_skipped'])}")
     else:
@@ -424,6 +424,23 @@ def install(
     click.echo("     gobby start")
     click.echo("  2. Start a new session in your AI coding CLI")
     click.echo("  3. Your sessions will now be tracked locally")
+
+    # Show MCP server API key instructions
+    click.echo("\nMCP Servers (via Gobby proxy):")
+    click.echo("  The following MCP servers are available through the Gobby proxy.")
+    click.echo("  Configure API keys to enable them:")
+    click.echo("")
+    click.echo("  GitHub (issues, PRs, repos):")
+    click.echo("    export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...")
+    click.echo("")
+    click.echo("  Linear (issue tracking):")
+    click.echo("    export LINEAR_API_KEY=lin_api_...")
+    click.echo("")
+    click.echo("  Context7 (library docs, optional for private repos):")
+    click.echo("    export CONTEXT7_API_KEY=...  # from context7.com/dashboard")
+    click.echo("")
+    click.echo("  Add these to your shell profile (~/.zshrc, ~/.bashrc) for persistence.")
+    click.echo("  Restart the daemon after setting: gobby restart")
 
     if not all_success:
         sys.exit(1)
