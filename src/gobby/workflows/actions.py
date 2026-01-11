@@ -28,7 +28,6 @@ from gobby.workflows.git_utils import get_file_changes, get_git_status, get_rece
 from gobby.workflows.llm_actions import call_llm
 from gobby.workflows.mcp_actions import call_mcp_tool
 from gobby.workflows.memory_actions import (
-    memory_extract,
     memory_recall_relevant,
     memory_save,
     memory_sync_export,
@@ -218,7 +217,6 @@ class ActionExecutor:
         self.register("update_workflow_task", self._handle_update_workflow_task)
         self.register("call_mcp_tool", self._handle_call_mcp_tool)
         # Memory actions - underscore pattern (memory_*)
-        self.register("memory_extract", self._handle_memory_extract)
         self.register("memory_save", self._handle_save_memory)
         self.register("memory_recall_relevant", self._handle_memory_recall_relevant)
         self.register("memory_sync_import", self._handle_memory_sync_import)
@@ -657,17 +655,6 @@ class ActionExecutor:
     def _format_handoff_as_markdown(self, ctx: Any, prompt_template: str | None = None) -> str:
         """Format HandoffContext as markdown for injection."""
         return format_handoff_as_markdown(ctx, prompt_template)
-
-    async def _handle_memory_extract(
-        self, context: ActionContext, **kwargs: Any
-    ) -> dict[str, Any] | None:
-        """Extract memories from session summary using LLM."""
-        return await memory_extract(
-            memory_manager=context.memory_manager,
-            llm_service=context.llm_service,
-            session_manager=context.session_manager,
-            session_id=context.session_id,
-        )
 
     async def _handle_save_memory(
         self, context: ActionContext, **kwargs: Any

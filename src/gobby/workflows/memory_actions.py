@@ -5,7 +5,6 @@ These functions handle memory injection, extraction, saving, and recall.
 """
 
 import hashlib
-import json
 import logging
 from typing import Any
 
@@ -49,128 +48,6 @@ async def memory_sync_export(memory_sync_manager: Any) -> dict[str, Any]:
     count = await memory_sync_manager.export_to_files()
     logger.info(f"Memory sync export: {count} memories exported")
     return {"exported": {"memories": count}}
-
-
-async def memory_extract(
-    memory_manager: Any,
-    llm_service: Any,
-    session_manager: Any,
-    session_id: str,
-) -> dict[str, Any] | None:
-    """Extract memories from session summary using LLM.
-
-    Args:
-        memory_manager: The memory manager instance
-        llm_service: The LLM service instance
-        session_manager: The session manager instance
-        session_id: Current session ID
-
-    Returns:
-        Dict with extracted count, or None if disabled
-    """
-    if not memory_manager:
-        return None
-
-    if not memory_manager.config.enabled:
-        return None
-
-    if not memory_manager.config.auto_extract:
-        logger.debug("memory_extract: auto_extract disabled")
-        return None
-
-    if not llm_service:
-        logger.warning("memory_extract: No LLM service available")
-        return None
-
-    session = session_manager.get(session_id)
-    if not session:
-        logger.warning(f"memory_extract: Session {session_id} not found")
-        return None
-
-    project_id = session.project_id
-
-    try:
-        summary = session.summary_markdown
-        if not summary:
-            logger.debug("memory_extract: No summary available, skipping extraction")
-            return {"extracted": 0, "reason": "no_summary"}
-
-        memory_config = memory_manager.config
-        provider, model, _ = llm_service.get_provider_for_feature(memory_config)
-
-        prompt = memory_config.extraction_prompt.format(summary=summary)
-        response = await provider.generate_text(prompt=prompt, model=model)
-
-        # Parse JSON response
-        cleaned_response = response.strip()
-        if cleaned_response.startswith("```json"):
-            cleaned_response = cleaned_response[7:]
-        if cleaned_response.startswith("```"):
-            cleaned_response = cleaned_response[3:]
-        if cleaned_response.endswith("```"):
-            cleaned_response = cleaned_response[:-3]
-        cleaned_response = cleaned_response.strip()
-
-        try:
-            memories_data = json.loads(cleaned_response)
-        except json.JSONDecodeError:
-            logger.warning(f"memory_extract: Failed to parse JSON for session {session_id}")
-            return {"extracted": 0, "error": "json_parse_error"}
-
-        if not isinstance(memories_data, list):
-            logger.warning(f"memory_extract: Expected list, got {type(memories_data).__name__}")
-            return {"extracted": 0, "error": "invalid_response_format"}
-
-        # Create memories
-        created_count = 0
-        for mem_data in memories_data:
-            if not isinstance(mem_data, dict):
-                continue
-
-            content = mem_data.get("content")
-            if not content:
-                continue
-
-            if memory_manager.content_exists(content, project_id):
-                logger.debug(f"memory_extract: Skipping duplicate: {content[:50]}...")
-                continue
-
-            memory_type = mem_data.get("memory_type", "fact")
-            if memory_type not in ("fact", "preference", "pattern", "context"):
-                memory_type = "fact"
-
-            importance = mem_data.get("importance", 0.5)
-            if not isinstance(importance, int | float):
-                importance = 0.5
-            importance = max(0.0, min(1.0, float(importance)))
-
-            tags = mem_data.get("tags", [])
-            if not isinstance(tags, list):
-                tags = []
-
-            try:
-                await memory_manager.remember(
-                    content=content,
-                    memory_type=memory_type,
-                    importance=importance,
-                    project_id=project_id,
-                    source_type="session",
-                    source_session_id=session_id,
-                    tags=tags,
-                )
-                created_count += 1
-                logger.info(
-                    f"memory_extract: Created {memory_type} memory "
-                    f"(fingerprint={_content_fingerprint(content)}, tags={tags})"
-                )
-            except Exception as e:
-                logger.error(f"memory_extract: Failed to create memory: {e}")
-
-        return {"extracted": created_count, "session_id": session_id}
-
-    except Exception as e:
-        logger.error(f"memory_extract: Failed: {e}", exc_info=True)
-        return {"error": str(e)}
 
 
 async def memory_save(

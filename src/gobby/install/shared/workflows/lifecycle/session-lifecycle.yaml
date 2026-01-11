@@ -117,9 +117,6 @@ triggers:
         Focus on actionable insights and context that would be valuable when resuming work later.
         Use only ASCII-safe characters - avoid Unicode em-dashes, smart quotes, or special characters.
 
-    # Memory extraction - extract learnings to memory
-    - action: memory_extract
-
     # Memory sync - export to JSONL for Git persistence
     - action: memory_sync_export
 
