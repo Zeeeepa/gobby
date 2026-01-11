@@ -43,8 +43,8 @@ def persist_decomposed_tasks(
         created_in_session_id: Optional session ID where task was created
 
     Returns:
-        Dict mapping original task references to database task IDs.
-        Example: {"1": "gt-abc123", "2": "gt-def456"}
+        Dict mapping original task references to database task UUIDs.
+        Example: {"1": "550e8400-e29b-41d4-a716-446655440000", "2": "6ba7b810-9dad-11d1-80b4-00c04fd430c8"}
 
     Raises:
         ValueError: If no tasks provided or tasks_data is invalid

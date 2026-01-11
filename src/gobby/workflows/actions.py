@@ -819,8 +819,8 @@ class ActionExecutor:
         """Check that a task (and its subtasks) are complete before allowing stop.
 
         Supports:
-        - Single task ID: "gt-abc123"
-        - List of task IDs: ["gt-abc123", "gt-def456"]
+        - Single task ID: "#47"
+        - List of task IDs: ["#47", "#48"]
         - Wildcard: "*" - work until no ready tasks remain
         """
         current_session = context.session_manager.get(context.session_id)

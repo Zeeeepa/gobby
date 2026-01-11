@@ -60,7 +60,7 @@ def create_worktree(
 
         gobby worktrees create feature/my-feature
 
-        gobby worktrees create bugfix/fix-123 --base develop --task gt-abc123
+        gobby worktrees create bugfix/fix-123 --base develop --task #47
     """
     import os
 

@@ -224,7 +224,7 @@ def create_workflows_registry(
         Example:
             activate_workflow(
                 name="auto-task",
-                variables={"session_task": "gt-abc123"},
+                variables={"session_task": "#47"},
                 session_id="..."
             )
 

@@ -224,8 +224,8 @@ async def require_task_complete(
     agent completes all subtasks under specified task(s) before stopping.
 
     Supports:
-    - Single task: ["gt-abc123"]
-    - Multiple tasks: ["gt-abc123", "gt-def456"]
+    - Single task: ["#47"]
+    - Multiple tasks: ["#47", "#48"]
     - Wildcard mode handled by caller (passes ready tasks as list)
 
     Logic per task:

@@ -764,7 +764,7 @@ def set_variable(
 
     Examples:
 
-        gobby workflows set-var session_epic gt-abc123
+        gobby workflows set-var session_epic #47
 
         gobby workflows set-var is_worktree true
 

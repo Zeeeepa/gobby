@@ -79,7 +79,7 @@ mcp_call_tool(
 mcp_call_tool(
     server_name="gobby-tasks",
     tool_name="close_task",
-    arguments={"task_id": "gt-abc123", "reason": "completed"}
+    arguments={"task_id": "#47", "reason": "completed"}
 )
 ```
 
