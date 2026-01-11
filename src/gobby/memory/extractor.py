@@ -106,6 +106,10 @@ class MemoryExtractor:
         """
         Extract memories from a session summary.
 
+        .. deprecated::
+            This method is not currently used. Consider using `memory_save`
+            workflow action or removing this method in a future version.
+
         Args:
             summary: Session summary markdown
             project_id: Optional project ID for the memories
@@ -114,6 +118,14 @@ class MemoryExtractor:
         Returns:
             ExtractionResult with extracted memories
         """
+        import warnings
+
+        warnings.warn(
+            "extract_from_session is deprecated and unused. "
+            "Consider using memory_save workflow action instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         result = ExtractionResult()
 
         if not summary or len(summary.strip()) < 50:
@@ -153,6 +165,10 @@ class MemoryExtractor:
         """
         Extract memories from agent markdown files (CLAUDE.md, GEMINI.md, CODEX.md).
 
+        .. deprecated::
+            This method is not currently used. Consider using `memory_save`
+            workflow action or removing this method in a future version.
+
         Args:
             file_path: Path to specific agent MD file (or provide content directly)
             content: File content (alternative to file_path)
@@ -162,6 +178,14 @@ class MemoryExtractor:
         Returns:
             ExtractionResult with extracted memories
         """
+        import warnings
+
+        warnings.warn(
+            "extract_from_agent_md is deprecated and unused. "
+            "Consider using memory_save workflow action instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         result = ExtractionResult()
 
         # If project_path provided, find all agent MD files
