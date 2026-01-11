@@ -504,7 +504,7 @@ class TestGetTaskTool:
 
         mock_task_manager.get_task.return_value = None
 
-        result = await registry.call("get_task", {"task_id": "gt-nonexistent"})
+        result = await registry.call("get_task", {"task_id": "00000000-0000-0000-0000-000000000000"})
 
         assert "error" in result
         assert result["found"] is False
@@ -519,10 +519,10 @@ class TestGetTaskTool:
 
             # Create mock blocker and blocking dependencies
             mock_blocker = MagicMock()
-            mock_blocker.to_dict.return_value = {"from_task": "gt-blocker", "type": "blocks"}
+            mock_blocker.to_dict.return_value = {"from_task": "550e8400-e29b-41d4-a716-446655440001", "type": "blocks"}
 
             mock_blocking = MagicMock()
-            mock_blocking.to_dict.return_value = {"from_task": "gt-abc123", "type": "blocks"}
+            mock_blocking.to_dict.return_value = {"from_task": "550e8400-e29b-41d4-a716-446655440000", "type": "blocks"}
 
             mock_dep_instance.get_blockers.return_value = [mock_blocker]
             mock_dep_instance.get_blocking.return_value = [mock_blocking]
@@ -532,7 +532,7 @@ class TestGetTaskTool:
 
             mock_task_manager.get_task.return_value = sample_task
 
-            result = await registry.call("get_task", {"task_id": "gt-abc123"})
+            result = await registry.call("get_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000"})
 
             assert len(result["dependencies"]["blocked_by"]) == 1
             assert len(result["dependencies"]["blocking"]) == 1
@@ -552,14 +552,14 @@ class TestUpdateTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         updated_task = MagicMock()
-        updated_task.to_brief.return_value = {"id": "gt-abc123", "title": "Updated Title"}
+        updated_task.to_brief.return_value = {"id": "550e8400-e29b-41d4-a716-446655440000", "title": "Updated Title"}
         mock_task_manager.update_task.return_value = updated_task
 
         result = await registry.call(
-            "update_task", {"task_id": "gt-abc123", "title": "Updated Title"}
+            "update_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000", "title": "Updated Title"}
         )
 
-        mock_task_manager.update_task.assert_called_with("gt-abc123", title="Updated Title")
+        mock_task_manager.update_task.assert_called_with("550e8400-e29b-41d4-a716-446655440000", title="Updated Title")
         assert result["title"] == "Updated Title"
 
     @pytest.mark.asyncio
@@ -570,7 +570,7 @@ class TestUpdateTaskTool:
         mock_task_manager.update_task.return_value = None
 
         result = await registry.call(
-            "update_task", {"task_id": "gt-nonexistent", "title": "New Title"}
+            "update_task", {"task_id": "00000000-0000-0000-0000-000000000000", "title": "New Title"}
         )
 
         assert "error" in result
@@ -581,13 +581,13 @@ class TestUpdateTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         updated_task = MagicMock()
-        updated_task.to_brief.return_value = {"id": "gt-abc123"}
+        updated_task.to_brief.return_value = {"id": "550e8400-e29b-41d4-a716-446655440000"}
         mock_task_manager.update_task.return_value = updated_task
 
         await registry.call(
             "update_task",
             {
-                "task_id": "gt-abc123",
+                "task_id": "550e8400-e29b-41d4-a716-446655440000",
                 "title": "New Title",
                 "description": "New Description",
                 "status": "in_progress",
@@ -595,7 +595,7 @@ class TestUpdateTaskTool:
                 "assignee": "developer",
                 "labels": ["urgent"],
                 "validation_criteria": "Must pass",
-                "parent_task_id": "gt-parent",
+                "parent_task_id": "550e8400-e29b-41d4-a716-446655440010",
                 "test_strategy": "automated",
                 "workflow_name": "dev-flow",
                 "verification": "Run tests",
@@ -604,7 +604,7 @@ class TestUpdateTaskTool:
         )
 
         mock_task_manager.update_task.assert_called_with(
-            "gt-abc123",
+            "550e8400-e29b-41d4-a716-446655440000",
             title="New Title",
             description="New Description",
             status="in_progress",
@@ -612,7 +612,7 @@ class TestUpdateTaskTool:
             assignee="developer",
             labels=["urgent"],
             validation_criteria="Must pass",
-            parent_task_id="gt-parent",
+            parent_task_id="550e8400-e29b-41d4-a716-446655440010",
             test_strategy="automated",
             workflow_name="dev-flow",
             verification="Run tests",
@@ -625,13 +625,13 @@ class TestUpdateTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         updated_task = MagicMock()
-        updated_task.to_brief.return_value = {"id": "gt-abc123", "status": "closed"}
+        updated_task.to_brief.return_value = {"id": "550e8400-e29b-41d4-a716-446655440000", "status": "closed"}
         mock_task_manager.update_task.return_value = updated_task
 
-        await registry.call("update_task", {"task_id": "gt-abc123", "status": "closed"})
+        await registry.call("update_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000", "status": "closed"})
 
         # Should only include status, not other None values
-        mock_task_manager.update_task.assert_called_with("gt-abc123", status="closed")
+        mock_task_manager.update_task.assert_called_with("550e8400-e29b-41d4-a716-446655440000", status="closed")
 
 
 # =============================================================================
@@ -648,12 +648,12 @@ class TestLabelTools:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         updated_task = MagicMock()
-        updated_task.to_dict.return_value = {"id": "gt-abc123", "labels": ["test", "new"]}
+        updated_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440000", "labels": ["test", "new"]}
         mock_task_manager.add_label.return_value = updated_task
 
-        result = await registry.call("add_label", {"task_id": "gt-abc123", "label": "new"})
+        result = await registry.call("add_label", {"task_id": "550e8400-e29b-41d4-a716-446655440000", "label": "new"})
 
-        mock_task_manager.add_label.assert_called_with("gt-abc123", "new")
+        mock_task_manager.add_label.assert_called_with("550e8400-e29b-41d4-a716-446655440000", "new")
         assert "new" in result["labels"]
 
     @pytest.mark.asyncio
@@ -663,7 +663,7 @@ class TestLabelTools:
 
         mock_task_manager.add_label.return_value = None
 
-        result = await registry.call("add_label", {"task_id": "gt-nonexistent", "label": "new"})
+        result = await registry.call("add_label", {"task_id": "00000000-0000-0000-0000-000000000000", "label": "new"})
 
         assert "error" in result
 
@@ -673,12 +673,12 @@ class TestLabelTools:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         updated_task = MagicMock()
-        updated_task.to_dict.return_value = {"id": "gt-abc123", "labels": []}
+        updated_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440000", "labels": []}
         mock_task_manager.remove_label.return_value = updated_task
 
-        result = await registry.call("remove_label", {"task_id": "gt-abc123", "label": "old"})
+        result = await registry.call("remove_label", {"task_id": "550e8400-e29b-41d4-a716-446655440000", "label": "old"})
 
-        mock_task_manager.remove_label.assert_called_with("gt-abc123", "old")
+        mock_task_manager.remove_label.assert_called_with("550e8400-e29b-41d4-a716-446655440000", "old")
         assert result["labels"] == []
 
     @pytest.mark.asyncio
@@ -688,7 +688,7 @@ class TestLabelTools:
 
         mock_task_manager.remove_label.return_value = None
 
-        result = await registry.call("remove_label", {"task_id": "gt-nonexistent", "label": "old"})
+        result = await registry.call("remove_label", {"task_id": "00000000-0000-0000-0000-000000000000", "label": "old"})
 
         assert "error" in result
 
@@ -708,7 +708,7 @@ class TestCloseTaskTool:
 
         mock_task_manager.get_task.return_value = None
 
-        result = await registry.call("close_task", {"task_id": "gt-nonexistent"})
+        result = await registry.call("close_task", {"task_id": "00000000-0000-0000-0000-000000000000"})
 
         assert "error" in result
         assert "not found" in result["error"]
@@ -719,7 +719,7 @@ class TestCloseTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         mock_task = MagicMock()
-        mock_task.id = "gt-abc123"
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440000"
         mock_task.commits = None
         mock_task.project_id = "proj-1"
         mock_task_manager.get_task.return_value = mock_task
@@ -729,7 +729,7 @@ class TestCloseTaskTool:
             mock_proj_instance.get.return_value = None
             MockProjManager.return_value = mock_proj_instance
 
-            result = await registry.call("close_task", {"task_id": "gt-abc123"})
+            result = await registry.call("close_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000"})
 
             assert "error" in result
             assert result["error"] == "no_commits_linked"
@@ -742,7 +742,7 @@ class TestCloseTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         mock_task = MagicMock()
-        mock_task.id = "gt-abc123"
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440000"
         mock_task.commits = None
         mock_task.project_id = "proj-1"
         mock_task_manager.get_task.return_value = mock_task
@@ -753,7 +753,7 @@ class TestCloseTaskTool:
             MockProjManager.return_value = mock_proj_instance
 
             result = await registry.call(
-                "close_task", {"task_id": "gt-abc123", "no_commit_needed": True}
+                "close_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000", "no_commit_needed": True}
             )
 
             assert "error" in result
@@ -767,10 +767,10 @@ class TestCloseTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         mock_task = MagicMock()
-        mock_task.id = "gt-abc123"
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440000"
         mock_task.commits = None
         mock_task.project_id = "proj-1"
-        mock_task.to_brief.return_value = {"id": "gt-abc123", "status": "closed"}
+        mock_task.to_brief.return_value = {"id": "550e8400-e29b-41d4-a716-446655440000", "status": "closed"}
         mock_task_manager.get_task.return_value = mock_task
         mock_task_manager.close_task.return_value = mock_task
 
@@ -784,7 +784,7 @@ class TestCloseTaskTool:
             mock_git.return_value = "abc123"
 
             result = await registry.call(
-                "close_task", {"task_id": "gt-abc123", "reason": "duplicate"}
+                "close_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000", "reason": "duplicate"}
             )
 
             assert "error" not in result
@@ -796,7 +796,7 @@ class TestCloseTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         mock_task = MagicMock()
-        mock_task.id = "gt-parent"
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440020"
         mock_task.commits = ["abc123"]
         mock_task.project_id = "proj-1"
         mock_task.validation_criteria = None
@@ -804,12 +804,12 @@ class TestCloseTaskTool:
 
         # Create open child tasks
         child1 = MagicMock()
-        child1.id = "gt-child1"
+        child1.id = "550e8400-e29b-41d4-a716-446655440021"
         child1.title = "Open Child 1"
         child1.status = "open"
 
         child2 = MagicMock()
-        child2.id = "gt-child2"
+        child2.id = "550e8400-e29b-41d4-a716-446655440022"
         child2.title = "Open Child 2"
         child2.status = "in_progress"
 
@@ -820,7 +820,7 @@ class TestCloseTaskTool:
             mock_proj_instance.get.return_value = None
             MockProjManager.return_value = mock_proj_instance
 
-            result = await registry.call("close_task", {"task_id": "gt-parent"})
+            result = await registry.call("close_task", {"task_id": "550e8400-e29b-41d4-a716-446655440020"})
 
             assert "error" in result
             assert result["error"] == "validation_failed"
@@ -832,11 +832,11 @@ class TestCloseTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         mock_task = MagicMock()
-        mock_task.id = "gt-abc123"
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440000"
         mock_task.commits = ["abc123"]
         mock_task.project_id = "proj-1"
         mock_task.validation_criteria = None
-        mock_task.to_brief.return_value = {"id": "gt-abc123", "status": "closed"}
+        mock_task.to_brief.return_value = {"id": "550e8400-e29b-41d4-a716-446655440000", "status": "closed"}
         mock_task_manager.get_task.return_value = mock_task
         mock_task_manager.close_task.return_value = mock_task
         mock_task_manager.list_tasks.return_value = []  # No children
@@ -850,7 +850,7 @@ class TestCloseTaskTool:
             MockProjManager.return_value = mock_proj_instance
             mock_git.return_value = "abc123"
 
-            result = await registry.call("close_task", {"task_id": "gt-abc123"})
+            result = await registry.call("close_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000"})
 
             assert "error" not in result
             assert result["validated"] is True
@@ -863,11 +863,11 @@ class TestCloseTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         mock_task = MagicMock()
-        mock_task.id = "gt-abc123"
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440000"
         mock_task.commits = ["abc123"]
         mock_task.project_id = "proj-1"
         mock_task.validation_criteria = None
-        mock_task.to_brief.return_value = {"id": "gt-abc123", "status": "closed"}
+        mock_task.to_brief.return_value = {"id": "550e8400-e29b-41d4-a716-446655440000", "status": "closed"}
         mock_task_manager.get_task.return_value = mock_task
         mock_task_manager.link_commit.return_value = mock_task
         mock_task_manager.close_task.return_value = mock_task
@@ -882,9 +882,9 @@ class TestCloseTaskTool:
             MockProjManager.return_value = mock_proj_instance
             mock_git.return_value = "abc123"
 
-            await registry.call("close_task", {"task_id": "gt-abc123", "commit_sha": "new-commit"})
+            await registry.call("close_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000", "commit_sha": "new-commit"})
 
-            mock_task_manager.link_commit.assert_called_with("gt-abc123", "new-commit")
+            mock_task_manager.link_commit.assert_called_with("550e8400-e29b-41d4-a716-446655440000", "new-commit")
 
     @pytest.mark.asyncio
     async def test_close_task_with_skip_validation(self, mock_task_manager, mock_sync_manager):
@@ -892,11 +892,11 @@ class TestCloseTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         mock_task = MagicMock()
-        mock_task.id = "gt-abc123"
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440000"
         mock_task.commits = ["abc123"]
         mock_task.project_id = "proj-1"
         mock_task.validation_criteria = "Must pass tests"
-        mock_task.to_brief.return_value = {"id": "gt-abc123", "status": "closed"}
+        mock_task.to_brief.return_value = {"id": "550e8400-e29b-41d4-a716-446655440000", "status": "closed"}
         mock_task_manager.get_task.return_value = mock_task
         mock_task_manager.close_task.return_value = mock_task
         mock_task_manager.list_tasks.return_value = []
@@ -913,7 +913,7 @@ class TestCloseTaskTool:
             result = await registry.call(
                 "close_task",
                 {
-                    "task_id": "gt-abc123",
+                    "task_id": "550e8400-e29b-41d4-a716-446655440000",
                     "skip_validation": True,
                     "override_justification": "Manually verified",
                 },
@@ -936,12 +936,12 @@ class TestReopenTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         reopened_task = MagicMock()
-        reopened_task.to_dict.return_value = {"id": "gt-abc123", "status": "open"}
+        reopened_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440000", "status": "open"}
         mock_task_manager.reopen_task.return_value = reopened_task
 
-        result = await registry.call("reopen_task", {"task_id": "gt-abc123"})
+        result = await registry.call("reopen_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000"})
 
-        mock_task_manager.reopen_task.assert_called_with("gt-abc123", reason=None)
+        mock_task_manager.reopen_task.assert_called_with("550e8400-e29b-41d4-a716-446655440000", reason=None)
         assert result["status"] == "open"
 
     @pytest.mark.asyncio
@@ -950,12 +950,12 @@ class TestReopenTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         reopened_task = MagicMock()
-        reopened_task.to_dict.return_value = {"id": "gt-abc123", "status": "open"}
+        reopened_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440000", "status": "open"}
         mock_task_manager.reopen_task.return_value = reopened_task
 
-        await registry.call("reopen_task", {"task_id": "gt-abc123", "reason": "Needs more work"})
+        await registry.call("reopen_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000", "reason": "Needs more work"})
 
-        mock_task_manager.reopen_task.assert_called_with("gt-abc123", reason="Needs more work")
+        mock_task_manager.reopen_task.assert_called_with("550e8400-e29b-41d4-a716-446655440000", reason="Needs more work")
 
     @pytest.mark.asyncio
     async def test_reopen_task_error(self, mock_task_manager, mock_sync_manager):
@@ -964,7 +964,7 @@ class TestReopenTaskTool:
 
         mock_task_manager.reopen_task.side_effect = ValueError("Task not found")
 
-        result = await registry.call("reopen_task", {"task_id": "gt-nonexistent"})
+        result = await registry.call("reopen_task", {"task_id": "00000000-0000-0000-0000-000000000000"})
 
         assert "error" in result
 
@@ -982,10 +982,10 @@ class TestReopenTaskTool:
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
             reopened_task = MagicMock()
-            reopened_task.to_dict.return_value = {"id": "gt-abc123", "status": "open"}
+            reopened_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440000", "status": "open"}
             mock_task_manager.reopen_task.return_value = reopened_task
 
-            await registry.call("reopen_task", {"task_id": "gt-abc123"})
+            await registry.call("reopen_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000"})
 
             mock_wt_instance.update.assert_called()
 
@@ -1005,11 +1005,11 @@ class TestDeleteTaskTool:
 
         mock_task_manager.delete_task.return_value = True
 
-        result = await registry.call("delete_task", {"task_id": "gt-abc123"})
+        result = await registry.call("delete_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000"})
 
-        mock_task_manager.delete_task.assert_called_with("gt-abc123", cascade=True)
+        mock_task_manager.delete_task.assert_called_with("550e8400-e29b-41d4-a716-446655440000", cascade=True)
         assert result["success"] is True
-        assert result["deleted_task_id"] == "gt-abc123"
+        assert result["deleted_task_id"] == "550e8400-e29b-41d4-a716-446655440000"
 
     @pytest.mark.asyncio
     async def test_delete_task_not_found(self, mock_task_manager, mock_sync_manager):
@@ -1018,7 +1018,7 @@ class TestDeleteTaskTool:
 
         mock_task_manager.delete_task.return_value = False
 
-        result = await registry.call("delete_task", {"task_id": "gt-nonexistent"})
+        result = await registry.call("delete_task", {"task_id": "00000000-0000-0000-0000-000000000000"})
 
         assert result["success"] is False
         assert "error" in result
@@ -1030,9 +1030,9 @@ class TestDeleteTaskTool:
 
         mock_task_manager.delete_task.return_value = True
 
-        await registry.call("delete_task", {"task_id": "gt-abc123", "cascade": False})
+        await registry.call("delete_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000", "cascade": False})
 
-        mock_task_manager.delete_task.assert_called_with("gt-abc123", cascade=False)
+        mock_task_manager.delete_task.assert_called_with("550e8400-e29b-41d4-a716-446655440000", cascade=False)
 
 
 # =============================================================================
@@ -1081,7 +1081,7 @@ class TestListTasksTool:
                     "task_type": "bug",
                     "assignee": "dev",
                     "label": "urgent",
-                    "parent_task_id": "gt-parent",
+                    "parent_task_id": "550e8400-e29b-41d4-a716-446655440010",
                     "title_like": "feature",
                     "limit": 10,
                 },
@@ -1093,7 +1093,7 @@ class TestListTasksTool:
                 task_type="bug",
                 assignee="dev",
                 label="urgent",
-                parent_task_id="gt-parent",
+                parent_task_id="550e8400-e29b-41d4-a716-446655440010",
                 title_like="feature",
                 limit=10,
                 project_id="proj-1",
@@ -1149,10 +1149,10 @@ class TestSessionIntegrationTools:
 
             result = await registry.call(
                 "link_task_to_session",
-                {"task_id": "gt-abc123", "session_id": "sess-123", "action": "worked_on"},
+                {"task_id": "550e8400-e29b-41d4-a716-446655440000", "session_id": "sess-123", "action": "worked_on"},
             )
 
-            mock_st_instance.link_task.assert_called_with("sess-123", "gt-abc123", "worked_on")
+            mock_st_instance.link_task.assert_called_with("sess-123", "550e8400-e29b-41d4-a716-446655440000", "worked_on")
             assert result["linked"] is True
 
     @pytest.mark.asyncio
@@ -1162,7 +1162,7 @@ class TestSessionIntegrationTools:
         """Test link_task_to_session requires session_id."""
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
-        result = await registry.call("link_task_to_session", {"task_id": "gt-abc123"})
+        result = await registry.call("link_task_to_session", {"task_id": "550e8400-e29b-41d4-a716-446655440000"})
 
         assert "error" in result
 
@@ -1178,7 +1178,7 @@ class TestSessionIntegrationTools:
 
             result = await registry.call(
                 "link_task_to_session",
-                {"task_id": "gt-invalid", "session_id": "sess-123"},
+                {"task_id": "00000000-0000-0000-0000-000000000000", "session_id": "sess-123"},
             )
 
             assert "error" in result
@@ -1212,9 +1212,9 @@ class TestSessionIntegrationTools:
 
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
-            result = await registry.call("get_task_sessions", {"task_id": "gt-abc123"})
+            result = await registry.call("get_task_sessions", {"task_id": "550e8400-e29b-41d4-a716-446655440000"})
 
-            assert result["task_id"] == "gt-abc123"
+            assert result["task_id"] == "550e8400-e29b-41d4-a716-446655440000"
             assert len(result["sessions"]) == 1
 
 
