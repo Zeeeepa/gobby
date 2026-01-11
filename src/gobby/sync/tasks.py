@@ -249,8 +249,8 @@ class TaskSyncManager:
                                     data.get("escalated_at"),
                                     data.get("escalation_reason"),
                                     # Preserve existing seq_num/path_cache if JSONL doesn't have them
-                                    data.get("seq_num") or existing_seq_num,
-                                    data.get("path_cache") or existing_path_cache,
+                                    data["seq_num"] if "seq_num" in data else existing_seq_num,
+                                    data["path_cache"] if "path_cache" in data else existing_path_cache,
                                 ),
                             )
 

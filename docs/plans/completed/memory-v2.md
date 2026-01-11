@@ -570,27 +570,25 @@ async def migrate_to_v2():
 
 ## Implementation Order
 
-1. **Phase 1: TF-IDF Search** (3-4 hours)
+1. **Phase 1: TF-IDF Search**
    - Highest value - enables semantic search without API
    - Unblocks Phase 2
 
-2. **Phase 2: Cross-References** (2-3 hours)
+2. **Phase 2: Cross-References**
    - Depends on search backend for similarity
    - Unblocks Phase 4
 
-3. **Phase 3: Tag Filtering** (1 hour)
+3. **Phase 3: Tag Filtering**
    - Independent, can be done anytime
    - Quick win
 
-4. **Phase 4: Visualization** (2 hours)
+4. **Phase 4: Visualization**
    - Depends on crossrefs for graph edges
    - Nice-to-have, impressive demo
 
-5. **Phase 5: Migration** (1-2 hours)
+5. **Phase 5: Migration**
    - Do after Phase 1+2 are stable
    - Required for existing users
-
-**Total estimated effort: 10-12 hours**
 
 ---
 

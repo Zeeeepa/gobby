@@ -599,7 +599,12 @@ def create_worktrees_registry(
         # Update last activity
         worktree_storage.update(worktree_id)
 
-        return {"success": True}
+        return {
+            "success": True,
+            "message": result.message,
+            "output": result.output,
+            "strategy": strategy,
+        }
 
     @registry.tool(
         name="mark_worktree_merged",
