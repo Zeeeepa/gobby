@@ -122,6 +122,209 @@ def hooks_test(ctx: click.Context, hook_type: str, source: str, json_format: boo
         click.echo(f"  Context: {str(inject_context)[:100]}...")
 
 
+@hooks.command("run")
+@click.argument(
+    "stage",
+    type=click.Choice(["pre-commit", "pre-push", "pre-merge"]),
+)
+@click.option("--verbose", "-v", is_flag=True, help="Show command output")
+@click.option("--dry-run", is_flag=True, help="Show what would run without executing")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+def hooks_run(stage: str, verbose: bool, dry_run: bool, json_format: bool) -> None:
+    """Run verification commands for a git hook stage.
+
+    STAGE is the hook stage to run (pre-commit, pre-push, or pre-merge).
+
+    This command reads verification commands from .gobby/project.json
+    and executes them according to the hooks configuration.
+
+    Example configuration in project.json:
+
+    \b
+      "verification": {
+        "lint": "ruff check src/",
+        "format": "ruff format --check src/"
+      },
+      "hooks": {
+        "pre-commit": {
+          "run": ["lint", "format"],
+          "fail_fast": true
+        }
+      }
+    """
+    from gobby.hooks.verification_runner import VerificationRunner
+
+    runner = VerificationRunner.from_project()
+
+    # Handle dry-run mode
+    if dry_run:
+        stage_config = runner.get_stage_config(stage)
+        if not stage_config or not stage_config.run:
+            click.echo(f"No commands configured for '{stage}'")
+            return
+
+        if not runner.verification_config:
+            click.echo("No verification commands defined in project.json")
+            return
+
+        click.echo(f"Would run for '{stage}':")
+        for cmd_name in stage_config.run:
+            command = runner.verification_config.get_command(cmd_name)
+            if command:
+                click.echo(f"  {cmd_name}: {command}")
+            else:
+                click.echo(f"  {cmd_name}: (not defined)")
+        return
+
+    # Run the stage
+    result = runner.run_stage(stage)
+
+    # Output as JSON
+    if json_format:
+        output = {
+            "stage": result.stage,
+            "success": result.success,
+            "skipped": result.skipped,
+            "skip_reason": result.skip_reason,
+            "results": [
+                {
+                    "name": r.name,
+                    "command": r.command,
+                    "success": r.success,
+                    "exit_code": r.exit_code,
+                    "duration_ms": r.duration_ms,
+                    "skipped": r.skipped,
+                    "skip_reason": r.skip_reason,
+                    "error": r.error,
+                    "stdout": r.stdout if verbose else None,
+                    "stderr": r.stderr if verbose else None,
+                }
+                for r in result.results
+            ],
+        }
+        click.echo(json.dumps(output, indent=2))
+        sys.exit(0 if result.success else 1)
+
+    # Handle skipped stage
+    if result.skipped:
+        if verbose:
+            click.echo(f"Skipped: {result.skip_reason}")
+        sys.exit(0)
+
+    # Display results
+    for r in result.results:
+        if r.skipped:
+            click.echo(click.style(f"⊘ {r.name}: skipped", fg="yellow"))
+            if r.skip_reason:
+                click.echo(f"    {r.skip_reason}")
+        elif r.success:
+            click.echo(click.style(f"✓ {r.name}", fg="green") + f" ({r.duration_ms}ms)")
+        else:
+            click.echo(click.style(f"✗ {r.name}", fg="red") + f" ({r.duration_ms}ms)")
+            if r.error:
+                click.echo(f"    Error: {r.error}")
+            if verbose and r.stderr:
+                click.echo(f"    stderr:\n{_indent(r.stderr, 6)}")
+            elif r.stderr:
+                # Show first line of stderr even without verbose
+                first_line = r.stderr.strip().split("\n")[0]
+                if first_line:
+                    click.echo(f"    {first_line}")
+
+        if verbose and r.stdout:
+            click.echo(f"    stdout:\n{_indent(r.stdout, 6)}")
+
+    # Summary
+    if result.results:
+        click.echo()
+        click.echo(
+            f"Passed: {result.passed_count}, "
+            f"Failed: {result.failed_count}, "
+            f"Skipped: {result.skipped_count}"
+        )
+
+    sys.exit(0 if result.success else 1)
+
+
+def _indent(text: str, spaces: int) -> str:
+    """Indent each line of text by the specified number of spaces."""
+    prefix = " " * spaces
+    return "\n".join(prefix + line for line in text.strip().split("\n"))
+
+
+@hooks.command("status")
+@click.option("--json", "json_format", is_flag=True, help="Output as JSON")
+def hooks_status(json_format: bool) -> None:
+    """Show current hooks configuration from project.json.
+
+    Displays which verification commands are configured to run at each
+    git hook stage (pre-commit, pre-push, pre-merge).
+    """
+    from gobby.utils.project_context import get_hooks_config, get_verification_config
+
+    verification_config = get_verification_config()
+    hooks_config = get_hooks_config()
+
+    if json_format:
+        output = {
+            "verification": verification_config.all_commands() if verification_config else {},
+            "hooks": {
+                "pre-commit": (
+                    hooks_config.pre_commit.model_dump(by_alias=True)
+                    if hooks_config
+                    else None
+                ),
+                "pre-push": (
+                    hooks_config.pre_push.model_dump(by_alias=True)
+                    if hooks_config
+                    else None
+                ),
+                "pre-merge": (
+                    hooks_config.pre_merge.model_dump(by_alias=True)
+                    if hooks_config
+                    else None
+                ),
+            },
+        }
+        click.echo(json.dumps(output, indent=2))
+        return
+
+    # Display verification commands
+    click.echo("Verification Commands:")
+    if verification_config:
+        commands = verification_config.all_commands()
+        if commands:
+            for name, cmd in commands.items():
+                click.echo(f"  {name}: {cmd}")
+        else:
+            click.echo("  (none configured)")
+    else:
+        click.echo("  (none configured)")
+
+    click.echo()
+
+    # Display hooks configuration
+    click.echo("Hook Stages:")
+    if not hooks_config:
+        click.echo("  (none configured)")
+        return
+
+    for stage_name, stage_attr in [
+        ("pre-commit", "pre_commit"),
+        ("pre-push", "pre_push"),
+        ("pre-merge", "pre_merge"),
+    ]:
+        stage_config = getattr(hooks_config, stage_attr)
+        if stage_config.run:
+            status = "enabled" if stage_config.enabled else "disabled"
+            click.echo(f"  {stage_name} ({status}):")
+            click.echo(f"    run: {', '.join(stage_config.run)}")
+            click.echo(f"    fail_fast: {stage_config.fail_fast}")
+            click.echo(f"    timeout: {stage_config.timeout}s")
+        else:
+            click.echo(f"  {stage_name}: (no commands)")
+
+
 # =============================================================================
 # Plugins Commands
 # =============================================================================

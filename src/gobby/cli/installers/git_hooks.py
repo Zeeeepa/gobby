@@ -29,9 +29,20 @@ GOBBY_HOOK_END = "# <<< GOBBY HOOK END <<<"
 HOOK_TEMPLATES = {
     "pre-commit": """
 # Gobby smart pre-commit wrapper
-# - Runs pre-commit if available
+# - Runs gobby verification commands (if configured)
+# - Runs pre-commit framework if available
 # - Auto-commits formatting fixes separately
 # - Syncs tasks before commit
+
+# Run Gobby verification commands for pre-commit stage
+if command -v gobby >/dev/null 2>&1; then
+    gobby hooks run pre-commit 2>/dev/null
+    GOBBY_EXIT=$?
+    if [ $GOBBY_EXIT -ne 0 ]; then
+        echo "Gobby pre-commit verification failed"
+        exit $GOBBY_EXIT
+    fi
+fi
 
 # Record which files have unstaged changes before pre-commit runs
 UNSTAGED_BEFORE=$(git diff --name-only 2>/dev/null | sort)
@@ -74,6 +85,30 @@ fi
 # Gobby task sync - export tasks before commit
 if command -v gobby >/dev/null 2>&1; then
     gobby tasks sync --export --quiet 2>/dev/null || true
+fi
+""",
+    "pre-push": """
+# Gobby verification runner for pre-push
+# Runs configured verification commands (type_check, unit_tests, security, etc.)
+if command -v gobby >/dev/null 2>&1; then
+    gobby hooks run pre-push 2>/dev/null
+    GOBBY_EXIT=$?
+    if [ $GOBBY_EXIT -ne 0 ]; then
+        echo "Gobby pre-push verification failed"
+        exit $GOBBY_EXIT
+    fi
+fi
+""",
+    "pre-merge-commit": """
+# Gobby verification runner for pre-merge
+# Runs configured verification commands (code_review, integration tests, etc.)
+if command -v gobby >/dev/null 2>&1; then
+    gobby hooks run pre-merge 2>/dev/null
+    GOBBY_EXIT=$?
+    if [ $GOBBY_EXIT -ne 0 ]; then
+        echo "Gobby pre-merge verification failed"
+        exit $GOBBY_EXIT
+    fi
 fi
 """,
     "post-merge": """

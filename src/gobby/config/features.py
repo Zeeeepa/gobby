@@ -11,7 +11,7 @@ Contains MCP proxy and tool feature Pydantic config models:
 Extracted from app.py using Strangler Fig pattern for code decomposition.
 """
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 __all__ = [
     "ToolSummarizerConfig",
@@ -19,6 +19,8 @@ __all__ = [
     "ImportMCPServerConfig",
     "MetricsConfig",
     "ProjectVerificationConfig",
+    "HookStageConfig",
+    "HooksConfig",
     "DEFAULT_IMPORT_MCP_SERVER_PROMPT",
 ]
 
@@ -236,6 +238,7 @@ class ProjectVerificationConfig(BaseModel):
 
     Stores project-specific commands for running tests, type checking, linting, etc.
     Used by task expansion to generate precise validation criteria with actual commands.
+    Also used by git hooks to run verification commands at pre-commit, pre-push, etc.
     """
 
     unit_tests: str | None = Field(
@@ -250,11 +253,121 @@ class ProjectVerificationConfig(BaseModel):
         default=None,
         description="Command to run linting (e.g., 'uv run ruff check src/')",
     )
+    format: str | None = Field(
+        default=None,
+        description="Command to check formatting (e.g., 'uv run ruff format --check src/')",
+    )
     integration: str | None = Field(
         default=None,
         description="Command to run integration tests",
+    )
+    security: str | None = Field(
+        default=None,
+        description="Command to run security scanning (e.g., 'bandit -r src/')",
+    )
+    code_review: str | None = Field(
+        default=None,
+        description="Command to run AI/automated code review (e.g., 'coderabbit review --ci')",
     )
     custom: dict[str, str] = Field(
         default_factory=dict,
         description="Custom verification commands (name -> command)",
     )
+
+    # Standard field names for lookup
+    _standard_fields: tuple[str, ...] = (
+        "unit_tests",
+        "type_check",
+        "lint",
+        "format",
+        "integration",
+        "security",
+        "code_review",
+    )
+
+    def get_command(self, name: str) -> str | None:
+        """Get a command by name, checking both standard and custom fields.
+
+        Args:
+            name: Command name (e.g., 'lint', 'unit_tests', or custom name)
+
+        Returns:
+            The command string if found, None otherwise
+        """
+        # Check standard fields first
+        if name in self._standard_fields:
+            return getattr(self, name, None)
+        # Check custom commands
+        return self.custom.get(name)
+
+    def all_commands(self) -> dict[str, str]:
+        """Return all defined commands as a dict.
+
+        Returns:
+            Dict mapping command names to command strings (only non-None values)
+        """
+        result: dict[str, str] = {}
+        for field in self._standard_fields:
+            if cmd := getattr(self, field, None):
+                result[field] = cmd
+        result.update(self.custom)
+        return result
+
+
+class HookStageConfig(BaseModel):
+    """Configuration for a single git hook stage."""
+
+    run: list[str] = Field(
+        default_factory=list,
+        description="List of verification command names to run (e.g., ['lint', 'format'])",
+    )
+    fail_fast: bool = Field(
+        default=True,
+        description="Stop on first failure (exit 1) vs run all and report",
+    )
+    timeout: int = Field(
+        default=300,
+        description="Timeout in seconds for each command",
+    )
+    enabled: bool = Field(
+        default=True,
+        description="Whether this hook stage is active",
+    )
+
+
+class HooksConfig(BaseModel):
+    """Git hooks configuration for verification commands.
+
+    Maps git hook stages to verification commands defined in ProjectVerificationConfig.
+    """
+
+    pre_commit: HookStageConfig = Field(
+        default_factory=HookStageConfig,
+        alias="pre-commit",
+        description="Pre-commit hook configuration",
+    )
+    pre_push: HookStageConfig = Field(
+        default_factory=HookStageConfig,
+        alias="pre-push",
+        description="Pre-push hook configuration",
+    )
+    pre_merge: HookStageConfig = Field(
+        default_factory=HookStageConfig,
+        alias="pre-merge",
+        description="Pre-merge hook configuration (runs before merge commits)",
+    )
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    def get_stage(self, stage: str) -> HookStageConfig:
+        """Get configuration for a hook stage.
+
+        Args:
+            stage: Hook stage name (e.g., 'pre-commit', 'pre-push', 'pre-merge')
+
+        Returns:
+            HookStageConfig for the stage
+        """
+        # Normalize stage name (pre-commit -> pre_commit)
+        attr_name = stage.replace("-", "_")
+        return getattr(self, attr_name, HookStageConfig())

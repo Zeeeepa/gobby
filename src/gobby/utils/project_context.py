@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from gobby.config.app import ProjectVerificationConfig
+    from gobby.config.features import HooksConfig
 
 logger = logging.getLogger(__name__)
 
@@ -151,4 +152,31 @@ def get_verification_config(cwd: Path | None = None) -> ProjectVerificationConfi
         return ProjectVerificationConfig(**verification_data)
     except Exception as e:
         logger.warning(f"Failed to parse verification config: {e}")
+        return None
+
+
+def get_hooks_config(cwd: Path | None = None) -> HooksConfig | None:
+    """
+    Get git hooks configuration from .gobby/project.json.
+
+    Args:
+        cwd: Current working directory to start search from.
+
+    Returns:
+        HooksConfig if hooks section exists, None otherwise.
+    """
+    from gobby.config.features import HooksConfig
+
+    context = get_project_context(cwd)
+    if not context:
+        return None
+
+    hooks_data = context.get("hooks")
+    if not hooks_data:
+        return None
+
+    try:
+        return HooksConfig(**hooks_data)
+    except Exception as e:
+        logger.warning(f"Failed to parse hooks config: {e}")
         return None
