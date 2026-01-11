@@ -209,6 +209,15 @@ __marimo__/
 
 # AI tool configurations (project-specific)
 .claude/settings.json
+.claude/settings.local.json
+.claude/audio/
+.claude/commands/agent-vibes/
+.claude/commands/bmad/
+.claude/config/
+.claude/hooks/*.sh
+.claude/personalities/
+.claude/activation-instructions
+.claude/tts*.txt
 .gemini/
 .codex/
 .gobby/*
