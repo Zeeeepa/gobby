@@ -12,6 +12,55 @@ logger = logging.getLogger(__name__)
 MigrationAction = str | Callable[[LocalDatabase], None]
 
 
+def _backfill_seq_num(db: LocalDatabase) -> None:
+    """
+    Backfill seq_num values for existing tasks.
+
+    Assigns sequential numbers per project, ordered by created_at.
+    Tasks within the same project get contiguous seq_num values starting from 1.
+    """
+    # Get all projects that have tasks
+    projects = db.fetchall(
+        "SELECT DISTINCT project_id FROM tasks WHERE seq_num IS NULL"
+    )
+
+    if not projects:
+        logger.debug("No tasks need seq_num backfill")
+        return
+
+    for project in projects:
+        project_id = project["project_id"]
+
+        # Get tasks for this project, ordered by creation time
+        tasks = db.fetchall(
+            """
+            SELECT id FROM tasks
+            WHERE project_id = ? AND seq_num IS NULL
+            ORDER BY created_at ASC, id ASC
+            """,
+            (project_id,),
+        )
+
+        # Find the max existing seq_num for this project (in case of partial migration)
+        max_seq = db.fetchone(
+            "SELECT MAX(seq_num) as max_seq FROM tasks WHERE project_id = ?",
+            (project_id,),
+        )
+        next_seq = (max_seq["max_seq"] or 0) + 1
+
+        # Assign sequential numbers
+        for task in tasks:
+            db.execute(
+                "UPDATE tasks SET seq_num = ? WHERE id = ?",
+                (next_seq, task["id"]),
+            )
+            next_seq += 1
+
+        logger.debug(
+            f"Backfilled seq_num for {len(tasks)} tasks in project {project_id}"
+        )
+
+
 def _migrate_task_ids_to_uuid(db: LocalDatabase) -> None:
     """
     Convert gt-* format task IDs to full UUIDs.
@@ -1172,6 +1221,11 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         53,
         "Convert gt-* task IDs to full UUIDs",
         _migrate_task_ids_to_uuid,
+    ),
+    (
+        54,
+        "Backfill seq_num for existing tasks",
+        _backfill_seq_num,
     ),
 ]
 

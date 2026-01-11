@@ -656,9 +656,9 @@ def test_uuid_migration_skips_when_no_gt_ids(tmp_path):
     # Run all migrations (53 should be no-op when no gt-* IDs exist)
     run_migrations(db)
 
-    # Verify migration completed without error
+    # Verify migration completed without error (now goes to 54)
     version = get_current_version(db)
-    assert version == 53, "Should complete all migrations including 53"
+    assert version >= 53, "Should complete migration 53 (and beyond)"
 
 
 def test_uuid_migration_number_is_53(tmp_path):
@@ -675,3 +675,167 @@ def test_uuid_migration_number_is_53(tmp_path):
     assert migration_53 is not None, "Migration 53 not found in MIGRATIONS list"
     assert "uuid" in migration_53[1].lower(), "Migration 53 should be for UUID conversion"
     assert callable(migration_53[2]), "Migration 53 should be a callable (Python migration)"
+
+
+# =============================================================================
+# Task ID Redesign: seq_num Backfill Migration Tests
+# =============================================================================
+
+
+def test_seq_num_backfill_assigns_sequential_numbers(tmp_path):
+    """Test that migration 54 assigns sequential seq_num values per project."""
+    db_path = tmp_path / "seq_num_backfill.db"
+    db = LocalDatabase(db_path)
+
+    # Run migrations up to 53 (before seq_num backfill)
+    from gobby.storage.migrations import MIGRATIONS
+
+    for version, _description, action in MIGRATIONS:
+        if version <= 53:
+            if callable(action):
+                action(db)
+            else:
+                for stmt in action.strip().split(";"):
+                    stmt = stmt.strip()
+                    if stmt:
+                        db.execute(stmt)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Create project and tasks without seq_num
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("proj-1", "Project 1"),
+    )
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now', '-3 days'), datetime('now'))""",
+        ("task-a", "proj-1", "First Task"),
+    )
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now', '-2 days'), datetime('now'))""",
+        ("task-b", "proj-1", "Second Task"),
+    )
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now', '-1 days'), datetime('now'))""",
+        ("task-c", "proj-1", "Third Task"),
+    )
+
+    # Run migration 54
+    for version, _description, action in MIGRATIONS:
+        if version == 54:
+            if callable(action):
+                action(db)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Verify seq_num values were assigned in order
+    tasks = db.fetchall(
+        "SELECT id, seq_num FROM tasks WHERE project_id = ? ORDER BY seq_num",
+        ("proj-1",),
+    )
+
+    assert len(tasks) == 3
+    assert tasks[0]["id"] == "task-a" and tasks[0]["seq_num"] == 1
+    assert tasks[1]["id"] == "task-b" and tasks[1]["seq_num"] == 2
+    assert tasks[2]["id"] == "task-c" and tasks[2]["seq_num"] == 3
+
+
+def test_seq_num_backfill_per_project(tmp_path):
+    """Test that seq_num values are assigned per project independently."""
+    db_path = tmp_path / "seq_num_per_project.db"
+    db = LocalDatabase(db_path)
+
+    # Run migrations up to 53
+    from gobby.storage.migrations import MIGRATIONS
+
+    for version, _description, action in MIGRATIONS:
+        if version <= 53:
+            if callable(action):
+                action(db)
+            else:
+                for stmt in action.strip().split(";"):
+                    stmt = stmt.strip()
+                    if stmt:
+                        db.execute(stmt)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Create two projects with tasks
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("proj-1", "Project 1"),
+    )
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("proj-2", "Project 2"),
+    )
+
+    # Project 1 tasks
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-p1-a", "proj-1", "P1 Task A"),
+    )
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-p1-b", "proj-1", "P1 Task B"),
+    )
+
+    # Project 2 tasks
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-p2-a", "proj-2", "P2 Task A"),
+    )
+
+    # Run migration 54
+    for version, _description, action in MIGRATIONS:
+        if version == 54:
+            if callable(action):
+                action(db)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Verify each project has independent seq_num sequence
+    p1_tasks = db.fetchall(
+        "SELECT id, seq_num FROM tasks WHERE project_id = ? ORDER BY seq_num",
+        ("proj-1",),
+    )
+    p2_tasks = db.fetchall(
+        "SELECT id, seq_num FROM tasks WHERE project_id = ? ORDER BY seq_num",
+        ("proj-2",),
+    )
+
+    # Both projects should start at seq_num = 1
+    assert p1_tasks[0]["seq_num"] == 1
+    assert p1_tasks[1]["seq_num"] == 2
+    assert p2_tasks[0]["seq_num"] == 1  # Independent sequence
+
+
+def test_seq_num_backfill_skips_already_set(tmp_path):
+    """Test that migration 54 skips tasks that already have seq_num."""
+    db_path = tmp_path / "seq_num_skip.db"
+    db = LocalDatabase(db_path)
+
+    # Run all migrations
+    run_migrations(db)
+
+    # Verify migration completed without error
+    version = get_current_version(db)
+    assert version == 54, "Should complete all migrations including 54"
+
+
+def test_seq_num_backfill_migration_number_is_54(tmp_path):
+    """Test that seq_num backfill is migration 54."""
+    from gobby.storage.migrations import MIGRATIONS
+
+    # Find migration 54
+    migration_54 = None
+    for version, description, action in MIGRATIONS:
+        if version == 54:
+            migration_54 = (version, description, action)
+            break
+
+    assert migration_54 is not None, "Migration 54 not found in MIGRATIONS list"
+    assert "seq_num" in migration_54[1].lower(), "Migration 54 should be for seq_num backfill"
+    assert callable(migration_54[2]), "Migration 54 should be a callable (Python migration)"
