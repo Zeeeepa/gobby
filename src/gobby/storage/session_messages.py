@@ -37,9 +37,7 @@ class LocalSessionMessageManager:
             # Check if session exists to avoid FOREIGN KEY constraint errors
             # This can happen when sessions are created in hub-only mode but
             # message processor is using the project database
-            session_exists = self.db.fetchone(
-                "SELECT 1 FROM sessions WHERE id = ?", (session_id,)
-            )
+            session_exists = self.db.fetchone("SELECT 1 FROM sessions WHERE id = ?", (session_id,))
             if not session_exists:
                 logger.debug(
                     f"Session {session_id} not found in database, skipping message storage"
@@ -162,9 +160,7 @@ class LocalSessionMessageManager:
             (session_id,),
         )
         if not session_exists:
-            logger.debug(
-                f"Session {session_id} not found in database, skipping state update"
-            )
+            logger.debug(f"Session {session_id} not found in database, skipping state update")
             return
 
         sql = """

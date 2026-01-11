@@ -1718,5 +1718,3 @@ class TestMetricsCleanupLoopDetailed:
 
             # Cleanup should have been called twice (once erroring, once successful)
             assert call_count == 2
-
-
