@@ -215,6 +215,7 @@ class Task:
         - get_task() returns full format (33 fields)
         """
         return {
+            "ref": f"#{self.seq_num}" if self.seq_num else self.id[:8],
             "id": self.id,
             "title": self.title,
             "status": self.status,

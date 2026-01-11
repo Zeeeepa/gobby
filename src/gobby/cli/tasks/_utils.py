@@ -72,15 +72,20 @@ def get_claimed_task_ids() -> set[str]:
     Queries workflow_states for active sessions that have a session_task variable set,
     indicating the task is being actively worked on by that session.
 
+    Supports session_task in multiple formats:
+      - #N: Resolved to UUID via seq_num lookup
+      - UUID: Used directly
+      - Partial UUID prefix: Used for prefix matching
+
     Returns:
-        Set of task IDs claimed by active sessions
+        Set of task UUIDs claimed by active sessions
     """
     try:
         db = LocalDatabase()
         # Join workflow_states with sessions to find active sessions with session_task
         rows = db.fetchall(
             """
-            SELECT ws.variables
+            SELECT ws.variables, s.project_id
             FROM workflow_states ws
             JOIN sessions s ON ws.session_id = s.id
             WHERE s.status = 'active'
@@ -90,15 +95,50 @@ def get_claimed_task_ids() -> set[str]:
         )
 
         claimed_ids: set[str] = set()
+        task_manager = None  # Lazy init
+
+        def resolve_task_ref(ref: str, project_id: str | None) -> str | None:
+            """Resolve a task reference to UUID."""
+            nonlocal task_manager
+            if not ref or ref == "*":
+                return None
+
+            # #N format - resolve via seq_num
+            if ref.startswith("#"):
+                try:
+                    seq_num = int(ref[1:])
+                    row = db.fetchone(
+                        "SELECT id FROM tasks WHERE project_id = ? AND seq_num = ?",
+                        (project_id, seq_num),
+                    )
+                    return row["id"] if row else None
+                except (ValueError, TypeError):
+                    return None
+
+            # Check if it looks like a UUID (36 chars with dashes)
+            if len(ref) == 36 and ref.count("-") == 4:
+                return ref
+
+            # Partial UUID prefix - find matching task
+            row = db.fetchone(
+                "SELECT id FROM tasks WHERE id LIKE ? AND project_id = ?",
+                (f"%{ref}%", project_id),
+            )
+            return row["id"] if row else None
+
         for row in rows:
             try:
                 variables = json.loads(row["variables"]) if row["variables"] else {}
+                project_id = row["project_id"]
                 if session_task := variables.get("session_task"):
                     # session_task can be: string, list of strings, or "*" (wildcard)
                     if isinstance(session_task, list):
-                        claimed_ids.update(session_task)
+                        for task_ref in session_task:
+                            if resolved := resolve_task_ref(task_ref, project_id):
+                                claimed_ids.add(resolved)
                     elif session_task != "*":
-                        claimed_ids.add(session_task)
+                        if resolved := resolve_task_ref(session_task, project_id):
+                            claimed_ids.add(resolved)
             except (json.JSONDecodeError, TypeError):
                 continue
 
@@ -264,7 +304,7 @@ def compute_tree_prefixes(
 # Column widths for task table
 COL_STATUS = 1  # Status icon
 COL_PRIORITY = 2  # Priority emoji (2 visual chars)
-COL_ID = 9  # gt-xxxxxx
+COL_ID = 6  # #N format (e.g., #1234)
 
 
 def format_task_row(
@@ -316,7 +356,9 @@ def format_task_row(
     # Build row with proper visual width padding
     status_col = pad_to_width(status_icon, COL_STATUS)
     priority_col = pad_to_width(priority_icon, COL_PRIORITY)
-    id_col = pad_to_width(task.id, COL_ID)
+    # Use #N format for display (seq_num), fallback to short UUID prefix
+    task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+    id_col = pad_to_width(task_ref, COL_ID)
 
     title = task.title
     if show_muted:
@@ -331,7 +373,7 @@ def format_task_header() -> str:
     """Return header row for task list."""
     status_col = pad_to_width("", COL_STATUS)
     priority_col = pad_to_width("", COL_PRIORITY)
-    id_col = pad_to_width("ID", COL_ID)
+    id_col = pad_to_width("#", COL_ID)
 
     return f"{status_col} {priority_col} {id_col} TITLE"
 
