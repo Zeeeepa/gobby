@@ -80,13 +80,15 @@ def mock_config():
 @pytest.fixture
 def action_executor(temp_db, session_manager):
     """Create an ActionExecutor for testing."""
+    mock_config = MagicMock()
+    mock_config.compression = None  # Prevent TextCompressor from initializing with MagicMock
     return ActionExecutor(
         temp_db,
         session_manager,
         MagicMock(spec=TemplateEngine),
         llm_service=AsyncMock(),
         transcript_processor=MagicMock(),
-        config=MagicMock(),
+        config=mock_config,
         mcp_manager=AsyncMock(),
     )
 

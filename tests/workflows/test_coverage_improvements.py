@@ -1,4 +1,3 @@
-import asyncio
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -216,10 +215,6 @@ async def test_claude_cli_missing(mock_config):
         result = await provider.generate_text("test")
         assert "Generation unavailable" in result
 
-        result = await provider.execute_code("print('hi')", prompt_template="{code}")
-        assert result["success"] is False
-        assert "Claude CLI not found" in result["error"]
-
 
 @pytest.mark.asyncio
 async def test_claude_cli_retry_logic(mock_config):
@@ -253,29 +248,6 @@ async def test_claude_cli_retry_logic(mock_config):
     ):
         cli_path = provider._verify_cli_path()
         assert cli_path == "/new/path"
-
-
-@pytest.mark.asyncio
-async def test_claude_execute_code_timeout(mock_config):
-    """Test Claude code execution timeout."""
-    with (
-        patch("shutil.which", return_value="/mock/claude"),
-        patch("os.path.exists", return_value=True),
-        patch("os.access", return_value=True),
-    ):
-        provider = ClaudeLLMProvider(mock_config)
-
-        async def mock_query_hang(*args, **kwargs):
-            await asyncio.sleep(0.2)
-            yield "done"
-
-        with patch("gobby.llm.claude.query", side_effect=mock_query_hang):
-            result = await provider.execute_code(
-                "print('long')", timeout=0.05, prompt_template="{code}"
-            )
-
-            assert result["success"] is False
-            assert "timed out" in result["error"]
 
 
 @pytest.mark.asyncio

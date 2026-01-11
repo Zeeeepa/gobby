@@ -9,11 +9,13 @@ from gobby.workflows.templates import TemplateEngine
 
 @pytest.fixture
 def mock_services():
+    mock_config = MagicMock()
+    mock_config.compression = None  # Prevent TextCompressor from initializing with MagicMock
     return {
         "template_engine": MagicMock(spec=TemplateEngine),
         "llm_service": AsyncMock(),
         "transcript_processor": MagicMock(),
-        "config": MagicMock(),
+        "config": mock_config,
         "mcp_manager": AsyncMock(),
         "memory_manager": MagicMock(),
     }
