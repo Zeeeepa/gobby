@@ -76,7 +76,7 @@ def task_registry(mock_task_manager, mock_sync_manager):
 def sample_task():
     """Create a sample task for testing."""
     return Task(
-        id="gt-abc123",
+        id="550e8400-e29b-41d4-a716-446655440000",
         project_id="proj-1",
         title="Test Task",
         status="open",
@@ -172,12 +172,12 @@ class TestCreateTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         mock_task = MagicMock()
-        mock_task.id = "gt-new123"
-        mock_task.to_dict.return_value = {"id": "gt-new123", "title": "New Task"}
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440001"
+        mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440001", "title": "New Task"}
         # Mock create_task_with_decomposition to return non-decomposed result
         mock_task_manager.create_task_with_decomposition.return_value = {
             "auto_decomposed": False,
-            "task": {"id": "gt-new123", "title": "New Task"},
+            "task": {"id": "550e8400-e29b-41d4-a716-446655440001", "title": "New Task"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -186,7 +186,7 @@ class TestCreateTaskTool:
 
             result = await registry.call("create_task", {"title": "New Task"})
 
-            assert result == {"success": True, "id": "gt-new123"}
+            assert result == {"success": True, "id": "550e8400-e29b-41d4-a716-446655440001"}
             mock_task_manager.create_task_with_decomposition.assert_called_once()
 
     @pytest.mark.asyncio
@@ -199,11 +199,11 @@ class TestCreateTaskTool:
             registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
             mock_task = MagicMock()
-            mock_task.id = "gt-blocker"
-            mock_task.to_dict.return_value = {"id": "gt-blocker"}
+            mock_task.id = "550e8400-e29b-41d4-a716-446655440002"
+            mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440002"}
             mock_task_manager.create_task_with_decomposition.return_value = {
                 "auto_decomposed": False,
-                "task": {"id": "gt-blocker"},
+                "task": {"id": "550e8400-e29b-41d4-a716-446655440002"},
             }
             mock_task_manager.get_task.return_value = mock_task
 
@@ -212,17 +212,17 @@ class TestCreateTaskTool:
 
                 result = await registry.call(
                     "create_task",
-                    {"title": "Blocker Task", "blocks": ["gt-blocked1", "gt-blocked2"]},
+                    {"title": "Blocker Task", "blocks": ["550e8400-e29b-41d4-a716-446655440003", "550e8400-e29b-41d4-a716-446655440004"]},
                 )
 
-                assert result["id"] == "gt-blocker"
+                assert result["id"] == "550e8400-e29b-41d4-a716-446655440002"
                 # Verify dependencies were added
                 assert mock_dep_instance.add_dependency.call_count == 2
                 mock_dep_instance.add_dependency.assert_any_call(
-                    "gt-blocker", "gt-blocked1", "blocks"
+                    "550e8400-e29b-41d4-a716-446655440002", "550e8400-e29b-41d4-a716-446655440003", "blocks"
                 )
                 mock_dep_instance.add_dependency.assert_any_call(
-                    "gt-blocker", "gt-blocked2", "blocks"
+                    "550e8400-e29b-41d4-a716-446655440002", "550e8400-e29b-41d4-a716-446655440004", "blocks"
                 )
 
     @pytest.mark.asyncio
@@ -231,11 +231,11 @@ class TestCreateTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         mock_task = MagicMock()
-        mock_task.id = "gt-labeled"
-        mock_task.to_dict.return_value = {"id": "gt-labeled", "labels": ["urgent", "bug"]}
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440005"
+        mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440005", "labels": ["urgent", "bug"]}
         mock_task_manager.create_task_with_decomposition.return_value = {
             "auto_decomposed": False,
-            "task": {"id": "gt-labeled", "labels": ["urgent", "bug"]},
+            "task": {"id": "550e8400-e29b-41d4-a716-446655440005", "labels": ["urgent", "bug"]},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -256,11 +256,11 @@ class TestCreateTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         mock_task = MagicMock()
-        mock_task.id = "gt-manual"
-        mock_task.to_dict.return_value = {"id": "gt-manual"}
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440006"
+        mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440006"}
         mock_task_manager.create_task_with_decomposition.return_value = {
             "auto_decomposed": False,
-            "task": {"id": "gt-manual"},
+            "task": {"id": "550e8400-e29b-41d4-a716-446655440006"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -280,11 +280,11 @@ class TestCreateTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         mock_task = MagicMock()
-        mock_task.id = "gt-auto"
-        mock_task.to_dict.return_value = {"id": "gt-auto"}
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440007"
+        mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440007"}
         mock_task_manager.create_task_with_decomposition.return_value = {
             "auto_decomposed": False,
-            "task": {"id": "gt-auto"},
+            "task": {"id": "550e8400-e29b-41d4-a716-446655440007"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -306,11 +306,11 @@ class TestCreateTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         mock_task = MagicMock()
-        mock_task.id = "gt-full"
-        mock_task.to_dict.return_value = {"id": "gt-full"}
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440008"
+        mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440008"}
         mock_task_manager.create_task_with_decomposition.return_value = {
             "auto_decomposed": False,
-            "task": {"id": "gt-full"},
+            "task": {"id": "550e8400-e29b-41d4-a716-446655440008"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -324,7 +324,7 @@ class TestCreateTaskTool:
                     "description": "Detailed description",
                     "priority": 1,
                     "task_type": "feature",
-                    "parent_task_id": "gt-parent",
+                    "parent_task_id": "550e8400-e29b-41d4-a716-446655440009",
                     "labels": ["important"],
                     "test_strategy": "automated",
                     "validation_criteria": "Must pass tests",
@@ -337,7 +337,7 @@ class TestCreateTaskTool:
             assert call_kwargs["description"] == "Detailed description"
             assert call_kwargs["priority"] == 1
             assert call_kwargs["task_type"] == "feature"
-            assert call_kwargs["parent_task_id"] == "gt-parent"
+            assert call_kwargs["parent_task_id"] == "550e8400-e29b-41d4-a716-446655440009"
             assert call_kwargs["labels"] == ["important"]
             assert call_kwargs["test_strategy"] == "automated"
             assert call_kwargs["validation_criteria"] == "Must pass tests"
@@ -349,11 +349,11 @@ class TestCreateTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         mock_task = MagicMock()
-        mock_task.id = "gt-new"
-        mock_task.to_dict.return_value = {"id": "gt-new"}
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440010"
+        mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440010"}
         mock_task_manager.create_task_with_decomposition.return_value = {
             "auto_decomposed": False,
-            "task": {"id": "gt-new"},
+            "task": {"id": "550e8400-e29b-41d4-a716-446655440010"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -382,15 +382,15 @@ class TestCreateTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager, config=mock_config)
 
         mock_task = MagicMock()
-        mock_task.id = "gt-full"
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440011"
         mock_task.to_dict.return_value = {
-            "id": "gt-full",
+            "id": "550e8400-e29b-41d4-a716-446655440011",
             "title": "Full Task",
             "status": "open",
         }
         mock_task_manager.create_task_with_decomposition.return_value = {
             "auto_decomposed": False,
-            "task": {"id": "gt-full", "title": "Full Task", "status": "open"},
+            "task": {"id": "550e8400-e29b-41d4-a716-446655440011", "title": "Full Task", "status": "open"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -400,7 +400,7 @@ class TestCreateTaskTool:
             result = await registry.call("create_task", {"title": "Full Task"})
 
             # Should return full task dict, not minimal
-            assert result == {"id": "gt-full", "title": "Full Task", "status": "open"}
+            assert result == {"id": "550e8400-e29b-41d4-a716-446655440011", "title": "Full Task", "status": "open"}
 
     @pytest.mark.asyncio
     async def test_create_task_auto_generates_validation(
@@ -417,12 +417,12 @@ class TestCreateTaskTool:
         )
 
         mock_task = MagicMock()
-        mock_task.id = "gt-auto"
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440012"
         mock_task.task_type = "task"  # Not epic
-        mock_task.to_dict.return_value = {"id": "gt-auto"}
+        mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440012"}
         mock_task_manager.create_task_with_decomposition.return_value = {
             "auto_decomposed": False,
-            "task": {"id": "gt-auto"},
+            "task": {"id": "550e8400-e29b-41d4-a716-446655440012"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -450,12 +450,12 @@ class TestCreateTaskTool:
         )
 
         mock_task = MagicMock()
-        mock_task.id = "gt-epic"
+        mock_task.id = "550e8400-e29b-41d4-a716-446655440013"
         mock_task.task_type = "epic"
-        mock_task.to_dict.return_value = {"id": "gt-epic"}
+        mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440013"}
         mock_task_manager.create_task_with_decomposition.return_value = {
             "auto_decomposed": False,
-            "task": {"id": "gt-epic"},
+            "task": {"id": "550e8400-e29b-41d4-a716-446655440013"},
         }
         mock_task_manager.get_task.return_value = mock_task
 
@@ -489,9 +489,9 @@ class TestGetTaskTool:
 
             mock_task_manager.get_task.return_value = sample_task
 
-            result = await registry.call("get_task", {"task_id": "gt-abc123"})
+            result = await registry.call("get_task", {"task_id": sample_task.id})
 
-            assert result["id"] == "gt-abc123"
+            assert result["id"] == sample_task.id
             assert result["title"] == "Test Task"
             assert "dependencies" in result
             assert "blocked_by" in result["dependencies"]

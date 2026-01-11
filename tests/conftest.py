@@ -3,16 +3,17 @@
 import tempfile
 from collections.abc import Iterator
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from gobby.config.app import DaemonConfig
-from gobby.storage.database import LocalDatabase
-from gobby.storage.mcp import LocalMCPManager
-from gobby.storage.migrations import run_migrations
-from gobby.storage.projects import LocalProjectManager
-from gobby.storage.sessions import LocalSessionManager
+if TYPE_CHECKING:
+    from gobby.config.app import DaemonConfig
+    from gobby.storage.database import LocalDatabase
+    from gobby.storage.mcp import LocalMCPManager
+    from gobby.storage.projects import LocalProjectManager
+    from gobby.storage.sessions import LocalSessionManager
 
 
 @pytest.fixture
@@ -23,8 +24,11 @@ def temp_dir() -> Iterator[Path]:
 
 
 @pytest.fixture
-def temp_db(temp_dir: Path) -> Iterator[LocalDatabase]:
+def temp_db(temp_dir: Path) -> Iterator["LocalDatabase"]:
     """Create a temporary database for testing."""
+    from gobby.storage.database import LocalDatabase
+    from gobby.storage.migrations import run_migrations
+
     db_path = temp_dir / "test.db"
     db = LocalDatabase(db_path)
     run_migrations(db)
@@ -33,25 +37,31 @@ def temp_db(temp_dir: Path) -> Iterator[LocalDatabase]:
 
 
 @pytest.fixture
-def session_manager(temp_db: LocalDatabase) -> LocalSessionManager:
+def session_manager(temp_db: "LocalDatabase") -> "LocalSessionManager":
     """Create a session manager with temp database."""
+    from gobby.storage.sessions import LocalSessionManager
+
     return LocalSessionManager(temp_db)
 
 
 @pytest.fixture
-def project_manager(temp_db: LocalDatabase) -> LocalProjectManager:
+def project_manager(temp_db: "LocalDatabase") -> "LocalProjectManager":
     """Create a project manager with temp database."""
+    from gobby.storage.projects import LocalProjectManager
+
     return LocalProjectManager(temp_db)
 
 
 @pytest.fixture
-def mcp_manager(temp_db: LocalDatabase) -> LocalMCPManager:
+def mcp_manager(temp_db: "LocalDatabase") -> "LocalMCPManager":
     """Create an MCP manager with temp database."""
+    from gobby.storage.mcp import LocalMCPManager
+
     return LocalMCPManager(temp_db)
 
 
 @pytest.fixture
-def sample_project(project_manager: LocalProjectManager) -> dict:
+def sample_project(project_manager: "LocalProjectManager") -> dict:
     """Create a sample project for testing."""
     project = project_manager.create(
         name="test-project",
@@ -62,8 +72,10 @@ def sample_project(project_manager: LocalProjectManager) -> dict:
 
 
 @pytest.fixture
-def default_config() -> DaemonConfig:
+def default_config() -> "DaemonConfig":
     """Create a default DaemonConfig for testing."""
+    from gobby.config.app import DaemonConfig
+
     return DaemonConfig()
 
 
