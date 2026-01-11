@@ -1123,6 +1123,18 @@ class TaskHierarchyBuilder:
         # Determine if this heading (or its children) have checkboxes
         has_checkboxes = self._heading_has_checkboxes(heading, checkbox_lookup)
 
+        # Check if this section is actionable (worth creating a task for)
+        is_actionable = self._is_actionable_section(heading.text)
+
+        # Check if any children are actionable (recursively)
+        has_actionable_children = self._has_actionable_descendants(heading, checkbox_lookup)
+
+        # Skip non-actionable sections without checkboxes and without actionable children
+        # These are documentation sections like "Problem Statement", "Design Decisions", etc.
+        if not has_checkboxes and not is_actionable and not has_actionable_children:
+            logger.debug(f"Skipping non-actionable section without checkboxes: '{heading.text}'")
+            return created_at_level
+
         # Determine task type based on heading level
         task_type = "epic" if heading.level <= 3 else "task"
 
@@ -1234,6 +1246,38 @@ class TaskHierarchyBuilder:
         # Check children recursively
         for child in heading.children:
             if self._heading_has_checkboxes(child, checkbox_lookup):
+                return True
+
+        return False
+
+    def _has_actionable_descendants(
+        self,
+        heading: HeadingNode,
+        checkbox_lookup: dict[str, list[CheckboxItem]],
+    ) -> bool:
+        """Check if any child headings are actionable or have checkboxes.
+
+        Used to determine if a parent section should be created as a container
+        even if the parent itself is not actionable.
+
+        Args:
+            heading: HeadingNode to check
+            checkbox_lookup: Mapping of heading text to checkboxes
+
+        Returns:
+            True if any descendant is actionable or has checkboxes
+        """
+        for child in heading.children:
+            # Check if child has checkboxes
+            if self._heading_has_checkboxes(child, checkbox_lookup):
+                return True
+
+            # Check if child heading text is actionable
+            if self._is_actionable_section(child.text):
+                return True
+
+            # Recursively check grandchildren
+            if self._has_actionable_descendants(child, checkbox_lookup):
                 return True
 
         return False

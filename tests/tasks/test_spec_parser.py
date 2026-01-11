@@ -1814,13 +1814,14 @@ This phase involves implementing the core features.
         )
 
         # Only "Implementation Tasks" should trigger LLM expansion
-        # "Overview" and "Configuration Example" should NOT
+        # "Overview" and "Configuration Example" should be SKIPPED entirely (no tasks created)
         assert len(mock_task_expander.expand_calls) == 1
         assert mock_task_expander.expand_calls[0]["title"] == "Implementation Tasks"
 
-        # Should have 3 heading tasks + 2 LLM-created subtasks for Implementation only
-        # Overview (1) + Configuration Example (1) + Implementation Tasks (1) + 2 subtasks = 5
-        assert result.total_count == 5
+        # Should have only the actionable section + its LLM-created subtasks
+        # Non-actionable sections are now skipped entirely, not created as tasks
+        # Implementation Tasks (1) + 2 subtasks = 3
+        assert result.total_count == 3
 
     @pytest.mark.asyncio
     async def test_all_non_actionable_sections_no_llm(self, mock_task_manager, mock_task_expander):
