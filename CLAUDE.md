@@ -74,7 +74,7 @@ Use `get_tool_schema` to look up parameter details for any tool.
 call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title": "My task", "task_type": "feature"})
 
 # 2. Set to in_progress BEFORE editing
-call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_id": "gt-xxx", "status": "in_progress"})
+call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_id": "<task-id>", "status": "in_progress"})
 ```
 
 ### Task Workflow
@@ -100,8 +100,8 @@ When creating tasks from a spec/PRD/design doc, use `expand_from_spec(spec_path)
 
 Include task ID in commit messages for auto-linking:
 
-- `[gt-abc123] feat: add feature` (recommended)
-- `gt-abc123: fix bug`
+- `[<task-id>] feat: add feature` (recommended)
+- `<task-id>: fix bug`
 
 ### Commit Messages
 
@@ -139,7 +139,7 @@ Create isolated git worktrees for parallel development:
 call_tool(server_name="gobby-worktrees", tool_name="spawn_agent_in_worktree", arguments={
     "prompt": "Implement auth",
     "branch_name": "feature/auth",
-    "task_id": "gt-abc123",
+    "task_id": "<task-id>",
     "mode": "terminal",
 })
 ```
@@ -166,7 +166,7 @@ When active, `list_tools()` returns only allowed tools for current step.
 # Link session to parent task (enforced by stop hook)
 call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
     "name": "session_task",
-    "value": "gt-abc123"
+    "value": "<task-id>"
 })
 
 # Disable auto-decomposition for the session
