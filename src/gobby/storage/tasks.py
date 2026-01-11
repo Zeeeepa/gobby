@@ -455,6 +455,15 @@ class LocalTaskManager:
                 task_id = generate_task_id(project_id, salt=str(attempt))
 
                 with self.db.transaction() as conn:
+                    # Get next seq_num for this project (auto-increment per project)
+                    max_seq_row = conn.execute(
+                        "SELECT MAX(seq_num) as max_seq FROM tasks WHERE project_id = ?",
+                        (project_id,),
+                    ).fetchone()
+                    next_seq_num = (
+                        (max_seq_row["max_seq"] if max_seq_row else None) or 0
+                    ) + 1
+
                     conn.execute(
                         """
                         INSERT INTO tasks (
@@ -466,8 +475,8 @@ class LocalTaskManager:
                             validation_criteria, use_external_validator, validation_fail_count,
                             workflow_name, verification, sequence_order,
                             github_issue_number, github_pr_number, github_repo,
-                            linear_issue_id, linear_team_id
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)
+                            linear_issue_id, linear_team_id, seq_num
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             task_id,
@@ -497,6 +506,7 @@ class LocalTaskManager:
                             github_repo,
                             linear_issue_id,
                             linear_team_id,
+                            next_seq_num,
                         ),
                     )
 
