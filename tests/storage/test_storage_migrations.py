@@ -822,7 +822,7 @@ def test_seq_num_backfill_skips_already_set(tmp_path):
 
     # Verify migration completed without error
     version = get_current_version(db)
-    assert version == 54, "Should complete all migrations including 54"
+    assert version >= 54, "Should complete all migrations including 54"
 
 
 def test_seq_num_backfill_migration_number_is_54(tmp_path):
@@ -839,3 +839,213 @@ def test_seq_num_backfill_migration_number_is_54(tmp_path):
     assert migration_54 is not None, "Migration 54 not found in MIGRATIONS list"
     assert "seq_num" in migration_54[1].lower(), "Migration 54 should be for seq_num backfill"
     assert callable(migration_54[2]), "Migration 54 should be a callable (Python migration)"
+
+
+# Migration 55: Backfill path_cache for existing tasks
+
+
+def test_path_cache_backfill_computes_root_task_path(tmp_path):
+    """Test that migration 55 computes path_cache for root tasks."""
+    db_path = tmp_path / "path_cache_root.db"
+    db = LocalDatabase(db_path)
+
+    # Run migrations up to 54 (includes seq_num assignment)
+    from gobby.storage.migrations import MIGRATIONS
+
+    for version, _description, action in MIGRATIONS:
+        if version <= 54:
+            if callable(action):
+                action(db)
+            else:
+                for stmt in action.strip().split(";"):
+                    stmt = stmt.strip()
+                    if stmt:
+                        db.execute(stmt)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Create project and root task with seq_num
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("proj-1", "Project 1"),
+    )
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, seq_num, created_at, updated_at)
+           VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-root", "proj-1", "Root Task", 1),
+    )
+
+    # Run migration 55
+    for version, _description, action in MIGRATIONS:
+        if version == 55:
+            if callable(action):
+                action(db)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Verify path_cache was computed
+    row = db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", ("task-root",))
+    assert row["path_cache"] == "1"
+
+
+def test_path_cache_backfill_computes_child_task_path(tmp_path):
+    """Test that migration 55 computes path_cache for child tasks."""
+    db_path = tmp_path / "path_cache_child.db"
+    db = LocalDatabase(db_path)
+
+    # Run migrations up to 54
+    from gobby.storage.migrations import MIGRATIONS
+
+    for version, _description, action in MIGRATIONS:
+        if version <= 54:
+            if callable(action):
+                action(db)
+            else:
+                for stmt in action.strip().split(";"):
+                    stmt = stmt.strip()
+                    if stmt:
+                        db.execute(stmt)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Create project, parent, and child with seq_nums
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("proj-1", "Project 1"),
+    )
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, seq_num, created_at, updated_at)
+           VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-parent", "proj-1", "Parent Task", 1),
+    )
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, parent_task_id, seq_num, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-child", "proj-1", "Child Task", "task-parent", 2),
+    )
+
+    # Run migration 55
+    for version, _description, action in MIGRATIONS:
+        if version == 55:
+            if callable(action):
+                action(db)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Verify path_cache values
+    parent_row = db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", ("task-parent",))
+    assert parent_row["path_cache"] == "1"
+
+    child_row = db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", ("task-child",))
+    assert child_row["path_cache"] == "1.2"
+
+
+def test_path_cache_backfill_deep_hierarchy(tmp_path):
+    """Test that migration 55 computes path_cache for deeply nested tasks."""
+    db_path = tmp_path / "path_cache_deep.db"
+    db = LocalDatabase(db_path)
+
+    # Run migrations up to 54
+    from gobby.storage.migrations import MIGRATIONS
+
+    for version, _description, action in MIGRATIONS:
+        if version <= 54:
+            if callable(action):
+                action(db)
+            else:
+                for stmt in action.strip().split(";"):
+                    stmt = stmt.strip()
+                    if stmt:
+                        db.execute(stmt)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Create project and 4-level hierarchy
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("proj-1", "Project 1"),
+    )
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, seq_num, created_at, updated_at)
+           VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-1", "proj-1", "Level 1", 1),
+    )
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, parent_task_id, seq_num, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-2", "proj-1", "Level 2", "task-1", 3),
+    )
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, parent_task_id, seq_num, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-3", "proj-1", "Level 3", "task-2", 7),
+    )
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, parent_task_id, seq_num, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-4", "proj-1", "Level 4", "task-3", 47),
+    )
+
+    # Run migration 55
+    for version, _description, action in MIGRATIONS:
+        if version == 55:
+            if callable(action):
+                action(db)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Verify path_cache for deepest task
+    row = db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", ("task-4",))
+    assert row["path_cache"] == "1.3.7.47"
+
+
+def test_path_cache_backfill_skips_no_seq_num(tmp_path):
+    """Test that migration 55 skips tasks without seq_num."""
+    db_path = tmp_path / "path_cache_skip.db"
+    db = LocalDatabase(db_path)
+
+    # Run migrations up to 54
+    from gobby.storage.migrations import MIGRATIONS
+
+    for version, _description, action in MIGRATIONS:
+        if version <= 54:
+            if callable(action):
+                action(db)
+            else:
+                for stmt in action.strip().split(";"):
+                    stmt = stmt.strip()
+                    if stmt:
+                        db.execute(stmt)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Create project and task WITHOUT seq_num
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("proj-1", "Project 1"),
+    )
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-no-seq", "proj-1", "No Seq Task"),
+    )
+
+    # Run migration 55
+    for version, _description, action in MIGRATIONS:
+        if version == 55:
+            if callable(action):
+                action(db)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Verify path_cache is still NULL
+    row = db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", ("task-no-seq",))
+    assert row["path_cache"] is None
+
+
+def test_path_cache_backfill_migration_number_is_55(tmp_path):
+    """Test that path_cache backfill is migration 55."""
+    from gobby.storage.migrations import MIGRATIONS
+
+    # Find migration 55
+    migration_55 = None
+    for version, description, action in MIGRATIONS:
+        if version == 55:
+            migration_55 = (version, description, action)
+            break
+
+    assert migration_55 is not None, "Migration 55 not found in MIGRATIONS list"
+    assert "path_cache" in migration_55[1].lower(), "Migration 55 should be for path_cache backfill"
+    assert callable(migration_55[2]), "Migration 55 should be a callable (Python migration)"

@@ -42,11 +42,11 @@ def _backfill_seq_num(db: LocalDatabase) -> None:
         )
 
         # Find the max existing seq_num for this project (in case of partial migration)
-        max_seq = db.fetchone(
+        max_seq_row = db.fetchone(
             "SELECT MAX(seq_num) as max_seq FROM tasks WHERE project_id = ?",
             (project_id,),
         )
-        next_seq = (max_seq["max_seq"] or 0) + 1
+        next_seq = ((max_seq_row["max_seq"] if max_seq_row else None) or 0) + 1
 
         # Assign sequential numbers
         for task in tasks:
@@ -156,6 +156,56 @@ def _migrate_task_ids_to_uuid(db: LocalDatabase) -> None:
     finally:
         # Re-enable foreign keys
         db.execute("PRAGMA foreign_keys = ON")
+
+
+def _backfill_path_cache(db: LocalDatabase) -> None:
+    """
+    Backfill path_cache values for existing tasks.
+
+    Computes hierarchical paths by traversing parent chains.
+    Processes root tasks first, then children to ensure parent paths exist.
+    """
+    from gobby.storage.tasks import LocalTaskManager
+
+    task_mgr = LocalTaskManager(db)
+
+    # Get all tasks that have seq_num but no path_cache, ordered by hierarchy depth
+    # Use a recursive CTE to determine depth and process root tasks first
+    tasks = db.fetchall(
+        """
+        WITH RECURSIVE task_depth AS (
+            -- Base case: root tasks (no parent)
+            SELECT id, 0 as depth
+            FROM tasks
+            WHERE parent_task_id IS NULL
+            AND seq_num IS NOT NULL
+            AND path_cache IS NULL
+
+            UNION ALL
+
+            -- Recursive case: children (only if parent has seq_num)
+            SELECT t.id, td.depth + 1
+            FROM tasks t
+            JOIN task_depth td ON t.parent_task_id = td.id
+            WHERE t.seq_num IS NOT NULL
+            AND t.path_cache IS NULL
+        )
+        SELECT id FROM task_depth ORDER BY depth ASC
+        """
+    )
+
+    if not tasks:
+        logger.debug("No tasks need path_cache backfill")
+        return
+
+    # Compute and store path for each task
+    updated = 0
+    for task in tasks:
+        path = task_mgr.update_path_cache(task["id"])
+        if path:
+            updated += 1
+
+    logger.debug(f"Backfilled path_cache for {updated} tasks")
 
 
 # Migration functions: (version, description, sql_or_callable)
@@ -1226,6 +1276,11 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         54,
         "Backfill seq_num for existing tasks",
         _backfill_seq_num,
+    ),
+    (
+        55,
+        "Backfill path_cache for existing tasks",
+        _backfill_path_cache,
     ),
 ]
 
