@@ -59,9 +59,10 @@ class TestPersistDecomposedTasks:
         assert "2" in id_mapping
         assert "3" in id_mapping
 
-        # All IDs should be valid task IDs
+        # All IDs should be valid task IDs (UUID format)
         for _original_id, task_id in id_mapping.items():
-            assert task_id.startswith("gt-")
+            # Task IDs are now UUIDs (8-4-4-4-12 hex chars with dashes)
+            assert "-" in task_id and len(task_id.split("-")) == 5
 
     def test_persist_with_description_key(self, db, project_id):
         """Test that 'description' key works as title."""

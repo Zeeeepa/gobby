@@ -536,7 +536,8 @@ class TestCreateTaskAutoDecomposeDefault:
         assert result["auto_decomposed"] is True
         parent = result["parent_task"]
         assert parent["title"] == "Build feature"
-        assert parent["id"].startswith("gt-")
+        # Task IDs are now UUIDs (8-4-4-4-12 hex chars with dashes)
+        assert "-" in parent["id"] and len(parent["id"].split("-")) == 5
 
     @pytest.mark.slow
     @pytest.mark.integration

@@ -39,7 +39,8 @@ class TestLocalTaskManager:
         assert task.labels == ["urgent", "backend"]
         assert task.priority == 1
         assert task.task_type == "bug"
-        assert task.id.startswith("gt-")
+        # Task IDs are now UUIDs (8-4-4-4-12 hex chars with dashes)
+        assert "-" in task.id and len(task.id.split("-")) == 5
         assert task.created_at is not None
         assert task.updated_at is not None
 

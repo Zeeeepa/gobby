@@ -1,9 +1,7 @@
-import hashlib
 import json
 import logging
-import os
 import sqlite3
-import time
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -238,14 +236,24 @@ class TaskIDCollisionError(Exception):
 
 def generate_task_id(project_id: str, salt: str = "") -> str:
     """
-    Generate a hash-based task ID.
-    Format: gt-{hash} where hash is 6 hex chars.
+    Generate a UUID-based task ID.
+
+    Returns a UUID4 string which provides:
+    - Guaranteed uniqueness (128-bit random)
+    - Standard format (RFC 4122)
+    - Human-friendly reference via seq_num field
+
+    Args:
+        project_id: Project ID (included for API compatibility, not used in UUID generation)
+        salt: Salt value (included for API compatibility, not used in UUID generation)
+
+    Returns:
+        UUID4 string in standard format (xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx)
     """
-    # Use high-precision timestamp and random bytes
-    # project_id is included to reduce collisions across projects
-    data = f"{time.time_ns()}{os.urandom(8).hex()}{project_id}{salt}"
-    hash_hex = hashlib.sha256(data.encode()).hexdigest()[:6]
-    return f"gt-{hash_hex}"
+    # Note: project_id and salt params kept for backward API compatibility
+    # UUID4 is random and doesn't need external entropy
+    _ = project_id, salt  # Silence unused parameter warnings
+    return str(uuid.uuid4())
 
 
 def order_tasks_hierarchically(tasks: list[Task]) -> list[Task]:
