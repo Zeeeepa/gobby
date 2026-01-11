@@ -1049,3 +1049,179 @@ def test_path_cache_backfill_migration_number_is_55(tmp_path):
     assert migration_55 is not None, "Migration 55 not found in MIGRATIONS list"
     assert "path_cache" in migration_55[1].lower(), "Migration 55 should be for path_cache backfill"
     assert callable(migration_55[2]), "Migration 55 should be a callable (Python migration)"
+
+
+# Integration test: Full migration sequence with task renumbering
+
+
+def test_full_migration_sequence_end_to_end(tmp_path):
+    """Integration test: complete migration sequence with task renumbering.
+
+    This test verifies the entire migration flow for task renumbering:
+    1. Start with gt-* format task IDs
+    2. Run all migrations (52-55)
+    3. Verify UUID conversion, seq_num assignment, and path_cache computation
+    """
+    db_path = tmp_path / "full_migration.db"
+    db = LocalDatabase(db_path)
+
+    from gobby.storage.migrations import MIGRATIONS
+
+    # Run migrations up to 51 (before task renumbering changes)
+    for version, _description, action in MIGRATIONS:
+        if version <= 51:
+            if callable(action):
+                action(db)
+            else:
+                for stmt in action.strip().split(";"):
+                    stmt = stmt.strip()
+                    if stmt:
+                        db.execute(stmt)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Create project and tasks with gt-* format IDs including hierarchy and dependencies
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("proj-1", "Test Project"),
+    )
+
+    # Create task hierarchy:
+    # gt-root (root task)
+    #   ├── gt-child1 (child)
+    #   │   └── gt-grandchild (grandchild)
+    #   └── gt-child2 (child, depends on child1)
+
+    # Root task (created first)
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now', '-3 days'), datetime('now'))""",
+        ("gt-root00", "proj-1", "Root Task"),
+    )
+
+    # First child (created second)
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, parent_task_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, datetime('now', '-2 days'), datetime('now'))""",
+        ("gt-child1", "proj-1", "First Child", "gt-root00"),
+    )
+
+    # Second child (created third, depends on first child)
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, parent_task_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, datetime('now', '-1 day'), datetime('now'))""",
+        ("gt-child2", "proj-1", "Second Child", "gt-root00"),
+    )
+
+    # Grandchild (created fourth, under first child)
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, parent_task_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("gt-grand", "proj-1", "Grandchild", "gt-child1"),
+    )
+
+    # Add dependency: child2 is blocked by child1
+    db.execute(
+        """INSERT INTO task_dependencies (task_id, depends_on, dep_type, created_at)
+           VALUES (?, ?, 'blocks', datetime('now'))""",
+        ("gt-child2", "gt-child1"),
+    )
+
+    # === Run Migration 52: Add seq_num and path_cache columns ===
+    for version, _description, action in MIGRATIONS:
+        if version == 52:
+            if callable(action):
+                action(db)
+            else:
+                for stmt in action.strip().split(";"):
+                    stmt = stmt.strip()
+                    if stmt:
+                        db.execute(stmt)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Verify columns exist
+    cols = {
+        row["name"]
+        for row in db.fetchall("PRAGMA table_info(tasks)")
+    }
+    assert "seq_num" in cols, "seq_num column should exist after migration 52"
+    assert "path_cache" in cols, "path_cache column should exist after migration 52"
+
+    # === Run Migration 53: Convert gt-* IDs to UUIDs ===
+    for version, _description, action in MIGRATIONS:
+        if version == 53:
+            if callable(action):
+                action(db)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Verify all task IDs are now UUIDs
+    tasks = db.fetchall("SELECT id, title FROM tasks")
+    assert len(tasks) == 4, "Should still have 4 tasks"
+
+    uuid_map = {}
+    for task in tasks:
+        task_id = task["id"]
+        title = task["title"]
+        assert not task_id.startswith("gt-"), f"Task {title} should not have gt-* ID"
+        assert "-" in task_id, f"Task {title} should have UUID format with dashes"
+        parts = task_id.split("-")
+        assert len(parts) == 5, f"Task {title} should have 5 UUID segments"
+        uuid_map[title] = task_id
+
+    # Verify parent_task_id references were updated
+    child1_row = db.fetchone("SELECT parent_task_id FROM tasks WHERE id = ?", (uuid_map["First Child"],))
+    assert child1_row["parent_task_id"] == uuid_map["Root Task"], "Child1 should reference root's new UUID"
+
+    grandchild_row = db.fetchone("SELECT parent_task_id FROM tasks WHERE id = ?", (uuid_map["Grandchild"],))
+    assert grandchild_row["parent_task_id"] == uuid_map["First Child"], "Grandchild should reference child1's new UUID"
+
+    # Verify dependency was updated
+    dep_row = db.fetchone(
+        "SELECT task_id, depends_on FROM task_dependencies WHERE task_id = ?",
+        (uuid_map["Second Child"],),
+    )
+    assert dep_row["depends_on"] == uuid_map["First Child"], "Dependency should reference child1's new UUID"
+
+    # === Run Migration 54: Backfill seq_num ===
+    for version, _description, action in MIGRATIONS:
+        if version == 54:
+            if callable(action):
+                action(db)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Verify seq_num values are contiguous and ordered by created_at
+    tasks_by_seq = db.fetchall(
+        "SELECT title, seq_num FROM tasks WHERE project_id = ? ORDER BY seq_num",
+        ("proj-1",),
+    )
+    assert tasks_by_seq[0]["title"] == "Root Task" and tasks_by_seq[0]["seq_num"] == 1
+    assert tasks_by_seq[1]["title"] == "First Child" and tasks_by_seq[1]["seq_num"] == 2
+    assert tasks_by_seq[2]["title"] == "Second Child" and tasks_by_seq[2]["seq_num"] == 3
+    assert tasks_by_seq[3]["title"] == "Grandchild" and tasks_by_seq[3]["seq_num"] == 4
+
+    # === Run Migration 55: Backfill path_cache ===
+    for version, _description, action in MIGRATIONS:
+        if version == 55:
+            if callable(action):
+                action(db)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Verify path_cache values are correct
+    root_row = db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", (uuid_map["Root Task"],))
+    assert root_row["path_cache"] == "1", "Root task should have path '1'"
+
+    child1_path = db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", (uuid_map["First Child"],))
+    assert child1_path["path_cache"] == "1.2", "First child should have path '1.2'"
+
+    child2_path = db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", (uuid_map["Second Child"],))
+    assert child2_path["path_cache"] == "1.3", "Second child should have path '1.3'"
+
+    grandchild_path = db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", (uuid_map["Grandchild"],))
+    assert grandchild_path["path_cache"] == "1.2.4", "Grandchild should have path '1.2.4'"
+
+    # Verify all tasks have path_cache set
+    null_paths = db.fetchone("SELECT COUNT(*) as count FROM tasks WHERE path_cache IS NULL")
+    assert null_paths["count"] == 0, "All tasks should have path_cache set"
+
+    # Verify final schema version
+    version = get_current_version(db)
+    assert version == 55, "Should be at schema version 55"
