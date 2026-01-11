@@ -647,7 +647,7 @@ Sync `gobby-tasks` with Linear for teams using Linear for project management.
 
 **Optional Integration:** Linear integration is **highly optional**. Most users won't have Linear. Code must gracefully handle the absence of the Linear MCP server with zero impact on other functionality.
 
-### Prerequisites
+### Phase 4 Prerequisites
 
 The user must have the Linear MCP server configured:
 
@@ -1091,14 +1091,14 @@ This phase overhauls gobby-memory with Memora-inspired enhancements:
 ### Phases
 
 | Phase | Feature | Effort |
-|-------|---------|--------|
+| ----- | ------- | ------ |
 | 8.1 | TF-IDF Search Backend | 3-4 hours |
 | 8.2 | Cross-References | 2-3 hours |
 | 8.3 | Enhanced Tag Filtering | 1 hour |
 | 8.4 | Knowledge Graph Visualization | 2 hours |
 | 8.5 | Migration & Configuration | 1-2 hours |
 
-**Total estimated effort: 10-12 hours**
+### Total estimated effort: 10-12 hours
 
 ### Why This Changed
 

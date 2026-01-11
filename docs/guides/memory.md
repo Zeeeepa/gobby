@@ -27,7 +27,7 @@ call_tool(server_name="gobby-memory", tool_name="remember", arguments={
 ### Memory Types
 
 | Type | Purpose | Examples |
-|------|---------|----------|
+| ---- | ------- | -------- |
 | `fact` | Objective information about the project | "Uses PostgreSQL with Prisma ORM", "Main entry point is src/index.ts" |
 | `preference` | User preferences and coding style | "Prefers functional components", "Use single quotes" |
 | `pattern` | Recurring patterns and conventions | "All API routes follow /api/v1/{resource}", "Tests use describe/it blocks" |
@@ -38,7 +38,7 @@ call_tool(server_name="gobby-memory", tool_name="remember", arguments={
 Importance (0.0-1.0) determines recall priority:
 
 | Range | Level | Use For |
-|-------|-------|---------|
+| ----- | ----- | ------- |
 | 0.8-1.0 | Critical | Must-know facts, breaking changes, security concerns |
 | 0.5-0.8 | Important | Key patterns, strong preferences, architectural decisions |
 | 0.3-0.5 | Useful | Helpful context, nice-to-know information |
@@ -114,7 +114,7 @@ gobby memory list --type fact --tags-any "database,storage"
 ```
 
 | Flag | Logic | Description |
-|------|-------|-------------|
+| ---- | ----- | ----------- |
 | `--tags-all` | AND | Memory must have ALL specified tags |
 | `--tags-any` | OR | Memory must have at least ONE of the tags |
 | `--tags-none` | NOT | Memory must have NONE of the specified tags |
@@ -244,7 +244,7 @@ call_tool(server_name="gobby-memory", tool_name="memory_stats", arguments={})
 
 Gobby automatically injects relevant memories at session start via the `memory-lifecycle.yaml` workflow.
 
-### How It Works
+### How Injection Works
 
 1. On `session-start`, the workflow triggers `memory_recall_relevant`
 2. Memories are retrieved based on project context and importance
@@ -304,7 +304,7 @@ This keeps memories local to your machine while still persisting them across ses
 
 Memories work seamlessly across Claude Code, Gemini CLI, and Codex CLI:
 
-### How It Works
+### How Sharing Works
 
 1. **Unified Storage**: All memories stored in `~/.gobby/gobby.db`
 2. **Project Binding**: Memories linked to projects via `.gobby/project.json`
@@ -313,7 +313,7 @@ Memories work seamlessly across Claude Code, Gemini CLI, and Codex CLI:
 ### CLI-Specific Notes
 
 | CLI | Memory Support | Notes |
-|-----|----------------|-------|
+| --- | -------------- | ----- |
 | Claude Code | Full | All memory operations supported |
 | Gemini CLI | Full | Requires PR #9070 for hooks |
 | Codex CLI | Limited | Read-only via MCP tools |
@@ -415,7 +415,7 @@ triggers:
 ## File Locations
 
 | Path | Description |
-|------|-------------|
+| ---- | ----------- |
 | `~/.gobby/gobby.db` | SQLite database with memories table |
 | `.gobby/memories.jsonl` | Git-synced memory export |
 | `.gobby/memories_meta.json` | Sync metadata (checksums, timestamps) |

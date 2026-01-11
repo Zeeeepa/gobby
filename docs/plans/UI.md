@@ -104,7 +104,7 @@ The UI is designed to be an **Active Command Center**, not just a passive dashbo
 ## Tech Stack
 
 | Layer | Technology | Rationale |
-|-------|------------|-----------|
+| ----- | ---------- | --------- |
 | **UI Framework** | React 18 | Large ecosystem, good TypeScript support |
 | **Build Tool** | Vite | Fast HMR, excellent DX |
 | **Styling** | Tailwind CSS | Rapid prototyping, consistent design |
@@ -487,6 +487,7 @@ Search and manage cross-session memories.
 ### Design Pattern: REST + MCP Tools
 
 Gobby uses a hybrid API approach:
+
 - **REST endpoints** for admin/status, session management, hooks
 - **MCP tools** for all CRUD operations (tasks, agents, worktrees, memory, workflows)
 
@@ -545,7 +546,7 @@ POST /webhooks/test             # Test webhook
 All CRUD operations go through internal MCP servers. Total: **106+ tools**
 
 | Server | Tools | Key Operations |
-|--------|-------|----------------|
+| ------ | ----- | -------------- |
 | `gobby-tasks` | 35 | create, update, close, expand, validate, dependencies, sync |
 | `gobby-agents` | 9 | start, cancel, list, get_result, can_spawn |
 | `gobby-worktrees` | 14 | create, claim, release, sync, spawn_agent_in_worktree |
@@ -554,9 +555,11 @@ All CRUD operations go through internal MCP servers. Total: **106+ tools**
 | `gobby-sessions` | 6 | get, list, get_messages, search, get_handoff_context |
 | `gobby-artifacts` | 4 | search, list, get, get_timeline |
 | `gobby-metrics` | 4 | get_tool_metrics, get_top_tools, get_failing_tools |
-| `gobby-hub` | 4 | Cross-project queries (list_all_projects, cross_project_tasks)
+| `gobby-metrics` | 4 | get_tool_metrics, get_top_tools, get_failing_tools |
+| `gobby-hub` | 4 | Cross-project queries (list_all_projects, cross_project_tasks) |
 
-**Example: Creating a task via MCP**
+### Example: Creating a task via MCP
+
 ```typescript
 const result = await fetch('/mcp/tools/call', {
   method: 'POST',
@@ -1251,7 +1254,7 @@ ui:
 The TUI and Web UI serve different purposes and should NOT duplicate complex features.
 
 | Feature | TUI (Phase 0) | Web (Phase 1+) | Notes |
-|---------|---------------|----------------|-------|
+| ------- | ------------- | -------------- | ----- |
 | Task list | ✅ DataTable | ✅ DataTable | Both, universal |
 | Task graph | ❌ | ✅ Cytoscape.js | Web only, requires canvas |
 | Kanban board | ❌ | ✅ Drag-drop | Web only, requires DOM |
@@ -1266,7 +1269,7 @@ The TUI and Web UI serve different purposes and should NOT duplicate complex fea
 ## Decisions
 
 | # | Question | Decision | Rationale |
-|---|----------|----------|-----------|
+| --- | -------- | -------- | --------- |
 | 1 | **TUI Framework** | Textual (Python) | Native Python, hot reload, CSS-like styling |
 | 2 | **Web Framework** | Next.js 14 + shadcn/ui | SSR, App Router, accessible components |
 | 3 | **Styling** | Tailwind CSS | Design tokens in `docs/design/tailwind.config.ts` |
@@ -1301,10 +1304,10 @@ The TUI and Web UI serve different purposes and should NOT duplicate complex fea
 ### AI Assistant (PARTIAL - via MCP tools)
 
 Already available via MCP:
+
 - `suggest_next_task` - "What should I work on?"
 - `expand_task` - AI-powered task breakdown
 - `recommend_tools` - Tool suggestions for tasks
-
 Future:
 - Dedicated chat interface in UI
 - Natural language task creation
@@ -1312,10 +1315,10 @@ Future:
 ### Cross-Project Dashboard (via gobby-hub)
 
 Already available:
+
 - `list_all_projects` - All projects in hub
 - `list_cross_project_tasks` - Tasks across projects
 - `hub_stats` - Aggregate statistics
-
 Future:
 - Visual cross-project view in UI
 - Project switching without restart
@@ -1338,6 +1341,7 @@ The daemon now tracks and manages agent lifecycle with full stop signal support.
    - Autonomous agents poll for stop signals
 
 3. **Agent Cancellation** (via MCP tools):
+
    ```typescript
    // Cancel a running agent
    await callTool('gobby-agents', 'cancel_agent', { run_id: 'xxx' });
@@ -1350,7 +1354,7 @@ The daemon now tracks and manages agent lifecycle with full stop signal support.
 ### UI Integration Points
 
 | Action | API Call | WebSocket Event |
-|--------|----------|-----------------|
+| ------ | -------- | --------------- |
 | Cancel agent | `POST /sessions/{id}/stop` | `agent_cancelled` |
 | View running | `gobby-agents.list_running_agents` | `agent_started` |
 | Monitor progress | Subscribe to `agent_event` | Real-time updates |
@@ -1358,6 +1362,7 @@ The daemon now tracks and manages agent lifecycle with full stop signal support.
 ### Stuck Detection
 
 The autonomous workflow system (`src/gobby/workflows/actions.py`) includes stuck detection:
+
 - Task selection loops
 - Validation loops
 - Tool repetition
