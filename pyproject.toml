@@ -85,6 +85,14 @@ markers = [
     "integration: marks tests as integration tests",
     "e2e: marks tests as end-to-end tests",
 ]
+filterwarnings = [
+    # Ignore coroutine warnings from fire-and-forget async patterns in hook/webhook code
+    "ignore:coroutine .* was never awaited:RuntimeWarning",
+    # Ignore Pydantic deprecation warnings from workflow loader
+    "ignore:The `dict` method is deprecated:DeprecationWarning",
+    # Ignore coverage module-not-measured warning
+    "ignore:Module gobby was previously imported:coverage.exceptions.CoverageWarning",
+]
 
 [tool.ruff]
 line-length = 100

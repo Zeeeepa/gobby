@@ -856,6 +856,7 @@ class TestHookManagerBroadcasting:
     ):
         """Test that events are broadcast thread-safely when no loop is running."""
         import asyncio
+        import time
 
         manager = hook_manager_with_mocks
 
@@ -883,6 +884,8 @@ class TestHookManagerBroadcasting:
         try:
             # Call handle outside of event loop
             manager.handle(sample_session_start_event)
+            # Give the loop time to process the scheduled coroutine
+            time.sleep(0.1)
         finally:
             loop.call_soon_threadsafe(loop.stop)
             loop_thread.join(timeout=1)
@@ -905,6 +908,7 @@ class TestHookManagerBroadcasting:
     ):
         """Test that broadcast errors from run_coroutine_threadsafe are handled."""
         import asyncio
+        import warnings
 
         manager = hook_manager_with_mocks
 
@@ -921,8 +925,12 @@ class TestHookManagerBroadcasting:
         loop.close()
         manager._loop = loop
 
-        # Should not raise - error is logged
-        response = manager.handle(sample_session_start_event)
+        # Suppress the "coroutine was never awaited" warning since we're testing error handling
+        # with a closed loop that can't run the coroutine
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="coroutine .* was never awaited")
+            # Should not raise - error is logged
+            response = manager.handle(sample_session_start_event)
         assert response.decision == "allow"
 
     def test_handle_dispatch_webhooks_async_error(

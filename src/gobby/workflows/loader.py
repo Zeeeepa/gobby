@@ -88,7 +88,7 @@ class WorkflowLoader:
                     _inheritance_chain=_inheritance_chain + [name],
                 )
                 if parent:
-                    data = self._merge_workflows(parent.dict(), data)
+                    data = self._merge_workflows(parent.model_dump(), data)
                 else:
                     logger.error(f"Parent workflow '{parent_name}' not found for '{name}'")
 
@@ -255,7 +255,7 @@ class WorkflowLoader:
                             _inheritance_chain=[name],
                         )
                         if parent:
-                            data = self._merge_workflows(parent.dict(), data)
+                            data = self._merge_workflows(parent.model_dump(), data)
                     except ValueError as e:
                         logger.warning(f"Skipping workflow {name}: {e}")
                         continue
