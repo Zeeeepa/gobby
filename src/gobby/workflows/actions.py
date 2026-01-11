@@ -721,7 +721,8 @@ class ActionExecutor:
         """Recall memories relevant to the current user prompt."""
         prompt_text = None
         if context.event_data:
-            prompt_text = context.event_data.get("prompt_text")
+            # Check both "prompt" (from hook event) and "prompt_text" (legacy/alternative)
+            prompt_text = context.event_data.get("prompt") or context.event_data.get("prompt_text")
 
         return await memory_recall_relevant(
             memory_manager=context.memory_manager,

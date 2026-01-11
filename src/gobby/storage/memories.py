@@ -59,6 +59,14 @@ class Memory:
         tags_json = row["tags"]
         tags = json.loads(tags_json) if tags_json else []
 
+        # Coerce importance to float (handle legacy string values like "high")
+        importance_raw = row["importance"]
+        if isinstance(importance_raw, str):
+            importance_map = {"high": 0.9, "medium": 0.5, "low": 0.3}
+            importance = importance_map.get(importance_raw.lower(), 0.5)
+        else:
+            importance = float(importance_raw) if importance_raw is not None else 0.5
+
         return cls(
             id=row["id"],
             memory_type=row["memory_type"],
@@ -68,7 +76,7 @@ class Memory:
             project_id=row["project_id"],
             source_type=row["source_type"],
             source_session_id=row["source_session_id"],
-            importance=row["importance"],
+            importance=importance,
             access_count=row["access_count"],
             last_accessed_at=row["last_accessed_at"],
             tags=tags,
