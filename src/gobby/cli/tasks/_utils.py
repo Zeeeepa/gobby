@@ -336,15 +336,53 @@ def format_task_header() -> str:
     return f"{status_col} {priority_col} {id_col} TITLE"
 
 
-def resolve_task_id(manager: LocalTaskManager, task_id: str) -> Task | None:
-    """Resolve a task ID (exact or prefix match) with user-friendly errors."""
-    # Try exact match first
+def resolve_task_id(
+    manager: LocalTaskManager, task_id: str, project_id: str | None = None
+) -> Task | None:
+    """Resolve a task ID to a Task with user-friendly errors.
+
+    Supports multiple reference formats:
+      - #N: Project-scoped seq_num (e.g., #1, #47) - requires project_id
+      - 1.2.3: Path cache format - requires project_id
+      - UUID: Direct UUID lookup
+      - Prefix: ID prefix matching for partial UUIDs
+
+    Args:
+        manager: The task manager
+        task_id: Task reference in any supported format
+        project_id: Project ID for scoped lookups (#N and path formats).
+                   If not provided, will try to get from project context.
+
+    Returns:
+        The resolved Task, or None if not found (with error message printed)
+    """
+    from gobby.storage.tasks import TaskNotFoundError
+
+    # Get project_id from context if not provided
+    if project_id is None:
+        ctx = get_project_context()
+        project_id = ctx.get("id") if ctx else None
+
+    # Try #N format or path format (requires project_id)
+    if project_id and (task_id.startswith("#") or _is_path_format(task_id)):
+        try:
+            resolved_uuid = manager.resolve_task_reference(task_id, project_id)
+            return manager.get_task(resolved_uuid)
+        except TaskNotFoundError as e:
+            click.echo(f"Task '{task_id}' not found: {e}", err=True)
+            return None
+        except ValueError as e:
+            # Deprecation or format errors
+            click.echo(f"Error: {e}", err=True)
+            return None
+
+    # Try exact UUID match
     try:
         return manager.get_task(task_id)
     except ValueError:
         pass
 
-    # Try prefix matching
+    # Try prefix matching for partial UUIDs
     matches = manager.find_tasks_by_prefix(task_id)
 
     if len(matches) == 0:
@@ -359,3 +397,11 @@ def resolve_task_id(manager: LocalTaskManager, task_id: str) -> Task | None:
         if len(matches) > 5:
             click.echo(f"  ... and {len(matches) - 5} more", err=True)
         return None
+
+
+def _is_path_format(ref: str) -> bool:
+    """Check if a reference is in path format (e.g., 1.2.3)."""
+    if "." not in ref:
+        return False
+    parts = ref.split(".")
+    return all(part.isdigit() for part in parts)
