@@ -50,7 +50,9 @@ def mock_artifact():
     artifact.id = "art-abc123"
     artifact.session_id = "sess-xyz789"
     artifact.artifact_type = "code"
-    artifact.content = "function calculateTotal(items) {\n  return items.reduce((sum, i) => sum + i.price, 0);\n}"
+    artifact.content = (
+        "function calculateTotal(items) {\n  return items.reduce((sum, i) => sum + i.price, 0);\n}"
+    )
     artifact.source_file = "utils.js"
     artifact.line_start = 10
     artifact.line_end = 12
@@ -260,17 +262,13 @@ class TestArtifactsTimeline:
         art1.id = "art-1"
         art1.created_at = "2024-01-01T00:00:00Z"
         art1.artifact_type = "code"
-        art1.to_dict = MagicMock(
-            return_value={"id": "art-1", "created_at": "2024-01-01T00:00:00Z"}
-        )
+        art1.to_dict = MagicMock(return_value={"id": "art-1", "created_at": "2024-01-01T00:00:00Z"})
 
         art2 = MagicMock()
         art2.id = "art-2"
         art2.created_at = "2024-01-01T01:00:00Z"
         art2.artifact_type = "error"
-        art2.to_dict = MagicMock(
-            return_value={"id": "art-2", "created_at": "2024-01-01T01:00:00Z"}
-        )
+        art2.to_dict = MagicMock(return_value={"id": "art-2", "created_at": "2024-01-01T01:00:00Z"})
 
         mock_artifact_manager.list_artifacts.return_value = [art2, art1]  # Newest first
 
@@ -315,7 +313,9 @@ class TestArtifactOutputFormatting:
     """Tests for artifact output formatting and syntax highlighting."""
 
     @pytest.mark.skipif(not artifacts_available(), reason="artifacts CLI not yet implemented")
-    def test_code_artifact_has_syntax_highlighting(self, runner, mock_artifact_manager, mock_artifact):
+    def test_code_artifact_has_syntax_highlighting(
+        self, runner, mock_artifact_manager, mock_artifact
+    ):
         """Verify code artifacts have syntax highlighting in output."""
         with patch("gobby.cli.artifacts.get_artifact_manager", return_value=mock_artifact_manager):
             result = runner.invoke(cli, ["artifacts", "show", "art-abc123"])

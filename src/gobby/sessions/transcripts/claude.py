@@ -345,9 +345,7 @@ class ClaudeTranscriptParser:
         )
         # Cost might be calculated or provided
         total_cost_usd = (
-            usage_data["cost"]
-            if "cost" in usage_data
-            else usage_data.get("total_cost")
+            usage_data["cost"] if "cost" in usage_data else usage_data.get("total_cost")
         )
 
         return TokenUsage(

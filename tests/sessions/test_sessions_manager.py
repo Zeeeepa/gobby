@@ -514,9 +514,7 @@ class TestHandoffArtifactContext:
         )
 
         # Generate handoff context for child - should include parent artifacts too
-        context = session_mgr.generate_handoff_context(
-            child_id, include_parent_artifacts=True
-        )
+        context = session_mgr.generate_handoff_context(child_id, include_parent_artifacts=True)
 
         assert "Parent session code artifact" in context
         assert "Child session code artifact" in context
