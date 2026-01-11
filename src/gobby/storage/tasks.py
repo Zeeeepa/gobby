@@ -234,6 +234,12 @@ class TaskIDCollisionError(Exception):
     pass
 
 
+class TaskNotFoundError(Exception):
+    """Raised when a task reference cannot be resolved to an existing task."""
+
+    pass
+
+
 def generate_task_id(project_id: str, salt: str = "") -> str:
     """
     Generate a UUID-based task ID.
@@ -593,6 +599,79 @@ class LocalTaskManager:
         """Find all tasks matching an ID prefix."""
         rows = self.db.fetchall("SELECT * FROM tasks WHERE id LIKE ?", (f"{prefix}%",))
         return [Task.from_row(row) for row in rows]
+
+    def resolve_task_reference(self, ref: str, project_id: str) -> str:
+        """Resolve a task reference to its UUID.
+
+        Accepts multiple reference formats:
+          - #N: Project-scoped seq_num (e.g., #47)
+          - 1.2.3: Path cache format
+          - UUID: Direct UUID (validated to exist)
+
+        Args:
+            ref: Task reference in any supported format
+            project_id: Project ID for scoped lookups
+
+        Returns:
+            The task's UUID
+
+        Raises:
+            TaskNotFoundError: If the reference cannot be resolved
+            ValueError: If the format is invalid or deprecated
+        """
+        if not ref:
+            raise TaskNotFoundError("Empty task reference")
+
+        # Check for deprecated gt-* format
+        if ref.startswith("gt-"):
+            raise ValueError(
+                f"The 'gt-*' task ID format is deprecated. "
+                f"Use '#N' format instead (e.g., #1, #47). "
+                f"Got: {ref}"
+            )
+
+        # #N format: seq_num lookup
+        if ref.startswith("#"):
+            try:
+                seq_num = int(ref[1:])
+            except ValueError:
+                raise TaskNotFoundError(f"Invalid seq_num format: {ref}") from None
+
+            if seq_num <= 0:
+                raise TaskNotFoundError(f"Invalid seq_num: {ref} (must be positive)")
+
+            row = self.db.fetchone(
+                "SELECT id FROM tasks WHERE project_id = ? AND seq_num = ?",
+                (project_id, seq_num),
+            )
+            if not row:
+                raise TaskNotFoundError(f"Task {ref} not found in project")
+            return str(row["id"])
+
+        # Path format: 1.2.3 (dots with all digits)
+        if "." in ref and all(part.isdigit() for part in ref.split(".")):
+            row = self.db.fetchone(
+                "SELECT id FROM tasks WHERE project_id = ? AND path_cache = ?",
+                (project_id, ref),
+            )
+            if not row:
+                raise TaskNotFoundError(f"Task with path '{ref}' not found in project")
+            return str(row["id"])
+
+        # UUID format: validate it exists
+        # UUIDs have 5 parts separated by hyphens
+        parts = ref.split("-")
+        if len(parts) == 5:
+            row = self.db.fetchone(
+                "SELECT id FROM tasks WHERE id = ?",
+                (ref,),
+            )
+            if not row:
+                raise TaskNotFoundError(f"Task with UUID '{ref}' not found")
+            return str(row["id"])
+
+        # Unknown format
+        raise TaskNotFoundError(f"Unknown task reference format: {ref}")
 
     def update_task(
         self,
