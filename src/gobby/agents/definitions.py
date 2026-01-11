@@ -33,8 +33,7 @@ class AgentDefinition(BaseModel):
     # Workflow configuration
     workflow: str | None = None
 
-    # Lifecycle variables to overrides parent's lifecycle
-    # This is critical for solving recursion loops (e.g. setting validation_model=None)
+    # Lifecycle variables to override parent's lifecycle settings
     lifecycle_variables: dict[str, Any] = Field(default_factory=dict)
 
     # Default variables passed to the agent

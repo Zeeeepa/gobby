@@ -15,11 +15,6 @@ variables:
   # Enable TDD mode for task expansion (test-implementation pairs)
   tdd_mode: true
 
-  # Validation delegation - use a faster/cheaper model for linting and tests
-  # Set to null to disable delegation (run inline)
-  # validation_model: "haiku"
-  # validation_timeout: 1800 # 30 minutes for full test suite
-
 triggers:
   on_stop:
     # Commit enforcement - block stop if task has uncommitted changes
@@ -57,14 +52,6 @@ triggers:
     # Memory sync - import from JSONL for Git persistence
     - action: memory_sync_import
 
-    # Validation delegation notice - direct ruff/mypy/pytest commands will be blocked
-    # - action: inject_message
-    # when: "variables.get('validation_model')"
-    # content: |
-    #  ## Validation Delegation
-    #
-    #  Direct `ruff`, `mypy`, and `pytest` commands are blocked. Delegate to {{ variables.validation_model }} via `gobby-agents.start_agent(mode="headless")`. The hook will provide the exact command when blocked.
-
   on_before_agent:
     # Memory recall - inject memories relevant to the user's prompt via semantic search
     - action: memory_recall_relevant
@@ -72,9 +59,6 @@ triggers:
       min_importance: 0.7
 
   on_before_tool:
-    # # Validation delegation - block direct ruff/mypy/pytest and require delegation
-    # - action: require_validation_delegation
-
     # Task enforcement - require active task before file modifications
     # Skip in plan mode (planning only writes to plan files)
     - action: require_active_task

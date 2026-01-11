@@ -13,7 +13,6 @@ from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
 
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
-    from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.tasks import LocalTaskManager
     from gobby.workflows.definitions import WorkflowState
 
@@ -571,107 +570,6 @@ async def require_active_task(
             f'2. **Claim an existing task**: `update_task(task_id="...", status="in_progress")`\n\n'
             f"Use `list_ready_tasks()` to see available tasks."
             f"{project_task_hint}"
-        ),
-    }
-
-
-async def require_validation_delegation(
-    workflow_state: "WorkflowState | None",
-    event_data: dict[str, Any] | None = None,
-    session_manager: "LocalSessionManager | None" = None,
-    session_id: str | None = None,
-) -> dict[str, Any] | None:
-    """
-    Block direct execution of validation tools (ruff, mypy, pytest) in Bash.
-
-    When validation_model is set in workflow variables, this action intercepts
-    Bash commands containing validation tools and blocks them with instructions
-    to delegate to a Haiku agent instead.
-
-    Child agents (those with a parent_session_id or agent_depth > 0) are allowed
-    to run validation commands directly, since they were likely spawned specifically
-    for validation. This prevents infinite delegation loops.
-
-    Args:
-        workflow_state: Workflow state with variables (validation_model, etc.)
-        event_data: Hook event data containing tool_name and tool_input
-        session_manager: Optional session manager to check if this is a child agent
-        session_id: Optional session ID to look up the session
-
-    Returns:
-        Dict with decision="block" if validation command detected,
-        or None to allow the tool.
-    """
-    if not workflow_state:
-        logger.debug("require_validation_delegation: No workflow_state, allowing")
-        return None
-
-    # Check if validation delegation is enabled
-    validation_model = workflow_state.variables.get("validation_model")
-    if not validation_model:
-        logger.debug("require_validation_delegation: No validation_model set, allowing")
-        return None
-
-    # Check if this is a child agent - child agents are allowed to run validation
-    # This prevents infinite delegation loops where a child spawned for validation
-    # would also be blocked from running validation commands
-    if session_manager and session_id:
-        session = session_manager.get(session_id)
-        if session:
-            # Allow if this is a child agent (has parent or agent_depth > 0)
-            if session.parent_session_id or (session.agent_depth and session.agent_depth > 0):
-                logger.debug(
-                    f"require_validation_delegation: Child agent (depth={session.agent_depth}, "
-                    f"parent={session.parent_session_id}), allowing validation commands"
-                )
-                return None
-
-    # Get the tool being called
-    if not event_data:
-        logger.debug("require_validation_delegation: No event_data, allowing")
-        return None
-
-    tool_name = event_data.get("tool_name")
-    if tool_name != "Bash":
-        logger.debug(f"require_validation_delegation: Tool '{tool_name}' is not Bash, allowing")
-        return None
-
-    # Get the command from tool_input
-    tool_input = event_data.get("tool_input", {})
-    command = tool_input.get("command", "")
-
-    if not command:
-        logger.debug("require_validation_delegation: No command in tool_input, allowing")
-        return None
-
-    # Check if command contains validation tools
-    # Match common patterns: "ruff check", "mypy", "pytest", "uv run ruff", etc.
-    validation_tools = ["ruff", "mypy", "pytest"]
-    detected_tools = [tool for tool in validation_tools if tool in command]
-
-    if not detected_tools:
-        logger.debug("require_validation_delegation: No validation tools in command, allowing")
-        return None
-
-    # Block - validation should be delegated
-    logger.info(
-        f"require_validation_delegation: Blocking direct '{', '.join(detected_tools)}' "
-        f"execution - should delegate to {validation_model}"
-    )
-
-    timeout = workflow_state.variables.get("validation_timeout", 1800)
-
-    return {
-        "decision": "block",
-        "reason": (
-            f"Direct validation commands ({', '.join(detected_tools)}) are blocked. "
-            f"Delegate to {validation_model} instead:\n\n"
-            f'call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={{\n'
-            f'    "prompt": "Run validation and report results:\\n\\n{command}",\n'
-            f'    "mode": "headless",\n'
-            f'    "model": "{validation_model}",\n'
-            f'    "timeout": {timeout},\n'
-            f"}})"
         ),
     }
 
