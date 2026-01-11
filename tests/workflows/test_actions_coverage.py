@@ -1535,5 +1535,3 @@ class TestGenerateHandoffCompactMode:
             call_kwargs = mock_handoff.call_args.kwargs
             assert call_kwargs.get("mode") == "compact"
             assert call_kwargs.get("previous_summary") == "Previous summary content"
-
-

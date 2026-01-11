@@ -165,9 +165,7 @@ class TestMergeStatePersistence:
 
         # Create prerequisite data (project and worktree for foreign key)
         project_manager = LocalProjectManager(db)
-        project = project_manager.create(
-            name="test-project", repo_path="/tmp/test-repo"
-        )
+        project = project_manager.create(name="test-project", repo_path="/tmp/test-repo")
 
         worktree_manager = LocalWorktreeManager(db)
         worktree = worktree_manager.create(

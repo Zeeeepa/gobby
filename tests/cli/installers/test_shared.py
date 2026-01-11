@@ -952,4 +952,3 @@ class TestEdgeCases:
         assert "valid.yaml" in result["workflows"]
         # subdir should not be in list
         assert "subdir" not in result["workflows"]
-

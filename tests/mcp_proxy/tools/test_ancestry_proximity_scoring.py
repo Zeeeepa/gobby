@@ -226,7 +226,7 @@ class TestSuggestNextTaskProximityScoring:
         task_a1 = task_manager.create_task(
             project_id, "Task A1 (medium)", task_type="task", parent_task_id=epic_a.id, priority=2
         )
-        task_a2 = task_manager.create_task(
+        task_manager.create_task(
             project_id, "Task A2 (low)", task_type="task", parent_task_id=epic_a.id, priority=3
         )
 
