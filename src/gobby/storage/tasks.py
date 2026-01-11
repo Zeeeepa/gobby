@@ -768,6 +768,10 @@ class LocalTaskManager:
             if cursor.rowcount == 0:
                 raise ValueError(f"Task {task_id} not found")
 
+        # If parent_task_id was changed, update path_cache for this task and all descendants
+        if parent_task_id is not UNSET:
+            self.update_descendant_paths(task_id)
+
         self._notify_listeners()
         return self.get_task(task_id)
 
