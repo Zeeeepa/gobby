@@ -535,3 +535,143 @@ def test_seq_num_migration_number_is_52(tmp_path):
     assert migration_52 is not None, "Migration 52 not found in MIGRATIONS list"
     assert "seq_num" in migration_52[2].lower(), "Migration 52 should add seq_num column"
     assert "path_cache" in migration_52[2].lower(), "Migration 52 should add path_cache column"
+
+
+# =============================================================================
+# Task ID Redesign: gt-* to UUID Migration Tests
+# =============================================================================
+
+
+def test_uuid_migration_converts_task_ids(tmp_path):
+    """Test that migration 53 converts gt-* IDs to UUIDs."""
+    db_path = tmp_path / "uuid_convert.db"
+    db = LocalDatabase(db_path)
+
+    # Run migrations up to 52 (before UUID conversion)
+    from gobby.storage.migrations import MIGRATIONS
+
+    for version, _description, action in MIGRATIONS:
+        if version <= 52:
+            if callable(action):
+                action(db)
+            else:
+                for stmt in action.strip().split(";"):
+                    stmt = stmt.strip()
+                    if stmt:
+                        db.execute(stmt)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Create project and task with gt-* ID
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
+        ("gt-abc123", "test-project", "Test Task"),
+    )
+
+    # Run migration 53
+    for version, _description, action in MIGRATIONS:
+        if version == 53:
+            if callable(action):
+                action(db)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Verify task ID was converted to UUID format
+    row = db.fetchone("SELECT id FROM tasks WHERE project_id = ?", ("test-project",))
+    assert row is not None
+    task_id = row["id"]
+
+    # Should be UUID format (8-4-4-4-12)
+    assert "-" in task_id, "Task ID should be UUID format with dashes"
+    parts = task_id.split("-")
+    assert len(parts) == 5, "UUID should have 5 parts separated by dashes"
+    assert len(parts[0]) == 8, "First UUID segment should be 8 chars"
+    assert len(parts[4]) == 12, "Last UUID segment should be 12 chars"
+
+    # Original hash should be embedded in last segment
+    assert parts[4].startswith("abc123"), "Original gt-* hash should be preserved in UUID"
+
+
+def test_uuid_migration_updates_parent_task_id(tmp_path):
+    """Test that migration 53 updates parent_task_id references."""
+    db_path = tmp_path / "uuid_parent.db"
+    db = LocalDatabase(db_path)
+
+    # Run migrations up to 52
+    from gobby.storage.migrations import MIGRATIONS
+
+    for version, _description, action in MIGRATIONS:
+        if version <= 52:
+            if callable(action):
+                action(db)
+            else:
+                for stmt in action.strip().split(";"):
+                    stmt = stmt.strip()
+                    if stmt:
+                        db.execute(stmt)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Create project, parent task, and child task
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
+        ("gt-parent", "test-project", "Parent Task"),
+    )
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, parent_task_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("gt-child1", "test-project", "Child Task", "gt-parent"),
+    )
+
+    # Run migration 53
+    for version, _description, action in MIGRATIONS:
+        if version == 53:
+            if callable(action):
+                action(db)
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
+
+    # Get parent and child tasks
+    parent = db.fetchone("SELECT id FROM tasks WHERE title = ?", ("Parent Task",))
+    child = db.fetchone("SELECT id, parent_task_id FROM tasks WHERE title = ?", ("Child Task",))
+
+    assert parent is not None
+    assert child is not None
+
+    # Child's parent_task_id should match parent's new UUID
+    assert child["parent_task_id"] == parent["id"], "parent_task_id should be updated to new UUID"
+
+
+def test_uuid_migration_skips_when_no_gt_ids(tmp_path):
+    """Test that migration 53 handles empty database gracefully."""
+    db_path = tmp_path / "uuid_empty.db"
+    db = LocalDatabase(db_path)
+
+    # Run all migrations (53 should be no-op when no gt-* IDs exist)
+    run_migrations(db)
+
+    # Verify migration completed without error
+    version = get_current_version(db)
+    assert version == 53, "Should complete all migrations including 53"
+
+
+def test_uuid_migration_number_is_53(tmp_path):
+    """Test that UUID conversion is migration 53."""
+    from gobby.storage.migrations import MIGRATIONS
+
+    # Find migration 53
+    migration_53 = None
+    for version, description, action in MIGRATIONS:
+        if version == 53:
+            migration_53 = (version, description, action)
+            break
+
+    assert migration_53 is not None, "Migration 53 not found in MIGRATIONS list"
+    assert "uuid" in migration_53[1].lower(), "Migration 53 should be for UUID conversion"
+    assert callable(migration_53[2]), "Migration 53 should be a callable (Python migration)"

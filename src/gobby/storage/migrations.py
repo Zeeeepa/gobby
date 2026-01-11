@@ -1,6 +1,7 @@
 """Database migrations for local storage."""
 
 import logging
+import uuid
 from collections.abc import Callable
 
 from gobby.storage.database import LocalDatabase
@@ -9,6 +10,104 @@ logger = logging.getLogger(__name__)
 
 # Migration can be SQL string or a callable that takes LocalDatabase
 MigrationAction = str | Callable[[LocalDatabase], None]
+
+
+def _migrate_task_ids_to_uuid(db: LocalDatabase) -> None:
+    """
+    Convert gt-* format task IDs to full UUIDs.
+
+    This migration:
+    1. Finds all tasks with gt-* format IDs
+    2. Generates a full UUID for each (preserving short hash in last segment)
+    3. Updates the task ID and all foreign key references
+
+    Note: This is a data migration that modifies existing data.
+    Foreign keys must be disabled during the update to avoid constraint violations.
+    """
+    # Get all tasks with gt-* format IDs
+    tasks = db.fetchall("SELECT id FROM tasks WHERE id LIKE 'gt-%'")
+
+    if not tasks:
+        logger.debug("No gt-* format task IDs found, skipping migration")
+        return
+
+    logger.debug(f"Converting {len(tasks)} task IDs from gt-* to UUID format")
+
+    # Build ID mapping: old_id -> new_uuid
+    id_mapping: dict[str, str] = {}
+    for task in tasks:
+        old_id = task["id"]
+        # Generate UUID, embedding old short hash in final segment for traceability
+        # Format: xxxxxxxx-xxxx-4xxx-yxxx-{old_hash}xxxxxx
+        short_hash = old_id.replace("gt-", "")  # 6 hex chars
+        new_uuid = str(uuid.uuid4())
+        # Embed old hash at start of last segment for debugging/traceability
+        parts = new_uuid.split("-")
+        # Last segment is 12 chars, replace first 6 with old hash
+        parts[4] = short_hash + parts[4][6:]
+        new_id = "-".join(parts)
+        id_mapping[old_id] = new_id
+
+    # Disable foreign keys for bulk update
+    db.execute("PRAGMA foreign_keys = OFF")
+
+    try:
+        # Update tasks table (primary key)
+        for old_id, new_id in id_mapping.items():
+            db.execute("UPDATE tasks SET id = ? WHERE id = ?", (new_id, old_id))
+
+        # Update parent_task_id references in tasks table
+        for old_id, new_id in id_mapping.items():
+            db.execute(
+                "UPDATE tasks SET parent_task_id = ? WHERE parent_task_id = ?",
+                (new_id, old_id),
+            )
+
+        # Update task_dependencies table (both task_id and depends_on columns)
+        for old_id, new_id in id_mapping.items():
+            db.execute(
+                "UPDATE task_dependencies SET task_id = ? WHERE task_id = ?",
+                (new_id, old_id),
+            )
+            db.execute(
+                "UPDATE task_dependencies SET depends_on = ? WHERE depends_on = ?",
+                (new_id, old_id),
+            )
+
+        # Update session_tasks table
+        for old_id, new_id in id_mapping.items():
+            db.execute(
+                "UPDATE session_tasks SET task_id = ? WHERE task_id = ?",
+                (new_id, old_id),
+            )
+
+        # Update task_validation_history table
+        for old_id, new_id in id_mapping.items():
+            db.execute(
+                "UPDATE task_validation_history SET task_id = ? WHERE task_id = ?",
+                (new_id, old_id),
+            )
+
+        # Update task_selection_history table
+        for old_id, new_id in id_mapping.items():
+            db.execute(
+                "UPDATE task_selection_history SET task_id = ? WHERE task_id = ?",
+                (new_id, old_id),
+            )
+
+        # Update worktrees table (task_id column)
+        for old_id, new_id in id_mapping.items():
+            db.execute(
+                "UPDATE worktrees SET task_id = ? WHERE task_id = ?",
+                (new_id, old_id),
+            )
+
+        logger.debug(f"Successfully converted {len(id_mapping)} task IDs to UUID format")
+
+    finally:
+        # Re-enable foreign keys
+        db.execute("PRAGMA foreign_keys = ON")
+
 
 # Migration functions: (version, description, sql_or_callable)
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
@@ -1068,6 +1167,11 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_seq_num ON tasks(project_id, seq_num);
         CREATE INDEX IF NOT EXISTS idx_tasks_path_cache ON tasks(path_cache);
         """,
+    ),
+    (
+        53,
+        "Convert gt-* task IDs to full UUIDs",
+        _migrate_task_ids_to_uuid,
     ),
 ]
 
