@@ -174,11 +174,23 @@ class TextCompressor:
             return cached
 
         # Compress with LLMLingua
-        result = self._model.compress_prompt(
-            content,
-            rate=effective_ratio,
-            force_tokens=[".", "!", "?", "\n"],  # Preserve sentence structure
-        )
+        try:
+            result = self._model.compress_prompt(
+                content,
+                rate=effective_ratio,
+                force_tokens=[".", "!", "?", "\n"],  # Preserve sentence structure
+            )
+        except TypeError as e:
+            # LLMLingua-2 passes past_key_values to BERT models which don't support it
+            # in transformers 4.43+. See: https://github.com/microsoft/LLMLingua/issues/232
+            if "past_key_values" in str(e):
+                logger.warning(
+                    "LLMLingua compression failed due to transformers compatibility issue "
+                    "(past_key_values not supported by BERT models in transformers 4.43+). "
+                    "Returning uncompressed content. See: https://github.com/microsoft/LLMLingua/issues/232"
+                )
+                return content
+            raise
         compressed: str = result.get("compressed_prompt", content)
         self._set_cached(cache_key, compressed)
         logger.debug(
