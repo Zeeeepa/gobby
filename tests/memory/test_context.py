@@ -1,7 +1,5 @@
 """Tests for memory context building."""
 
-import pytest
-
 from gobby.memory.context import (
     _strip_leading_bullet,
     build_memory_context,

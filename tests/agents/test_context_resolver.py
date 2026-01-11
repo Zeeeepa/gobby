@@ -416,4 +416,3 @@ class TestFormatInjectedPrompt:
         result = format_injected_prompt("", "Original prompt", template=template)
 
         assert result == "Original prompt"
-

@@ -515,7 +515,7 @@ Or add to gobby's MCP config:
 gobby mcp add github --transport stdio --command npx --args '["@modelcontextprotocol/server-github"]'
 ```
 
-### MCP Tools (gobby-tasks extensions)
+### MCP Tools (GitHub Extensions)
 
 These tools extend `gobby-tasks` rather than creating a separate `gobby-github` server:
 
@@ -663,7 +663,7 @@ Or add to gobby's MCP config:
 gobby mcp add linear --transport stdio --command npx --args '["linear-mcp-server"]'
 ```
 
-### MCP Tools (gobby-tasks extensions)
+### MCP Tools (Linear Extensions)
 
 These tools extend `gobby-tasks` rather than creating a separate `gobby-linear` server:
 
