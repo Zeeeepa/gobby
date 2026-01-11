@@ -73,7 +73,7 @@ triggers:
 
   on_before_tool:
     # Validation delegation - block direct ruff/mypy/pytest and require delegation
-    #- action: require_validation_delegation
+    - action: require_validation_delegation
 
     # Task enforcement - require active task before file modifications
     # Skip in plan mode (planning only writes to plan files)
@@ -131,7 +131,7 @@ triggers:
         {git_status}
         ```
 
-        ## Claude's Todo List
+        ## Agent ToDo List
         {todo_list}
 
         ## Next Steps
