@@ -155,6 +155,18 @@ class LocalSessionMessageManager:
             byte_offset: New byte offset in source file
             message_index: Index of last processed message
         """
+        # Check if session exists to avoid FOREIGN KEY constraint errors
+        session_exists = await asyncio.to_thread(
+            self.db.fetchone,
+            "SELECT 1 FROM sessions WHERE id = ?",
+            (session_id,),
+        )
+        if not session_exists:
+            logger.debug(
+                f"Session {session_id} not found in database, skipping state update"
+            )
+            return
+
         sql = """
         INSERT INTO session_message_state (
             session_id, last_byte_offset, last_message_index,
