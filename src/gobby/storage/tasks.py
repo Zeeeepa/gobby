@@ -85,6 +85,9 @@ class Task:
     # Linear integration fields
     linear_issue_id: str | None = None
     linear_team_id: str | None = None
+    # Human-friendly ID fields (task renumbering)
+    seq_num: int | None = None
+    path_cache: str | None = None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Task":
@@ -154,6 +157,8 @@ class Task:
             github_repo=row["github_repo"] if "github_repo" in keys else None,
             linear_issue_id=row["linear_issue_id"] if "linear_issue_id" in keys else None,
             linear_team_id=row["linear_team_id"] if "linear_team_id" in keys else None,
+            seq_num=row["seq_num"] if "seq_num" in keys else None,
+            path_cache=row["path_cache"] if "path_cache" in keys else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -197,6 +202,8 @@ class Task:
             "github_repo": self.github_repo,
             "linear_issue_id": self.linear_issue_id,
             "linear_team_id": self.linear_team_id,
+            "seq_num": self.seq_num,
+            "path_cache": self.path_cache,
         }
 
     def to_brief(self) -> dict[str, Any]:
@@ -218,6 +225,8 @@ class Task:
             "parent_task_id": self.parent_task_id,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "seq_num": self.seq_num,
+            "path_cache": self.path_cache,
         }
 
 
@@ -303,6 +312,98 @@ class LocalTaskManager:
                 listener()
             except Exception as e:
                 logger.error(f"Error in task change listener: {e}")
+
+    def compute_path_cache(self, task_id: str) -> str | None:
+        """Compute the hierarchical path for a task.
+
+        Traverses up the parent chain to build a dotted path from seq_nums.
+        Format: 'ancestor_seq.parent_seq.task_seq' (e.g., '1.3.47')
+
+        Args:
+            task_id: The task ID to compute path for
+
+        Returns:
+            Dotted path string (e.g., '1.3.47'), or None if task not found
+            or any task in the chain is missing a seq_num.
+        """
+        # Build path by walking up parent chain
+        path_parts: list[str] = []
+        current_id: str | None = task_id
+
+        # Safety limit to prevent infinite loops (max 100 levels deep)
+        max_depth = 100
+        depth = 0
+
+        while current_id and depth < max_depth:
+            row = self.db.fetchone(
+                "SELECT seq_num, parent_task_id FROM tasks WHERE id = ?",
+                (current_id,),
+            )
+            if not row:
+                # Task not found
+                return None
+
+            seq_num = row["seq_num"]
+            if seq_num is None:
+                # seq_num not yet assigned
+                return None
+
+            path_parts.append(str(seq_num))
+            current_id = row["parent_task_id"]
+            depth += 1
+
+        if depth >= max_depth:
+            logger.warning(f"Task {task_id} exceeded max depth ({max_depth}) when computing path")
+            return None
+
+        # Reverse to get root-to-leaf order
+        path_parts.reverse()
+        return ".".join(path_parts)
+
+    def update_path_cache(self, task_id: str) -> str | None:
+        """Compute and store the path_cache for a task.
+
+        Args:
+            task_id: The task ID to update
+
+        Returns:
+            The computed path, or None if computation failed
+        """
+        path = self.compute_path_cache(task_id)
+        if path is not None:
+            now = datetime.now(UTC).isoformat()
+            self.db.execute(
+                "UPDATE tasks SET path_cache = ?, updated_at = ? WHERE id = ?",
+                (path, now, task_id),
+            )
+        return path
+
+    def update_descendant_paths(self, task_id: str) -> int:
+        """Update path_cache for a task and all its descendants.
+
+        Use this after reparenting a task to cascade path updates.
+
+        Args:
+            task_id: The root task ID to start updating from
+
+        Returns:
+            Number of tasks updated
+        """
+        updated_count = 0
+
+        # Update the task itself
+        if self.update_path_cache(task_id):
+            updated_count += 1
+
+        # Find and update all descendants (recursive)
+        children = self.db.fetchall(
+            "SELECT id FROM tasks WHERE parent_task_id = ?",
+            (task_id,),
+        )
+        for child in children:
+            updated_count += self.update_descendant_paths(child["id"])
+
+        return updated_count
 
     def create_task(
         self,
