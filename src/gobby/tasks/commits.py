@@ -487,13 +487,16 @@ def extract_mentioned_symbols(task: dict[str, Any]) -> list[str]:
 
 
 # Task ID patterns to search for in commit messages
+# Supports #N format (e.g., #1, #47) - human-friendly task references
 TASK_ID_PATTERNS = [
-    # [gt-xxxxx] - bracket format
-    r"\[gt-([a-zA-Z0-9]+)\]",
-    # gt-xxxxx: - colon format
-    r"\bgt-([a-zA-Z0-9]+):",
-    # Implements/Fixes/Closes gt-xxxxx
-    r"(?:implements|fixes|closes)\s+gt-([a-zA-Z0-9]+)",
+    # [#N] - bracket format
+    r"\[#(\d+)\]",
+    # #N: - hash-colon format (at start of line or after space)
+    r"(?:^|\s)#(\d+):",
+    # Implements/Fixes/Closes/Refs #N (supports multiple: #1, #2, #3)
+    r"(?:implements|fixes|closes|refs)\s+#(\d+)",
+    # Standalone #N after whitespace (with word boundary to avoid false positives)
+    r"(?:^|\s)#(\d+)\b(?![\d.])",
 ]
 
 
@@ -501,23 +504,26 @@ def extract_task_ids_from_message(message: str) -> list[str]:
     """Extract task IDs from a commit message.
 
     Supports patterns:
-    - [gt-xxxxx] - bracket format
-    - gt-xxxxx: - colon format (at start of message)
-    - Implements/Fixes/Closes gt-xxxxx
+    - [#N] - bracket format
+    - #N: - hash-colon format (at start of message)
+    - Implements/Fixes/Closes/Refs #N
+    - Multiple references: #1, #2, #3
+
+    Note: The gt-* format is deprecated and no longer recognized.
 
     Args:
         message: Commit message to parse.
 
     Returns:
-        List of unique task IDs found (e.g., ["gt-abc123", "gt-def456"]).
+        List of unique task references found (e.g., ["#1", "#42"]).
     """
     task_ids = set()
 
     for pattern in TASK_ID_PATTERNS:
-        matches = re.findall(pattern, message, re.IGNORECASE)
+        matches = re.findall(pattern, message, re.IGNORECASE | re.MULTILINE)
         for match in matches:
-            # Normalize to lowercase
-            task_id = f"gt-{match.lower()}"
+            # Format as #N
+            task_id = f"#{match}"
             task_ids.add(task_id)
 
     return list(task_ids)

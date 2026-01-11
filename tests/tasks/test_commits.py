@@ -189,45 +189,67 @@ index 123..456 100644
 
 
 class TestExtractTaskIdsFromMessage:
-    """Tests for task ID extraction from commit messages."""
+    """Tests for task ID extraction from commit messages.
+
+    These tests verify commit message patterns recognize #N format:
+    - `fixes #1` extracts task reference
+    - `closes #42` extracts task reference
+    - `refs #1, #2, #3` extracts multiple references
+    - `gt-abc123` pattern is NOT recognized (deprecated)
+    - Case variations work: `Fixes #1`, `FIXES #1`
+    """
 
     def test_extracts_bracket_pattern(self):
-        """Test extraction of [gt-xxxxx] pattern."""
-        message = "Fix authentication bug [gt-abc123]"
+        """Test extraction of [#N] pattern."""
+        message = "Fix authentication bug [#1]"
         result = extract_task_ids_from_message(message)
-        assert "gt-abc123" in result
+        assert "#1" in result
 
     def test_extracts_colon_pattern(self):
-        """Test extraction of 'gt-xxxxx:' pattern."""
-        message = "gt-def456: Add new feature"
+        """Test extraction of '#N:' pattern."""
+        message = "#42: Add new feature"
         result = extract_task_ids_from_message(message)
-        assert "gt-def456" in result
+        assert "#42" in result
 
     def test_extracts_implements_pattern(self):
-        """Test extraction of 'Implements gt-xxxxx' pattern."""
-        message = "Implements gt-789abc feature request"
+        """Test extraction of 'Implements #N' pattern."""
+        message = "Implements #7 feature request"
         result = extract_task_ids_from_message(message)
-        assert "gt-789abc" in result
+        assert "#7" in result
 
     def test_extracts_fixes_pattern(self):
-        """Test extraction of 'Fixes gt-xxxxx' pattern."""
-        message = "Fixes gt-fix123 by updating validation"
+        """Test extraction of 'Fixes #N' pattern."""
+        message = "Fixes #123 by updating validation"
         result = extract_task_ids_from_message(message)
-        assert "gt-fix123" in result
+        assert "#123" in result
 
     def test_extracts_closes_pattern(self):
-        """Test extraction of 'Closes gt-xxxxx' pattern."""
-        message = "Closes gt-close99"
+        """Test extraction of 'Closes #N' pattern."""
+        message = "Closes #99"
         result = extract_task_ids_from_message(message)
-        assert "gt-close99" in result
+        assert "#99" in result
+
+    def test_extracts_refs_pattern(self):
+        """Test extraction of 'Refs #N' pattern."""
+        message = "Refs #5 for context"
+        result = extract_task_ids_from_message(message)
+        assert "#5" in result
 
     def test_extracts_multiple_task_ids(self):
         """Test extraction of multiple task IDs from one message."""
-        message = "[gt-task1] and also gt-task2: and Fixes gt-task3"
+        message = "[#1] and also #2: and Fixes #3"
         result = extract_task_ids_from_message(message)
-        assert "gt-task1" in result
-        assert "gt-task2" in result
-        assert "gt-task3" in result
+        assert "#1" in result
+        assert "#2" in result
+        assert "#3" in result
+
+    def test_extracts_comma_separated_refs(self):
+        """Test extraction of comma-separated refs like 'refs #1, #2, #3'."""
+        message = "Refs #1, refs #2, refs #3"
+        result = extract_task_ids_from_message(message)
+        assert "#1" in result
+        assert "#2" in result
+        assert "#3" in result
 
     def test_returns_empty_for_no_matches(self):
         """Test returns empty list when no task IDs found."""
@@ -237,20 +259,55 @@ class TestExtractTaskIdsFromMessage:
 
     def test_deduplicates_task_ids(self):
         """Test that duplicate task IDs are removed."""
-        message = "[gt-dup123] gt-dup123: Implements gt-dup123"
+        message = "[#1] #1: Implements #1"
         result = extract_task_ids_from_message(message)
-        assert result.count("gt-dup123") == 1
+        assert result.count("#1") == 1
 
     def test_case_insensitive_keywords(self):
         """Test that keywords are case insensitive."""
-        message = "IMPLEMENTS GT-upper123 and FIXES GT-upper456"
+        message = "IMPLEMENTS #1 and FIXES #2"
         result = extract_task_ids_from_message(message)
-        # Task IDs should be normalized to lowercase
-        assert any("upper123" in tid.lower() for tid in result)
+        assert "#1" in result
+        assert "#2" in result
+
+    def test_gt_format_not_recognized(self):
+        """Test that deprecated gt-* format is NOT recognized."""
+        message = "[gt-abc123] gt-def456: Fixes gt-789xyz"
+        result = extract_task_ids_from_message(message)
+        # gt-* format should NOT be extracted
+        assert len(result) == 0
+        assert "gt-abc123" not in result
+        assert "gt-def456" not in result
+        assert "gt-789xyz" not in result
+
+    def test_avoids_false_positives_with_paths(self):
+        """Test that #N in file paths is not matched incorrectly."""
+        # This shouldn't match because #1 shouldn't appear in normal paths
+        message = "Update docs/chapter#1.md"
+        result = extract_task_ids_from_message(message)
+        # The pattern requires whitespace before #N, so this shouldn't match
+        assert "#1" not in result or len(result) == 0
+
+    def test_multiline_message(self):
+        """Test extraction from multiline commit messages."""
+        message = """feat: add new feature
+
+Implements #42
+
+This change adds the requested feature.
+Also refs #43 for related work.
+"""
+        result = extract_task_ids_from_message(message)
+        assert "#42" in result
+        assert "#43" in result
 
 
 class TestAutoLinkCommits:
-    """Tests for auto_link_commits function."""
+    """Tests for auto_link_commits function.
+
+    Note: These tests use #N format which is extracted from commit messages.
+    The task manager is mocked to accept these references directly.
+    """
 
     @pytest.fixture
     def mock_task_manager(self):
@@ -262,29 +319,29 @@ class TestAutoLinkCommits:
         """Test that commits mentioning task IDs are linked."""
         # Mock task exists
         mock_task = MagicMock()
-        mock_task.id = "gt-test123"
+        mock_task.id = "#1"
         mock_task.commits = []
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
             # Mock git log output with commit mentioning task
-            mock_git.return_value = "abc123|Fix bug [gt-test123]\ndef456|Unrelated commit\n"
+            mock_git.return_value = "abc123|Fix bug [#1]\ndef456|Unrelated commit\n"
 
             result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
 
             assert isinstance(result, AutoLinkResult)
-            assert "gt-test123" in result.linked_tasks
-            assert "abc123" in result.linked_tasks["gt-test123"]
+            assert "#1" in result.linked_tasks
+            assert "abc123" in result.linked_tasks["#1"]
 
     def test_respects_since_parameter(self, mock_task_manager):
         """Test that --since parameter filters commits."""
         mock_task = MagicMock()
-        mock_task.id = "gt-test123"
+        mock_task.id = "#1"
         mock_task.commits = []
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
-            mock_git.return_value = "abc123|[gt-test123] commit\n"
+            mock_git.return_value = "abc123|[#1] commit\n"
 
             auto_link_commits(
                 mock_task_manager,
@@ -299,67 +356,67 @@ class TestAutoLinkCommits:
     def test_does_not_duplicate_already_linked_commits(self, mock_task_manager):
         """Test that already-linked commits are not re-linked."""
         mock_task = MagicMock()
-        mock_task.id = "gt-test123"
+        mock_task.id = "#1"
         mock_task.commits = ["abc123"]  # Already linked
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
-            mock_git.return_value = "abc123|[gt-test123] existing commit\n"
+            mock_git.return_value = "abc123|[#1] existing commit\n"
 
             result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
 
             # Should not link abc123 again
-            if "gt-test123" in result.linked_tasks:
-                assert "abc123" not in result.linked_tasks["gt-test123"]
+            if "#1" in result.linked_tasks:
+                assert "abc123" not in result.linked_tasks["#1"]
 
     def test_links_to_multiple_tasks(self, mock_task_manager):
         """Test linking commits that mention multiple tasks."""
         task1 = MagicMock()
-        task1.id = "gt-task1"
+        task1.id = "#1"
         task1.commits = []
 
         task2 = MagicMock()
-        task2.id = "gt-task2"
+        task2.id = "#2"
         task2.commits = []
 
         def get_task_side_effect(task_id):
-            if task_id == "gt-task1":
+            if task_id == "#1":
                 return task1
-            elif task_id == "gt-task2":
+            elif task_id == "#2":
                 return task2
             raise ValueError(f"Task {task_id} not found")
 
         mock_task_manager.get_task.side_effect = get_task_side_effect
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
-            mock_git.return_value = "abc123|[gt-task1] first task\ndef456|gt-task2: second task\n"
+            mock_git.return_value = "abc123|[#1] first task\ndef456|Fixes #2\n"
 
             result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
 
-            assert "gt-task1" in result.linked_tasks
-            assert "gt-task2" in result.linked_tasks
+            assert "#1" in result.linked_tasks
+            assert "#2" in result.linked_tasks
 
     def test_skips_non_existent_tasks(self, mock_task_manager):
         """Test that commits mentioning non-existent tasks are skipped."""
         mock_task_manager.get_task.side_effect = ValueError("Task not found")
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
-            mock_git.return_value = "abc123|[gt-nonexistent] commit\n"
+            mock_git.return_value = "abc123|[#999] commit\n"
 
             result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
 
             # Should not crash, just skip the task
-            assert "gt-nonexistent" not in result.linked_tasks
+            assert "#999" not in result.linked_tasks
 
     def test_returns_count_of_linked_commits(self, mock_task_manager):
         """Test that result includes count of newly linked commits."""
         mock_task = MagicMock()
-        mock_task.id = "gt-test123"
+        mock_task.id = "#1"
         mock_task.commits = []
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
-            mock_git.return_value = "abc123|[gt-test123] commit 1\ndef456|gt-test123: commit 2\n"
+            mock_git.return_value = "abc123|[#1] commit 1\ndef456|Fixes #1\n"
 
             result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
 
@@ -368,24 +425,24 @@ class TestAutoLinkCommits:
     def test_filters_by_task_id(self, mock_task_manager):
         """Test filtering auto-link to specific task ID."""
         mock_task = MagicMock()
-        mock_task.id = "gt-specific"
+        mock_task.id = "#1"
         mock_task.commits = []
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
             mock_git.return_value = (
-                "abc123|[gt-specific] target task\ndef456|[gt-other] different task\n"
+                "abc123|[#1] target task\ndef456|[#2] different task\n"
             )
 
             result = auto_link_commits(
                 mock_task_manager,
-                task_id="gt-specific",
+                task_id="#1",
                 cwd="/tmp/repo",
             )
 
-            # Should only link to gt-specific
-            assert "gt-specific" in result.linked_tasks
-            assert "gt-other" not in result.linked_tasks
+            # Should only link to #1
+            assert "#1" in result.linked_tasks
+            assert "#2" not in result.linked_tasks
 
     def test_handles_empty_git_log(self, mock_task_manager):
         """Test handling of empty git log output."""
@@ -400,12 +457,12 @@ class TestAutoLinkCommits:
     def test_result_includes_skipped_count(self, mock_task_manager):
         """Test that result includes count of skipped commits."""
         mock_task = MagicMock()
-        mock_task.id = "gt-test123"
+        mock_task.id = "#1"
         mock_task.commits = ["abc123"]  # Already linked
         mock_task_manager.get_task.return_value = mock_task
 
         with patch("gobby.tasks.commits.run_git_command") as mock_git:
-            mock_git.return_value = "abc123|[gt-test123] already linked\n"
+            mock_git.return_value = "abc123|[#1] already linked\n"
 
             result = auto_link_commits(mock_task_manager, cwd="/tmp/repo")
 
