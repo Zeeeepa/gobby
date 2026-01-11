@@ -220,12 +220,7 @@ __marimo__/
 .claude/tts*.txt
 .gemini/
 .codex/
-.gobby/*
-!.gobby/tasks.jsonl
-!.gobby/tasks_meta.json
-!.gobby/workflows/
-!.gobby/skills/
-!.gobby/commands/
+.gobby/gobby.db*
 .agent/
 .agentvibes/
 .antigravity/
