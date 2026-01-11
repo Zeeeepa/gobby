@@ -165,12 +165,25 @@ def main() -> int:
 
     # Check if gobby daemon is running before processing hooks
     if not check_daemon_running():
-        # Daemon is not running - return gracefully without processing
-        # Use status "daemon_not_running" to distinguish from errors
-        print(
-            json.dumps({"status": "daemon_not_running", "message": "gobby daemon is not running"})
-        )
-        return 0  # Exit 0 (success) - this is expected behavior, not an error
+        # Critical hooks that manage session state MUST have daemon running
+        # Without daemon, we lose handoff context, session tracking, etc.
+        critical_hooks = {"session-start", "session-end", "pre-compact", "stop"}
+        if hook_type in critical_hooks:
+            # Block the hook - forces user to start daemon before critical lifecycle events
+            print(
+                f"Gobby daemon is not running. Start with 'gobby start' before continuing. "
+                f"({hook_type} requires daemon for session state management)",
+                file=sys.stderr,
+            )
+            return 2  # Exit 2 = block operation
+        else:
+            # Non-critical hooks can proceed without daemon (tool use, notifications, etc.)
+            print(
+                json.dumps(
+                    {"status": "daemon_not_running", "message": "gobby daemon is not running"}
+                )
+            )
+            return 0  # Exit 0 (success) - allow operation to continue
 
     # Setup logger for dispatcher (not HookManager)
     # Only log to stderr in debug mode - otherwise logs pollute Claude's stderr reading
