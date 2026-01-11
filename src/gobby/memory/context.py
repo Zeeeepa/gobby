@@ -1,18 +1,11 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
 
 from gobby.storage.memories import Memory
 
-if TYPE_CHECKING:
-    from gobby.compression import TextCompressor
-
 # Pattern to match common bullet markers at start of string
 _BULLET_PATTERN = re.compile(r"^[\s]*[-*•]\s*")
-
-# Default threshold for compression (4KB)
-DEFAULT_COMPRESSION_THRESHOLD = 4000
 
 
 def _strip_leading_bullet(content: str) -> str:
@@ -34,21 +27,12 @@ def _strip_leading_bullet(content: str) -> str:
     return result.strip()
 
 
-def build_memory_context(
-    memories: list[Memory],
-    compressor: TextCompressor | None = None,
-    compression_threshold: int = DEFAULT_COMPRESSION_THRESHOLD,
-) -> str:
+def build_memory_context(memories: list[Memory]) -> str:
     """
     Build a formatted markdown context string from memories.
 
     Args:
         memories: List of Memory objects to include
-        compressor: Optional TextCompressor for compressing large content.
-            When provided and content exceeds compression_threshold, the inner
-            content (between tags) is compressed before returning.
-        compression_threshold: Character count threshold above which compression
-            is applied. Defaults to 4000 characters.
 
     Returns:
         Formatted markdown string wrapped in <project-memory> tags
@@ -100,13 +84,4 @@ def build_memory_context(
 
     parts.append("</project-memory>")
 
-    result = "\n".join(parts)
-
-    # Compress if compressor provided and content exceeds threshold
-    if compressor and len(result) > compression_threshold:
-        # Compress only the inner content (preserve the tags)
-        inner_content = "\n".join(parts[1:-1])  # Skip opening/closing tags
-        compressed_inner = compressor.compress(inner_content, context_type="memory")
-        result = f"<project-memory>\n{compressed_inner}\n</project-memory>"
-
-    return result
+    return "\n".join(parts)

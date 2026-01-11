@@ -9,12 +9,9 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from gobby.workflows.git_utils import get_git_status, get_recent_git_commits
-
-if TYPE_CHECKING:
-    from gobby.compression import TextCompressor
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +184,6 @@ def extract_handoff_context(
     config: Any | None = None,
     db: Any | None = None,
     worktree_manager: Any | None = None,
-    compressor: TextCompressor | None = None,
 ) -> dict[str, Any] | None:
     """Extract handoff context from transcript and save to session.compact_markdown.
 
@@ -197,9 +193,6 @@ def extract_handoff_context(
         config: Optional config with compact_handoff settings
         db: Optional LocalDatabase instance for dependency injection
         worktree_manager: Optional LocalWorktreeManager instance for dependency injection
-        compressor: Optional TextCompressor for compressing markdown before storage.
-            When provided, max_turns is increased (200 vs 100) to capture more context
-            since compression will reduce the final markdown size.
 
     Returns:
         Dict with extraction result or error
@@ -231,9 +224,7 @@ def extract_handoff_context(
                     turns.append(json.loads(line))
 
         analyzer = TranscriptAnalyzer()
-        # Increase max_turns when compressor provided since compression will reduce final size
-        max_turns = 200 if compressor else 100
-        handoff_ctx = analyzer.extract_handoff_context(turns, max_turns=max_turns)
+        handoff_ctx = analyzer.extract_handoff_context(turns, max_turns=100)
 
         # Enrich with real-time git status
         if not handoff_ctx.git_status:
@@ -272,10 +263,6 @@ def extract_handoff_context(
 
         # Format as markdown (like /clear stores formatted summary)
         markdown = format_handoff_as_markdown(handoff_ctx)
-
-        # Compress markdown if compressor provided
-        if compressor:
-            markdown = compressor.compress(markdown, context_type="handoff")
 
         # Save to session.compact_markdown
         session_manager.update_compact_markdown(session_id, markdown)

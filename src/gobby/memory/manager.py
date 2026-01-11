@@ -10,7 +10,6 @@ from gobby.storage.database import DatabaseProtocol
 from gobby.storage.memories import LocalMemoryManager, Memory
 
 if TYPE_CHECKING:
-    from gobby.compression import TextCompressor
     from gobby.memory.search import SearchBackend
     from gobby.memory.semantic_search import EmbedStats, SemanticMemorySearch
 
@@ -28,7 +27,6 @@ class MemoryManager:
         db: DatabaseProtocol,
         config: MemoryConfig,
         openai_api_key: str | None = None,
-        compressor: TextCompressor | None = None,
     ):
         self.db = db
         self.storage = LocalMemoryManager(db)
@@ -37,7 +35,6 @@ class MemoryManager:
         self._semantic_search: SemanticMemorySearch | None = None
         self._search_backend: SearchBackend | None = None
         self._search_backend_fitted = False
-        self.compressor = compressor
 
     @property
     def semantic_search(self) -> SemanticMemorySearch:
@@ -467,20 +464,16 @@ class MemoryManager:
         project_id: str | None = None,
         limit: int = 10,
         min_importance: float | None = None,
-        compression_threshold: int | None = None,
     ) -> str:
         """
         Retrieve memories and format them as context for LLM prompts.
 
         Convenience method that combines recall() with build_memory_context().
-        If a compressor was provided at initialization and the content exceeds
-        the compression threshold, the inner content will be compressed.
 
         Args:
             project_id: Filter by project
             limit: Maximum memories to return
             min_importance: Minimum importance threshold
-            compression_threshold: Character threshold for compression (default: 4000)
 
         Returns:
             Formatted markdown string wrapped in <project-memory> tags,
@@ -492,11 +485,7 @@ class MemoryManager:
             min_importance=min_importance,
         )
 
-        kwargs: dict[str, Any] = {"compressor": self.compressor}
-        if compression_threshold is not None:
-            kwargs["compression_threshold"] = compression_threshold
-
-        return build_memory_context(memories, **kwargs)
+        return build_memory_context(memories)
 
     def _recall_semantic(
         self,

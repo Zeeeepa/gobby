@@ -67,25 +67,13 @@ class GobbyRunner:
         except Exception as e:
             logger.error(f"Failed to initialize LLM service: {e}")
 
-        # Initialize TextCompressor from config (shared across components)
-        self.compressor = None
-        if hasattr(self.config, "compression"):
-            try:
-                from gobby.compression import TextCompressor
-
-                self.compressor = TextCompressor(self.config.compression)
-                logger.debug("TextCompressor initialized")
-            except Exception as e:
-                logger.debug(f"TextCompressor not initialized: {e}")
-
         # Initialize Memory Manager
-        self.memory_manager: MemoryManager | None = None  # Added type hint
+        self.memory_manager: MemoryManager | None = None
         if hasattr(self.config, "memory"):
             try:
                 self.memory_manager = MemoryManager(
                     self.database,
                     self.config.memory,
-                    compressor=self.compressor,
                 )
             except Exception as e:
                 logger.error(f"Failed to initialize MemoryManager: {e}")

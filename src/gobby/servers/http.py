@@ -144,9 +144,6 @@ class HTTPServer:
                     return self._tools_handler.tool_proxy
                 return None
 
-            # Get compressor from memory_manager if available
-            compressor = getattr(memory_manager, "compressor", None) if memory_manager else None
-
             # Setup internal registries (gobby-tasks, gobby-memory, etc.)
             self._internal_manager = setup_internal_registries(
                 _config=config,
@@ -165,7 +162,6 @@ class HTTPServer:
                 git_manager=None,  # Created per-project, not at daemon startup
                 project_id=None,  # Project-specific, not global
                 tool_proxy_getter=tool_proxy_getter,
-                compressor=compressor,
             )
             registry_count = len(self._internal_manager)
             logger.debug(f"Internal registries initialized: {registry_count} registries")

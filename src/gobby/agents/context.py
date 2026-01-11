@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from gobby.compression import TextCompressor
     from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
 
@@ -53,9 +52,6 @@ class ContextResolver:
     TRANSCRIPT_PATTERN = re.compile(r"^transcript:(\d+)$")
     FILE_PATTERN = re.compile(r"^file:(.+)$")
 
-    # Multiplier for limits when compression is enabled
-    COMPRESSION_LIMIT_MULTIPLIER = 2
-
     def __init__(
         self,
         session_manager: LocalSessionManager,
@@ -65,7 +61,6 @@ class ContextResolver:
         max_content_size: int = 51200,  # 50KB default for all content types
         max_transcript_messages: int = 100,
         truncation_suffix: str = "\n\n[truncated: {bytes} bytes remaining]",
-        compressor: TextCompressor | None = None,
     ):
         """
         Initialize the context resolver.
@@ -78,55 +73,18 @@ class ContextResolver:
             max_content_size: Maximum content size for all sources (default: 50KB).
             max_transcript_messages: Maximum transcript messages to fetch.
             truncation_suffix: Suffix template when content is truncated.
-            compressor: Optional TextCompressor for compressing resolved content.
-                When provided, limits are increased to gather more raw context
-                before compression.
         """
         self._session_manager = session_manager
         self._message_manager = message_manager
         self._project_path = Path(project_path) if project_path else None
         self._truncation_suffix = truncation_suffix
-        self.compressor = compressor
-
-        # Increase limits when compressor is available
-        multiplier = self.COMPRESSION_LIMIT_MULTIPLIER if compressor else 1
-        self._max_file_size = max_file_size * multiplier
-        self._max_content_size = max_content_size * multiplier
-        self._max_transcript_messages = max_transcript_messages * multiplier
+        self._max_file_size = max_file_size
+        self._max_content_size = max_content_size
+        self._max_transcript_messages = max_transcript_messages
 
     async def resolve(self, source: str, session_id: str) -> str:
         """
-        Resolve context from the specified source, with optional compression.
-
-        This is the main public API for context resolution. If a compressor
-        was provided at initialization, the resolved content will be compressed
-        before returning.
-
-        Args:
-            source: Context source specification.
-            session_id: Parent session ID for context lookups.
-
-        Returns:
-            Resolved context string, possibly compressed if compressor is available.
-
-        Raises:
-            ContextResolutionError: If resolution fails.
-        """
-        # Get raw (uncompressed) content
-        content = await self._resolve_raw(source, session_id)
-
-        # Apply compression if compressor is available and content is non-empty
-        if self.compressor and content:
-            return self.compressor.compress(content, context_type="context")
-
-        return content
-
-    async def _resolve_raw(self, source: str, session_id: str) -> str:
-        """
-        Resolve context from the specified source without compression.
-
-        Internal method that retrieves raw context. Use resolve() for the
-        public API that applies compression when a compressor is configured.
+        Resolve context from the specified source.
 
         Args:
             source: Context source specification.

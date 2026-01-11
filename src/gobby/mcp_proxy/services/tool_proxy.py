@@ -8,7 +8,6 @@ from gobby.mcp_proxy.models import MCPError
 
 if TYPE_CHECKING:
     from gobby.mcp_proxy.services.fallback import ToolFallbackResolver
-    from gobby.mcp_proxy.services.response_transformer import ResponseTransformerService
     from gobby.mcp_proxy.services.tool_filter import ToolFilterService
     from gobby.mcp_proxy.tools.internal import InternalRegistryManager
 
@@ -35,14 +34,12 @@ class ToolProxyService:
         internal_manager: "InternalRegistryManager | None" = None,
         tool_filter: "ToolFilterService | None" = None,
         fallback_resolver: "ToolFallbackResolver | None" = None,
-        response_transformer: "ResponseTransformerService | None" = None,
         validate_arguments: bool = True,
     ):
         self._mcp_manager = mcp_manager
         self._internal_manager = internal_manager
         self._tool_filter = tool_filter
         self._fallback_resolver = fallback_resolver
-        self._response_transformer = response_transformer
         self._validate_arguments = validate_arguments
 
     def _check_arguments(
@@ -157,8 +154,6 @@ class ToolProxyService:
         On execution error, includes fallback_suggestions if a fallback resolver
         is configured.
 
-        If a response_transformer is configured, large string fields in the response
-        will be compressed using LLMLingua.
         """
         args = arguments or {}
 
@@ -184,19 +179,11 @@ class ToolProxyService:
             if self._internal_manager and self._internal_manager.is_internal(server_name):
                 registry = self._internal_manager.get_registry(server_name)
                 if registry:
-                    result = await registry.call(tool_name, args)
-                    # Apply response transformation if configured
-                    if self._response_transformer:
-                        result = self._response_transformer.transform_response(result)
-                    return result
+                    return await registry.call(tool_name, args)
                 raise MCPError(f"Internal server '{server_name}' not found")
 
             # Use MCP manager for external servers
-            result = await self._mcp_manager.call_tool(server_name, tool_name, arguments)
-            # Apply response transformation if configured
-            if self._response_transformer:
-                result = self._response_transformer.transform_response(result)
-            return result
+            return await self._mcp_manager.call_tool(server_name, tool_name, arguments)
 
         except Exception as e:
             error_message = str(e)

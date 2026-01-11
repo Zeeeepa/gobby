@@ -51,7 +51,7 @@ class TestResolveSummaryMarkdown:
         mock_session.summary_markdown = "# Summary\n\nThis is a summary."
         mock_session_manager.get.return_value = mock_session
 
-        result = await resolver._resolve_raw("summary_markdown", "sess-123")
+        result = await resolver.resolve("summary_markdown", "sess-123")
 
         assert result == "# Summary\n\nThis is a summary."
         mock_session_manager.get.assert_called_once_with("sess-123")
@@ -62,7 +62,7 @@ class TestResolveSummaryMarkdown:
         mock_session.summary_markdown = None
         mock_session_manager.get.return_value = mock_session
 
-        result = await resolver._resolve_raw("summary_markdown", "sess-123")
+        result = await resolver.resolve("summary_markdown", "sess-123")
 
         assert result == ""
 
@@ -71,7 +71,7 @@ class TestResolveSummaryMarkdown:
         mock_session_manager.get.return_value = None
 
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver._resolve_raw("summary_markdown", "sess-unknown")
+            await resolver.resolve("summary_markdown", "sess-unknown")
 
         assert "Session not found: sess-unknown" in str(exc_info.value)
 
@@ -85,7 +85,7 @@ class TestResolveCompactMarkdown:
         mock_session.compact_markdown = "## Handoff\n\nContext here."
         mock_session_manager.get.return_value = mock_session
 
-        result = await resolver._resolve_raw("compact_markdown", "sess-123")
+        result = await resolver.resolve("compact_markdown", "sess-123")
 
         assert result == "## Handoff\n\nContext here."
 
@@ -95,7 +95,7 @@ class TestResolveCompactMarkdown:
         mock_session.compact_markdown = None
         mock_session_manager.get.return_value = mock_session
 
-        result = await resolver._resolve_raw("compact_markdown", "sess-123")
+        result = await resolver.resolve("compact_markdown", "sess-123")
 
         assert result == ""
 
@@ -109,7 +109,7 @@ class TestResolveSessionId:
         mock_session.summary_markdown = "Target session summary"
         mock_session_manager.get.return_value = mock_session
 
-        result = await resolver._resolve_raw("session_id:sess-target", "sess-parent")
+        result = await resolver.resolve("session_id:sess-target", "sess-parent")
 
         # Should fetch the target session, not the parent
         mock_session_manager.get.assert_called_once_with("sess-target")
@@ -120,7 +120,7 @@ class TestResolveSessionId:
         mock_session_manager.get.return_value = None
 
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver._resolve_raw("session_id:sess-missing", "sess-parent")
+            await resolver.resolve("session_id:sess-missing", "sess-parent")
 
         assert "Session not found: sess-missing" in str(exc_info.value)
 
@@ -138,7 +138,7 @@ class TestResolveTranscript:
             ]
         )
 
-        result = await resolver._resolve_raw("transcript:3", "sess-123")
+        result = await resolver.resolve("transcript:3", "sess-123")
 
         mock_message_manager.get_messages.assert_called_once_with(
             session_id="sess-123",
@@ -153,7 +153,7 @@ class TestResolveTranscript:
         """transcript:<n> returns empty string when no messages."""
         mock_message_manager.get_messages = AsyncMock(return_value=[])
 
-        result = await resolver._resolve_raw("transcript:10", "sess-123")
+        result = await resolver.resolve("transcript:10", "sess-123")
 
         assert result == ""
 
@@ -162,7 +162,7 @@ class TestResolveTranscript:
         resolver._max_transcript_messages = 50
         mock_message_manager.get_messages = AsyncMock(return_value=[])
 
-        await resolver._resolve_raw("transcript:1000", "sess-123")
+        await resolver.resolve("transcript:1000", "sess-123")
 
         mock_message_manager.get_messages.assert_called_once_with(
             session_id="sess-123",
@@ -179,14 +179,14 @@ class TestResolveFile:
         test_file = temp_project / "test.md"
         test_file.write_text("# Test File\n\nContent here.")
 
-        result = await resolver._resolve_raw("file:test.md", "sess-123")
+        result = await resolver.resolve("file:test.md", "sess-123")
 
         assert result == "# Test File\n\nContent here."
 
     async def test_rejects_path_traversal(self, resolver):
         """file:<path> rejects path traversal attempts."""
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver._resolve_raw("file:../etc/passwd", "sess-123")
+            await resolver.resolve("file:../etc/passwd", "sess-123")
 
         assert "Path traversal not allowed" in str(exc_info.value)
 
@@ -194,7 +194,7 @@ class TestResolveFile:
         """file:<path> rejects paths outside project."""
         # Create a file outside project using absolute path trick
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver._resolve_raw("file:/etc/passwd", "sess-123")
+            await resolver.resolve("file:/etc/passwd", "sess-123")
 
         # Could raise absolute path, traversal, or outside project error
         error_msg = str(exc_info.value).lower()
@@ -203,7 +203,7 @@ class TestResolveFile:
     async def test_raises_on_missing_file(self, resolver):
         """file:<path> raises error for non-existent file."""
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver._resolve_raw("file:nonexistent.md", "sess-123")
+            await resolver.resolve("file:nonexistent.md", "sess-123")
 
         assert "File not found" in str(exc_info.value)
 
@@ -213,7 +213,7 @@ class TestResolveFile:
         test_file = temp_project / "large.txt"
         test_file.write_text("A" * 200)
 
-        result = await resolver._resolve_raw("file:large.txt", "sess-123")
+        result = await resolver.resolve("file:large.txt", "sess-123")
 
         assert len(result) < 200
         assert "truncated" in result
@@ -225,7 +225,7 @@ class TestResolveFile:
         test_file.write_bytes(b"\x00\x01\x02\xff\xfe")
 
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver._resolve_raw("file:binary.bin", "sess-123")
+            await resolver.resolve("file:binary.bin", "sess-123")
 
         assert "not valid UTF-8" in str(exc_info.value) or "binary" in str(exc_info.value)
 
@@ -238,7 +238,7 @@ class TestResolveFile:
         )
 
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver._resolve_raw("file:test.md", "sess-123")
+            await resolver.resolve("file:test.md", "sess-123")
 
         assert "No project path configured" in str(exc_info.value)
 
@@ -261,7 +261,7 @@ class TestContentTruncation:
         mock_session.summary_markdown = "A" * 200
         mock_session_manager.get.return_value = mock_session
 
-        result = await resolver._resolve_raw("summary_markdown", "sess-123")
+        result = await resolver.resolve("summary_markdown", "sess-123")
 
         assert len(result) < 200
         assert "truncated" in result
@@ -282,7 +282,7 @@ class TestContentTruncation:
         mock_session.compact_markdown = "B" * 200
         mock_session_manager.get.return_value = mock_session
 
-        result = await resolver._resolve_raw("compact_markdown", "sess-123")
+        result = await resolver.resolve("compact_markdown", "sess-123")
 
         assert len(result) < 200
         assert "truncated" in result
@@ -305,7 +305,7 @@ class TestContentTruncation:
             ]
         )
 
-        result = await resolver._resolve_raw("transcript:10", "sess-123")
+        result = await resolver.resolve("transcript:10", "sess-123")
 
         assert len(result) < 250
         assert "truncated" in result
@@ -325,7 +325,7 @@ class TestContentTruncation:
         mock_session.summary_markdown = "Small content"
         mock_session_manager.get.return_value = mock_session
 
-        result = await resolver._resolve_raw("summary_markdown", "sess-123")
+        result = await resolver.resolve("summary_markdown", "sess-123")
 
         assert result == "Small content"
         assert "truncated" not in result
@@ -337,14 +337,14 @@ class TestUnknownSource:
     async def test_raises_on_unknown_source(self, resolver):
         """Unknown source format raises error."""
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver._resolve_raw("invalid_source", "sess-123")
+            await resolver.resolve("invalid_source", "sess-123")
 
         assert "Unknown context source format" in str(exc_info.value)
 
     async def test_raises_on_malformed_source(self, resolver):
         """Malformed source format raises error."""
         with pytest.raises(ContextResolutionError) as exc_info:
-            await resolver._resolve_raw("session_id:", "sess-123")
+            await resolver.resolve("session_id:", "sess-123")
 
         assert "Unknown context source format" in str(exc_info.value)
 
@@ -417,230 +417,3 @@ class TestFormatInjectedPrompt:
 
         assert result == "Original prompt"
 
-
-class TestContextResolverCompressor:
-    """Tests for ContextResolver compressor parameter."""
-
-    def test_init_accepts_compressor_parameter(
-        self, mock_session_manager, mock_message_manager, temp_project
-    ):
-        """ContextResolver can be instantiated with compressor."""
-        mock_compressor = MagicMock()
-
-        resolver = ContextResolver(
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-            project_path=temp_project,
-            compressor=mock_compressor,
-        )
-
-        assert resolver.compressor is mock_compressor
-
-    def test_init_without_compressor_backward_compatible(
-        self, mock_session_manager, mock_message_manager, temp_project
-    ):
-        """ContextResolver can be instantiated without compressor (backward compatible)."""
-        resolver = ContextResolver(
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-            project_path=temp_project,
-        )
-
-        assert resolver.compressor is None
-
-    def test_compressor_increases_limits(
-        self, mock_session_manager, mock_message_manager, temp_project
-    ):
-        """When compressor is provided, internal limits are increased."""
-        mock_compressor = MagicMock()
-
-        # Create resolver without compressor
-        resolver_no_compress = ContextResolver(
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-            project_path=temp_project,
-            max_file_size=50000,
-            max_content_size=50000,
-            max_transcript_messages=100,
-        )
-
-        # Create resolver with compressor
-        resolver_with_compress = ContextResolver(
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-            project_path=temp_project,
-            max_file_size=50000,
-            max_content_size=50000,
-            max_transcript_messages=100,
-            compressor=mock_compressor,
-        )
-
-        # With compressor, limits should be multiplied by COMPRESSION_LIMIT_MULTIPLIER
-        multiplier = ContextResolver.COMPRESSION_LIMIT_MULTIPLIER
-        assert resolver_with_compress._max_file_size == 50000 * multiplier
-        assert resolver_with_compress._max_content_size == 50000 * multiplier
-        assert resolver_with_compress._max_transcript_messages == 100 * multiplier
-
-        # Without compressor, limits should be unchanged
-        assert resolver_no_compress._max_file_size == 50000
-        assert resolver_no_compress._max_content_size == 50000
-        assert resolver_no_compress._max_transcript_messages == 100
-
-    def test_compressor_defaults_to_none(
-        self, mock_session_manager, mock_message_manager, temp_project
-    ):
-        """Compressor defaults to None."""
-        resolver = ContextResolver(
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-            project_path=temp_project,
-        )
-
-        assert resolver.compressor is None
-
-    def test_compression_limit_multiplier_is_two(self):
-        """Verify the compression limit multiplier is 2."""
-        assert ContextResolver.COMPRESSION_LIMIT_MULTIPLIER == 2
-
-
-class TestResolveWithCompression:
-    """Tests for resolve() method with compression support."""
-
-    async def test_resolve_without_compressor_returns_raw_content(
-        self, mock_session_manager, mock_message_manager, temp_project
-    ):
-        """resolve() without compressor returns same result as _resolve_raw()."""
-        resolver = ContextResolver(
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-            project_path=temp_project,
-        )
-
-        mock_session = MagicMock()
-        mock_session.summary_markdown = "Raw content here"
-        mock_session_manager.get.return_value = mock_session
-
-        # Both methods should return the same content
-        raw_result = await resolver._resolve_raw("summary_markdown", "sess-123")
-        resolve_result = await resolver.resolve("summary_markdown", "sess-123")
-
-        assert resolve_result == raw_result
-        assert resolve_result == "Raw content here"
-
-    async def test_resolve_with_compressor_applies_compression(
-        self, mock_session_manager, mock_message_manager, temp_project
-    ):
-        """resolve() with compressor calls compress on raw content."""
-        mock_compressor = MagicMock()
-        mock_compressor.compress.return_value = "Compressed content"
-
-        resolver = ContextResolver(
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-            project_path=temp_project,
-            compressor=mock_compressor,
-        )
-
-        mock_session = MagicMock()
-        mock_session.summary_markdown = "Original content to compress"
-        mock_session_manager.get.return_value = mock_session
-
-        result = await resolver.resolve("summary_markdown", "sess-123")
-
-        # Compressor should have been called with raw content
-        mock_compressor.compress.assert_called_once_with(
-            "Original content to compress", context_type="context"
-        )
-
-        # Result should be compressed
-        assert result == "Compressed content"
-
-    async def test_resolve_returns_compressed_output(
-        self, mock_session_manager, mock_message_manager, temp_project
-    ):
-        """resolve() returns compressed output when compressor is provided."""
-        mock_compressor = MagicMock()
-        mock_compressor.compress.return_value = "<<compressed>>"
-
-        resolver = ContextResolver(
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-            project_path=temp_project,
-            compressor=mock_compressor,
-        )
-
-        mock_session = MagicMock()
-        mock_session.compact_markdown = "Lots of text here..."
-        mock_session_manager.get.return_value = mock_session
-
-        result = await resolver.resolve("compact_markdown", "sess-123")
-
-        assert result == "<<compressed>>"
-
-    async def test_resolve_skips_compression_for_empty_content(
-        self, mock_session_manager, mock_message_manager, temp_project
-    ):
-        """resolve() does not call compressor when content is empty."""
-        mock_compressor = MagicMock()
-        mock_compressor.compress.return_value = "Compressed"
-
-        resolver = ContextResolver(
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-            project_path=temp_project,
-            compressor=mock_compressor,
-        )
-
-        mock_session = MagicMock()
-        mock_session.summary_markdown = ""
-        mock_session_manager.get.return_value = mock_session
-
-        result = await resolver.resolve("summary_markdown", "sess-123")
-
-        # Compressor should NOT have been called for empty content
-        mock_compressor.compress.assert_not_called()
-        assert result == ""
-
-    async def test_backward_compatibility_resolve_without_changes(
-        self, mock_session_manager, mock_message_manager, temp_project
-    ):
-        """Existing code using resolve() without compressor works unchanged."""
-        # Create resolver without compressor (how existing code works)
-        resolver = ContextResolver(
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-            project_path=temp_project,
-        )
-
-        mock_session = MagicMock()
-        mock_session.summary_markdown = "Summary content"
-        mock_session_manager.get.return_value = mock_session
-
-        # Should work exactly as before
-        result = await resolver.resolve("summary_markdown", "sess-123")
-
-        assert result == "Summary content"
-
-    async def test_resolve_uses_context_type_context(
-        self, mock_session_manager, mock_message_manager, temp_project
-    ):
-        """resolve() passes context_type='context' to compressor."""
-        mock_compressor = MagicMock()
-        mock_compressor.compress.return_value = "Compressed"
-
-        resolver = ContextResolver(
-            session_manager=mock_session_manager,
-            message_manager=mock_message_manager,
-            project_path=temp_project,
-            compressor=mock_compressor,
-        )
-
-        mock_session = MagicMock()
-        mock_session.summary_markdown = "Content"
-        mock_session_manager.get.return_value = mock_session
-
-        await resolver.resolve("summary_markdown", "sess-123")
-
-        # Verify context_type parameter
-        call_args = mock_compressor.compress.call_args
-        assert call_args.kwargs.get("context_type") == "context"

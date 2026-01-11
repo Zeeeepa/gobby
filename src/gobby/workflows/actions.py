@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol
-
-if TYPE_CHECKING:
-    from gobby.compression import TextCompressor
+from typing import Any, Protocol
 
 from gobby.storage.database import DatabaseProtocol
 from gobby.storage.sessions import LocalSessionManager
@@ -137,19 +134,6 @@ class ActionExecutor:
         self.stuck_detector = stuck_detector
         self.websocket_server = websocket_server
         self._handlers: dict[str, ActionHandler] = {}
-
-        # Create compressor from config if available
-        self._compressor: TextCompressor | None = None
-        if config is not None:
-            compression_config = getattr(config, "compression", None)
-            if compression_config is not None:
-                try:
-                    from gobby.compression import TextCompressor
-
-                    self._compressor = TextCompressor(compression_config)
-                except Exception as e:
-                    logger.warning(f"Failed to initialize TextCompressor: {e}")
-                    # Leave _compressor as None so compression is optional
 
         self._register_defaults()
 
@@ -626,7 +610,6 @@ class ActionExecutor:
             template=kwargs.get("template"),
             previous_summary=previous_summary,
             mode=mode,
-            compressor=self._compressor,
         )
 
     async def _handle_generate_summary(
@@ -639,7 +622,6 @@ class ActionExecutor:
             llm_service=context.llm_service,
             transcript_processor=context.transcript_processor,
             template=kwargs.get("template"),
-            compressor=self._compressor,
         )
 
     async def _handle_start_new_session(
@@ -670,7 +652,6 @@ class ActionExecutor:
             session_id=context.session_id,
             config=context.config,
             db=self.db,
-            compressor=self._compressor,
         )
 
     def _format_handoff_as_markdown(self, ctx: Any, prompt_template: str | None = None) -> str:

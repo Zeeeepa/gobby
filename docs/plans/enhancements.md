@@ -39,7 +39,7 @@ Each phase is independently valuable. Phases 1-2 enhance local development workf
 
 ---
 
-## Phase 1: Intelligent Merge Resolution
+## Phase 1: Intelligent Merge Resolution (Completed)
 
 > **Prerequisite**: Requires `gobby-worktrees` from [SUBAGENTS.md](./SUBAGENTS.md) Phase 4.
 
@@ -283,44 +283,44 @@ merge:
 
 #### Phase 1.1: Conflict Extraction
 
-- [ ] Create `src/merge/extractor.py` with conflict hunk extraction
-- [ ] Implement `extract_conflict_hunks()` - parse <<<<<<< markers
-- [ ] Implement context windowing (configurable lines around conflict)
-- [ ] Calculate token savings vs full file
-- [ ] Add unit tests with various conflict patterns
+- [x] Create `src/gobby/worktrees/merge/conflict_parser.py` with conflict hunk extraction
+- [x] Implement `extract_conflict_hunks()` - parse <<<<<<< markers
+- [x] Implement context windowing (configurable lines around conflict)
+- [x] Calculate token savings vs full file
+- [x] Add unit tests with various conflict patterns
 
 #### Phase 1.2: Resolution Engine
 
-- [ ] Create `src/merge/resolver.py` with `MergeResolver` class
-- [ ] Implement tiered resolution strategy
-- [ ] Implement parallel file resolution
-- [ ] Implement validation (syntax, markers, completeness)
-- [ ] Add fallback escalation logic
+- [x] Create `src/gobby/worktrees/merge/resolver.py` with `MergeResolver` class
+- [x] Implement tiered resolution strategy
+- [x] Implement parallel file resolution
+- [x] Implement validation (syntax, markers, completeness)
+- [x] Add fallback escalation logic
 
 #### Phase 1.3: Storage & Tracking
 
-- [ ] Create database migrations
-- [ ] Create `src/storage/merges.py` with `LocalMergeManager`
-- [ ] Track resolution progress and history
-- [ ] Store AI reasoning for audit trail
+- [x] Create database migrations
+- [x] Create `src/gobby/storage/merge_resolutions.py` with `LocalMergeManager`
+- [x] Track resolution progress and history
+- [x] Store AI reasoning for audit trail
 
 #### Phase 1.4: MCP Tools
 
-- [ ] Create `src/mcp_proxy/tools/merge.py`
-- [ ] Register as `gobby-merge` internal server
-- [ ] Implement all tools listed above
+- [x] Create `src/gobby/mcp_proxy/tools/merge.py`
+- [x] Register as `gobby-merge` internal server
+- [x] Implement all tools listed above
 
 #### Phase 1.5: CLI Commands
 
-- [ ] Add `gobby merge` command group
-- [ ] Implement all commands listed above
-- [ ] Add progress indicators for long operations
+- [x] Add `gobby merge` command group
+- [x] Implement all commands listed above
+- [x] Add progress indicators for long operations
 
 #### Phase 1.6: Integration
 
-- [ ] Hook into worktree merge flow (from SUBAGENTS gobby-worktrees)
-- [ ] Update task status on successful merge
-- [ ] Add merge metadata to session handoff
+- [x] Hook into worktree merge flow (from SUBAGENTS gobby-worktrees)
+- [x] Update task status on successful merge
+- [x] Add merge metadata to session handoff
 
 ---
 
@@ -489,7 +489,7 @@ task_validation:
 
 ---
 
-## Phase 3: GitHub Integration
+## Phase 3: GitHub Integration (Completed)
 
 ### Phase 3: Overview
 
@@ -611,33 +611,33 @@ github:
 
 #### Phase 3.1: Task Schema Update
 
-- [ ] Add migration for `github_issue_number`, `github_pr_number`, `github_repo` columns on tasks table
-- [ ] Update Task dataclass and storage layer
-- [ ] Add to dual-write database (project + hub)
+- [x] Add migration for `github_issue_number`, `github_pr_number`, `github_repo` columns on tasks table
+- [x] Update Task dataclass and storage layer
+- [x] Add to dual-write database (project + hub)
 
 #### Phase 3.2: GitHub MCP Detection
 
-- [ ] Create `src/gobby/integrations/github.py` with `GitHubIntegration` class
-- [ ] Implement `is_available()` - check if GitHub MCP server is configured and responsive
-- [ ] Implement graceful error messages when GitHub MCP unavailable
-- [ ] Cache availability check (don't call on every operation)
+- [x] Create `src/gobby/integrations/github.py` with `GitHubIntegration` class
+- [x] Implement `is_available()` - check if GitHub MCP server is configured and responsive
+- [x] Implement graceful error messages when GitHub MCP unavailable
+- [x] Cache availability check (don't call on every operation)
 
 #### Phase 3.3: Sync Orchestration
 
-- [ ] Implement `import_github_issues()` - calls GitHub MCP, creates tasks
-- [ ] Implement `sync_task_to_github()` - calls GitHub MCP to update issue
-- [ ] Implement `create_pr_for_task()` - calls GitHub MCP to create PR
-- [ ] Handle label mapping (gobby labels ↔ GitHub labels)
+- [x] Implement `import_github_issues()` - calls GitHub MCP, creates tasks
+- [x] Implement `sync_task_to_github()` - calls GitHub MCP to update issue
+- [x] Implement `create_pr_for_task()` - calls GitHub MCP to create PR
+- [x] Handle label mapping (gobby labels ↔ GitHub labels)
 
 #### Phase 3.4: MCP Tools & CLI
 
-- [ ] Add GitHub tools to `gobby-tasks` registry (not separate server)
-- [ ] Add `gobby github` CLI command group
-- [ ] Add project config field for linked GitHub repo
+- [x] Add GitHub tools to `gobby-tasks` registry (not separate server)
+- [x] Add `gobby github` CLI command group
+- [x] Add project config field for linked GitHub repo
 
 ---
 
-## Phase 4: Linear Integration
+## Phase 4: Linear Integration (Completed)
 
 ### Phase 4: Overview
 
@@ -747,29 +747,29 @@ linear:
 
 #### Phase 4.1: Task Schema Update
 
-- [ ] Add migration for `linear_issue_id`, `linear_team_id` columns on tasks table
-- [ ] Update Task dataclass and storage layer
-- [ ] Add to dual-write database (project + hub)
+- [x] Add migration for `linear_issue_id`, `linear_team_id` columns on tasks table
+- [x] Update Task dataclass and storage layer
+- [x] Add to dual-write database (project + hub)
 
 #### Phase 4.2: Linear MCP Detection
 
-- [ ] Create `src/gobby/integrations/linear.py` with `LinearIntegration` class
-- [ ] Implement `is_available()` - check if Linear MCP server is configured and responsive
-- [ ] Implement graceful degradation - Linear features silently disabled when unavailable
-- [ ] Cache availability check
+- [x] Create `src/gobby/integrations/linear.py` with `LinearIntegration` class
+- [x] Implement `is_available()` - check if Linear MCP server is configured and responsive
+- [x] Implement graceful degradation - Linear features silently disabled when unavailable
+- [x] Cache availability check
 
 #### Phase 4.3: Sync Orchestration
 
-- [ ] Implement `import_linear_issues()` - calls Linear MCP, creates tasks
-- [ ] Implement `sync_task_to_linear()` - calls Linear MCP to update issue
-- [ ] Implement `create_linear_issue_for_task()` - calls Linear MCP to create issue
-- [ ] Handle state mapping (gobby status ↔ Linear workflow states)
+- [x] Implement `import_linear_issues()` - calls Linear MCP, creates tasks
+- [x] Implement `sync_task_to_linear()` - calls Linear MCP to update issue
+- [x] Implement `create_linear_issue_for_task()` - calls Linear MCP to create issue
+- [x] Handle state mapping (gobby status ↔ Linear workflow states)
 
 #### Phase 4.4: MCP Tools & CLI
 
-- [ ] Add Linear tools to `gobby-tasks` registry (not separate server)
-- [ ] Add `gobby linear` CLI command group
-- [ ] Add project config field for linked Linear team
+- [x] Add Linear tools to `gobby-tasks` registry (not separate server)
+- [x] Add `gobby linear` CLI command group
+- [x] Add project config field for linked Linear team
 
 ---
 

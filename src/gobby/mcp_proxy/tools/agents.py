@@ -39,7 +39,6 @@ from gobby.utils.project_context import get_project_context
 
 if TYPE_CHECKING:
     from gobby.agents.runner import AgentRunner
-    from gobby.compression import TextCompressor
     from gobby.config.app import ContextInjectionConfig
     from gobby.llm.executor import ToolResult
     from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
@@ -57,7 +56,6 @@ def create_agents_registry(
     get_session_context: Any | None = None,
     running_registry: RunningAgentRegistry | None = None,
     tool_proxy_getter: Callable[[], ToolProxyService | None] | None = None,
-    compressor: TextCompressor | None = None,
 ) -> InternalToolRegistry:
     """
     Create an agent tool registry with all agent-related tools.
@@ -72,7 +70,6 @@ def create_agents_registry(
         tool_proxy_getter: Optional callable that returns ToolProxyService for
             routing tool calls in in-process agents. If not provided, tool calls
             will fail with "tool not available".
-        compressor: Optional TextCompressor for compressing context content.
 
     Returns:
         InternalToolRegistry with all agent tools registered.
@@ -102,14 +99,12 @@ def create_agents_registry(
                 max_content_size=context_config.max_content_size,
                 max_transcript_messages=context_config.max_transcript_messages,
                 truncation_suffix=context_config.truncation_suffix,
-                compressor=compressor,
             )
         else:
             context_resolver = ContextResolver(
                 session_manager=session_manager,
                 message_manager=message_manager,
                 project_path=None,  # Will be set per-request
-                compressor=compressor,
             )
 
     @registry.tool(
