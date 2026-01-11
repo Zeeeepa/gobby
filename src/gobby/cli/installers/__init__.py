@@ -10,13 +10,19 @@ from .claude import install_claude, uninstall_claude
 from .codex import install_codex_notify, uninstall_codex_notify
 from .gemini import install_gemini, uninstall_gemini
 from .git_hooks import install_git_hooks
-from .shared import install_cli_content, install_gobby_commands_symlink, install_shared_content
+from .shared import (
+    install_cli_content,
+    install_default_mcp_servers,
+    install_gobby_commands_symlink,
+    install_shared_content,
+)
 
 __all__ = [
     # Shared
     "install_shared_content",
     "install_cli_content",
     "install_gobby_commands_symlink",
+    "install_default_mcp_servers",
     # Claude
     "install_claude",
     "uninstall_claude",

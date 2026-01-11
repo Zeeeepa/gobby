@@ -189,6 +189,170 @@ def install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]
     return installed
 
 
+def configure_project_mcp_server(
+    project_path: Path, server_name: str = "gobby"
+) -> dict[str, Any]:
+    """Add Gobby MCP server to project-specific config in ~/.claude.json.
+
+    Claude Code stores project-specific MCP servers in:
+    {
+      "projects": {
+        "/path/to/project": {
+          "mcpServers": { "gobby": { ... } }
+        }
+      }
+    }
+
+    Args:
+        project_path: Path to the project root
+        server_name: Name for the MCP server entry (default: "gobby")
+
+    Returns:
+        Dict with 'success', 'added', 'already_configured', 'backup_path', and 'error' keys
+    """
+    result: dict[str, Any] = {
+        "success": False,
+        "added": False,
+        "already_configured": False,
+        "backup_path": None,
+        "error": None,
+    }
+
+    settings_path = Path.home() / ".claude.json"
+    abs_project_path = str(project_path.resolve())
+
+    # Load existing settings or create empty
+    existing_settings: dict[str, Any] = {}
+    if settings_path.exists():
+        try:
+            with open(settings_path) as f:
+                existing_settings = json.load(f)
+        except json.JSONDecodeError as e:
+            result["error"] = f"Failed to parse {settings_path}: {e}"
+            return result
+        except OSError as e:
+            result["error"] = f"Failed to read {settings_path}: {e}"
+            return result
+
+    # Ensure projects section exists
+    if "projects" not in existing_settings:
+        existing_settings["projects"] = {}
+
+    # Ensure project entry exists
+    if abs_project_path not in existing_settings["projects"]:
+        existing_settings["projects"][abs_project_path] = {}
+
+    project_settings = existing_settings["projects"][abs_project_path]
+
+    # Ensure mcpServers section exists in project
+    if "mcpServers" not in project_settings:
+        project_settings["mcpServers"] = {}
+
+    # Check if already configured
+    if server_name in project_settings["mcpServers"]:
+        result["success"] = True
+        result["already_configured"] = True
+        return result
+
+    # Create backup if file exists
+    if settings_path.exists():
+        timestamp = int(time.time())
+        backup_path = settings_path.parent / f".claude.json.{timestamp}.backup"
+        try:
+            copy2(settings_path, backup_path)
+            result["backup_path"] = str(backup_path)
+        except OSError as e:
+            result["error"] = f"Failed to create backup: {e}"
+            return result
+
+    # Add gobby MCP server config
+    project_settings["mcpServers"][server_name] = {
+        "type": "stdio",
+        "command": "uv",
+        "args": ["run", "gobby", "mcp-server"],
+    }
+
+    # Write updated settings
+    try:
+        with open(settings_path, "w") as f:
+            json.dump(existing_settings, f, indent=2)
+    except OSError as e:
+        result["error"] = f"Failed to write {settings_path}: {e}"
+        return result
+
+    result["success"] = True
+    result["added"] = True
+    return result
+
+
+def remove_project_mcp_server(
+    project_path: Path, server_name: str = "gobby"
+) -> dict[str, Any]:
+    """Remove Gobby MCP server from project-specific config in ~/.claude.json.
+
+    Args:
+        project_path: Path to the project root
+        server_name: Name of the MCP server entry to remove
+
+    Returns:
+        Dict with 'success', 'removed', 'backup_path', and 'error' keys
+    """
+    result: dict[str, Any] = {
+        "success": False,
+        "removed": False,
+        "backup_path": None,
+        "error": None,
+    }
+
+    settings_path = Path.home() / ".claude.json"
+    abs_project_path = str(project_path.resolve())
+
+    if not settings_path.exists():
+        result["success"] = True
+        return result
+
+    try:
+        with open(settings_path) as f:
+            settings = json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        result["error"] = f"Failed to read {settings_path}: {e}"
+        return result
+
+    # Check if project and server exist
+    projects = settings.get("projects", {})
+    project_settings = projects.get(abs_project_path, {})
+    mcp_servers = project_settings.get("mcpServers", {})
+
+    if server_name not in mcp_servers:
+        result["success"] = True
+        return result
+
+    # Create backup
+    timestamp = int(time.time())
+    backup_path = settings_path.parent / f".claude.json.{timestamp}.backup"
+    try:
+        copy2(settings_path, backup_path)
+        result["backup_path"] = str(backup_path)
+    except OSError as e:
+        result["error"] = f"Failed to create backup: {e}"
+        return result
+
+    # Remove the server
+    del mcp_servers[server_name]
+
+    # Write updated settings
+    try:
+        with open(settings_path, "w") as f:
+            json.dump(settings, f, indent=2)
+    except OSError as e:
+        result["error"] = f"Failed to write {settings_path}: {e}"
+        return result
+
+    result["success"] = True
+    result["removed"] = True
+    return result
+
+
 def configure_mcp_server_json(settings_path: Path, server_name: str = "gobby") -> dict[str, Any]:
     """Add Gobby MCP server to a JSON settings file (Claude, Gemini, Antigravity).
 
@@ -478,4 +642,101 @@ def remove_mcp_server_toml(config_path: Path, server_name: str = "gobby") -> dic
 
     result["success"] = True
     result["removed"] = True
+    return result
+
+
+# Default external MCP servers to install
+DEFAULT_MCP_SERVERS: list[dict[str, Any]] = [
+    {
+        "name": "github",
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-github"],
+        "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"},
+        "description": "GitHub API integration for issues, PRs, repos, and code search",
+    },
+    {
+        "name": "linear",
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "mcp-linear"],
+        "env": {"LINEAR_API_KEY": "${LINEAR_API_KEY}"},
+        "description": "Linear issue tracking integration",
+    },
+    {
+        "name": "context7",
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@upstash/context7-mcp"],
+        "description": "Context7 library documentation lookup",
+    },
+]
+
+
+def install_default_mcp_servers() -> dict[str, Any]:
+    """Install default external MCP servers to ~/.gobby/.mcp.json.
+
+    Adds GitHub, Linear, and context7 MCP servers if not already configured.
+    These servers pull API keys from environment variables.
+
+    Returns:
+        Dict with 'success', 'servers_added', 'servers_skipped', and 'error' keys
+    """
+    result: dict[str, Any] = {
+        "success": False,
+        "servers_added": [],
+        "servers_skipped": [],
+        "error": None,
+    }
+
+    mcp_config_path = Path("~/.gobby/.mcp.json").expanduser()
+
+    # Ensure parent directory exists
+    mcp_config_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Load existing config or create empty
+    existing_config: dict[str, Any] = {"servers": []}
+    if mcp_config_path.exists():
+        try:
+            with open(mcp_config_path) as f:
+                content = f.read()
+                if content.strip():
+                    existing_config = json.loads(content)
+                    if "servers" not in existing_config:
+                        existing_config["servers"] = []
+        except (json.JSONDecodeError, OSError) as e:
+            result["error"] = f"Failed to read MCP config: {e}"
+            return result
+
+    # Get existing server names
+    existing_names = {s.get("name") for s in existing_config["servers"]}
+
+    # Add default servers if not already present
+    for server in DEFAULT_MCP_SERVERS:
+        if server["name"] in existing_names:
+            result["servers_skipped"].append(server["name"])
+        else:
+            existing_config["servers"].append({
+                "name": server["name"],
+                "enabled": True,
+                "transport": server["transport"],
+                "command": server.get("command"),
+                "args": server.get("args"),
+                "env": server.get("env"),
+                "description": server.get("description"),
+            })
+            result["servers_added"].append(server["name"])
+
+    # Write updated config if any servers were added
+    if result["servers_added"]:
+        try:
+            with open(mcp_config_path, "w") as f:
+                json.dump(existing_config, f, indent=2)
+            # Set restrictive permissions
+            mcp_config_path.chmod(0o600)
+        except OSError as e:
+            result["error"] = f"Failed to write MCP config: {e}"
+            return result
+
+    result["success"] = True
     return result

@@ -15,6 +15,7 @@ from .installers import (
     install_antigravity,
     install_claude,
     install_codex_notify,
+    install_default_mcp_servers,
     install_gemini,
     install_git_hooks,
     uninstall_claude,
@@ -202,6 +203,16 @@ def install(
     config_result = _ensure_daemon_config()
     if config_result["created"]:
         click.echo(f"Created daemon config: {config_result['path']}")
+
+    # Install default external MCP servers (GitHub, Linear, context7)
+    mcp_result = install_default_mcp_servers()
+    if mcp_result["success"]:
+        if mcp_result["servers_added"]:
+            click.echo(f"Added MCP servers: {', '.join(mcp_result['servers_added'])}")
+        if mcp_result["servers_skipped"]:
+            click.echo(f"MCP servers already configured: {', '.join(mcp_result['servers_skipped'])}")
+    else:
+        click.echo(f"Warning: Failed to configure MCP servers: {mcp_result['error']}")
 
     toggles = list(clis_to_install)
     if hooks_flag:
