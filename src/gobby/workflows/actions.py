@@ -36,6 +36,7 @@ from gobby.workflows.memory_actions import (
     memory_save,
     memory_sync_export,
     memory_sync_import,
+    reset_memory_injection_tracking,
 )
 from gobby.workflows.session_actions import (
     mark_session_status,
@@ -239,6 +240,9 @@ class ActionExecutor:
         self.register("memory_recall_relevant", self._handle_memory_recall_relevant)
         self.register("memory_sync_import", self._handle_memory_sync_import)
         self.register("memory_sync_export", self._handle_memory_sync_export)
+        self.register(
+            "reset_memory_injection_tracking", self._handle_reset_memory_injection_tracking
+        )
         self.register("extract_handoff_context", self._handle_extract_handoff_context)
         self.register("start_new_session", self._handle_start_new_session)
         self.register("mark_loop_complete", self._handle_mark_loop_complete)
@@ -720,6 +724,12 @@ class ActionExecutor:
             min_importance=kwargs.get("min_importance", 0.3),
             state=context.state,
         )
+
+    async def _handle_reset_memory_injection_tracking(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Reset memory injection tracking to allow re-injection after context loss."""
+        return reset_memory_injection_tracking(state=context.state)
 
     async def _handle_mark_session_status(
         self, context: ActionContext, **kwargs: Any
