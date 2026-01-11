@@ -306,21 +306,13 @@ def install_git_hooks(
     # Our smart pre-commit hook wrapper calls `pre-commit run` directly,
     # which allows us to handle auto-fixes by creating separate commits.
     # Running `pre-commit install` would overwrite our wrapper.
+    #
+    # We also don't run `pre-commit install --hook-type pre-push` because
+    # our pre-push hook now runs gobby verification commands first, and
+    # the pre-commit framework's hook would overwrite ours.
     if setup_precommit and _has_precommit_config(project_path) and _check_precommit_installed():
         result["precommit_installed"] = True
-        logger.info("Pre-commit detected - wrapper hook will call it directly")
-
-        # Install pre-push hooks separately (they don't conflict)
-        try:
-            subprocess.run(
-                ["pre-commit", "install", "--hook-type", "pre-push"],
-                cwd=project_path,
-                capture_output=True,
-                timeout=30,
-            )
-            logger.info("Installed pre-commit pre-push hooks")
-        except (subprocess.TimeoutExpired, subprocess.SubprocessError) as e:
-            logger.warning(f"Failed to install pre-commit pre-push hooks: {e}")
+        logger.info("Pre-commit detected - gobby hooks will run verification first, then pre-commit framework")
 
     result["success"] = True
     return result
