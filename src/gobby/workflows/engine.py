@@ -612,27 +612,35 @@ class WorkflowEngine:
             f"in workflow '{workflow.name}'"
         )
 
-        # Create ephemeral state for action execution
+        # Get or create persisted state for action execution
+        # This ensures variables like _injected_memory_ids persist across hook calls
         from .actions import ActionContext
 
         session_id = event.metadata.get("_platform_session_id") or "global"
 
-        state = WorkflowState(
-            session_id=session_id,
-            workflow_name=workflow.name,
-            step="global",
-            step_entered_at=datetime.now(UTC),
-            step_action_count=0,
-            total_action_count=0,
-            artifacts=event.data.get("artifacts", {}) if event.data else {},
-            observations=[],
-            reflection_pending=False,
-            context_injected=False,
-            variables=context_data,
-            task_list=None,
-            current_task_index=0,
-            files_modified_this_task=0,
-        )
+        # Try to load existing state, or create new one
+        state = self.state_manager.get_state(session_id)
+        if state is None:
+            state = WorkflowState(
+                session_id=session_id,
+                workflow_name=workflow.name,
+                step="global",
+                step_entered_at=datetime.now(UTC),
+                step_action_count=0,
+                total_action_count=0,
+                artifacts=event.data.get("artifacts", {}) if event.data else {},
+                observations=[],
+                reflection_pending=False,
+                context_injected=False,
+                variables={},
+                task_list=None,
+                current_task_index=0,
+                files_modified_this_task=0,
+            )
+
+        # Merge context_data into state variables (context_data has session vars from earlier load)
+        if context_data:
+            state.variables.update(context_data)
 
         action_ctx = ActionContext(
             session_id=session_id,
@@ -716,6 +724,9 @@ class WorkflowEngine:
                     f"Failed to execute action '{action_type}' in '{workflow.name}': {e}",
                     exc_info=True,
                 )
+
+        # Persist state changes (e.g., _injected_memory_ids from memory_recall_relevant)
+        self.state_manager.save_state(state)
 
         final_context = "\n\n".join(injected_context) if injected_context else None
         logger.debug(
