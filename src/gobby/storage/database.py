@@ -19,12 +19,7 @@ logger = logging.getLogger(__name__)
 
 @runtime_checkable
 class DatabaseProtocol(Protocol):
-    """
-    Protocol defining the database interface.
-
-    Both LocalDatabase and DualWriteDatabase implement this protocol,
-    allowing them to be used interchangeably by storage managers.
-    """
+    """Protocol defining the database interface for storage managers."""
 
     @property
     def db_path(self) -> Any:

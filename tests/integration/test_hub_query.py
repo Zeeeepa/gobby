@@ -11,7 +11,6 @@ import pytest
 
 from gobby.mcp_proxy.tools.hub import create_hub_registry
 from gobby.storage.database import LocalDatabase
-from gobby.storage.dual_write import DualWriteDatabase
 from gobby.storage.migrations import run_migrations
 
 # Mark all tests in this module as integration tests
@@ -27,27 +26,17 @@ def hub_dir():
 
 @pytest.fixture
 def multi_project_hub(hub_dir):
-    """Create a hub database with data from multiple projects.
-
-    Simulates the scenario where multiple project databases have been
-    dual-writing to a shared hub database.
-    """
+    """Create a hub database with data from multiple projects."""
     hub_db_path = hub_dir / "gobby-hub.db"
-    hub_db_initial = LocalDatabase(hub_db_path)
-    run_migrations(hub_db_initial)
-    hub_db_initial.close()
+    hub_db = LocalDatabase(hub_db_path)
+    run_migrations(hub_db)
 
-    # Simulate two projects writing to the hub
+    # Insert data for two projects
     for i, project_name in enumerate(["project-frontend", "project-backend"]):
         project_dir = tempfile.mkdtemp()
-        project_db = LocalDatabase(Path(project_dir) / "gobby.db")
-        run_migrations(project_db)
-
-        hub_db_for_project = LocalDatabase(hub_db_path)
-        dual_db = DualWriteDatabase(project_db, hub_db_for_project)
 
         # Insert project
-        dual_db.execute(
+        hub_db.execute(
             """
             INSERT INTO projects (id, name, repo_path, created_at, updated_at)
             VALUES (?, ?, ?, datetime('now'), datetime('now'))
@@ -63,7 +52,7 @@ def multi_project_hub(hub_dir):
                 ("closed", "bug"),
             ]
         ):
-            dual_db.execute(
+            hub_db.execute(
                 """
                 INSERT INTO tasks (id, project_id, title, status, task_type, priority, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
@@ -85,7 +74,7 @@ def multi_project_hub(hub_dir):
                 ("gemini", "ended"),
             ]
         ):
-            dual_db.execute(
+            hub_db.execute(
                 """
                 INSERT INTO sessions (id, project_id, external_id, source, machine_id, status, created_at, updated_at)
                 VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
@@ -100,8 +89,7 @@ def multi_project_hub(hub_dir):
                 ),
             )
 
-        dual_db.close()
-
+    hub_db.close()
     return hub_db_path
 
 
