@@ -81,9 +81,8 @@ triggers:
       when: "not variables.get('plan_mode')"
 
   on_session_end:
-    # Session summary generation - runs on /clear or /exit
+    # Session summary generation - always runs on session end
     - action: generate_handoff
-      when: "event.data.get('reason') in ('clear', 'user_exit', 'exit')"
       include:
         - artifacts
         - pending_tasks
@@ -119,9 +118,6 @@ triggers:
         ## Research & Epiphanies
         [Key discoveries from research or debugging that should be remembered, with bullet points]
 
-        ### Interactions (X substantive of Y total)
-        [This section will be automatically populated with substantive interactions from the session]
-
         ## Files Changed
         {file_changes}
         [Add specific details about WHY each file was changed and WHAT the changes accomplish.]
@@ -130,8 +126,6 @@ triggers:
         ```
         {git_status}
         ```
-        ## Agent ToDo List
-        {todo_list}
 
         ## Next Steps
         [Concrete, numbered suggestions for what to do when resuming work. Be specific and actionable.]

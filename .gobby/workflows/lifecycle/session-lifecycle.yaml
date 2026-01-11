@@ -17,8 +17,8 @@ variables:
 
   # Validation delegation - use a faster/cheaper model for linting and tests
   # Set to null to disable delegation (run inline)
-  validation_model: "haiku"
-  validation_timeout: 1800 # 30 minutes for full test suite
+  # validation_model: "haiku"
+  # validation_timeout: 1800 # 30 minutes for full test suite
 
 triggers:
   on_stop:
@@ -58,12 +58,12 @@ triggers:
     - action: memory_sync_import
 
     # Validation delegation notice - direct ruff/mypy/pytest commands will be blocked
-    - action: inject_message
-      when: "variables.get('validation_model')"
-      content: |
-        ## Validation Delegation
-
-        Direct `ruff`, `mypy`, and `pytest` commands are blocked. Delegate to {{ variables.validation_model }} via `gobby-agents.start_agent(mode="headless")`. The hook will provide the exact command when blocked.
+    # - action: inject_message
+    # when: "variables.get('validation_model')"
+    # content: |
+    #  ## Validation Delegation
+    #
+    #  Direct `ruff`, `mypy`, and `pytest` commands are blocked. Delegate to {{ variables.validation_model }} via `gobby-agents.start_agent(mode="headless")`. The hook will provide the exact command when blocked.
 
   on_before_agent:
     # Memory recall - inject memories relevant to the user's prompt via semantic search
@@ -72,8 +72,8 @@ triggers:
       min_importance: 0.7
 
   on_before_tool:
-    # Validation delegation - block direct ruff/mypy/pytest and require delegation
-    - action: require_validation_delegation
+    # # Validation delegation - block direct ruff/mypy/pytest and require delegation
+    # - action: require_validation_delegation
 
     # Task enforcement - require active task before file modifications
     # Skip in plan mode (planning only writes to plan files)
@@ -81,9 +81,8 @@ triggers:
       when: "not variables.get('plan_mode')"
 
   on_session_end:
-    # Session summary generation - runs on /clear or /exit
+    # Session summary generation - always runs on session end
     - action: generate_handoff
-      when: "event.data.get('reason') in ('clear', 'user_exit', 'exit')"
       include:
         - artifacts
         - pending_tasks
@@ -119,9 +118,6 @@ triggers:
         ## Research & Epiphanies
         [Key discoveries from research or debugging that should be remembered, with bullet points]
 
-        ### Interactions (X substantive of Y total)
-        [This section will be automatically populated with substantive interactions from the session]
-
         ## Files Changed
         {file_changes}
         [Add specific details about WHY each file was changed and WHAT the changes accomplish.]
@@ -130,9 +126,6 @@ triggers:
         ```
         {git_status}
         ```
-
-        ## Agent ToDo List
-        {todo_list}
 
         ## Next Steps
         [Concrete, numbered suggestions for what to do when resuming work. Be specific and actionable.]
