@@ -263,7 +263,7 @@ async def generate_summary(
             "last_messages": last_messages_str,
             "git_status": git_status,
             "file_changes": file_changes,
-            "todo_list": todo_list or "(No active todo list)",
+            "todo_list": f"## Agent's TODO List\n{todo_list}" if todo_list else "",
             "previous_summary": previous_summary or "",
             "mode": mode,
         }

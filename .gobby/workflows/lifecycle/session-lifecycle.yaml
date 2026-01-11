@@ -111,6 +111,8 @@ triggers:
         {git_status}
         ```
 
+        {todo_list}
+
         ## Next Steps
         [Concrete, numbered suggestions for what to do when resuming work. Be specific and actionable.]
 
@@ -150,6 +152,8 @@ triggers:
 
         ## Files Changed:
         {file_changes}
+
+        {todo_list}
 
         ---
 

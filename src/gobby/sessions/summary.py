@@ -309,7 +309,7 @@ class SummaryFileGenerator:
             "last_messages": last_messages,
             "git_status": git_status,
             "file_changes": file_changes,
-            "todowrite_list": todowrite_list,
+            "todo_list": f"## Agent's TODO List\n{todowrite_list}" if todowrite_list else "",
             "session_tasks": session_tasks_str,
             "external_id": external_id,
             "session_id": session_id,
