@@ -199,7 +199,7 @@ class DaemonConfig(BaseModel):
 
     # Local storage
     database_path: str = Field(
-        default="~/.gobby/gobby.db",
+        default="~/.gobby/gobby-hub.db",
         description="Path to hub database for cross-project queries. Project-local databases are always at .gobby/gobby.db",
     )
 

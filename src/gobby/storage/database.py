@@ -77,7 +77,7 @@ class DatabaseProtocol(Protocol):
 
 
 # Default database path
-DEFAULT_DB_PATH = Path.home() / ".gobby" / "gobby.db"
+DEFAULT_DB_PATH = Path.home() / ".gobby" / "gobby-hub.db"
 
 # SQL identifier validation pattern (alphanumeric + underscore only)
 # Used by safe_update to prevent SQL injection via column/table names
@@ -96,7 +96,7 @@ class LocalDatabase:
         Initialize database manager.
 
         Args:
-            db_path: Path to SQLite database file. Defaults to ~/.gobby/gobby.db
+            db_path: Path to SQLite database file. Defaults to ~/.gobby/gobby-hub.db
         """
         self.db_path = Path(db_path) if db_path else DEFAULT_DB_PATH
         self._local = threading.local()
