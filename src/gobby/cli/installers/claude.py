@@ -119,13 +119,18 @@ def install_claude(project_path: Path) -> dict[str, Any]:
     result["commands_installed"] = cli.get("commands", [])
     result["plugins_installed"] = shared.get("plugins", [])
 
-    # Create symlink for gobby commands (.gobby/commands/gobby -> .claude/commands/gobby)
+    # Create symlinks for gobby commands (.gobby/commands/gobby-*.md -> .claude/commands/)
     symlink_result = install_gobby_commands_symlink("claude", claude_path, project_path)
-    if symlink_result.get("symlink_created"):
-        result["commands_installed"].append("gobby/ (symlink)")
-    elif symlink_result.get("symlink_path") and not symlink_result.get("symlink_created"):
-        # Symlink already exists
-        result["commands_installed"].append("gobby/ (symlink, existing)")
+    if symlink_result.get("symlinks_created"):
+        for cmd in symlink_result["symlinks_created"]:
+            result["commands_installed"].append(f"{cmd} (symlink)")
+    # Include existing symlinks that were already configured
+    if symlink_result.get("symlink_paths"):
+        existing_count = len(symlink_result["symlink_paths"]) - len(
+            symlink_result.get("symlinks_created", [])
+        )
+        if existing_count > 0:
+            result["commands_installed"].append(f"({existing_count} existing symlinks)")
 
     # Backup existing settings.json if it exists
     backup_file = None

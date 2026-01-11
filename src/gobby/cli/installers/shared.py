@@ -61,10 +61,10 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
 def install_gobby_commands_symlink(
     cli_name: str, cli_path: Path, project_path: Path
 ) -> dict[str, Any]:
-    """Create symlink from CLI commands directory to .gobby/commands/gobby/.
+    """Create symlinks from CLI commands directory to .gobby/commands/gobby-*.md files.
 
-    This allows git-tracked commands in .gobby/commands/gobby/ to be discovered
-    by Claude Code (and other CLIs) via symlink.
+    This allows git-tracked commands in .gobby/commands/ to be discovered
+    by Claude Code (and other CLIs) via symlinks.
 
     Args:
         cli_name: Name of the CLI (e.g., "claude")
@@ -72,59 +72,71 @@ def install_gobby_commands_symlink(
         project_path: Path to project root
 
     Returns:
-        Dict with 'success', 'symlink_created', 'symlink_path', and 'error' keys
+        Dict with 'success', 'symlinks_created', 'symlink_paths', and 'error' keys
     """
     result: dict[str, Any] = {
         "success": False,
         "symlink_created": False,
+        "symlinks_created": [],
         "symlink_path": None,
+        "symlink_paths": [],
         "error": None,
     }
 
-    # Source: .gobby/commands/gobby/ (git-tracked)
-    source_dir = project_path / ".gobby" / "commands" / "gobby"
+    # Source: .gobby/commands/gobby-*.md files (git-tracked)
+    source_dir = project_path / ".gobby" / "commands"
     if not source_dir.exists():
         # No gobby commands to symlink
         result["success"] = True
         return result
 
-    # Target: .claude/commands/gobby/ or similar
-    target_commands_dir = cli_path / "commands"
-    target_dir = target_commands_dir / "gobby"
+    # Find all gobby-*.md files
+    source_files = list(source_dir.glob("gobby-*.md"))
+    if not source_files:
+        # No gobby commands to symlink
+        result["success"] = True
+        return result
 
-    # Ensure parent directory exists
+    # Target: .claude/commands/ or similar
+    target_commands_dir = cli_path / "commands"
+
+    # Ensure target directory exists
     target_commands_dir.mkdir(parents=True, exist_ok=True)
 
-    # If target already exists, check if it's a symlink pointing to correct place
-    if target_dir.exists() or target_dir.is_symlink():
-        if target_dir.is_symlink():
-            existing_target = target_dir.resolve()
-            if existing_target == source_dir.resolve():
-                # Already correctly configured
-                result["success"] = True
-                result["symlink_path"] = str(target_dir)
-                return result
-            # Remove incorrect symlink
-            target_dir.unlink()
-        elif target_dir.is_dir():
-            # It's a real directory - remove it (it was probably copied before)
-            shutil.rmtree(target_dir)
-        else:
-            # It's a file - remove it
-            target_dir.unlink()
+    # Create symlinks for each gobby-*.md file
+    for source_file in source_files:
+        target_file = target_commands_dir / source_file.name
 
-    # Create relative symlink for portability
-    # Compute correct relative path from symlink location to source
-    source = project_path / ".gobby" / "commands" / "gobby"
-    relative_source = os.path.relpath(str(source), start=str(target_dir.parent))
+        # If target already exists, check if it's a symlink pointing to correct place
+        if target_file.exists() or target_file.is_symlink():
+            if target_file.is_symlink():
+                existing_target = target_file.resolve()
+                if existing_target == source_file.resolve():
+                    # Already correctly configured
+                    result["symlink_paths"].append(str(target_file))
+                    continue
+                # Remove incorrect symlink
+                target_file.unlink()
+            else:
+                # It's a real file - remove it
+                target_file.unlink()
 
-    try:
-        target_dir.symlink_to(relative_source)
-        result["success"] = True
-        result["symlink_created"] = True
-        result["symlink_path"] = str(target_dir)
-    except OSError as e:
-        result["error"] = f"Failed to create symlink: {e}"
+        # Create relative symlink for portability
+        relative_source = os.path.relpath(str(source_file), start=str(target_commands_dir))
+
+        try:
+            target_file.symlink_to(relative_source)
+            result["symlinks_created"].append(source_file.name)
+            result["symlink_paths"].append(str(target_file))
+        except OSError as e:
+            result["error"] = f"Failed to create symlink for {source_file.name}: {e}"
+            return result
+
+    result["success"] = True
+    # For backward compatibility
+    result["symlink_created"] = len(result["symlinks_created"]) > 0
+    if result["symlink_paths"]:
+        result["symlink_path"] = result["symlink_paths"][0]
 
     return result
 
