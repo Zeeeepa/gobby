@@ -718,6 +718,7 @@ class ActionExecutor:
             project_id=kwargs.get("project_id"),
             limit=kwargs.get("limit", 5),
             min_importance=kwargs.get("min_importance", 0.3),
+            state=context.state,
         )
 
     async def _handle_mark_session_status(
