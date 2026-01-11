@@ -29,7 +29,6 @@ def mock_components():
     action_executor.config = MagicMock()
     action_executor.mcp_manager = MagicMock()
     action_executor.memory_manager = MagicMock()
-    action_executor.skill_learner = MagicMock()
     action_executor.memory_sync_manager = MagicMock()
 
     return loader, state_manager, action_executor, evaluator, audit_manager

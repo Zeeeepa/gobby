@@ -34,13 +34,11 @@ def mock_services():
         "config": MagicMock(),
         "mcp_manager": AsyncMock(),
         "memory_manager": MagicMock(),
-        "skill_learner": AsyncMock(),
         "task_manager": MagicMock(),
         "session_task_manager": MagicMock(),
         "stop_registry": MagicMock(),
         "progress_tracker": MagicMock(),
         "stuck_detector": MagicMock(),
-        "skill_sync_manager": AsyncMock(),
         "websocket_server": MagicMock(),
     }
 
@@ -68,7 +66,6 @@ def action_context(temp_db, session_manager, workflow_state, mock_services):
         template_engine=mock_services["template_engine"],
         mcp_manager=mock_services["mcp_manager"],
         memory_manager=mock_services["memory_manager"],
-        skill_learner=mock_services["skill_learner"],
     )
 
 
@@ -84,13 +81,11 @@ def action_executor(temp_db, session_manager, mock_services):
         config=mock_services["config"],
         mcp_manager=mock_services["mcp_manager"],
         memory_manager=mock_services["memory_manager"],
-        skill_learner=mock_services["skill_learner"],
         task_manager=mock_services["task_manager"],
         session_task_manager=mock_services["session_task_manager"],
         stop_registry=mock_services["stop_registry"],
         progress_tracker=mock_services["progress_tracker"],
         stuck_detector=mock_services["stuck_detector"],
-        skill_sync_manager=mock_services["skill_sync_manager"],
         websocket_server=mock_services["websocket_server"],
     )
 
@@ -264,55 +259,6 @@ class TestHandleGetWorkflowTasks:
             mock_get_tasks.assert_called_once()
             call_kwargs = mock_get_tasks.call_args.kwargs
             assert call_kwargs["workflow_name"] == "override-workflow"
-
-
-# =============================================================================
-# Test _handle_skills_sync_export (lines 777-784)
-# =============================================================================
-
-
-class TestHandleSkillsSyncExport:
-    """Tests for _handle_skills_sync_export action."""
-
-    @pytest.mark.asyncio
-    async def test_skills_sync_export_success(self, action_executor, action_context, mock_services):
-        """Test successful skills export."""
-        mock_services["skill_sync_manager"].export_to_all_formats = AsyncMock(
-            return_value={"claude": 5, "gemini": 3}
-        )
-        action_executor.skill_sync_manager = mock_services["skill_sync_manager"]
-
-        result = await action_executor.execute("skills_sync_export", action_context)
-
-        assert result is not None
-        assert result["exported"] == 8
-        assert result["by_format"]["claude"] == 5
-        assert result["by_format"]["gemini"] == 3
-
-    @pytest.mark.asyncio
-    async def test_skills_sync_export_no_manager(self, action_executor, action_context):
-        """Test when skill_sync_manager is None."""
-        action_executor.skill_sync_manager = None
-
-        result = await action_executor.execute("skills_sync_export", action_context)
-
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_skills_sync_export_exception(
-        self, action_executor, action_context, mock_services
-    ):
-        """Test handling of export exception."""
-        mock_services["skill_sync_manager"].export_to_all_formats = AsyncMock(
-            side_effect=Exception("Export failed")
-        )
-        action_executor.skill_sync_manager = mock_services["skill_sync_manager"]
-
-        result = await action_executor.execute("skills_sync_export", action_context)
-
-        assert result is not None
-        assert "error" in result
-        assert "Export failed" in result["error"]
 
 
 # =============================================================================
@@ -1500,43 +1446,6 @@ class TestHandleMarkLoopComplete:
 
             mock_mark.assert_called_once()
             assert result is not None
-
-
-# =============================================================================
-# Test Skills Learn Action
-# =============================================================================
-
-
-class TestHandleSkillsLearn:
-    """Tests for _handle_skills_learn action."""
-
-    @pytest.mark.asyncio
-    async def test_skills_learn_no_learner(self, action_executor, action_context):
-        """Test skills_learn when skill_learner is None."""
-        action_context.skill_learner = None
-
-        result = await action_executor.execute(
-            "skills_learn",
-            action_context,
-        )
-
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_skills_learn_not_enabled(self, action_executor, action_context, mock_services):
-        """Test skills_learn when config is not enabled."""
-        mock_learner = MagicMock()
-        mock_config = MagicMock()
-        mock_config.enabled = False
-        mock_learner.config = mock_config
-        action_context.skill_learner = mock_learner
-
-        result = await action_executor.execute(
-            "skills_learn",
-            action_context,
-        )
-
-        assert result is None
 
 
 # =============================================================================

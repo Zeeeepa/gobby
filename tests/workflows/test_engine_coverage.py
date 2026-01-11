@@ -50,7 +50,6 @@ def mock_action_executor():
     executor.config = MagicMock()
     executor.mcp_manager = MagicMock()
     executor.memory_manager = MagicMock()
-    executor.skill_learner = MagicMock()
     executor.memory_sync_manager = MagicMock()
     executor.session_task_manager = MagicMock()
     return executor
