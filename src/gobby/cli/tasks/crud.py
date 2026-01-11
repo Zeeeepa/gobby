@@ -321,9 +321,12 @@ def create_task(title: str, description: str | None, priority: int, task_type: s
 
 
 @click.command("show")
-@click.argument("task_id")
+@click.argument("task_id", metavar="TASK")
 def show_task(task_id: str) -> None:
-    """Show details for a task."""
+    """Show details for a task.
+
+    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
+    """
     manager = get_task_manager()
     task = resolve_task_id(manager, task_id)
 
@@ -346,12 +349,12 @@ def show_task(task_id: str) -> None:
 
 
 @click.command("update")
-@click.argument("task_id")
+@click.argument("task_id", metavar="TASK")
 @click.option("--title", help="New title")
 @click.option("--status", help="New status")
 @click.option("--priority", type=int, help="New priority")
 @click.option("--assignee", help="New assignee")
-@click.option("--parent", "parent_task_id", help="Parent task ID (for re-parenting)")
+@click.option("--parent", "parent_task_id", help="Parent task (#N, path, or UUID)")
 def update_task(
     task_id: str,
     title: str | None,
@@ -360,7 +363,10 @@ def update_task(
     assignee: str | None,
     parent_task_id: str | None,
 ) -> None:
-    """Update a task."""
+    """Update a task.
+
+    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
+    """
     manager = get_task_manager()
     resolved = resolve_task_id(manager, task_id)
     if not resolved:
@@ -393,12 +399,14 @@ def update_task(
 
 
 @click.command("close")
-@click.argument("task_id")
+@click.argument("task_id", metavar="TASK")
 @click.option("--reason", default="completed", help="Reason for closing")
 @click.option("--skip-validation", is_flag=True, help="Skip validation checks")
 @click.option("--force", "-f", is_flag=True, help="Alias for --skip-validation")
 def close_task_cmd(task_id: str, reason: str, skip_validation: bool, force: bool) -> None:
     """Close a task.
+
+    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
 
     Parent tasks require all children to be closed first.
     Use --skip-validation or --force for wont_fix, duplicate, etc.
@@ -431,10 +439,12 @@ def close_task_cmd(task_id: str, reason: str, skip_validation: bool, force: bool
 
 
 @click.command("reopen")
-@click.argument("task_id")
+@click.argument("task_id", metavar="TASK")
 @click.option("--reason", "-r", default=None, help="Reason for reopening")
 def reopen_task_cmd(task_id: str, reason: str | None) -> None:
     """Reopen a closed task.
+
+    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
 
     Sets status back to 'open' and clears closed_at, closed_reason, etc.
     """
@@ -455,11 +465,14 @@ def reopen_task_cmd(task_id: str, reason: str | None) -> None:
 
 
 @click.command("delete")
-@click.argument("task_id")
+@click.argument("task_id", metavar="TASK")
 @click.option("--cascade", is_flag=True, help="Delete child tasks")
 @click.confirmation_option(prompt="Are you sure you want to delete this task?")
 def delete_task(task_id: str, cascade: bool) -> None:
-    """Delete a task."""
+    """Delete a task.
+
+    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
+    """
     manager = get_task_manager()
     resolved = resolve_task_id(manager, task_id)
     if not resolved:
@@ -470,11 +483,13 @@ def delete_task(task_id: str, cascade: bool) -> None:
 
 
 @click.command("de-escalate")
-@click.argument("task_id")
+@click.argument("task_id", metavar="TASK")
 @click.option("--reason", "-r", required=True, help="Reason for de-escalation")
 @click.option("--reset-validation", is_flag=True, help="Reset validation fail count")
 def de_escalate_cmd(task_id: str, reason: str, reset_validation: bool) -> None:
     """Return an escalated task to open status.
+
+    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
 
     Use after human intervention resolves the issue that caused escalation.
     """
@@ -506,11 +521,14 @@ def de_escalate_cmd(task_id: str, reason: str, reset_validation: bool) -> None:
 
 
 @click.command("validation-history")
-@click.argument("task_id")
+@click.argument("task_id", metavar="TASK")
 @click.option("--clear", is_flag=True, help="Clear validation history")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def validation_history_cmd(task_id: str, clear: bool, json_format: bool) -> None:
-    """View or clear validation history for a task."""
+    """View or clear validation history for a task.
+
+    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
+    """
     from gobby.tasks.validation_history import ValidationHistoryManager
 
     manager = get_task_manager()

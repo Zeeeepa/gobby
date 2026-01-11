@@ -16,12 +16,12 @@ def commit_cmd() -> None:
 
 
 @commit_cmd.command("link")
-@click.argument("task_id")
+@click.argument("task_id", metavar="TASK")
 @click.argument("commit_sha")
 def link_commit(task_id: str, commit_sha: str) -> None:
     """Link a commit to a task.
 
-    TASK_ID: Task ID to link commit to
+    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
     COMMIT_SHA: Git commit SHA (short or full)
     """
     manager = get_task_manager()
@@ -40,12 +40,12 @@ def link_commit(task_id: str, commit_sha: str) -> None:
 
 
 @commit_cmd.command("unlink")
-@click.argument("task_id")
+@click.argument("task_id", metavar="TASK")
 @click.argument("commit_sha")
 def unlink_commit(task_id: str, commit_sha: str) -> None:
     """Unlink a commit from a task.
 
-    TASK_ID: Task ID to unlink commit from
+    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
     COMMIT_SHA: Git commit SHA to remove
     """
     manager = get_task_manager()
@@ -66,11 +66,11 @@ def unlink_commit(task_id: str, commit_sha: str) -> None:
 
 
 @commit_cmd.command("list")
-@click.argument("task_id")
+@click.argument("task_id", metavar="TASK")
 def list_commits(task_id: str) -> None:
     """List commits linked to a task.
 
-    TASK_ID: Task ID to list commits for
+    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
     """
     manager = get_task_manager()
     task = resolve_task_id(manager, task_id)
@@ -127,13 +127,13 @@ def auto_link(task_id: str | None, since: str | None) -> None:
 
 
 @click.command("diff")
-@click.argument("task_id")
+@click.argument("task_id", metavar="TASK")
 @click.option("--uncommitted", is_flag=True, help="Include uncommitted changes")
 @click.option("--stats", is_flag=True, help="Show stats only (no diff content)")
 def diff_cmd(task_id: str, uncommitted: bool, stats: bool) -> None:
     """Show diff for all commits linked to a task.
 
-    TASK_ID: Task ID to get diff for
+    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
     """
     manager = get_task_manager()
     task = resolve_task_id(manager, task_id)

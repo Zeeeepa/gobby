@@ -13,7 +13,7 @@ from gobby.utils.project_context import get_project_context
 
 
 @click.command("validate")
-@click.argument("task_id")
+@click.argument("task_id", metavar="TASK")
 @click.option("--summary", default=None, help="Changes summary text (required for leaf tasks)")
 @click.option(
     "--file", "summary_file", type=click.Path(exists=True), help="File containing changes summary"
@@ -34,6 +34,8 @@ def validate_task_cmd(
     recurring: bool,
 ) -> None:
     """Validate a task.
+
+    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
 
     For parent tasks (with children), validates that all children are closed.
     For leaf tasks, uses LLM-based validation against criteria.
@@ -361,7 +363,7 @@ def _generate_criteria_for_all(manager: LocalTaskManager) -> None:
 
 
 @click.command("expand")
-@click.argument("task_id")
+@click.argument("task_id", metavar="TASK")
 @click.option("--context", "-c", help="Additional context for expansion")
 @click.option(
     "--web-research/--no-web-research",
@@ -379,7 +381,10 @@ def expand_task_cmd(
     web_research: bool,
     code_context: bool,
 ) -> None:
-    """Expand a task into subtasks using AI."""
+    """Expand a task into subtasks using AI.
+
+    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
+    """
     import asyncio
     from dataclasses import dataclass
 

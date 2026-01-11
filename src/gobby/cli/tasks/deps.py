@@ -19,8 +19,8 @@ DependencyType = Literal["blocks", "related", "discovered-from"]
 
 
 @dep_cmd.command("add")
-@click.argument("task_id")
-@click.argument("blocker_id")
+@click.argument("task_id", metavar="TASK")
+@click.argument("blocker_id", metavar="BLOCKER")
 @click.option(
     "--type",
     "dep_type",
@@ -30,8 +30,10 @@ DependencyType = Literal["blocks", "related", "discovered-from"]
 def dep_add(task_id: str, blocker_id: str, dep_type: DependencyType) -> None:
     """Add a dependency: BLOCKER blocks TASK.
 
-    Example: gobby tasks dep add gt-abc gt-def
-    means gt-def blocks gt-abc (gt-abc depends on gt-def)
+    TASK/BLOCKER can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
+
+    Example: gobby tasks dep add #3 #1
+    means #1 blocks #3 (task #3 depends on task #1)
     """
     from gobby.storage.task_dependencies import TaskDependencyManager
 
@@ -53,10 +55,13 @@ def dep_add(task_id: str, blocker_id: str, dep_type: DependencyType) -> None:
 
 
 @dep_cmd.command("remove")
-@click.argument("task_id")
-@click.argument("blocker_id")
+@click.argument("task_id", metavar="TASK")
+@click.argument("blocker_id", metavar="BLOCKER")
 def dep_remove(task_id: str, blocker_id: str) -> None:
-    """Remove a dependency between tasks."""
+    """Remove a dependency between tasks.
+
+    TASK/BLOCKER can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
+    """
     from gobby.storage.task_dependencies import TaskDependencyManager
 
     manager = get_task_manager()
@@ -74,9 +79,12 @@ def dep_remove(task_id: str, blocker_id: str) -> None:
 
 
 @dep_cmd.command("tree")
-@click.argument("task_id")
+@click.argument("task_id", metavar="TASK")
 def dep_tree(task_id: str) -> None:
-    """Show dependency tree for a task."""
+    """Show dependency tree for a task.
+
+    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
+    """
     from gobby.storage.task_dependencies import TaskDependencyManager
 
     manager = get_task_manager()

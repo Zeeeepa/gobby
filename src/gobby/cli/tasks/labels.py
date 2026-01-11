@@ -14,10 +14,13 @@ def label_cmd() -> None:
 
 
 @label_cmd.command("add")
-@click.argument("task_id")
+@click.argument("task_id", metavar="TASK")
 @click.argument("label")
 def add_label(task_id: str, label: str) -> None:
-    """Add a label to a task."""
+    """Add a label to a task.
+
+    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
+    """
     manager = get_task_manager()
     resolved = resolve_task_id(manager, task_id)
     if not resolved:
@@ -36,10 +39,13 @@ def add_label(task_id: str, label: str) -> None:
 
 
 @label_cmd.command("remove")
-@click.argument("task_id")
+@click.argument("task_id", metavar="TASK")
 @click.argument("label")
 def remove_label(task_id: str, label: str) -> None:
-    """Remove a label from a task."""
+    """Remove a label from a task.
+
+    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
+    """
     manager = get_task_manager()
     resolved = resolve_task_id(manager, task_id)
     if not resolved:
