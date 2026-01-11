@@ -515,8 +515,7 @@ class WebSocketServer:
             message: Dictionary to serialize and send
         """
         if not self.clients:
-            logger.debug("No clients connected for broadcast")
-            return
+            return  # No clients connected, silently skip
 
         message_str = json.dumps(message)
         sent_count = 0

@@ -734,7 +734,10 @@ class WorkflowEngine:
                 )
 
         # Persist state changes (e.g., _injected_memory_ids from memory_recall_relevant)
-        self.state_manager.save_state(state)
+        # Only save if we have a real session ID (not "global" fallback)
+        # The workflow_states table has a FK to sessions, so we can't save for non-existent sessions
+        if session_id != "global":
+            self.state_manager.save_state(state)
 
         final_context = "\n\n".join(injected_context) if injected_context else None
         logger.debug(

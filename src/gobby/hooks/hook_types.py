@@ -191,8 +191,8 @@ class SessionStartInput(HookInput):
     """
 
     external_id: str = Field(..., min_length=1, description="Unique session identifier")
-    transcript_path: str = Field(
-        ..., min_length=1, description="Path to conversation transcript file"
+    transcript_path: str | None = Field(
+        default=None, description="Path to conversation transcript file (Claude Code only)"
     )
     source: SessionStartSource = Field(
         default=SessionStartSource.STARTUP, description="Session start source trigger"
