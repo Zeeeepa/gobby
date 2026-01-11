@@ -668,7 +668,9 @@ DEFAULT_MCP_SERVERS: list[dict[str, Any]] = [
         "transport": "stdio",
         "command": "npx",
         "args": ["-y", "@upstash/context7-mcp"],
-        "description": "Context7 library documentation lookup",
+        # API key args added dynamically if CONTEXT7_API_KEY is set
+        "optional_env_args": {"CONTEXT7_API_KEY": ["--api-key", "${CONTEXT7_API_KEY}"]},
+        "description": "Context7 library documentation lookup (set CONTEXT7_API_KEY for private repos)",
     },
 ]
 
@@ -716,12 +718,19 @@ def install_default_mcp_servers() -> dict[str, Any]:
         if server["name"] in existing_names:
             result["servers_skipped"].append(server["name"])
         else:
+            # Build args list, adding optional env-dependent args
+            args = list(server.get("args") or [])
+            optional_env_args = server.get("optional_env_args", {})
+            for env_var, extra_args in optional_env_args.items():
+                if os.environ.get(env_var):
+                    args.extend(extra_args)
+
             existing_config["servers"].append({
                 "name": server["name"],
                 "enabled": True,
                 "transport": server["transport"],
                 "command": server.get("command"),
-                "args": server.get("args"),
+                "args": args if args else None,
                 "env": server.get("env"),
                 "description": server.get("description"),
             })
