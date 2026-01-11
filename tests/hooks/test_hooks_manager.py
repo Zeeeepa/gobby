@@ -205,9 +205,9 @@ class TestHookManagerSessionStart:
         response = hook_manager_with_mocks.handle(sample_session_start_event)
 
         assert response.decision == "allow"
-        # Response should include session ID in system_message
+        # Response should include system message indicating session enhancement
         assert response.system_message is not None
-        assert "Session ID:" in response.system_message
+        assert "Session enhanced by gobby" in response.system_message
 
     def test_session_resume_no_handoff_message(
         self,
@@ -241,7 +241,7 @@ class TestHookManagerSessionStart:
         # Should have basic session info but NOT "Context restored" message
         # Parent finding only runs on source='clear'
         assert response.system_message is not None
-        assert "Session ID:" in response.system_message
+        assert "Session enhanced by gobby" in response.system_message
         assert "Context restored" not in (response.system_message or "")
 
 

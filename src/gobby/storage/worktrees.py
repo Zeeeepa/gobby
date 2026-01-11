@@ -48,7 +48,7 @@ class Worktree:
         if merge_state is None:
             try:
                 merge_state = row["merge_state"]
-            except KeyError:
+            except (KeyError, IndexError):
                 pass
 
         return cls(

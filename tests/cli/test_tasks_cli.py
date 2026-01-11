@@ -31,6 +31,7 @@ def mock_task():
     """Create a mock task with common attributes."""
     task = MagicMock()
     task.id = "gt-abc123"
+    task.seq_num = 1
     task.title = "Test Task"
     task.description = "A test task description"
     task.status = "open"
@@ -118,7 +119,7 @@ class TestListTasksCommand:
 
         assert result.exit_code == 0
         assert "Found 1 tasks" in result.output
-        assert "gt-abc123" in result.output
+        assert "#1" in result.output  # Shows seq_num instead of full task ID
 
     @patch("gobby.cli.tasks.crud.get_task_manager")
     @patch("gobby.cli.tasks.crud.get_project_context")
@@ -1539,7 +1540,7 @@ class TestFormatTaskRow:
 
         result = format_task_row(mock_task)
 
-        assert "gt-abc123" in result
+        assert "#1" in result  # Shows seq_num instead of full task ID
         assert "Test Task" in result
 
     def test_format_task_row_muted(self, mock_task: MagicMock):
@@ -2030,5 +2031,5 @@ class TestFormatTaskHeader:
 
         result = format_task_header()
 
-        assert "ID" in result
+        assert "#" in result  # Column header changed from ID to #
         assert "TITLE" in result

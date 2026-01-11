@@ -1278,6 +1278,13 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         "Backfill path_cache for existing tasks",
         _backfill_path_cache,
     ),
+    (
+        56,
+        "Add merge_state column to worktrees table",
+        """
+        ALTER TABLE worktrees ADD COLUMN merge_state TEXT;
+        """,
+    ),
 ]
 
 

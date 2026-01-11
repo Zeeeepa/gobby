@@ -219,8 +219,8 @@ class TestSuggestNextTaskProximityScoring:
         assert result["suggestion"]["id"] == task1.id
 
     @pytest.mark.asyncio
-    async def test_proximity_can_override_priority(self, task_manager, project_id):
-        """Proximity boost can make a lower-priority task the best choice."""
+    async def test_priority_dominates_over_proximity(self, task_manager, project_id):
+        """Priority takes precedence over proximity - high priority task wins even without proximity."""
         # Create two branches
         epic_a = task_manager.create_task(project_id, "Epic A", task_type="epic")
         task_a1 = task_manager.create_task(
@@ -231,7 +231,7 @@ class TestSuggestNextTaskProximityScoring:
         )
 
         epic_b = task_manager.create_task(project_id, "Epic B", task_type="epic")
-        task_manager.create_task(
+        task_b1 = task_manager.create_task(
             project_id, "Task B1 (high)", task_type="task", parent_task_id=epic_b.id, priority=1
         )  # High priority but different branch
 
@@ -243,10 +243,11 @@ class TestSuggestNextTaskProximityScoring:
             registry = create_readiness_registry(task_manager)
             result = await registry.call("suggest_next_task", {})
 
-        # task_a2: priority 3 (+10) + leaf (+25) + proximity sibling (+40) = 75
-        # task_b1: priority 1 (+30) + leaf (+25) + no proximity (+0) = 55
-        # task_a2 should win due to proximity boost
-        assert result["suggestion"]["id"] == task_a2.id
+        # Priority uses weight of 110 per level to ensure it dominates over bonuses
+        # task_b1: (4-1)*110 = 330 + leaf 25 = 355 (no proximity)
+        # task_a2: (4-3)*110 = 110 + leaf 25 + proximity ~50 = 185
+        # task_b1 wins due to higher priority despite task_a2's proximity boost
+        assert result["suggestion"]["id"] == task_b1.id
 
     @pytest.mark.asyncio
     async def test_different_tree_gets_no_proximity_boost(self, task_manager, project_id):

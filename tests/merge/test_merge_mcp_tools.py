@@ -133,7 +133,16 @@ class TestMergeStartTool:
         return git_manager
 
     @pytest.fixture
-    def merge_registry(self, mock_storage, mock_resolver, mock_git_manager):
+    def mock_worktree_manager(self):
+        """Create mock worktree manager."""
+        worktree_manager = MagicMock()
+        mock_worktree = MagicMock()
+        mock_worktree.worktree_path = "/test/repo/worktrees/wt-abc"
+        worktree_manager.get_worktree.return_value = mock_worktree
+        return worktree_manager
+
+    @pytest.fixture
+    def merge_registry(self, mock_storage, mock_resolver, mock_git_manager, mock_worktree_manager):
         """Create merge registry with mocked dependencies."""
         from gobby.mcp_proxy.tools.merge import create_merge_registry
 
@@ -141,6 +150,7 @@ class TestMergeStartTool:
             merge_storage=mock_storage,
             merge_resolver=mock_resolver,
             git_manager=mock_git_manager,
+            worktree_manager=mock_worktree_manager,
         )
 
     @pytest.mark.asyncio

@@ -29,6 +29,7 @@ class TestValidateCommandWithNewFlags:
         """Create a mock task."""
         task = MagicMock()
         task.id = "gt-test123"
+        task.seq_num = 1
         task.title = "Test task"
         task.description = "Test description"
         task.status = "in_progress"
@@ -455,10 +456,12 @@ class TestListTasksEscalatedFilter:
         """Test list --status escalated filters correctly."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
+        mock_task.seq_num = 1
         mock_task.title = "Escalated task"
         mock_task.status = "escalated"
         mock_task.priority = 2
         mock_task.task_type = "task"
+        mock_task.parent_task_id = None
         mock_task.to_dict.return_value = {
             "id": "gt-test123",
             "title": "Escalated task",
@@ -489,12 +492,14 @@ class TestListTasksEscalatedFilter:
         """Test that escalated tasks show escalation reason."""
         mock_task = MagicMock()
         mock_task.id = "gt-test123"
+        mock_task.seq_num = 1
         mock_task.title = "Escalated task"
         mock_task.status = "escalated"
         mock_task.escalation_reason = "recurring_issues"
         mock_task.escalated_at = "2025-01-01T00:00:00Z"
         mock_task.priority = 2
         mock_task.task_type = "task"
+        mock_task.parent_task_id = None
         mock_task.to_dict.return_value = {
             "id": "gt-test123",
             "title": "Escalated task",

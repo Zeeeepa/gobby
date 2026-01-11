@@ -543,7 +543,7 @@ class TestDaemonProxyMethods:
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
             result = await proxy.init_project("name")
             assert result["success"] is False
-            assert "not available" in result["error"]
+            assert "requires CLI access" in result["error"]
             mock_req.assert_not_called()
 
     @pytest.mark.asyncio
@@ -552,10 +552,10 @@ class TestDaemonProxyMethods:
 
         proxy = DaemonProxy(8765)
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = {"success": True, "message": "Server added"}
             result = await proxy.add_mcp_server(name="n", transport="stdio", command="c")
-            assert result["success"] is False
-            assert "not available" in result["error"]
-            mock_req.assert_not_called()
+            assert result["success"] is True
+            mock_req.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_remove_mcp_server(self):
@@ -563,10 +563,10 @@ class TestDaemonProxyMethods:
 
         proxy = DaemonProxy(8765)
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = {"success": True, "message": "Server removed"}
             result = await proxy.remove_mcp_server("name")
-            assert result["success"] is False
-            assert "not available" in result["error"]
-            mock_req.assert_not_called()
+            assert result["success"] is True
+            mock_req.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_import_mcp_server(self):
@@ -574,10 +574,10 @@ class TestDaemonProxyMethods:
 
         proxy = DaemonProxy(8765)
         with patch.object(proxy, "_request", new_callable=AsyncMock) as mock_req:
+            mock_req.return_value = {"success": True, "imported": ["server1"]}
             result = await proxy.import_mcp_server(from_project="p")
-            assert result["success"] is False
-            assert "not available" in result["error"]
-            mock_req.assert_not_called()
+            assert result["success"] is True
+            mock_req.assert_called_once()
 
 
 class TestMCPToolsWrapper:

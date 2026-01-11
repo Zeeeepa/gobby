@@ -314,8 +314,8 @@ class TestRecall:
         config = MemoryConfig(semantic_search_enabled=True)
         manager = MemoryManager(db=db, config=config)
 
-        # Create memories synchronously via storage
-        manager.storage.create_memory(content="Test semantic fallback", importance=0.5)
+        # Create memories synchronously via storage (importance must be above threshold)
+        manager.storage.create_memory(content="Test semantic fallback", importance=0.8)
 
         # Should fall back to text search since no embeddings exist
         memories = manager.recall(query="semantic", use_semantic=True)
@@ -711,8 +711,8 @@ class TestAsyncRecall:
         config = MemoryConfig(semantic_search_enabled=False)
         manager = MemoryManager(db=db, config=config)
 
-        await manager.remember(content="Python programming", importance=0.5)
-        await manager.remember(content="JavaScript coding", importance=0.5)
+        await manager.remember(content="Python programming", importance=0.8)
+        await manager.remember(content="JavaScript coding", importance=0.8)
 
         memories = await manager.async_recall(query="Python")
 
@@ -898,7 +898,7 @@ class TestEdgeCases:
         config = MemoryConfig(semantic_search_enabled=True)
         manager = MemoryManager(db=db, config=config)
 
-        manager.storage.create_memory(content="Test text search", importance=0.5)
+        manager.storage.create_memory(content="Test text search", importance=0.8)
 
         memories = manager.recall(query="text", use_semantic=False)
 
@@ -939,62 +939,12 @@ class TestEdgeCases:
 
 
 # =============================================================================
-# Test: Compressor Parameter and recall_as_context
+# Test: recall_as_context
 # =============================================================================
-
-
-class TestMemoryManagerCompressor:
-    """Tests for MemoryManager compressor parameter and recall_as_context method."""
-
-    @pytest.fixture
-    def mock_compressor(self):
-        """Create a mock compressor."""
-        compressor = MagicMock()
-        compressor.compress.return_value = "Compressed memory content"
-        return compressor
-
-    def test_init_accepts_compressor_parameter(self, db, memory_config):
-        """Test that __init__ accepts optional compressor parameter."""
-        mock_compressor = MagicMock()
-
-        manager = MemoryManager(
-            db=db,
-            config=memory_config,
-            compressor=mock_compressor,
-        )
-
-        assert manager.compressor is mock_compressor
-
-    def test_init_compressor_defaults_to_none(self, db, memory_config):
-        """Test that compressor defaults to None."""
-        manager = MemoryManager(db=db, config=memory_config)
-
-        assert manager.compressor is None
-
-    def test_init_stores_compressor_as_attribute(self, db, memory_config):
-        """Test that compressor is stored as instance attribute."""
-        mock_compressor = MagicMock()
-
-        manager = MemoryManager(
-            db=db,
-            config=memory_config,
-            compressor=mock_compressor,
-        )
-
-        # Verify attribute exists and is set correctly
-        assert hasattr(manager, "compressor")
-        assert manager.compressor is mock_compressor
 
 
 class TestRecallAsContext:
     """Tests for recall_as_context method."""
-
-    @pytest.fixture
-    def mock_compressor(self):
-        """Create a mock compressor."""
-        compressor = MagicMock()
-        compressor.compress.return_value = "Compressed memory content"
-        return compressor
 
     @pytest.mark.asyncio
     async def test_recall_as_context_returns_formatted_context(self, db, memory_config):
@@ -1012,48 +962,6 @@ class TestRecallAsContext:
         assert "</project-memory>" in context
         assert "Test preference" in context
         assert "Test fact" in context
-
-    @pytest.mark.asyncio
-    async def test_recall_as_context_applies_compression_when_compressor_set(
-        self, db, memory_config, mock_compressor
-    ):
-        """Test recall_as_context applies compression when compressor is set."""
-        manager = MemoryManager(
-            db=db,
-            config=memory_config,
-            compressor=mock_compressor,
-        )
-
-        # Create memories
-        for i in range(5):
-            await manager.remember(
-                content=f"Memory {i} with some extra content to make it longer",
-                memory_type="preference",
-                importance=0.8,
-            )
-
-        # Use low compression threshold to force compression
-        manager.recall_as_context(compression_threshold=10)
-
-        # Compressor should have been called
-        mock_compressor.compress.assert_called_once()
-
-        # Call should use context_type="memory"
-        call_args = mock_compressor.compress.call_args
-        assert call_args.kwargs.get("context_type") == "memory"
-
-    @pytest.mark.asyncio
-    async def test_recall_as_context_no_compression_when_compressor_none(self, db, memory_config):
-        """Test recall_as_context works without compression when compressor is None."""
-        manager = MemoryManager(db=db, config=memory_config, compressor=None)
-
-        await manager.remember(content="Test memory", memory_type="preference", importance=0.8)
-
-        context = manager.recall_as_context()
-
-        # Should still return formatted context
-        assert "<project-memory>" in context
-        assert "Test memory" in context
 
     @pytest.mark.asyncio
     async def test_recall_as_context_empty_memories(self, db, memory_config):
@@ -1092,29 +1000,3 @@ class TestRecallAsContext:
         # Should respect project filter (no memories for proj-123)
         # Either empty or only project-specific memories
         assert isinstance(context, str)
-
-    @pytest.mark.asyncio
-    async def test_recall_as_context_uses_stored_compressor(self, db, memory_config):
-        """Test recall_as_context uses the compressor from __init__."""
-        mock_compressor = MagicMock()
-        mock_compressor.compress.return_value = "Compressed"
-
-        manager = MemoryManager(
-            db=db,
-            config=memory_config,
-            compressor=mock_compressor,
-        )
-
-        # Create memories
-        for i in range(5):
-            await manager.remember(
-                content=f"Memory {i} with some extra content padding",
-                memory_type="preference",
-                importance=0.8,
-            )
-
-        # Use low threshold to trigger compression
-        manager.recall_as_context(compression_threshold=10)
-
-        # Should use the compressor from __init__
-        mock_compressor.compress.assert_called()

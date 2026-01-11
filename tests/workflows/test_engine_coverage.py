@@ -171,6 +171,7 @@ class TestSessionInfoLookup:
         step.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step
         mock_loader.load_workflow.return_value = workflow
 
@@ -211,6 +212,7 @@ class TestSessionInfoLookup:
         step.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step
         mock_loader.load_workflow.return_value = workflow
 
@@ -251,6 +253,7 @@ class TestPrematureStopCounterReset:
         step.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step
         mock_loader.load_workflow.return_value = workflow
 
@@ -289,6 +292,7 @@ class TestPrematureStopCounterReset:
         step.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step
         mock_loader.load_workflow.return_value = workflow
 
@@ -384,6 +388,7 @@ class TestCheckPrematureStop:
         mock_state_manager.get_state.return_value = state
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.exit_condition = None  # No exit condition
         mock_loader.load_workflow.return_value = workflow
 
@@ -407,6 +412,7 @@ class TestCheckPrematureStop:
         mock_state_manager.get_state.return_value = state
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.name = "test_wf"
         workflow.exit_condition = "variables.task_complete"
         workflow.on_premature_stop = MagicMock()
@@ -435,6 +441,7 @@ class TestCheckPrematureStop:
         mock_state_manager.get_state.return_value = state
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.name = "test_wf"
         workflow.exit_condition = "variables.task_complete"
         workflow.on_premature_stop = None  # No handler
@@ -465,6 +472,7 @@ class TestCheckPrematureStop:
         mock_state_manager.get_state.return_value = state
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.name = "test_wf"
         workflow.exit_condition = "variables.task_complete"
         workflow.on_premature_stop = PrematureStopHandler(
@@ -497,6 +505,7 @@ class TestCheckPrematureStop:
         mock_state_manager.get_state.return_value = state
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.name = "test_wf"
         workflow.exit_condition = "variables.task_complete"
         workflow.on_premature_stop = PrematureStopHandler(
@@ -528,6 +537,7 @@ class TestCheckPrematureStop:
         mock_state_manager.get_state.return_value = state
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.name = "test_wf"
         workflow.exit_condition = "variables.task_complete"
         workflow.on_premature_stop = PrematureStopHandler(
@@ -560,6 +570,7 @@ class TestCheckPrematureStop:
         mock_state_manager.get_state.return_value = state
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.name = "test_wf"
         workflow.exit_condition = "variables.task_complete"
         workflow.on_premature_stop = PrematureStopHandler(
@@ -608,6 +619,7 @@ class TestCheckPrematureStop:
 
         # This workflow is the step workflow (not lifecycle) that has premature stop handler
         step_workflow = MagicMock(spec=WorkflowDefinition)
+        step_workflow.type = "step"
         step_workflow.name = "test_wf"
         step_workflow.exit_condition = "variables.done"
         step_workflow.on_premature_stop = PrematureStopHandler(
@@ -704,6 +716,7 @@ class TestCloseTaskClearsTaskClaimed:
         step.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step
         mock_loader.load_workflow.return_value = workflow
 
@@ -751,6 +764,7 @@ class TestDetectTaskClaimWithNestedError:
         step.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step
         mock_loader.load_workflow.return_value = workflow
 
@@ -866,6 +880,7 @@ class TestApprovalPromptReminder:
         step.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step
         mock_loader.load_workflow.return_value = workflow
 

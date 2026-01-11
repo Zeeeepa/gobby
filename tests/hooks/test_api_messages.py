@@ -51,6 +51,12 @@ def mock_db():
             context_injected INTEGER DEFAULT 0,
             original_prompt TEXT,
             transcript_processed BOOLEAN DEFAULT FALSE,
+            terminal_context TEXT,
+            usage_input_tokens INTEGER DEFAULT 0,
+            usage_output_tokens INTEGER DEFAULT 0,
+            usage_cache_creation_tokens INTEGER DEFAULT 0,
+            usage_cache_read_tokens INTEGER DEFAULT 0,
+            usage_total_cost_usd REAL DEFAULT 0.0,
             UNIQUE(external_id, machine_id, source)
         );
     """

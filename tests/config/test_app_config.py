@@ -279,7 +279,7 @@ class TestDaemonConfig:
         config = DaemonConfig()
         assert config.daemon_port == 8765
         assert config.daemon_health_check_interval == 10.0
-        assert config.database_path == "~/.gobby/gobby.db"
+        assert config.database_path == "~/.gobby/gobby-hub.db"
 
     def test_port_validation(self):
         """Test daemon port validation."""
@@ -648,7 +648,7 @@ class TestTaskValidationConfig:
         config = TaskValidationConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "claude-opus-4-5"
         assert config.prompt is None
 
 
@@ -713,7 +713,7 @@ class TestMemoryConfig:
         assert config.enabled is True
         assert config.auto_extract is True
         assert config.injection_limit == 10
-        assert config.importance_threshold == 0.3
+        assert config.importance_threshold == 0.7
         assert config.decay_enabled is True
         assert config.decay_rate == 0.05
         assert config.decay_floor == 0.1

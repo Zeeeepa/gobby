@@ -268,7 +268,7 @@ class TestTaskValidationConfigDefaults:
         config = TaskValidationConfig()
         assert config.enabled is True
         assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
+        assert config.model == "claude-opus-4-5"
         assert config.prompt is None
         assert config.max_iterations == 10
         assert config.max_consecutive_errors == 3

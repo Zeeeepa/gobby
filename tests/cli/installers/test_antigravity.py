@@ -69,7 +69,6 @@ class TestInstallAntigravity:
     def mock_shared_content(self) -> dict:
         """Mock return value for install_shared_content."""
         return {
-            "skills": ["shared-skill-1", "shared-skill-2"],
             "workflows": ["workflow.yaml"],
             "plugins": ["plugin.py"],
         }
@@ -78,7 +77,6 @@ class TestInstallAntigravity:
     def mock_cli_content(self) -> dict:
         """Mock return value for install_cli_content."""
         return {
-            "skills": ["cli-skill"],
             "workflows": ["cli-workflow.yaml"],
             "commands": ["command1.md"],
         }
@@ -113,7 +111,6 @@ class TestInstallAntigravity:
         assert result["error"] is None
         assert "SessionStart" in result["hooks_installed"]
         assert "SessionEnd" in result["hooks_installed"]
-        assert result["skills_installed"] == ["shared-skill-1", "shared-skill-2", "cli-skill"]
         assert result["workflows_installed"] == ["workflow.yaml", "cli-workflow.yaml"]
         assert result["commands_installed"] == ["command1.md"]
         assert result["plugins_installed"] == ["plugin.py"]
@@ -198,8 +195,8 @@ class TestInstallAntigravity:
         """Test that existing settings.json is backed up."""
         mock_which.return_value = "/usr/bin/uv"
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": [], "plugins": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": True, "added": False, "already_configured": True}
 
         # Create existing settings.json
@@ -239,8 +236,8 @@ class TestInstallAntigravity:
         """Test that Gobby hooks merge with existing settings."""
         mock_which.return_value = "/usr/bin/uv"
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": [], "plugins": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": True, "added": True}
 
         # Create existing settings.json with hooks
@@ -284,8 +281,8 @@ class TestInstallAntigravity:
         """Test uv path falls back to 'uv' when not found in PATH."""
         mock_which.return_value = None  # uv not found
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": [], "plugins": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": True, "added": True}
 
         result = install_antigravity(temp_project)
@@ -315,8 +312,8 @@ class TestInstallAntigravity:
         """Test uv path is substituted when found in a non-default location."""
         mock_which.return_value = "/custom/path/to/uv"
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": [], "plugins": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": True, "added": True}
 
         result = install_antigravity(temp_project)
@@ -346,8 +343,8 @@ class TestInstallAntigravity:
         """Test $PROJECT_PATH is substituted with absolute project path."""
         mock_which.return_value = "/usr/bin/uv"
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": [], "plugins": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": True, "added": True}
 
         result = install_antigravity(temp_project)
@@ -378,8 +375,8 @@ class TestInstallAntigravity:
         """Test that copied hook dispatcher is made executable."""
         mock_which.return_value = "/usr/bin/uv"
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": [], "plugins": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": True, "added": True}
 
         result = install_antigravity(temp_project)
@@ -409,8 +406,8 @@ class TestInstallAntigravity:
         """Test that existing dispatcher is replaced."""
         mock_which.return_value = "/usr/bin/uv"
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": [], "plugins": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": True, "added": True}
 
         # Create existing dispatcher
@@ -445,8 +442,8 @@ class TestInstallAntigravity:
         """Test handling when MCP is already configured."""
         mock_which.return_value = "/usr/bin/uv"
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": [], "plugins": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": True, "added": False, "already_configured": True}
 
         result = install_antigravity(temp_project)
@@ -473,8 +470,8 @@ class TestInstallAntigravity:
         """Test that MCP configuration failure is non-fatal."""
         mock_which.return_value = "/usr/bin/uv"
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": [], "plugins": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": False, "error": "Permission denied"}
 
         result = install_antigravity(temp_project)
@@ -502,8 +499,8 @@ class TestInstallAntigravity:
         """Test handling of invalid JSON in existing settings.json."""
         mock_which.return_value = "/usr/bin/uv"
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": [], "plugins": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": True, "added": True}
 
         # Create invalid settings.json
@@ -540,8 +537,8 @@ class TestInstallAntigravity:
         """Test that enableHooks is set to True in general settings."""
         mock_which.return_value = "/usr/bin/uv"
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": [], "plugins": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": True, "added": True}
 
         result = install_antigravity(temp_project)
@@ -569,8 +566,8 @@ class TestInstallAntigravity:
         """Test that result dictionary has all expected keys."""
         mock_which.return_value = "/usr/bin/uv"
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": [], "plugins": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": True, "added": True}
 
         result = install_antigravity(temp_project)
@@ -579,7 +576,6 @@ class TestInstallAntigravity:
         expected_keys = {
             "success",
             "hooks_installed",
-            "skills_installed",
             "workflows_installed",
             "commands_installed",
             "plugins_installed",
@@ -608,8 +604,8 @@ class TestInstallAntigravity:
         mock_which.return_value = "/usr/bin/uv"
         mock_get_install_dir.return_value = mock_install_dir
         # Return dict without plugins key
-        mock_shared.return_value = {"skills": [], "workflows": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": True, "added": True}
 
         result = install_antigravity(temp_project)
@@ -651,8 +647,8 @@ class TestInstallAntigravityMCPPath:
 
         mock_which.return_value = "/usr/bin/uv"
         mock_get_install_dir.return_value = install_dir
-        mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": [], "plugins": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": True, "added": True}
 
         install_antigravity(project_path)
@@ -697,8 +693,8 @@ class TestInstallAntigravityEdgeCases:
 
         mock_which.return_value = "/usr/bin/uv"
         mock_get_install_dir.return_value = install_dir
-        mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": [], "plugins": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": True, "added": True}
 
         result = install_antigravity(project_path)
@@ -735,8 +731,8 @@ class TestInstallAntigravityEdgeCases:
 
         mock_which.return_value = "/usr/bin/uv"
         mock_get_install_dir.return_value = install_dir
-        mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": [], "plugins": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": True, "added": True}
 
         result = install_antigravity(project_path)
@@ -787,8 +783,8 @@ class TestInstallAntigravityEdgeCases:
 
         mock_which.return_value = "/usr/bin/uv"
         mock_get_install_dir.return_value = install_dir
-        mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared.return_value = {"workflows": [], "plugins": []}
+        mock_cli.return_value = {"workflows": [], "commands": []}
         mock_mcp.return_value = {"success": True, "added": True}
 
         result = install_antigravity(project_path)

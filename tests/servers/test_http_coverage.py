@@ -755,31 +755,31 @@ class TestCodeEndpoints:
             yield c
 
     def test_execute_code_missing_code(self, code_client: TestClient) -> None:
-        """Test execute_code with missing code field."""
+        """Test execute_code endpoint was removed."""
         response = code_client.post(
             "/code/execute",
             json={"language": "python"},
         )
-        assert response.status_code == 400
-        assert "code" in response.json()["detail"]
+        # Code execution endpoints have been removed
+        assert response.status_code == 404
 
     def test_process_dataset_missing_data(self, code_client: TestClient) -> None:
-        """Test process_dataset with missing data field."""
+        """Test process_dataset endpoint was removed."""
         response = code_client.post(
             "/code/process-dataset",
             json={"operation": "summarize"},
         )
-        assert response.status_code == 400
-        assert "data" in response.json()["detail"]
+        # Code execution endpoints have been removed
+        assert response.status_code == 404
 
     def test_process_dataset_missing_operation(self, code_client: TestClient) -> None:
-        """Test process_dataset with missing operation field."""
+        """Test process_dataset endpoint was removed."""
         response = code_client.post(
             "/code/process-dataset",
             json={"data": [1, 2, 3]},
         )
-        assert response.status_code == 400
-        assert "operation" in response.json()["detail"]
+        # Code execution endpoints have been removed
+        assert response.status_code == 404
 
 
 # ============================================================================

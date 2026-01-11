@@ -87,6 +87,7 @@ class TestWorkflowEngine:
 
         # Setup workflow with reflect step
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
 
         # side_effect for get_step
         def get_step_side_effect(name):
@@ -132,6 +133,7 @@ class TestWorkflowEngine:
         step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -155,6 +157,7 @@ class TestWorkflowEngine:
         # Setup lifecycle workflow
         trigger = {"action": "test_action", "arg1": "val1"}
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "lifecycle"
         workflow.triggers = {"on_session_start": [trigger]}
         workflow.name = "lifecycle_wf"
 
@@ -200,6 +203,7 @@ class TestWorkflowEngine:
         step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -236,6 +240,7 @@ class TestWorkflowEngine:
         step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -276,6 +281,7 @@ class TestWorkflowEngine:
         step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -341,6 +347,7 @@ class TestWorkflowEngine:
         step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -377,6 +384,7 @@ class TestWorkflowEngine:
         step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -420,6 +428,7 @@ class TestDetectTaskClaim:
         step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -466,6 +475,7 @@ class TestDetectTaskClaim:
         step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -511,6 +521,7 @@ class TestDetectTaskClaim:
         step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -556,6 +567,7 @@ class TestDetectTaskClaim:
         step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -601,6 +613,7 @@ class TestDetectTaskClaim:
         step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -646,6 +659,7 @@ class TestDetectTaskClaim:
         step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -691,6 +705,7 @@ class TestDetectTaskClaim:
         step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 
@@ -732,6 +747,7 @@ class TestDetectTaskClaim:
         step1.exit_conditions = []
 
         workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
         workflow.get_step.return_value = step1
         mock_loader.load_workflow.return_value = workflow
 

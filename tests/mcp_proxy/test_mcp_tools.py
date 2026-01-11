@@ -316,6 +316,7 @@ async def test_expand_task_with_flags(mock_task_manager, mock_sync_manager):
             context=None,
             enable_web_research=True,
             enable_code_context=False,
+            tdd_mode=False,
         )
 
 

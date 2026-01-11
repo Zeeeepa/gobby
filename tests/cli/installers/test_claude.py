@@ -70,12 +70,10 @@ class TestInstallClaude:
 
         mock_get_install_dir.return_value = mock_install_dir
         mock_shared_content.return_value = {
-            "skills": ["shared-skill"],
             "workflows": ["workflow.yaml"],
             "plugins": [],
         }
         mock_cli_content.return_value = {
-            "skills": ["claude-skill"],
             "workflows": [],
             "commands": ["memory/"],
         }
@@ -88,8 +86,6 @@ class TestInstallClaude:
         assert result["error"] is None
         assert "SessionStart" in result["hooks_installed"]
         assert "PreToolUse" in result["hooks_installed"]
-        assert "shared-skill" in result["skills_installed"]
-        assert "claude-skill" in result["skills_installed"]
         assert "workflow.yaml" in result["workflows_installed"]
         assert "memory/" in result["commands_installed"]
         assert result["mcp_configured"] is True
@@ -167,8 +163,8 @@ class TestInstallClaude:
         from gobby.cli.installers.claude import install_claude
 
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared_content.return_value = {"workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"workflows": [], "commands": []}
         mock_mcp_config.return_value = {"success": True, "added": False}
 
         # Create existing settings.json with custom config
@@ -213,8 +209,8 @@ class TestInstallClaude:
         from gobby.cli.installers.claude import install_claude
 
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared_content.return_value = {"workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"workflows": [], "commands": []}
         mock_mcp_config.return_value = {"success": True, "added": False}
 
         # Create existing settings.json
@@ -254,8 +250,8 @@ class TestInstallClaude:
         from gobby.cli.installers.claude import install_claude
 
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared_content.return_value = {"workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"workflows": [], "commands": []}
 
         # Create invalid JSON settings file
         claude_path = temp_project / ".claude"
@@ -302,7 +298,7 @@ class TestInstallClaude:
         from gobby.cli.installers.claude import install_claude
 
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
+        mock_shared_content.return_value = {"workflows": [], "plugins": []}
         mock_cli_content.side_effect = Exception("CLI content error")
 
         result = install_claude(temp_project)
@@ -328,8 +324,8 @@ class TestInstallClaude:
         from gobby.cli.installers.claude import install_claude
 
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared_content.return_value = {"workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"workflows": [], "commands": []}
         mock_mcp_config.return_value = {"success": False, "error": "MCP config failed"}
 
         with patch.object(Path, "home", return_value=mock_home_dir):
@@ -357,8 +353,8 @@ class TestInstallClaude:
         from gobby.cli.installers.claude import install_claude
 
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared_content.return_value = {"workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"workflows": [], "commands": []}
         mock_mcp_config.return_value = {
             "success": True,
             "added": False,
@@ -428,8 +424,8 @@ class TestInstallClaude:
         (claude_dir / "hooks-template.json").write_text(json.dumps(hooks_template))
 
         mock_get_install_dir.return_value = install_dir
-        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared_content.return_value = {"workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"workflows": [], "commands": []}
         mock_mcp_config.return_value = {"success": True, "added": False}
 
         with patch.object(Path, "home", return_value=mock_home_dir):
@@ -469,8 +465,8 @@ class TestInstallClaude:
         (claude_dir / "hooks-template.json").write_text("{ invalid json }")
 
         mock_get_install_dir.return_value = install_dir
-        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared_content.return_value = {"workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"workflows": [], "commands": []}
 
         result = install_claude(temp_project)
 
@@ -495,8 +491,8 @@ class TestInstallClaude:
         from gobby.cli.installers.claude import install_claude
 
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared_content.return_value = {"workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"workflows": [], "commands": []}
         mock_mcp_config.return_value = {"success": True, "added": False}
 
         # Create existing hook file
@@ -532,8 +528,8 @@ class TestInstallClaude:
         from gobby.cli.installers.claude import install_claude
 
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared_content.return_value = {"workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"workflows": [], "commands": []}
         mock_mcp_config.return_value = {"success": True, "added": False}
 
         with patch.object(Path, "home", return_value=mock_home_dir):
@@ -559,17 +555,9 @@ class TestUninstallClaude:
 
     @pytest.fixture
     def mock_install_dir(self, temp_dir: Path) -> Path:
-        """Create a mock install directory with skill directories."""
+        """Create a mock install directory."""
         install_dir = temp_dir / "install"
-        skills_dir = install_dir / "claude" / "skills"
-        skills_dir.mkdir(parents=True)
-
-        # Create mock skill directories
-        (skills_dir / "skill1").mkdir()
-        (skills_dir / "skill1" / "config.yaml").write_text("name: skill1")
-        (skills_dir / "skill2").mkdir()
-        (skills_dir / "skill2" / "config.yaml").write_text("name: skill2")
-
+        (install_dir / "claude").mkdir(parents=True)
         return install_dir
 
     @pytest.fixture
@@ -577,9 +565,7 @@ class TestUninstallClaude:
         """Create a project with Claude hooks installed."""
         claude_path = temp_project / ".claude"
         hooks_dir = claude_path / "hooks"
-        skills_dir = claude_path / "skills"
         hooks_dir.mkdir(parents=True)
-        skills_dir.mkdir(parents=True)
 
         # Create settings.json with hooks
         settings = {
@@ -603,12 +589,6 @@ class TestUninstallClaude:
         (hooks_dir / "validate_settings.py").write_text("# validate")
         (hooks_dir / "README.md").write_text("# readme")
         (hooks_dir / "HOOK_SCHEMAS.md").write_text("# schemas")
-
-        # Create skill directories
-        (skills_dir / "skill1").mkdir()
-        (skills_dir / "skill1" / "config.yaml").write_text("name: skill1")
-        (skills_dir / "skill2").mkdir()
-        (skills_dir / "skill2" / "config.yaml").write_text("name: skill2")
 
         return temp_project
 
@@ -652,10 +632,6 @@ class TestUninstallClaude:
         assert "validate_settings.py" in result["files_removed"]
         assert "README.md" in result["files_removed"]
         assert "HOOK_SCHEMAS.md" in result["files_removed"]
-
-        # Verify skills were removed
-        assert "skill1" in result["skills_removed"]
-        assert "skill2" in result["skills_removed"]
 
         assert result["mcp_removed"] is True
 
@@ -908,36 +884,6 @@ class TestUninstallClaude:
 
     @patch("gobby.cli.installers.claude.get_install_dir")
     @patch("gobby.cli.installers.claude.remove_mcp_server_json")
-    def test_uninstall_claude_no_install_skills_dir(
-        self,
-        mock_remove_mcp: MagicMock,
-        mock_get_install_dir: MagicMock,
-        temp_project: Path,
-        temp_dir: Path,
-        mock_home_dir: Path,
-    ):
-        """Test uninstallation when install skills directory doesn't exist."""
-        from gobby.cli.installers.claude import uninstall_claude
-
-        # Create install dir without skills
-        install_dir = temp_dir / "install"
-        (install_dir / "claude").mkdir(parents=True)
-        mock_get_install_dir.return_value = install_dir
-        mock_remove_mcp.return_value = {"success": True, "removed": False}
-
-        # Create minimal installation
-        claude_path = temp_project / ".claude"
-        claude_path.mkdir(parents=True)
-        (claude_path / "settings.json").write_text(json.dumps({"hooks": {}}))
-
-        with patch.object(Path, "home", return_value=mock_home_dir):
-            result = uninstall_claude(temp_project)
-
-        assert result["success"] is True
-        assert result["skills_removed"] == []
-
-    @patch("gobby.cli.installers.claude.get_install_dir")
-    @patch("gobby.cli.installers.claude.remove_mcp_server_json")
     @patch("gobby.cli.installers.claude.os.fdopen")
     @patch("gobby.cli.installers.claude.tempfile.mkstemp")
     def test_uninstall_claude_atomic_write_failure(
@@ -1016,8 +962,8 @@ class TestInstallClaudeEdgeCases:
         from gobby.cli.installers.claude import install_claude
 
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared_content.return_value = {"workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"workflows": [], "commands": []}
         mock_mcp_config.return_value = {"success": True, "added": False}
 
         # Create existing settings with empty hooks
@@ -1050,8 +996,8 @@ class TestInstallClaudeEdgeCases:
         from gobby.cli.installers.claude import install_claude
 
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared_content.return_value = {"workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"workflows": [], "commands": []}
         mock_mcp_config.return_value = {"success": True, "added": False}
 
         # Create project with unicode path
@@ -1084,8 +1030,8 @@ class TestInstallClaudeEdgeCases:
         from gobby.cli.installers.claude import install_claude
 
         mock_get_install_dir.return_value = mock_install_dir
-        mock_shared_content.return_value = {"skills": [], "workflows": [], "plugins": []}
-        mock_cli_content.return_value = {"skills": [], "workflows": [], "commands": []}
+        mock_shared_content.return_value = {"workflows": [], "plugins": []}
+        mock_cli_content.return_value = {"workflows": [], "commands": []}
         mock_mcp_config.return_value = {"success": True, "added": False}
 
         mock_home = temp_dir / "home"
@@ -1098,7 +1044,6 @@ class TestInstallClaudeEdgeCases:
         expected_keys = {
             "success",
             "hooks_installed",
-            "skills_installed",
             "workflows_installed",
             "commands_installed",
             "mcp_configured",
@@ -1111,7 +1056,6 @@ class TestInstallClaudeEdgeCases:
         # Verify types
         assert isinstance(result["success"], bool)
         assert isinstance(result["hooks_installed"], list)
-        assert isinstance(result["skills_installed"], list)
         assert isinstance(result["workflows_installed"], list)
         assert isinstance(result["commands_installed"], list)
         assert isinstance(result["mcp_configured"], bool)
@@ -1132,7 +1076,7 @@ class TestUninstallClaudeEdgeCases:
     def mock_install_dir(self, temp_dir: Path) -> Path:
         """Create a mock install directory."""
         install_dir = temp_dir / "install"
-        (install_dir / "claude" / "skills").mkdir(parents=True)
+        (install_dir / "claude").mkdir(parents=True)
         return install_dir
 
     @patch("gobby.cli.installers.claude.get_install_dir")
@@ -1167,7 +1111,6 @@ class TestUninstallClaudeEdgeCases:
             "success",
             "hooks_removed",
             "files_removed",
-            "skills_removed",
             "mcp_removed",
             "error",
         }
@@ -1177,7 +1120,6 @@ class TestUninstallClaudeEdgeCases:
         assert isinstance(result["success"], bool)
         assert isinstance(result["hooks_removed"], list)
         assert isinstance(result["files_removed"], list)
-        assert isinstance(result["skills_removed"], list)
         assert isinstance(result["mcp_removed"], bool)
 
     @patch("gobby.cli.installers.claude.get_install_dir")

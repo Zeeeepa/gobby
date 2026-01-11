@@ -49,7 +49,7 @@ class TestMemoryConfigDefaults:
         assert config.enabled is True
         assert config.auto_extract is True
         assert config.injection_limit == 10
-        assert config.importance_threshold == 0.3
+        assert config.importance_threshold == 0.7
         assert config.decay_enabled is True
         assert config.decay_rate == 0.05
         assert config.decay_floor == 0.1

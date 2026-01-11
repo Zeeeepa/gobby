@@ -24,6 +24,28 @@ async def processor(mock_db: LocalDatabase) -> AsyncGenerator[SessionMessageProc
     # If not, we might need to apply schema manually.
     # Let's verify if LocalMessageManager requires tables created.
     # We'll apply the schema manually for the test to be safe.
+
+    # Create sessions table (required for foreign key constraint)
+    mock_db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS sessions (
+            id TEXT PRIMARY KEY,
+            external_id TEXT NOT NULL,
+            machine_id TEXT NOT NULL,
+            source TEXT NOT NULL,
+            project_id TEXT,
+            title TEXT,
+            status TEXT DEFAULT 'active',
+            jsonl_path TEXT,
+            summary_path TEXT,
+            summary_markdown TEXT,
+            git_branch TEXT,
+            parent_session_id TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+    """
+    )
     mock_db.execute(
         """
         CREATE TABLE IF NOT EXISTS session_messages (
@@ -55,6 +77,16 @@ async def processor(mock_db: LocalDatabase) -> AsyncGenerator[SessionMessageProc
         );
     """
     )
+
+    # Insert test sessions (required for message storage)
+    for session_id in ["session-1", "s1", "s2"]:
+        mock_db.execute(
+            """
+            INSERT OR IGNORE INTO sessions (id, external_id, machine_id, source)
+            VALUES (?, ?, 'test-machine', 'test')
+            """,
+            (session_id, session_id),
+        )
 
     yield proc
     if proc._running:

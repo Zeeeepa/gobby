@@ -40,7 +40,7 @@ async def test_recall_no_query(memory_manager):
     await memory_manager.remember("Important", importance=0.9)
     await memory_manager.remember("Unimportant", importance=0.1)
 
-    # Default threshold is 0.3
+    # Default threshold is 0.7
     memories = memory_manager.recall()
     assert len(memories) == 1
     assert memories[0].content == "Important"
@@ -48,8 +48,8 @@ async def test_recall_no_query(memory_manager):
 
 @pytest.mark.asyncio
 async def test_recall_with_query(memory_manager):
-    await memory_manager.remember("The quick brown fox", importance=0.5)
-    await memory_manager.remember("The lazy dog", importance=0.5)
+    await memory_manager.remember("The quick brown fox", importance=0.8)
+    await memory_manager.remember("The lazy dog", importance=0.8)
 
     memories = memory_manager.recall(query="fox")
     assert len(memories) == 1
@@ -99,7 +99,7 @@ async def test_decay_memories(memory_manager):
 @pytest.mark.asyncio
 async def test_content_exists(memory_manager):
     """Test duplicate content detection."""
-    await memory_manager.remember("Unique content", importance=0.5)
+    await memory_manager.remember("Unique content", importance=0.8)
 
     assert memory_manager.content_exists("Unique content")
     assert not memory_manager.content_exists("Different content")
@@ -121,7 +121,7 @@ async def test_get_memory(memory_manager):
 @pytest.mark.asyncio
 async def test_update_memory(memory_manager):
     """Test updating memory fields."""
-    memory = await memory_manager.remember("Original", importance=0.5, tags=["old"])
+    memory = await memory_manager.remember("Original", importance=0.8, tags=["old"])
 
     updated = memory_manager.update_memory(
         memory.id,
@@ -188,8 +188,8 @@ async def test_recall_with_semantic_disabled(db):
     config = MemoryConfig(semantic_search_enabled=False)
     manager = MemoryManager(db, config)
 
-    await manager.remember("The quick brown fox jumps", importance=0.5)
-    await manager.remember("The lazy dog sleeps", importance=0.5)
+    await manager.remember("The quick brown fox jumps", importance=0.8)
+    await manager.remember("The lazy dog sleeps", importance=0.8)
 
     # Should use text search, not semantic
     memories = manager.recall(query="fox")
@@ -203,8 +203,8 @@ async def test_recall_semantic_fallback_no_embeddings(db):
     config = MemoryConfig(semantic_search_enabled=True)
     manager = MemoryManager(db, config)
 
-    await manager.remember("The quick brown fox", importance=0.5)
-    await manager.remember("The lazy dog", importance=0.5)
+    await manager.remember("The quick brown fox", importance=0.8)
+    await manager.remember("The lazy dog", importance=0.8)
 
     # Semantic search enabled but no embeddings - should fall back to text search
     memories = manager.recall(query="fox", use_semantic=True)
@@ -224,7 +224,7 @@ async def test_auto_embed_when_enabled(db):
     with patch.object(manager, "embed_memory", new_callable=AsyncMock) as mock_embed:
         mock_embed.return_value = True
 
-        memory = await manager.remember("Test auto-embed", importance=0.5)
+        memory = await manager.remember("Test auto-embed", importance=0.8)
 
         # Verify embed_memory was called
         mock_embed.assert_called_once_with(memory.id, force=False)
@@ -239,7 +239,7 @@ async def test_auto_embed_disabled(db):
     manager = MemoryManager(db, config, openai_api_key="test-key")
 
     with patch.object(manager, "embed_memory", new_callable=AsyncMock) as mock_embed:
-        await manager.remember("Test no auto-embed", importance=0.5)
+        await manager.remember("Test no auto-embed", importance=0.8)
 
         # Verify embed_memory was NOT called
         mock_embed.assert_not_called()
@@ -254,7 +254,7 @@ async def test_auto_embed_no_api_key(db):
     manager = MemoryManager(db, config, openai_api_key=None)  # No API key
 
     with patch.object(manager, "embed_memory", new_callable=AsyncMock) as mock_embed:
-        await manager.remember("Test no key", importance=0.5)
+        await manager.remember("Test no key", importance=0.8)
 
         # Verify embed_memory was NOT called (no API key)
         mock_embed.assert_not_called()
@@ -263,7 +263,7 @@ async def test_auto_embed_no_api_key(db):
 @pytest.mark.asyncio
 async def test_access_tracking_increments_count(memory_manager):
     """Test that recall increments access_count."""
-    memory = await memory_manager.remember("Track my access", importance=0.5)
+    memory = await memory_manager.remember("Track my access", importance=0.8)
 
     # Initial access_count should be 0
     assert memory.access_count == 0
@@ -280,7 +280,7 @@ async def test_access_tracking_increments_count(memory_manager):
 @pytest.mark.asyncio
 async def test_access_tracking_updates_timestamp(memory_manager):
     """Test that recall updates last_accessed_at."""
-    memory = await memory_manager.remember("Timestamp test", importance=0.5)
+    memory = await memory_manager.remember("Timestamp test", importance=0.8)
 
     # Initial last_accessed_at should be None
     assert memory.last_accessed_at is None
@@ -300,7 +300,7 @@ async def test_access_tracking_debounce(db):
     config = MemoryConfig(access_debounce_seconds=3600)  # 1 hour debounce
     manager = MemoryManager(db, config)
 
-    memory = await manager.remember("Debounce test", importance=0.5)
+    memory = await manager.remember("Debounce test", importance=0.8)
 
     # First recall - should update
     manager.recall(query="Debounce")
@@ -316,11 +316,12 @@ async def test_access_tracking_debounce(db):
 @pytest.mark.asyncio
 async def test_access_tracking_independent_memories(memory_manager):
     """Test that access stats are tracked independently per memory."""
-    memory1 = await memory_manager.remember("First memory", importance=0.5)
-    memory2 = await memory_manager.remember("Second memory", importance=0.5)
+    # Note: "first" is a sklearn stop word, so use unique terms
+    memory1 = await memory_manager.remember("Alpha memory", importance=0.8)
+    memory2 = await memory_manager.remember("Beta memory", importance=0.8)
 
-    # Recall only first memory
-    memory_manager.recall(query="First")
+    # Recall only first memory by searching for "Alpha"
+    memory_manager.recall(query="Alpha")
 
     updated1 = memory_manager.get_memory(memory1.id)
     updated2 = memory_manager.get_memory(memory2.id)

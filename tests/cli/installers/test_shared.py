@@ -1,7 +1,7 @@
 """Comprehensive tests for cli/installers/shared.py module.
 
 Tests cover:
-- install_shared_content: Installing skills, workflows, and plugins
+- install_shared_content: Installing workflows and plugins
 - install_cli_content: Installing CLI-specific content
 - configure_mcp_server_json: Adding MCP server to JSON settings
 - remove_mcp_server_json: Removing MCP server from JSON settings
@@ -38,64 +38,7 @@ class TestInstallSharedContent:
             # Don't create shared dir
             result = install_shared_content(cli_path, project_path)
 
-        assert result == {"skills": [], "workflows": [], "plugins": []}
-
-    def test_install_shared_skills(self, temp_dir: Path):
-        """Test installing shared skills to CLI directory."""
-        install_dir = temp_dir / "install"
-        shared_dir = install_dir / "shared"
-        skills_dir = shared_dir / "skills"
-
-        # Create a sample skill
-        skill_dir = skills_dir / "my-skill"
-        skill_dir.mkdir(parents=True)
-        (skill_dir / "prompt.md").write_text("# My Skill\nDo something useful")
-        (skill_dir / "config.json").write_text('{"name": "my-skill"}')
-
-        cli_path = temp_dir / ".claude"
-        project_path = temp_dir / "project"
-        cli_path.mkdir(parents=True)
-        project_path.mkdir(parents=True)
-
-        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
-            mock_install_dir.return_value = install_dir
-            result = install_shared_content(cli_path, project_path)
-
-        assert "my-skill" in result["skills"]
-        assert (cli_path / "skills" / "my-skill" / "prompt.md").exists()
-        assert (cli_path / "skills" / "my-skill" / "config.json").exists()
-
-    def test_install_shared_skills_overwrites_existing(self, temp_dir: Path):
-        """Test that installing skills overwrites existing ones."""
-        install_dir = temp_dir / "install"
-        shared_dir = install_dir / "shared"
-        skills_dir = shared_dir / "skills"
-
-        # Create a sample skill
-        skill_dir = skills_dir / "my-skill"
-        skill_dir.mkdir(parents=True)
-        (skill_dir / "prompt.md").write_text("# Updated Skill")
-
-        cli_path = temp_dir / ".claude"
-        project_path = temp_dir / "project"
-        cli_path.mkdir(parents=True)
-        project_path.mkdir(parents=True)
-
-        # Create existing skill
-        existing_skill = cli_path / "skills" / "my-skill"
-        existing_skill.mkdir(parents=True)
-        (existing_skill / "prompt.md").write_text("# Old Skill")
-        (existing_skill / "old-file.txt").write_text("old content")
-
-        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
-            mock_install_dir.return_value = install_dir
-            result = install_shared_content(cli_path, project_path)
-
-        assert "my-skill" in result["skills"]
-        # Old content should be replaced
-        assert (cli_path / "skills" / "my-skill" / "prompt.md").read_text() == "# Updated Skill"
-        # Old files should be removed
-        assert not (cli_path / "skills" / "my-skill" / "old-file.txt").exists()
+        assert result == {"workflows": [], "plugins": []}
 
     def test_install_shared_workflows(self, temp_dir: Path):
         """Test installing shared workflows to .gobby/workflows/."""
@@ -183,11 +126,6 @@ class TestInstallSharedContent:
         install_dir = temp_dir / "install"
         shared_dir = install_dir / "shared"
 
-        # Create skills
-        skill_dir = shared_dir / "skills" / "skill1"
-        skill_dir.mkdir(parents=True)
-        (skill_dir / "prompt.md").write_text("# Skill 1")
-
         # Create workflows
         workflows_dir = shared_dir / "workflows"
         workflows_dir.mkdir(parents=True)
@@ -212,7 +150,6 @@ class TestInstallSharedContent:
             mock_install_dir.return_value = install_dir
             result = install_shared_content(cli_path, project_path)
 
-        assert result["skills"] == ["skill1"]
         assert result["workflows"] == ["workflow1.yaml"]
         assert result["plugins"] == ["plugin1.py"]
 
@@ -229,53 +166,7 @@ class TestInstallCliContent:
             mock_install_dir.return_value = temp_dir / "install"
             result = install_cli_content("claude", target_path)
 
-        assert result == {"skills": [], "workflows": [], "commands": []}
-
-    def test_install_cli_skills(self, temp_dir: Path):
-        """Test installing CLI-specific skills."""
-        install_dir = temp_dir / "install"
-        cli_dir = install_dir / "claude"
-        skills_dir = cli_dir / "skills"
-
-        # Create a CLI-specific skill
-        skill_dir = skills_dir / "claude-skill"
-        skill_dir.mkdir(parents=True)
-        (skill_dir / "prompt.md").write_text("# Claude-specific skill")
-
-        target_path = temp_dir / ".claude"
-        target_path.mkdir(parents=True)
-
-        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
-            mock_install_dir.return_value = install_dir
-            result = install_cli_content("claude", target_path)
-
-        assert "claude-skill" in result["skills"]
-        assert (target_path / "skills" / "claude-skill" / "prompt.md").exists()
-
-    def test_install_cli_skills_overwrites_existing(self, temp_dir: Path):
-        """Test that CLI skills overwrite existing ones."""
-        install_dir = temp_dir / "install"
-        cli_dir = install_dir / "claude"
-        skills_dir = cli_dir / "skills"
-
-        skill_dir = skills_dir / "my-skill"
-        skill_dir.mkdir(parents=True)
-        (skill_dir / "prompt.md").write_text("# New version")
-
-        target_path = temp_dir / ".claude"
-        target_path.mkdir(parents=True)
-
-        # Create existing skill
-        existing_skill = target_path / "skills" / "my-skill"
-        existing_skill.mkdir(parents=True)
-        (existing_skill / "prompt.md").write_text("# Old version")
-
-        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
-            mock_install_dir.return_value = install_dir
-            result = install_cli_content("claude", target_path)
-
-        assert "my-skill" in result["skills"]
-        assert (target_path / "skills" / "my-skill" / "prompt.md").read_text() == "# New version"
+        assert result == {"workflows": [], "commands": []}
 
     def test_install_cli_workflows(self, temp_dir: Path):
         """Test installing CLI-specific workflows."""
@@ -852,34 +743,6 @@ command = "uv"
 class TestEdgeCases:
     """Tests for edge cases and error conditions."""
 
-    def test_install_shared_content_file_in_skills_dir(self, temp_dir: Path):
-        """Test that files directly in skills/ dir are ignored (only dirs)."""
-        install_dir = temp_dir / "install"
-        shared_dir = install_dir / "shared"
-        skills_dir = shared_dir / "skills"
-        skills_dir.mkdir(parents=True)
-
-        # Create a file (not directory) in skills
-        (skills_dir / "stray-file.md").write_text("# Not a skill")
-
-        # Create a proper skill directory
-        skill_dir = skills_dir / "real-skill"
-        skill_dir.mkdir()
-        (skill_dir / "prompt.md").write_text("# Real skill")
-
-        cli_path = temp_dir / ".claude"
-        project_path = temp_dir / "project"
-        cli_path.mkdir(parents=True)
-        project_path.mkdir(parents=True)
-
-        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
-            mock_install_dir.return_value = install_dir
-            result = install_shared_content(cli_path, project_path)
-
-        assert "real-skill" in result["skills"]
-        # File should not be in skills list (it's not a directory)
-        assert "stray-file.md" not in result["skills"]
-
     def test_configure_json_write_error(self, temp_dir: Path):
         """Test handling write permission error for JSON."""
         settings_path = temp_dir / "settings.json"
@@ -1090,27 +953,3 @@ class TestEdgeCases:
         # subdir should not be in list
         assert "subdir" not in result["workflows"]
 
-    def test_install_cli_skills_skips_files(self, temp_dir: Path):
-        """Test that files directly in CLI skills dir are skipped."""
-        install_dir = temp_dir / "install"
-        cli_dir = install_dir / "claude"
-        skills_dir = cli_dir / "skills"
-        skills_dir.mkdir(parents=True)
-
-        # Create a file (not directory) in skills
-        (skills_dir / "stray.txt").write_text("not a skill")
-
-        # Create a proper skill directory
-        skill_dir = skills_dir / "real-skill"
-        skill_dir.mkdir()
-        (skill_dir / "prompt.md").write_text("# Real skill")
-
-        target_path = temp_dir / ".claude"
-        target_path.mkdir(parents=True)
-
-        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
-            mock_install_dir.return_value = install_dir
-            result = install_cli_content("claude", target_path)
-
-        assert "real-skill" in result["skills"]
-        assert "stray.txt" not in result["skills"]

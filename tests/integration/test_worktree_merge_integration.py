@@ -155,18 +155,33 @@ class TestMergeStatePersistence:
         from gobby.storage.database import LocalDatabase
         from gobby.storage.merge_resolutions import MergeResolutionManager
         from gobby.storage.migrations import run_migrations
+        from gobby.storage.projects import LocalProjectManager
+        from gobby.storage.worktrees import LocalWorktreeManager
 
         # Create real database
         db_path = tmp_path / "test.db"
         db = LocalDatabase(db_path)
         run_migrations(db)
 
+        # Create prerequisite data (project and worktree for foreign key)
+        project_manager = LocalProjectManager(db)
+        project = project_manager.create(
+            name="test-project", repo_path="/tmp/test-repo"
+        )
+
+        worktree_manager = LocalWorktreeManager(db)
+        worktree = worktree_manager.create(
+            project_id=project.id,
+            branch_name="feature/test",
+            worktree_path="/tmp/worktrees/test",
+        )
+
         # Create real manager
         manager = MergeResolutionManager(db)
 
         # Create resolution
         created = manager.create_resolution(
-            worktree_id="wt-123",
+            worktree_id=worktree.id,
             source_branch="feature/test",
             target_branch="main",
         )
@@ -174,7 +189,7 @@ class TestMergeStatePersistence:
         # Retrieve and verify
         retrieved = manager.get_resolution(created.id)
         assert retrieved is not None
-        assert retrieved.worktree_id == "wt-123"
+        assert retrieved.worktree_id == worktree.id
         assert retrieved.source_branch == "feature/test"
 
         db.close()

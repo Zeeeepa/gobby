@@ -38,12 +38,10 @@ class TestInstallCodexNotify:
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
         ):
             mock_shared.return_value = {
-                "skills": ["skill1", "skill2"],
                 "workflows": ["workflow1.yaml"],
                 "plugins": ["plugin1.py"],
             }
             mock_cli.return_value = {
-                "skills": ["codex-skill"],
                 "workflows": ["codex-workflow.yaml"],
                 "commands": ["cmd1"],
             }
@@ -218,13 +216,13 @@ class TestInstallCodexNotify:
         assert result["mcp_configured"] is False
         assert result["mcp_already_configured"] is True
 
-    def test_install_skills_and_workflows_merged(
+    def test_install_workflows_merged(
         self,
         mock_home: Path,
         mock_install_dir: Path,
         mock_mcp_configure,
     ):
-        """Test that shared and CLI-specific skills/workflows are merged."""
+        """Test that shared and CLI-specific workflows are merged."""
         from gobby.cli.installers.codex import install_codex_notify
 
         with (
@@ -232,12 +230,10 @@ class TestInstallCodexNotify:
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
         ):
             mock_shared.return_value = {
-                "skills": ["shared-skill"],
                 "workflows": ["shared-workflow"],
                 "plugins": ["plugin.py"],
             }
             mock_cli.return_value = {
-                "skills": ["cli-skill"],
                 "workflows": ["cli-workflow"],
                 "commands": ["command1"],
             }
@@ -245,7 +241,6 @@ class TestInstallCodexNotify:
             result = install_codex_notify()
 
         assert result["success"] is True
-        assert result["skills_installed"] == ["shared-skill", "cli-skill"]
         assert result["workflows_installed"] == ["shared-workflow", "cli-workflow"]
         assert result["commands_installed"] == ["command1"]
         assert result["plugins_installed"] == ["plugin.py"]
@@ -552,8 +547,8 @@ class TestNotifyLineFormat:
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
             patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
         ):
-            mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-            mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+            mock_shared.return_value = {"workflows": [], "plugins": []}
+            mock_cli.return_value = {"workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
             yield
 
@@ -633,8 +628,8 @@ class TestEdgeCases:
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
             patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
         ):
-            mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-            mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+            mock_shared.return_value = {"workflows": [], "plugins": []}
+            mock_cli.return_value = {"workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
 
             result = install_codex_notify()
@@ -663,8 +658,8 @@ class TestEdgeCases:
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
             patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
         ):
-            mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-            mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+            mock_shared.return_value = {"workflows": [], "plugins": []}
+            mock_cli.return_value = {"workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
 
             result = install_codex_notify()
@@ -698,8 +693,8 @@ class TestEdgeCases:
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
             patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
         ):
-            mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-            mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+            mock_shared.return_value = {"workflows": [], "plugins": []}
+            mock_cli.return_value = {"workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
 
             result = install_codex_notify()
@@ -789,8 +784,8 @@ debug = true
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
             patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
         ):
-            mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-            mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+            mock_shared.return_value = {"workflows": [], "plugins": []}
+            mock_cli.return_value = {"workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
 
             result = install_codex_notify()
@@ -843,8 +838,8 @@ debug = true
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
             patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
         ):
-            mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-            mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+            mock_shared.return_value = {"workflows": [], "plugins": []}
+            mock_cli.return_value = {"workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
 
             result = install_codex_notify()
@@ -961,8 +956,8 @@ class TestResultStructure:
             patch("gobby.cli.installers.codex.install_cli_content") as mock_cli,
             patch("gobby.cli.installers.codex.configure_mcp_server_toml") as mock_mcp,
         ):
-            mock_shared.return_value = {"skills": [], "workflows": [], "plugins": []}
-            mock_cli.return_value = {"skills": [], "workflows": [], "commands": []}
+            mock_shared.return_value = {"workflows": [], "plugins": []}
+            mock_cli.return_value = {"workflows": [], "commands": []}
             mock_mcp.return_value = {"success": True, "added": True}
 
             result = install_codex_notify()
@@ -970,7 +965,6 @@ class TestResultStructure:
         expected_keys = {
             "success",
             "files_installed",
-            "skills_installed",
             "workflows_installed",
             "commands_installed",
             "plugins_installed",

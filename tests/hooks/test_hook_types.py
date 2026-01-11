@@ -64,6 +64,9 @@ class TestHookTypeEnum:
             "SUBAGENT_START",
             "SUBAGENT_STOP",
             "NOTIFICATION",
+            "BEFORE_MODEL",
+            "AFTER_MODEL",
+            "PERMISSION_REQUEST",
         }
         actual_types = {t.name for t in HookType}
         assert actual_types == expected_types
@@ -80,6 +83,9 @@ class TestHookTypeEnum:
         assert HookType.SUBAGENT_START.value == "subagent-start"
         assert HookType.SUBAGENT_STOP.value == "subagent-stop"
         assert HookType.NOTIFICATION.value == "notification"
+        assert HookType.BEFORE_MODEL.value == "before-model"
+        assert HookType.AFTER_MODEL.value == "after-model"
+        assert HookType.PERMISSION_REQUEST.value == "permission-request"
 
 
 class TestSessionStartSourceEnum:

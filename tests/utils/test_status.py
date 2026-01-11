@@ -20,7 +20,6 @@ class TestStatusUtils:
             "sessions": {"active": 1, "paused": 0, "handoff_ready": 0},
             "tasks": {"open": 2, "in_progress": 1},
             "memory": {"count": 10, "avg_importance": 0.8},
-            "skills": {"count": 5, "total_uses": 20},
         }
         mock_get.return_value = mock_response
 
@@ -34,7 +33,6 @@ class TestStatusUtils:
         assert status["sessions_active"] == 1
         assert status["tasks_open"] == 2
         assert status["memories_count"] == 10
-        assert status["skills_count"] == 5
 
     @patch("httpx.get")
     def test_fetch_rich_status_failure(self, mock_get):

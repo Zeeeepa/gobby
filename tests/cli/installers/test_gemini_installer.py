@@ -50,13 +50,12 @@ class TestInstallGemini:
     @pytest.fixture
     def mock_shared_content(self) -> dict:
         """Mock return value for install_shared_content."""
-        return {"skills": ["skill1"], "workflows": ["workflow1.yaml"], "plugins": ["plugin1.py"]}
+        return {"workflows": ["workflow1.yaml"], "plugins": ["plugin1.py"]}
 
     @pytest.fixture
     def mock_cli_content(self) -> dict:
         """Mock return value for install_cli_content."""
         return {
-            "skills": ["cli_skill"],
             "workflows": ["cli_workflow.yaml"],
             "commands": ["command1.md"],
         }
@@ -90,7 +89,6 @@ class TestInstallGemini:
             assert result["error"] is None
             assert "SessionStart" in result["hooks_installed"]
             assert "SessionEnd" in result["hooks_installed"]
-            assert result["skills_installed"] == ["skill1", "cli_skill"]
             assert result["workflows_installed"] == ["workflow1.yaml", "cli_workflow.yaml"]
             assert result["commands_installed"] == ["command1.md"]
             assert result["plugins_installed"] == ["plugin1.py"]
@@ -943,11 +941,11 @@ class TestInstallGeminiEdgeCases:
             patch("gobby.cli.installers.gemini.get_install_dir", return_value=mock_install_dir),
             patch(
                 "gobby.cli.installers.gemini.install_shared_content",
-                return_value={"skills": [], "workflows": []},
+                return_value={"workflows": []},
             ),
             patch(
                 "gobby.cli.installers.gemini.install_cli_content",
-                return_value={"skills": [], "workflows": [], "commands": []},
+                return_value={"workflows": [], "commands": []},
             ),
             patch(
                 "gobby.cli.installers.gemini.configure_mcp_server_json",
@@ -959,7 +957,6 @@ class TestInstallGeminiEdgeCases:
             result = install_gemini(project_path)
 
             assert result["success"] is True
-            assert result["skills_installed"] == []
             assert result["workflows_installed"] == []
             assert result["commands_installed"] == []
 
@@ -971,11 +968,11 @@ class TestInstallGeminiEdgeCases:
             patch("gobby.cli.installers.gemini.get_install_dir", return_value=mock_install_dir),
             patch(
                 "gobby.cli.installers.gemini.install_shared_content",
-                return_value={"skills": [], "workflows": []},  # No plugins key
+                return_value={"workflows": []},  # No plugins key
             ),
             patch(
                 "gobby.cli.installers.gemini.install_cli_content",
-                return_value={"skills": [], "workflows": [], "commands": []},
+                return_value={"workflows": [], "commands": []},
             ),
             patch(
                 "gobby.cli.installers.gemini.configure_mcp_server_json",
@@ -997,11 +994,11 @@ class TestInstallGeminiEdgeCases:
             patch("gobby.cli.installers.gemini.get_install_dir", return_value=mock_install_dir),
             patch(
                 "gobby.cli.installers.gemini.install_shared_content",
-                return_value={"skills": [], "workflows": [], "plugins": []},
+                return_value={"workflows": [], "plugins": []},
             ),
             patch(
                 "gobby.cli.installers.gemini.install_cli_content",
-                return_value={"skills": [], "workflows": []},  # No commands key
+                return_value={"workflows": []},  # No commands key
             ),
             patch(
                 "gobby.cli.installers.gemini.configure_mcp_server_json",
