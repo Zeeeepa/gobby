@@ -512,6 +512,30 @@ class LocalTaskManager:
 
                     logger.debug(f"Created task {task_id} in project {project_id}")
 
+                    # Compute and store path_cache for the new task
+                    # Build path by traversing parent chain
+                    path_parts: list[str] = [str(next_seq_num)]
+                    current_parent = parent_task_id
+                    max_depth = 100
+                    depth = 0
+                    while current_parent and depth < max_depth:
+                        parent_row = conn.execute(
+                            "SELECT seq_num, parent_task_id FROM tasks WHERE id = ?",
+                            (current_parent,),
+                        ).fetchone()
+                        if not parent_row or parent_row["seq_num"] is None:
+                            break
+                        path_parts.append(str(parent_row["seq_num"]))
+                        current_parent = parent_row["parent_task_id"]
+                        depth += 1
+
+                    path_parts.reverse()
+                    path_cache = ".".join(path_parts)
+                    conn.execute(
+                        "UPDATE tasks SET path_cache = ? WHERE id = ?",
+                        (path_cache, task_id),
+                    )
+
                     # Auto-transition parent from needs_decomposition to open
                     if parent_task_id:
                         parent = self.db.fetchone(

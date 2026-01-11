@@ -1409,31 +1409,31 @@ class TestCreateTaskWithDecompositionDefaults:
 
 @pytest.mark.integration
 class TestPathCacheComputation:
-    """Test path_cache computation functions for task renumbering."""
+    """Test path_cache computation functions for task renumbering.
 
-    def test_compute_path_cache_root_task(self, task_manager, project_id, temp_db):
+    Note: create_task now auto-assigns seq_num and path_cache, so these tests
+    verify the compute_path_cache and update_descendant_paths functions work
+    correctly with auto-assigned values.
+    """
+
+    def test_compute_path_cache_root_task(self, task_manager, project_id):
         """Test path computation for a root task (no parent)."""
         task = task_manager.create_task(project_id=project_id, title="Root Task")
-        # Manually set seq_num since create_task doesn't assign it yet
-        temp_db.execute("UPDATE tasks SET seq_num = ? WHERE id = ?", (1, task.id))
-
+        # seq_num is auto-assigned to 1 for first task
         path = task_manager.compute_path_cache(task.id)
         assert path == "1"
 
-    def test_compute_path_cache_child_task(self, task_manager, project_id, temp_db):
+    def test_compute_path_cache_child_task(self, task_manager, project_id):
         """Test path computation for a child task."""
         parent = task_manager.create_task(project_id=project_id, title="Parent")
         child = task_manager.create_task(
             project_id=project_id, title="Child", parent_task_id=parent.id
         )
-        # Set seq_nums
-        temp_db.execute("UPDATE tasks SET seq_num = ? WHERE id = ?", (1, parent.id))
-        temp_db.execute("UPDATE tasks SET seq_num = ? WHERE id = ?", (2, child.id))
-
+        # seq_nums auto-assigned: parent=1, child=2
         path = task_manager.compute_path_cache(child.id)
         assert path == "1.2"
 
-    def test_compute_path_cache_deep_hierarchy(self, task_manager, project_id, temp_db):
+    def test_compute_path_cache_deep_hierarchy(self, task_manager, project_id):
         """Test path computation for deeply nested tasks."""
         root = task_manager.create_task(project_id=project_id, title="Root")
         level1 = task_manager.create_task(
@@ -1446,35 +1446,32 @@ class TestPathCacheComputation:
             project_id=project_id, title="Level 3", parent_task_id=level2.id
         )
 
-        # Set seq_nums
-        temp_db.execute("UPDATE tasks SET seq_num = ? WHERE id = ?", (1, root.id))
-        temp_db.execute("UPDATE tasks SET seq_num = ? WHERE id = ?", (3, level1.id))
-        temp_db.execute("UPDATE tasks SET seq_num = ? WHERE id = ?", (7, level2.id))
-        temp_db.execute("UPDATE tasks SET seq_num = ? WHERE id = ?", (47, level3.id))
-
+        # seq_nums auto-assigned: root=1, level1=2, level2=3, level3=4
         path = task_manager.compute_path_cache(level3.id)
-        assert path == "1.3.7.47"
+        assert path == "1.2.3.4"
 
     def test_compute_path_cache_task_not_found(self, task_manager):
         """Test path computation for non-existent task."""
         path = task_manager.compute_path_cache("nonexistent-id")
         assert path is None
 
-    def test_compute_path_cache_missing_seq_num(self, task_manager, project_id):
-        """Test path computation when seq_num not set."""
-        task = task_manager.create_task(project_id=project_id, title="No Seq")
-        # seq_num is NULL by default
+    def test_compute_path_cache_handles_null_seq_num(self, task_manager, project_id, temp_db):
+        """Test path computation returns None when seq_num is NULL (legacy data)."""
+        task = task_manager.create_task(project_id=project_id, title="Task")
+        # Simulate legacy data by clearing the seq_num
+        temp_db.execute("UPDATE tasks SET seq_num = NULL WHERE id = ?", (task.id,))
+
         path = task_manager.compute_path_cache(task.id)
         assert path is None
 
-    def test_compute_path_cache_parent_missing_seq_num(self, task_manager, project_id, temp_db):
-        """Test path computation when parent is missing seq_num."""
+    def test_compute_path_cache_parent_null_seq_num(self, task_manager, project_id, temp_db):
+        """Test path computation returns None when parent has NULL seq_num."""
         parent = task_manager.create_task(project_id=project_id, title="Parent")
         child = task_manager.create_task(
             project_id=project_id, title="Child", parent_task_id=parent.id
         )
-        # Only set child's seq_num, not parent's
-        temp_db.execute("UPDATE tasks SET seq_num = ? WHERE id = ?", (2, child.id))
+        # Simulate legacy data - parent has NULL seq_num
+        temp_db.execute("UPDATE tasks SET seq_num = NULL WHERE id = ?", (parent.id,))
 
         path = task_manager.compute_path_cache(child.id)
         assert path is None
@@ -1482,25 +1479,24 @@ class TestPathCacheComputation:
     def test_update_path_cache(self, task_manager, project_id, temp_db):
         """Test update_path_cache stores the computed path."""
         task = task_manager.create_task(project_id=project_id, title="Task")
-        temp_db.execute("UPDATE tasks SET seq_num = ? WHERE id = ?", (5, task.id))
+        # Clear the path_cache to test update_path_cache works
+        temp_db.execute("UPDATE tasks SET path_cache = NULL WHERE id = ?", (task.id,))
 
         path = task_manager.update_path_cache(task.id)
-        assert path == "5"
+        assert path == "1"
 
         # Verify it was stored in the database
         row = temp_db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", (task.id,))
-        assert row["path_cache"] == "5"
+        assert row["path_cache"] == "1"
 
-    def test_update_path_cache_no_seq_num(self, task_manager, project_id, temp_db):
-        """Test update_path_cache when seq_num not set returns None."""
-        task = task_manager.create_task(project_id=project_id, title="No Seq")
+    def test_update_path_cache_with_null_seq_num(self, task_manager, project_id, temp_db):
+        """Test update_path_cache when seq_num is NULL returns None."""
+        task = task_manager.create_task(project_id=project_id, title="Task")
+        # Simulate legacy data
+        temp_db.execute("UPDATE tasks SET seq_num = NULL WHERE id = ?", (task.id,))
 
         path = task_manager.update_path_cache(task.id)
         assert path is None
-
-        # Verify path_cache is still None
-        row = temp_db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", (task.id,))
-        assert row["path_cache"] is None
 
     def test_update_descendant_paths(self, task_manager, project_id, temp_db):
         """Test update_descendant_paths updates entire subtree."""
@@ -1515,17 +1511,14 @@ class TestPathCacheComputation:
             project_id=project_id, title="Grandchild", parent_task_id=child1.id
         )
 
-        # Set seq_nums
-        temp_db.execute("UPDATE tasks SET seq_num = ? WHERE id = ?", (1, root.id))
-        temp_db.execute("UPDATE tasks SET seq_num = ? WHERE id = ?", (2, child1.id))
-        temp_db.execute("UPDATE tasks SET seq_num = ? WHERE id = ?", (3, child2.id))
-        temp_db.execute("UPDATE tasks SET seq_num = ? WHERE id = ?", (4, grandchild.id))
+        # Clear path_cache values to test update_descendant_paths
+        temp_db.execute("UPDATE tasks SET path_cache = NULL WHERE project_id = ?", (project_id,))
 
         # Update all paths starting from root
         count = task_manager.update_descendant_paths(root.id)
         assert count == 4
 
-        # Verify all paths
+        # Verify all paths - seq_nums are auto-assigned: root=1, child1=2, child2=3, gc=4
         root_row = temp_db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", (root.id,))
         assert root_row["path_cache"] == "1"
 
@@ -1540,15 +1533,16 @@ class TestPathCacheComputation:
         )
         assert grandchild_row["path_cache"] == "1.2.4"
 
-    def test_update_descendant_paths_partial_seq_nums(self, task_manager, project_id, temp_db):
-        """Test update_descendant_paths with some missing seq_nums."""
+    def test_update_descendant_paths_with_null_seq_num(self, task_manager, project_id, temp_db):
+        """Test update_descendant_paths skips tasks with NULL seq_num."""
         root = task_manager.create_task(project_id=project_id, title="Root")
         child = task_manager.create_task(
             project_id=project_id, title="Child", parent_task_id=root.id
         )
 
-        # Only set root's seq_num
-        temp_db.execute("UPDATE tasks SET seq_num = ? WHERE id = ?", (1, root.id))
+        # Clear path_cache and simulate legacy data - child has NULL seq_num
+        temp_db.execute("UPDATE tasks SET path_cache = NULL WHERE project_id = ?", (project_id,))
+        temp_db.execute("UPDATE tasks SET seq_num = NULL WHERE id = ?", (child.id,))
 
         count = task_manager.update_descendant_paths(root.id)
         # Root succeeds, child fails (no seq_num)
@@ -1560,32 +1554,24 @@ class TestPathCacheComputation:
         child_row = temp_db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", (child.id,))
         assert child_row["path_cache"] is None
 
-    def test_to_dict_includes_seq_num_and_path_cache(self, task_manager, project_id, temp_db):
+    def test_to_dict_includes_seq_num_and_path_cache(self, task_manager, project_id):
         """Test that to_dict() includes seq_num and path_cache fields."""
         task = task_manager.create_task(project_id=project_id, title="Task")
-        temp_db.execute(
-            "UPDATE tasks SET seq_num = ?, path_cache = ? WHERE id = ?", (42, "1.2.42", task.id)
-        )
-
-        task = task_manager.get_task(task.id)
         data = task.to_dict()
 
+        # First task gets seq_num=1 and path_cache="1"
         assert "seq_num" in data
-        assert data["seq_num"] == 42
+        assert data["seq_num"] == 1
         assert "path_cache" in data
-        assert data["path_cache"] == "1.2.42"
+        assert data["path_cache"] == "1"
 
-    def test_to_brief_includes_seq_num_and_path_cache(self, task_manager, project_id, temp_db):
+    def test_to_brief_includes_seq_num_and_path_cache(self, task_manager, project_id):
         """Test that to_brief() includes seq_num and path_cache fields."""
         task = task_manager.create_task(project_id=project_id, title="Task")
-        temp_db.execute(
-            "UPDATE tasks SET seq_num = ?, path_cache = ? WHERE id = ?", (42, "1.2.42", task.id)
-        )
-
-        task = task_manager.get_task(task.id)
         brief = task.to_brief()
 
+        # First task gets seq_num=1 and path_cache="1"
         assert "seq_num" in brief
-        assert brief["seq_num"] == 42
+        assert brief["seq_num"] == 1
         assert "path_cache" in brief
-        assert brief["path_cache"] == "1.2.42"
+        assert brief["path_cache"] == "1"
