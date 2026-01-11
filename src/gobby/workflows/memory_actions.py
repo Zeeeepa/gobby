@@ -267,6 +267,7 @@ async def memory_recall_relevant(
     project_id: str | None = None,
     limit: int = 5,
     min_importance: float = 0.3,
+    state: Any | None = None,
 ) -> dict[str, Any] | None:
     """Recall memories relevant to the current user prompt.
 
@@ -278,6 +279,7 @@ async def memory_recall_relevant(
         project_id: Override project ID
         limit: Max memories to retrieve
         min_importance: Minimum importance threshold
+        state: WorkflowState for tracking injected memory IDs (for deduplication)
 
     Returns:
         Dict with inject_context and count, or None if disabled
