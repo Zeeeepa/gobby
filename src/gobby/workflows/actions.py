@@ -25,7 +25,6 @@ from gobby.workflows.context_actions import (
     format_handoff_as_markdown,
     inject_context,
     inject_message,
-    restore_context,
 )
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.git_utils import get_file_changes, get_git_status, get_recent_git_commits
@@ -219,7 +218,6 @@ class ActionExecutor:
         self.register("capture_artifact", self._handle_capture_artifact)
         self.register("generate_handoff", self._handle_generate_handoff)
         self.register("generate_summary", self._handle_generate_summary)
-        self.register("restore_context", self._handle_restore_context)
         self.register("mark_session_status", self._handle_mark_session_status)
         self.register("switch_mode", self._handle_switch_mode)
         self.register("read_artifact", self._handle_read_artifact)
@@ -660,18 +658,6 @@ class ActionExecutor:
     ) -> dict[str, Any] | None:
         """Mark the autonomous loop as complete."""
         return mark_loop_complete(context.state)
-
-    async def _handle_restore_context(
-        self, context: ActionContext, **kwargs: Any
-    ) -> dict[str, Any] | None:
-        """Restore context from linked parent session."""
-        return restore_context(
-            session_manager=context.session_manager,
-            session_id=context.session_id,
-            state=context.state,
-            template_engine=context.template_engine,
-            template=kwargs.get("template"),
-        )
 
     async def _handle_extract_handoff_context(
         self, context: ActionContext, **kwargs: Any

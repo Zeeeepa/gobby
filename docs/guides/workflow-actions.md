@@ -71,16 +71,6 @@ Injects a direct message visible to the agent (system or user channel depending 
   content: "You are now in PLANNING mode."
 ```
 
-### `restore_context`
-
-Restores context from a linked parent session.
-**Usage:** `on_session_start`
-
-```yaml
-- action: restore_context
-  source: parent_session_summary
-```
-
 ## Session Lifecycle
 
 ### `find_parent_session`

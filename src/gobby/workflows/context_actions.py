@@ -181,47 +181,6 @@ def inject_message(
     return {"inject_message": rendered_content}
 
 
-def restore_context(
-    session_manager: Any,
-    session_id: str,
-    state: Any,
-    template_engine: Any,
-    template: str | None = None,
-) -> dict[str, Any] | None:
-    """Restore context from linked parent session.
-
-    Args:
-        session_manager: The session manager instance
-        session_id: Current session ID
-        state: WorkflowState instance
-        template_engine: Template engine for rendering
-        template: Optional template for rendering
-
-    Returns:
-        Dict with inject_context key, or None
-    """
-    current_session = session_manager.get(session_id)
-    if not current_session or not current_session.parent_session_id:
-        return None
-
-    parent = session_manager.get(current_session.parent_session_id)
-    if not parent or not parent.summary_markdown:
-        return None
-
-    content = parent.summary_markdown
-
-    if template:
-        render_context = {
-            "summary": content,
-            "handoff": {"notes": "Restored summary"},
-            "session": current_session,
-            "state": state,
-        }
-        content = template_engine.render(template, render_context)
-
-    return {"inject_context": content}
-
-
 def extract_handoff_context(
     session_manager: Any,
     session_id: str,

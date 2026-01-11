@@ -1540,31 +1540,6 @@ class TestHandleSkillsLearn:
 
 
 # =============================================================================
-# Test Restore Context Action
-# =============================================================================
-
-
-class TestHandleRestoreContext:
-    """Tests for _handle_restore_context action."""
-
-    @pytest.mark.asyncio
-    async def test_restore_context_delegated(self, action_executor, action_context):
-        """Test restore_context delegates correctly."""
-        with patch("gobby.workflows.actions.restore_context") as mock_restore:
-            mock_restore.return_value = {"restored": True}
-
-            await action_executor.execute(
-                "restore_context",
-                action_context,
-                template="Test template",
-            )
-
-            mock_restore.assert_called_once()
-            call_kwargs = mock_restore.call_args.kwargs
-            assert call_kwargs["template"] == "Test template"
-
-
-# =============================================================================
 # Test Extract Handoff Context Action
 # =============================================================================
 

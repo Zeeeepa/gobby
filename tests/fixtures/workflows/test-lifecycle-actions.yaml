@@ -11,12 +11,7 @@ triggers:
     # 1. Load any persisted workflow state
     - action: load_workflow_state
 
-    # 2. Restore context from parent if found (parent linked by hook_manager)
-    - action: restore_context
-      source: parent_session_summary
-      when: "session.parent_session_id is not None"
-
-    # 3. Inject context with template
+    # 2. Inject context from parent session (restore_context was removed as redundant)
     - action: inject_context
       source: previous_session_summary
       when: "session.parent_session_id is not None"
@@ -24,26 +19,26 @@ triggers:
         ## Resumed Session Context
         {{ summary }}
 
-    # 4. Mark parent session as expired
+    # 3. Mark parent session as expired
     - action: mark_session_status
       target: parent
       status: expired
       when: "session.parent_session_id is not None"
 
   on_prompt_submit:
-    # 5. Synthesize title on first substantive prompt
+    # 4. Synthesize title on first substantive prompt
     - action: synthesize_title
       when: "session.title == null and len(event.data.get('content', '')) > 20"
 
   on_session_end:
-    # 6. Generate summary (without marking handoff)
+    # 5. Generate summary (without marking handoff)
     - action: generate_summary
       when: "event.data.get('reason') == 'test_summary'"
       template: |
         Summarize this test session briefly.
         Transcript: {transcript_summary}
 
-    # 7. Generate handoff (summary + mark handoff_ready)
+    # 6. Generate handoff (summary + mark handoff_ready)
     - action: generate_handoff
       when: "event.data.get('reason') == 'clear'"
       template: |
@@ -51,11 +46,11 @@ triggers:
         Transcript: {transcript_summary}
         Git: {git_status}
 
-    # 8. Mark current session status
+    # 7. Mark current session status
     - action: mark_session_status
       target: current_session
       status: completed
       when: "event.data.get('reason') == 'done'"
 
-    # 9. Save workflow state
+    # 8. Save workflow state
     - action: save_workflow_state

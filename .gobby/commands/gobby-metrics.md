@@ -1,24 +1,24 @@
 ---
-description: This skill should be used when the user asks to "/metrics", "tool metrics", "usage stats", "performance report". View tool usage metrics, performance statistics, and server health.
+description: This skill should be used when the user asks to "/gobby-metrics", "tool metrics", "usage stats", "performance report". View tool usage metrics, performance statistics, and server health.
 ---
 
-# /metrics - Metrics and Statistics Skill
+# /gobby-metrics - Metrics and Statistics Skill
 
 This skill retrieves usage metrics via the gobby-metrics MCP server. Parse the user's input to determine which subcommand to execute.
 
 ## Subcommands
 
-### `/metrics report` - Generate usage report
+### `/gobby-metrics report` - Generate usage report
 Call `gobby-metrics.get_report` with:
 - `period`: Time period (day, week, month, all)
 - `format`: Output format (summary, detailed)
 
 Returns comprehensive usage statistics.
 
-Example: `/metrics report` → `get_report(period="week")`
-Example: `/metrics report month detailed` → `get_report(period="month", format="detailed")`
+Example: `/gobby-metrics report` → `get_report(period="week")`
+Example: `/gobby-metrics report month detailed` → `get_report(period="month", format="detailed")`
 
-### `/metrics tools` - Tool usage statistics
+### `/gobby-metrics tools` - Tool usage statistics
 Call `gobby-metrics.get_tool_metrics` with:
 - `server`: Optional filter by server name
 - `limit`: Max tools to show (default 20)
@@ -29,19 +29,19 @@ Returns per-tool statistics:
 - Error rate
 - Last used
 
-Example: `/metrics tools` → `get_tool_metrics()`
-Example: `/metrics tools gobby-tasks` → `get_tool_metrics(server="gobby-tasks")`
+Example: `/gobby-metrics tools` → `get_tool_metrics()`
+Example: `/gobby-metrics tools gobby-tasks` → `get_tool_metrics(server="gobby-tasks")`
 
-### `/metrics servers` - Server health status
+### `/gobby-metrics servers` - Server health status
 Call `gobby-metrics.get_server_metrics` to check:
 - Connection status for each MCP server
 - Response times
 - Error counts
 - Uptime
 
-Example: `/metrics servers` → `get_server_metrics()`
+Example: `/gobby-metrics servers` → `get_server_metrics()`
 
-### `/metrics sessions` - Session statistics
+### `/gobby-metrics sessions` - Session statistics
 Call `gobby-metrics.get_session_metrics` with:
 - `period`: Time period (day, week, month)
 
@@ -51,7 +51,7 @@ Returns session statistics:
 - Tool calls per session
 - Sessions by source (claude/gemini/codex)
 
-Example: `/metrics sessions` → `get_session_metrics(period="week")`
+Example: `/gobby-metrics sessions` → `get_session_metrics(period="week")`
 
 ## Response Format
 

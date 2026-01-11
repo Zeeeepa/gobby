@@ -1,14 +1,14 @@
 ---
-description: This skill should be used when the user asks to "/worktrees", "create worktree", "spawn in worktree". Manage git worktrees for parallel development - create, list, spawn agents, and cleanup.
+description: This skill should be used when the user asks to "/gobby-worktrees", "create worktree", "spawn in worktree". Manage git worktrees for parallel development - create, list, spawn agents, and cleanup.
 ---
 
-# /worktrees - Worktree Management Skill
+# /gobby-worktrees - Worktree Management Skill
 
 This skill manages git worktrees via the gobby-worktrees MCP server. Parse the user's input to determine which subcommand to execute.
 
 ## Subcommands
 
-### `/worktrees create <branch-name>` - Create a new worktree
+### `/gobby-worktrees create <branch-name>` - Create a new worktree
 Call `gobby-worktrees.create_worktree` with:
 - `branch_name`: Name for the new branch
 - `task_id`: Optional task ID to associate
@@ -16,22 +16,22 @@ Call `gobby-worktrees.create_worktree` with:
 
 Creates an isolated git worktree for parallel development.
 
-Example: `/worktrees create feature/auth`
+Example: `/gobby-worktrees create feature/auth`
 → `create_worktree(branch_name="feature/auth")`
 
-Example: `/worktrees create feature/auth --task gt-abc123`
+Example: `/gobby-worktrees create feature/auth --task gt-abc123`
 → `create_worktree(branch_name="feature/auth", task_id="gt-abc123")`
 
-### `/worktrees list` - List all worktrees
+### `/gobby-worktrees list` - List all worktrees
 Call `gobby-worktrees.list_worktrees` with:
 - `status`: Optional filter (active, stale, merged, abandoned)
 
 Returns worktrees with path, branch, status, and associated task.
 
-Example: `/worktrees list` → `list_worktrees()`
-Example: `/worktrees list active` → `list_worktrees(status="active")`
+Example: `/gobby-worktrees list` → `list_worktrees()`
+Example: `/gobby-worktrees list active` → `list_worktrees(status="active")`
 
-### `/worktrees spawn <branch-name> <prompt>` - Spawn agent in new worktree
+### `/gobby-worktrees spawn <branch-name> <prompt>` - Spawn agent in new worktree
 Call `gobby-worktrees.spawn_agent_in_worktree` with:
 - `branch_name`: Name for the new branch
 - `prompt`: Task description for the agent
@@ -40,16 +40,16 @@ Call `gobby-worktrees.spawn_agent_in_worktree` with:
 
 Creates worktree + spawns agent in one call.
 
-Example: `/worktrees spawn feature/auth Implement OAuth login`
+Example: `/gobby-worktrees spawn feature/auth Implement OAuth login`
 → `spawn_agent_in_worktree(branch_name="feature/auth", prompt="Implement OAuth login")`
 
-### `/worktrees cleanup` - Clean up stale worktrees
+### `/gobby-worktrees cleanup` - Clean up stale worktrees
 Call `gobby-worktrees.cleanup_worktrees` to remove:
 - Merged worktrees (already merged to main)
 - Stale worktrees (no activity for 7+ days)
 - Abandoned worktrees (marked abandoned)
 
-Example: `/worktrees cleanup` → `cleanup_worktrees()`
+Example: `/gobby-worktrees cleanup` → `cleanup_worktrees()`
 
 ## Response Format
 
