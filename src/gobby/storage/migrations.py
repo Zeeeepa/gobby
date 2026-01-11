@@ -20,9 +20,7 @@ def _backfill_seq_num(db: LocalDatabase) -> None:
     Tasks within the same project get contiguous seq_num values starting from 1.
     """
     # Get all projects that have tasks
-    projects = db.fetchall(
-        "SELECT DISTINCT project_id FROM tasks WHERE seq_num IS NULL"
-    )
+    projects = db.fetchall("SELECT DISTINCT project_id FROM tasks WHERE seq_num IS NULL")
 
     if not projects:
         logger.debug("No tasks need seq_num backfill")
@@ -56,9 +54,7 @@ def _backfill_seq_num(db: LocalDatabase) -> None:
             )
             next_seq += 1
 
-        logger.debug(
-            f"Backfilled seq_num for {len(tasks)} tasks in project {project_id}"
-        )
+        logger.debug(f"Backfilled seq_num for {len(tasks)} tasks in project {project_id}")
 
 
 def _migrate_task_ids_to_uuid(db: LocalDatabase) -> None:

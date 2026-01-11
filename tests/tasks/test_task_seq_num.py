@@ -100,7 +100,7 @@ class TestSeqNumAutoIncrement:
     def test_seq_num_continues_after_gap(self, task_manager, project_id, temp_db):
         """Test that seq_num continues from max even with gaps."""
         # Create tasks with existing seq_nums (simulating partial migration)
-        task1 = task_manager.create_task(project_id=project_id, title="Task 1")
+        task_manager.create_task(project_id=project_id, title="Task 1")
         task2 = task_manager.create_task(project_id=project_id, title="Task 2")
 
         # Manually create a gap by setting a high seq_num

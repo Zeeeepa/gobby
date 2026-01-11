@@ -82,9 +82,7 @@ class TestTaskIdResolver:
         task_manager.create_task(project_id=project_id, title="Test Task")
 
         with pytest.raises(TaskNotFoundError):
-            task_manager.resolve_task_reference(
-                "00000000-0000-0000-0000-000000000000", project_id
-            )
+            task_manager.resolve_task_reference("00000000-0000-0000-0000-000000000000", project_id)
 
     def test_resolve_path_format(self, task_manager, project_id):
         """Test resolving path format like 1.2.3."""

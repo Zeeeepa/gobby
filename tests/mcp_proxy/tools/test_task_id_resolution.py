@@ -98,14 +98,10 @@ class TestResolveTaskIdForMCP:
 
         mock_task_manager.resolve_task_reference.return_value = sample_task_uuid.id
 
-        result = resolve_task_id_for_mcp(
-            mock_task_manager, "1.2.3", project_id="proj-1"
-        )
+        result = resolve_task_id_for_mcp(mock_task_manager, "1.2.3", project_id="proj-1")
 
         assert result == sample_task_uuid.id
-        mock_task_manager.resolve_task_reference.assert_called_once_with(
-            "1.2.3", "proj-1"
-        )
+        mock_task_manager.resolve_task_reference.assert_called_once_with("1.2.3", "proj-1")
 
     def test_resolve_gt_format_returns_error(self, mock_task_manager):
         """Test gt-* format returns deprecation error."""
@@ -116,9 +112,7 @@ class TestResolveTaskIdForMCP:
         )
 
         with pytest.raises(ValueError) as exc_info:
-            resolve_task_id_for_mcp(
-                mock_task_manager, "gt-abc123", project_id="proj-1"
-            )
+            resolve_task_id_for_mcp(mock_task_manager, "gt-abc123", project_id="proj-1")
 
         assert "deprecated" in str(exc_info.value)
         assert "#N" in str(exc_info.value)
@@ -127,7 +121,9 @@ class TestResolveTaskIdForMCP:
 class TestMCPGetTaskWithHashFormat:
     """Tests for get_task MCP tool with #N format."""
 
-    def test_get_task_with_hash_format(self, mock_task_manager, mock_sync_manager, sample_task_uuid):
+    def test_get_task_with_hash_format(
+        self, mock_task_manager, mock_sync_manager, sample_task_uuid
+    ):
         """Test get_task resolves #N format correctly."""
         from gobby.mcp_proxy.tools.tasks import create_task_registry
 
@@ -150,7 +146,9 @@ class TestMCPGetTaskWithHashFormat:
         assert result.get("id") == sample_task_uuid.id
         mock_task_manager.resolve_task_reference.assert_called_with("#1", "proj-1")
 
-    def test_get_task_with_uuid_format(self, mock_task_manager, mock_sync_manager, sample_task_uuid):
+    def test_get_task_with_uuid_format(
+        self, mock_task_manager, mock_sync_manager, sample_task_uuid
+    ):
         """Test get_task passes through UUID format."""
         from gobby.mcp_proxy.tools.tasks import create_task_registry
 
@@ -239,7 +237,12 @@ class TestMCPCloseTaskWithHashFormat:
             "gobby.mcp_proxy.tools.tasks.get_project_context",
             return_value={"id": "proj-1"},
         ):
-            await close_task_func(task_id="#10", skip_validation=True, no_commit_needed=True, override_justification="test")
+            await close_task_func(
+                task_id="#10",
+                skip_validation=True,
+                no_commit_needed=True,
+                override_justification="test",
+            )
 
         mock_task_manager.resolve_task_reference.assert_called_with("#10", "proj-1")
 
@@ -298,9 +301,7 @@ class TestIntegrationMCPTaskIdResolution:
 
         # Create hierarchy
         parent = manager.create_task(project_id=project_id, title="Parent")
-        child = manager.create_task(
-            project_id=project_id, title="Child", parent_task_id=parent.id
-        )
+        child = manager.create_task(project_id=project_id, title="Child", parent_task_id=parent.id)
 
         registry = create_task_registry(manager, sync_manager)
         get_task_func = registry._tools["get_task"].func

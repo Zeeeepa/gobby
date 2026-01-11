@@ -43,8 +43,7 @@ Usage in Workflows:
 from __future__ import annotations
 
 import json
-import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -147,7 +146,7 @@ class ExampleNotifyPlugin(HookPlugin):
 
     async def _execute_http_notify(
         self,
-        context: "ActionContext",
+        context: ActionContext,
         url: str,
         method: str = "POST",
         payload: dict[str, Any] | None = None,
@@ -173,7 +172,7 @@ class ExampleNotifyPlugin(HookPlugin):
             Dict with notification result
         """
         effective_channel = channel or self.default_channel
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
 
         # In a real implementation, you would use aiohttp here:
         #
@@ -202,7 +201,7 @@ class ExampleNotifyPlugin(HookPlugin):
 
     async def _execute_log_metric(
         self,
-        context: "ActionContext",
+        context: ActionContext,
         metric_name: str,
         value: int | float,
         tags: dict[str, str] | None = None,
@@ -222,7 +221,7 @@ class ExampleNotifyPlugin(HookPlugin):
         Returns:
             Dict with logging result
         """
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
 
         metric_entry = {
             "timestamp": timestamp,

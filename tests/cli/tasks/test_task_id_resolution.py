@@ -321,9 +321,7 @@ class TestIntegrationResolveTaskId:
 
         # Create hierarchy: parent -> child -> grandchild
         parent = manager.create_task(project_id=project_id, title="Parent")
-        child = manager.create_task(
-            project_id=project_id, title="Child", parent_task_id=parent.id
-        )
+        child = manager.create_task(project_id=project_id, title="Child", parent_task_id=parent.id)
         grandchild = manager.create_task(
             project_id=project_id, title="Grandchild", parent_task_id=child.id
         )

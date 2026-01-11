@@ -549,7 +549,10 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
             },
             "required": ["task_id"],
         },
@@ -627,7 +630,10 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
                 "title": {"type": "string", "description": "New title", "default": None},
                 "description": {
                     "type": "string",
@@ -702,7 +708,10 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
                 "label": {"type": "string", "description": "Label to add"},
             },
             "required": ["task_id", "label"],
@@ -728,7 +737,10 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
                 "label": {"type": "string", "description": "Label to remove"},
             },
             "required": ["task_id", "label"],
@@ -1004,7 +1016,10 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
                 "reason": {
                     "type": "string",
                     "description": 'Reason for closing. Use "duplicate", "already_implemented", "wont_fix", or "obsolete" to auto-skip validation and commit check.',
@@ -1100,7 +1115,10 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task reference to reopen: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference to reopen: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
                 "reason": {
                     "type": "string",
                     "description": "Optional reason for reopening the task",
@@ -1134,7 +1152,10 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
                 "cascade": {
                     "type": "boolean",
                     "description": "If True, delete all child tasks as well. Defaults to True.",
@@ -1253,7 +1274,12 @@ def create_task_registry(
 
         try:
             session_task_manager.link_task(session_id, resolved_id, action)
-            return {"linked": True, "task_id": resolved_id, "session_id": session_id, "action": action}
+            return {
+                "linked": True,
+                "task_id": resolved_id,
+                "session_id": session_id,
+                "action": action,
+            }
         except ValueError as e:
             return {"error": str(e)}
 
@@ -1263,7 +1289,10 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
                 "session_id": {
                     "type": "string",
                     "description": "Session ID (optional, defaults to linking context if available)",
@@ -1313,7 +1342,10 @@ def create_task_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID"},
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID",
+                },
             },
             "required": ["task_id"],
         },

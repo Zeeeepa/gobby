@@ -466,9 +466,7 @@ class LocalTaskManager:
                         "SELECT MAX(seq_num) as max_seq FROM tasks WHERE project_id = ?",
                         (project_id,),
                     ).fetchone()
-                    next_seq_num = (
-                        (max_seq_row["max_seq"] if max_seq_row else None) or 0
-                    ) + 1
+                    next_seq_num = ((max_seq_row["max_seq"] if max_seq_row else None) or 0) + 1
 
                     conn.execute(
                         """

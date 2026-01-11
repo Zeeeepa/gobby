@@ -442,7 +442,9 @@ def test_seq_num_unique_index_per_project(tmp_path):
     run_migrations(db)
 
     # Check for unique index on (project_id, seq_num)
-    rows = db.fetchall("SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name='tasks'")
+    rows = db.fetchall(
+        "SELECT name, sql FROM sqlite_master WHERE type='index' AND tbl_name='tasks'"
+    )
     index_names = {row["name"] for row in rows}
 
     assert "idx_tasks_seq_num" in index_names, "idx_tasks_seq_num index missing"
@@ -1139,10 +1141,7 @@ def test_full_migration_sequence_end_to_end(tmp_path):
             db.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
 
     # Verify columns exist
-    cols = {
-        row["name"]
-        for row in db.fetchall("PRAGMA table_info(tasks)")
-    }
+    cols = {row["name"] for row in db.fetchall("PRAGMA table_info(tasks)")}
     assert "seq_num" in cols, "seq_num column should exist after migration 52"
     assert "path_cache" in cols, "path_cache column should exist after migration 52"
 
@@ -1168,18 +1167,28 @@ def test_full_migration_sequence_end_to_end(tmp_path):
         uuid_map[title] = task_id
 
     # Verify parent_task_id references were updated
-    child1_row = db.fetchone("SELECT parent_task_id FROM tasks WHERE id = ?", (uuid_map["First Child"],))
-    assert child1_row["parent_task_id"] == uuid_map["Root Task"], "Child1 should reference root's new UUID"
+    child1_row = db.fetchone(
+        "SELECT parent_task_id FROM tasks WHERE id = ?", (uuid_map["First Child"],)
+    )
+    assert (
+        child1_row["parent_task_id"] == uuid_map["Root Task"]
+    ), "Child1 should reference root's new UUID"
 
-    grandchild_row = db.fetchone("SELECT parent_task_id FROM tasks WHERE id = ?", (uuid_map["Grandchild"],))
-    assert grandchild_row["parent_task_id"] == uuid_map["First Child"], "Grandchild should reference child1's new UUID"
+    grandchild_row = db.fetchone(
+        "SELECT parent_task_id FROM tasks WHERE id = ?", (uuid_map["Grandchild"],)
+    )
+    assert (
+        grandchild_row["parent_task_id"] == uuid_map["First Child"]
+    ), "Grandchild should reference child1's new UUID"
 
     # Verify dependency was updated
     dep_row = db.fetchone(
         "SELECT task_id, depends_on FROM task_dependencies WHERE task_id = ?",
         (uuid_map["Second Child"],),
     )
-    assert dep_row["depends_on"] == uuid_map["First Child"], "Dependency should reference child1's new UUID"
+    assert (
+        dep_row["depends_on"] == uuid_map["First Child"]
+    ), "Dependency should reference child1's new UUID"
 
     # === Run Migration 54: Backfill seq_num ===
     for version, _description, action in MIGRATIONS:
@@ -1209,13 +1218,19 @@ def test_full_migration_sequence_end_to_end(tmp_path):
     root_row = db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", (uuid_map["Root Task"],))
     assert root_row["path_cache"] == "1", "Root task should have path '1'"
 
-    child1_path = db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", (uuid_map["First Child"],))
+    child1_path = db.fetchone(
+        "SELECT path_cache FROM tasks WHERE id = ?", (uuid_map["First Child"],)
+    )
     assert child1_path["path_cache"] == "1.2", "First child should have path '1.2'"
 
-    child2_path = db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", (uuid_map["Second Child"],))
+    child2_path = db.fetchone(
+        "SELECT path_cache FROM tasks WHERE id = ?", (uuid_map["Second Child"],)
+    )
     assert child2_path["path_cache"] == "1.3", "Second child should have path '1.3'"
 
-    grandchild_path = db.fetchone("SELECT path_cache FROM tasks WHERE id = ?", (uuid_map["Grandchild"],))
+    grandchild_path = db.fetchone(
+        "SELECT path_cache FROM tasks WHERE id = ?", (uuid_map["Grandchild"],)
+    )
     assert grandchild_path["path_cache"] == "1.2.4", "Grandchild should have path '1.2.4'"
 
     # Verify all tasks have path_cache set
