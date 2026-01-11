@@ -115,7 +115,7 @@ triggers:
         [Concrete, numbered suggestions for what to do when resuming work. Be specific and actionable.]
 
         Focus on actionable insights and context that would be valuable when resuming work later.
-        Use only ASCII-safe characters - avoid Unicode em-dashes, smart quotes, or special characters.gi
+        Use only ASCII-safe characters - avoid Unicode em-dashes, smart quotes, or special characters.
 
     # Memory sync - export to JSONL for Git persistence
     - action: memory_sync_export
