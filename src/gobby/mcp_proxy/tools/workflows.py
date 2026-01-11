@@ -346,14 +346,9 @@ def create_workflows_registry(
         if not state:
             return {"success": False, "error": "No workflow active for session"}
 
-        workflow_name = state.workflow_name
         _state_manager.delete_state(session_id)
 
-        return {
-            "success": True,
-            "ended_workflow": workflow_name,
-            "reason": reason,
-        }
+        return {"success": True}
 
     @registry.tool(
         name="get_workflow_status",
@@ -519,12 +514,7 @@ def create_workflows_registry(
         state.artifacts[artifact_type] = file_path
         _state_manager.save_state(state)
 
-        return {
-            "success": True,
-            "artifact_type": artifact_type,
-            "file_path": file_path,
-            "all_artifacts": list(state.artifacts.keys()),
-        }
+        return {"success": True}
 
     @registry.tool(
         name="set_variable",
@@ -591,24 +581,18 @@ def create_workflows_registry(
         state.variables[name] = value
         _state_manager.save_state(state)
 
-        # Build response
-        result: dict[str, Any] = {
-            "success": True,
-            "session_id": session_id,
-            "variable": name,
-            "value": value,
-            "all_variables": state.variables,
-        }
-
         # Add deprecation warning for session_task variable (when no workflow active)
         if name == "session_task" and value and state.workflow_name == "__lifecycle__":
-            result["warning"] = (
-                "DEPRECATED: Setting session_task directly is deprecated. "
-                "Use activate_workflow(name='auto-task', variables={'session_task': ...}) instead "
-                "for proper state machine semantics and on_premature_stop handling."
-            )
+            return {
+                "success": True,
+                "warning": (
+                    "DEPRECATED: Setting session_task directly is deprecated. "
+                    "Use activate_workflow(name='auto-task', variables={'session_task': ...}) instead "
+                    "for proper state machine semantics and on_premature_stop handling."
+                ),
+            }
 
-        return result
+        return {"success": True}
 
     @registry.tool(
         name="get_variable",

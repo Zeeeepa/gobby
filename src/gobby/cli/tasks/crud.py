@@ -107,10 +107,10 @@ def list_tasks(
         click.echo(empty_msg)
         return
 
-    # For filtered views (ready/blocked), include ancestors for proper tree hierarchy
+    # For filtered views, include ancestors for proper tree hierarchy
     primary_ids: set[str] | None = None
     display_tasks = tasks_list
-    if ready or blocked:
+    if ready or blocked or status_filter:
         display_tasks, primary_ids = collect_ancestors(tasks_list, manager)
 
     # Sort for proper tree display order

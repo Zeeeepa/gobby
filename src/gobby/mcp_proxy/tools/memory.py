@@ -150,7 +150,7 @@ def create_memory_registry(
         try:
             success = memory_manager.forget(memory_id)
             if success:
-                return {"success": True, "message": f"Memory {memory_id} deleted"}
+                return {"success": True}
             else:
                 return {"success": False, "error": f"Memory {memory_id} not found"}
         except Exception as e:

@@ -586,10 +586,6 @@ class TestUpdateTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         updated_task = MagicMock()
-        updated_task.to_brief.return_value = {
-            "id": "550e8400-e29b-41d4-a716-446655440000",
-            "title": "Updated Title",
-        }
         mock_task_manager.update_task.return_value = updated_task
 
         result = await registry.call(
@@ -600,7 +596,7 @@ class TestUpdateTaskTool:
         mock_task_manager.update_task.assert_called_with(
             "550e8400-e29b-41d4-a716-446655440000", title="Updated Title"
         )
-        assert result["title"] == "Updated Title"
+        assert result == {"success": True}
 
     @pytest.mark.asyncio
     async def test_update_task_not_found(self, mock_task_manager, mock_sync_manager):
@@ -695,10 +691,6 @@ class TestLabelTools:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         updated_task = MagicMock()
-        updated_task.to_dict.return_value = {
-            "id": "550e8400-e29b-41d4-a716-446655440000",
-            "labels": ["test", "new"],
-        }
         mock_task_manager.add_label.return_value = updated_task
 
         result = await registry.call(
@@ -708,7 +700,7 @@ class TestLabelTools:
         mock_task_manager.add_label.assert_called_with(
             "550e8400-e29b-41d4-a716-446655440000", "new"
         )
-        assert "new" in result["labels"]
+        assert result == {"success": True}
 
     @pytest.mark.asyncio
     async def test_add_label_task_not_found(self, mock_task_manager, mock_sync_manager):
@@ -729,10 +721,6 @@ class TestLabelTools:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         updated_task = MagicMock()
-        updated_task.to_dict.return_value = {
-            "id": "550e8400-e29b-41d4-a716-446655440000",
-            "labels": [],
-        }
         mock_task_manager.remove_label.return_value = updated_task
 
         result = await registry.call(
@@ -742,7 +730,7 @@ class TestLabelTools:
         mock_task_manager.remove_label.assert_called_with(
             "550e8400-e29b-41d4-a716-446655440000", "old"
         )
-        assert result["labels"] == []
+        assert result == {"success": True}
 
     @pytest.mark.asyncio
     async def test_remove_label_task_not_found(self, mock_task_manager, mock_sync_manager):
@@ -933,8 +921,7 @@ class TestCloseTaskTool:
                 "close_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000"}
             )
 
-            assert "error" not in result
-            assert result["validated"] is True
+            assert result == {"success": True}
 
     @pytest.mark.asyncio
     async def test_close_task_with_commit_sha_links_first(
@@ -1011,7 +998,7 @@ class TestCloseTaskTool:
                 },
             )
 
-            assert result["validated"] is False
+            assert result == {"success": True}
 
 
 # =============================================================================
@@ -1028,10 +1015,6 @@ class TestReopenTaskTool:
         registry = create_task_registry(mock_task_manager, mock_sync_manager)
 
         reopened_task = MagicMock()
-        reopened_task.to_dict.return_value = {
-            "id": "550e8400-e29b-41d4-a716-446655440000",
-            "status": "open",
-        }
         mock_task_manager.reopen_task.return_value = reopened_task
 
         result = await registry.call(
@@ -1041,7 +1024,7 @@ class TestReopenTaskTool:
         mock_task_manager.reopen_task.assert_called_with(
             "550e8400-e29b-41d4-a716-446655440000", reason=None
         )
-        assert result["status"] == "open"
+        assert result == {"success": True}
 
     @pytest.mark.asyncio
     async def test_reopen_task_with_reason(self, mock_task_manager, mock_sync_manager):
@@ -1281,7 +1264,7 @@ class TestSessionIntegrationTools:
             mock_st_instance.link_task.assert_called_with(
                 "sess-123", "550e8400-e29b-41d4-a716-446655440000", "worked_on"
             )
-            assert result["linked"] is True
+            assert result == {"success": True}
 
     @pytest.mark.asyncio
     async def test_link_task_to_session_missing_session_id(

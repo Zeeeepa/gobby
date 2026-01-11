@@ -622,7 +622,7 @@ def create_task_registry(
         task = task_manager.update_task(resolved_id, **kwargs)
         if not task:
             return {"error": f"Task {task_id} not found"}
-        return task.to_brief()
+        return {"success": True}
 
     registry.register(
         name="update_task",
@@ -699,8 +699,7 @@ def create_task_registry(
         task = task_manager.add_label(resolved_id, label)
         if not task:
             return {"error": f"Task {task_id} not found"}
-        result: dict[str, Any] = task.to_dict()
-        return result
+        return {"success": True}
 
     registry.register(
         name="add_label",
@@ -728,8 +727,7 @@ def create_task_registry(
         task = task_manager.remove_label(resolved_id, label)
         if not task:
             return {"error": f"Task {task_id} not found"}
-        result: dict[str, Any] = task.to_dict()
-        return result
+        return {"success": True}
 
     registry.register(
         name="remove_label",
@@ -971,7 +969,7 @@ def create_task_registry(
         # All checks passed - close the task with session and commit tracking
         # Store override reason if validation was skipped or no commit was needed
         store_override = should_skip or no_commit_needed
-        closed_task = task_manager.close_task(
+        task_manager.close_task(
             resolved_id,
             reason=reason,
             closed_in_session_id=session_id,
@@ -1004,11 +1002,7 @@ def create_task_registry(
         except Exception:
             pass  # Best-effort worktree update, don't fail the close
 
-        response: dict[str, Any] = closed_task.to_brief()
-        response["validated"] = not should_skip
-        if no_commit_needed:
-            response["no_commit_needed"] = True
-        return response
+        return {"success": True}
 
     registry.register(
         name="close_task",
@@ -1089,7 +1083,7 @@ def create_task_registry(
             return {"error": str(e)}
 
         try:
-            task = task_manager.reopen_task(resolved_id, reason=reason)
+            task_manager.reopen_task(resolved_id, reason=reason)
 
             # Reactivate any associated worktrees that were marked merged/abandoned
             try:
@@ -1105,7 +1099,7 @@ def create_task_registry(
             except Exception:
                 pass  # Best-effort worktree update
 
-            return task.to_dict()
+            return {"success": True}
         except ValueError as e:
             return {"error": str(e)}
 
@@ -1274,12 +1268,7 @@ def create_task_registry(
 
         try:
             session_task_manager.link_task(session_id, resolved_id, action)
-            return {
-                "linked": True,
-                "task_id": resolved_id,
-                "session_id": session_id,
-                "action": action,
-            }
+            return {"success": True}
         except ValueError as e:
             return {"error": str(e)}
 

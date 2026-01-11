@@ -254,7 +254,6 @@ class TestBlockSessionTaskModification:
         )
 
         assert result["success"] is True
-        assert result["variable"] == "session_task"
         # Should have deprecation warning
         assert "warning" in result
         assert "DEPRECATED" in result["warning"]
@@ -328,8 +327,7 @@ class TestBlockSessionTaskModification:
             session_id="test-session",
         )
 
-        assert result["success"] is True
-        assert result["variable"] == "other_var"
+        assert result == {"success": True}
 
     def test_blocks_session_task_modification_suggests_end_workflow(
         self, registry, mock_state_manager

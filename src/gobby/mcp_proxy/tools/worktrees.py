@@ -21,7 +21,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.storage.worktrees import WorktreeStatus
 from gobby.utils.project_context import get_project_context
 from gobby.workflows.loader import WorkflowLoader
 from gobby.worktrees.git import WorktreeGitManager
@@ -456,12 +455,7 @@ def create_worktrees_registry(
                 "error": "Failed to claim worktree",
             }
 
-        return {
-            "success": True,
-            "worktree_id": worktree_id,
-            "session_id": session_id,
-            "message": f"Worktree '{worktree_id}' claimed by session '{session_id}'",
-        }
+        return {"success": True}
 
     @registry.tool(
         name="release_worktree",
@@ -491,11 +485,7 @@ def create_worktrees_registry(
                 "error": "Failed to release worktree",
             }
 
-        return {
-            "success": True,
-            "worktree_id": worktree_id,
-            "message": f"Worktree '{worktree_id}' released",
-        }
+        return {"success": True}
 
     @registry.tool(
         name="delete_worktree",
@@ -552,11 +542,7 @@ def create_worktrees_registry(
                 "error": "Failed to delete worktree record",
             }
 
-        return {
-            "success": True,
-            "worktree_id": worktree_id,
-            "message": f"Worktree '{worktree_id}' deleted",
-        }
+        return {"success": True}
 
     @registry.tool(
         name="sync_worktree",
@@ -613,11 +599,7 @@ def create_worktrees_registry(
         # Update last activity
         worktree_storage.update(worktree_id)
 
-        return {
-            "success": True,
-            "worktree_id": worktree_id,
-            "message": f"Worktree synced with {worktree.base_branch} using {strategy}",
-        }
+        return {"success": True}
 
     @registry.tool(
         name="mark_worktree_merged",
@@ -647,12 +629,7 @@ def create_worktrees_registry(
                 "error": "Failed to mark worktree as merged",
             }
 
-        return {
-            "success": True,
-            "worktree_id": worktree_id,
-            "status": WorktreeStatus.MERGED.value,
-            "message": f"Worktree '{worktree_id}' marked as merged",
-        }
+        return {"success": True}
 
     @registry.tool(
         name="detect_stale_worktrees",
@@ -863,12 +840,7 @@ def create_worktrees_registry(
                 "error": "Failed to link task to worktree",
             }
 
-        return {
-            "success": True,
-            "worktree_id": worktree_id,
-            "task_id": task_id,
-            "message": f"Task '{task_id}' linked to worktree '{worktree_id}'",
-        }
+        return {"success": True}
 
     @registry.tool(
         name="spawn_agent_in_worktree",
