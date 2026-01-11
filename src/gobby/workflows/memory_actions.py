@@ -305,6 +305,13 @@ async def memory_recall_relevant(
         if session:
             project_id = session.project_id
 
+    # Get already-injected memory IDs from state for deduplication
+    injected_ids: set[str] = set()
+    if state is not None:
+        # Access variables dict, defaulting to empty if not set
+        variables = getattr(state, "variables", None) or {}
+        injected_ids = set(variables.get("_injected_memory_ids", []))
+
     try:
         memories = memory_manager.recall(
             query=prompt_text,
@@ -318,16 +325,38 @@ async def memory_recall_relevant(
             logger.debug("memory_recall_relevant: No relevant memories found")
             return {"injected": False, "count": 0}
 
+        # Filter out memories that have already been injected in this session
+        new_memories = [m for m in memories if m.id not in injected_ids]
+
+        if not new_memories:
+            logger.debug(
+                f"memory_recall_relevant: All {len(memories)} memories already injected, skipping"
+            )
+            return {"injected": False, "count": 0, "skipped": len(memories)}
+
         from gobby.memory.context import build_memory_context
 
-        memory_context = build_memory_context(memories)
+        memory_context = build_memory_context(new_memories)
 
-        logger.info(f"memory_recall_relevant: Injecting {len(memories)} relevant memories")
+        # Track newly injected memory IDs in state
+        if state is not None:
+            new_ids = {m.id for m in new_memories}
+            all_injected = injected_ids | new_ids
+            # Ensure variables dict exists
+            if not hasattr(state, "variables") or state.variables is None:
+                state.variables = {}
+            state.variables["_injected_memory_ids"] = list(all_injected)
+            logger.debug(
+                f"memory_recall_relevant: Tracking {len(new_ids)} new IDs, "
+                f"{len(all_injected)} total injected"
+            )
+
+        logger.info(f"memory_recall_relevant: Injecting {len(new_memories)} relevant memories")
 
         return {
             "inject_context": memory_context,
             "injected": True,
-            "count": len(memories),
+            "count": len(new_memories),
         }
 
     except Exception as e:

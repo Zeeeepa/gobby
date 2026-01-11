@@ -16,7 +16,6 @@ def mock_services():
         "config": MagicMock(),
         "mcp_manager": AsyncMock(),
         "memory_manager": MagicMock(),
-        "skill_learner": AsyncMock(),
     }
 
 
@@ -31,7 +30,6 @@ def action_executor(temp_db, session_manager, mock_services):
         config=mock_services["config"],
         mcp_manager=mock_services["mcp_manager"],
         memory_manager=mock_services["memory_manager"],
-        skill_learner=mock_services["skill_learner"],
     )
 
 
@@ -54,7 +52,6 @@ def action_context(temp_db, session_manager, workflow_state, mock_services):
         template_engine=mock_services["template_engine"],
         mcp_manager=mock_services["mcp_manager"],
         memory_manager=mock_services["memory_manager"],
-        skill_learner=mock_services["skill_learner"],
     )
 
 
@@ -779,41 +776,6 @@ async def test_extract_handoff_context(
 
 
 @pytest.mark.asyncio
-async def test_skills_learn(
-    action_executor, action_context, mock_services, session_manager, sample_project
-):
-    session = session_manager.register(
-        external_id="skills-session",
-        machine_id="test-machine",
-        source="claude",
-        project_id=sample_project["id"],
-    )
-    action_context.session_id = session.id
-
-    # Mock skill learner
-    mock_learner = MagicMock()
-    # Need config to be enabled
-    mock_learner.config = MagicMock()
-    mock_learner.config.enabled = True
-
-    # Mock learn_from_session as async
-    mock_learner.learn_from_session = AsyncMock(
-        return_value=[MagicMock(name="Skill 1"), MagicMock(name="Skill 2")]
-    )
-    # Fix name attribute on mocks
-    mock_learner.learn_from_session.return_value[0].name = "Skill 1"
-    mock_learner.learn_from_session.return_value[1].name = "Skill 2"
-
-    action_context.skill_learner = mock_learner
-
-    res = await action_executor.execute("skills_learn", action_context)
-
-    assert res is not None
-    assert res["skills_learned"] == 2
-    assert "Skill 1" in res["skill_names"]
-
-
-@pytest.mark.asyncio
 async def test_memory_sync_ops(action_executor, action_context):
     # Mock memory sync manager
     mock_sync = MagicMock()
@@ -858,14 +820,7 @@ async def test_error_cases(action_executor, action_context, mock_services, sessi
     res = await action_executor.execute("start_new_session", action_context)
     assert res["error"] == "Session not found"
 
-    # 6. Skills learn missing session
-    action_context.session_id = "non-existent"
-    action_context.skill_learner = mock_services.get("skill_learner", MagicMock())
-    action_context.skill_learner.config.enabled = True
-    res = await action_executor.execute("skills_learn", action_context)
-    assert res["error"] == "Session not found"
-
-    # 7. Memory inject no project ID
+    # 6. Memory inject no project ID
     # Clear project ID from context/session
     action_context.session_id = "non-existent"
     action_context.memory_manager = mock_services["memory_manager"]
