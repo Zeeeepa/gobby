@@ -23,6 +23,18 @@ from gobby.memory.manager import MemoryManager
 
 if TYPE_CHECKING:
     from gobby.llm.service import LLMService
+from gobby.llm.service import LLMService
+
+
+# Helper to get current project context
+def get_current_project_id() -> str | None:
+    """Get the current project ID from context, or None if not in a project."""
+    from gobby.utils.project_context import get_project_context
+
+    ctx = get_project_context()
+    if ctx and ctx.get("id"):
+        return ctx["id"]
+    return None
 
 
 def create_memory_registry(
@@ -52,7 +64,6 @@ def create_memory_registry(
         content: str,
         memory_type: str = "fact",
         importance: float = 0.5,
-        project_id: str | None = None,
         tags: list[str] | None = None,
     ) -> dict[str, Any]:
         """
@@ -62,7 +73,6 @@ def create_memory_registry(
             content: The memory content to store
             memory_type: Type of memory (fact, preference, etc)
             importance: Importance score (0.0-1.0)
-            project_id: Optional project ID to associate with
             tags: Optional list of tags
         """
         try:
@@ -70,7 +80,7 @@ def create_memory_registry(
                 content=content,
                 memory_type=memory_type,
                 importance=importance,
-                project_id=project_id,
+                project_id=get_current_project_id(),
                 tags=tags,
                 source_type="mcp_tool",
             )
@@ -89,7 +99,6 @@ def create_memory_registry(
     )
     def recall_memory(
         query: str | None = None,
-        project_id: str | None = None,
         limit: int = 10,
         min_importance: float | None = None,
         tags_all: list[str] | None = None,
@@ -101,7 +110,6 @@ def create_memory_registry(
 
         Args:
             query: Search query string
-            project_id: Optional project to filter by
             limit: Maximum number of memories to return
             min_importance: Minimum importance threshold
             tags_all: Memory must have ALL of these tags
@@ -111,7 +119,7 @@ def create_memory_registry(
         try:
             memories = memory_manager.recall(
                 query=query,
-                project_id=project_id,
+                project_id=get_current_project_id(),
                 limit=limit,
                 min_importance=min_importance,
                 tags_all=tags_all,
@@ -161,7 +169,6 @@ def create_memory_registry(
         description="List all memories with optional filtering. Supports tag-based filtering.",
     )
     def list_memories(
-        project_id: str | None = None,
         memory_type: str | None = None,
         min_importance: float | None = None,
         limit: int = 50,
@@ -173,7 +180,6 @@ def create_memory_registry(
         List all memories with optional filtering.
 
         Args:
-            project_id: Filter by project ID
             memory_type: Filter by memory type (fact, preference, pattern, context)
             min_importance: Minimum importance threshold (0.0-1.0)
             limit: Maximum number of memories to return
@@ -183,7 +189,7 @@ def create_memory_registry(
         """
         try:
             memories = memory_manager.list_memories(
-                project_id=project_id,
+                project_id=get_current_project_id(),
                 memory_type=memory_type,
                 min_importance=min_importance,
                 limit=limit,
@@ -334,15 +340,12 @@ def create_memory_registry(
         name="memory_stats",
         description="Get statistics about the memory system.",
     )
-    def memory_stats(project_id: str | None = None) -> dict[str, Any]:
+    def memory_stats() -> dict[str, Any]:
         """
         Get statistics about stored memories.
-
-        Args:
-            project_id: Optional project to filter stats by
         """
         try:
-            stats = memory_manager.get_stats(project_id=project_id)
+            stats = memory_manager.get_stats(project_id=get_current_project_id())
             return {"success": True, "stats": stats}
         except Exception as e:
             return {"success": False, "error": str(e)}
@@ -352,7 +355,6 @@ def create_memory_registry(
         description="Export memories as an interactive HTML knowledge graph.",
     )
     def export_memory_graph_tool(
-        project_id: str | None = None,
         title: str = "Memory Knowledge Graph",
         output_path: str | None = None,
     ) -> dict[str, Any]:
@@ -364,7 +366,6 @@ def create_memory_registry(
         and cross-references as edges.
 
         Args:
-            project_id: Optional project to filter memories
             title: Title for the graph visualization
             output_path: Optional file path to write the HTML (default: memory_graph.html)
 
@@ -378,6 +379,7 @@ def create_memory_registry(
 
         try:
             # Get all memories
+            project_id = get_current_project_id()
             memories = memory_manager.list_memories(project_id=project_id, limit=1000)
             if not memories:
                 return {"success": False, "error": "No memories found"}

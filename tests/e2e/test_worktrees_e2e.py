@@ -453,7 +453,9 @@ class TestWorktreeClaimRelease:
             project_id=project_id,
         )
         # Parse session_id from additionalContext
-        additional_context = session_result.get("hookSpecificOutput", {}).get("additionalContext", "")
+        additional_context = session_result.get("hookSpecificOutput", {}).get(
+            "additionalContext", ""
+        )
         session_id = None
         for line in additional_context.split("\n"):
             if line.startswith("session_id:"):
@@ -581,6 +583,63 @@ class TestWorktreeDeletion:
         )
         get_result = extract_result(get_response)
         assert get_result.get("success") is False
+
+    def test_delete_worktree_removes_branch(
+        self,
+        daemon_instance: DaemonInstance,
+        mcp_client: MCPTestClient,
+        git_repo_with_origin: Path,
+    ):
+        """Deleting a worktree should also delete the git branch."""
+        try:
+            branch_name = "feature/delete-branch-test"
+
+            # Create worktree
+            create_response = mcp_client.call_tool(
+                server_name="gobby-worktrees",
+                tool_name="create_worktree",
+                arguments={
+                    "branch_name": branch_name,
+                    "project_path": str(git_repo_with_origin),
+                },
+            )
+            result = extract_result(create_response)
+            assert result.get("success") is True
+            worktree_id = result["worktree_id"]
+
+            # Verify branch exists
+            branch_check = subprocess.run(
+                ["git", "rev-parse", "--verify", branch_name],
+                cwd=str(git_repo_with_origin),
+                capture_output=True,
+            )
+            assert branch_check.returncode == 0, "Branch should exist before deletion"
+
+            # Delete worktree
+            delete_response = mcp_client.call_tool(
+                server_name="gobby-worktrees",
+                tool_name="delete_worktree",
+                arguments={
+                    "worktree_id": worktree_id,
+                    "force": True,
+                },
+            )
+            delete_result = extract_result(delete_response)
+            assert delete_result.get("success") is True
+
+            # Verify branch is gone
+            branch_check_after = subprocess.run(
+                ["git", "rev-parse", "--verify", branch_name],
+                cwd=str(git_repo_with_origin),
+                capture_output=True,
+            )
+            assert branch_check_after.returncode != 0, "Branch should be deleted"
+        except Exception:
+            print("\n=== DAEMON STDOUT ===")
+            print(daemon_instance.read_logs())
+            print("\n=== DAEMON STDERR ===")
+            print(daemon_instance.read_error_logs())
+            raise
 
 
 class TestWorktreeStats:

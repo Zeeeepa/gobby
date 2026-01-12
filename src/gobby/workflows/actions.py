@@ -87,6 +87,7 @@ class ActionContext:
     mcp_manager: Any | None = None
     memory_manager: Any | None = None
     memory_sync_manager: Any | None = None
+    session_task_manager: Any | None = None
     event_data: dict[str, Any] | None = None  # Hook event data (e.g., prompt_text)
 
 

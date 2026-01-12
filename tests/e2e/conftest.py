@@ -237,6 +237,12 @@ def daemon_instance(
     env["OPENAI_API_KEY"] = ""
     env["GEMINI_API_KEY"] = ""
 
+    # Ensure daemon uses the local source code
+    root_dir = Path(__file__).parent.parent.parent
+    src_dir = root_dir / "src"
+    current_pythonpath = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{src_dir}:{current_pythonpath}" if current_pythonpath else str(src_dir)
+
     # Start daemon process
     with open(log_file, "w") as log_f, open(error_log_file, "w") as err_f:
         process = subprocess.Popen(

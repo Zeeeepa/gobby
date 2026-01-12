@@ -527,6 +527,8 @@ def create_worktrees_registry(
             result = git_manager.delete_worktree(
                 worktree.worktree_path,
                 force=force,
+                delete_branch=True,
+                branch_name=worktree.branch_name,
             )
             if not result.success:
                 return {
@@ -565,9 +567,7 @@ def create_worktrees_registry(
             Dict with sync result.
         """
         # Resolve git manager from project_path or fall back to default
-        resolved_git_mgr, _, error = _resolve_project_context(
-            project_path, git_manager, project_id
-        )
+        resolved_git_mgr, _, error = _resolve_project_context(project_path, git_manager, project_id)
         if error:
             return {"success": False, "error": error}
 
@@ -747,6 +747,8 @@ def create_worktrees_registry(
                 git_result = resolved_git_manager.delete_worktree(
                     wt.worktree_path,
                     force=True,
+                    delete_branch=True,
+                    branch_name=wt.branch_name,
                 )
                 result["git_deleted"] = git_result.success
                 if not git_result.success:

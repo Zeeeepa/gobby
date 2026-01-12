@@ -200,6 +200,7 @@ class WorktreeGitManager:
         worktree_path: str | Path,
         force: bool = False,
         delete_branch: bool = False,
+        branch_name: str | None = None,
     ) -> GitOperationResult:
         """
         Delete a git worktree.
@@ -208,6 +209,7 @@ class WorktreeGitManager:
             worktree_path: Path to the worktree to delete
             force: Force removal even if dirty
             delete_branch: Also delete the associated branch
+            branch_name: Optional explicit branch name (if not provided, attempts to discover)
 
         Returns:
             GitOperationResult with success status and message
@@ -215,13 +217,20 @@ class WorktreeGitManager:
         worktree_path = Path(worktree_path)
 
         # Get branch name before removal (for optional branch deletion)
-        branch_name = None
-        if delete_branch:
+        if delete_branch and not branch_name:
             status = self.get_worktree_status(worktree_path)
             if status:
                 branch_name = status.branch
 
         try:
+            raise RuntimeError("DEBUG: I AM HERE IN GIT.PY")
+            import sys
+
+            sys.stderr.write(
+                f"DEBUG: delete_worktree force={force} delete_branch={delete_branch} branch_name={branch_name}\n"
+            )
+            sys.stderr.flush()
+
             # Remove worktree
             args = ["worktree", "remove"]
             if force:
@@ -229,6 +238,10 @@ class WorktreeGitManager:
             args.append(str(worktree_path))
 
             result = self._run_git(args, timeout=30)
+            sys.stderr.write(
+                f"DEBUG: worktree remove result: {result.returncode} {result.stderr}\n"
+            )
+            sys.stderr.flush()
 
             if result.returncode != 0:
                 return GitOperationResult(
@@ -239,10 +252,17 @@ class WorktreeGitManager:
 
             # Optionally delete the branch
             if delete_branch and branch_name:
+                sys.stderr.write(f"DEBUG: Attempting to delete branch {branch_name}\n")
+                sys.stderr.flush()
                 branch_result = self._run_git(
                     ["branch", "-D" if force else "-d", branch_name],
                     timeout=10,
                 )
+                sys.stderr.write(
+                    f"DEBUG: branch delete result: {branch_result.returncode} {branch_result.stderr}\n"
+                )
+                sys.stderr.flush()
+
                 if branch_result.returncode != 0:
                     return GitOperationResult(
                         success=True,  # Worktree removed, but branch deletion failed
