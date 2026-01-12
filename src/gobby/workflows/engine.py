@@ -309,6 +309,7 @@ class WorkflowEngine:
             mcp_manager=self.action_executor.mcp_manager,
             memory_manager=self.action_executor.memory_manager,
             memory_sync_manager=self.action_executor.memory_sync_manager,
+            task_sync_manager=self.action_executor.task_sync_manager,
             session_task_manager=self.action_executor.session_task_manager,
         )
 
@@ -721,6 +722,7 @@ class WorkflowEngine:
             mcp_manager=self.action_executor.mcp_manager,
             memory_manager=self.action_executor.memory_manager,
             memory_sync_manager=self.action_executor.memory_sync_manager,
+            task_sync_manager=self.action_executor.task_sync_manager,
             session_task_manager=self.action_executor.session_task_manager,
             event_data=event.data,  # Pass hook event data (prompt_text, etc.)
         )
@@ -757,6 +759,15 @@ class WorkflowEngine:
                 kwargs = trigger.copy()
                 kwargs.pop("action", None)
                 kwargs.pop("when", None)
+
+                # Debug: log kwargs being passed to action
+                if action_type == "inject_context":
+                    template_val = kwargs.get("template")
+                    logger.debug(
+                        f"inject_context kwargs: source={kwargs.get('source')!r}, "
+                        f"template_present={template_val is not None}, "
+                        f"template_len={len(template_val) if template_val else 0}"
+                    )
 
                 result = await self.action_executor.execute(action_type, action_ctx, **kwargs)
                 logger.debug(
@@ -886,6 +897,8 @@ class WorkflowEngine:
             mcp_manager=self.action_executor.mcp_manager,
             memory_manager=self.action_executor.memory_manager,
             memory_sync_manager=self.action_executor.memory_sync_manager,
+            task_sync_manager=self.action_executor.task_sync_manager,
+            session_task_manager=self.action_executor.session_task_manager,
             event_data=event.data,  # Pass hook event data (prompt_text, etc.)
         )
 

@@ -96,6 +96,7 @@ class HookManager:
         mcp_manager: Any | None = None,
         message_processor: Any | None = None,
         memory_sync_manager: Any | None = None,
+        task_sync_manager: Any | None = None,
     ):
         """
         Initialize HookManager with subsystems.
@@ -112,6 +113,7 @@ class HookManager:
             mcp_manager: Optional MCPClientManager instance
             message_processor: SessionMessageProcessor instance
             memory_sync_manager: Optional MemorySyncManager instance
+            task_sync_manager: Optional TaskSyncManager instance
         """
         self.daemon_host = daemon_host
         self.daemon_port = daemon_port
@@ -123,6 +125,7 @@ class HookManager:
         self.mcp_manager = mcp_manager
         self._message_processor = message_processor
         self.memory_sync_manager = memory_sync_manager
+        self.task_sync_manager = task_sync_manager
 
         # Capture event loop for thread-safe broadcasting (if running in async context)
         self._loop: asyncio.AbstractEventLoop | None
@@ -248,6 +251,7 @@ class HookManager:
             memory_manager=self._memory_manager,
             memory_sync_manager=self.memory_sync_manager,
             task_manager=self._task_manager,
+            task_sync_manager=self.task_sync_manager,
             session_task_manager=self._session_task_manager,
             stop_registry=self._stop_registry,
             progress_tracker=self._progress_tracker,

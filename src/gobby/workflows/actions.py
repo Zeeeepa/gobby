@@ -87,6 +87,7 @@ class ActionContext:
     mcp_manager: Any | None = None
     memory_manager: Any | None = None
     memory_sync_manager: Any | None = None
+    task_sync_manager: Any | None = None
     session_task_manager: Any | None = None
     event_data: dict[str, Any] | None = None  # Hook event data (e.g., prompt_text)
 
@@ -112,6 +113,7 @@ class ActionExecutor:
         memory_manager: Any | None = None,
         memory_sync_manager: Any | None = None,
         task_manager: Any | None = None,
+        task_sync_manager: Any | None = None,
         session_task_manager: Any | None = None,
         stop_registry: Any | None = None,
         progress_tracker: Any | None = None,
@@ -128,6 +130,7 @@ class ActionExecutor:
         self.memory_manager = memory_manager
         self.memory_sync_manager = memory_sync_manager
         self.task_manager = task_manager
+        self.task_sync_manager = task_sync_manager
         self.session_task_manager = session_task_manager
         self.stop_registry = stop_registry
         self.progress_tracker = progress_tracker
@@ -225,6 +228,9 @@ class ActionExecutor:
         self.register(
             "reset_memory_injection_tracking", self._handle_reset_memory_injection_tracking
         )
+        # Task sync actions
+        self.register("task_sync_import", self._handle_task_sync_import)
+        self.register("task_sync_export", self._handle_task_sync_export)
         self.register("extract_handoff_context", self._handle_extract_handoff_context)
         self.register("start_new_session", self._handle_start_new_session)
         self.register("mark_loop_complete", self._handle_mark_loop_complete)
@@ -394,6 +400,58 @@ class ActionExecutor:
     ) -> dict[str, Any] | None:
         """Export memories to filesystem."""
         return await memory_sync_export(context.memory_sync_manager)
+
+    async def _handle_task_sync_import(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Import tasks from JSONL file.
+
+        Reads .gobby/tasks.jsonl and imports tasks into SQLite using
+        Last-Write-Wins conflict resolution based on updated_at.
+        """
+        if not context.task_sync_manager:
+            logger.debug("task_sync_import: No task_sync_manager available")
+            return {"error": "Task Sync Manager not available"}
+
+        try:
+            # Get project_id from session for project-scoped sync
+            project_id = None
+            session = context.session_manager.get(context.session_id)
+            if session:
+                project_id = session.project_id
+
+            context.task_sync_manager.import_from_jsonl(project_id=project_id)
+            logger.info("Task sync import completed")
+            return {"imported": True}
+        except Exception as e:
+            logger.error(f"task_sync_import failed: {e}", exc_info=True)
+            return {"error": str(e)}
+
+    async def _handle_task_sync_export(
+        self, context: ActionContext, **kwargs: Any
+    ) -> dict[str, Any] | None:
+        """Export tasks to JSONL file.
+
+        Writes tasks and dependencies to .gobby/tasks.jsonl for Git persistence.
+        Uses content hashing to skip writes if nothing changed.
+        """
+        if not context.task_sync_manager:
+            logger.debug("task_sync_export: No task_sync_manager available")
+            return {"error": "Task Sync Manager not available"}
+
+        try:
+            # Get project_id from session for project-scoped sync
+            project_id = None
+            session = context.session_manager.get(context.session_id)
+            if session:
+                project_id = session.project_id
+
+            context.task_sync_manager.export_to_jsonl(project_id=project_id)
+            logger.info("Task sync export completed")
+            return {"exported": True}
+        except Exception as e:
+            logger.error(f"task_sync_export failed: {e}", exc_info=True)
+            return {"error": str(e)}
 
     async def _handle_persist_tasks(
         self, context: ActionContext, **kwargs: Any

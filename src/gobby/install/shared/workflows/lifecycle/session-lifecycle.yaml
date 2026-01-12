@@ -52,6 +52,9 @@ triggers:
     # Memory sync - import from JSONL for Git persistence
     - action: memory_sync_import
 
+    # Task sync - import from JSONL for Git persistence
+    - action: task_sync_import
+
     # Plan mode prompt - ONLY on fresh sessions (not handoffs/compacts)
     - action: inject_context
       when: "event.data.get('source') not in ['clear', 'compact'] or event.data.get('source') == 'startup'"
@@ -147,6 +150,9 @@ triggers:
 
     # Memory sync - export to JSONL for Git persistence
     - action: memory_sync_export
+
+    # Task sync - export to JSONL for Git persistence
+    - action: task_sync_export
 
   on_pre_compact:
     # Extract structured context before compaction
