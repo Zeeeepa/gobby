@@ -921,17 +921,25 @@ def create_worktrees_registry(
                 "error": "parent_session_id is required for agent spawning.",
             }
 
-        # in_process mode requires a real tool handler which isn't available
-        # in this context. Only terminal/embedded/headless modes are supported.
-        if mode == "in_process":
+        # Handle mode aliases and validation
+        # "interactive" is an alias for "terminal" mode
+        if mode == "interactive":
+            mode = "terminal"
+
+        valid_modes = ["terminal", "embedded", "headless"]
+        if mode not in valid_modes:
             return {
                 "success": False,
                 "error": (
-                    "in_process mode is not supported for spawn_agent_in_worktree. "
-                    "Use mode='terminal', 'embedded', or 'headless' instead. "
-                    "in_process mode requires tool handler configuration not available in this context."
+                    f"Invalid mode '{mode}'. Must be one of: {', '.join(valid_modes)} (or 'interactive' as alias for 'terminal'). "
+                    f"Note: 'in_process' mode is not supported for spawn_agent_in_worktree."
                 ),
             }
+
+        # Normalize terminal parameter to lowercase for enum compatibility
+        # (TerminalType enum values are lowercase, e.g., "terminal.app" not "Terminal.app")
+        if isinstance(terminal, str):
+            terminal = terminal.lower()
 
         # Validate workflow (reject lifecycle workflows)
         if workflow:
