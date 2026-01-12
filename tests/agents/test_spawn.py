@@ -1245,17 +1245,28 @@ class TestBuildCliCommandExtended:
             "Do something",
         ]
 
-    def test_gemini_with_prompt(self):
-        """Gemini CLI with prompt."""
+    def test_gemini_with_prompt_terminal_mode(self):
+        """Gemini CLI with prompt in terminal mode (default) uses -i flag."""
         cmd = build_cli_command("gemini", prompt="Hello gemini")
+        assert cmd == ["gemini", "-i", "Hello gemini"]
+
+    def test_gemini_with_prompt_headless_mode(self):
+        """Gemini CLI with prompt in headless mode uses positional arg."""
+        cmd = build_cli_command("gemini", prompt="Hello gemini", mode="headless")
         assert cmd == ["gemini", "Hello gemini"]
 
     def test_gemini_full_command(self):
-        """Gemini CLI with all applicable options."""
+        """Gemini CLI with all applicable options in terminal mode."""
         cmd = build_cli_command("gemini", prompt="Hello", auto_approve=True)
         assert "--approval-mode" in cmd
         assert "yolo" in cmd
+        assert "-i" in cmd
         assert "Hello" in cmd
+
+    def test_gemini_headless_with_auto_approve(self):
+        """Gemini CLI with auto_approve in headless mode."""
+        cmd = build_cli_command("gemini", prompt="Hello", auto_approve=True, mode="headless")
+        assert cmd == ["gemini", "--approval-mode", "yolo", "Hello"]
 
     def test_codex_full_command(self):
         """Codex CLI with all options."""

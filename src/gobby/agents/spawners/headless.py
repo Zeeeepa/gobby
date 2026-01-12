@@ -199,6 +199,7 @@ class HeadlessSpawner:
             session_id=session_id,
             auto_approve=True,  # Subagents need to work autonomously
             working_directory=str(cwd) if cli == "codex" else None,
+            mode="headless",  # Non-interactive headless mode
         )
 
         # Handle prompt for environment variables (backup for hooks/context)

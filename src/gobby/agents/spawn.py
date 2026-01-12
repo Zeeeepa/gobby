@@ -150,6 +150,7 @@ def build_cli_command(
     session_id: str | None = None,
     auto_approve: bool = False,
     working_directory: str | None = None,
+    mode: str = "terminal",
 ) -> list[str]:
     """
     Build the CLI command with proper prompt passing and permission flags.
@@ -161,8 +162,9 @@ def build_cli_command(
     - Use --dangerously-skip-permissions for autonomous subagent operation
 
     Gemini CLI:
-    - gemini --approval-mode yolo [query..]
-    - Or: gemini -y [query..] (yolo shorthand)
+    - gemini -i "prompt" (interactive mode with initial prompt)
+    - gemini --approval-mode yolo -i "prompt" (YOLO + interactive)
+    - gemini "prompt" (one-shot non-interactive for headless)
 
     Codex CLI:
     - codex --full-auto -C <dir> [PROMPT]
@@ -174,6 +176,7 @@ def build_cli_command(
         session_id: Optional session ID (used by Claude CLI)
         auto_approve: If True, add flags to auto-approve actions/permissions
         working_directory: Optional working directory (used by Codex -C flag)
+        mode: Execution mode - "terminal" (interactive) or "headless" (non-interactive)
 
     Returns:
         Command list for subprocess execution
@@ -196,6 +199,13 @@ def build_cli_command(
         # Gemini CLI flags
         if auto_approve:
             command.extend(["--approval-mode", "yolo"])
+        # For terminal mode, use -i (prompt-interactive) to execute prompt and stay interactive
+        # For headless mode, use positional prompt for one-shot execution
+        if prompt:
+            if mode == "terminal":
+                command.extend(["-i", prompt])
+                return command  # Don't add prompt again as positional
+            # else: fall through to add as positional for headless
 
     elif cli == "codex":
         # Codex CLI flags
@@ -206,6 +216,7 @@ def build_cli_command(
             command.extend(["-C", working_directory])
 
     # All three CLIs accept prompt as positional argument (must come last)
+    # For Gemini terminal mode, this is skipped (handled above with -i flag)
     if prompt:
         command.append(prompt)
 
@@ -381,6 +392,7 @@ class TerminalSpawner:
             session_id=session_id,
             auto_approve=True,  # Subagents need to work autonomously
             working_directory=str(cwd) if cli == "codex" else None,
+            mode="terminal",  # Interactive terminal mode
         )
 
         # Handle prompt for environment variables (backup for hooks/context)
