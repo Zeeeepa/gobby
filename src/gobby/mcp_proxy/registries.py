@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from gobby.mcp_proxy.services.tool_proxy import ToolProxyService
     from gobby.memory.manager import MemoryManager
     from gobby.sessions.manager import SessionManager
+    from gobby.storage.merge_resolutions import MergeResolutionManager
     from gobby.storage.session_messages import LocalSessionMessageManager
     from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.tasks import LocalTaskManager
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
     from gobby.tasks.expansion import TaskExpander
     from gobby.tasks.validation import TaskValidator
     from gobby.worktrees.git import WorktreeGitManager
+    from gobby.worktrees.merge import MergeResolver
 
 logger = logging.getLogger("gobby.mcp.registries")
 
@@ -43,6 +45,8 @@ def setup_internal_registries(
     agent_runner: AgentRunner | None = None,
     worktree_storage: LocalWorktreeManager | None = None,
     git_manager: WorktreeGitManager | None = None,
+    merge_storage: MergeResolutionManager | None = None,
+    merge_resolver: MergeResolver | None = None,
     project_id: str | None = None,
     tool_proxy_getter: Callable[[], ToolProxyService | None] | None = None,
 ) -> InternalRegistryManager:
@@ -64,6 +68,8 @@ def setup_internal_registries(
         agent_runner: Agent runner for spawning subagents
         worktree_storage: Worktree storage manager for worktree operations
         git_manager: Git manager for git worktree operations
+        merge_storage: Merge storage manager for conflict resolution
+        merge_resolver: Merge resolver for AI resolution
         project_id: Default project ID for worktree operations
         tool_proxy_getter: Callable that returns ToolProxyService for routing
             tool calls in in-process agents. Called lazily during agent execution.
@@ -170,6 +176,19 @@ def setup_internal_registries(
         manager.add_registry(worktrees_registry)
         logger.debug("Worktrees registry initialized")
 
+    # Initialize merge resolution registry if merge components are available
+    if merge_storage is not None and merge_resolver is not None:
+        from gobby.mcp_proxy.tools.merge import create_merge_registry
+
+        merge_registry = create_merge_registry(
+            merge_storage=merge_storage,
+            merge_resolver=merge_resolver,
+            git_manager=git_manager,
+            worktree_manager=worktree_storage,
+        )
+        manager.add_registry(merge_registry)
+        logger.debug("Merge registry initialized")
+
     # Initialize hub registry (cross-project queries) if config has database_path
     if _config is not None and hasattr(_config, "database_path"):
         from pathlib import Path
@@ -183,6 +202,13 @@ def setup_internal_registries(
 
     logger.info(f"Internal registries initialized: {len(manager)} registries")
     return manager
+
+
+# Re-export for convenience
+__all__ = [
+    "setup_internal_registries",
+    "InternalRegistryManager",
+]
 
 
 # Re-export for convenience

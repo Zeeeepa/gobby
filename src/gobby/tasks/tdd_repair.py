@@ -1,7 +1,7 @@
 import logging
-from typing import List, Optional
-from gobby.storage.tasks import LocalTaskManager, Task
+
 from gobby.storage.task_dependencies import TaskDependencyManager
+from gobby.storage.tasks import LocalTaskManager
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ class TDDRepair:
         self.task_manager = task_manager
         self.dep_manager = TaskDependencyManager(task_manager.db)
 
-    def upgrade_pairs_to_triplets(self, project_id: str) -> List[str]:
+    def upgrade_pairs_to_triplets(self, project_id: str) -> list[str]:
         """
         Identify existing TDD pairs (Test -> Impl) and upgrade them to triplets
         by adding a 'Refactor' task.
