@@ -66,6 +66,19 @@ def get_sync_manager() -> TaskSyncManager:
     return TaskSyncManager(manager, export_path=export_path)
 
 
+def normalize_status(status: str) -> str:
+    """Normalize status values for user-friendly CLI input.
+
+    Converts hyphen-separated status names to underscore format:
+      in-progress -> in_progress
+      needs-decomposition -> needs_decomposition
+
+    Also handles common variations.
+    """
+    # Replace hyphens with underscores for user convenience
+    return status.replace("-", "_")
+
+
 def get_claimed_task_ids() -> set[str]:
     """Get task IDs that are claimed by active sessions via session_task variable.
 

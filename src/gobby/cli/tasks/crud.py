@@ -14,6 +14,7 @@ from gobby.cli.tasks._utils import (
     format_task_row,
     get_claimed_task_ids,
     get_task_manager,
+    normalize_status,
     resolve_task_id,
     sort_tasks_for_tree,
 )
@@ -62,14 +63,15 @@ def list_tasks(
         return
 
     # Parse comma-separated statuses or use --active shorthand
+    # Normalize hyphen-separated status names (e.g., in-progress -> in_progress)
     status_filter: str | list[str] | None = None
     if active:
         status_filter = ["open", "in_progress"]
     elif status:
         if "," in status:
-            status_filter = [s.strip() for s in status.split(",")]
+            status_filter = [normalize_status(s.strip()) for s in status.split(",")]
         else:
-            status_filter = status
+            status_filter = normalize_status(status)
 
     project_id = resolve_project_ref(project_ref)
 
