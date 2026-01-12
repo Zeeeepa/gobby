@@ -140,9 +140,7 @@ class MarkdownStructureParser:
 
         return headings
 
-    def _calculate_line_ends(
-        self, headings: list[HeadingNode], total_lines: int
-    ) -> None:
+    def _calculate_line_ends(self, headings: list[HeadingNode], total_lines: int) -> None:
         """Calculate the line_end for each heading.
 
         Each heading's section ends at the line before the next heading
@@ -235,9 +233,7 @@ class MarkdownStructureParser:
 
         return root_nodes
 
-    def get_sections_at_level(
-        self, tree: list[HeadingNode], level: int
-    ) -> list[HeadingNode]:
+    def get_sections_at_level(self, tree: list[HeadingNode], level: int) -> list[HeadingNode]:
         """Get all sections at a specific heading level.
 
         Args:
@@ -394,9 +390,7 @@ class CheckboxExtractor:
             print(f"[{status}] {item.text} (indent: {item.indent_level})")
     """
 
-    def __init__(
-        self, track_headings: bool = True, build_hierarchy: bool = True
-    ) -> None:
+    def __init__(self, track_headings: bool = True, build_hierarchy: bool = True) -> None:
         """
         Initialize the extractor.
 
@@ -703,6 +697,30 @@ class TaskHierarchyBuilder:
             self._dep_manager = TaskDependencyManager(self.task_manager.db)
         return self._dep_manager
 
+    def _get_checkboxes_for_heading(
+        self,
+        heading: HeadingNode,
+        all_checkboxes: list[CheckboxItem],
+    ) -> list[CheckboxItem]:
+        """Get top-level checkboxes within this heading's line range.
+
+        This prevents duplicates when multiple headings have the same text
+        (e.g., "Configuration" under Phase D and Phase E).
+
+        Args:
+            heading: The heading node to get checkboxes for
+            all_checkboxes: Flat list of all checkboxes from the document
+
+        Returns:
+            List of top-level checkboxes that fall within the heading's line range
+        """
+        return [
+            cb for cb in all_checkboxes
+            if cb.parent_heading == heading.text
+            and heading.line_start <= cb.line_number <= heading.line_end
+            and cb.depth == 0
+        ]
+
     def build_from_headings(
         self,
         headings: list[HeadingNode],
@@ -724,23 +742,15 @@ class TaskHierarchyBuilder:
         created_tasks: list[CreatedTask] = []
         root_task_ids: list[str] = []
 
-        # Build checkbox lookup by parent heading for integration
-        checkbox_lookup: dict[str, list[CheckboxItem]] = {}
-        if checkboxes:
-            for item in checkboxes.get_flat_items():
-                if item.parent_heading:
-                    if item.parent_heading not in checkbox_lookup:
-                        checkbox_lookup[item.parent_heading] = []
-                    # Only add top-level checkboxes (depth 0) - nested ones are children
-                    if item.depth == 0:
-                        checkbox_lookup[item.parent_heading].append(item)
+        # Get flat list of all checkboxes for line-range scoped lookup
+        all_checkboxes = checkboxes.get_flat_items() if checkboxes else []
 
         # Process each heading tree recursively
         for heading in headings:
             task_ids = self._process_heading(
                 heading=heading,
                 parent_task_id=self.parent_task_id,
-                checkbox_lookup=checkbox_lookup,
+                all_checkboxes=all_checkboxes,
                 created_tasks=created_tasks,
             )
             root_task_ids.extend(task_ids)
@@ -808,7 +818,7 @@ class TaskHierarchyBuilder:
         self,
         heading: HeadingNode,
         parent_task_id: str | None,
-        checkbox_lookup: dict[str, list[CheckboxItem]],
+        all_checkboxes: list[CheckboxItem],
         created_tasks: list[CreatedTask],
     ) -> list[str]:
         """Process a heading node and its children recursively.
@@ -816,7 +826,7 @@ class TaskHierarchyBuilder:
         Args:
             heading: HeadingNode to process
             parent_task_id: ID of parent task (if any)
-            checkbox_lookup: Mapping of heading text to checkboxes
+            all_checkboxes: Flat list of all checkboxes (filtered by line range)
             created_tasks: List to append created tasks to
 
         Returns:
@@ -851,21 +861,20 @@ class TaskHierarchyBuilder:
             created_tasks.append(task)
             created_at_level.append(task.id)
 
-        # Process checkboxes under this heading
-        if heading.text in checkbox_lookup:
-            for checkbox in checkbox_lookup[heading.text]:
-                self._process_checkbox(
-                    checkbox=checkbox,
-                    parent_task_id=task.id,
-                    created_tasks=created_tasks,
-                )
+        # Process checkboxes under this heading (scoped by line range)
+        for checkbox in self._get_checkboxes_for_heading(heading, all_checkboxes):
+            self._process_checkbox(
+                checkbox=checkbox,
+                parent_task_id=task.id,
+                created_tasks=created_tasks,
+            )
 
         # Process child headings
         for child in heading.children:
             self._process_heading(
                 heading=child,
                 parent_task_id=task.id,
-                checkbox_lookup=checkbox_lookup,
+                all_checkboxes=all_checkboxes,
                 created_tasks=created_tasks,
             )
 
@@ -1098,22 +1107,15 @@ class TaskHierarchyBuilder:
         created_tasks: list[CreatedTask] = []
         root_task_ids: list[str] = []
 
-        # Build checkbox lookup by parent heading
-        checkbox_lookup: dict[str, list[CheckboxItem]] = {}
-        if checkboxes:
-            for item in checkboxes.get_flat_items():
-                if item.parent_heading:
-                    if item.parent_heading not in checkbox_lookup:
-                        checkbox_lookup[item.parent_heading] = []
-                    if item.depth == 0:
-                        checkbox_lookup[item.parent_heading].append(item)
+        # Get flat list of all checkboxes for line-range scoped lookup
+        all_checkboxes = checkboxes.get_flat_items() if checkboxes else []
 
         # Process each heading tree with fallback logic
         for heading in headings:
             task_ids = await self._process_heading_with_fallback(
                 heading=heading,
                 parent_task_id=self.parent_task_id,
-                checkbox_lookup=checkbox_lookup,
+                all_checkboxes=all_checkboxes,
                 created_tasks=created_tasks,
                 task_expander=task_expander,
             )
@@ -1129,7 +1131,7 @@ class TaskHierarchyBuilder:
         self,
         heading: HeadingNode,
         parent_task_id: str | None,
-        checkbox_lookup: dict[str, list[CheckboxItem]],
+        all_checkboxes: list[CheckboxItem],
         created_tasks: list[CreatedTask],
         task_expander: TaskExpander | None,
     ) -> list[str]:
@@ -1138,7 +1140,7 @@ class TaskHierarchyBuilder:
         Args:
             heading: HeadingNode to process
             parent_task_id: ID of parent task (if any)
-            checkbox_lookup: Mapping of heading text to checkboxes
+            all_checkboxes: Flat list of all checkboxes (filtered by line range)
             created_tasks: List to append created tasks to
             task_expander: Optional TaskExpander for LLM fallback
 
@@ -1148,22 +1150,18 @@ class TaskHierarchyBuilder:
         created_at_level: list[str] = []
 
         # Determine if this heading (or its children) have checkboxes
-        has_checkboxes = self._heading_has_checkboxes(heading, checkbox_lookup)
+        has_checkboxes = self._heading_has_checkboxes(heading, all_checkboxes)
 
         # Check if this section is actionable (worth creating a task for)
         is_actionable = self._is_actionable_section(heading.text)
 
         # Check if any children are actionable (recursively)
-        has_actionable_children = self._has_actionable_descendants(
-            heading, checkbox_lookup
-        )
+        has_actionable_children = self._has_actionable_descendants(heading, all_checkboxes)
 
         # Skip non-actionable sections without checkboxes and without actionable children
         # These are documentation sections like "Problem Statement", "Design Decisions", etc.
         if not has_checkboxes and not is_actionable and not has_actionable_children:
-            logger.debug(
-                f"Skipping non-actionable section without checkboxes: '{heading.text}'"
-            )
+            logger.debug(f"Skipping non-actionable section without checkboxes: '{heading.text}'")
             return created_at_level
 
         # Determine task type based on heading level
@@ -1183,21 +1181,20 @@ class TaskHierarchyBuilder:
 
         # Process based on checkbox presence
         if has_checkboxes:
-            # Use checkboxes directly under this heading
-            if heading.text in checkbox_lookup:
-                for checkbox in checkbox_lookup[heading.text]:
-                    self._process_checkbox(
-                        checkbox=checkbox,
-                        parent_task_id=task.id,
-                        created_tasks=created_tasks,
-                    )
+            # Use checkboxes directly under this heading (scoped by line range)
+            for checkbox in self._get_checkboxes_for_heading(heading, all_checkboxes):
+                self._process_checkbox(
+                    checkbox=checkbox,
+                    parent_task_id=task.id,
+                    created_tasks=created_tasks,
+                )
 
             # Process child headings recursively
             for child in heading.children:
                 await self._process_heading_with_fallback(
                     heading=child,
                     parent_task_id=task.id,
-                    checkbox_lookup=checkbox_lookup,
+                    all_checkboxes=all_checkboxes,
                     created_tasks=created_tasks,
                     task_expander=task_expander,
                 )
@@ -1205,9 +1202,7 @@ class TaskHierarchyBuilder:
             # No checkboxes - fall back to LLM expansion if section is actionable
             is_actionable = self._is_actionable_section(heading.text)
             if task_expander and heading.content.strip() and is_actionable:
-                logger.info(
-                    f"No checkboxes under '{heading.text}', using LLM expansion"
-                )
+                logger.info(f"No checkboxes under '{heading.text}', using LLM expansion")
                 try:
                     result = await task_expander.expand_task(
                         task_id=task.id,
@@ -1251,7 +1246,7 @@ class TaskHierarchyBuilder:
                     await self._process_heading_with_fallback(
                         heading=child,
                         parent_task_id=task.id,
-                        checkbox_lookup=checkbox_lookup,
+                        all_checkboxes=all_checkboxes,
                         created_tasks=created_tasks,
                         task_expander=task_expander,
                     )
@@ -1261,24 +1256,24 @@ class TaskHierarchyBuilder:
     def _heading_has_checkboxes(
         self,
         heading: HeadingNode,
-        checkbox_lookup: dict[str, list[CheckboxItem]],
+        all_checkboxes: list[CheckboxItem],
     ) -> bool:
         """Check if a heading or any of its children have checkboxes.
 
         Args:
             heading: HeadingNode to check
-            checkbox_lookup: Mapping of heading text to checkboxes
+            all_checkboxes: Flat list of all checkboxes (filtered by line range)
 
         Returns:
             True if heading or any descendant has checkboxes
         """
-        # Direct checkboxes under this heading
-        if heading.text in checkbox_lookup and checkbox_lookup[heading.text]:
+        # Direct checkboxes under this heading (scoped by line range)
+        if self._get_checkboxes_for_heading(heading, all_checkboxes):
             return True
 
         # Check children recursively
         for child in heading.children:
-            if self._heading_has_checkboxes(child, checkbox_lookup):
+            if self._heading_has_checkboxes(child, all_checkboxes):
                 return True
 
         return False
@@ -1286,7 +1281,7 @@ class TaskHierarchyBuilder:
     def _has_actionable_descendants(
         self,
         heading: HeadingNode,
-        checkbox_lookup: dict[str, list[CheckboxItem]],
+        all_checkboxes: list[CheckboxItem],
     ) -> bool:
         """Check if any child headings are actionable or have checkboxes.
 
@@ -1295,14 +1290,14 @@ class TaskHierarchyBuilder:
 
         Args:
             heading: HeadingNode to check
-            checkbox_lookup: Mapping of heading text to checkboxes
+            all_checkboxes: Flat list of all checkboxes (filtered by line range)
 
         Returns:
             True if any descendant is actionable or has checkboxes
         """
         for child in heading.children:
             # Check if child has checkboxes
-            if self._heading_has_checkboxes(child, checkbox_lookup):
+            if self._heading_has_checkboxes(child, all_checkboxes):
                 return True
 
             # Check if child heading text is actionable
@@ -1310,7 +1305,7 @@ class TaskHierarchyBuilder:
                 return True
 
             # Recursively check grandchildren
-            if self._has_actionable_descendants(child, checkbox_lookup):
+            if self._has_actionable_descendants(child, all_checkboxes):
                 return True
 
         return False

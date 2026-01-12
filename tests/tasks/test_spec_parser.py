@@ -1691,11 +1691,12 @@ class TestHeadingHasCheckboxes:
         )
 
         heading = HeadingNode(text="Tasks", level=3, line_start=1, line_end=5)
-        checkbox_lookup = {
-            "Tasks": [CheckboxItem("Task 1", False, 2, 0, "- [ ] Task 1")]
-        }
+        # Pass flat list of checkboxes (line_number must be within heading range)
+        all_checkboxes = [
+            CheckboxItem("Task 1", False, 2, 0, "- [ ] Task 1", parent_heading="Tasks")
+        ]
 
-        assert builder._heading_has_checkboxes(heading, checkbox_lookup) is True
+        assert builder._heading_has_checkboxes(heading, all_checkboxes) is True
 
     def test_no_checkboxes(self, mock_task_manager):
         """Heading without checkboxes returns False."""
@@ -1705,9 +1706,9 @@ class TestHeadingHasCheckboxes:
         )
 
         heading = HeadingNode(text="Design", level=3, line_start=1, line_end=5)
-        checkbox_lookup = {}
+        all_checkboxes: list = []
 
-        assert builder._heading_has_checkboxes(heading, checkbox_lookup) is False
+        assert builder._heading_has_checkboxes(heading, all_checkboxes) is False
 
     def test_checkboxes_in_children(self, mock_task_manager):
         """Heading with checkboxes in children returns True."""
@@ -1725,11 +1726,12 @@ class TestHeadingHasCheckboxes:
             children=[child],
         )
 
-        checkbox_lookup = {
-            "Child Tasks": [CheckboxItem("Task 1", False, 6, 0, "- [ ] Task 1")]
-        }
+        # Checkbox is under child heading and within child's line range
+        all_checkboxes = [
+            CheckboxItem("Task 1", False, 6, 0, "- [ ] Task 1", parent_heading="Child Tasks")
+        ]
 
-        assert builder._heading_has_checkboxes(parent, checkbox_lookup) is True
+        assert builder._heading_has_checkboxes(parent, all_checkboxes) is True
 
     def test_empty_checkbox_list(self, mock_task_manager):
         """Heading with empty checkbox list returns False."""
@@ -1739,9 +1741,9 @@ class TestHeadingHasCheckboxes:
         )
 
         heading = HeadingNode(text="Tasks", level=3, line_start=1, line_end=5)
-        checkbox_lookup = {"Tasks": []}  # Empty list
+        all_checkboxes: list = []  # Empty list
 
-        assert builder._heading_has_checkboxes(heading, checkbox_lookup) is False
+        assert builder._heading_has_checkboxes(heading, all_checkboxes) is False
 
 
 class TestIsActionableSection:
@@ -2453,7 +2455,7 @@ class TestTDDMode:
         builder._process_heading(
             heading=heading,
             parent_task_id="gt-parent",
-            checkbox_lookup={},
+            all_checkboxes=[],
             created_tasks=created_tasks,
         )
 
@@ -2490,7 +2492,7 @@ class TestTDDMode:
         builder._process_heading(
             heading=heading,
             parent_task_id=None,
-            checkbox_lookup={},
+            all_checkboxes=[],
             created_tasks=created_tasks,
         )
 
@@ -2524,7 +2526,7 @@ class TestTDDMode:
         builder._process_heading(
             heading=heading,
             parent_task_id="gt-parent",
-            checkbox_lookup={},
+            all_checkboxes=[],
             created_tasks=created_tasks,
         )
 
