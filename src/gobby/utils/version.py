@@ -20,4 +20,4 @@ def get_version() -> str:
         return version("gobby-platform")
     except PackageNotFoundError:
         # Fallback for development environments where package may not be installed
-        return "0.1.1-dev"
+        return "0.2.1-dev"
