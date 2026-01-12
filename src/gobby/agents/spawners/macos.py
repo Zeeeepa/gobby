@@ -235,10 +235,25 @@ class TerminalAppSpawner(TerminalSpawnerBase):
             shell_command = f"cd {safe_cwd} && {env_exports} {cmd_str}"
             safe_shell_command = escape_applescript(shell_command)
 
+            # Check if Terminal was running before we launch it
+            # If running: do script creates a new window (correct behavior)
+            # If not running: Terminal opens a default window on launch, so we use that
+            # instead of calling do script (which would open a second window)
             script = f"""
+            set termWasRunning to application "Terminal" is running
             tell application "Terminal"
-                do script "{safe_shell_command}"
                 activate
+                if termWasRunning then
+                    -- Terminal already running, create a new window
+                    do script "{safe_shell_command}"
+                else
+                    -- Terminal just launched, use the default window
+                    -- Wait for shell to be ready, then exec our command
+                    delay 0.3
+                    tell front window
+                        do script "{safe_shell_command}" in selected tab
+                    end tell
+                end if
             end tell
             """
 
