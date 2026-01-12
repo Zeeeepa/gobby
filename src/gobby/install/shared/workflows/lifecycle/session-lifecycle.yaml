@@ -52,6 +52,21 @@ triggers:
     # Memory sync - import from JSONL for Git persistence
     - action: memory_sync_import
 
+    # Plan mode prompt - ONLY on fresh sessions (not handoffs/compacts)
+    - action: inject_context
+      when: "event.data.get('source') == 'startup'"
+      template: |
+        ## Session Start: Plan Mode Recommended
+        *Injected by Gobby session startup*
+
+        This is a new session. Before executing any code changes, consider:
+        1. Understanding the user's full request
+        2. Exploring the codebase to gather context
+        3. Creating a plan before implementation
+
+        If the user's request involves non-trivial changes, use `/plan` or
+        suggest entering plan mode before proceeding with edits.
+
     # Plan mode notice - inject notice if in plan mode
     - action: inject_message
       when: "variables.get('plan_mode')"
