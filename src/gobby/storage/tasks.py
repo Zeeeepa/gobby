@@ -3,7 +3,7 @@ import logging
 import sqlite3
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -86,6 +86,8 @@ class Task:
     # Human-friendly ID fields (task renumbering)
     seq_num: int | None = None
     path_cache: str | None = None
+    # Dependency fields (populated on demand, not stored in tasks table)
+    blocked_by: set[str] = field(default_factory=set)
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> "Task":
@@ -289,9 +291,75 @@ def order_tasks_hierarchically(tasks: list[Task]) -> list[Task]:
             children_by_parent[parent_id] = []
         children_by_parent[parent_id].append(task)
 
-    # Sort children within each parent group by priority ASC, created_at ASC
-    for children in children_by_parent.values():
-        children.sort(key=lambda t: (normalize_priority(t.priority), t.created_at))
+    def sort_siblings(siblings: list[Task]) -> list[Task]:
+        """Sort siblings topologically with priority tie-breaking."""
+        if not siblings:
+            return []
+
+        # 1. Build local dependency graph for these siblings
+        sibling_ids = {t.id for t in siblings}
+        graph: dict[str, list[str]] = {t.id: [] for t in siblings}
+        in_degree: dict[str, int] = {t.id: 0 for t in siblings}
+
+        for task in siblings:
+            # Check who blocks this task (Local dependencies only)
+            # task.blocked_by contains IDs of tasks that block 'task'
+            # If A blocks B, we want A -> B order.
+            # So graph edge is A -> B.
+            # task.blocked_by = {A} means B depends on A.
+
+            for blocker_id in task.blocked_by:
+                if blocker_id in sibling_ids:
+                    graph[blocker_id].append(task.id)
+                    in_degree[task.id] += 1
+
+        # 2. Initialize queue with tasks having 0 in-degree (no local blockers)
+        # We want to process high priority tasks first among available ones.
+        # Priority 0 is highest, so valid sort key is (priority, created_at).
+        # We sort the initial list to ensure deterministic order for stable sort
+        queue = [t for t in siblings if in_degree[t.id] == 0]
+        # Sort queue by priority/created_at so we pop high priority first
+        queue.sort(key=lambda t: (normalize_priority(t.priority), t.created_at))
+
+        sorted_siblings = []
+
+        while queue:
+            # Pop the first (highest priority available)
+            current = queue.pop(0)
+            sorted_siblings.append(current)
+
+            # Decrease in-degree of neighbors
+            neighbors = graph[current.id]
+            # Neighbors might become available. Collect them.
+            newly_available = []
+            for neighbor_id in neighbors:
+                in_degree[neighbor_id] -= 1
+                if in_degree[neighbor_id] == 0:
+                    newly_available.append(task_by_id[neighbor_id])
+
+            # Sort newly available nodes by priority and add to queue
+            # We need to re-sort queue every time or insert in order.
+            # Since N is small (siblings usually < 50), simple re-sort of queue is fine.
+            newly_available.sort(key=lambda t: (normalize_priority(t.priority), t.created_at))
+
+            # Add newly available to queue. We want to maintain global order in queue
+            # based on priority.
+            # Merging two sorted lists is O(N).
+            queue.extend(newly_available)
+            queue.sort(key=lambda t: (normalize_priority(t.priority), t.created_at))
+
+        # Check for cycles (remaining nodes with >0 in-degree)
+        if len(sorted_siblings) < len(siblings):
+            # Cycle detected. Append remaining nodes sorted by priority.
+            remaining = [t for t in siblings if t not in sorted_siblings]
+            remaining.sort(key=lambda t: (normalize_priority(t.priority), t.created_at))
+            sorted_siblings.extend(remaining)
+
+        return sorted_siblings
+
+    # Sort children within each parent group
+    for parent_id, children in children_by_parent.items():
+        children_by_parent[parent_id] = sort_siblings(children)
 
     # Build result with DFS traversal
     result: list[Task] = []
@@ -1155,6 +1223,33 @@ class LocalTaskManager:
 
         rows = self.db.fetchall(query, tuple(params))
         tasks = [Task.from_row(row) for row in rows]
+
+        # Bulk fetch dependencies for these tasks to support topological sort
+        if tasks:
+            task_ids = [t.id for t in tasks]
+            # SQL to get: task_id (the blocked one) and depends_on (the blocker)
+            # We want to populate task.blocked_by = {set of blockers}
+            # So we query where task_id is the task we have (the blocked one)
+            placeholders = ", ".join("?" for _ in task_ids)
+            dep_rows = self.db.fetchall(
+                f"SELECT task_id, depends_on FROM task_dependencies WHERE dep_type = 'blocks' AND task_id IN ({placeholders})",
+                tuple(task_ids),
+            )
+
+            # Map by task_id -> set of blockers
+            blockers_map: dict[str, set[str]] = {}
+            for row in dep_rows:
+                tid = row["task_id"]
+                blocker = row["depends_on"]
+                if tid not in blockers_map:
+                    blockers_map[tid] = set()
+                blockers_map[tid].add(blocker)
+
+            # Populate task objects
+            for task in tasks:
+                if task.id in blockers_map:
+                    task.blocked_by = blockers_map[task.id]
+
         return order_tasks_hierarchically(tasks)
 
     def list_ready_tasks(
