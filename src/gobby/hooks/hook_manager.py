@@ -157,8 +157,12 @@ class HookManager:
         else:
             health_check_interval = 10.0
 
-        # Initialize Database
-        self._database = LocalDatabase()
+        # Initialize Database - use config's database_path if available
+        if self._config and self._config.database_path:
+            db_path = Path(self._config.database_path).expanduser()
+            self._database = LocalDatabase(db_path)
+        else:
+            self._database = LocalDatabase()
 
         # Create session-agnostic subsystems (shared across all sessions)
         self._daemon_client = DaemonClient(

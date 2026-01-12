@@ -352,9 +352,6 @@ class TestWorktreeRetrieval:
 class TestWorktreeClaimRelease:
     """Tests for worktree claim and release lifecycle."""
 
-    @pytest.mark.skip(
-        reason="Session FK constraint issue - session created via hooks not visible to worktree tools"
-    )
     def test_claim_worktree(
         self,
         daemon_instance: DaemonInstance,
@@ -363,6 +360,8 @@ class TestWorktreeClaimRelease:
         cli_events,
     ):
         """Claiming a worktree assigns session ownership."""
+        import json as json_lib
+
         # Create worktree
         create_response = mcp_client.call_tool(
             server_name="gobby-worktrees",
@@ -376,22 +375,21 @@ class TestWorktreeClaimRelease:
         assert create_result.get("success") is True, f"Create failed: {create_result}"
         worktree_id = create_result["worktree_id"]
 
-        # Register a session first (agent_session_id has FK to sessions)
-        # Read project_id from project.json created by git_repo_with_origin fixture
-        import json as json_lib
-
+        # Read project_id from project.json
         project_json = git_repo_with_origin / ".gobby" / "project.json"
         project_data = json_lib.loads(project_json.read_text())
         project_id = project_data["id"]
 
-        # The session_start returns the hook response. The actual session ID
-        # is in hookSpecificOutput.additionalContext as "session_id: <uuid>"
+        # Register a session via hook
         session_result = cli_events.session_start(
             session_id="claim-test-session",
             project_id=project_id,
         )
+
         # Parse session_id from additionalContext
-        additional_context = session_result.get("hookSpecificOutput", {}).get("additionalContext", "")
+        additional_context = session_result.get("hookSpecificOutput", {}).get(
+            "additionalContext", ""
+        )
         session_id = None
         for line in additional_context.split("\n"):
             if line.startswith("session_id:"):
@@ -420,9 +418,6 @@ class TestWorktreeClaimRelease:
         get_result = extract_result(get_response)
         assert get_result["worktree"]["agent_session_id"] == session_id
 
-    @pytest.mark.skip(
-        reason="Session FK constraint issue - session created via hooks not visible to worktree tools"
-    )
     def test_release_worktree(
         self,
         daemon_instance: DaemonInstance,
