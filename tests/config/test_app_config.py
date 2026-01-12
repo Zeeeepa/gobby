@@ -711,7 +711,6 @@ class TestMemoryConfig:
         """Test default memory config."""
         config = MemoryConfig()
         assert config.enabled is True
-        assert config.auto_extract is True
         assert config.injection_limit == 10
         assert config.importance_threshold == 0.7
         assert config.decay_enabled is True

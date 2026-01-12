@@ -41,7 +41,6 @@ def memory_config():
     """Create a default memory configuration."""
     return MemoryConfig(
         enabled=True,
-        auto_extract=False,
         injection_limit=10,
         importance_threshold=0.3,
         decay_enabled=True,

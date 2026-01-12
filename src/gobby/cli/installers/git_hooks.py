@@ -14,7 +14,6 @@ Features:
 import logging
 import shutil
 import stat
-import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -312,7 +311,9 @@ def install_git_hooks(
     # the pre-commit framework's hook would overwrite ours.
     if setup_precommit and _has_precommit_config(project_path) and _check_precommit_installed():
         result["precommit_installed"] = True
-        logger.info("Pre-commit detected - gobby hooks will run verification first, then pre-commit framework")
+        logger.info(
+            "Pre-commit detected - gobby hooks will run verification first, then pre-commit framework"
+        )
 
     result["success"] = True
     return result

@@ -35,7 +35,6 @@ def memory_config_with_crossref():
     """Create a memory configuration with cross-referencing enabled."""
     return MemoryConfig(
         enabled=True,
-        auto_extract=False,
         injection_limit=10,
         importance_threshold=0.0,  # No threshold for tests
         decay_enabled=False,

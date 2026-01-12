@@ -270,19 +270,13 @@ def hooks_status(json_format: bool) -> None:
             "verification": verification_config.all_commands() if verification_config else {},
             "hooks": {
                 "pre-commit": (
-                    hooks_config.pre_commit.model_dump(by_alias=True)
-                    if hooks_config
-                    else None
+                    hooks_config.pre_commit.model_dump(by_alias=True) if hooks_config else None
                 ),
                 "pre-push": (
-                    hooks_config.pre_push.model_dump(by_alias=True)
-                    if hooks_config
-                    else None
+                    hooks_config.pre_push.model_dump(by_alias=True) if hooks_config else None
                 ),
                 "pre-merge": (
-                    hooks_config.pre_merge.model_dump(by_alias=True)
-                    if hooks_config
-                    else None
+                    hooks_config.pre_merge.model_dump(by_alias=True) if hooks_config else None
                 ),
             },
         }

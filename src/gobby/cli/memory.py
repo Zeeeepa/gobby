@@ -284,56 +284,6 @@ def embedding_stats(ctx: click.Context, project_ref: str | None) -> None:
     click.echo(f"  Dimensions: {stats['embedding_dim']}")
 
 
-@memory.command("init")
-@click.option("--path", "project_path", default=".", help="Project path to scan")
-@click.option("--max-files", "-n", default=20, help="Maximum files to sample")
-@click.option("--project", "-p", "project_ref", help="Project (name or UUID)")
-@click.pass_context
-def init(
-    ctx: click.Context,
-    project_path: str,
-    max_files: int,
-    project_ref: str | None,
-) -> None:
-    """Initialize memory by extracting patterns and conventions from codebase."""
-    from gobby.memory.extractor import MemoryExtractor
-
-    project_id = resolve_project_ref(project_ref) if project_ref else None
-    manager = get_memory_manager(ctx)
-    config: DaemonConfig = ctx.obj["config"]
-
-    # Get LLM service if available
-    llm_service = None
-    try:
-        from gobby.llm.service import LLMService
-
-        llm_service = LLMService(config)
-    except Exception as e:
-        click.echo(f"Warning: LLM service not available: {e}", err=True)
-        click.echo("Extraction requires an LLM. Configure llm_providers in config.yaml")
-        raise SystemExit(1) from None
-
-    extractor = MemoryExtractor(manager, llm_service)
-
-    click.echo(f"Extracting patterns from codebase at {project_path}...")
-
-    result = asyncio.run(
-        extractor.extract_from_codebase(
-            project_path=project_path,
-            project_id=project_id,
-            max_files=max_files,
-        )
-    )
-
-    click.echo("Done!")
-    click.echo(f"  Created: {result.created}")
-    click.echo(f"  Skipped (duplicates): {result.skipped}")
-    if result.errors:
-        click.echo(f"  Errors: {len(result.errors)}")
-        for error in result.errors[:5]:
-            click.echo(f"    - {error}")
-
-
 @memory.command("reindex")
 @click.pass_context
 def reindex_search(ctx: click.Context) -> None:

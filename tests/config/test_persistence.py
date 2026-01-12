@@ -47,7 +47,6 @@ class TestMemoryConfigDefaults:
 
         config = MemoryConfig()
         assert config.enabled is True
-        assert config.auto_extract is True
         assert config.injection_limit == 10
         assert config.importance_threshold == 0.7
         assert config.decay_enabled is True
@@ -58,23 +57,6 @@ class TestMemoryConfigDefaults:
         assert config.embedding_model == "text-embedding-3-small"
         assert config.auto_embed is True
         assert config.access_debounce_seconds == 60
-        assert config.provider == "claude"
-        assert config.model == "claude-haiku-4-5"
-
-    def test_prompts_present(self) -> None:
-        """Test default prompts are present."""
-        from gobby.config.persistence import MemoryConfig
-
-        config = MemoryConfig()
-        assert config.extraction_prompt is not None
-        assert len(config.extraction_prompt) > 0
-        assert "{summary}" in config.extraction_prompt
-
-        assert config.agent_md_extraction_prompt is not None
-        assert "{content}" in config.agent_md_extraction_prompt
-
-        assert config.codebase_extraction_prompt is not None
-        assert "{content}" in config.codebase_extraction_prompt
 
 
 class TestMemoryConfigCustom:
@@ -128,14 +110,6 @@ class TestMemoryConfigCustom:
         assert config.embedding_provider == "litellm"
         assert config.embedding_model == "voyage-code-2"
         assert config.auto_embed is False
-
-    def test_custom_llm_settings(self) -> None:
-        """Test setting custom LLM settings."""
-        from gobby.config.persistence import MemoryConfig
-
-        config = MemoryConfig(provider="gemini", model="gemini-2.0-flash")
-        assert config.provider == "gemini"
-        assert config.model == "gemini-2.0-flash"
 
 
 class TestMemoryConfigValidation:

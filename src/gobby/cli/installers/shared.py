@@ -189,9 +189,7 @@ def install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]
     return installed
 
 
-def configure_project_mcp_server(
-    project_path: Path, server_name: str = "gobby"
-) -> dict[str, Any]:
+def configure_project_mcp_server(project_path: Path, server_name: str = "gobby") -> dict[str, Any]:
     """Add Gobby MCP server to project-specific config in ~/.claude.json.
 
     Claude Code stores project-specific MCP servers in:
@@ -285,9 +283,7 @@ def configure_project_mcp_server(
     return result
 
 
-def remove_project_mcp_server(
-    project_path: Path, server_name: str = "gobby"
-) -> dict[str, Any]:
+def remove_project_mcp_server(project_path: Path, server_name: str = "gobby") -> dict[str, Any]:
     """Remove Gobby MCP server from project-specific config in ~/.claude.json.
 
     Args:
@@ -725,15 +721,17 @@ def install_default_mcp_servers() -> dict[str, Any]:
                 if os.environ.get(env_var):
                     args.extend(extra_args)
 
-            existing_config["servers"].append({
-                "name": server["name"],
-                "enabled": True,
-                "transport": server["transport"],
-                "command": server.get("command"),
-                "args": args if args else None,
-                "env": server.get("env"),
-                "description": server.get("description"),
-            })
+            existing_config["servers"].append(
+                {
+                    "name": server["name"],
+                    "enabled": True,
+                    "transport": server["transport"],
+                    "command": server.get("command"),
+                    "args": args if args else None,
+                    "env": server.get("env"),
+                    "description": server.get("description"),
+                }
+            )
             result["servers_added"].append(server["name"])
 
     # Write updated config if any servers were added

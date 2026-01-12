@@ -2,7 +2,7 @@
 Persistence configuration module.
 
 Contains storage and sync-related Pydantic config models:
-- MemoryConfig: Memory system settings (extraction, injection, decay)
+- MemoryConfig: Memory system settings (injection, decay, search)
 - MemorySyncConfig: Memory file sync settings (stealth mode, debounce)
 
 Extracted from app.py using Strangler Fig pattern for code decomposition.
@@ -22,10 +22,6 @@ class MemoryConfig(BaseModel):
     enabled: bool = Field(
         default=True,
         description="Enable persistent memory system",
-    )
-    auto_extract: bool = Field(
-        default=True,
-        description="Automatically extract memories from sessions",
     )
     injection_limit: int = Field(
         default=10,
@@ -88,117 +84,6 @@ class MemoryConfig(BaseModel):
     access_debounce_seconds: int = Field(
         default=60,
         description="Minimum seconds between access stat updates for the same memory",
-    )
-    provider: str = Field(
-        default="claude",
-        description="LLM provider to use for memory extraction",
-    )
-    model: str = Field(
-        default="claude-haiku-4-5",
-        description="Model to use for memory extraction",
-    )
-    extraction_prompt: str = Field(
-        default="""Extract memories for a plan/act/reflect agent loop. Return ONLY valid JSON.
-
-PURPOSE: These memories help the agent:
-- PLAN: Recall relevant context before proposing approaches
-- ACT: Remember lessons from similar past situations before tool use
-- REFLECT: Build knowledge from what worked and what didn't
-
-PRIORITY ORDER (extract in this order of importance):
-
-1. USER-STATED PREFERENCES (importance: 0.9)
-   When the user explicitly says "I want X", "always do Y", "never do Z", "I prefer..."
-   These are HIGHEST priority - the user knows their codebase and workflow.
-
-2. DISCOVERED GOTCHAS (importance: 0.85)
-   Bugs, failures, or surprises: "X fails when Y", "Don't forget to Z before W"
-   Things that would help avoid repeating mistakes.
-
-3. ARCHITECTURAL DECISIONS (importance: 0.8)
-   Non-obvious choices: "We use X pattern for Y", "Service A depends on B"
-   Only if NOT already in CLAUDE.md.
-
-4. REUSABLE PATTERNS (importance: 0.75)
-   Approaches that worked well and could apply to similar future tasks.
-
-DO NOT EXTRACT:
-- Transient status ("completed task X", "sprint Y progress")
-- Generic advice that applies to any project
-- Information already in CLAUDE.md
-- Implementation details (variable names, line numbers)
-
-Session Summary:
-{summary}
-
-Return JSON array (empty [] if nothing meets criteria):
-[
-  {{
-    "content": "Specific memory - quote user when capturing preferences",
-    "memory_type": "preference|pattern|fact",
-    "importance": 0.75,
-    "tags": ["relevant-topic"]
-  }}
-]
-
-For user preferences, use their words: "User prefers X over Y" or "User wants Z".""",
-        description="Prompt template for session memory extraction (use {summary} placeholder)",
-    )
-
-    agent_md_extraction_prompt: str = Field(
-        default="""You are an expert at extracting structured information from project documentation.
-Respond with ONLY valid JSON - no markdown, no explanations, no code blocks.
-
-Analyze the following agent instructions file and extract instructions, preferences, and project context that should be remembered.
-
-Agent Instructions:
-{content}
-
-Return a JSON array of memories to extract (empty array [] if nothing significant):
-[
-  {{
-    "content": "The specific instruction, preference, or fact to remember",
-    "memory_type": "fact|preference|pattern|context",
-    "importance": 0.7,
-    "tags": ["optional", "tags"]
-  }}
-]
-
-Guidelines:
-- Extract explicit instructions and preferences (importance 0.7-0.9)
-- Extract project architecture facts (importance 0.6-0.8)
-- Extract coding conventions and patterns (importance 0.5-0.7)
-- Skip obvious boilerplate or generic instructions
-- Keep content concise but actionable""",
-        description="Prompt template for agent MD extraction (use {content} placeholder)",
-    )
-
-    codebase_extraction_prompt: str = Field(
-        default="""You are an expert at analyzing codebases and extracting patterns.
-Respond with ONLY valid JSON - no markdown, no explanations, no code blocks.
-
-Analyze the following codebase structure and file samples to extract patterns, conventions, and architectural decisions.
-
-Codebase Analysis:
-{content}
-
-Return a JSON array of patterns to remember (empty array [] if nothing significant):
-[
-  {{
-    "content": "The specific pattern, convention, or architectural decision",
-    "memory_type": "fact|pattern|context",
-    "importance": 0.6,
-    "tags": ["architecture", "convention", "pattern"]
-  }}
-]
-
-Guidelines:
-- Focus on project-specific patterns, not generic language features
-- Extract naming conventions, file organization patterns
-- Note architectural decisions (frameworks, patterns used)
-- Identify testing conventions
-- Set importance based on how critical the pattern is for consistency""",
-        description="Prompt template for codebase extraction (use {content} placeholder)",
     )
 
     @field_validator("injection_limit")

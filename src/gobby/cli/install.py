@@ -210,7 +210,9 @@ def install(
         if mcp_result["servers_added"]:
             click.echo(f"Added MCP servers to proxy: {', '.join(mcp_result['servers_added'])}")
         if mcp_result["servers_skipped"]:
-            click.echo(f"MCP servers already configured: {', '.join(mcp_result['servers_skipped'])}")
+            click.echo(
+                f"MCP servers already configured: {', '.join(mcp_result['servers_skipped'])}"
+            )
     else:
         click.echo(f"Warning: Failed to configure MCP servers: {mcp_result['error']}")
 
