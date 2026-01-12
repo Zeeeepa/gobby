@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.mcp_proxy.tools.task_readiness import _get_ready_descendants
+from gobby.storage.tasks import TaskNotFoundError
 from gobby.utils.project_context import get_project_context
 
 if TYPE_CHECKING:
@@ -58,6 +59,9 @@ def create_orchestration_registry(
     Returns:
         InternalToolRegistry with orchestration tools registered
     """
+    # Lazy import to avoid circular dependency
+    from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
+
     registry = InternalToolRegistry(
         name="gobby-tasks-orchestration",
         description="Task orchestration tools for multi-agent workflows",
@@ -91,7 +95,7 @@ def create_orchestration_registry(
         - provider/model: Fallback if coding_* not specified
 
         Args:
-            parent_task_id: ID of the parent task to orchestrate subtasks for
+            parent_task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
             provider: Fallback LLM provider (default: gemini)
             model: Fallback model override
             terminal: Terminal for terminal mode (default: auto)
@@ -110,6 +114,17 @@ def create_orchestration_registry(
             - skipped: List of {task_id, reason} for tasks not spawned
             - error: Optional error message
         """
+        # Resolve parent_task_id reference
+        try:
+            resolved_parent_task_id = resolve_task_id_for_mcp(task_manager, parent_task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {
+                "success": False,
+                "error": f"Invalid parent_task_id: {e}",
+                "spawned": [],
+                "skipped": [],
+            }
+
         if agent_runner is None:
             return {
                 "success": False,
@@ -147,14 +162,14 @@ def create_orchestration_registry(
         # Get ready subtasks under the parent task
         ready_tasks = _get_ready_descendants(
             task_manager=task_manager,
-            parent_id=parent_task_id,
+            parent_id=resolved_parent_task_id,
             project_id=resolved_project_id,
         )
 
         if not ready_tasks:
             return {
                 "success": True,
-                "message": f"No ready subtasks found under {parent_task_id}",
+                "message": f"No ready subtasks found under {resolved_parent_task_id}",
                 "spawned": [],
                 "skipped": [],
             }
@@ -565,7 +580,7 @@ def create_orchestration_registry(
 
         return {
             "success": True,
-            "parent_task_id": parent_task_id,
+            "parent_task_id": resolved_parent_task_id,
             "spawned": spawned,
             "skipped": skipped,
             "spawned_count": len(spawned),
@@ -613,7 +628,7 @@ def create_orchestration_registry(
             "properties": {
                 "parent_task_id": {
                     "type": "string",
-                    "description": "ID of the parent task to orchestrate subtasks for",
+                    "description": "Task reference: #N, N (seq_num), path (1.2.3), or UUID",
                 },
                 "provider": {
                     "type": "string",
@@ -687,12 +702,21 @@ def create_orchestration_registry(
         Returns information about spawned agents, their status, and worktree state.
 
         Args:
-            parent_task_id: ID of the parent task being orchestrated
+            parent_task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
             project_path: Path to project directory
 
         Returns:
             Dict with orchestration status
         """
+        # Resolve parent_task_id reference
+        try:
+            resolved_parent_task_id = resolve_task_id_for_mcp(task_manager, parent_task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {
+                "success": False,
+                "error": f"Invalid parent_task_id: {e}",
+            }
+
         # Resolve project ID
         resolved_project_id = project_id
         if project_path:
@@ -710,7 +734,7 @@ def create_orchestration_registry(
             }
 
         # Get subtasks
-        subtasks = task_manager.list_tasks(parent_task_id=parent_task_id, limit=100)
+        subtasks = task_manager.list_tasks(parent_task_id=resolved_parent_task_id, limit=100)
 
         # Categorize by status
         open_tasks = []
@@ -740,12 +764,12 @@ def create_orchestration_registry(
                 open_tasks.append(task_info)
 
         # Check if parent task is complete
-        parent_task = task_manager.get_task(parent_task_id)
+        parent_task = task_manager.get_task(resolved_parent_task_id)
         is_complete = parent_task and parent_task.status == "closed"
 
         return {
             "success": True,
-            "parent_task_id": parent_task_id,
+            "parent_task_id": resolved_parent_task_id,
             "is_complete": is_complete,
             "summary": {
                 "open": len(open_tasks),
@@ -766,7 +790,7 @@ def create_orchestration_registry(
             "properties": {
                 "parent_task_id": {
                     "type": "string",
-                    "description": "ID of the parent task being orchestrated",
+                    "description": "Task reference: #N, N (seq_num), path (1.2.3), or UUID",
                 },
                 "project_path": {
                     "type": "string",
@@ -1027,7 +1051,7 @@ def create_orchestration_registry(
         completed work before merging/cleanup.
 
         Args:
-            task_id: ID of the task to review
+            task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
             review_provider: LLM provider for review (default: claude)
             review_model: Model for review (default: claude-opus-4-5 for thorough analysis)
             terminal: Terminal for terminal mode (default: auto)
@@ -1042,6 +1066,15 @@ def create_orchestration_registry(
             - session_id: Child session ID
             - error: Optional error message
         """
+        # Resolve task_id reference
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {
+                "success": False,
+                "error": f"Invalid task_id: {e}",
+            }
+
         if agent_runner is None:
             return {
                 "success": False,
@@ -1071,7 +1104,7 @@ def create_orchestration_registry(
             }
 
         # Get the task
-        task = task_manager.get_task(task_id)
+        task = task_manager.get_task(resolved_task_id)
         if not task:
             return {
                 "success": False,
@@ -1079,11 +1112,11 @@ def create_orchestration_registry(
             }
 
         # Get worktree for the task
-        worktree = worktree_storage.get_by_task(task_id)
+        worktree = worktree_storage.get_by_task(resolved_task_id)
         if not worktree:
             return {
                 "success": False,
-                "error": f"No worktree found for task {task_id}",
+                "error": f"No worktree found for task {resolved_task_id}",
             }
 
         # Build review prompt
@@ -1111,7 +1144,7 @@ def create_orchestration_registry(
             machine_id=machine_id,
             source=review_provider,
             workflow=None,  # Review doesn't need a workflow
-            task=task_id,
+            task=resolved_task_id,
             session_context="summary_markdown",
             mode=mode,
             terminal=terminal,
@@ -1167,7 +1200,7 @@ def create_orchestration_registry(
 
             return {
                 "success": True,
-                "task_id": task_id,
+                "task_id": resolved_task_id,
                 "agent_id": agent_run.id,
                 "session_id": child_session.id,
                 "worktree_id": worktree.id,
@@ -1202,7 +1235,7 @@ def create_orchestration_registry(
 
             return {
                 "success": True,
-                "task_id": task_id,
+                "task_id": resolved_task_id,
                 "agent_id": agent_run.id,
                 "session_id": child_session.id,
                 "worktree_id": worktree.id,
@@ -1235,7 +1268,7 @@ def create_orchestration_registry(
 
             return {
                 "success": True,
-                "task_id": task_id,
+                "task_id": resolved_task_id,
                 "agent_id": agent_run.id,
                 "session_id": child_session.id,
                 "worktree_id": worktree.id,
@@ -1284,7 +1317,7 @@ def create_orchestration_registry(
             "properties": {
                 "task_id": {
                     "type": "string",
-                    "description": "ID of the task to review",
+                    "description": "Task reference: #N, N (seq_num), path (1.2.3), or UUID",
                 },
                 "review_provider": {
                     "type": "string",

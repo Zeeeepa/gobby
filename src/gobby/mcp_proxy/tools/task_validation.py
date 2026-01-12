@@ -18,7 +18,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
-from gobby.storage.tasks import LocalTaskManager
+from gobby.storage.tasks import LocalTaskManager, TaskNotFoundError
 from gobby.tasks.validation import TaskValidator
 from gobby.tasks.validation_history import ValidationHistoryManager
 
@@ -49,6 +49,9 @@ def create_validation_registry(
     Returns:
         InternalToolRegistry with all validation tools registered
     """
+    # Lazy import to avoid circular dependency
+    from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
+
     registry = InternalToolRegistry(
         name="gobby-tasks-validation",
         description="Task validation tools - validate, criteria, history",
@@ -78,19 +81,25 @@ def create_validation_registry(
         3. File-based analysis (reads files mentioned in criteria)
 
         Args:
-            task_id: ID of the task to validate
+            task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
             changes_summary: Summary of changes made (optional - auto-gathered if not provided)
             context_files: List of file paths to read for context (optional)
 
         Returns:
             Validation result
         """
-        task = task_manager.get_task(task_id)
+        # Resolve task reference
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+
+        task = task_manager.get_task(resolved_task_id)
         if not task:
             raise ValueError(f"Task not found: {task_id}")
 
         # Check if task has children (is a parent task)
-        children = task_manager.list_tasks(parent_task_id=task_id, limit=1000)
+        children = task_manager.list_tasks(parent_task_id=task.id, limit=1000)
 
         if children:
             # Parent task: validate based on child completion
@@ -232,12 +241,18 @@ def create_validation_registry(
         Get validation details.
 
         Args:
-            task_id: Task ID
+            task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
 
         Returns:
             Validation details
         """
-        task = task_manager.get_task(task_id)
+        # Resolve task reference
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+
+        task = task_manager.get_task(resolved_task_id)
         if not task:
             raise ValueError(f"Task not found: {task_id}")
 
@@ -259,16 +274,22 @@ def create_validation_registry(
         Reset validation failure count.
 
         Args:
-            task_id: Task ID
+            task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
 
         Returns:
             Updated task details
         """
-        task = task_manager.get_task(task_id)
+        # Resolve task reference
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+
+        task = task_manager.get_task(resolved_task_id)
         if not task:
             raise ValueError(f"Task not found: {task_id}")
 
-        updated_task = task_manager.update_task(task_id, validation_fail_count=0)
+        updated_task = task_manager.update_task(task.id, validation_fail_count=0)
         return {
             "task_id": updated_task.id,
             "validation_fail_count": updated_task.validation_fail_count,
@@ -286,16 +307,22 @@ def create_validation_registry(
         Returns all validation iterations with their status, feedback, and issues.
 
         Args:
-            task_id: Task ID
+            task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
 
         Returns:
             Validation history with all iterations
         """
-        task = task_manager.get_task(task_id)
+        # Resolve task reference
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+
+        task = task_manager.get_task(resolved_task_id)
         if not task:
             raise ValueError(f"Task {task_id} not found")
 
-        history = validation_history_manager.get_iteration_history(task_id)
+        history = validation_history_manager.get_iteration_history(task.id)
 
         # Convert iterations to serializable format
         history_dicts = []
@@ -332,26 +359,32 @@ def create_validation_registry(
         Finds issues that appear multiple times across validation iterations.
 
         Args:
-            task_id: Task ID
+            task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
             threshold: Minimum occurrences to consider an issue recurring (default: 2)
 
         Returns:
             Recurring issues analysis with grouped issues and counts
         """
-        task = task_manager.get_task(task_id)
+        # Resolve task reference
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+
+        task = task_manager.get_task(resolved_task_id)
         if not task:
             return {"error": f"Task {task_id} not found"}
 
         summary = validation_history_manager.get_recurring_issue_summary(
-            task_id, threshold=threshold
+            task.id, threshold=threshold
         )
 
         has_recurring = validation_history_manager.has_recurring_issues(
-            task_id, threshold=threshold
+            task.id, threshold=threshold
         )
 
         return {
-            "task_id": task_id,
+            "task_id": task.id,
             "recurring_issues": summary["recurring_issues"],
             "total_iterations": summary["total_iterations"],
             "has_recurring": has_recurring,
@@ -371,28 +404,34 @@ def create_validation_registry(
         Removes all validation iterations and resets the fail count.
 
         Args:
-            task_id: Task ID
+            task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
             reason: Optional reason for clearing history
 
         Returns:
             Confirmation of cleared history
         """
-        task = task_manager.get_task(task_id)
+        # Resolve task reference
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+
+        task = task_manager.get_task(resolved_task_id)
         if not task:
             return {"error": f"Task {task_id} not found"}
 
         # Get count before clearing for response
-        history = validation_history_manager.get_iteration_history(task_id)
+        history = validation_history_manager.get_iteration_history(task.id)
         iterations_count = len(history)
 
         # Clear history
-        validation_history_manager.clear_history(task_id)
+        validation_history_manager.clear_history(task.id)
 
         # Also reset validation fail count
-        task_manager.update_task(task_id, validation_fail_count=0)
+        task_manager.update_task(task.id, validation_fail_count=0)
 
         return {
-            "task_id": task_id,
+            "task_id": task.id,
             "cleared": True,
             "iterations_cleared": iterations_count,
             "reason": reason,
@@ -411,14 +450,20 @@ def create_validation_registry(
         De-escalate a task back to open status.
 
         Args:
-            task_id: Task ID
+            task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
             reason: Reason for de-escalation (required)
             reset_validation: Also reset validation fail count (default: False)
 
         Returns:
             Updated task details
         """
-        task = task_manager.get_task(task_id)
+        # Resolve task reference
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+
+        task = task_manager.get_task(resolved_task_id)
         if not task:
             return {"error": f"Task {task_id} not found"}
 
@@ -435,7 +480,7 @@ def create_validation_registry(
         if reset_validation:
             update_kwargs["validation_fail_count"] = 0
 
-        updated_task = task_manager.update_task(task_id, **update_kwargs)
+        updated_task = task_manager.update_task(task.id, **update_kwargs)
 
         return {
             "task_id": updated_task.id,
@@ -458,12 +503,18 @@ def create_validation_registry(
         For leaf tasks, uses LLM to generate criteria from title/description.
 
         Args:
-            task_id: ID of the task to generate criteria for
+            task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
 
         Returns:
             Generated criteria and updated task info
         """
-        task = task_manager.get_task(task_id)
+        # Resolve task reference
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+
+        task = task_manager.get_task(resolved_task_id)
         if not task:
             raise ValueError(f"Task not found: {task_id}")
 
@@ -476,7 +527,7 @@ def create_validation_registry(
             }
 
         # Check if task has children (is a parent task)
-        children = task_manager.list_tasks(parent_task_id=task_id, limit=1)
+        children = task_manager.list_tasks(parent_task_id=task.id, limit=1)
         criteria: str | None
 
         if children:
@@ -502,7 +553,7 @@ def create_validation_registry(
                 }
 
         # Update task with generated criteria
-        task_manager.update_task(task_id, validation_criteria=criteria)
+        task_manager.update_task(task.id, validation_criteria=criteria)
 
         return {
             "task_id": task.id,
@@ -528,7 +579,7 @@ def create_validation_registry(
         failure details to guide its fixes.
 
         Args:
-            task_id: ID of the task to fix
+            task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
             issues: List of specific issues to fix (uses validation_feedback if not provided)
             timeout: Max time for fix attempt in seconds (default: 120)
             max_turns: Max agent turns (default: 10)
@@ -536,13 +587,19 @@ def create_validation_registry(
         Returns:
             Dict with success status and fix details
         """
+        # Resolve task reference
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+
         if not agent_runner:
             return {
                 "success": False,
                 "error": "Agent runner not configured - cannot spawn fix agent",
             }
 
-        task = task_manager.get_task(task_id)
+        task = task_manager.get_task(resolved_task_id)
         if not task:
             return {"success": False, "error": f"Task not found: {task_id}"}
 
@@ -656,7 +713,7 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
            - Mark task status = 'failed'
 
         Args:
-            task_id: ID of the task to validate
+            task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
             max_retries: Maximum fix attempts before giving up (default: 3)
             auto_fix: Whether to attempt automatic fixes (default: True)
             fix_timeout: Timeout per fix attempt in seconds (default: 120)
@@ -664,18 +721,24 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
         Returns:
             Validation result with loop history
         """
-        task = task_manager.get_task(task_id)
+        # Resolve task reference
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+
+        task = task_manager.get_task(resolved_task_id)
         if not task:
             return {"success": False, "error": f"Task not found: {task_id}"}
 
         # Check if task has children (parent tasks use child completion validation)
-        children = task_manager.list_tasks(parent_task_id=task_id, limit=1)
+        children = task_manager.list_tasks(parent_task_id=task.id, limit=1)
         if children:
             # For parent tasks, just run regular validation (no fix loop)
-            result = await validate_task(task_id)
+            result = await validate_task(task.id)
             return {
                 "success": True,
-                "task_id": task_id,
+                "task_id": task.id,
                 "is_parent_task": True,
                 "validation_result": result,
             }
@@ -685,7 +748,7 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
 
         while current_retry < max_retries:
             # Run validation
-            validation_result = await validate_task(task_id)
+            validation_result = await validate_task(task.id)
             loop_history.append(
                 {
                     "iteration": current_retry + 1,
@@ -698,7 +761,7 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
                 # Success! Task is closed by validate_task
                 return {
                     "success": True,
-                    "task_id": task_id,
+                    "task_id": task.id,
                     "is_valid": True,
                     "iterations": current_retry + 1,
                     "loop_history": loop_history,
@@ -721,7 +784,7 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
 
             # Spawn fix agent
             fix_result = await run_fix_attempt(
-                task_id=task_id,
+                task_id=task.id,
                 timeout=fix_timeout,
             )
             loop_history.append(
@@ -762,14 +825,14 @@ Focus on fixing ONLY the listed issues. Do not make unrelated changes.
 
         # Mark task as failed
         task_manager.update_task(
-            task_id,
+            task.id,
             status="failed",
             validation_feedback=final_feedback,
         )
 
         return {
             "success": False,
-            "task_id": task_id,
+            "task_id": task.id,
             "is_valid": False,
             "iterations": current_retry,
             "loop_history": loop_history,

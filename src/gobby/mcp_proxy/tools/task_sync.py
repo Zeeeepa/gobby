@@ -16,6 +16,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.storage.tasks import TaskNotFoundError
 from gobby.utils.project_context import get_project_context
 
 if TYPE_CHECKING:
@@ -53,7 +54,7 @@ def create_sync_registry(
 
     Args:
         sync_manager: TaskSyncManager instance
-        task_manager: LocalTaskManager instance
+        task_manager: LocalTaskManager instance (required for task ID resolution)
         project_manager: LocalProjectManager instance (for repo_path lookup)
         auto_link_commits_fn: Function for auto-linking commits (injectable for testing)
         get_task_diff_fn: Function for getting task diff (injectable for testing)
@@ -61,6 +62,9 @@ def create_sync_registry(
     Returns:
         SyncToolRegistry with sync tools registered
     """
+    # Lazy import to avoid circular dependency
+    from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
+
     registry = SyncToolRegistry(
         name="gobby-tasks-sync",
         description="Task synchronization and commit linking tools",
@@ -68,6 +72,8 @@ def create_sync_registry(
 
     if sync_manager is None:
         raise ValueError("sync_manager is required")
+    if task_manager is None:
+        raise ValueError("task_manager is required for task ID resolution")
 
     # --- sync_tasks ---
 
@@ -124,10 +130,14 @@ def create_sync_registry(
 
     def link_commit(task_id: str, commit_sha: str) -> dict[str, Any]:
         """Link a git commit to a task."""
-        if task_manager is None:
-            return {"error": "task_manager not configured"}
+        # Resolve task reference
         try:
-            task = task_manager.link_commit(task_id, commit_sha)
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+
+        try:
+            task = task_manager.link_commit(resolved_task_id, commit_sha)
             return {
                 "task_id": task.id,
                 "commits": task.commits or [],
@@ -141,7 +151,10 @@ def create_sync_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task ID"},
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N, N (seq_num), path (1.2.3), or UUID",
+                },
                 "commit_sha": {
                     "type": "string",
                     "description": "Git commit SHA (short or full)",
@@ -156,10 +169,14 @@ def create_sync_registry(
 
     def unlink_commit(task_id: str, commit_sha: str) -> dict[str, Any]:
         """Unlink a git commit from a task."""
-        if task_manager is None:
-            return {"error": "task_manager not configured"}
+        # Resolve task reference
         try:
-            task = task_manager.unlink_commit(task_id, commit_sha)
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+
+        try:
+            task = task_manager.unlink_commit(resolved_task_id, commit_sha)
             return {
                 "task_id": task.id,
                 "commits": task.commits or [],
@@ -173,7 +190,10 @@ def create_sync_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task ID"},
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N, N (seq_num), path (1.2.3), or UUID",
+                },
                 "commit_sha": {
                     "type": "string",
                     "description": "Git commit SHA to unlink",
@@ -193,8 +213,14 @@ def create_sync_registry(
         """Auto-detect and link commits that mention task IDs."""
         if auto_link_commits_fn is None:
             return {"error": "auto_link_commits_fn not configured"}
-        if task_manager is None:
-            return {"error": "task_manager not configured"}
+
+        # Resolve task reference if provided
+        resolved_task_id = None
+        if task_id:
+            try:
+                resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+            except (TaskNotFoundError, ValueError) as e:
+                return {"error": f"Invalid task_id: {e}"}
 
         # Get project repo_path
         ctx = get_project_context()
@@ -206,7 +232,7 @@ def create_sync_registry(
 
         result = auto_link_commits_fn(
             task_manager=task_manager,
-            task_id=task_id,
+            task_id=resolved_task_id,
             since=since,
             cwd=repo_path,
         )
@@ -226,7 +252,7 @@ def create_sync_registry(
             "properties": {
                 "task_id": {
                     "type": "string",
-                    "description": "Filter to specific task ID (optional)",
+                    "description": "Filter to specific task (#N, N, path, or UUID). Optional.",
                     "default": None,
                 },
                 "since": {
@@ -246,10 +272,13 @@ def create_sync_registry(
         include_uncommitted: bool = False,
     ) -> dict[str, Any]:
         """Get the combined diff for all commits linked to a task."""
-        if task_manager is None:
-            return {"error": "task_manager not configured"}
+        # Resolve task reference
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
 
-        task = task_manager.get_task(task_id)
+        task = task_manager.get_task(resolved_task_id)
         if not task:
             return {"error": f"Task {task_id} not found"}
 
@@ -264,7 +293,7 @@ def create_sync_registry(
                 repo_path = project.repo_path
 
         result = get_task_diff_fn(
-            task_id=task_id,
+            task_id=resolved_task_id,
             task_manager=task_manager,
             include_uncommitted=include_uncommitted,
             cwd=repo_path,
@@ -284,7 +313,10 @@ def create_sync_registry(
         input_schema={
             "type": "object",
             "properties": {
-                "task_id": {"type": "string", "description": "Task ID"},
+                "task_id": {
+                    "type": "string",
+                    "description": "Task reference: #N, N (seq_num), path (1.2.3), or UUID",
+                },
                 "include_uncommitted": {
                     "type": "boolean",
                     "description": "Include uncommitted changes in the diff",

@@ -763,7 +763,7 @@ def expand_all_cmd(
     default="generic",
     help="Type of specification document",
 )
-@click.option("--parent", "parent_task_id", help="Parent task ID to nest under")
+@click.option("--parent", "parent_task_id", help="Parent task reference: #N, N (seq_num), path (1.2.3), or UUID")
 def import_spec_cmd(file: str, spec_type: str, parent_task_id: str | None) -> None:
     """Create tasks from a specification document."""
     import asyncio
@@ -776,6 +776,14 @@ def import_spec_cmd(file: str, spec_type: str, parent_task_id: str | None) -> No
     from gobby.utils.project_init import initialize_project
 
     manager = get_task_manager()
+
+    # Resolve parent_task_id if provided
+    resolved_parent_task_id: str | None = None
+    if parent_task_id:
+        resolved_parent = resolve_task_id(manager, parent_task_id)
+        if not resolved_parent:
+            return  # resolve_task_id already printed the error
+        resolved_parent_task_id = resolved_parent.id
 
     # Read spec file
     try:
@@ -832,7 +840,7 @@ def import_spec_cmd(file: str, spec_type: str, parent_task_id: str | None) -> No
         project_id=project_id,
         title=title,
         description=spec_content,
-        parent_task_id=parent_task_id,
+        parent_task_id=resolved_parent_task_id,
         task_type="epic",
     )
     click.echo(f"Created epic: {spec_task.id}")

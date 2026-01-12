@@ -13,6 +13,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.storage.tasks import TaskNotFoundError
 from gobby.utils.project_context import get_project_context
 
 if TYPE_CHECKING:
@@ -209,6 +210,9 @@ def create_readiness_registry(
     Returns:
         ReadinessToolRegistry with readiness tools registered
     """
+    # Lazy import to avoid circular dependency
+    from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
+
     registry = ReadinessToolRegistry(
         name="gobby-tasks-readiness",
         description="Task readiness management tools",
@@ -230,6 +234,14 @@ def create_readiness_registry(
         """List tasks that are open and have no unresolved blocking dependencies."""
         # Filter by current project unless all_projects is True
         project_id = None if all_projects else get_current_project_id()
+
+        # Resolve parent_task_id if it's a reference format
+        if parent_task_id:
+            try:
+                parent_task_id = resolve_task_id_for_mcp(task_manager, parent_task_id, project_id)
+            except (TaskNotFoundError, ValueError) as e:
+                return {"error": f"Invalid parent_task_id: {e}", "tasks": [], "count": 0}
+
         tasks = task_manager.list_ready_tasks(
             priority=priority,
             task_type=task_type,
@@ -259,7 +271,7 @@ def create_readiness_registry(
                 },
                 "parent_task_id": {
                     "type": "string",
-                    "description": "Filter by parent task (find ready subtasks)",
+                    "description": "Filter by parent task (find ready subtasks): #N, N (seq_num), path (1.2.3), or UUID",
                     "default": None,
                 },
                 "limit": {"type": "integer", "description": "Max results", "default": 10},
@@ -283,6 +295,14 @@ def create_readiness_registry(
         """List tasks that are currently blocked, including what blocks them."""
         # Filter by current project unless all_projects is True
         project_id = None if all_projects else get_current_project_id()
+
+        # Resolve parent_task_id if it's a reference format
+        if parent_task_id:
+            try:
+                parent_task_id = resolve_task_id_for_mcp(task_manager, parent_task_id, project_id)
+            except (TaskNotFoundError, ValueError) as e:
+                return {"error": f"Invalid parent_task_id: {e}", "tasks": [], "count": 0}
+
         blocked_tasks = task_manager.list_blocked_tasks(
             parent_task_id=parent_task_id,
             limit=limit,
@@ -298,7 +318,7 @@ def create_readiness_registry(
             "properties": {
                 "parent_task_id": {
                     "type": "string",
-                    "description": "Filter by parent task (find blocked subtasks)",
+                    "description": "Filter by parent task (find blocked subtasks): #N, N (seq_num), path (1.2.3), or UUID",
                     "default": None,
                 },
                 "limit": {"type": "integer", "description": "Max results", "default": 20},
@@ -341,6 +361,13 @@ def create_readiness_registry(
         """
         # Filter by current project
         project_id = get_current_project_id()
+
+        # Resolve parent_id if it's a reference format
+        if parent_id:
+            try:
+                parent_id = resolve_task_id_for_mcp(task_manager, parent_id, project_id)
+            except (TaskNotFoundError, ValueError) as e:
+                return {"error": f"Invalid parent_id: {e}", "suggestion": None}
 
         # If parent_id is set, get all descendants of that task
         if parent_id:
@@ -456,7 +483,7 @@ def create_readiness_registry(
                 },
                 "parent_id": {
                     "type": "string",
-                    "description": "Filter to descendants of this task (optional). "
+                    "description": "Filter to descendants of this task (#N, N, path, or UUID). "
                     "When set, only tasks under this parent hierarchy are considered. "
                     "Use this to scope suggestions to a specific epic/feature.",
                     "default": None,

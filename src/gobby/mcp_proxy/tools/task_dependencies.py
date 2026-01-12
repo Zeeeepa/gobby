@@ -14,6 +14,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
+from gobby.storage.tasks import TaskNotFoundError
 from gobby.utils.project_context import get_project_context
 
 if TYPE_CHECKING:
@@ -46,12 +47,15 @@ def create_dependency_registry(
     Create a registry with task dependency tools.
 
     Args:
-        task_manager: LocalTaskManager instance (optional)
+        task_manager: LocalTaskManager instance (required for task ID resolution)
         dep_manager: TaskDependencyManager instance
 
     Returns:
         DependencyToolRegistry with dependency tools registered
     """
+    # Lazy import to avoid circular dependency
+    from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
+
     registry = DependencyToolRegistry(
         name="gobby-tasks-dependencies",
         description="Task dependency management tools",
@@ -59,6 +63,8 @@ def create_dependency_registry(
 
     if dep_manager is None:
         raise ValueError("dep_manager is required")
+    if task_manager is None:
+        raise ValueError("task_manager is required for task ID resolution")
 
     # --- add_dependency ---
 
@@ -68,12 +74,22 @@ def create_dependency_registry(
         dep_type: Literal["blocks", "discovered-from", "related"] = "blocks",
     ) -> dict[str, Any]:
         """Add a dependency between tasks."""
+        # Resolve task references
         try:
-            dep_manager.add_dependency(task_id, depends_on, dep_type)
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+        try:
+            resolved_depends_on = resolve_task_id_for_mcp(task_manager, depends_on)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid depends_on: {e}"}
+
+        try:
+            dep_manager.add_dependency(resolved_task_id, resolved_depends_on, dep_type)
             return {
                 "added": True,
-                "task_id": task_id,
-                "depends_on": depends_on,
+                "task_id": resolved_task_id,
+                "depends_on": resolved_depends_on,
                 "dep_type": dep_type,
             }
         except ValueError as e:
@@ -87,11 +103,11 @@ def create_dependency_registry(
             "properties": {
                 "task_id": {
                     "type": "string",
-                    "description": "The dependent task (blocked by depends_on)",
+                    "description": "The dependent task (blocked by depends_on): #N, N (seq_num), path (1.2.3), or UUID",
                 },
                 "depends_on": {
                     "type": "string",
-                    "description": "The blocker task (must complete first)",
+                    "description": "The blocker task (must complete first): #N, N (seq_num), path (1.2.3), or UUID",
                 },
                 "dep_type": {
                     "type": "string",
@@ -109,9 +125,19 @@ def create_dependency_registry(
 
     def remove_dependency(task_id: str, depends_on: str) -> dict[str, Any]:
         """Remove a dependency between tasks."""
+        # Resolve task references
         try:
-            dep_manager.remove_dependency(task_id, depends_on)
-            return {"removed": True, "task_id": task_id, "depends_on": depends_on}
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+        try:
+            resolved_depends_on = resolve_task_id_for_mcp(task_manager, depends_on)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid depends_on: {e}"}
+
+        try:
+            dep_manager.remove_dependency(resolved_task_id, resolved_depends_on)
+            return {"removed": True, "task_id": resolved_task_id, "depends_on": resolved_depends_on}
         except ValueError as e:
             return {"error": str(e)}
 
@@ -123,11 +149,11 @@ def create_dependency_registry(
             "properties": {
                 "task_id": {
                     "type": "string",
-                    "description": "The dependent task",
+                    "description": "The dependent task: #N, N (seq_num), path (1.2.3), or UUID",
                 },
                 "depends_on": {
                     "type": "string",
-                    "description": "The blocker task to unlink",
+                    "description": "The blocker task to unlink: #N, N (seq_num), path (1.2.3), or UUID",
                 },
             },
             "required": ["task_id", "depends_on"],
@@ -139,7 +165,13 @@ def create_dependency_registry(
 
     def get_dependency_tree(task_id: str, direction: str = "both") -> dict[str, Any]:
         """Get dependency tree for a task."""
-        tree: dict[str, Any] = dep_manager.get_dependency_tree(task_id)
+        # Resolve task reference
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+
+        tree: dict[str, Any] = dep_manager.get_dependency_tree(resolved_task_id)
         if direction == "blockers":
             return {"blockers": tree.get("blockers", [])}
         elif direction == "blocking":
@@ -154,7 +186,7 @@ def create_dependency_registry(
             "properties": {
                 "task_id": {
                     "type": "string",
-                    "description": "Root task ID to get tree for",
+                    "description": "Root task reference: #N, N (seq_num), path (1.2.3), or UUID",
                 },
                 "direction": {
                     "type": "string",

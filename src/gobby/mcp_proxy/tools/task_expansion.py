@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.task_dependencies import TaskDependencyManager
-from gobby.storage.tasks import LocalTaskManager
+from gobby.storage.tasks import LocalTaskManager, TaskNotFoundError
 from gobby.tasks.criteria import CriteriaGenerator
 from gobby.tasks.spec_parser import (
     CheckboxExtractor,
@@ -55,6 +55,9 @@ def create_expansion_registry(
     Returns:
         InternalToolRegistry with expansion tools registered
     """
+    # Lazy import to avoid circular dependency
+    from gobby.mcp_proxy.tools.tasks import resolve_task_id_for_mcp
+
     registry = InternalToolRegistry(
         name="gobby-tasks-expansion",
         description="Task expansion tools - AI and structured parsing",
@@ -101,6 +104,12 @@ def create_expansion_registry(
         Returns:
             Dictionary with subtask_ids, tool_calls count, and agent text
         """
+        # Resolve task reference
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}", "subtask_ids": [], "tool_calls": 0}
+
         # Use config default if not specified
         should_generate_validation = (
             generate_validation if generate_validation is not None else auto_generate_on_expand
@@ -108,7 +117,7 @@ def create_expansion_registry(
         if not task_expander:
             raise RuntimeError("Task expansion is not enabled")
 
-        task = task_manager.get_task(task_id)
+        task = task_manager.get_task(resolved_task_id)
         if not task:
             raise ValueError(f"Task not found: {task_id}")
 
@@ -185,13 +194,13 @@ def create_expansion_registry(
 
         # Update parent task validation criteria
         task_manager.update_task(
-            task_id,
+            task.id,
             validation_criteria="All child tasks must be completed (status: closed).",
         )
 
         # Return concise response (use get_task for full details)
         response: dict[str, Any] = {
-            "task_id": task_id,
+            "task_id": task.id,
             "tasks_created": len(subtask_ids),
             "subtasks": created_subtasks,  # Brief: [{id, title}, ...]
         }
@@ -214,17 +223,23 @@ def create_expansion_registry(
         use expand_task which creates subtasks directly.
 
         Args:
-            task_id: ID of the task to analyze
+            task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
 
         Returns:
             Complexity analysis with score and reasoning
         """
-        task = task_manager.get_task(task_id)
+        # Resolve task reference
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+
+        task = task_manager.get_task(resolved_task_id)
         if not task:
             raise ValueError(f"Task not found: {task_id}")
 
         # Check for existing subtasks
-        subtasks = task_manager.list_tasks(parent_task_id=task_id, limit=100)
+        subtasks = task_manager.list_tasks(parent_task_id=task.id, limit=100)
         subtask_count = len(subtasks)
 
         # Simple heuristic-based complexity
@@ -251,13 +266,13 @@ def create_expansion_registry(
 
         # Update task with complexity score
         task_manager.update_task(
-            task_id,
+            task.id,
             complexity_score=score,
             estimated_subtasks=recommended,
         )
 
         return {
-            "task_id": task_id,
+            "task_id": task.id,
             "title": task.title,
             "complexity_score": score,
             "reasoning": reasoning,

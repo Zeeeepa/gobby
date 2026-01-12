@@ -127,6 +127,7 @@ def resolve_task_id_for_mcp(
 
     Supports multiple reference formats:
       - #N: Project-scoped seq_num (e.g., #1, #47) - requires project_id
+      - N: Bare numeric seq_num (e.g., 1, 47) - requires project_id
       - 1.2.3: Path cache format - requires project_id
       - UUID: Direct UUID lookup (validated to exist)
 
@@ -151,6 +152,10 @@ def resolve_task_id_for_mcp(
     # Check for #N format or path format (requires project_id)
     if project_id and (task_id.startswith("#") or _is_path_format(task_id)):
         return task_manager.resolve_task_reference(task_id, project_id)
+
+    # Check for bare numeric string (seq_num without #)
+    if project_id and task_id.isdigit():
+        return task_manager.resolve_task_reference(f"#{task_id}", project_id)
 
     # Check for deprecated gt-* format
     if task_id.startswith("gt-"):
@@ -305,6 +310,13 @@ def create_task_registry(
         else:
             init_result = initialize_project()
             project_id = init_result.project_id
+
+        # Resolve parent_task_id if it's a reference format
+        if parent_task_id:
+            try:
+                parent_task_id = resolve_task_id_for_mcp(task_manager, parent_task_id, project_id)
+            except (TaskNotFoundError, ValueError) as e:
+                return {"error": f"Invalid parent_task_id: {e}"}
 
         # Auto-infer test_strategy if not provided
         effective_test_strategy = test_strategy
@@ -482,7 +494,7 @@ def create_task_registry(
                 },
                 "parent_task_id": {
                     "type": "string",
-                    "description": "Optional parent task ID",
+                    "description": "Parent task reference: #N, N (seq_num), path (1.2.3), or UUID",
                     "default": None,
                 },
                 "blocks": {
@@ -668,7 +680,7 @@ def create_task_registry(
                 },
                 "parent_task_id": {
                     "type": "string",
-                    "description": "Parent task ID (for re-parenting)",
+                    "description": "Parent task reference: #N, N (seq_num), path (1.2.3), or UUID. Empty string clears parent.",
                     "default": None,
                 },
                 "test_strategy": {
@@ -1184,6 +1196,13 @@ def create_task_registry(
         # Filter by current project unless all_projects is True
         project_id = None if all_projects else get_current_project_id()
 
+        # Resolve parent_task_id if it's a reference format
+        if parent_task_id:
+            try:
+                parent_task_id = resolve_task_id_for_mcp(task_manager, parent_task_id, project_id)
+            except (TaskNotFoundError, ValueError) as e:
+                return {"error": f"Invalid parent_task_id: {e}", "tasks": [], "count": 0}
+
         # Handle comma-separated status string
         status_filter: str | list[str] | None = status
         if isinstance(status, str) and "," in status:
@@ -1235,7 +1254,7 @@ def create_task_registry(
                 },
                 "parent_task_id": {
                     "type": "string",
-                    "description": "Filter by parent task",
+                    "description": "Filter by parent task: #N, N (seq_num), path (1.2.3), or UUID",
                     "default": None,
                 },
                 "title_like": {
