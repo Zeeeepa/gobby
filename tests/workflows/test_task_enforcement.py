@@ -797,12 +797,13 @@ class TestRequireTaskComplete:
 
     async def test_error_handling_allows(self, mock_task_manager):
         """On exception, allow stop to avoid blocking legitimate work."""
+
         mock_task_manager.get_task.side_effect = Exception("Database error")
 
         result = await require_task_complete(
             task_manager=mock_task_manager,
             session_id="test-session",
-            task_ids=["gt-task"],
+            task_ids=["gt-abc123"],
         )
 
         assert result is None
@@ -952,7 +953,7 @@ class TestRequireActiveTask:
         assert result is not None
         assert result["decision"] == "block"
         assert "gt-existing" in result["reason"]
-        assert "wasn't claimed by this session" in result["reason"]
+        assert "appears unattended" in result["reason"]
 
     async def test_unprotected_tool_always_allowed(
         self, mock_config, mock_task_manager, workflow_state
@@ -1884,3 +1885,139 @@ class TestValidateSessionTaskScopeEdgeCases:
 
         assert result is None
         mock_descendant.assert_called_once_with(mock_task_manager, "child-task", "single-epic")
+
+
+# =============================================================================
+# Tests for session liveness in require_active_task
+# =============================================================================
+
+
+class TestRequireActiveTaskLiveness:
+    """Tests for session liveness checks in require_active_task."""
+
+    async def test_require_active_task_with_active_session_on_other_task(
+        self, mock_config, mock_task_manager, workflow_state
+    ):
+        """Warn about other active session when suggesting task."""
+        workflow_state.variables["task_claimed"] = False
+        workflow_state.variables["task_error_shown"] = False
+
+        # Mock an in_progress task in the project
+        mock_task = MagicMock()
+        mock_task.id = "gt-active"
+        mock_task.title = "Active Task"
+        mock_task.status = "in_progress"
+        mock_task_manager.list_tasks.return_value = [mock_task]
+
+        # Mock session manager and session task manager
+        mock_session_manager = MagicMock()
+        mock_session_task_manager = MagicMock()
+
+        # Mock active session linked to this task
+        mock_link = {"session_id": "other-session", "task_id": "gt-active"}
+        mock_session_task_manager.get_task_sessions.return_value = [mock_link]
+
+        mock_session = MagicMock()
+        mock_session.id = "other-session"
+        mock_session.status = "active"
+        mock_session_manager.get.return_value = mock_session
+
+        result = await require_active_task(
+            task_manager=mock_task_manager,
+            session_id="current-session",
+            config=mock_config,
+            event_data={"tool_name": "Edit", "tool_input": {"file_path": "src/file.py"}},
+            project_id="test-project",
+            workflow_state=workflow_state,
+            session_manager=mock_session_manager,
+            session_task_manager=mock_session_task_manager,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        # msg should warn about active session
+        assert "**currently being worked on by another active session**" in result["inject_context"]
+        assert "create a new task" in result["inject_context"]
+        assert "claim it" not in result["inject_context"]
+
+    async def test_require_active_task_with_inactive_session_on_other_task(
+        self, mock_config, mock_task_manager, workflow_state
+    ):
+        """Suggest claiming task if linked session is inactive."""
+        workflow_state.variables["task_claimed"] = False
+        workflow_state.variables["task_error_shown"] = False
+
+        # Mock an in_progress task in the project
+        mock_task = MagicMock()
+        mock_task.id = "gt-abandoned"
+        mock_task.title = "Abandoned Task"
+        mock_task.status = "in_progress"
+        mock_task_manager.list_tasks.return_value = [mock_task]
+
+        # Mock session manager and session task manager
+        mock_session_manager = MagicMock()
+        mock_session_task_manager = MagicMock()
+
+        # Mock inactive/expired session linked to this task
+        mock_link = {"session_id": "old-session", "task_id": "gt-abandoned"}
+        mock_session_task_manager.get_task_sessions.return_value = [mock_link]
+
+        mock_session = MagicMock()
+        mock_session.id = "old-session"
+        mock_session.status = "expired"  # Not active
+        mock_session_manager.get.return_value = mock_session
+
+        result = await require_active_task(
+            task_manager=mock_task_manager,
+            session_id="current-session",
+            config=mock_config,
+            event_data={"tool_name": "Edit", "tool_input": {"file_path": "src/file.py"}},
+            project_id="test-project",
+            workflow_state=workflow_state,
+            session_manager=mock_session_manager,
+            session_task_manager=mock_session_task_manager,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        # msg should suggest claiming
+        assert "appears unattended" in result["inject_context"]
+        assert "claim it" in result["inject_context"]
+
+    async def test_require_active_task_no_linked_sessions(
+        self, mock_config, mock_task_manager, workflow_state
+    ):
+        """Suggest claiming task if no sessions linked at all."""
+        workflow_state.variables["task_claimed"] = False
+        workflow_state.variables["task_error_shown"] = False
+
+        # Mock an in_progress task
+        mock_task = MagicMock()
+        mock_task.id = "gt-orphan"
+        mock_task.title = "Orphan Task"
+        mock_task.status = "in_progress"
+        mock_task_manager.list_tasks.return_value = [mock_task]
+
+        # Mock session manager and session task manager
+        mock_session_manager = MagicMock()
+        mock_session_task_manager = MagicMock()
+
+        # No linked sessions
+        mock_session_task_manager.get_task_sessions.return_value = []
+
+        result = await require_active_task(
+            task_manager=mock_task_manager,
+            session_id="current-session",
+            config=mock_config,
+            event_data={"tool_name": "Edit"},
+            project_id="test-project",
+            workflow_state=workflow_state,
+            session_manager=mock_session_manager,
+            session_task_manager=mock_session_task_manager,
+        )
+
+        assert result is not None
+        assert result["decision"] == "block"
+        # msg should suggest claiming
+        assert "appears unattended" in result["inject_context"]
+        assert "claim it" in result["inject_context"]

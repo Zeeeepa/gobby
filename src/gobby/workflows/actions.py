@@ -760,6 +760,8 @@ class ActionExecutor:
             event_data=context.event_data,
             project_id=project_id,
             workflow_state=context.state,
+            session_manager=context.session_manager,
+            session_task_manager=context.session_task_manager,
         )
 
     async def _handle_require_commit_before_stop(

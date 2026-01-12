@@ -13,6 +13,8 @@ from gobby.mcp_proxy.tools.task_readiness import is_descendant_of
 
 if TYPE_CHECKING:
     from gobby.config.app import DaemonConfig
+    from gobby.storage.session_tasks import SessionTaskManager
+    from gobby.storage.sessions import LocalSessionManager
     from gobby.storage.tasks import LocalTaskManager
     from gobby.workflows.definitions import WorkflowState
 
@@ -69,6 +71,47 @@ def _get_dirty_files(project_path: str | None = None) -> set[str]:
     except Exception as e:
         logger.error(f"_get_dirty_files: Error running git status: {e}")
         return set()
+
+
+def _get_task_session_liveness(
+    task_id: str,
+    session_task_manager: "SessionTaskManager | None",
+    session_manager: "LocalSessionManager | None",
+    exclude_session_id: str | None = None,
+) -> bool:
+    """
+    Check if a task is currently being worked on by an active session.
+
+    Args:
+        task_id: The task ID to check
+        session_task_manager: Manager to look up session-task links
+        session_manager: Manager to check session status
+        exclude_session_id: ID of session to exclude from check (e.g. current one)
+
+    Returns:
+        True if an active session (status='active') is linked to this task.
+    """
+    if not session_task_manager or not session_manager:
+        return False
+
+    try:
+        # Get all sessions linked to this task
+        linked_sessions = session_task_manager.get_task_sessions(task_id)
+
+        for link in linked_sessions:
+            session_id = link.get("session_id")
+            if not session_id or session_id == exclude_session_id:
+                continue
+
+            # Check if session is truly active
+            session = session_manager.get(session_id)
+            if session and session.status == "active":
+                return True
+
+        return False
+    except Exception as e:
+        logger.warning(f"_get_task_session_liveness: Error checking liveness for {task_id}: {e}")
+        return False
 
 
 async def capture_baseline_dirty_files(
@@ -399,6 +442,8 @@ async def require_active_task(
     event_data: dict[str, Any] | None,
     project_id: str | None = None,
     workflow_state: "WorkflowState | None" = None,
+    session_manager: "LocalSessionManager | None" = None,
+    session_task_manager: "SessionTaskManager | None" = None,
 ) -> dict[str, Any] | None:
     """
     Check if an active task exists before allowing protected tools.
@@ -418,6 +463,8 @@ async def require_active_task(
         event_data: Hook event data containing tool_name
         project_id: Optional project ID to filter tasks by project scope
         workflow_state: Optional workflow state to check task_claimed variable
+        session_manager: Optional session manager for liveness checks
+        session_task_manager: Optional session-task manager for liveness checks
 
     Returns:
         Dict with decision="block" if no active task and tool is protected,
@@ -522,6 +569,26 @@ async def require_active_task(
                     f"require_active_task: Found project task '{project_tasks[0].id}' but "
                     f"session hasn't claimed it"
                 )
+
+                # Check liveness of the candidate task
+                task_id = project_tasks[0].id
+                is_live = _get_task_session_liveness(
+                    task_id, session_task_manager, session_manager, exclude_session_id=session_id
+                )
+
+                if is_live:
+                    project_task_hint = (
+                        f"\n\nNote: Task '{task_id}' ({project_tasks[0].title}) "
+                        f"is in_progress, but it is **currently being worked on by another active session**. "
+                        f"You should probably create a new task or subtask instead of interfering."
+                    )
+                else:
+                    project_task_hint = (
+                        f"\n\nNote: Task '{task_id}' ({project_tasks[0].title}) "
+                        f"is in_progress and appears unattended (no active session). "
+                        f"If you are picking up this work, claim it: "
+                        f'`update_task(task_id="{task_id}", status="in_progress")`.'
+                    )
 
         except Exception as e:
             logger.error(f"require_active_task: Error querying tasks: {e}")

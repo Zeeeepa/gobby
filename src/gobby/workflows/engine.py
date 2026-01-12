@@ -721,6 +721,7 @@ class WorkflowEngine:
             mcp_manager=self.action_executor.mcp_manager,
             memory_manager=self.action_executor.memory_manager,
             memory_sync_manager=self.action_executor.memory_sync_manager,
+            session_task_manager=self.action_executor.session_task_manager,
             event_data=event.data,  # Pass hook event data (prompt_text, etc.)
         )
 
