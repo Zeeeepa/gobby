@@ -559,35 +559,36 @@ async def require_active_task(
             )
 
             if project_tasks:
+                task = project_tasks[0]
+                task_ref = f"#{task.seq_num}" if task.seq_num else task.id
                 project_task_hint = (
-                    f"\n\nNote: Task '{project_tasks[0].id}' ({project_tasks[0].title}) "
+                    f"\n\nNote: Task {task_ref} ({task.title}) "
                     f"is in_progress but wasn't claimed by this session. "
-                    f'Use `update_task(task_id="{project_tasks[0].id}", status="in_progress")` '
+                    f'Use `update_task(task_id="{task.id}", status="in_progress")` '
                     f"to claim it for this session."
                 )
                 logger.debug(
-                    f"require_active_task: Found project task '{project_tasks[0].id}' but "
+                    f"require_active_task: Found project task {task_ref} but "
                     f"session hasn't claimed it"
                 )
 
                 # Check liveness of the candidate task
-                task_id = project_tasks[0].id
                 is_live = _get_task_session_liveness(
-                    task_id, session_task_manager, session_manager, exclude_session_id=session_id
+                    task.id, session_task_manager, session_manager, exclude_session_id=session_id
                 )
 
                 if is_live:
                     project_task_hint = (
-                        f"\n\nNote: Task '{task_id}' ({project_tasks[0].title}) "
+                        f"\n\nNote: Task {task_ref} ({task.title}) "
                         f"is in_progress, but it is **currently being worked on by another active session**. "
                         f"You should probably create a new task or subtask instead of interfering."
                     )
                 else:
                     project_task_hint = (
-                        f"\n\nNote: Task '{task_id}' ({project_tasks[0].title}) "
+                        f"\n\nNote: Task {task_ref} ({task.title}) "
                         f"is in_progress and appears unattended (no active session). "
                         f"If you are picking up this work, claim it: "
-                        f'`update_task(task_id="{task_id}", status="in_progress")`.'
+                        f'`update_task(task_id="{task.id}", status="in_progress")`.'
                     )
 
         except Exception as e:
