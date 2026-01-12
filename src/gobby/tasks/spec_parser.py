@@ -313,9 +313,10 @@ class CheckboxItem:
 
 
 # Regex pattern for markdown checkboxes
-# Matches: optional leading spaces, dash, space, [x] or [ ], space, text
+# Matches: optional leading spaces, bullet (- or *) or number (1.), space, [x] or [ ], space, text
 # Groups: (indent)(marker: x or space)(text)
-CHECKBOX_PATTERN = re.compile(r"^(\s*)[-*]\s+\[([ xX])\]\s+(.+)$")
+# Supports: - [ ] task, * [ ] task, 1. [ ] task, 10. [ ] task
+CHECKBOX_PATTERN = re.compile(r"^(\s*)(?:[-*]|\d+\.)\s+\[([ xX])\]\s+(.+)$")
 
 # Regex pattern for markdown headings (to track parent context)
 HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.+)$")
