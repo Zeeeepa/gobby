@@ -128,16 +128,21 @@ TDD_MODE_INSTRUCTIONS = """
 
 **IMPORTANT:** Apply TDD only to coding/implementation tasks. For non-coding tasks (documentation, design, research, planning, configuration), use normal task structure without test pairs.
 
-For coding tasks, create subtasks in test->implement pairs:
+For coding tasks, create subtasks in Red-Green-Refactor triplets:
 
-1. **Test subtask**: "Write tests for <feature>"
+1. **Test subtask (Red)**: "Write tests for <feature>"
    - Description explains what tests to write
    - Test strategy: "Tests should fail initially (red phase)"
 
-2. **Implementation subtask**: "Implement <feature>"
+2. **Implementation subtask (Green)**: "Implement <feature>"
    - Set `depends_on` to reference the test subtask's index
    - Description explains minimal implementation to pass tests
    - Test strategy: "All tests from previous subtask should pass (green phase)"
+
+3. **Refactor subtask (Refactor)**: "Refactor: <feature>"
+   - Set `depends_on` to reference the implementation subtask's index
+   - Description: "Refactor the implementation of: <feature>"
+   - Test strategy: "All tests must continue to pass after refactoring"
 
 Example TDD output:
 ```json
@@ -153,12 +158,18 @@ Example TDD output:
       "description": "Write minimal code to make authentication tests pass.",
       "depends_on": [0],
       "test_strategy": "All authentication tests should pass (green phase)"
+    },
+    {
+      "title": "Refactor: user authentication",
+      "description": "Refactor the authentication logic for better readability and performance.",
+      "depends_on": [1],
+      "test_strategy": "All tests must continue to pass after refactoring"
     }
   ]
 }
 ```
 
-This ensures tests are written first and implementation follows.
+This ensures the Red-Green-Refactor cycle is followed.
 """
 
 # Default User Prompt Template
@@ -272,7 +283,9 @@ class ExpansionPromptBuilder:
             )
 
         context_str = (
-            "\n".join(context_parts) if context_parts else "No additional context available."
+            "\n".join(context_parts)
+            if context_parts
+            else "No additional context available."
         )
 
         # Format research findings

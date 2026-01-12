@@ -788,7 +788,9 @@ Some paragraph text.
 - [ ] Test 2
 """
         extractor = CheckboxExtractor()
-        result = extractor.extract_under_heading(content, "testing", case_sensitive=False)
+        result = extractor.extract_under_heading(
+            content, "testing", case_sensitive=False
+        )
 
         assert result.total_count == 2
 
@@ -801,7 +803,9 @@ Some paragraph text.
 - [ ] Test 2
 """
         extractor = CheckboxExtractor()
-        result = extractor.extract_under_heading(content, "testing", case_sensitive=True)
+        result = extractor.extract_under_heading(
+            content, "testing", case_sensitive=True
+        )
 
         # Should only match lowercase
         assert result.total_count == 1
@@ -1134,7 +1138,13 @@ class TestBuildFromHeadings:
 
     def test_build_single_h2_heading(self, hierarchy_builder, mock_task_manager):
         headings = [
-            HeadingNode(text="Overview", level=2, line_start=1, line_end=5, content="Some content")
+            HeadingNode(
+                text="Overview",
+                level=2,
+                line_start=1,
+                line_end=5,
+                content="Some content",
+            )
         ]
         result = hierarchy_builder.build_from_headings(headings)
 
@@ -1219,7 +1229,9 @@ class TestBuildFromHeadings:
         assert result.total_count == 1
         assert mock_task_manager.tasks[0].parent_task_id == "gt-epic-parent"
 
-    def test_build_with_checkboxes_integration(self, hierarchy_builder, mock_task_manager):
+    def test_build_with_checkboxes_integration(
+        self, hierarchy_builder, mock_task_manager
+    ):
         """Test that checkboxes are integrated under their parent headings."""
         heading = HeadingNode(text="Implementation", level=3, line_start=1, line_end=10)
 
@@ -1275,11 +1287,15 @@ class TestBuildFromCheckboxes:
         assert mock_task_manager.tasks[0].title == "Task 1"
         assert mock_task_manager.tasks[1].title == "Task 2"
 
-    def test_build_checkboxes_with_heading_creates_epic(self, hierarchy_builder, mock_task_manager):
+    def test_build_checkboxes_with_heading_creates_epic(
+        self, hierarchy_builder, mock_task_manager
+    ):
         items = [CheckboxItem("Task 1", False, 0, 0, "- [ ] Task 1")]
         checkboxes = ExtractedCheckboxes(items=items, total_count=1, checked_count=0)
 
-        result = hierarchy_builder.build_from_checkboxes(checkboxes, heading_text="My Epic")
+        result = hierarchy_builder.build_from_checkboxes(
+            checkboxes, heading_text="My Epic"
+        )
 
         assert result.total_count == 2
         assert len(result.root_task_ids) == 1  # Only epic is root
@@ -1295,7 +1311,9 @@ class TestBuildFromCheckboxes:
         parent_item = CheckboxItem(
             "Parent Task", False, 0, 0, "- [ ] Parent Task", children=[child]
         )
-        checkboxes = ExtractedCheckboxes(items=[parent_item], total_count=2, checked_count=0)
+        checkboxes = ExtractedCheckboxes(
+            items=[parent_item], total_count=2, checked_count=0
+        )
 
         result = hierarchy_builder.build_from_checkboxes(checkboxes)
 
@@ -1306,7 +1324,9 @@ class TestBuildFromCheckboxes:
         assert tasks[1].title == "Child Task"
         assert tasks[1].parent_task_id == tasks[0].id
 
-    def test_build_checked_checkbox_creates_closed_task(self, hierarchy_builder, mock_task_manager):
+    def test_build_checked_checkbox_creates_closed_task(
+        self, hierarchy_builder, mock_task_manager
+    ):
         item = CheckboxItem("Done Task", True, 0, 0, "- [x] Done Task")
         checkboxes = ExtractedCheckboxes(items=[item], total_count=1, checked_count=1)
 
@@ -1414,7 +1434,9 @@ First implementation step.
         heading_parser = MarkdownStructureParser()
         headings = heading_parser.parse(content)
 
-        checkbox_extractor = CheckboxExtractor(track_headings=True, build_hierarchy=True)
+        checkbox_extractor = CheckboxExtractor(
+            track_headings=True, build_hierarchy=True
+        )
         checkboxes = checkbox_extractor.extract(content)
 
         # Build hierarchy
@@ -1488,7 +1510,9 @@ class TestBuildFromHeadingsWithFallback:
     """Tests for TaskHierarchyBuilder.build_from_headings_with_fallback()."""
 
     @pytest.mark.asyncio
-    async def test_sections_with_checkboxes_no_llm(self, mock_task_manager, mock_task_expander):
+    async def test_sections_with_checkboxes_no_llm(
+        self, mock_task_manager, mock_task_expander
+    ):
         """Sections with checkboxes should NOT call LLM expansion."""
         content = """## Phase 1: Setup
 
@@ -1500,7 +1524,9 @@ class TestBuildFromHeadingsWithFallback:
         heading_parser = MarkdownStructureParser()
         headings = heading_parser.parse(content)
 
-        checkbox_extractor = CheckboxExtractor(track_headings=True, build_hierarchy=True)
+        checkbox_extractor = CheckboxExtractor(
+            track_headings=True, build_hierarchy=True
+        )
         checkboxes = checkbox_extractor.extract(content)
 
         builder = TaskHierarchyBuilder(
@@ -1550,7 +1576,9 @@ We need to consider scalability and maintainability.
         assert result.total_count == 3
 
     @pytest.mark.asyncio
-    async def test_mixed_sections_hybrid_approach(self, mock_task_manager, mock_task_expander):
+    async def test_mixed_sections_hybrid_approach(
+        self, mock_task_manager, mock_task_expander
+    ):
         """Mixed spec: checkboxes for some sections, LLM for others."""
         content = """## Phase 1: Implementation
 
@@ -1572,7 +1600,9 @@ Get feedback from stakeholders.
         heading_parser = MarkdownStructureParser()
         headings = heading_parser.parse(content)
 
-        checkbox_extractor = CheckboxExtractor(track_headings=True, build_hierarchy=True)
+        checkbox_extractor = CheckboxExtractor(
+            track_headings=True, build_hierarchy=True
+        )
         checkboxes = checkbox_extractor.extract(content)
 
         builder = TaskHierarchyBuilder(
@@ -1632,7 +1662,9 @@ Design the system architecture.
         heading_parser = MarkdownStructureParser()
         headings = heading_parser.parse(content)
 
-        checkbox_extractor = CheckboxExtractor(track_headings=True, build_hierarchy=True)
+        checkbox_extractor = CheckboxExtractor(
+            track_headings=True, build_hierarchy=True
+        )
         checkboxes = checkbox_extractor.extract(content)
 
         builder = TaskHierarchyBuilder(
@@ -1659,7 +1691,9 @@ class TestHeadingHasCheckboxes:
         )
 
         heading = HeadingNode(text="Tasks", level=3, line_start=1, line_end=5)
-        checkbox_lookup = {"Tasks": [CheckboxItem("Task 1", False, 2, 0, "- [ ] Task 1")]}
+        checkbox_lookup = {
+            "Tasks": [CheckboxItem("Task 1", False, 2, 0, "- [ ] Task 1")]
+        }
 
         assert builder._heading_has_checkboxes(heading, checkbox_lookup) is True
 
@@ -1691,7 +1725,9 @@ class TestHeadingHasCheckboxes:
             children=[child],
         )
 
-        checkbox_lookup = {"Child Tasks": [CheckboxItem("Task 1", False, 6, 0, "- [ ] Task 1")]}
+        checkbox_lookup = {
+            "Child Tasks": [CheckboxItem("Task 1", False, 6, 0, "- [ ] Task 1")]
+        }
 
         assert builder._heading_has_checkboxes(parent, checkbox_lookup) is True
 
@@ -1734,9 +1770,9 @@ class TestIsActionableSection:
         ]
 
         for heading in actionable_headings:
-            assert (
-                builder._is_actionable_section(heading) is True
-            ), f"'{heading}' should be actionable"
+            assert builder._is_actionable_section(heading) is True, (
+                f"'{heading}' should be actionable"
+            )
 
     def test_non_actionable_sections_detected(self, mock_task_manager):
         """Headings without actionable keywords return False."""
@@ -1760,9 +1796,9 @@ class TestIsActionableSection:
         ]
 
         for heading in non_actionable_headings:
-            assert (
-                builder._is_actionable_section(heading) is False
-            ), f"'{heading}' should NOT be actionable"
+            assert builder._is_actionable_section(heading) is False, (
+                f"'{heading}' should NOT be actionable"
+            )
 
     def test_case_insensitive_matching(self, mock_task_manager):
         """Keyword matching is case-insensitive."""
@@ -1781,7 +1817,9 @@ class TestNonActionableSectionsSkipped:
     """Tests that non-actionable sections don't trigger LLM expansion."""
 
     @pytest.mark.asyncio
-    async def test_non_actionable_section_skips_llm(self, mock_task_manager, mock_task_expander):
+    async def test_non_actionable_section_skips_llm(
+        self, mock_task_manager, mock_task_expander
+    ):
         """Non-actionable sections like 'Overview' should NOT trigger LLM expansion."""
         content = """## Overview
 
@@ -1824,7 +1862,9 @@ This phase involves implementing the core features.
         assert result.total_count == 3
 
     @pytest.mark.asyncio
-    async def test_all_non_actionable_sections_no_llm(self, mock_task_manager, mock_task_expander):
+    async def test_all_non_actionable_sections_no_llm(
+        self, mock_task_manager, mock_task_expander
+    ):
         """Spec with only non-actionable sections should not call LLM."""
         content = """## Overview
 
@@ -2174,7 +2214,9 @@ class MockDependencyManager:
     def __init__(self):
         self.dependencies: list[dict] = []
 
-    def add_dependency(self, task_id: str, depends_on: str, dep_type: str = "blocks") -> None:
+    def add_dependency(
+        self, task_id: str, depends_on: str, dep_type: str = "blocks"
+    ) -> None:
         """Record a dependency addition."""
         self.dependencies.append(
             {"task_id": task_id, "depends_on": depends_on, "dep_type": dep_type}
@@ -2249,8 +2291,10 @@ class TestTDDMode:
         )
         assert builder.tdd_mode is True
 
-    def test_create_tdd_pair_creates_two_tasks(self, mock_task_manager_with_db, monkeypatch):
-        """_create_tdd_pair creates both test and implementation tasks."""
+    def test_create_tdd_triplet_creates_three_tasks(
+        self, mock_task_manager_with_db, monkeypatch
+    ):
+        """_create_tdd_triplet creates test, implementation, and refactor tasks."""
         builder = TaskHierarchyBuilder(
             task_manager=mock_task_manager_with_db,
             project_id="test-project",
@@ -2261,23 +2305,29 @@ class TestTDDMode:
         mock_dep_manager = MockDependencyManager()
         monkeypatch.setattr(builder, "_dep_manager", mock_dep_manager)
 
-        tasks = builder._create_tdd_pair(
+        tasks = builder._create_tdd_triplet(
             title="Implement feature X",
             parent_task_id="gt-parent",
             description="Feature X description",
         )
 
-        assert len(tasks) == 2
+        assert len(tasks) == 3
         # First task should be the test task
         assert tasks[0].title == "Write tests for: Implement feature X"
         # Verify the test task has proper TDD red-phase wording
         test_task_title = tasks[0].title.lower()
         assert "test" in test_task_title, "Test task should contain 'test' in title"
-        # Second task should be the implementation task
-        assert tasks[1].title == "Implement feature X"
 
-    def test_create_tdd_pair_wires_dependency(self, mock_task_manager_with_db, monkeypatch):
-        """_create_tdd_pair wires dependency: implementation blocked by test."""
+        # Second task should be the implementation task
+        assert tasks[1].title == "Implement: Implement feature X"
+
+        # Third task should be the refactor task
+        assert tasks[2].title == "Refactor: Implement feature X"
+
+    def test_create_tdd_triplet_wires_dependency(
+        self, mock_task_manager_with_db, monkeypatch
+    ):
+        """_create_tdd_triplet wires dependency: impl blocked by test, refactor blocked by impl."""
         builder = TaskHierarchyBuilder(
             task_manager=mock_task_manager_with_db,
             project_id="test-project",
@@ -2288,21 +2338,31 @@ class TestTDDMode:
         mock_dep_manager = MockDependencyManager()
         monkeypatch.setattr(builder, "_dep_manager", mock_dep_manager)
 
-        tasks = builder._create_tdd_pair(
+        tasks = builder._create_tdd_triplet(
             title="Implement feature X",
             parent_task_id="gt-parent",
             description=None,
         )
 
         # Check dependency was added
-        assert len(mock_dep_manager.dependencies) == 1
-        dep = mock_dep_manager.dependencies[0]
-        assert dep["task_id"] == tasks[1].id  # Implementation task
-        assert dep["depends_on"] == tasks[0].id  # Test task
-        assert dep["dep_type"] == "blocks"
+        assert len(mock_dep_manager.dependencies) == 2
 
-    def test_checkbox_in_tdd_mode_creates_pair(self, mock_task_manager_with_db, monkeypatch):
-        """Checkboxes in TDD mode create test→implement pairs."""
+        # Impl blocked by Test
+        dep1 = mock_dep_manager.dependencies[0]
+        assert dep1["task_id"] == tasks[1].id
+        assert dep1["depends_on"] == tasks[0].id
+        assert dep1["dep_type"] == "blocks"
+
+        # Refactor blocked by Impl
+        dep2 = mock_dep_manager.dependencies[1]
+        assert dep2["task_id"] == tasks[2].id
+        assert dep2["depends_on"] == tasks[1].id
+        assert dep2["dep_type"] == "blocks"
+
+    def test_checkbox_in_tdd_mode_creates_triplet(
+        self, mock_task_manager_with_db, monkeypatch
+    ):
+        """Checkboxes in TDD mode create test->implement->refactor triplets."""
         builder = TaskHierarchyBuilder(
             task_manager=mock_task_manager_with_db,
             project_id="test-project",
@@ -2328,10 +2388,11 @@ class TestTDDMode:
             created_tasks=created_tasks,
         )
 
-        # Should create 2 tasks (test + impl)
-        assert len(created_tasks) == 2
+        # Should create 3 tasks (test + impl + refactor)
+        assert len(created_tasks) == 3
         assert created_tasks[0].title == "Write tests for: Add user validation"
-        assert created_tasks[1].title == "Add user validation"
+        assert created_tasks[1].title == "Implement: Add user validation"
+        assert created_tasks[2].title == "Refactor: Add user validation"
 
     def test_checked_checkbox_no_tdd_pair(self, mock_task_manager_with_db, monkeypatch):
         """Checked checkboxes (closed tasks) do NOT create TDD pairs."""
@@ -2365,8 +2426,10 @@ class TestTDDMode:
         assert created_tasks[0].title == "Already done task"
         assert created_tasks[0].status == "closed"
 
-    def test_h4_heading_in_tdd_mode_creates_pair(self, mock_task_manager_with_db, monkeypatch):
-        """H4 headings (task type) in TDD mode create test→implement pairs."""
+    def test_h4_heading_in_tdd_mode_creates_triplet(
+        self, mock_task_manager_with_db, monkeypatch
+    ):
+        """H4 headings (task type) in TDD mode create test→implement->refactor triplets."""
         builder = TaskHierarchyBuilder(
             task_manager=mock_task_manager_with_db,
             project_id="test-project",
@@ -2394,10 +2457,13 @@ class TestTDDMode:
             created_tasks=created_tasks,
         )
 
-        # Should create 2 tasks (test + impl)
-        assert len(created_tasks) == 2
-        assert created_tasks[0].title == "Write tests for: Add authentication middleware"
-        assert created_tasks[1].title == "Add authentication middleware"
+        # Should create 3 tasks (test + impl + refactor)
+        assert len(created_tasks) == 3
+        assert (
+            created_tasks[0].title == "Write tests for: Add authentication middleware"
+        )
+        assert created_tasks[1].title == "Implement: Add authentication middleware"
+        assert created_tasks[2].title == "Refactor: Add authentication middleware"
 
     def test_h2_heading_no_tdd_pair(self, mock_task_manager_with_db, monkeypatch):
         """H2 headings (epic type) do NOT create TDD pairs even in TDD mode."""
