@@ -1,0 +1,26 @@
+name: auto-task
+type: step
+description: Autonomous task execution workflow. Validates task completion before exit.
+version: 1.0.0
+
+exit_condition: current_step == 'complete'
+
+on_premature_stop:
+  action: guide_continuation
+  message: |
+    It looks like the task isn't marked as complete yet.
+    If you're done, please ensure all subtasks are closed and then use request_step_transition('complete').
+    If you're stuck, use suggest_next_task() to get help.
+
+steps:
+  - name: work
+    description: Active work phase. Focus on completing the assigned task.
+    transitions:
+      - to: complete
+        when: task_tree_complete(variables.get('session_task'))
+    # Optional: Block tools that shouldn't be used during work?
+    # blocked_tools: ["some_distracting_tool"]
+
+  - name: complete
+    description: Task is fully complete and verified.
+    # No transitions out - this satisfies exit_condition
