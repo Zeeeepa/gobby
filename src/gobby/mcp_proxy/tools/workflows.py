@@ -11,6 +11,10 @@ Exposes functionality for:
 - mark_artifact_complete: Register an artifact as complete
 - set_variable: Set a workflow variable for the session
 - get_variable: Get workflow variable(s) for the session
+- get_workflow_status: Get current workflow state
+- request_step_transition: Request transition to a different step
+- mark_artifact_complete: Register an artifact as complete
+- set_variable: Set a workflow variable for the session
 - get_variable: Get workflow variable(s) for the session
 - import_workflow: Import a workflow from a file path
 - reload_cache: Clear the workflow loader cache to pick up file changes

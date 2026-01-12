@@ -113,6 +113,15 @@ class GobbyRunner:
                         self.memory_sync_manager.trigger_export
                     )
                     logger.debug("MemorySyncManager initialized and listener attached")
+
+                    # Force initial synchronous export
+                    # Ensures disk state matches DB state before we start serving
+                    try:
+                        self.memory_sync_manager.export_sync()
+                        logger.info("Initial memory sync export completed")
+                    except Exception as e:
+                        logger.warning(f"Initial memory sync failed: {e}")
+
                 except Exception as e:
                     logger.error(f"Failed to initialize MemorySyncManager: {e}")
 

@@ -56,9 +56,23 @@ def inject_context(
         logger.warning("inject_context: session_id is empty or None")
         return None
 
+    # Debug logging for troubleshooting
+    logger.debug(
+        f"inject_context called: source={source!r}, "
+        f"template_present={template is not None}, "
+        f"template_len={len(template) if template else 0}, "
+        f"session_id={session_id}"
+    )
+
     # Support template-only injection (no source lookup needed)
+    condition_result = (not source) and bool(template)
+    logger.debug(
+        f"inject_context: not source={not source}, bool(template)={bool(template)}, "
+        f"condition_result={condition_result}"
+    )
     if not source and template:
         # Render static template directly
+        logger.debug("inject_context: entering template-only path")
         render_context: dict[str, Any] = {
             "session": session_manager.get(session_id),
             "state": state,
@@ -66,6 +80,7 @@ def inject_context(
             "observations": state.observations if state else {},
         }
         rendered = template_engine.render(template, render_context)
+        logger.debug(f"inject_context: rendered template, len={len(rendered) if rendered else 0}")
         if state:
             state.context_injected = True
         return {"inject_context": rendered}

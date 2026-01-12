@@ -1,0 +1,48 @@
+---
+name: feat
+description: Quickly create a feature task. Usage: /feat <title> [description]
+---
+
+# /feat - Create Feature Task
+
+Create a new feature task with the provided title and optional description.
+
+## Usage
+
+```
+/feat <title>
+/feat <title> - <description>
+```
+
+## Examples
+
+```
+/feat Add dark mode toggle
+/feat User profile avatars - Allow users to upload custom profile pictures with cropping support
+```
+
+## Action
+
+Call `gobby-tasks.create_task` with:
+- `title`: The feature title from user input
+- `task_type`: "feature"
+- `priority`: 2 (medium - standard priority for new features)
+
+Parse the user input:
+- If input contains " - ", split into title and description
+- Otherwise, use entire input as title
+
+```python
+call_tool(
+    server_name="gobby-tasks",
+    tool_name="create_task",
+    arguments={
+        "title": "<parsed title>",
+        "description": "<parsed description if any>",
+        "task_type": "feature",
+        "priority": 2
+    }
+)
+```
+
+After creating, confirm with the task reference (e.g., "Created feature #124: Add dark mode toggle").

@@ -1,1 +1,0 @@
-../../.gobby/commands/gobby-metrics.md

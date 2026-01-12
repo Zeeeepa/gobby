@@ -45,7 +45,17 @@ class MemorySyncManager:
         self._last_change_time = time.time()
 
         if self._export_task is None or self._export_task.done():
-            self._export_task = asyncio.create_task(self._process_export_queue())
+            try:
+                loop = asyncio.get_running_loop()
+                self._export_task = loop.create_task(self._process_export_queue())
+            except RuntimeError:
+                # No running event loop (e.g. CLI usage) - run sync immediately
+                # We skip the debounce loop and just export
+                memories_file = self._get_export_path()
+                try:
+                    self._export_to_files_sync(memories_file)
+                except Exception as e:
+                    logger.warning(f"Failed to sync memory export: {e}")
 
     async def shutdown(self) -> None:
         """Gracefully shutdown the export task."""
@@ -120,6 +130,25 @@ class MemorySyncManager:
             return 0
 
         return await asyncio.to_thread(self._import_memories_sync, memories_file)
+
+    def export_sync(self) -> int:
+        """
+        Export memories synchronously (blocking).
+
+        Used to force a write before the async loop starts.
+        """
+        if not self.config.enabled:
+            return 0
+
+        if not self.memory_manager:
+            return 0
+
+        try:
+            memories_file = self._get_export_path()
+            return self._export_to_files_sync(memories_file)
+        except Exception as e:
+            logger.warning(f"Failed to sync memory export: {e}")
+            return 0
 
     async def export_to_files(self) -> int:
         """

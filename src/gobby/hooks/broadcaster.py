@@ -102,6 +102,11 @@ class HookEventBroadcaster:
             if "external_id" not in raw_input and event.session_id:
                 raw_input["external_id"] = event.session_id
 
+            # Special handling for Subagent events: ensure subagent_id is present
+            if enum_hook_type in (HookType.SUBAGENT_START, HookType.SUBAGENT_STOP):
+                if "subagent_id" not in raw_input and "external_id" in raw_input:
+                    raw_input["subagent_id"] = raw_input["external_id"]
+
             # Validate input data structure matches Pydantic model
             # Use construct/model_validate to avoid strict validation errors if possible,
             # or just try/except. Let's rely on standard validation.

@@ -35,9 +35,7 @@ class TDDRepair:
         all_tasks = self.task_manager.list_tasks(project_id=project_id, limit=1000)
 
         # 1. Identify Test tasks
-        test_tasks = [
-            t for t in all_tasks if t.title.lower().startswith("write tests for")
-        ]
+        test_tasks = [t for t in all_tasks if t.title.lower().startswith("write tests for")]
 
         for test_task in test_tasks:
             # Extract feature name X from "Write tests for X" or "Write tests for: X"
@@ -59,9 +57,7 @@ class TDDRepair:
 
             # Assume the non-refactor child is the implementation
             # In legacy, it was just "X", or maybe "Implement X"
-            impl_tasks = [
-                c for c in children if not c.title.lower().startswith("refactor")
-            ]
+            impl_tasks = [c for c in children if not c.title.lower().startswith("refactor")]
 
             if not impl_tasks:
                 continue
@@ -98,5 +94,7 @@ class TDDRepair:
                 logger.info(f"Created Refactor task {refactor_task.id}")
             except Exception as e:
                 logger.warning(f"Failed to wire dependency for {refactor_task.id}: {e}")
+                # Still track the task so caller knows it was created
+                created_ids.append(refactor_task.id)
 
         return created_ids

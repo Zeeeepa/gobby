@@ -418,8 +418,12 @@ def resolve_task_id(
         ctx = get_project_context()
         project_id = ctx.get("id") if ctx else None
 
-    # Try #N format or path format (requires project_id)
-    if project_id and (task_id.startswith("#") or _is_path_format(task_id)):
+    # Try #N format, numeric format (treated as #N), or path format (requires project_id)
+    if project_id and (task_id.startswith("#") or task_id.isdigit() or _is_path_format(task_id)):
+        # Auto-prefix numeric IDs with #
+        if task_id.isdigit():
+            task_id = f"#{task_id}"
+
         try:
             resolved_uuid = manager.resolve_task_reference(task_id, project_id)
             return manager.get_task(resolved_uuid)

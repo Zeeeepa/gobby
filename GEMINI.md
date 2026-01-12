@@ -88,7 +88,7 @@ You are operating within a Gobby-enabled environment. You **must** use the `gobb
 * **Dependencies:** If blocked, use `add_dependency`.
 * **Bugs:** Found a side-issue? `create_task` (don't get distracted).
 
-# Task Workflow (Mandatory)
+### Task Workflow (Mandatory)
 
 1.  **Start Task**: `gobby-tasks.update_task(<id>, status="in_progress")`
 2.  **Understand**: Read the task details and linked issues.
@@ -112,3 +112,7 @@ Gobby uses a proxy pattern for tools.
 * **Call Tool:** `mcp_call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={...})`
 
 *Note: Replace "gobby-tasks" with "gobby-memory" for other internal domains.*
+
+## Task Validation Overrides
+
+*   **Task #2124 (Workflow Cache Reload):** Validation criteria demanded comprehensive automatic cache invalidation (watchdog/mtime), but implementation followed the simpler manual reload approach specified in the task description. User authorized override on 2026-01-12.
