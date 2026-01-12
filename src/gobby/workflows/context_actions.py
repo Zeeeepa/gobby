@@ -56,6 +56,20 @@ def inject_context(
         logger.warning("inject_context: session_id is empty or None")
         return None
 
+    # Support template-only injection (no source lookup needed)
+    if not source and template:
+        # Render static template directly
+        render_context: dict[str, Any] = {
+            "session": session_manager.get(session_id),
+            "state": state,
+            "artifacts": state.artifacts if state else {},
+            "observations": state.observations if state else {},
+        }
+        rendered = template_engine.render(template, render_context)
+        if state:
+            state.context_injected = True
+        return {"inject_context": rendered}
+
     if not source:
         return None
 
