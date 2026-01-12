@@ -215,10 +215,6 @@ class WorktreeGitManager:
             GitOperationResult with success status and message
         """
         worktree_path = Path(worktree_path)
-        import sys
-
-        sys.stderr.write(f"DEBUG: WorktreeGitManager.delete_worktree called for {worktree_path}\n")
-        sys.stderr.flush()
 
         try:
             # Get branch name before removal (for optional branch deletion)

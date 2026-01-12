@@ -616,22 +616,15 @@ class TestWorktreeDeletion:
             assert branch_check.returncode == 0, "Branch should exist before deletion"
 
             # Delete worktree
-            try:
-                delete_response = mcp_client.call_tool(
-                    server_name="gobby-worktrees",
-                    tool_name="delete_worktree",
-                    arguments={
-                        "worktree_id": worktree_id,
-                        "force": True,
-                        "project_path": str(git_repo_with_origin),
-                    },
-                )
-            except Exception as e:
-                print("\n=== DAEMON LOGS (ON ERROR) ===")
-                print(daemon_instance.read_logs())
-                print("\n=== DAEMON ERROR LOGS (ON ERROR) ===")
-                print(daemon_instance.read_error_logs())
-                raise e
+            delete_response = mcp_client.call_tool(
+                server_name="gobby-worktrees",
+                tool_name="delete_worktree",
+                arguments={
+                    "worktree_id": worktree_id,
+                    "force": True,
+                    "project_path": str(git_repo_with_origin),
+                },
+            )
             delete_result = extract_result(delete_response)
             assert delete_result.get("success") is True
 

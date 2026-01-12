@@ -507,16 +507,6 @@ def create_worktrees_registry(
         Returns:
             Dict with success status.
         """
-        import sys
-
-        try:
-            sys.stderr.write(
-                f"DEBUG: delete_worktree tool called id={worktree_id} project_path={project_path}\n"
-            )
-            sys.stderr.flush()
-        except Exception:
-            pass
-
         worktree = worktree_storage.get(worktree_id)
 
         if not worktree:
@@ -529,25 +519,13 @@ def create_worktrees_registry(
         resolved_git_mgr = git_manager  # Start with the module-level git_manager
         if project_path:
             try:
-                sys.stderr.write(f"DEBUG: resolving project context for {project_path}\n")
-                sys.stderr.flush()
-
                 # _resolve_project_context is defined in this module scope
-                mgr, _, err = _resolve_project_context(project_path, resolved_git_mgr, None)
-
-                if err:
-                    sys.stderr.write(f"DEBUG: _resolve_project_context returned error: {err}\n")
-                    sys.stderr.flush()
-                else:
+                mgr, _, _ = _resolve_project_context(project_path, resolved_git_mgr, None)
+                if mgr:
                     resolved_git_mgr = mgr
-
-                sys.stderr.write(f"DEBUG: git_manager resolved: {resolved_git_mgr}\n")
-            except Exception as e:
-                sys.stderr.write(f"DEBUG: Failed to resolve project context: {e}\n")
-                import traceback
-
-                traceback.print_exc()
-                sys.stderr.flush()
+            except Exception:
+                # If context resolution fails, implicit behavior is to continue
+                # (potentially without git manager)
                 pass
 
         # Check for uncommitted changes if not forcing
@@ -562,20 +540,12 @@ def create_worktrees_registry(
 
         # Delete git worktree
         if resolved_git_mgr:
-            import sys
-
-            sys.stderr.write(
-                f"DEBUG: calling resolved_git_mgr.delete_worktree for {worktree.worktree_path}\n"
-            )
-            sys.stderr.flush()
             result = resolved_git_mgr.delete_worktree(
                 worktree.worktree_path,
                 force=force,
                 delete_branch=True,
                 branch_name=worktree.branch_name,
             )
-            sys.stderr.write(f"DEBUG: resolved_git_mgr.delete_worktree returned {result}\n")
-            sys.stderr.flush()
             if not result.success:
                 return {
                     "success": False,
