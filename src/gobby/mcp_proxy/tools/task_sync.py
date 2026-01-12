@@ -87,11 +87,15 @@ def create_sync_registry(
 
         result = {}
         if direction in ["import", "both"]:
-            sync_manager.import_from_jsonl()
+            # Get current project ID for context-aware sync
+            project_id = get_current_project_id()
+            sync_manager.import_from_jsonl(project_id=project_id)
             result["import"] = "completed"
 
         if direction in ["export", "both"]:
-            sync_manager.export_to_jsonl()
+            # Get current project ID for context-aware sync
+            project_id = get_current_project_id()
+            sync_manager.export_to_jsonl(project_id=project_id)
             result["export"] = "completed"
 
         return result

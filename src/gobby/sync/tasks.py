@@ -36,15 +36,50 @@ class TaskSyncManager:
         self._debounce_timer: threading.Timer | None = None
         self._debounce_interval = 5.0  # seconds
 
-    def export_to_jsonl(self) -> None:
+    def _get_export_path(self, project_id: str | None) -> Path:
         """
-        Export all tasks and their dependencies to a JSONL file.
+        Resolve the export path for a given project.
+
+        Resolution order:
+        1. If project_id provided -> find project repo_path -> .gobby/tasks.jsonl
+        2. Fallback to self.export_path (legacy/default behavior)
+        """
+        if not project_id:
+            return self.export_path
+
+        # Try to find project
+        from gobby.storage.projects import LocalProjectManager
+
+        project_manager = LocalProjectManager(self.db)
+        project = project_manager.get(project_id)
+
+        if project and project.repo_path:
+            return Path(project.repo_path) / ".gobby" / "tasks.jsonl"
+
+        return self.export_path
+
+    def export_to_jsonl(self, project_id: str | None = None) -> None:
+        """
+        Export tasks and their dependencies to a JSONL file.
         Tasks are sorted by ID to ensure deterministic output.
+
+        Args:
+            project_id: Optional project to export. If matches context, uses project path.
         """
         try:
-            # list_tasks returns all statuses if status is not provided.
-            # Set a high limit to export all tasks.
-            tasks = self.task_manager.list_tasks(limit=100000)
+            # Determine target path
+            target_path = self._get_export_path(project_id)
+
+            # Filter tasks by project_id if provided (and not stealth mode which might use global)
+            # Actually, export_to_jsonl historically dumped ALL tasks if limit is high.
+            # But for project-scoped sync, we should probably filter?
+            # Existing behavior: self.task_manager.list_tasks(limit=100000) gets ALL tasks.
+            # If we are syncing to a specific project repo, we should ONLY export tasks for that project unless global.
+            # However, to be safe and backward compatible, let's keep list_tasks behavior but passed project_id if we have it?
+            # Wait, if we pass project_id to list_tasks, we only get that project's tasks.
+            # That is correct for syncing to that project's .gobby/tasks.jsonl.
+
+            tasks = self.task_manager.list_tasks(limit=100000, project_id=project_id)
 
             # Fetch all dependencies
             # We'll use a raw query for efficiency here instead of calling get_blockers for every task
@@ -103,7 +138,7 @@ class TaskSyncManager:
             content_hash = hashlib.sha256(jsonl_content.encode("utf-8")).hexdigest()
 
             # Check existing hash before writing anything
-            meta_path = self.export_path.parent / "tasks_meta.json"
+            meta_path = target_path.parent / "tasks_meta.json"
             existing_hash = None
             if meta_path.exists():
                 try:
@@ -119,9 +154,9 @@ class TaskSyncManager:
                 return
 
             # Write JSONL file
-            self.export_path.parent.mkdir(parents=True, exist_ok=True)
+            target_path.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(self.export_path, "w", encoding="utf-8") as f:
+            with open(target_path, "w", encoding="utf-8") as f:
                 for item in export_data:
                     f.write(json.dumps(item) + "\n")
 
@@ -134,25 +169,28 @@ class TaskSyncManager:
             with open(meta_path, "w", encoding="utf-8") as f:
                 json.dump(meta_data, f, indent=2)
 
-            logger.info(
-                f"Exported {len(tasks)} tasks to {self.export_path} (hash: {content_hash[:8]})"
-            )
+            logger.info(f"Exported {len(tasks)} tasks to {target_path} (hash: {content_hash[:8]})")
 
         except Exception as e:
             logger.error(f"Failed to export tasks: {e}", exc_info=True)
             raise
 
-    def import_from_jsonl(self) -> None:
+    def import_from_jsonl(self, project_id: str | None = None) -> None:
         """
         Import tasks from JSONL file into SQLite.
         Uses Last-Write-Wins conflict resolution based on updated_at.
+
+        Args:
+            project_id: Optional project to import from. If matches context, uses project path.
         """
-        if not self.export_path.exists():
-            logger.debug("No task export file found, skipping import")
+        target_path = self._get_export_path(project_id)
+
+        if not target_path.exists():
+            logger.debug(f"No task export file found at {target_path}, skipping import")
             return
 
         try:
-            with open(self.export_path, encoding="utf-8") as f:
+            with open(target_path, encoding="utf-8") as f:
                 lines = f.readlines()
 
             imported_count = 0
