@@ -463,7 +463,7 @@ class TestInstallCommand:
         mock_ensure_config.return_value = {"created": False, "path": "/test/config.yaml"}
         mock_install_antigravity.return_value = {
             "success": True,
-            "hooks_installed": ["SessionStart", "SessionEnd"],
+            "hooks_installed": [],
             "workflows_installed": ["workflow1"],
             "commands_installed": ["cmd1"],
             "plugins_installed": ["plugin1"],
@@ -475,7 +475,7 @@ class TestInstallCommand:
 
         assert result.exit_code == 0
         assert "Antigravity Agent" in result.output
-        assert "Installed 2 hooks" in result.output
+        assert "Installed 0 hooks" in result.output
 
         assert "Installed 1 workflows" in result.output
         mock_install_antigravity.assert_called_once()
@@ -1384,7 +1384,7 @@ class TestInstallFullOutput:
 
         assert "Installed 2 workflows" in result.output
         assert "plan-execute" in result.output
-        assert "Installed 2 commands" in result.output
+        assert "Installed 2 skills/commands" in result.output
         assert "validate" in result.output
         assert "Installed 2 plugins" in result.output
         assert "task-hooks" in result.output
@@ -1428,7 +1428,7 @@ class TestInstallFullOutput:
         assert "Installed 2 hooks" in result.output
 
         assert "Installed 1 workflows" in result.output
-        assert "Installed 1 commands" in result.output
+        assert "Installed 1 skills/commands" in result.output
         assert "Installed 1 plugins" in result.output
         assert "Configured MCP server: ~/.gemini/settings.json" in result.output
 
@@ -1568,7 +1568,7 @@ class TestInstallFullOutput:
         mock_ensure_config.return_value = {"created": False, "path": "/test/config.yaml"}
         mock_install_antigravity.return_value = {
             "success": True,
-            "hooks_installed": ["SessionStart", "SessionEnd"],
+            "hooks_installed": [],
             "workflows_installed": ["antigravity-workflow"],
             "commands_installed": ["antigravity-cmd"],
             "plugins_installed": ["antigravity-plugin"],
@@ -1580,10 +1580,10 @@ class TestInstallFullOutput:
 
         assert result.exit_code == 0
         assert "Antigravity Agent" in result.output
-        assert "Installed 2 hooks" in result.output
+        assert "Installed 0 hooks" in result.output
 
         assert "Installed 1 workflows" in result.output
-        assert "Installed 1 commands" in result.output
+        assert "Installed 1 skills/commands" in result.output
         assert "Installed 1 plugins" in result.output
         assert "Configured MCP server" in result.output
 

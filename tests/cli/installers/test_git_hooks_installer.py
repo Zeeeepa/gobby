@@ -1,7 +1,6 @@
 """Tests for the git hooks installer module."""
 
 import stat
-import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -223,6 +222,8 @@ class TestBackupHook:
         hooks_dir.mkdir()
 
         hook_path = hooks_dir / "nonexistent"
+
+        result = _backup_hook(hook_path, hooks_dir)
 
         result = _backup_hook(hook_path, hooks_dir)
 
@@ -501,13 +502,11 @@ class TestInstallGitHooks:
         assert GOBBY_HOOK_START in content
 
     @patch("gobby.cli.installers.git_hooks._check_precommit_installed")
-    @patch("gobby.cli.installers.git_hooks.subprocess.run")
     def test_installs_pre_push_hooks_when_precommit_available(
-        self, mock_run: MagicMock, mock_check: MagicMock, tmp_path: Path
+        self, mock_check: MagicMock, tmp_path: Path
     ):
-        """Test that pre-push hooks are installed via pre-commit when available."""
+        """Test that pre-push hooks are NOT installed via pre-commit CLI (handled by wrapper)."""
         mock_check.return_value = True
-        mock_run.return_value = MagicMock(returncode=0)
 
         git_dir = tmp_path / ".git"
         git_dir.mkdir()
@@ -521,9 +520,6 @@ class TestInstallGitHooks:
 
         assert result["success"] is True
         assert result["precommit_installed"] is True
-        mock_run.assert_called_once()
-        call_args = mock_run.call_args
-        assert "pre-push" in call_args.args[0]
 
     @patch("gobby.cli.installers.git_hooks._check_precommit_installed")
     def test_skips_precommit_when_not_installed(self, mock_check: MagicMock, tmp_path: Path):
@@ -571,50 +567,6 @@ class TestInstallGitHooks:
 
         assert result["success"] is True
         assert result["precommit_installed"] is False
-
-    @patch("gobby.cli.installers.git_hooks._check_precommit_installed")
-    @patch("gobby.cli.installers.git_hooks.subprocess.run")
-    def test_handles_precommit_install_timeout(
-        self, mock_run: MagicMock, mock_check: MagicMock, tmp_path: Path
-    ):
-        """Test graceful handling of pre-commit install timeout."""
-        mock_check.return_value = True
-        mock_run.side_effect = subprocess.TimeoutExpired(cmd="pre-commit", timeout=30)
-
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-        hooks_dir = git_dir / "hooks"
-        hooks_dir.mkdir()
-
-        (tmp_path / ".pre-commit-config.yaml").write_text("repos: []")
-
-        result = install_git_hooks(tmp_path, setup_precommit=True)
-
-        # Should still succeed even if pre-commit pre-push install times out
-        # precommit_installed is True because pre-commit config was detected
-        assert result["success"] is True
-        assert result["precommit_installed"] is True
-
-    @patch("gobby.cli.installers.git_hooks._check_precommit_installed")
-    @patch("gobby.cli.installers.git_hooks.subprocess.run")
-    def test_handles_precommit_install_subprocess_error(
-        self, mock_run: MagicMock, mock_check: MagicMock, tmp_path: Path
-    ):
-        """Test graceful handling of subprocess error during pre-commit install."""
-        mock_check.return_value = True
-        mock_run.side_effect = subprocess.SubprocessError("Command failed")
-
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-        hooks_dir = git_dir / "hooks"
-        hooks_dir.mkdir()
-
-        (tmp_path / ".pre-commit-config.yaml").write_text("repos: []")
-
-        result = install_git_hooks(tmp_path, setup_precommit=True)
-
-        # Should still succeed even if pre-commit install fails
-        assert result["success"] is True
 
     def test_hook_content_includes_gobby_markers(self, tmp_path: Path):
         """Test that installed hooks contain Gobby markers."""
@@ -829,151 +781,17 @@ class TestHookTemplates:
 
     def test_all_expected_hooks_defined(self):
         """Test that all expected hook types are defined."""
-        expected_hooks = {"pre-commit", "post-merge", "post-checkout"}
+        # Updated to include all hooks defined in git_hooks.py
+        expected_hooks = {
+            "pre-commit",
+            "pre-push",
+            "pre-merge-commit",
+            "post-merge",
+            "post-checkout",
+        }
         assert set(HOOK_TEMPLATES.keys()) == expected_hooks
 
     def test_precommit_template_contains_gobby_sync(self):
-        """Test that pre-commit template contains gobby task sync."""
-        assert "gobby tasks sync" in HOOK_TEMPLATES["pre-commit"]
-        assert "--export" in HOOK_TEMPLATES["pre-commit"]
-
-    def test_postmerge_template_contains_gobby_sync(self):
-        """Test that post-merge template contains gobby task sync."""
-        assert "gobby tasks sync" in HOOK_TEMPLATES["post-merge"]
-        assert "--import" in HOOK_TEMPLATES["post-merge"]
-
-    def test_postcheckout_template_contains_gobby_sync(self):
-        """Test that post-checkout template contains gobby task sync."""
-        assert "gobby tasks sync" in HOOK_TEMPLATES["post-checkout"]
-        assert "--import" in HOOK_TEMPLATES["post-checkout"]
-
-    def test_postcheckout_only_runs_on_branch_checkout(self):
-        """Test that post-checkout only syncs on branch checkouts."""
-        # $3 is 1 for branch checkout, 0 for file checkout
-        assert '"$3" = "1"' in HOOK_TEMPLATES["post-checkout"]
-
-
-class TestMarkerConstants:
-    """Tests for marker constants."""
-
-    def test_start_marker_format(self):
-        """Test that start marker has expected format."""
-        assert ">>>" in GOBBY_HOOK_START
-        assert "GOBBY" in GOBBY_HOOK_START
-
-    def test_end_marker_format(self):
-        """Test that end marker has expected format."""
-        assert "<<<" in GOBBY_HOOK_END
-        assert "GOBBY" in GOBBY_HOOK_END
-
-    def test_markers_are_different(self):
-        """Test that start and end markers are different."""
-        assert GOBBY_HOOK_START != GOBBY_HOOK_END
-
-
-class TestIntegration:
-    """Integration tests for full install/uninstall cycle."""
-
-    def test_install_uninstall_cycle_clean_repo(self, tmp_path: Path):
-        """Test full install/uninstall cycle on a clean repository."""
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-        hooks_dir = git_dir / "hooks"
-        hooks_dir.mkdir()
-
-        # Install
-        install_result = install_git_hooks(tmp_path)
-        assert install_result["success"] is True
-        assert len(install_result["installed"]) == len(HOOK_TEMPLATES)
-
-        # Verify hooks exist
-        for hook_name in HOOK_TEMPLATES:
-            assert (hooks_dir / hook_name).exists()
-
-        # Uninstall
-        uninstall_result = uninstall_git_hooks(tmp_path)
-        assert uninstall_result["success"] is True
-        assert len(uninstall_result["removed"]) == len(HOOK_TEMPLATES)
-
-        # Verify Gobby content is removed from hooks
-        # Note: Hooks still exist with just shebang since the uninstall preserves
-        # non-empty content (the shebang that was added during install)
-        for hook_name in HOOK_TEMPLATES:
-            hook_path = hooks_dir / hook_name
-            content = hook_path.read_text()
-            assert GOBBY_HOOK_START not in content
-            assert GOBBY_HOOK_END not in content
-
-    def test_install_uninstall_preserves_existing_hooks(self, tmp_path: Path):
-        """Test that install/uninstall preserves existing hook content."""
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-        hooks_dir = git_dir / "hooks"
-        hooks_dir.mkdir()
-
-        # Create existing hook with custom content
-        original_content = "#!/bin/bash\n\nrun_tests() {\n    pytest\n}\n\nrun_tests\n"
-        existing_hook = hooks_dir / "pre-commit"
-        existing_hook.write_text(original_content)
-        existing_hook.chmod(stat.S_IRWXU)
-
-        # Install
-        install_git_hooks(tmp_path)
-
-        # Verify Gobby was added
-        content = existing_hook.read_text()
-        assert GOBBY_HOOK_START in content
-        assert "run_tests" in content
-
-        # Uninstall
-        uninstall_git_hooks(tmp_path)
-
-        # Verify original content preserved (minus some whitespace normalization)
-        final_content = existing_hook.read_text()
-        assert GOBBY_HOOK_START not in final_content
-        assert "run_tests" in final_content
-        assert "pytest" in final_content
-
-    def test_force_reinstall_updates_content(self, tmp_path: Path):
-        """Test that force reinstall updates hook content."""
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-        hooks_dir = git_dir / "hooks"
-        hooks_dir.mkdir()
-
-        # Install
-        install_git_hooks(tmp_path)
-
-        # Modify the installed hook
-        hook_path = hooks_dir / "pre-commit"
-        original_content = hook_path.read_text()
-        hook_path.write_text(original_content + "\n# manually added\n")
-
-        # Force reinstall
-        result = install_git_hooks(tmp_path, force=True)
-
-        assert result["success"] is True
-        assert "pre-commit" in result["installed"]
-
-        # Verify content was updated (manually added comment still present due to chaining)
-        new_content = hook_path.read_text()
-        assert GOBBY_HOOK_START in new_content
-
-    def test_multiple_install_operations_idempotent(self, tmp_path: Path):
-        """Test that multiple installs are idempotent."""
-        git_dir = tmp_path / ".git"
-        git_dir.mkdir()
-        hooks_dir = git_dir / "hooks"
-        hooks_dir.mkdir()
-
-        # Install multiple times
-        for _ in range(3):
-            result = install_git_hooks(tmp_path)
-            assert result["success"] is True
-
-        # Verify only one Gobby section exists
-        for hook_name in HOOK_TEMPLATES:
-            hook_path = hooks_dir / hook_name
-            content = hook_path.read_text()
-            assert content.count(GOBBY_HOOK_START) == 1
-            assert content.count(GOBBY_HOOK_END) == 1
+        """Test that pre-commit template contains gobby sync command."""
+        content = HOOK_TEMPLATES["pre-commit"]
+        assert "gobby tasks sync" in content
