@@ -81,11 +81,6 @@ def main() -> int:
         if "hook_dispatcher.py" not in command:
             print(f"⚠️  Warning: {hook_type} not using dispatcher pattern")
 
-        if "uv run" in command:
-            print(
-                f"⚠️  Warning: {hook_type} using 'uv run' which may cause issues with Claude Code 2.1.0+"
-            )
-
     print(f"✅ All {len(required_hooks)} required hook types configured")
 
     # Validate dispatcher exists

@@ -1,5 +1,8 @@
-description = "Session Management Skill"
-prompt = """
+---
+name: gobby-sessions
+description: This skill should be used when the user asks to "/gobby-sessions", "list sessions", "session handoff", "pickup session". Manage agent sessions - list, show details, handoff context, search messages, and resume previous work.
+---
+
 # /gobby-sessions - Session Management Skill
 
 This skill manages agent sessions via the gobby-sessions MCP server. Parse the user's input to determine which subcommand to execute.
@@ -143,4 +146,3 @@ After executing the appropriate MCP tool, present the results clearly:
 
 If the subcommand is not recognized, show available subcommands:
 - list, show, messages, search, handoff, get-handoff, pickup, commits, stats, mark-complete
-"""

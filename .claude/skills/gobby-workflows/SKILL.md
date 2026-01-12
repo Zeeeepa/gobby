@@ -1,5 +1,8 @@
-description = "Manage step-based workflows"
-prompt = """
+---
+name: gobby-workflows
+description: This skill should be used when the user asks to "/gobby-workflows", "activate workflow", "workflow status". Manage step-based workflows - activate, deactivate, check status, and list available workflows.
+---
+
 # /gobby-workflows - Workflow Management Skill
 
 This skill manages step-based workflows via the gobby-workflows MCP server. Parse the user's input to determine which subcommand to execute.
@@ -82,4 +85,3 @@ After executing the appropriate MCP tool, present the results clearly:
 
 If the subcommand is not recognized, show available subcommands:
 - activate, deactivate, status, list
-"""

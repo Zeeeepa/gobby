@@ -245,7 +245,7 @@ def install(
                 for workflow in result["workflows_installed"]:
                     click.echo(f"  - {workflow}")
             if result.get("commands_installed"):
-                click.echo(f"Installed {len(result['commands_installed'])} commands")
+                click.echo(f"Installed {len(result['commands_installed'])} skills/commands")
                 for cmd in result["commands_installed"]:
                     click.echo(f"  - {cmd}")
             if result.get("plugins_installed"):
@@ -282,7 +282,7 @@ def install(
                 for workflow in result["workflows_installed"]:
                     click.echo(f"  - {workflow}")
             if result.get("commands_installed"):
-                click.echo(f"Installed {len(result['commands_installed'])} commands")
+                click.echo(f"Installed {len(result['commands_installed'])} skills/commands")
                 for cmd in result["commands_installed"]:
                     click.echo(f"  - {cmd}")
             if result.get("plugins_installed"):
@@ -390,7 +390,7 @@ def install(
                 for workflow in result["workflows_installed"]:
                     click.echo(f"  - {workflow}")
             if result.get("commands_installed"):
-                click.echo(f"Installed {len(result['commands_installed'])} commands")
+                click.echo(f"Installed {len(result['commands_installed'])} skills/commands")
                 for cmd in result["commands_installed"]:
                     click.echo(f"  - {cmd}")
             if result.get("plugins_installed"):

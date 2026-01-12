@@ -13,7 +13,6 @@ from .git_hooks import install_git_hooks
 from .shared import (
     install_cli_content,
     install_default_mcp_servers,
-    install_gobby_commands_symlink,
     install_shared_content,
 )
 
@@ -21,7 +20,6 @@ __all__ = [
     # Shared
     "install_shared_content",
     "install_cli_content",
-    "install_gobby_commands_symlink",
     "install_default_mcp_servers",
     # Claude
     "install_claude",

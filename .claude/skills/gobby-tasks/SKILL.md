@@ -1,5 +1,9 @@
-description = "Task Management Skill"
-prompt = """
+---
+name: gobby-tasks
+description: This skill should be used when the user asks to "/gobby-tasks", "task management", "create task", "list tasks", "close task". Manage gobby tasks - create, list, close, expand, validate, dependencies, and orchestration.
+version: "2.0"
+---
+
 # /gobby-tasks - Task Management Skill
 
 This skill manages tasks via the gobby-tasks MCP server. Parse the user's input to determine which subcommand to execute.
@@ -255,4 +259,3 @@ If the subcommand is not recognized, show available subcommands:
 - link-commit, unlink-commit, auto-link, diff
 - orchestrate, orchestration-status, poll-agents
 - sync, sync-status
-"""

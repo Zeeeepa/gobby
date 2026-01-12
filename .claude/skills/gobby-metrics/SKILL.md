@@ -1,5 +1,8 @@
-description = "Metrics and Statistics Skill"
-prompt = """
+---
+name: gobby-metrics
+description: This skill should be used when the user asks to "/gobby-metrics", "tool metrics", "usage stats", "performance report". View tool usage metrics, performance statistics, and identify failing tools.
+---
+
 # /gobby-metrics - Metrics and Statistics Skill
 
 This skill retrieves usage metrics via the gobby-metrics MCP server. Parse the user's input to determine which subcommand to execute.
@@ -97,4 +100,3 @@ After executing the appropriate MCP tool, present the results clearly:
 
 If the subcommand is not recognized, show available subcommands:
 - tools, top, failing, success, reset, cleanup, retention
-"""

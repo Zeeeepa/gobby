@@ -17,6 +17,7 @@ from gobby.cli.utils import get_install_dir
 from .shared import (
     configure_mcp_server_json,
     install_cli_content,
+    install_shared_skills,
     install_shared_content,
     remove_mcp_server_json,
 )
@@ -79,6 +80,14 @@ def install_gemini(project_path: Path) -> dict[str, Any]:
     shared = install_shared_content(gemini_path, project_path)
     # Install CLI-specific content (can override shared)
     cli = install_cli_content("gemini", gemini_path)
+
+    # Install shared skills (SKILL.md)
+    try:
+        skills = install_shared_skills(gemini_path / "skills")
+        result["commands_installed"].extend([f"{s} (skill)" for s in skills])
+    except Exception as e:
+        logger.error(f"Failed to install shared skills: {e}")
+        # Proceeding despite skill install failure
 
     result["workflows_installed"] = shared["workflows"] + cli["workflows"]
     result["commands_installed"] = cli.get("commands", [])

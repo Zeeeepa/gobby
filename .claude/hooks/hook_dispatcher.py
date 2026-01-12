@@ -171,7 +171,7 @@ def main() -> int:
         if hook_type in critical_hooks:
             # Block the hook - forces user to start daemon before critical lifecycle events
             print(
-                f"Gobby daemon is not running. Start with 'uv run gobby start' before continuing. "
+                f"Gobby daemon is not running. Start with 'gobby start' before continuing. "
                 f"({hook_type} requires daemon for session state management)",
                 file=sys.stderr,
             )

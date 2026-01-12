@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from .shared import configure_mcp_server_json
+from .shared import configure_mcp_server_json, install_shared_skills
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ def install_antigravity(project_path: Path) -> dict[str, Any]:
         "hooks_installed": [],
         "workflows_installed": [],
         "commands_installed": [],
+        "skills_installed": [],
         "mcp_configured": False,
         "mcp_already_configured": False,
         "error": None,
@@ -41,6 +42,16 @@ def install_antigravity(project_path: Path) -> dict[str, Any]:
 
     # Configure MCP server in Antigravity's MCP config (~/.gemini/antigravity/mcp_config.json)
     mcp_config = Path.home() / ".gemini" / "antigravity" / "mcp_config.json"
+
+    # Install shared skills to ~/.antigravity/skills/ (Standard Antigravity location)
+    try:
+        skills_path = Path.home() / ".antigravity" / "skills"
+        skills = install_shared_skills(skills_path)
+        result["commands_installed"].extend([f"{s} (skill)" for s in skills])
+    except Exception as e:
+        logger.error(f"Failed to install shared skills: {e}")
+        # Proceeding despite skill install failure
+
     mcp_result = configure_mcp_server_json(mcp_config)
 
     if mcp_result["success"]:

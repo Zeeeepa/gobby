@@ -58,87 +58,64 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
     return installed
 
 
-def install_gobby_commands_symlink(
-    cli_name: str, cli_path: Path, project_path: Path
-) -> dict[str, Any]:
-    """Create symlinks from CLI commands directory to .gobby/commands/gobby-*.md files.
+def install_shared_skills(target_dir: Path) -> list[str]:
+    """Install shared SKILL.md files to target directory.
 
-    This allows git-tracked commands in .gobby/commands/ to be discovered
-    by Claude Code (and other CLIs) via symlinks.
+    Copies skills from src/gobby/install/shared/skills/ to target_dir.
+    Backs up existing SKILL.md if content differs.
 
     Args:
-        cli_name: Name of the CLI (e.g., "claude")
-        cli_path: Path to CLI config directory (e.g., .claude)
-        project_path: Path to project root
+        target_dir: Directory where skills should be installed (e.g. .claude/skills)
 
     Returns:
-        Dict with 'success', 'symlinks_created', 'symlink_paths', and 'error' keys
+        List of installed skill names
     """
-    result: dict[str, Any] = {
-        "success": False,
-        "symlink_created": False,
-        "symlinks_created": [],
-        "symlink_path": None,
-        "symlink_paths": [],
-        "error": None,
-    }
+    shared_skills_dir = get_install_dir() / "shared" / "skills"
+    installed: list[str] = []
 
-    # Source: .gobby/commands/gobby-*.md files (git-tracked)
-    source_dir = project_path / ".gobby" / "commands"
-    if not source_dir.exists():
-        # No gobby commands to symlink
-        result["success"] = True
-        return result
+    if not shared_skills_dir.exists():
+        return installed
 
-    # Find all gobby-*.md files
-    source_files = list(source_dir.glob("gobby-*.md"))
-    if not source_files:
-        # No gobby commands to symlink
-        result["success"] = True
-        return result
+    target_dir.mkdir(parents=True, exist_ok=True)
 
-    # Target: .claude/commands/ or similar
-    target_commands_dir = cli_path / "commands"
+    for skill_path in shared_skills_dir.iterdir():
+        if not skill_path.is_dir():
+            continue
 
-    # Ensure target directory exists
-    target_commands_dir.mkdir(parents=True, exist_ok=True)
+        skill_name = skill_path.name
+        source_skill_md = skill_path / "SKILL.md"
 
-    # Create symlinks for each gobby-*.md file
-    for source_file in source_files:
-        target_file = target_commands_dir / source_file.name
+        if not source_skill_md.exists():
+            continue
 
-        # If target already exists, check if it's a symlink pointing to correct place
-        if target_file.exists() or target_file.is_symlink():
-            if target_file.is_symlink():
-                existing_target = target_file.resolve()
-                if existing_target == source_file.resolve():
-                    # Already correctly configured
-                    result["symlink_paths"].append(str(target_file))
-                    continue
-                # Remove incorrect symlink
-                target_file.unlink()
-            else:
-                # It's a real file - remove it
-                target_file.unlink()
+        # Target: target_dir/skill_name/SKILL.md
+        target_skill_dir = target_dir / skill_name
+        target_skill_dir.mkdir(parents=True, exist_ok=True)
+        target_skill_md = target_skill_dir / "SKILL.md"
 
-        # Create relative symlink for portability
-        relative_source = os.path.relpath(str(source_file), start=str(target_commands_dir))
+        # Backup if exists and differs
+        if target_skill_md.exists():
+            try:
+                # Read both to compare
+                source_content = source_skill_md.read_text(encoding="utf-8")
+                target_content = target_skill_md.read_text(encoding="utf-8")
 
+                if source_content != target_content:
+                    timestamp = int(time.time())
+                    backup_path = target_skill_md.with_suffix(f".md.{timestamp}.backup")
+                    target_skill_md.rename(backup_path)
+            except OSError as e:
+                logger.warning(f"Failed to backup/read skill {skill_name}: {e}")
+                continue
+
+        # Copy new file
         try:
-            target_file.symlink_to(relative_source)
-            result["symlinks_created"].append(source_file.name)
-            result["symlink_paths"].append(str(target_file))
+            copy2(source_skill_md, target_skill_md)
+            installed.append(skill_name)
         except OSError as e:
-            result["error"] = f"Failed to create symlink for {source_file.name}: {e}"
-            return result
+            logger.error(f"Failed to copy skill {skill_name}: {e}")
 
-    result["success"] = True
-    # For backward compatibility
-    result["symlink_created"] = len(result["symlinks_created"]) > 0
-    if result["symlink_paths"]:
-        result["symlink_path"] = result["symlink_paths"][0]
-
-    return result
+    return installed
 
 
 def install_cli_content(cli_name: str, target_path: Path) -> dict[str, list[str]]:

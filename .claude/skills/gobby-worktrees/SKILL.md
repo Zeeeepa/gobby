@@ -1,5 +1,8 @@
-description = "Worktree Management Skill"
-prompt = """
+---
+name: gobby-worktrees
+description: This skill should be used when the user asks to "/gobby-worktrees", "create worktree", "spawn in worktree". Manage git worktrees for parallel development - create, list, spawn agents, sync, and cleanup.
+---
+
 # /gobby-worktrees - Worktree Management Skill
 
 This skill manages git worktrees via the gobby-worktrees MCP server. Parse the user's input to determine which subcommand to execute.
@@ -148,4 +151,3 @@ If the subcommand is not recognized, show available subcommands:
 - claim, release, mark-merged
 - detect-stale, cleanup, stats
 - by-task, link
-"""

@@ -215,21 +215,21 @@ class WorktreeGitManager:
             GitOperationResult with success status and message
         """
         worktree_path = Path(worktree_path)
+        import sys
 
-        # Get branch name before removal (for optional branch deletion)
-        if delete_branch and not branch_name:
-            status = self.get_worktree_status(worktree_path)
-            if status:
-                branch_name = status.branch
+        sys.stderr.write(f"DEBUG: WorktreeGitManager.delete_worktree called for {worktree_path}\n")
+        sys.stderr.flush()
 
         try:
-            raise RuntimeError("DEBUG: I AM HERE IN GIT.PY")
-            import sys
-
-            sys.stderr.write(
-                f"DEBUG: delete_worktree force={force} delete_branch={delete_branch} branch_name={branch_name}\n"
-            )
-            sys.stderr.flush()
+            # Get branch name before removal (for optional branch deletion)
+            if delete_branch and not branch_name:
+                try:
+                    status = self.get_worktree_status(worktree_path)
+                    if status:
+                        branch_name = status.branch
+                except Exception:
+                    # Ignore errors getting status, we just won't have the branch name
+                    pass
 
             # Remove worktree
             args = ["worktree", "remove"]
@@ -238,10 +238,6 @@ class WorktreeGitManager:
             args.append(str(worktree_path))
 
             result = self._run_git(args, timeout=30)
-            sys.stderr.write(
-                f"DEBUG: worktree remove result: {result.returncode} {result.stderr}\n"
-            )
-            sys.stderr.flush()
 
             if result.returncode != 0:
                 return GitOperationResult(
@@ -252,16 +248,10 @@ class WorktreeGitManager:
 
             # Optionally delete the branch
             if delete_branch and branch_name:
-                sys.stderr.write(f"DEBUG: Attempting to delete branch {branch_name}\n")
-                sys.stderr.flush()
                 branch_result = self._run_git(
                     ["branch", "-D" if force else "-d", branch_name],
                     timeout=10,
                 )
-                sys.stderr.write(
-                    f"DEBUG: branch delete result: {branch_result.returncode} {branch_result.stderr}\n"
-                )
-                sys.stderr.flush()
 
                 if branch_result.returncode != 0:
                     return GitOperationResult(

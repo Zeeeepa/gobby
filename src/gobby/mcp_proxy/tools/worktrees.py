@@ -494,27 +494,65 @@ def create_worktrees_registry(
     async def delete_worktree(
         worktree_id: str,
         force: bool = False,
+        project_path: str | None = None,
     ) -> dict[str, Any]:
         """
-        Delete a worktree.
+        Delete a worktree (both git and database record).
 
         Args:
             worktree_id: The worktree ID to delete.
             force: Force deletion even if there are uncommitted changes.
+            project_path: Optional path to project root to resolve git context.
 
         Returns:
             Dict with success status.
         """
+        import sys
+
+        try:
+            sys.stderr.write(
+                f"DEBUG: delete_worktree tool called id={worktree_id} project_path={project_path}\n"
+            )
+            sys.stderr.flush()
+        except Exception:
+            pass
+
         worktree = worktree_storage.get(worktree_id)
+
         if not worktree:
             return {
                 "success": False,
                 "error": f"Worktree '{worktree_id}' not found",
             }
 
+        # Resolve git manager
+        resolved_git_mgr = git_manager  # Start with the module-level git_manager
+        if project_path:
+            try:
+                sys.stderr.write(f"DEBUG: resolving project context for {project_path}\n")
+                sys.stderr.flush()
+
+                # _resolve_project_context is defined in this module scope
+                mgr, _, err = _resolve_project_context(project_path, resolved_git_mgr, None)
+
+                if err:
+                    sys.stderr.write(f"DEBUG: _resolve_project_context returned error: {err}\n")
+                    sys.stderr.flush()
+                else:
+                    resolved_git_mgr = mgr
+
+                sys.stderr.write(f"DEBUG: git_manager resolved: {resolved_git_mgr}\n")
+            except Exception as e:
+                sys.stderr.write(f"DEBUG: Failed to resolve project context: {e}\n")
+                import traceback
+
+                traceback.print_exc()
+                sys.stderr.flush()
+                pass
+
         # Check for uncommitted changes if not forcing
-        if git_manager and not force:
-            status = git_manager.get_worktree_status(worktree.worktree_path)
+        if resolved_git_mgr and Path(worktree.worktree_path).exists():
+            status = resolved_git_mgr.get_worktree_status(worktree.worktree_path)
             if status and status.has_uncommitted_changes:
                 return {
                     "success": False,
@@ -523,13 +561,21 @@ def create_worktrees_registry(
                 }
 
         # Delete git worktree
-        if git_manager:
-            result = git_manager.delete_worktree(
+        if resolved_git_mgr:
+            import sys
+
+            sys.stderr.write(
+                f"DEBUG: calling resolved_git_mgr.delete_worktree for {worktree.worktree_path}\n"
+            )
+            sys.stderr.flush()
+            result = resolved_git_mgr.delete_worktree(
                 worktree.worktree_path,
                 force=force,
                 delete_branch=True,
                 branch_name=worktree.branch_name,
             )
+            sys.stderr.write(f"DEBUG: resolved_git_mgr.delete_worktree returned {result}\n")
+            sys.stderr.flush()
             if not result.success:
                 return {
                     "success": False,

@@ -242,6 +242,7 @@ def daemon_instance(
     src_dir = root_dir / "src"
     current_pythonpath = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = f"{src_dir}:{current_pythonpath}" if current_pythonpath else str(src_dir)
+    print(f"DEBUG: src_dir={src_dir} PYTHONPATH={env['PYTHONPATH']}")
 
     # Start daemon process
     with open(log_file, "w") as log_f, open(error_log_file, "w") as err_f:
