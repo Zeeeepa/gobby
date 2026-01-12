@@ -122,54 +122,39 @@ Include commands that can be executed to verify completion.
 """
 
 # TDD Mode Addition
+# The system handles TDD triplet creation deterministically - we just need the LLM
+# to output simple feature/task names, not full test/implement/refactor titles.
 TDD_MODE_INSTRUCTIONS = """
 
 ## TDD Mode Enabled
 
-**IMPORTANT:** Apply TDD only to coding/implementation tasks. For non-coding tasks (documentation, design, research, planning, configuration), use normal task structure without test pairs.
+**IMPORTANT:** Do NOT create separate test/implement/refactor tasks. The system handles TDD structure automatically.
 
-For coding tasks, create subtasks in Red-Green-Refactor triplets:
+For each coding feature, output a SINGLE task with just the feature name:
+- Title: "User authentication" (NOT "Write tests for user authentication")
+- Title: "Database connection pooling" (NOT "Implement database connection pooling")
 
-1. **Test subtask (Red)**: "Write tests for <feature>"
-   - Description explains what tests to write
-   - Test strategy: "Tests should fail initially (red phase)"
+The system will automatically expand coding tasks into TDD triplets:
+1. Write tests for: <title>
+2. Implement: <title>
+3. Refactor: <title>
 
-2. **Implementation subtask (Green)**: "Implement <feature>"
-   - Set `depends_on` to reference the test subtask's index
-   - Description explains minimal implementation to pass tests
-   - Test strategy: "All tests from previous subtask should pass (green phase)"
+For NON-coding tasks (documentation, research, design, planning, configuration):
+- Set `task_type: "epic"` or start the title with keywords like "Document", "Research", "Design", "Plan"
+- These will NOT be expanded into TDD triplets
 
-3. **Refactor subtask (Refactor)**: "Refactor: <feature>"
-   - Set `depends_on` to reference the implementation subtask's index
-   - Description: "Refactor the implementation of: <feature>"
-   - Test strategy: "All tests must continue to pass after refactoring"
-
-Example TDD output:
+Example output:
 ```json
 {
   "subtasks": [
-    {
-      "title": "Write tests for user authentication",
-      "description": "Write failing tests for login, logout, and session management.",
-      "test_strategy": "Tests should fail initially (red phase)"
-    },
-    {
-      "title": "Implement user authentication",
-      "description": "Write minimal code to make authentication tests pass.",
-      "depends_on": [0],
-      "test_strategy": "All authentication tests should pass (green phase)"
-    },
-    {
-      "title": "Refactor: user authentication",
-      "description": "Refactor the authentication logic for better readability and performance.",
-      "depends_on": [1],
-      "test_strategy": "All tests must continue to pass after refactoring"
-    }
+    {"title": "User authentication", "task_type": "feature", "description": "Login, logout, and session management"},
+    {"title": "Database connection pooling", "task_type": "task"},
+    {"title": "Document the API endpoints", "task_type": "epic"}
   ]
 }
 ```
 
-This ensures the Red-Green-Refactor cycle is followed.
+The first two become TDD triplets (6 tasks total). The third stays as a single task.
 """
 
 # Default User Prompt Template

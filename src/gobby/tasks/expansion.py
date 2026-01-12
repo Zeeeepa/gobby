@@ -350,27 +350,52 @@ class TaskExpander:
         # Track overall created index for depends_on calculation within created_ids list
         # We can't use simple indexing anymore because 1 spec might = 3 tasks
 
-        for i, spec in enumerate(subtask_specs):
-            # Check TDD fallback:
-            # If TDD mode is on, and this is a coding task, and it's not a test,
-            # and it doesn't depend on a test... expand to triplet.
-            is_test = "test" in spec.title.lower() or spec.title.lower().startswith(
-                "write tests"
-            )
-            # Assume tasks without type are 'task' (coding) unless specified otherwise
-            is_coding = spec.task_type in ("task", "feature", "bug", "chore")
+        # Non-coding task prefixes - narrow exclusion for tasks that shouldn't be TDD triplets
+        NON_CODING_PREFIXES = (
+            "document",
+            "research",
+            "design",
+            "plan",
+            "review",
+            "write docs",
+            "update docs",
+        )
 
+        # TDD triplet title prefixes - if title already looks like a TDD task, don't re-expand
+        # This handles legacy prompts or manually created test/impl/refactor tasks
+        TDD_TITLE_PREFIXES = (
+            "write tests for",
+            "implement:",
+            "refactor:",
+        )
+
+        for i, spec in enumerate(subtask_specs):
+            # Determine if this task should be expanded into a TDD triplet.
+            # With the simplified prompt, the LLM outputs feature names (not test/impl/refactor titles),
+            # and we create triplets deterministically based on task_type.
+            is_coding_type = spec.task_type in ("task", "feature", "bug", "chore")
+            is_non_coding_title = any(
+                spec.title.lower().startswith(p) for p in NON_CODING_PREFIXES
+            )
+            # Skip expansion if title already looks like a TDD triplet task (legacy/manual)
+            is_already_tdd_title = any(
+                spec.title.lower().startswith(p) for p in TDD_TITLE_PREFIXES
+            )
+            # Check if this task depends on a test task (legacy test→impl pairs)
             has_test_dependency = False
             if spec.depends_on:
                 for dep_idx in spec.depends_on:
                     if 0 <= dep_idx < len(subtask_specs):
                         dep_title = subtask_specs[dep_idx].title.lower()
-                        if "test" in dep_title or dep_title.startswith("write tests"):
+                        if any(dep_title.startswith(p) for p in TDD_TITLE_PREFIXES):
                             has_test_dependency = True
                             break
-
             should_expand_triplet = (
-                tdd_mode and is_coding and not is_test and not has_test_dependency
+                tdd_mode
+                and is_coding_type
+                and not is_non_coding_title
+                and not is_already_tdd_title
+                and not has_test_dependency
             )
 
             if should_expand_triplet:

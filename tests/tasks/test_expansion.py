@@ -72,10 +72,12 @@ def mock_llm_service():
 
 @pytest.fixture
 def task_expansion_config():
+    # Disable TDD mode for basic expansion tests - TDD-specific tests use explicit tdd_mode=True
     return TaskExpansionConfig(
         enabled=True,
         provider="test-provider",
         model="test-model",
+        tdd_mode=False,
     )
 
 
