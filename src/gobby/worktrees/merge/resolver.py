@@ -12,7 +12,10 @@ import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from gobby.llm.service import LLMService
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +92,7 @@ class MergeResolver:
         """
         self.conflict_size_threshold = conflict_size_threshold
         self.max_parallel_files = max_parallel_files
-        self._llm_service = None  # LLM service integration point
+        self._llm_service: LLMService | None = None  # LLM service integration point
 
     async def resolve_file(
         self,
@@ -273,9 +276,49 @@ class MergeResolver:
         Returns:
             Dict with 'success' bool and 'conflicts' list if any
         """
-        # This would be implemented with actual git commands
-        # For now, return a placeholder that tests can mock
-        return {"success": False, "conflicts": []}
+        # Run git merge without committing
+        process = await asyncio.create_subprocess_exec(
+            "git",
+            "merge",
+            "--no-commit",
+            "--no-ff",
+            source_branch,
+            cwd=worktree_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        await process.communicate()
+
+        if process.returncode == 0:
+            return {"success": True, "conflicts": []}
+
+        # Merge failed, find conflicting files
+        diff_process = await asyncio.create_subprocess_exec(
+            "git",
+            "diff",
+            "--name-only",
+            "--diff-filter=U",
+            cwd=worktree_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await diff_process.communicate()
+        conflicted_files = stdout.decode().strip().splitlines()
+
+        from gobby.worktrees.merge.conflict_parser import extract_conflict_hunks
+
+        conflicts = []
+        for file_rel_path in conflicted_files:
+            file_path = Path(worktree_path) / file_rel_path
+            try:
+                content = file_path.read_text()
+                hunks = extract_conflict_hunks(content)
+                if hunks:
+                    conflicts.append({"file": str(file_rel_path), "hunks": hunks})
+            except Exception as e:
+                logger.error(f"Failed to parse conflicts in {file_rel_path}: {e}")
+
+        return {"success": False, "conflicts": conflicts}
 
     async def _resolve_conflicts_only(
         self,
@@ -289,9 +332,53 @@ class MergeResolver:
         Returns:
             Dict with 'success' bool and 'resolutions' list
         """
-        # This would be implemented with LLM service integration
-        # For now, return a placeholder that tests can mock
-        return {"success": False, "resolutions": []}
+        if not self._llm_service:
+            logger.warning("No LLM service available for resolution")
+            return {"success": False, "resolutions": []}
+
+        resolutions = []
+        for conflict in conflicts:
+            file_path = conflict.get("file", "unknown")
+            hunks = conflict.get("hunks", [])
+
+            prompt = f"Resolve the following merge conflicts in {file_path}. Return ONLY the resolved code content for each hunk.\n\n"
+
+            for i, hunk in enumerate(hunks):
+                # Handle both dict and object hunk formats
+                if isinstance(hunk, dict):
+                    ours = hunk.get("ours", "")
+                    theirs = hunk.get("theirs", "")
+                else:
+                    ours = getattr(hunk, "ours", "")
+                    theirs = getattr(hunk, "theirs", "")
+
+                prompt += f"CONFLICT {i + 1}:\n"
+                prompt += f"<<<<<<< HEAD\n{ours}\n=======\n{theirs}\n>>>>>>> INCOMING\n\n"
+
+            prompt += "Provide the resolved code for each conflict hunk, separated by '---HUNK SEPARATOR---'."
+
+            try:
+                # Use default provider for now, could be configurable via tiered strategy params
+                provider = self._llm_service.get_default_provider()
+                response = await provider.generate_text(prompt)
+
+                if response:
+                    # Simple parsing assumption - in real app would be more robust
+                    resolved_hunks = response.split("---HUNK SEPARATOR---")
+                    resolutions.append(
+                        {
+                            "file": file_path,
+                            "content": response,  # Storing full response for now as simple implementation
+                            "hunks_resolved": len(resolved_hunks),
+                        }
+                    )
+                else:
+                    return {"success": False, "resolutions": []}
+            except Exception as e:
+                logger.error(f"LLM resolution failed for {file_path}: {e}")
+                return {"success": False, "resolutions": []}
+
+        return {"success": True, "resolutions": resolutions}
 
     async def _resolve_full_file(
         self,
@@ -305,9 +392,35 @@ class MergeResolver:
         Returns:
             Dict with 'success' bool and 'resolutions' list
         """
-        # This would be implemented with LLM service integration
-        # For now, return a placeholder that tests can mock
-        return {"success": False, "resolutions": []}
+        if not self._llm_service:
+            logger.warning("No LLM service available for resolution")
+            return {"success": False, "resolutions": []}
+
+        resolutions = []
+        for conflict in conflicts:
+            file_path = conflict.get("file", "unknown")
+
+            try:
+                # In a real scenario, we'd read the file content with markers here
+                # But typically the file on disk already has markers if git merge failed
+                content_with_markers = Path(file_path).read_text()
+
+                prompt = f"Resolve all merge conflicts in the following file {file_path}. Return the FULL resolved file content.\n\n"
+                prompt += content_with_markers
+
+                # Use default provider
+                provider = self._llm_service.get_default_provider()
+                response = await provider.generate_text(prompt)
+
+                if response:
+                    resolutions.append({"file": file_path, "content": response})
+                else:
+                    return {"success": False, "resolutions": []}
+            except Exception as e:
+                logger.error(f"Full file resolution failed for {file_path}: {e}")
+                return {"success": False, "resolutions": []}
+
+        return {"success": True, "resolutions": resolutions}
 
     async def _resolve_file_conflict(
         self,

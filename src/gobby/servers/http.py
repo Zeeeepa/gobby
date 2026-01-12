@@ -144,6 +144,18 @@ class HTTPServer:
                     return self._tools_handler.tool_proxy
                 return None
 
+            # Create merge managers if db available
+            merge_storage = None
+            merge_resolver = None
+            if mcp_db_manager:
+                from gobby.storage.merge_resolutions import MergeResolutionManager
+                from gobby.worktrees.merge.resolver import MergeResolver
+
+                merge_storage = MergeResolutionManager(mcp_db_manager.db)
+                merge_resolver = MergeResolver()
+                merge_resolver._llm_service = self.llm_service
+                logger.debug("Merge resolution subsystems initialized")
+
             # Setup internal registries (gobby-tasks, gobby-memory, etc.)
             self._internal_manager = setup_internal_registries(
                 _config=config,
@@ -160,6 +172,8 @@ class HTTPServer:
                 agent_runner=self.agent_runner,
                 worktree_storage=self.worktree_storage,
                 git_manager=None,  # Created per-project, not at daemon startup
+                merge_storage=merge_storage,
+                merge_resolver=merge_resolver,
                 project_id=None,  # Project-specific, not global
                 tool_proxy_getter=tool_proxy_getter,
             )
