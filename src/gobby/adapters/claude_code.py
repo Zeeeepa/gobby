@@ -167,15 +167,10 @@ class ClaudeCodeAdapter(BaseAdapter):
         if response.decision in ("deny", "block") and response.reason:
             result["stopReason"] = response.reason
 
-        # Add context/instructions via systemMessage (Claude Code's schema for context injection)
-        # Combine response.context (workflow inject_context) and response.system_message if both present
-        system_message_parts = []
-        if response.context:
-            system_message_parts.append(response.context)
+        # Add system_message to systemMessage (for system-level messages)
+        # Note: response.context goes to additionalContext below (visible to model)
         if response.system_message:
-            system_message_parts.append(response.system_message)
-        if system_message_parts:
-            result["systemMessage"] = "\n\n".join(system_message_parts)
+            result["systemMessage"] = response.system_message
 
         # Add tool decision for pre-tool-use hooks
         # Claude Code schema: decision uses "approve"/"block"
@@ -186,11 +181,19 @@ class ClaudeCodeAdapter(BaseAdapter):
             result["decision"] = "approve"
 
         # Add hookSpecificOutput with additionalContext for model context injection
-        # This is how we pass session identifiers to Claude's context
+        # This includes both workflow inject_context AND session identifiers
+        hook_event_name = self.HOOK_EVENT_NAME_MAP.get(hook_type or "", "Unknown")
+        additional_context_parts: list[str] = []
+
+        # Add workflow-injected context (from inject_context action)
+        # This is the primary way to inject context visible to the model
+        if response.context:
+            additional_context_parts.append(response.context)
+
+        # Add session identifiers from metadata
         if response.metadata:
             session_id = response.metadata.get("session_id")
             if session_id:
-                hook_event_name = self.HOOK_EVENT_NAME_MAP.get(hook_type or "", "Unknown")
                 # Build context with all available identifiers
                 context_lines = [f"session_id: {session_id}"]
                 if response.metadata.get("parent_session_id"):
@@ -221,10 +224,14 @@ class ClaudeCodeAdapter(BaseAdapter):
                         # Use friendlier names in output
                         friendly_name = key.replace("terminal_", "").replace("_", " ")
                         context_lines.append(f"{friendly_name}: {response.metadata[key]}")
-                result["hookSpecificOutput"] = {
-                    "hookEventName": hook_event_name,
-                    "additionalContext": "\n".join(context_lines),
-                }
+                additional_context_parts.append("\n".join(context_lines))
+
+        # Build hookSpecificOutput if we have any context to inject
+        if additional_context_parts:
+            result["hookSpecificOutput"] = {
+                "hookEventName": hook_event_name,
+                "additionalContext": "\n\n".join(additional_context_parts),
+            }
 
         return result
 
