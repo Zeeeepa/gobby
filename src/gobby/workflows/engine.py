@@ -487,6 +487,22 @@ class WorkflowEngine:
                     f"Loaded {len(lifecycle_state.variables)} session variable(s) "
                     f"for {session_id}: {list(lifecycle_state.variables.keys())}"
                 )
+            elif event.event_type == HookEventType.SESSION_START:
+                # New session - check if we should inherit from parent
+                parent_id = event.metadata.get("_parent_session_id")
+                if parent_id:
+                    parent_state = self.state_manager.get_state(parent_id)
+                    if parent_state and parent_state.variables:
+                        # Inherit specific variables
+                        vars_to_inherit = ["plan_mode"]
+                        inherited = {
+                            k: v for k, v in parent_state.variables.items() if k in vars_to_inherit
+                        }
+                        if inherited:
+                            context_data.update(inherited)
+                            logger.info(
+                                f"Session {session_id} inherited variables from {parent_id}: {inherited}"
+                            )
 
         # Track which workflow+trigger combinations have already been processed
         # to prevent duplicate execution of the same trigger
@@ -714,6 +730,12 @@ class WorkflowEngine:
                             f"Added to injected_context, now has {len(injected_context)} items, total chars={sum(len(c) for c in injected_context)}"
                         )
 
+                    if "inject_message" in result:
+                        injected_context.append(result["inject_message"])
+                        logger.debug(
+                            f"Added message to injected_context, now has {len(injected_context)} items"
+                        )
+
                     # Capture system_message (last one wins)
                     if "system_message" in result:
                         system_message = result["system_message"]
@@ -890,6 +912,12 @@ class WorkflowEngine:
                             f"Found inject_context in result, length={len(result['inject_context'])}"
                         )
                         injected_context.append(result["inject_context"])
+
+                    if "inject_message" in result:
+                        logger.debug(
+                            f"Found inject_message in result, length={len(result['inject_message'])}"
+                        )
+                        injected_context.append(result["inject_message"])
 
                     # Capture system_message (last one wins)
                     if "system_message" in result:

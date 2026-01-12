@@ -52,6 +52,17 @@ triggers:
     # Memory sync - import from JSONL for Git persistence
     - action: memory_sync_import
 
+    # Plan mode notice - inject notice if in plan mode
+    - action: inject_message
+      when: "variables.get('plan_mode')"
+      content: |
+        ## Plan Mode Active
+        *Injected by Gobby*
+
+        You are currently in **PLAN mode**. 
+        File modifications are allowed only for planning documents (e.g., in `~/.claude/plans/`).
+        Task enforcement is relaxed for these files.
+
   on_before_agent:
     # Memory recall - inject memories relevant to the user's prompt via semantic search
     - action: memory_recall_relevant
