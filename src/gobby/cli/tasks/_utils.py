@@ -216,8 +216,12 @@ def sort_tasks_for_tree(tasks: list[Task]) -> list[Task]:
     """Sort tasks for tree display (parent before children, depth-first).
 
     Returns a new list with tasks sorted in tree traversal order.
+    Preserves the input order within each parent group (respecting
+    topological sort from storage layer).
     """
     task_by_id = {t.id: t for t in tasks}
+    # Preserve input order via index lookup
+    input_order = {t.id: i for i, t in enumerate(tasks)}
 
     # Group children by parent
     children_by_parent: dict[str | None, list[Task]] = {}
@@ -229,9 +233,9 @@ def sort_tasks_for_tree(tasks: list[Task]) -> list[Task]:
             children_by_parent[parent_id] = []
         children_by_parent[parent_id].append(task)
 
-    # Sort children within each parent by priority, then title
+    # Sort children within each parent by input order (preserves topological sort)
     for children in children_by_parent.values():
-        children.sort(key=lambda t: (t.priority, t.title))
+        children.sort(key=lambda t: input_order.get(t.id, float("inf")))
 
     # Build sorted list via depth-first traversal
     sorted_tasks: list[Task] = []
@@ -264,6 +268,8 @@ def compute_tree_prefixes(
         is_primary is True if task is in primary_ids (or primary_ids is None)
     """
     task_by_id = {t.id: t for t in tasks}
+    # Preserve input order via index lookup
+    input_order = {t.id: i for i, t in enumerate(tasks)}
     if primary_ids is None:
         primary_ids = set(task_by_id.keys())
 
@@ -277,9 +283,9 @@ def compute_tree_prefixes(
             children_by_parent[parent_id] = []
         children_by_parent[parent_id].append(task)
 
-    # Sort children within each parent by priority, then title
+    # Sort children within each parent by input order (preserves topological sort)
     for children in children_by_parent.values():
-        children.sort(key=lambda t: (t.priority, t.title))
+        children.sort(key=lambda t: input_order.get(t.id, float("inf")))
 
     prefixes: dict[str, tuple[str, bool]] = {}
 
