@@ -37,8 +37,6 @@ def memory_config_with_crossref():
         enabled=True,
         importance_threshold=0.0,  # No threshold for tests
         decay_enabled=False,
-        semantic_search_enabled=False,
-        auto_embed=False,
         access_debounce_seconds=60,
         auto_crossref=True,
         crossref_threshold=0.1,  # Low threshold for tests
