@@ -648,6 +648,67 @@ def import_workflow(ctx: click.Context, source: str, name: str | None, is_global
     click.echo(f"✓ Imported workflow '{workflow_name}' to {dest_path}")
 
 
+@workflows.command("reload")
+@click.pass_context
+def reload_workflows(ctx: click.Context) -> None:
+    """Reload workflow definitions from disk."""
+    import httpx
+    import psutil
+    from gobby.config.app import load_config
+
+    # Try to tell daemon to reload
+    try:
+        config = load_config()
+        port = config.get_http_config().port
+
+        # Check if running
+        is_running = False
+        try:
+            for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+                try:
+                    cmdline = proc.cmdline()
+                    if "gobby" in cmdline and "start" in cmdline:
+                        is_running = True
+                        break
+                    # Also check for "python -m gobby start" or similar
+                    if len(cmdline) >= 2 and cmdline[1].endswith("gobby") and "start" in cmdline:
+                        is_running = True
+                        break
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+        except Exception:
+            # Fallback to connection attempt
+            is_running = True
+
+        if is_running:
+            try:
+                response = httpx.post(
+                    f"http://localhost:{port}/admin/workflows/reload", timeout=2.0
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("status") == "success":
+                        click.echo("✓ Triggered daemon workflow reload")
+                        return
+                    else:
+                        click.echo(f"Daemon reload failed: {data.get('message')}", err=True)
+                else:
+                    click.echo(f"Daemon returned status {response.status_code}", err=True)
+            except httpx.ConnectError:
+                # Daemon not actually running or listening
+                pass
+            except Exception as e:
+                click.echo(f"Failed to communicate with daemon: {e}", err=True)
+    except Exception as e:
+        logger.debug(f"Error checking daemon status: {e}")
+
+    # Fallback: Clear local cache (useful if running in same process or just validating)
+    # This also helps if the user just wants to verify the command runs
+    loader = get_workflow_loader()
+    loader.clear_cache()
+    click.echo("✓ Cleared local workflow cache")
+
+
 @workflows.command("audit")
 @click.option("--session", "-s", "session_id", help="Session ID (defaults to current)")
 @click.option(

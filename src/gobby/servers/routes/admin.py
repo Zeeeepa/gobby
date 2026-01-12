@@ -353,8 +353,70 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
             metrics.inc_counter("http_requests_errors_total")
             logger.error("Error initiating shutdown: %s", e, exc_info=True)
             return {
-                "status": "error",
                 "message": "Shutdown failed to initiate",
             }
+
+    @router.post("/workflows/reload")
+    async def reload_workflows() -> dict[str, Any]:
+        """
+        Reload workflow definitions from disk.
+
+        Triggers the gobby-workflows.reload_cache MCP tool internally.
+        """
+        start_time = time.perf_counter()
+        metrics = get_metrics_collector()
+        metrics.inc_counter("http_requests_total")
+
+        try:
+            # Find the gobby-workflows registry
+            workflows_registry = None
+            if server._internal_manager:
+                for registry in server._internal_manager.get_all_registries():
+                    if registry.name == "gobby-workflows":
+                        workflows_registry = registry
+                        break
+
+            if not workflows_registry:
+                return {
+                    "status": "error",
+                    "message": "Workflow registry not available",
+                }
+
+            # Call reload_cache tool directly
+            # We bypass the MCP tool proxy and call the function directly
+            # since we are inside the daemon process
+            reload_tool = workflows_registry.get_tool("reload_cache")
+            if not reload_tool:
+                return {
+                    "status": "error",
+                    "message": "reload_cache tool not found",
+                }
+
+            # Execute the tool
+            try:
+                # The tool function takes no arguments
+                result = reload_tool.fn()
+            except Exception as e:
+                logger.error(f"Failed to execute reload_cache: {e}")
+                return {
+                    "status": "error",
+                    "message": f"Failed to reload cache: {e}",
+                }
+
+            response_time_ms = (time.perf_counter() - start_time) * 1000
+
+            return {
+                "status": "success",
+                "message": "Workflow cache reloaded",
+                "details": result,
+                "response_time_ms": response_time_ms,
+            }
+
+        except Exception as e:
+            metrics.inc_counter("http_requests_errors_total")
+            logger.error(f"Error reloading workflows: {e}", exc_info=True)
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     return router

@@ -11,7 +11,9 @@ Exposes functionality for:
 - mark_artifact_complete: Register an artifact as complete
 - set_variable: Set a workflow variable for the session
 - get_variable: Get workflow variable(s) for the session
+- get_variable: Get workflow variable(s) for the session
 - import_workflow: Import a workflow from a file path
+- reload_cache: Clear the workflow loader cache to pick up file changes
 
 These tools are registered with the InternalToolRegistry and accessed
 via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
@@ -20,6 +22,7 @@ via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+import logging
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.database import LocalDatabase
@@ -28,6 +31,8 @@ from gobby.utils.project_context import get_workflow_project_path
 from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
+
+logger = logging.getLogger(__name__)
 
 
 def create_workflows_registry(
@@ -728,5 +733,25 @@ def create_workflows_registry(
             "destination": str(dest_path),
             "is_global": is_global,
         }
+
+    @registry.tool(
+        name="reload_cache",
+        description="Clear the workflow cache. Use this after modifying workflow YAML files.",
+    )
+    def reload_cache() -> dict[str, Any]:
+        """
+        Clear the workflow loader cache.
+
+        This forces the daemon to re-read workflow YAML files from disk
+        on the next access. Use this when you've modified workflow files
+        and want the changes to take effect immediately without restarting
+        the daemon.
+
+        Returns:
+            Success status
+        """
+        _loader.clear_cache()
+        logger.info("Workflow cache cleared via reload_cache tool")
+        return {"success": True, "message": "Workflow cache cleared"}
 
     return registry

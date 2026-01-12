@@ -161,6 +161,38 @@ class TestWorkflowLoader:
         assert "global:project_workflow" in loader._cache
         assert "/project/a:project_workflow" in loader._cache
 
+    def test_clear_cache_forces_reload(self, loader):
+        """Test that clearing cache forces reload from disk."""
+        yaml_content_v1 = """
+        name: dynamic_workflow
+        version: "1.0"
+        """
+        yaml_content_v2 = """
+        name: dynamic_workflow
+        version: "2.0"
+        """
+
+        mock_path = Path("/tmp/workflows/dynamic_workflow.yaml")
+
+        with patch.object(loader, "_find_workflow_file", return_value=mock_path):
+            # First load
+            with patch("builtins.open", mock_open(read_data=yaml_content_v1)):
+                wf1 = loader.load_workflow("dynamic_workflow")
+                assert wf1.version == "1.0"
+
+            # Cache hit check
+            with patch("builtins.open", mock_open(read_data="should not be read")):
+                wf_cached = loader.load_workflow("dynamic_workflow")
+                assert wf_cached.version == "1.0"
+
+            # Clear cache
+            loader.clear_cache()
+
+            # Second load (should read v2)
+            with patch("builtins.open", mock_open(read_data=yaml_content_v2)):
+                wf2 = loader.load_workflow("dynamic_workflow")
+                assert wf2.version == "2.0"
+
 
 class TestFindWorkflowFile:
     """Tests for _find_workflow_file method."""
