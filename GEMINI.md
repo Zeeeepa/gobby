@@ -88,6 +88,16 @@ You are operating within a Gobby-enabled environment. You **must** use the `gobb
 * **Dependencies:** If blocked, use `add_dependency`.
 * **Bugs:** Found a side-issue? `create_task` (don't get distracted).
 
+# Task Workflow (Mandatory)
+
+1.  **Start Task**: `gobby-tasks.update_task(<id>, status="in_progress")`
+2.  **Understand**: Read the task details and linked issues.
+3.  **Work**: Implement the changes.
+4.  **Confirm**: `gobby-tasks.list_tasks(status="in_progress")` to verify tracking.
+5.  **Close**: `gobby-tasks.close_task(<id>, commit_sha="<sha>")` when done.
+
+> **CRITICAL**: Do NOT leave tasks `in_progress` if you are done. Always close them with a commit SHA.
+
 ### 3. End of Session ("Landing the Plane")
 
 * **Close Tasks:** `mcp_call_tool("gobby-tasks", "close_task", {"task_id": "...", "reason": "completed"})`

@@ -54,7 +54,7 @@ triggers:
 
     # Plan mode prompt - ONLY on fresh sessions (not handoffs/compacts)
     - action: inject_context
-      when: "event.data.get('source') == 'startup'"
+      when: "event.data.get('source') not in ['clear', 'compact'] or event.data.get('source') == 'startup'"
       template: |
         ## Session Start: Plan Mode Recommended
         *Injected by Gobby session startup*
