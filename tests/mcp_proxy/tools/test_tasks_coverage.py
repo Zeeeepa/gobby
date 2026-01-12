@@ -173,6 +173,7 @@ class TestCreateTaskTool:
 
         mock_task = MagicMock()
         mock_task.id = "550e8400-e29b-41d4-a716-446655440001"
+        mock_task.seq_num = 42
         mock_task.to_dict.return_value = {
             "id": "550e8400-e29b-41d4-a716-446655440001",
             "title": "New Task",
@@ -189,7 +190,12 @@ class TestCreateTaskTool:
 
             result = await registry.call("create_task", {"title": "New Task"})
 
-            assert result == {"success": True, "id": "550e8400-e29b-41d4-a716-446655440001"}
+            assert result == {
+                "success": True,
+                "id": "550e8400-e29b-41d4-a716-446655440001",
+                "seq_num": 42,
+                "ref": "#42",
+            }
             mock_task_manager.create_task_with_decomposition.assert_called_once()
 
     @pytest.mark.asyncio

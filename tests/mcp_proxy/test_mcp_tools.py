@@ -80,6 +80,7 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
     # Mock return value for create_task_with_decomposition (returns dict with task key)
     mock_task = MagicMock()
     mock_task.id = "t1"
+    mock_task.seq_num = 123
     mock_task.to_dict.return_value = {"id": "t1", "title": "Test Task"}
     mock_task_manager.create_task_with_decomposition.return_value = {
         "task": {"id": "t1"},
@@ -105,7 +106,7 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
             validation_criteria=None,
             created_in_session_id=None,
         )
-    assert result == {"success": True, "id": "t1"}
+    assert result == {"success": True, "id": "t1", "seq_num": 123, "ref": "#123"}
 
 
 @pytest.mark.asyncio
@@ -116,6 +117,7 @@ async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager)
     # Mock return value for create_task_with_decomposition (returns dict with task key)
     mock_task = MagicMock()
     mock_task.id = "t1"
+    mock_task.seq_num = 456
     mock_task.to_dict.return_value = {"id": "t1", "title": "Test Task"}
     mock_task_manager.create_task_with_decomposition.return_value = {
         "task": {"id": "t1"},
@@ -144,7 +146,7 @@ async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager)
             validation_criteria=None,
             created_in_session_id="session-abc123",
         )
-    assert result == {"success": True, "id": "t1"}
+    assert result == {"success": True, "id": "t1", "seq_num": 456, "ref": "#456"}
 
 
 @pytest.mark.asyncio
