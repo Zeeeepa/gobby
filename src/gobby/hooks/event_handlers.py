@@ -285,6 +285,8 @@ class EventHandlers:
 
         # Step 4: Update event metadata with the newly registered session_id
         event.metadata["_platform_session_id"] = session_id
+        if parent_session_id:
+            event.metadata["_parent_session_id"] = parent_session_id
 
         # Step 5: Register with Message Processor
         if self._message_processor and transcript_path and session_id:
