@@ -1,21 +1,17 @@
-# Plan: Task Commands, Gobby the Task Goblin, Inter-Agent Communication, and OpenTelemetry
+# Plan: Task Commands, Gobby the Task Goblin, and Inter-Agent Communication
 
 ## Summary
 
-Four features requested:
+Three features requested:
 1. **Task Type Commands** - Quick slash commands for creating tasks by type
 2. **Gobby the Task Goblin** - Persistent LLM loop for task orchestration and monitoring
 3. **Inter-Agent Communication** - Messaging between parent/child agents in worktrees
-4. **OpenTelemetry Integration** - Distributed tracing, metrics, and observability
 
 ---
 
-## Feature 1: Task Type Commands
+## Feature 1: Task Type Commands ✅ DONE
 
-### Goal
-Create slash commands in `.claude/commands/` for quickly creating tasks of specific types.
-
-### Commands to Create
+### Commands Created
 | Command | Task Type | Notes |
 |---------|-----------|-------|
 | `/bug` | bug | Bug/defect task |
@@ -74,12 +70,45 @@ A persistent Python LLM loop that monitors tasks, checks agent health, tracks to
                     └─────────────────────────────┘
 ```
 
-### Personality: Haiku Mode
-All status reports in haiku form:
+### Personality: TARS Mode (15% Humor)
+Gobby speaks in haiku with dry, deadpan wit. Think TARS from Interstellar - helpful, competent, occasionally catches you off guard with subtle sass.
+
+**Normal status:**
 ```
 Three tasks await you
-Gemini sleeps in worktree
-Merge when ready, friend
+Code review blocks the feature
+Dependencies clear
+```
+
+**When you've ignored a task for 3 days:**
+```
+Task forty-seven
+Has waited three days for you
+It's starting to judge
+```
+
+**When an agent is stuck:**
+```
+Gemini sits still
+Perhaps it found enlightenment
+Or perhaps it crashed
+```
+
+**After you close 5 tasks in a row:**
+```
+Five tasks completed
+Your productivity frightens
+Even the machines
+```
+
+**Configuration:**
+```yaml
+goblin:
+  personality:
+    mode: haiku
+    humor_setting: 0.15  # TARS-style dry wit
+    sass_on_stale_tasks: true
+    sass_threshold_hours: 24
 ```
 
 ### CLI Interface
@@ -120,9 +149,10 @@ gobby goblin log                       # View recent activity
    - Cost estimation
 
 5. **HaikuGenerator** (`src/gobby/goblin/haiku.py`)
-   - LLM-powered status summarization
-   - Maintains Gobby's personality
-   - Optional: local haiku templates for common states
+   - LLM-powered status summarization (uses Claude Haiku model - *chef's kiss*)
+   - TARS-style personality with 15% humor setting
+   - Template library for common states (with sass variants)
+   - Humor injection based on context (stale tasks, stuck agents, productivity streaks)
 
 6. **AlertDispatcher** (`src/gobby/goblin/alerts.py`)
    - Log to file
@@ -252,9 +282,9 @@ Extend `session_messages.py` or create new `inter_session_messages.py`:
 
 ## Implementation Order
 
-### Phase 1: Task Commands (Quick Win)
-1. Create 6 command files in `.claude/commands/`
-2. Test each command works
+### Phase 1: Task Commands ✅ DONE
+1. ~~Create 6 command files in `.claude/commands/`~~
+2. ~~Test each command works~~
 
 ### Phase 2: Inter-Agent Messaging (Foundation)
 1. Add inter_session_messages table
@@ -271,24 +301,17 @@ Extend `session_messages.py` or create new `inter_session_messages.py`:
 6. Integrate callme for alerts
 7. Full testing
 
-### Phase 4: OpenTelemetry Integration (Observability)
-1. Add optional dependencies, create `src/gobby/observability/` module
-2. Implement OTelSetup with config and FastAPI auto-instrumentation
-3. Instrument hooks, MCP proxy, and agent spawning
-4. Implement trace context propagation for parent-child agents
-5. Add metrics (counters, histograms, gauges)
-6. Add structured logging with trace context
-7. Documentation and Grafana dashboard templates
-
 ---
 
 ## Design Decisions (User Confirmed)
 
 1. **Gobby's LLM**: **Hybrid approach** - Templates for common states (fast, free), Claude API (haiku model) for complex analysis and novel situations
 
-2. **Inter-agent sync**: **Polling (5-10s intervals)** - Simple, low overhead, acceptable latency for review loops
+2. **Gobby's Personality**: **TARS Mode (15% humor)** - Dry, deadpan wit. Helpful and competent with occasional sass.
 
-3. **callme**: **Include setup** - Add installation and configuration instructions
+3. **Inter-agent sync**: **Polling (5-10s intervals)** - Simple, low overhead, acceptable latency for review loops
+
+4. **callme**: **Include setup** - Add installation and configuration instructions
 
 ---
 
@@ -336,13 +359,13 @@ gobby goblin stop
 
 ## Files to Create/Modify
 
-### Task Commands
-- `.claude/commands/bug.md` (new)
-- `.claude/commands/feat.md` (new)
-- `.claude/commands/nit.md` (new)
-- `.claude/commands/ref.md` (new)
-- `.claude/commands/epic.md` (new)
-- `.claude/commands/chore.md` (new)
+### Task Commands ✅
+- `.claude/commands/bug.md` ✅
+- `.claude/commands/feat.md` ✅
+- `.claude/commands/nit.md` ✅
+- `.claude/commands/ref.md` ✅
+- `.claude/commands/epic.md` ✅
+- `.claude/commands/chore.md` ✅
 
 ### Inter-Agent Messaging
 - `src/gobby/storage/inter_session_messages.py` (new)
@@ -437,322 +460,3 @@ Gobby Loop
 1. Check callme GitHub for installation: https://github.com/anthropics/callme (or similar)
 2. Configure notification method in `~/.gobby/config.yaml`
 3. Test with: `gobby goblin test-alert "Test message"`
-
----
-
-## Feature 4: OpenTelemetry Integration
-
-### Goal
-Add distributed tracing, metrics, and structured logging to Gobby for full observability across the daemon, MCP proxy, hooks, and multi-agent workflows.
-
-### Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         Gobby Observability Stack                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│   ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                     │
-│   │   Traces    │    │   Metrics   │    │    Logs     │                     │
-│   │  (Spans)    │    │ (Counters,  │    │ (Structured │                     │
-│   │             │    │  Histograms)│    │  w/ TraceID)│                     │
-│   └──────┬──────┘    └──────┬──────┘    └──────┬──────┘                     │
-│          │                  │                  │                             │
-│          └──────────────────┼──────────────────┘                             │
-│                             │                                                │
-│                    ┌────────▼────────┐                                       │
-│                    │  OTLP Exporter  │                                       │
-│                    └────────┬────────┘                                       │
-│                             │                                                │
-└─────────────────────────────┼────────────────────────────────────────────────┘
-                              │
-           ┌──────────────────┼──────────────────┐
-           │                  │                  │
-           ▼                  ▼                  ▼
-    ┌────────────┐    ┌────────────┐    ┌────────────┐
-    │   Jaeger   │    │  Grafana   │    │ Honeycomb  │
-    │  (local)   │    │   Cloud    │    │  Datadog   │
-    └────────────┘    └────────────┘    └────────────┘
-```
-
-### Key Instrumentation Points
-
-#### 1. HTTP/Hook Layer
-| Component | File | Key Functions |
-|-----------|------|---------------|
-| Hook Endpoint | `src/servers/routes/mcp/hooks.py` | `execute_hook()` |
-| Hook Manager | `src/hooks/hook_manager.py` | `handle()`, workflow/plugin execution |
-| Event Handlers | `src/hooks/event_handlers.py` | `handle_session_start/end()`, `handle_before/after_tool()` |
-
-#### 2. MCP Proxy Layer
-| Component | File | Key Functions |
-|-----------|------|---------------|
-| Tool Proxy | `src/mcp_proxy/services/tool_proxy.py` | `call_tool()`, `list_tools()` |
-| Client Manager | `src/mcp_proxy/manager.py` | `ensure_connected()`, `call_tool()`, `_monitor_health()` |
-| Lazy Connector | `src/mcp_proxy/lazy.py` | Circuit breaker, retry logic |
-| Transports | `src/mcp_proxy/transports/*.py` | `connect()`, `disconnect()` |
-
-#### 3. Agent/Session Layer
-| Component | File | Key Functions |
-|-----------|------|---------------|
-| Agent Runner | `src/agents/runner.py` | `prepare_run()`, `execute_run()` |
-| Terminal Spawner | `src/agents/spawn.py` | `spawn_agent()` |
-| Session Manager | `src/sessions/manager.py` | `create()`, `update()` |
-| Agent Registry | `src/agents/registry.py` | `add()`, `remove()` |
-
-### Trace Context Propagation (Parent-Child Agents)
-
-Gobby's unique multi-agent architecture requires trace context to flow from parent to child agents:
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    Parent-Child Trace Propagation                            │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│   Parent Agent (Claude)                    Child Agent (Gemini)             │
-│   ┌───────────────────┐                   ┌───────────────────┐             │
-│   │ trace_id: abc123  │                   │ trace_id: abc123  │  ← SAME!    │
-│   │ span_id: span-001 │ ───spawn───────►  │ parent_span: 001  │             │
-│   │                   │                   │ span_id: span-002 │             │
-│   └───────────────────┘                   └───────────────────┘             │
-│           │                                        │                         │
-│           │                                        │                         │
-│           └────────────────────┬───────────────────┘                         │
-│                                │                                             │
-│                    ┌───────────▼───────────┐                                 │
-│                    │  Environment Variables │                                │
-│                    │  GOBBY_TRACE_ID        │                                │
-│                    │  GOBBY_PARENT_SPAN_ID  │                                │
-│                    │  GOBBY_SESSION_ID      │                                │
-│                    └───────────────────────┘                                 │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
-
-**Implementation**: Extend `GOBBY_*` environment variables to include W3C Trace Context:
-- `GOBBY_TRACEPARENT` - W3C traceparent header (version-trace_id-parent_id-flags)
-- `GOBBY_TRACESTATE` - W3C tracestate header (optional vendor-specific data)
-
-### Span Hierarchy
-
-```
-gobby.http.request [POST /hooks/execute]
-├── gobby.hooks.handle
-│   ├── gobby.hooks.session.resolve
-│   ├── gobby.hooks.workflow.evaluate
-│   ├── gobby.hooks.plugins.pre
-│   ├── gobby.hooks.event.session_start
-│   │   └── gobby.hooks.session.register
-│   ├── gobby.hooks.broadcast
-│   └── gobby.hooks.plugins.post
-│
-├── gobby.mcp.call_tool [server=context7, tool=get-library-docs]
-│   ├── gobby.mcp.ensure_connected
-│   │   ├── gobby.mcp.circuit_breaker.check
-│   │   └── gobby.mcp.transport.connect
-│   └── gobby.mcp.execute
-│
-└── gobby.agents.spawn [mode=terminal]
-    ├── gobby.agents.prepare_run
-    │   ├── gobby.agents.session.create_child
-    │   └── gobby.agents.context.resolve
-    └── gobby.agents.execute_run
-```
-
-### Metrics
-
-#### Counters
-| Metric | Labels | Description |
-|--------|--------|-------------|
-| `gobby.hooks.total` | `event_type`, `source`, `decision` | Hook invocations |
-| `gobby.mcp.tool_calls` | `server`, `tool`, `status` | MCP tool calls |
-| `gobby.mcp.connections` | `server`, `transport`, `status` | Connection attempts |
-| `gobby.agents.spawned` | `mode`, `provider`, `workflow` | Agent spawns |
-| `gobby.circuit_breaker.state_change` | `server`, `from_state`, `to_state` | Circuit breaker transitions |
-
-#### Histograms
-| Metric | Labels | Description |
-|--------|--------|-------------|
-| `gobby.hooks.duration_ms` | `event_type`, `source` | Hook processing time |
-| `gobby.mcp.tool_duration_ms` | `server`, `tool` | Tool execution time |
-| `gobby.mcp.connection_duration_ms` | `server`, `transport` | Connection establishment time |
-| `gobby.agents.duration_ms` | `mode`, `provider` | Agent execution time |
-
-#### Gauges
-| Metric | Labels | Description |
-|--------|--------|-------------|
-| `gobby.mcp.active_connections` | `server` | Currently connected servers |
-| `gobby.agents.running` | `mode` | Currently running agents |
-| `gobby.sessions.active` | `source` | Active sessions |
-
-### Dependencies
-
-```toml
-# pyproject.toml
-[project.optional-dependencies]
-observability = [
-    "opentelemetry-api>=1.20.0",
-    "opentelemetry-sdk>=1.20.0",
-    "opentelemetry-exporter-otlp>=1.20.0",
-    "opentelemetry-instrumentation-fastapi>=0.41b0",
-    "opentelemetry-instrumentation-httpx>=0.41b0",
-    "opentelemetry-instrumentation-sqlite3>=0.41b0",
-    "opentelemetry-instrumentation-logging>=0.41b0",
-]
-```
-
-### Configuration
-
-```yaml
-# ~/.gobby/config.yaml
-observability:
-  enabled: true
-  service_name: "gobby-daemon"
-
-  # Tracing
-  tracing:
-    enabled: true
-    sampling_rate: 1.0  # 0.0-1.0, use lower in production
-    propagate_to_agents: true  # Pass trace context to child agents
-
-  # Metrics
-  metrics:
-    enabled: true
-    export_interval_ms: 60000  # 1 minute
-
-  # Exporter (choose one)
-  exporter:
-    type: otlp  # otlp | jaeger | console | none
-    endpoint: "http://localhost:4317"  # OTLP gRPC endpoint
-    # For Jaeger direct:
-    # type: jaeger
-    # agent_host: localhost
-    # agent_port: 6831
-
-  # Structured logging with trace context
-  logging:
-    inject_trace_context: true  # Add trace_id, span_id to log records
-```
-
-### Core Components
-
-1. **OTelSetup** (`src/gobby/observability/setup.py`)
-   - Initialize tracer, meter, logger providers
-   - Configure exporters based on config
-   - Auto-instrument FastAPI, httpx, sqlite3
-
-2. **Instrumentation Decorators** (`src/gobby/observability/decorators.py`)
-   - `@traced` - Add span to async/sync functions
-   - `@timed` - Record duration histogram
-   - `@counted` - Increment counter on call
-
-3. **Context Propagation** (`src/gobby/observability/propagation.py`)
-   - `inject_trace_context(env: dict)` - Add GOBBY_TRACEPARENT to env vars
-   - `extract_trace_context(env: dict)` - Read trace context on child startup
-   - Integration with `get_terminal_env_vars()` in `src/agents/constants.py`
-
-4. **Metrics Registry** (`src/gobby/observability/metrics.py`)
-   - Pre-defined counters, histograms, gauges
-   - Helper functions for recording
-
-### Local Development Setup
-
-```bash
-# Start Jaeger for local trace viewing
-docker run -d --name jaeger \
-  -p 16686:16686 \
-  -p 4317:4317 \
-  jaegertracing/all-in-one:latest
-
-# Enable observability in Gobby
-gobby config set observability.enabled true
-gobby config set observability.exporter.endpoint "http://localhost:4317"
-
-# Restart daemon
-gobby restart
-
-# View traces at http://localhost:16686
-```
-
-### Implementation Order
-
-#### Phase 4a: Foundation
-1. Add dependencies to pyproject.toml
-2. Create `src/gobby/observability/` module
-3. Implement OTelSetup with config loading
-4. Add FastAPI auto-instrumentation
-
-#### Phase 4b: Hook/HTTP Instrumentation
-1. Instrument `execute_hook` endpoint
-2. Instrument `HookManager.handle()`
-3. Add spans to event handlers
-4. Add hook metrics
-
-#### Phase 4c: MCP Proxy Instrumentation
-1. Instrument `MCPClientManager` methods
-2. Instrument tool execution
-3. Add circuit breaker spans/events
-4. Add MCP metrics
-
-#### Phase 4d: Agent/Session Instrumentation
-1. Instrument agent spawning
-2. Implement trace context propagation via env vars
-3. Extract trace context in child session hooks
-4. Add agent metrics
-
-#### Phase 4e: Polish
-1. Add structured logging integration
-2. Create Grafana dashboard templates
-3. Documentation
-4. Testing
-
----
-
-## Files to Create/Modify (Feature 4)
-
-### OpenTelemetry
-- `src/gobby/observability/__init__.py` (new)
-- `src/gobby/observability/setup.py` (new)
-- `src/gobby/observability/decorators.py` (new)
-- `src/gobby/observability/propagation.py` (new)
-- `src/gobby/observability/metrics.py` (new)
-- `src/gobby/agents/constants.py` (modify - add GOBBY_TRACEPARENT)
-- `src/gobby/servers/http.py` (modify - init OTel on startup)
-- `src/gobby/hooks/hook_manager.py` (modify - add instrumentation)
-- `src/gobby/mcp_proxy/manager.py` (modify - add instrumentation)
-- `src/gobby/agents/runner.py` (modify - add instrumentation)
-- `pyproject.toml` (modify - add optional deps)
-- `tests/observability/` (new test directory)
-
----
-
-## Verification (Feature 4)
-
-### Unit Tests
-```bash
-uv run pytest tests/observability/ -v
-```
-
-### Integration Test
-```bash
-# 1. Start Jaeger
-docker run -d --name jaeger -p 16686:16686 -p 4317:4317 jaegertracing/all-in-one
-
-# 2. Enable observability
-gobby config set observability.enabled true
-gobby restart
-
-# 3. Trigger some activity
-claude "Create a simple hello world function"
-
-# 4. Check Jaeger UI at http://localhost:16686
-# - Search for service "gobby-daemon"
-# - Verify spans for hooks, MCP calls, etc.
-```
-
-### Parent-Child Trace Propagation Test
-```bash
-# 1. Spawn a child agent
-# 2. In Jaeger, verify child agent's spans share same trace_id as parent
-# 3. Verify parent-child span relationship is preserved
-```
