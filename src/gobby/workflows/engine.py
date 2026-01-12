@@ -44,6 +44,9 @@ class WorkflowEngine:
         "on_after_tool": ["on_tool_result"],
     }
 
+    # Variables to inherit from parent session
+    VARS_TO_INHERIT = ["plan_mode"]
+
     async def handle_event(self, event: HookEvent) -> HookResponse:
         """
         Main entry point for hook events.
@@ -494,9 +497,10 @@ class WorkflowEngine:
                     parent_state = self.state_manager.get_state(parent_id)
                     if parent_state and parent_state.variables:
                         # Inherit specific variables
-                        vars_to_inherit = ["plan_mode"]
                         inherited = {
-                            k: v for k, v in parent_state.variables.items() if k in vars_to_inherit
+                            k: v
+                            for k, v in parent_state.variables.items()
+                            if k in self.VARS_TO_INHERIT
                         }
                         if inherited:
                             context_data.update(inherited)
@@ -594,6 +598,44 @@ class WorkflowEngine:
             context="\n\n".join(all_context) if all_context else None,
             system_message=final_system_message,
         )
+
+    def _process_action_result(
+        self,
+        result: dict[str, Any],
+        context_data: dict[str, Any],
+        state: "WorkflowState",
+        injected_context: list[str],
+    ) -> str | None:
+        """
+        Process action execution result.
+
+        Updates shared context and state variables.
+        Handles inject_context, inject_message, and system_message.
+
+        Args:
+            result: The action execution result dictionary
+            context_data: Shared context to update
+            state: Workflow state to update
+            injected_context: List to append injected content to
+
+        Returns:
+            New system_message if present, None otherwise
+        """
+        # Update shared context for chaining
+        context_data.update(result)
+        state.variables.update(result)
+
+        if "inject_context" in result:
+            msg = result["inject_context"]
+            logger.debug(f"Found inject_context in result, length={len(msg)}")
+            injected_context.append(msg)
+
+        if "inject_message" in result:
+            msg = result["inject_message"]
+            logger.debug(f"Found inject_message in result, length={len(msg)}")
+            injected_context.append(msg)
+
+        return result.get("system_message")
 
     async def _evaluate_workflow_triggers(
         self,
@@ -720,25 +762,11 @@ class WorkflowEngine:
                 )
 
                 if result and isinstance(result, dict):
-                    # Update shared context for chaining
-                    context_data.update(result)
-                    state.variables.update(result)
-
-                    if "inject_context" in result:
-                        injected_context.append(result["inject_context"])
-                        logger.debug(
-                            f"Added to injected_context, now has {len(injected_context)} items, total chars={sum(len(c) for c in injected_context)}"
-                        )
-
-                    if "inject_message" in result:
-                        injected_context.append(result["inject_message"])
-                        logger.debug(
-                            f"Added message to injected_context, now has {len(injected_context)} items"
-                        )
-
-                    # Capture system_message (last one wins)
-                    if "system_message" in result:
-                        system_message = result["system_message"]
+                    sys_msg = self._process_action_result(
+                        result, context_data, state, injected_context
+                    )
+                    if sys_msg:
+                        system_message = sys_msg
 
                     # Check for blocking decision from action
                     if result.get("decision") == "block":
@@ -899,32 +927,18 @@ class WorkflowEngine:
                     f"Action '{action_type}' returned: {type(result).__name__}, keys={list(result.keys()) if isinstance(result, dict) else 'N/A'}"
                 )
 
-                if result:
-                    # Update context for subsequent actions
-                    if isinstance(result, dict):
-                        if context_data is None:
-                            context_data = {}
-                        context_data.update(result)
-                        state.variables.update(result)
+                if result and isinstance(result, dict):
+                    if context_data is None:
+                        context_data = {}
 
-                    if "inject_context" in result:
-                        logger.debug(
-                            f"Found inject_context in result, length={len(result['inject_context'])}"
-                        )
-                        injected_context.append(result["inject_context"])
-
-                    if "inject_message" in result:
-                        logger.debug(
-                            f"Found inject_message in result, length={len(result['inject_message'])}"
-                        )
-                        injected_context.append(result["inject_message"])
-
-                    # Capture system_message (last one wins)
-                    if "system_message" in result:
-                        system_message = result["system_message"]
+                    sys_msg = self._process_action_result(
+                        result, context_data, state, injected_context
+                    )
+                    if sys_msg:
+                        system_message = sys_msg
 
                     # Check for blocking decision from action
-                    if isinstance(result, dict) and result.get("decision") == "block":
+                    if result.get("decision") == "block":
                         return HookResponse(
                             decision="block",
                             reason=result.get("reason", "Blocked by action"),
