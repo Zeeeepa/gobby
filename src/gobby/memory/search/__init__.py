@@ -3,8 +3,6 @@ Memory search backend abstraction.
 
 Provides pluggable search backends for memory recall:
 - TF-IDF (default) - Zero-dependency local search using sklearn
-- OpenAI - Embedding-based semantic search via OpenAI API
-- Hybrid - Combines TF-IDF and OpenAI with RRF ranking
 
 Usage:
     from gobby.memory.search import SearchBackend, get_search_backend
@@ -123,26 +121,10 @@ def get_search_backend(
 
         return cast(SearchBackend, TFIDFSearcher(**kwargs))
 
-    elif backend_type == "openai":
-        from gobby.memory.search.openai_adapter import OpenAISearchAdapter
-
-        if db is None:
-            raise ValueError("OpenAI search backend requires database connection")
-        return cast(SearchBackend, OpenAISearchAdapter(db=db, **kwargs))
-
-    elif backend_type == "hybrid":
-        from gobby.memory.search.hybrid import HybridSearcher
-
-        if db is None:
-            raise ValueError("Hybrid search backend requires database connection")
-        return cast(SearchBackend, HybridSearcher(db=db, **kwargs))
-
     elif backend_type == "text":
         from gobby.memory.search.text import TextSearcher
 
         return cast(SearchBackend, TextSearcher(**kwargs))
 
     else:
-        raise ValueError(
-            f"Unknown search backend: {backend_type}. " "Valid options: tfidf, openai, hybrid, text"
-        )
+        raise ValueError(f"Unknown search backend: {backend_type}. Valid options: tfidf, text")

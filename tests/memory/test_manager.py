@@ -4,15 +4,13 @@ Tests cover:
 - Memory creation (remember)
 - Memory retrieval (recall)
 - Memory deletion (forget)
-- Semantic search integration
 - Access statistics and debouncing
 - Memory decay operations
-- Embedding management
 - Statistics retrieval
 """
 
 from datetime import UTC, datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -46,8 +44,6 @@ def memory_config():
         decay_enabled=True,
         decay_rate=0.05,
         decay_floor=0.1,
-        semantic_search_enabled=False,
-        auto_embed=False,
         access_debounce_seconds=60,
     )
 
@@ -72,8 +68,6 @@ def mock_config():
     config.decay_enabled = True
     config.decay_rate = 0.05
     config.decay_floor = 0.1
-    config.semantic_search_enabled = False
-    config.auto_embed = False
     config.access_debounce_seconds = 60
     return config
 
@@ -98,34 +92,6 @@ class TestMemoryManagerInit:
         assert manager.db is db
         assert manager.config is memory_config
         assert isinstance(manager.storage, LocalMemoryManager)
-
-    def test_init_with_openai_key(self, db, memory_config):
-        """Test initialization with OpenAI API key."""
-        manager = MemoryManager(
-            db=db,
-            config=memory_config,
-            openai_api_key="test-key",
-        )
-        assert manager._openai_api_key == "test-key"
-
-    def test_semantic_search_lazy_init(self, db, memory_config):
-        """Test that semantic search is lazily initialized."""
-        manager = MemoryManager(
-            db=db,
-            config=memory_config,
-            openai_api_key="test-key",
-        )
-        # Should be None before access
-        assert manager._semantic_search is None
-
-        # Access the property to trigger initialization
-        # The import happens inside the property, so we patch it at the import location
-        with patch("gobby.memory.semantic_search.SemanticMemorySearch") as mock_cls:
-            mock_instance = MagicMock()
-            mock_cls.return_value = mock_instance
-            result = manager.semantic_search
-            assert result is mock_instance
-            mock_cls.assert_called_once_with(db=db, openai_api_key="test-key")
 
 
 # =============================================================================
@@ -193,31 +159,6 @@ class TestRemember:
         assert memory.importance == 0.5
         assert memory.source_type == "user"
         assert memory.tags == []
-
-    @pytest.mark.asyncio
-    async def test_remember_with_auto_embed_enabled(self, db):
-        """Test that auto_embed triggers embedding when enabled."""
-        config = MemoryConfig(auto_embed=True, semantic_search_enabled=True)
-        manager = MemoryManager(db=db, config=config, openai_api_key="test-key")
-
-        with patch.object(manager, "embed_memory", new_callable=AsyncMock) as mock_embed:
-            mock_embed.return_value = True
-            memory = await manager.remember(content="Auto embed test")
-
-            mock_embed.assert_called_once_with(memory.id, force=False)
-
-    @pytest.mark.asyncio
-    async def test_remember_auto_embed_failure_does_not_raise(self, db):
-        """Test that auto_embed failure doesn't prevent memory creation."""
-        config = MemoryConfig(auto_embed=True, semantic_search_enabled=True)
-        manager = MemoryManager(db=db, config=config, openai_api_key="test-key")
-
-        with patch.object(manager, "embed_memory", new_callable=AsyncMock) as mock_embed:
-            mock_embed.side_effect = RuntimeError("Embedding failed")
-
-            # Should not raise despite embedding failure
-            memory = await manager.remember(content="Test")
-            assert memory.content == "Test"
 
 
 # =============================================================================
@@ -308,68 +249,10 @@ class TestRecall:
         assert updated.access_count == original_count + 1
         assert updated.last_accessed_at is not None
 
-    def test_recall_semantic_fallback_to_text(self, db):
-        """Test recall falls back to text search when semantic search has no embeddings."""
-        config = MemoryConfig(semantic_search_enabled=True)
-        manager = MemoryManager(db=db, config=config)
-
-        # Create memories synchronously via storage (importance must be above threshold)
-        manager.storage.create_memory(content="Test semantic fallback", importance=0.8)
-
-        # Should fall back to text search since no embeddings exist
-        memories = manager.recall(query="semantic", use_semantic=True)
-
-        assert len(memories) == 1
-        assert "semantic" in memories[0].content
-
 
 # =============================================================================
 # Test: Semantic Search Integration
 # =============================================================================
-
-
-class TestSemanticSearch:
-    """Tests for semantic search functionality."""
-
-    def test_recall_semantic_no_embeddings_falls_back(self, db):
-        """Test _recall_semantic falls back when no embeddings."""
-        config = MemoryConfig(semantic_search_enabled=True)
-        manager = MemoryManager(db=db, config=config, openai_api_key="test-key")
-
-        # Create memory without embedding
-        manager.storage.create_memory(content="Test content", importance=0.5)
-
-        # Pre-set the _semantic_search to our mock before calling the method
-        mock_semantic = MagicMock()
-        mock_semantic.get_embedding_stats.return_value = {"embedded_memories": 0}
-        manager._semantic_search = mock_semantic
-
-        memories = manager._recall_semantic(query="test", limit=10)
-
-        assert len(memories) == 1
-
-    def test_recall_semantic_exception_falls_back(self, db):
-        """Test _recall_semantic falls back on exception."""
-        config = MemoryConfig(semantic_search_enabled=True)
-        manager = MemoryManager(db=db, config=config, openai_api_key="test-key")
-
-        manager.storage.create_memory(content="Test content", importance=0.5)
-
-        # Pre-set the _semantic_search to our mock before calling the method
-        mock_semantic = MagicMock()
-        mock_semantic.get_embedding_stats.return_value = {"embedded_memories": 5}
-        # asyncio.run will be called on search, so we need to simulate an exception
-        # that happens during the asyncio.run call
-        manager._semantic_search = mock_semantic
-
-        # Since _recall_semantic catches all exceptions in the semantic path,
-        # we test by making get_embedding_stats succeed but the asyncio.run fail
-        with patch("asyncio.run", side_effect=RuntimeError("API error")):
-            with patch("asyncio.get_running_loop", side_effect=RuntimeError("No loop")):
-                memories = manager._recall_semantic(query="test", limit=10)
-
-        # Should still return text search results
-        assert len(memories) == 1
 
 
 # =============================================================================
@@ -701,161 +584,9 @@ class TestDecayMemories:
 # =============================================================================
 
 
-class TestAsyncRecall:
-    """Tests for async_recall method."""
-
-    @pytest.mark.asyncio
-    async def test_async_recall_text_search(self, db):
-        """Test async_recall with text search."""
-        config = MemoryConfig(semantic_search_enabled=False)
-        manager = MemoryManager(db=db, config=config)
-
-        await manager.remember(content="Python programming", importance=0.8)
-        await manager.remember(content="JavaScript coding", importance=0.8)
-
-        memories = await manager.async_recall(query="Python")
-
-        assert len(memories) == 1
-        assert "Python" in memories[0].content
-
-    @pytest.mark.asyncio
-    async def test_async_recall_semantic_search_enabled(self, db):
-        """Test async_recall with semantic search enabled."""
-        config = MemoryConfig(semantic_search_enabled=True)
-        manager = MemoryManager(db=db, config=config, openai_api_key="test-key")
-
-        await manager.remember(content="Test content", importance=0.5)
-
-        mock_result = MagicMock()
-        mock_result.memory = Memory(
-            id="mm-test",
-            content="Test content",
-            memory_type="fact",
-            importance=0.5,
-            created_at="2024-01-01",
-            updated_at="2024-01-01",
-        )
-
-        # Pre-set the mock semantic search
-        mock_semantic = MagicMock()
-        mock_semantic.search = AsyncMock(return_value=[mock_result])
-        manager._semantic_search = mock_semantic
-
-        memories = await manager.async_recall(query="test")
-
-        assert len(memories) == 1
-
-    @pytest.mark.asyncio
-    async def test_async_recall_semantic_failure_fallback(self, db):
-        """Test async_recall falls back on semantic search failure."""
-        config = MemoryConfig(semantic_search_enabled=True, importance_threshold=0.0)
-        manager = MemoryManager(db=db, config=config, openai_api_key="test-key")
-
-        await manager.remember(content="Fallback test", importance=0.5)
-
-        # Pre-set the mock semantic search that will fail
-        mock_semantic = MagicMock()
-        mock_semantic.search = AsyncMock(side_effect=RuntimeError("API error"))
-        manager._semantic_search = mock_semantic
-
-        memories = await manager.async_recall(query="Fallback")
-
-        # Should fall back to text search
-        assert len(memories) == 1
-        assert "Fallback" in memories[0].content
-
-
 # =============================================================================
 # Test: Embedding Methods
 # =============================================================================
-
-
-class TestEmbeddingMethods:
-    """Tests for embedding-related methods."""
-
-    @pytest.mark.asyncio
-    async def test_embed_memory_not_found(self, db, memory_config):
-        """Test embed_memory returns False for non-existent memory."""
-        manager = MemoryManager(db=db, config=memory_config, openai_api_key="test-key")
-
-        result = await manager.embed_memory("mm-nonexistent")
-
-        assert result is False
-
-    @pytest.mark.asyncio
-    async def test_embed_memory_success(self, db, memory_config):
-        """Test embed_memory calls semantic search."""
-        manager = MemoryManager(db=db, config=memory_config, openai_api_key="test-key")
-
-        memory = await manager.remember(content="To embed", importance=0.5)
-
-        # Pre-set the mock semantic search
-        mock_semantic = MagicMock()
-        mock_semantic.embed_memory = AsyncMock(return_value=True)
-        manager._semantic_search = mock_semantic
-
-        result = await manager.embed_memory(memory.id)
-
-        assert result is True
-        mock_semantic.embed_memory.assert_called_once_with(
-            memory_id=memory.id,
-            content=memory.content,
-            force=False,
-        )
-
-    @pytest.mark.asyncio
-    async def test_rebuild_embeddings(self, db, memory_config):
-        """Test rebuild_embeddings calls semantic search."""
-        manager = MemoryManager(db=db, config=memory_config, openai_api_key="test-key")
-
-        expected_stats = {"embedded": 5, "skipped": 0, "failed": 0, "errors": []}
-
-        # Pre-set the mock semantic search
-        mock_semantic = MagicMock()
-        mock_semantic.embed_all_memories = AsyncMock(return_value=expected_stats)
-        mock_semantic.clear_embeddings = MagicMock()
-        manager._semantic_search = mock_semantic
-
-        result = await manager.rebuild_embeddings(force=False)
-
-        assert result == expected_stats
-        mock_semantic.embed_all_memories.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_rebuild_embeddings_with_force(self, db, memory_config):
-        """Test rebuild_embeddings clears embeddings when force=True."""
-        manager = MemoryManager(db=db, config=memory_config, openai_api_key="test-key")
-
-        # Pre-set the mock semantic search
-        mock_semantic = MagicMock()
-        mock_semantic.embed_all_memories = AsyncMock(
-            return_value={"embedded": 0, "skipped": 0, "failed": 0, "errors": []}
-        )
-        mock_semantic.clear_embeddings = MagicMock()
-        manager._semantic_search = mock_semantic
-
-        await manager.rebuild_embeddings(force=True)
-
-        mock_semantic.clear_embeddings.assert_called_once()
-
-    def test_get_embedding_stats(self, db, memory_config):
-        """Test get_embedding_stats delegates to semantic search."""
-        manager = MemoryManager(db=db, config=memory_config, openai_api_key="test-key")
-
-        expected_stats = {
-            "total_memories": 10,
-            "embedded_memories": 5,
-            "pending_embeddings": 5,
-        }
-
-        # Pre-set the mock semantic search
-        mock_semantic = MagicMock()
-        mock_semantic.get_embedding_stats.return_value = expected_stats
-        manager._semantic_search = mock_semantic
-
-        result = manager.get_embedding_stats()
-
-        assert result == expected_stats
 
 
 # =============================================================================
@@ -891,17 +622,6 @@ class TestEdgeCases:
         """Test recall on empty database returns empty list."""
         memories = memory_manager.recall()
         assert memories == []
-
-    def test_recall_with_use_semantic_false(self, db):
-        """Test recall explicitly disabling semantic search."""
-        config = MemoryConfig(semantic_search_enabled=True)
-        manager = MemoryManager(db=db, config=config)
-
-        manager.storage.create_memory(content="Test text search", importance=0.8)
-
-        memories = manager.recall(query="text", use_semantic=False)
-
-        assert len(memories) == 1
 
     @pytest.mark.asyncio
     async def test_update_access_stats_exception_handling(self, db, memory_config):

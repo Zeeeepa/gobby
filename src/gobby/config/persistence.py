@@ -23,10 +23,6 @@ class MemoryConfig(BaseModel):
         default=True,
         description="Enable persistent memory system",
     )
-    injection_limit: int = Field(
-        default=10,
-        description="Maximum number of memories to inject per session",
-    )
     importance_threshold: float = Field(
         default=0.7,
         description="Minimum importance score for memory injection",
@@ -43,31 +39,13 @@ class MemoryConfig(BaseModel):
         default=0.1,
         description="Minimum importance score after decay",
     )
-    semantic_search_enabled: bool = Field(
-        default=True,
-        description="Use semantic (embedding-based) search for memory recall",
-    )
     search_backend: str = Field(
         default="tfidf",
         description=(
             "Search backend for memory recall. Options: "
             "'tfidf' (default, zero-dependency local search), "
-            "'openai' (embedding-based semantic search), "
-            "'hybrid' (combines TF-IDF + OpenAI with RRF), "
             "'text' (simple substring matching)"
         ),
-    )
-    embedding_provider: str = Field(
-        default="openai",
-        description="Provider for embedding generation (openai, litellm)",
-    )
-    embedding_model: str = Field(
-        default="text-embedding-3-small",
-        description="Model to use for memory embedding generation",
-    )
-    auto_embed: bool = Field(
-        default=True,
-        description="Automatically generate embeddings when memories are created",
     )
     auto_crossref: bool = Field(
         default=False,
@@ -85,14 +63,6 @@ class MemoryConfig(BaseModel):
         default=60,
         description="Minimum seconds between access stat updates for the same memory",
     )
-
-    @field_validator("injection_limit")
-    @classmethod
-    def validate_positive(cls, v: int) -> int:
-        """Validate value is non-negative."""
-        if v < 0:
-            raise ValueError("Value must be non-negative")
-        return v
 
     @field_validator("importance_threshold", "decay_rate", "decay_floor", "crossref_threshold")
     @classmethod
@@ -114,7 +84,7 @@ class MemoryConfig(BaseModel):
     @classmethod
     def validate_search_backend(cls, v: str) -> str:
         """Validate search_backend is a supported option."""
-        valid_backends = {"tfidf", "openai", "hybrid", "text"}
+        valid_backends = {"tfidf", "text"}
         if v not in valid_backends:
             raise ValueError(
                 f"Invalid search_backend '{v}'. Must be one of: {sorted(valid_backends)}"

@@ -1285,6 +1285,13 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         ALTER TABLE worktrees ADD COLUMN merge_state TEXT;
         """,
     ),
+    (
+        57,
+        "Remove embedding column from memories",
+        """
+        ALTER TABLE memories DROP COLUMN embedding;
+        """,
+    ),
 ]
 
 

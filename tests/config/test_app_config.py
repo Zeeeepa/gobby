@@ -711,16 +711,10 @@ class TestMemoryConfig:
         """Test default memory config."""
         config = MemoryConfig()
         assert config.enabled is True
-        assert config.injection_limit == 10
         assert config.importance_threshold == 0.7
         assert config.decay_enabled is True
         assert config.decay_rate == 0.05
         assert config.decay_floor == 0.1
-
-    def test_injection_limit_validation(self):
-        """Test injection limit validation."""
-        with pytest.raises(ValidationError):
-            MemoryConfig(injection_limit=-1)
 
     def test_probability_validation(self):
         """Test probability fields validation."""
@@ -1007,7 +1001,7 @@ class TestDaemonConfigComposition:
         config = DaemonConfig(
             daemon_port=9000,
             logging=LoggingSettings(level="debug"),
-            memory=MemoryConfig(injection_limit=20),
+            memory=MemoryConfig(importance_threshold=0.8),
         )
 
         # Save
@@ -1019,7 +1013,7 @@ class TestDaemonConfigComposition:
 
         assert loaded.daemon_port == 9000
         assert loaded.logging.level == "debug"
-        assert loaded.memory.injection_limit == 20
+        assert loaded.memory.importance_threshold == 0.8
 
 
 class TestAllConfigClassesInstantiate:

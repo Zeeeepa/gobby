@@ -11,7 +11,6 @@ from gobby.storage.memories import LocalMemoryManager, Memory
 
 if TYPE_CHECKING:
     from gobby.memory.search import SearchBackend
-    from gobby.memory.semantic_search import EmbedStats, SemanticMemorySearch
 
 logger = logging.getLogger(__name__)
 
@@ -26,27 +25,12 @@ class MemoryManager:
         self,
         db: DatabaseProtocol,
         config: MemoryConfig,
-        openai_api_key: str | None = None,
     ):
         self.db = db
         self.storage = LocalMemoryManager(db)
         self.config = config
-        self._openai_api_key = openai_api_key
-        self._semantic_search: SemanticMemorySearch | None = None
         self._search_backend: SearchBackend | None = None
         self._search_backend_fitted = False
-
-    @property
-    def semantic_search(self) -> SemanticMemorySearch:
-        """Lazy-init semantic search to avoid import cycles."""
-        if self._semantic_search is None:
-            from gobby.memory.semantic_search import SemanticMemorySearch
-
-            self._semantic_search = SemanticMemorySearch(
-                db=self.db,
-                openai_api_key=self._openai_api_key,
-            )
-        return self._semantic_search
 
     @property
     def search_backend(self) -> SearchBackend:
@@ -55,8 +39,6 @@ class MemoryManager:
 
         The backend type is determined by config.search_backend:
         - "tfidf" (default): Zero-dependency TF-IDF search
-        - "openai": Embedding-based semantic search
-        - "hybrid": Combines TF-IDF and OpenAI with RRF
         - "text": Simple text substring matching
         """
         if self._search_backend is None:
@@ -71,8 +53,9 @@ class MemoryManager:
                     db=self.db,
                 )
             except Exception as e:
-                logger.warning(f"Failed to initialize {backend_type} backend: {e}")
-                # Fall back to TF-IDF which has no external deps
+                logger.warning(
+                    f"Failed to initialize {backend_type} backend: {e}. Falling back to tfidf"
+                )
                 self._search_backend = get_search_backend("tfidf")
 
         return self._search_backend
@@ -184,15 +167,6 @@ class MemoryManager:
 
         # Mark search index for refit since we added new content
         self.mark_search_refit_needed()
-
-        # Auto-embed if enabled
-        if getattr(self.config, "auto_embed", False) and self._openai_api_key:
-            try:
-                await self.embed_memory(memory.id, force=False)
-                logger.debug(f"Auto-embedded memory {memory.id}")
-            except Exception as e:
-                # Don't fail the remember if embedding fails
-                logger.warning(f"Auto-embed failed for {memory.id}: {e}")
 
         # Auto cross-reference if enabled
         if getattr(self.config, "auto_crossref", False):
@@ -381,16 +355,9 @@ class MemoryManager:
         if search_mode is None:
             search_mode = getattr(self.config, "search_backend", "tfidf")
 
-        # Legacy compatibility: use_semantic overrides search_mode
+        # Legacy compatibility: use_semantic is deprecated
         if use_semantic is not None:
-            if use_semantic:
-                search_mode = "openai"
-            else:
-                search_mode = "text"
-        elif getattr(self.config, "semantic_search_enabled", False) and search_mode == "tfidf":
-            # If semantic_search_enabled is True but we're using tfidf,
-            # upgrade to hybrid if possible
-            search_mode = getattr(self.config, "search_backend", "tfidf")
+            logger.warning("use_semantic argument is deprecated and ignored")
 
         # Use the search backend
         try:
@@ -486,71 +453,6 @@ class MemoryManager:
         )
 
         return build_memory_context(memories)
-
-    def _recall_semantic(
-        self,
-        query: str,
-        project_id: str | None = None,
-        limit: int = 10,
-        min_importance: float | None = None,
-    ) -> list[Memory]:
-        """
-        Perform semantic search for memories.
-
-        Uses embeddings for similarity search. Falls back to text search
-        if embeddings unavailable or no results found.
-        """
-        import asyncio
-
-        def _fallback_text_search() -> list[Memory]:
-            """Fall back to text-based search."""
-            memories = self.storage.search_memories(
-                query_text=query,
-                project_id=project_id,
-                limit=limit,
-            )
-            if min_importance:
-                memories = [m for m in memories if m.importance >= min_importance]
-            return memories[:limit]
-
-        # Check if we have any embeddings first
-        stats = self.semantic_search.get_embedding_stats(project_id)
-        if stats.get("embedded_memories", 0) == 0:
-            # No embeddings, use text search
-            logger.debug("No memory embeddings found, using text search")
-            return _fallback_text_search()
-
-        try:
-            # Run async search in sync context
-            try:
-                asyncio.get_running_loop()
-                # We're in an async context - this shouldn't happen in normal sync calls
-                # Fall back to text search to avoid complexity
-                logger.debug("In async context, using text search")
-                return _fallback_text_search()
-            except RuntimeError:
-                # No running loop, we can create one
-                pass
-
-            results = asyncio.run(
-                self.semantic_search.search(
-                    query=query,
-                    project_id=project_id,
-                    top_k=limit,
-                    min_importance=min_importance,
-                )
-            )
-
-            if not results:
-                # No semantic results, try text search
-                logger.debug("No semantic results, trying text search")
-                return _fallback_text_search()
-
-            return [r.memory for r in results]
-
-        except Exception as e:
-            logger.warning(f"Semantic search failed, falling back to text search: {e}")
-            return _fallback_text_search()
 
     def _update_access_stats(self, memories: list[Memory]) -> None:
         """
@@ -777,113 +679,3 @@ class MemoryManager:
                 count += 1
 
         return count
-
-    # --- Embedding Methods ---
-
-    async def async_recall(
-        self,
-        query: str,
-        project_id: str | None = None,
-        limit: int = 10,
-        min_importance: float | None = None,
-    ) -> list[Memory]:
-        """
-        Async version of recall for semantic search.
-
-        Args:
-            query: Search query
-            project_id: Optional project filter
-            limit: Maximum results
-            min_importance: Minimum importance threshold
-
-        Returns:
-            List of matching memories
-        """
-        threshold = (
-            min_importance if min_importance is not None else self.config.importance_threshold
-        )
-
-        if getattr(self.config, "semantic_search_enabled", False):
-            try:
-                results = await self.semantic_search.search(
-                    query=query,
-                    project_id=project_id,
-                    top_k=limit,
-                    min_importance=threshold,
-                )
-                memories = [r.memory for r in results]
-            except Exception as e:
-                logger.warning(f"Semantic search failed: {e}")
-                memories = self.storage.search_memories(
-                    query_text=query,
-                    project_id=project_id,
-                    limit=limit,
-                )
-                memories = [m for m in memories if m.importance >= threshold]
-        else:
-            memories = self.storage.search_memories(
-                query_text=query,
-                project_id=project_id,
-                limit=limit,
-            )
-            memories = [m for m in memories if m.importance >= threshold]
-
-        self._update_access_stats(memories)
-        return memories[:limit]
-
-    async def embed_memory(self, memory_id: str, force: bool = False) -> bool:
-        """
-        Generate embedding for a single memory.
-
-        Args:
-            memory_id: Memory ID to embed
-            force: Force re-embedding even if exists
-
-        Returns:
-            True if embedded, False if skipped
-        """
-        memory = self.get_memory(memory_id)
-        if not memory:
-            return False
-
-        return await self.semantic_search.embed_memory(
-            memory_id=memory_id,
-            content=memory.content,
-            force=force,
-        )
-
-    async def rebuild_embeddings(
-        self,
-        project_id: str | None = None,
-        force: bool = False,
-    ) -> EmbedStats:
-        """
-        Rebuild embeddings for all memories.
-
-        Args:
-            project_id: Optional project filter
-            force: Force re-embedding all memories
-
-        Returns:
-            Dict with statistics
-        """
-        if force:
-            # Clear existing embeddings first
-            self.semantic_search.clear_embeddings(project_id)
-
-        return await self.semantic_search.embed_all_memories(
-            project_id=project_id,
-            force=force,
-        )
-
-    def get_embedding_stats(self, project_id: str | None = None) -> dict[str, Any]:
-        """
-        Get statistics about memory embeddings.
-
-        Args:
-            project_id: Optional project filter
-
-        Returns:
-            Dict with embedding statistics
-        """
-        return self.semantic_search.get_embedding_stats(project_id)

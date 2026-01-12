@@ -47,15 +47,11 @@ class TestMemoryConfigDefaults:
 
         config = MemoryConfig()
         assert config.enabled is True
-        assert config.injection_limit == 10
         assert config.importance_threshold == 0.7
         assert config.decay_enabled is True
         assert config.decay_rate == 0.05
         assert config.decay_floor == 0.1
-        assert config.semantic_search_enabled is True
-        assert config.embedding_provider == "openai"
-        assert config.embedding_model == "text-embedding-3-small"
-        assert config.auto_embed is True
+        assert config.search_backend == "tfidf"
         assert config.access_debounce_seconds == 60
 
 
@@ -68,13 +64,6 @@ class TestMemoryConfigCustom:
 
         config = MemoryConfig(enabled=False)
         assert config.enabled is False
-
-    def test_custom_injection_limit(self) -> None:
-        """Test setting custom injection limit."""
-        from gobby.config.persistence import MemoryConfig
-
-        config = MemoryConfig(injection_limit=20)
-        assert config.injection_limit == 20
 
     def test_custom_importance_threshold(self) -> None:
         """Test setting custom importance threshold."""
@@ -96,37 +85,9 @@ class TestMemoryConfigCustom:
         assert config.decay_rate == 0.1
         assert config.decay_floor == 0.2
 
-    def test_custom_embedding_settings(self) -> None:
-        """Test setting custom embedding settings."""
-        from gobby.config.persistence import MemoryConfig
-
-        config = MemoryConfig(
-            semantic_search_enabled=False,
-            embedding_provider="litellm",
-            embedding_model="voyage-code-2",
-            auto_embed=False,
-        )
-        assert config.semantic_search_enabled is False
-        assert config.embedding_provider == "litellm"
-        assert config.embedding_model == "voyage-code-2"
-        assert config.auto_embed is False
-
 
 class TestMemoryConfigValidation:
     """Test MemoryConfig validation."""
-
-    def test_injection_limit_non_negative(self) -> None:
-        """Test that injection_limit must be non-negative."""
-        from gobby.config.persistence import MemoryConfig
-
-        # Zero is allowed
-        config = MemoryConfig(injection_limit=0)
-        assert config.injection_limit == 0
-
-        # Negative is not
-        with pytest.raises(ValidationError) as exc_info:
-            MemoryConfig(injection_limit=-1)
-        assert "non-negative" in str(exc_info.value).lower()
 
     def test_importance_threshold_range(self) -> None:
         """Test that importance_threshold must be between 0 and 1."""
@@ -247,14 +208,6 @@ class TestMemoryConfigFromAppPy:
 
         config = MemoryConfig()
         assert config.enabled is True
-        assert config.injection_limit == 10
-
-    def test_validation_via_app_py(self) -> None:
-        """Test validation works when imported from app.py."""
-        from gobby.config.app import MemoryConfig
-
-        with pytest.raises(ValidationError):
-            MemoryConfig(injection_limit=-1)
 
 
 class TestMemorySyncConfigFromAppPy:
