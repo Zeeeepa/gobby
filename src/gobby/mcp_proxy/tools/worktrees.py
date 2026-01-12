@@ -551,6 +551,7 @@ def create_worktrees_registry(
     async def sync_worktree(
         worktree_id: str,
         strategy: str = "merge",
+        project_path: str | None = None,
     ) -> dict[str, Any]:
         """
         Sync a worktree with the main branch.
@@ -558,14 +559,22 @@ def create_worktrees_registry(
         Args:
             worktree_id: The worktree ID to sync.
             strategy: Sync strategy ('merge' or 'rebase').
+            project_path: Path to project directory (pass cwd from CLI).
 
         Returns:
             Dict with sync result.
         """
-        if git_manager is None:
+        # Resolve git manager from project_path or fall back to default
+        resolved_git_mgr, _, error = _resolve_project_context(
+            project_path, git_manager, project_id
+        )
+        if error:
+            return {"success": False, "error": error}
+
+        if resolved_git_mgr is None:
             return {
                 "success": False,
-                "error": "Git manager not configured.",
+                "error": "Git manager not configured and no project_path provided.",
             }
 
         worktree = worktree_storage.get(worktree_id)
@@ -584,7 +593,7 @@ def create_worktrees_registry(
 
         strategy_literal = cast(Literal["rebase", "merge"], strategy)
 
-        result = git_manager.sync_from_main(
+        result = resolved_git_mgr.sync_from_main(
             worktree.worktree_path,
             base_branch=worktree.base_branch,
             strategy=strategy_literal,

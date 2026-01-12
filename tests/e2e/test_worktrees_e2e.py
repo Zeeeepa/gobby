@@ -87,9 +87,11 @@ def git_repo_with_origin(
         capture_output=True,
     )
 
-    # Create initial commit
+    # Create initial commit with .gitignore for .gobby/
     readme = e2e_project_dir / "README.md"
     readme.write_text("# Test Project\n")
+    gitignore = e2e_project_dir / ".gitignore"
+    gitignore.write_text(".gobby/\n")
     subprocess.run(
         ["git", "add", "."],
         cwd=str(e2e_project_dir),
@@ -622,19 +624,13 @@ class TestWorktreeStats:
 class TestWorktreeSync:
     """Tests for worktree sync functionality."""
 
-    @pytest.mark.skip(reason="Daemon doesn't have git_manager configured")
     def test_sync_worktree(
         self,
         daemon_instance: DaemonInstance,
         mcp_client: MCPTestClient,
         git_repo_with_origin: Path,
     ):
-        """Sync worktree updates from main branch.
-
-        Note: This test requires git_manager to be configured in the daemon,
-        which is not the case for e2e tests. Skipped until git_manager
-        configuration is available per-project.
-        """
+        """Sync worktree updates from main branch."""
         # Create worktree
         create_response = mcp_client.call_tool(
             server_name="gobby-worktrees",
@@ -678,10 +674,11 @@ class TestWorktreeSync:
             arguments={
                 "worktree_id": worktree_id,
                 "strategy": "merge",
+                "project_path": str(git_repo_with_origin),
             },
         )
         sync_result = extract_result(sync_response)
-        assert sync_result.get("success") is True
+        assert sync_result.get("success") is True, f"Sync failed: {sync_result}"
 
 
 class TestWorktreeToolSchema:
