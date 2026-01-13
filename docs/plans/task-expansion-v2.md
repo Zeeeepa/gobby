@@ -6,7 +6,6 @@ Restructure task expansion from a monolithic auto-decomposition system into a ph
 
 ## Design Decisions
 
-
 | Decision | Choice |
 | :--- | :--- |
 | Auto-decomposition | Remove from `create_task` entirely |
@@ -19,7 +18,6 @@ Restructure task expansion from a monolithic auto-decomposition system into a ph
 | Prompt storage | `~/.gobby/prompts/*.md` - not hardcoded in Python |
 | Validation scope | Checks work completion only, not dependencies |
 | Dependency interface | Accept seq_nums at API; storage stays UUID (non-breaking) |
-
 
 ## Schema Changes
 
@@ -125,8 +123,8 @@ def load_prompt(name: str) -> str:
 
 Skill prompts and guides accessible to agents. Installed per-project from `src/gobby/install/shared/docs/`.
 
-| File | Purpose |
-|------|---------|
+| File               | Purpose                       |
+| ------------------ | ----------------------------- |
 | `spec-planning.md` | Spec writing guide for agents |
 
 **Install source:** `src/gobby/install/shared/docs/` → `.gobby/docs/`
@@ -266,7 +264,7 @@ def _build_smart_description(
     return "\n\n".join(parts)
 ```
 
-3. Update `_create_task` calls to use smart descriptions
+1. Update `_create_task` calls to use smart descriptions
 
 ### Phase 3: Database Migration
 
@@ -275,17 +273,12 @@ def _build_smart_description(
 1. Rename column `test_strategy` -> `category`
 2. Add new column `agent_name` (TEXT, nullable)
 3. Update existing data: map old test_strategy values to categories
-  - `"manual"` -> `"manual"`
-  - `"automated"` -> `"code"`
-1. Rename column `test_strategy` -> `category`
-2. Add new column `agent_name` (TEXT, nullable)
-3. Update existing data: map old test_strategy values to categories
-   -   `"manual"` -> `"manual"`
-   -   `"automated"` -> `"code"`
-   -   `NULL` -> remains `NULL`
+   - "manual" -> "manual"
+   - "automated" -> "code"
+   - `NULL` -> remains `NULL`
 
-4.  Add new column `reference_doc` (TEXT, nullable) - path to source spec
-5.  Add new columns `is_enriched`, `is_expanded` (BOOLEAN, default FALSE)
+4. Add new column `reference_doc` (TEXT, nullable) - path to source spec
+5. Add new columns `is_enriched`, `is_expanded` (BOOLEAN, default FALSE)
 
 ```sql
 -- Rename test_strategy to category
@@ -397,11 +390,11 @@ Errors:
 **File:** `src/gobby/mcp_proxy/tools/task_expansion.py`
 
 1. Simplify to single-level expansion only
-2.  Use stored `expansion_context` if available
-3.  If no context, optionally call `enrich_task` first
-4.  Support batch parallel: `expand_task(task_ids=["#1", "#2", "#3"])`
-5.  Sets `is_expanded=True` on successful completion
-6.  Parent's `validation_criteria` updated to "All child tasks completed" (parent becomes container)
+2. Use stored `expansion_context` if available
+3. If no context, optionally call `enrich_task` first
+4. Support batch parallel: `expand_task(task_ids=["#1", "#2", "#3"])`
+5. Sets `is_expanded=True` on successful completion
+6. Parent's `validation_criteria` updated to "All child tasks completed" (parent becomes container)
 
 **MCP Tool: `expand_task`**
 
@@ -474,7 +467,6 @@ Errors:
     - "Task already has children" - Use force=True to expand anyway
     - "Response too large" - Suggests CLI command with timeout
 ```
-
 
 ### Phase 6: Add apply_tdd Tool
 
@@ -648,9 +640,9 @@ Errors:
 Rename current `expand_from_spec` to `parse_spec` with simplified behavior:
 
 - Parse markdown structure
--   Create epic + phases + tasks with smart descriptions
--   NO research, NO subtask generation, NO TDD transformation
--   Fast and deterministic
+- Create epic + phases + tasks with smart descriptions
+- NO research, NO subtask generation, NO TDD transformation
+- Fast and deterministic
 
 ```python
 @registry.tool(name="parse_spec")
@@ -687,10 +679,10 @@ async def expand_from_spec(...):
 
 All CLI commands accepting task refs should support:
 
--   `42` - plain number
--   `#42` - hash prefix
--   `#42,#43,#44` - comma-separated list
--   `42 43 44` - space-separated (shell args)
+- `42` - plain number
+- `#42` - hash prefix
+- `#42,#43,#44` - comma-separated list
+- `42 43 44` - space-separated (shell args)
 
 Add helper function in `src/gobby/cli/tasks/utils.py`:
 
@@ -834,15 +826,16 @@ Examples:
 Update `gobby tasks create`, `gobby tasks list`, etc. with:
 
 ```python
-@click.option("-p", "--project", help="Project name or ID (auto-detects from cwd)")
-```
 
+@click.option("-p", "--project", help="Project name or ID (auto-detects from cwd)")
+
+```
 
 Auto-detection logic:
 
-1.  If `--project` provided: look up by name or ID
-2.  Else check if cwd is under a project path in `projects` table
-3.  Else create task with `project_id=NULL` (personal task)
+1. If `--project` provided: look up by name or ID
+2. Else check if cwd is under a project path in `projects` table
+3. Else create task with `project_id=NULL` (personal task)
 
 #### 8g. Progress bar implementation
 
@@ -995,6 +988,7 @@ Break work into phases. Each phase should be independently shippable or testable
 ### 4. Dependencies
 
 Use explicit dependency notation:
+
 - `(depends: #N)` - blocked by task N
 - `(depends: #N, #M)` - blocked by tasks N and M
 - `(depends: Phase N)` - blocked by all tasks in Phase N
@@ -1042,20 +1036,20 @@ Never close a task without committing first unless it's a non-code task.
 ## Task Granularity Guidelines
 
 Each checkbox should be:
--   **Atomic**: Completable in one session (< 2 hours)
--   **Testable**: Has clear pass/fail criteria
--   **Verb-led**: Starts with action verb (Add, Create, Implement, Update, Remove)
 
+- **Atomic**: Completable in one session (< 2 hours)
+- **Testable**: Has clear pass/fail criteria
+- **Verb-led**: Starts with action verb (Add, Create, Implement, Update, Remove)
 - **Scoped**: References specific files/functions when possible
 
 Good: `- [ ] Add TaskEnricher class to src/gobby/tasks/enrich.py`
-Bad: `- [ ] Implement enrichment` (too vague)
+B  `- [ ] Implement enrichment` (too vague)
 
 ## After Writing Your Spec
 
-1.  Review the spec for completeness
-2.  Run `gobby tasks parse-spec docs/plans/{feature}.md` to create tasks
-3.  Verify task structure with `gobby tasks list --tree`
+1. Review the spec for completeness
+2. Run `gobby tasks parse-spec docs/plans/{feature}.md` to create tasks
+3. Verify task structure with `gobby tasks list --tree`
 ```python
 
 #### 9c. Spec Writing Guide
@@ -1281,7 +1275,6 @@ async def test_full_spec_to_tdd_workflow():
         assert refactor_task.depends_on == [impl_task.id]
 ```
 
-
 **Expected outputs from memory-v3.md:**
 - 1 epic task with `reference_doc="docs/plans/memory-v3.md"`
 - 4-6 phase tasks (Phase 1: Foundation, Phase 2: Enhanced Search, etc.)
@@ -1343,6 +1336,7 @@ gobby tasks apply-tdd #105,#106,#107
 ### 3. Regression Tests
 
 **Existing tests that must pass:**
+
 ```bash
 # TDD ordering test (critical)
 uv run pytest tests/integration/test_tdd_ordering_e2e.py -v
@@ -1429,6 +1423,7 @@ rg "\.test_strategy" --type py
 - `docs/skills/SKILL.md` files - Update task expansion documentation
 
 **Cleanup verification script:**
+
 ```bash
 #!/bin/bash
 # scripts/verify_deprecation_cleanup.sh
