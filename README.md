@@ -125,7 +125,6 @@ uv pip install -e .
 
 Works with your Claude, Gemini, or Codex subscriptions—or bring your own API keys. Local model support coming soon.
 
-
 ## Configure Your AI CLI
 
 Add Gobby as an MCP server:
@@ -159,6 +158,19 @@ Add Gobby as an MCP server:
 [mcp_servers.gobby]
 command = "uv"
 args = ["run", "gobby", "mcp-server"]
+```
+
+**Gemini Antigravity** (`~/.gemini/antigravity/mcp_config.json`):
+```json
+{
+  "mcpServers": {
+    "gobby": {
+      "command": "/path/to/uv",
+      "args": ["run", "--directory", "/path/to/gobby", "gobby", "mcp-server"],
+      "disabled": false
+    }
+  }
+}
 ```
 
 ## CLI Support
@@ -275,7 +287,6 @@ We'd love your help. Gobby is built by developers who got frustrated with the st
 - **Want to contribute code?** PRs welcome — check the roadmap for what's in flight
 - **UI/UX skills?** We *really* need you. The maintainer is colorblind and Photoshop makes him itch.
 
-
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ## License
@@ -287,3 +298,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 <p align="center">
   <sub>Built with 🤖 by humans and AI, working together.</sub>
 </p>
+
