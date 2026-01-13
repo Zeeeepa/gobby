@@ -264,7 +264,7 @@ See [ROADMAP.md](ROADMAP.md) for the full plan, but highlights:
 
 **Next:** Security posture for MCP (allow/deny lists, audit logging), observability (tool call tracing, session timelines), minimal web UI
 
-**Vision:** Plugin ecosystem, team workflows (still local-first), enterprise hardening
+**Vision:** Plugin ecosystem, team workflows, enterprise hardening
 
 ## Development
 
