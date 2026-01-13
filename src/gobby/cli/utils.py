@@ -41,17 +41,20 @@ def resolve_project_ref(project_ref: str | None, exit_on_not_found: bool = True)
         return ctx.get("id") if ctx else None
 
     db = LocalDatabase()
-    manager = LocalProjectManager(db)
+    try:
+        manager = LocalProjectManager(db)
 
-    # Try as direct UUID first
-    project = manager.get(project_ref)
-    if project:
-        return project.id
+        # Try as direct UUID first
+        project = manager.get(project_ref)
+        if project:
+            return project.id
 
-    # Try as project name
-    project = manager.get_by_name(project_ref)
-    if project:
-        return project.id
+        # Try as project name
+        project = manager.get_by_name(project_ref)
+        if project:
+            return project.id
+    finally:
+        db.close()
 
     # Not found
     click.echo(f"Project not found: {project_ref}", err=True)
@@ -63,8 +66,11 @@ def resolve_project_ref(project_ref: str | None, exit_on_not_found: bool = True)
 def list_project_names() -> list[str]:
     """List all project names for shell completion."""
     db = LocalDatabase()
-    manager = LocalProjectManager(db)
-    return [p.name for p in manager.list()]
+    try:
+        manager = LocalProjectManager(db)
+        return [p.name for p in manager.list()]
+    finally:
+        db.close()
 
 
 def setup_logging(verbose: bool = False) -> None:
