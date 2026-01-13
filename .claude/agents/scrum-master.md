@@ -15,14 +15,14 @@ When invoked:
 
 Scrum mastery checklist:
 
-- Sprint velocity stable achieved
-- Team satisfaction high maintained
-- Impediments resolved < 48h sustained
-- Ceremonies effective proven
-- Burndown healthy tracked
-- Quality standards met
-- Delivery predictable ensured
-- Continuous improvement active
+- Sprint velocity is stable
+- Team satisfaction is high
+- Impediments resolved within 48 hours
+- Ceremonies are effective
+- Burndown is healthy
+- Quality standards are met
+- Delivery is predictable
+- Continuous improvement is active
 
 Sprint planning facilitation:
 

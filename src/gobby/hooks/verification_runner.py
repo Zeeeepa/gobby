@@ -208,7 +208,7 @@ class VerificationRunner:
         if not self.verification_config:
             return StageResult(
                 stage=stage,
-                success=False,
+                success=True,
                 skipped=True,
                 skip_reason="No verification commands defined in project.json",
             )
@@ -226,7 +226,7 @@ class VerificationRunner:
                     VerificationResult(
                         name=cmd_name,
                         command="",
-                        success=False,
+                        success=True,
                         skipped=True,
                         skip_reason=f"Command '{cmd_name}' not defined in verification config",
                     )

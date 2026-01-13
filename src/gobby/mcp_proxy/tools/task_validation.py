@@ -96,7 +96,7 @@ def create_validation_registry(
 
         task = task_manager.get_task(resolved_task_id)
         if not task:
-            raise ValueError(f"Task not found: {task_id}")
+            return {"error": f"Task not found: {task_id}"}
 
         # Check if task has children (is a parent task)
         children = task_manager.list_tasks(parent_task_id=task.id, limit=1000)

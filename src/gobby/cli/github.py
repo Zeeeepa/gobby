@@ -223,7 +223,7 @@ def github_sync(task_id: str, json_format: bool) -> None:
 
 @github.command("pr")
 @click.argument("task_id")
-@click.option("--head", "-h", "head_branch", required=True, help="Branch with changes")
+@click.option("--head", "-H", "head_branch", required=True, help="Branch with changes")
 @click.option("--base", "-b", "base_branch", default="main", help="Branch to merge into")
 @click.option("--draft", "-d", is_flag=True, help="Create as draft PR")
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")

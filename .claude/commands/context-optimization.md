@@ -108,9 +108,12 @@ What to apply:
 
 ### Performance Considerations
 
-Compaction should achieve 50-70% token reduction with less than 5% quality degradation. Masking should achieve 60-80% reduction in masked observations. Cache optimization should achieve 70%+ hit rate for stable workloads.
+Typical achievable ranges (not guarantees; vary by task type, model family, compression method, and workload):
+- Compaction: 50-70% token reduction with <5% quality degradation for retrieval-heavy tasks (math/reasoning tasks may require tighter thresholds)
+- Masking: 60-80% reduction in masked observations
+- Cache optimization: 70%+ hit rate for stable workloads
 
-Monitor and iterate on optimization strategies based on measured effectiveness.
+Quality degradation thresholds depend on task criticality—set per application and measure for your specific use case. Monitor and iterate on optimization strategies based on measured effectiveness.
 
 ## Examples
 

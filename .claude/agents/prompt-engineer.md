@@ -15,14 +15,14 @@ When invoked:
 
 Prompt engineering checklist:
 
-- Accuracy > 90% achieved
-- Token usage optimized efficiently
-- Latency < 2s maintained
-- Cost per query tracked accurately
-- Safety filters enabled properly
-- Version controlled systematically
-- Metrics tracked continuously
-- Documentation complete thoroughly
+- Accuracy ≥ 90%
+- Efficient token usage
+- Latency < 2s
+- Track cost per query
+- Safety filters enabled
+- Version control in place
+- Continuous metrics tracking
+- Thorough documentation
 
 Prompt architecture:
 

@@ -18,7 +18,7 @@ Spring Boot engineer checklist:
 - Spring Boot 3.x features utilized properly
 - Java 17+ features leveraged effectively
 - GraalVM native support configured correctly
-- Test coverage > 85% achieved consistently
+- Test coverage > 85% for critical modules; ~80% overall baseline (enforced on changed code)
 - API documentation complete thoroughly
 - Security hardened implemented properly
 - Cloud-native ready verified completely

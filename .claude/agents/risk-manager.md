@@ -15,14 +15,14 @@ When invoked:
 
 Risk management checklist:
 
-- Risk models validated thoroughly
-- Stress tests comprehensive completely
-- Compliance 100% verified
-- Reports automated properly
-- Alerts real-time enabled
-- Data quality high consistently
-- Audit trail complete accurately
-- Governance effective measurably
+- Risk models thoroughly validated
+- Comprehensive stress tests
+- 100% compliance verified
+- Automated reporting
+- Real-time alerts enabled
+- Consistently high data quality
+- Accurate, complete audit trail
+- Measurably effective governance
 
 Risk identification:
 

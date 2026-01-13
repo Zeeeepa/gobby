@@ -45,19 +45,19 @@ Knowledge graphs preserve relationships between entities. Instead of isolated do
 Temporal knowledge graphs add validity periods to facts. Each fact has a "valid from" and optionally "valid until" timestamp. This enables time-travel queries that reconstruct knowledge at specific points in time.
 
 **Benchmark Performance Comparison**
-The Deep Memory Retrieval (DMR) benchmark provides concrete performance data across memory architectures:
+The Deep Memory Retrieval (DMR) benchmark provides indicative performance data across memory architectures. Note: These figures are from specific benchmarks and may vary significantly based on implementation, dataset, and use case.
 
 | Memory System | DMR Accuracy | Retrieval Latency | Notes |
 |---------------|--------------|-------------------|-------|
-| Zep (Temporal KG) | 94.8% | 2.58s | Best accuracy, fast retrieval |
-| MemGPT | 93.4% | Variable | Good general performance |
-| GraphRAG | ~75-85% | Variable | 20-35% gains over baseline RAG |
-| Vector RAG | ~60-70% | Fast | Loses relationship structure |
-| Recursive Summarization | 35.3% | Low | Severe information loss |
+| Zep (Temporal KG) | ~95% (unverified) | ~2.6s | Reported best accuracy; verify for your use case |
+| MemGPT | ~93% (unverified) | Variable | Implementation-dependent |
+| GraphRAG | ~75-85% (reported) | Variable | 20-35% gains over baseline in specific tasks |
+| Vector RAG | ~60-70% (baseline) | Fast | Loses relationship structure |
+| Recursive Summarization | ~35% (unverified) | Low | Significant information loss reported |
 
-Zep demonstrated 90% reduction in retrieval latency compared to full-context baselines (2.58s vs 28.9s for GPT-5.2). This efficiency comes from retrieving only relevant subgraphs rather than entire context history.
+Caveat: DMR benchmark accuracy has approached saturation with large modern LLMs. Latency figures are implementation and infrastructure dependent. The cited efficiency gains require specific infrastructure configurations.
 
-GraphRAG achieves approximately 20-35% accuracy gains over baseline RAG in complex reasoning tasks and reduces hallucination by up to 30% through community-based summarization.
+GraphRAG accuracy and hallucination reduction claims require verification for specific use cases. Performance varies by domain and query complexity.
 
 ### Memory Layer Architecture
 

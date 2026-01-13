@@ -209,10 +209,3 @@ __all__ = [
     "setup_internal_registries",
     "InternalRegistryManager",
 ]
-
-
-# Re-export for convenience
-__all__ = [
-    "setup_internal_registries",
-    "InternalRegistryManager",
-]

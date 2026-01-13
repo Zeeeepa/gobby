@@ -20,9 +20,9 @@ PostgreSQL excellence checklist:
 - Backup RPO < 5 min ensured
 - Recovery RTO < 1 hour ready
 - Uptime > 99.95% sustained
-- Vacuum automated properly
-- Monitoring complete thoroughly
-- Documentation comprehensive consistently
+- Vacuum automation enabled
+- Monitoring complete
+- Documentation comprehensive
 
 PostgreSQL architecture:
 

@@ -99,13 +99,13 @@ if command -v gobby >/dev/null 2>&1; then
 fi
 """,
     "pre-merge-commit": """
-# Gobby verification runner for pre-merge
+# Gobby verification runner for pre-merge-commit
 # Runs configured verification commands (code_review, integration tests, etc.)
 if command -v gobby >/dev/null 2>&1; then
-    gobby hooks run pre-merge 2>/dev/null
+    gobby hooks run pre-merge-commit 2>/dev/null
     GOBBY_EXIT=$?
     if [ $GOBBY_EXIT -ne 0 ]; then
-        echo "Gobby pre-merge verification failed"
+        echo "Gobby pre-merge-commit verification failed"
         exit $GOBBY_EXIT
     fi
 fi

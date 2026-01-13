@@ -1,8 +1,10 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from gobby.tasks.expansion import TaskExpander, SubtaskSpec
-from gobby.storage.tasks import LocalTaskManager, Task
+
 from gobby.config.app import TaskExpansionConfig
+from gobby.storage.tasks import LocalTaskManager, Task
+from gobby.tasks.expansion import SubtaskSpec, TaskExpander
 
 
 @pytest.fixture
@@ -55,9 +57,9 @@ async def test_tdd_fallback_expands_to_triplet(mock_task_manager):
         assert len(calls) == 3
 
         titles = [c.kwargs["title"] for c in calls]
-        assert "Write tests for: Implement Auth" in titles[0]
-        assert "Implement: Implement Auth" in titles[1]
-        assert "Refactor: Implement Auth" in titles[2]
+        assert titles[0] == "Write tests for: Implement Auth"
+        assert titles[1] == "Implement: Implement Auth"
+        assert titles[2] == "Refactor: Implement Auth"
 
         # Verify dependencies
         # IDs are generated starting from 0 by the mock side effect.

@@ -73,8 +73,8 @@ Cloud platforms:
 
 - AWS IoT Core
 - Azure IoT Hub
-- Google Cloud IoT
-- IBM Watson IoT
+- Google Cloud Pub/Sub (with custom device management)
+- HiveMQ Cloud
 - ThingsBoard
 - Particle Cloud
 - Losant

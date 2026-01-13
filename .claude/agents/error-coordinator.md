@@ -16,14 +16,16 @@ When invoked:
 
 Error coordination checklist:
 
-- Error detection < 30 seconds achieved
-- Recovery success > 90% maintained
-- Cascade prevention 100% ensured
-- False positives < 5% minimized
-- MTTR < 5 minutes sustained
+- Error detection < 30 seconds (P0/revenue-critical services; adjust for lower tiers per SLA)
+- Recovery success > 90% (requires automated remediation capabilities)
+- Cascade prevention 100% (target; actual depends on system isolation)
+- False positives < 5% (requires tuned alerting thresholds)
+- MTTR < 5 minutes (P0 services with automation; P1: < 15 min, background: < 1 hour)
 - Documentation automated completely
 - Learning captured systematically
 - Resilience improved continuously
+
+Note: These targets assume mature observability infrastructure and automated recovery capabilities. Adjust thresholds based on organizational SLAs and service tier classification.
 
 Error aggregation and classification:
 

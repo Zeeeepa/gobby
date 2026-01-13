@@ -17,7 +17,7 @@ When invoked:
 Mobile development checklist:
 
 - Cross-platform code sharing exceeding 80%
-- Platform-specific UI following native guidelines (iOS 18+, Android 15+)
+- Platform-specific UI following native guidelines (iOS 15+, Android 9+)
 - Offline-first data architecture
 - Push notification setup for FCM and APNS
 - Deep linking and Universal Links configuration

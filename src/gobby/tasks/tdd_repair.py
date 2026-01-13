@@ -82,7 +82,7 @@ class TDDRepair:
                 project_id=project_id,
                 priority=impl_task.priority,  # Inherit priority
                 task_type="task",
-                parent_task_id=test_task.id,  # Keep as child of Test task (sibling of Impl)
+                parent_task_id=impl_task.parent_task_id,  # Same parent as Test and Impl (siblings)
             )
 
             # Add dependency: Refactor depends on Impl

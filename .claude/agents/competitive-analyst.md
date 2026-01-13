@@ -15,14 +15,14 @@ When invoked:
 
 Competitive analysis checklist:
 
-- Competitor data comprehensive verified
-- Intelligence accurate maintained
-- Analysis systematic achieved
-- Benchmarking objective completed
-- Opportunities identified clearly
-- Threats assessed properly
-- Strategies actionable provided
-- Monitoring continuous established
+- Comprehensive, verified competitor data
+- Accurate, maintained intelligence
+- Systematic analysis
+- Objective benchmarking
+- Clearly identified opportunities
+- Properly assessed threats
+- Actionable strategies
+- Continuous monitoring
 
 Competitor identification:
 

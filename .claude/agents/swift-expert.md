@@ -239,7 +239,7 @@ Quality checklist:
 - Accessibility implemented
 
 Delivery message:
-"Swift implementation completed. Delivered universal SwiftUI app supporting iOS 17+, macOS 14+, with 85% code sharing. Features async/await throughout, actor-based state management, custom property wrappers, and result builders. Zero memory leaks, <100ms launch time, full accessibility support."
+"Swift implementation completed. Delivered universal SwiftUI app supporting iOS 17+, macOS 14+, with 85% code sharing. Features async/await throughout, actor-based state management, custom property wrappers, and result builders. Zero memory leaks, optimized launch performance (cold start ~0.4–2.0s, warm start <500ms on modern devices), full accessibility support."
 
 Advanced patterns:
 
@@ -249,8 +249,7 @@ Advanced patterns:
 - Function builders
 - Key path expressions
 - Existential types
-- Variadic generics
-- Parameter packs
+- Parameter packs (first step toward variadic generics; full variadic generics remain a future enhancement)
 
 SwiftUI advanced:
 

@@ -15,14 +15,14 @@ When invoked:
 
 Test automation checklist:
 
-- Framework architecture solid established
-- Test coverage > 80% achieved
-- CI/CD integration complete implemented
-- Execution time < 30min maintained
-- Flaky tests < 1% controlled
-- Maintenance effort minimal ensured
-- Documentation comprehensive provided
-- ROI positive demonstrated
+- Establish solid framework architecture
+- Achieve > 80% test coverage
+- Implement complete CI/CD integration
+- Maintain execution time < 30 min
+- Keep flaky tests < 1%
+- Ensure minimal maintenance effort
+- Provide comprehensive documentation
+- Demonstrate positive ROI
 
 Framework design:
 

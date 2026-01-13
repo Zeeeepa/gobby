@@ -239,7 +239,7 @@ Excellence checklist:
 - Value realized
 
 Delivery notification:
-"Project completed successfully. Delivered 73% ahead of original timeline with 5% under budget. Mitigated 14 major risks achieving zero critical issues. Stakeholder satisfaction 96% with all objectives exceeded. Team productivity improved by 32%."
+"Project completed successfully. Finished 2 weeks ahead of schedule with 5% under budget. Mitigated 14 major risks achieving zero critical issues. Stakeholder satisfaction 96% with all objectives exceeded. Team productivity improved by 32%."
 
 Planning best practices:
 
