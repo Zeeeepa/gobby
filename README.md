@@ -29,7 +29,7 @@ Gobby is a local-first daemon that unifies your AI coding assistants—Claude Co
 If you've tried Beads or TaskMaster, you know the pain: databases that corrupt, agents that can't figure out the schema, worktrees that fall out of sync. Gobby's task system was designed by someone who got fed up with all of them.
 
 - **Dependency graphs** that agents actually understand
-- **TDD expansion** — describe a feature, get red/green/blue subtasks with test-first ordering  
+- **TDD expansion** — describe a feature, get red/green/blue subtasks with test-first ordering
 - **Validation gates** — tasks can't close without passing criteria (with git diff context)
 - **Git-native sync** — `.gobby/tasks.jsonl` lives in your repo, works with worktrees
 - **Commit linking** — `[task-id] feat: thing` auto-links commits to tasks
@@ -232,22 +232,22 @@ Everything runs locally. No cloud. No API keys required (beyond what your AI CLI
 
 Gobby exposes tools via MCP that your AI coding assistant can use:
 
-**Task Management** (`gobby-tasks`)  
+**Task Management** (`gobby-tasks`)
 `create_task`, `expand_task`, `validate_task`, `close_task`, `list_ready_tasks`, `suggest_next_task`, `add_dependency`, `get_dependency_tree`, and more.
 
-**Session Management** (`gobby-sessions`)  
+**Session Management** (`gobby-sessions`)
 `pickup` (restore context), `get_handoff_context`, `list_sessions`
 
-**Memory** (`gobby-memory`)  
+**Memory** (`gobby-memory`)
 `remember`, `recall`, `forget` — persistent facts across sessions
 
-**Workflows** (`gobby-workflows`)  
+**Workflows** (`gobby-workflows`)
 `activate`, `advance`, `set_variable`, `get_status`
 
-**Worktrees** (`gobby-worktrees`)  
+**Worktrees** (`gobby-worktrees`)
 `create_worktree`, `spawn_agent_in_worktree`, `list_worktrees`
 
-**MCP Proxy**  
+**MCP Proxy**
 `list_mcp_servers`, `add_mcp_server`, `import_mcp_server`, `list_tools`, `get_tool_schema`, `call_tool`, `recommend_tools`
 
 ## For AI Agents
@@ -298,4 +298,3 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 <p align="center">
   <sub>Built with 🤖 by humans and AI, working together.</sub>
 </p>
-
