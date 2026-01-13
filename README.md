@@ -65,18 +65,30 @@ Works across CLIs too. Start in Claude Code, pick up in Gemini. Gobby remembers.
 
 ### 🛤️ Workflows That Enforce Discipline
 
-YAML-defined workflows that restrict what tools are available at each step:
+YAML-defined workflows with state machines, tool restrictions, and exit conditions:
 
 ```yaml
-# plan-execute workflow: no file edits until you have a plan
+# auto-task workflow: autonomous execution until task tree is complete
+name: auto-task
 steps:
-  - name: plan
-    allowed_tools: [Read, Grep, Glob, think]
-  - name: execute  
-    allowed_tools: [Edit, Write, Bash]
+  - name: work
+    description: "Work on assigned task until complete"
+    allowed_tools: all
+    transitions:
+      - to: complete
+        when: "task_tree_complete(variables.session_task)"
+
+  - name: complete
+    description: "Task work finished - terminal step"
+
+exit_condition: "task_tree_complete(variables.session_task)"
+
+on_premature_stop:
+  action: guide_continuation
+  message: "Task has incomplete subtasks. Use suggest_next_task() and continue."
 ```
 
-Built-in workflows: `plan-execute`, `test-driven`, `plan-act-reflect`. Or write your own.
+Built-in workflows: `auto-task`, `plan-execute`, `test-driven`. Or write your own.
 
 ### 🌳 Worktree Orchestration
 
