@@ -36,7 +36,7 @@ import json
 import logging
 import os
 import platform
-import subprocess
+import subprocess  # nosec B404
 import threading
 import uuid
 from collections.abc import AsyncIterator, Callable
@@ -208,7 +208,7 @@ class CodexAppServerClient:
 
         try:
             # Start the subprocess
-            self._process = subprocess.Popen(
+            self._process = subprocess.Popen(  # nosec B603
                 [self._codex_command, "app-server"],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-import subprocess
+import subprocess  # nosec B404
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum

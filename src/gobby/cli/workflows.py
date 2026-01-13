@@ -192,7 +192,8 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
-    assert session_id is not None
+    if session_id is None:
+        raise click.ClickException("Session ID is required")
 
     state = state_manager.get_state(session_id)
 
@@ -284,7 +285,8 @@ def set_workflow(
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
-    assert session_id is not None
+    if session_id is None:
+        raise click.ClickException("Session ID is required")
 
     # Check for existing workflow
     existing = state_manager.get_state(session_id)
@@ -345,7 +347,8 @@ def clear_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
-    assert session_id is not None
+    if session_id is None:
+        raise click.ClickException("Session ID is required")
 
     state = state_manager.get_state(session_id)
     if not state:
@@ -386,7 +389,8 @@ def set_step(ctx: click.Context, step_name: str, session_id: str | None, force: 
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
-    assert session_id is not None
+    if session_id is None:
+        raise click.ClickException("Session ID is required")
 
     state = state_manager.get_state(session_id)
     if not state:
@@ -438,7 +442,8 @@ def reset_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
-    assert session_id is not None
+    if session_id is None:
+        raise click.ClickException("Session ID is required")
 
     state = state_manager.get_state(session_id)
     if not state:
@@ -489,7 +494,8 @@ def disable_workflow(ctx: click.Context, session_id: str | None, reason: str | N
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
-    assert session_id is not None
+    if session_id is None:
+        raise click.ClickException("Session ID is required")
 
     state = state_manager.get_state(session_id)
     if not state:
@@ -527,7 +533,8 @@ def enable_workflow(ctx: click.Context, session_id: str | None) -> None:
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
-    assert session_id is not None
+    if session_id is None:
+        raise click.ClickException("Session ID is required")
 
     state = state_manager.get_state(session_id)
     if not state:
@@ -568,7 +575,8 @@ def mark_artifact(
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
-    assert session_id is not None
+    if session_id is None:
+        raise click.ClickException("Session ID is required")
 
     state = state_manager.get_state(session_id)
     if not state:
@@ -747,7 +755,8 @@ def audit_workflow(
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
-    assert session_id is not None
+    if session_id is None:
+        raise click.ClickException("Session ID is required")
 
     entries = audit_manager.get_entries(
         session_id=session_id,
@@ -851,7 +860,8 @@ def set_variable(
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
-    assert session_id is not None
+    if session_id is None:
+        raise click.ClickException("Session ID is required")
 
     # Parse value type
     parsed_value: str | int | float | bool | None
@@ -937,7 +947,8 @@ def get_variable(
             click.echo("No active session found. Specify --session ID.", err=True)
             raise SystemExit(1)
 
-    assert session_id is not None
+    if session_id is None:
+        raise click.ClickException("Session ID is required")
 
     state = state_manager.get_state(session_id)
     variables = state.variables if state else {}

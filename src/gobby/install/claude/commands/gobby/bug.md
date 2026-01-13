@@ -9,14 +9,14 @@ Create a bug/defect task with the provided title and optional description.
 
 ## Usage
 
-```
+```text
 /bug <title>
 /bug <title> - <description>
 ```
 
 ## Examples
 
-```
+```text
 /bug Fix login timeout
 /bug Database connection drops - Users report intermittent connection failures after 5 minutes of inactivity
 ```
@@ -24,11 +24,13 @@ Create a bug/defect task with the provided title and optional description.
 ## Action
 
 Call `gobby-tasks.create_task` with:
+
 - `title`: The bug title from user input
 - `task_type`: "bug"
 - `priority`: 1 (high - bugs are important)
 
 Parse the user input:
+
 - If input contains " - ", split into title and description
 - Otherwise, use entire input as title
 

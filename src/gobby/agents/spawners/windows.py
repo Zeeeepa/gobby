@@ -6,7 +6,7 @@ import os
 import platform
 import shlex
 import shutil
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 
 from gobby.agents.spawners.base import SpawnResult, TerminalSpawnerBase, TerminalType
@@ -52,7 +52,7 @@ class WindowsTerminalSpawner(TerminalSpawnerBase):
             if env:
                 spawn_env.update(env)
 
-            process = subprocess.Popen(
+            process = subprocess.Popen(  # nosec B603
                 args,
                 env=spawn_env,
                 creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
@@ -115,7 +115,7 @@ class CmdSpawner(TerminalSpawnerBase):
             if env:
                 spawn_env.update(env)
 
-            process = subprocess.Popen(
+            process = subprocess.Popen(  # nosec B603
                 args,
                 env=spawn_env,
                 creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
@@ -196,7 +196,7 @@ class PowerShellSpawner(TerminalSpawnerBase):
             if env:
                 spawn_env.update(env)
 
-            process = subprocess.Popen(
+            process = subprocess.Popen(  # nosec B603
                 args,
                 env=spawn_env,
                 creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
@@ -287,7 +287,7 @@ class WSLSpawner(TerminalSpawnerBase):
             # Note: env vars passed via spawn_env won't reach WSL directly
             # They're handled via the bash -c script above
 
-            process = subprocess.Popen(
+            process = subprocess.Popen(  # nosec B603
                 args,
                 env=spawn_env,
                 creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),

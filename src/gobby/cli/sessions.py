@@ -391,7 +391,7 @@ def create_handoff(
 
     If no session ID is provided, uses the current project's most recent active session.
     """
-    import subprocess
+    import subprocess  # nosec B404
     import time
     from pathlib import Path
 
@@ -471,7 +471,7 @@ def create_handoff(
     # Enrich with real-time git status
     if not handoff_ctx.git_status:
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603,B607
                 ["git", "status", "--short"],
                 capture_output=True,
                 text=True,
@@ -480,11 +480,11 @@ def create_handoff(
             )
             handoff_ctx.git_status = result.stdout.strip() if result.returncode == 0 else ""
         except Exception:
-            pass
+            pass  # nosec B110
 
     # Get recent git commits
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603,B607
             ["git", "log", "--oneline", "-10", "--format=%H|%s"],
             capture_output=True,
             text=True,
@@ -500,7 +500,7 @@ def create_handoff(
             if commits:
                 handoff_ctx.git_commits = commits
     except Exception:
-        pass
+        pass  # nosec B110
 
     # Determine what to generate (neither flag = both)
     generate_compact = not full_summary or compact  # generate if --compact or neither flag

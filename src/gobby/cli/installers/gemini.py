@@ -244,7 +244,7 @@ def uninstall_gemini(project_path: Path) -> dict[str, Any]:
         if hooks_dir.exists() and not any(hooks_dir.iterdir()):
             hooks_dir.rmdir()
     except Exception:
-        pass
+        pass  # nosec B110
 
     # Remove MCP server from global settings (~/.gemini/settings.json)
     global_settings = Path.home() / ".gemini" / "settings.json"

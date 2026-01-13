@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-import subprocess
+import subprocess  # nosec B404
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -67,7 +67,7 @@ class HeadlessSpawner:
             # Spawn process with captured output
             # Use DEVNULL for stdin since headless mode uses -p flag (print mode)
             # which reads prompt from CLI args, not stdin. A pipe stdin would hang.
-            process = subprocess.Popen(
+            process = subprocess.Popen(  # nosec B603
                 command,
                 cwd=cwd,
                 env=spawn_env,
@@ -149,7 +149,7 @@ class HeadlessSpawner:
                     loop = asyncio.get_running_loop()
                     await loop.run_in_executor(None, result.process.wait)
                 except Exception:
-                    pass
+                    pass  # nosec B110
             result.error = "Process timed out"
 
         except Exception as e:

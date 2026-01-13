@@ -190,7 +190,14 @@ class TestHealthCheckScheduling:
     def test_start_is_idempotent(self) -> None:
         """Test calling start() multiple times is safe."""
         mock_client = MagicMock(spec=["check_status"])
-        mock_client.check_status.return_value = (True, "Ready", "ready", None)
+
+        # Add delay to ensure health_check_loop doesn't finish and replace
+        # the timer before we check for idempotency
+        def delayed_check():
+            time.sleep(0.5)
+            return (True, "Ready", "ready", None)
+
+        mock_client.check_status.side_effect = delayed_check
         monitor = HealthMonitor(daemon_client=mock_client, health_check_interval=1.0)
 
         try:
@@ -246,6 +253,18 @@ class TestHealthCheckScheduling:
         # Allow for timing variance
         assert mock_client.check_status.call_count >= 2
         assert mock_client.check_status.call_count <= 5
+
+    def test_start_after_stop_does_nothing(self) -> None:
+        """Test start() does nothing if monitor is shutdown."""
+        mock_client = MagicMock(spec=["check_status"])
+        monitor = HealthMonitor(daemon_client=mock_client)
+
+        monitor.stop()
+        assert monitor._is_shutdown is True
+
+        # Should return early and not start timer
+        monitor.start()
+        assert monitor._health_check_timer is None
 
 
 class TestHealthCheckFailureHandling:
