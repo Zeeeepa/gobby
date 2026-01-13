@@ -6,7 +6,7 @@ import asyncio
 import os
 import subprocess  # nosec B404
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from gobby.agents.constants import get_terminal_env_vars
 from gobby.agents.spawners.base import HeadlessResult
@@ -98,7 +98,7 @@ class HeadlessSpawner:
         cwd: str | Path,
         env: dict[str, str] | None = None,
         timeout: float | None = None,
-        on_output: Any | None = None,
+        on_output: Callable[[str], None] | None = None,
     ) -> HeadlessResult:
         """
         Spawn a headless process and capture output asynchronously.
