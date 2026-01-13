@@ -536,7 +536,7 @@ class TestCreateTaskCommand:
         result = runner.invoke(cli, ["tasks", "create", "My new task"])
 
         assert result.exit_code == 0
-        assert "Created task Test Project-1: Test Task" in result.output
+        assert "Created task Test Project-#1: Test Task" in result.output
         mock_manager.create_task.assert_called_once()
 
     @patch("gobby.cli.tasks.crud.get_task_manager")

@@ -327,7 +327,19 @@ def _generate_criteria_for_all(manager: LocalTaskManager) -> None:
     leaf_count = 0
     error_count = 0
 
+    # Get project context for display
+    project_ctx = get_project_context()
+    project_name = project_ctx.get("name") if project_ctx else None
+
     for task in tasks_needing_criteria:
+        # Format task ref
+        task_ref = task.id
+        if task.seq_num:
+            if project_name:
+                task_ref = f"({project_name}) #{task.seq_num}"
+            else:
+                task_ref = f"#{task.seq_num}"
+
         # Check if task has children (is a parent task)
         children = manager.list_tasks(parent_task_id=task.id, limit=1)
 
@@ -335,7 +347,7 @@ def _generate_criteria_for_all(manager: LocalTaskManager) -> None:
             # Parent task: criteria is child completion
             parent_criteria = "All child tasks must be completed (status: closed)."
             manager.update_task(task.id, validation_criteria=parent_criteria)
-            click.echo(f"\n[parent] {task.id}: {task.title}")
+            click.echo(f"\n[parent] {task_ref}: {task.title}")
             click.echo(f"  → {parent_criteria}")
             parent_count += 1
         else:
@@ -349,17 +361,17 @@ def _generate_criteria_for_all(manager: LocalTaskManager) -> None:
                 )
                 if leaf_criteria:
                     manager.update_task(task.id, validation_criteria=leaf_criteria)
-                    click.echo(f"\n[leaf] {task.id}: {task.title}")
+                    click.echo(f"\n[leaf] {task_ref}: {task.title}")
                     # Indent each line of criteria
                     for line in leaf_criteria.strip().split("\n"):
                         click.echo(f"  {line}")
                     leaf_count += 1
                 else:
-                    click.echo(f"\n[error] {task.id}: {task.title}")
+                    click.echo(f"\n[error] {task_ref}: {task.title}")
                     click.echo("  Failed to generate criteria", err=True)
                     error_count += 1
             except Exception as e:
-                click.echo(f"\n[error] {task.id}: {task.title}")
+                click.echo(f"\n[error] {task_ref}: {task.title}")
                 click.echo(f"  {e}", err=True)
                 error_count += 1
 

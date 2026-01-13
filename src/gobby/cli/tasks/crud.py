@@ -338,7 +338,7 @@ def create_task(title: str, description: str | None, priority: int, task_type: s
     project_name = project_ctx.get("name") if project_ctx else None
 
     if project_name and task.seq_num:
-        click.echo(f"Created task {project_name}-{task.seq_num}: {task.title}")
+        click.echo(f"Created task {project_name}-#{task.seq_num}: {task.title}")
     else:
         click.echo(f"Created task {task_ref}: {task.title}")
 
