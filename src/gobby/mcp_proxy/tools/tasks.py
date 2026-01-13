@@ -1022,7 +1022,7 @@ def create_task_registry(
         except Exception:
             pass  # Best-effort worktree update, don't fail the close
 
-        return {"success": True}
+        return {}
 
     registry.register(
         name="close_task",
