@@ -68,7 +68,80 @@ Displays:
 - HTTP and WebSocket ports
 - Log file locations
 
-## Project Management
+## Session Management
+
+### `gobby sessions list`
+
+List sessions.
+
+```bash
+gobby sessions list [--project REF] [--status STATUS] [--limit N] [--json]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--project` | Filter by project name or UUID |
+| `--status` | Filter by status (`active`, `completed`, `handoff_ready`) |
+| `--limit` | Max sessions to show (default: 20) |
+
+Displays session sequence number (`#N`), ID prefix, source, title, and cost.
+
+### `gobby sessions show`
+
+Show session details.
+
+```bash
+gobby sessions show SESSION_ID
+```
+
+### `gobby sessions messages`
+
+Show messages (transcript) for a session.
+
+```bash
+gobby sessions messages SESSION_ID [--limit N] [--role ROLE]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--limit` | Max messages to show (default: 50) |
+| `--role` | Filter by role (`user`, `assistant`, `tool`) |
+
+### `gobby sessions delete`
+
+Delete a session.
+
+```bash
+gobby sessions delete SESSION_ID
+```
+
+## Agent Management
+
+### `gobby agents start`
+
+Start a new subagent.
+
+```bash
+gobby agents start "PROMPT" --session SESSION_ID [--workflow NAME]
+```
+
+### `gobby agents list`
+
+List agent runs.
+
+```bash
+gobby agents list [--session SESSION_ID] [--status STATUS]
+```
+
+### `gobby agents show`
+
+Show agent run details.
+
+```bash
+gobby agents show RUN_ID
+```
+  
+  ## Project Management
 
 ### `gobby init`
 
@@ -236,14 +309,18 @@ gobby tasks sync [--direction DIRECTION]
 
 Synchronizes tasks between SQLite database and JSONL file for git-based sharing.
 
-## Task ID Resolution
+## ID Resolution
 
-Task commands accept either:
+Gobby CLI commands support a unified ID resolution strategy for **Tasks**, **Sessions**, and **Agent Runs**.
 
-- **Full ID**: `gt-a1b2c3`
-- **Prefix**: `gt-a1` (if unique)
+You can reference items using:
 
-If a prefix matches multiple tasks, all matches are displayed for disambiguation.
+1. **Sequence Number**: `#123` (Sessions and Tasks only)
+2. **Full ID**: `gt-a1b2c3...` or `uuid-string`
+3. **Prefix**: `gt-a1` or `a1b2` (must be unique)
+4. **Active/Current**: For some commands (like `gobby workflows`), omitting the ID defaults to the current active session.
+
+If a prefix matches multiple items, all matches are displayed for disambiguation.
 
 ## Examples
 

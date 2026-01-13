@@ -8,7 +8,7 @@ from typing import Any
 
 import click
 
-from gobby.cli.utils import resolve_project_ref
+from gobby.cli.utils import resolve_project_ref, resolve_session_id
 from gobby.storage.database import LocalDatabase
 from gobby.storage.session_messages import LocalSessionMessageManager
 from gobby.storage.sessions import LocalSessionManager
@@ -103,7 +103,10 @@ def list_sessions(
         if session.usage_total_cost_usd > 0:
             cost_str = f"${session.usage_total_cost_usd:.2f}"
 
-        click.echo(f"{status_icon} {session.id[:12]}  {session.source:<12} {title:<40} {cost_str}")
+        seq_str = f"#{session.seq_num}" if session.seq_num else ""
+        click.echo(
+            f"{status_icon} {seq_str:<5} {session.id[:8]}  {session.source:<12} {title:<40} {cost_str}"
+        )
 
 
 @sessions.command("show")
@@ -111,26 +114,17 @@ def list_sessions(
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def show_session(session_id: str, json_format: bool) -> None:
     """Show details for a session."""
-    manager = get_session_manager()
+    try:
+        session_id = resolve_session_id(session_id)
+    except click.ClickException as e:
+        raise SystemExit(1) from e
 
-    # Try exact match first, then prefix match
+    manager = get_session_manager()
     session = manager.get(session_id)
+
     if not session:
-        # Try prefix match
-        all_sessions = manager.list(limit=1000)
-        matches = [s for s in all_sessions if s.id.startswith(session_id)]
-        if len(matches) == 1:
-            session = matches[0]
-        elif len(matches) > 1:
-            click.echo(
-                f"Ambiguous session ID '{session_id}' matches {len(matches)} sessions:", err=True
-            )
-            for s in matches[:5]:
-                click.echo(f"  {s.id}: {s.title or '(no title)'}", err=True)
-            return
-        else:
-            click.echo(f"Session not found: {session_id}", err=True)
-            return
+        click.echo(f"Session not found: {session_id}", err=True)
+        return
 
     if json_format:
         click.echo(json.dumps(session.to_dict(), indent=2, default=str))
@@ -176,22 +170,19 @@ def show_messages(
     json_format: bool,
 ) -> None:
     """Show messages for a session."""
+    try:
+        session_id = resolve_session_id(session_id)
+    except click.ClickException as e:
+        raise SystemExit(1) from e
+
     session_manager = get_session_manager()
     message_manager = get_message_manager()
 
     # Resolve session ID
     session = session_manager.get(session_id)
     if not session:
-        all_sessions = session_manager.list(limit=1000)
-        matches = [s for s in all_sessions if s.id.startswith(session_id)]
-        if len(matches) == 1:
-            session = matches[0]
-        elif len(matches) > 1:
-            click.echo(f"Ambiguous session ID '{session_id}'", err=True)
-            return
-        else:
-            click.echo(f"Session not found: {session_id}", err=True)
-            return
+        click.echo(f"Session not found: {session_id}", err=True)
+        return
 
     # Fetch messages
     messages = asyncio.run(
@@ -241,6 +232,12 @@ def search_messages(
     json_format: bool,
 ) -> None:
     """Search messages across sessions."""
+    if session_id:
+        try:
+            session_id = resolve_session_id(session_id)
+        except click.ClickException as e:
+            raise SystemExit(1) from e
+
     project_id = resolve_project_ref(project_ref) if project_ref else None
     message_manager = get_message_manager()
 
@@ -278,21 +275,16 @@ def search_messages(
 @click.confirmation_option(prompt="Are you sure you want to delete this session?")
 def delete_session(session_id: str) -> None:
     """Delete a session."""
-    manager = get_session_manager()
+    try:
+        session_id = resolve_session_id(session_id)
+    except click.ClickException as e:
+        raise SystemExit(1) from e
 
-    # Resolve session ID
+    manager = get_session_manager()
     session = manager.get(session_id)
     if not session:
-        all_sessions = manager.list(limit=1000)
-        matches = [s for s in all_sessions if s.id.startswith(session_id)]
-        if len(matches) == 1:
-            session = matches[0]
-        elif len(matches) > 1:
-            click.echo(f"Ambiguous session ID '{session_id}'", err=True)
-            return
-        else:
-            click.echo(f"Session not found: {session_id}", err=True)
-            return
+        click.echo(f"Session not found: {session_id}", err=True)
+        return
 
     success = manager.delete(session.id)
     if success:
@@ -402,26 +394,18 @@ def create_handoff(
 
     # Find session
     if session_id:
+        try:
+            session_id = resolve_session_id(session_id)
+        except click.ClickException as e:
+            raise SystemExit(1) from e
         session = manager.get(session_id)
         if not session:
-            # Try prefix match
-            all_sessions = manager.list(limit=1000)
-            matches = [s for s in all_sessions if s.id.startswith(session_id)]
-            if len(matches) == 1:
-                session = matches[0]
-            elif len(matches) > 1:
-                click.echo(f"Ambiguous session ID '{session_id}'", err=True)
-                return
-            else:
-                click.echo(f"Session not found: {session_id}", err=True)
-                return
+            click.echo(f"Session not found: {session_id}", err=True)
+            return
     else:
         # Get most recent active session
-        sessions_list = manager.list(status="active", limit=1)
-        if not sessions_list:
-            click.echo("No active session found. Specify --session-id.", err=True)
-            return
-        session = sessions_list[0]
+        session_id = resolve_session_id(None)  # uses get_active_session_id internally
+        session = manager.get(session_id)
 
     # Check for transcript
     if not session.jsonl_path:

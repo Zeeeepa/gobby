@@ -9,6 +9,7 @@ from pathlib import Path
 import click
 import yaml
 
+from gobby.cli.utils import resolve_session_id
 from gobby.storage.database import LocalDatabase
 from gobby.workflows.loader import WorkflowLoader
 from gobby.workflows.state_manager import WorkflowStateManager
@@ -181,19 +182,13 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
     state_manager = get_state_manager()
 
     if not session_id:
-        # Try to find the most recent active session
-        db = LocalDatabase()
-        row = db.fetchone(
-            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-        )
-        if row:
-            session_id = row["id"]
-        else:
-            click.echo("No active session found. Specify --session ID.", err=True)
-            raise SystemExit(1)
-
-    if session_id is None:
-        raise click.ClickException("Session ID is required")
+        try:
+            session_id = resolve_session_id(None)
+        except click.ClickException as e:
+            # Re-raise to match expected behavior or exit
+            raise SystemExit(1) from e
+    else:
+        session_id = resolve_session_id(session_id)
 
     state = state_manager.get_state(session_id)
 
@@ -274,19 +269,10 @@ def set_workflow(
         raise SystemExit(1)
 
     # Get session
-    if not session_id:
-        db = LocalDatabase()
-        row = db.fetchone(
-            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-        )
-        if row:
-            session_id = row["id"]
-        else:
-            click.echo("No active session found. Specify --session ID.", err=True)
-            raise SystemExit(1)
-
-    if session_id is None:
-        raise click.ClickException("Session ID is required")
+    try:
+        session_id = resolve_session_id(session_id)
+    except click.ClickException as e:
+        raise SystemExit(1) from e
 
     # Check for existing workflow
     existing = state_manager.get_state(session_id)
@@ -336,19 +322,10 @@ def clear_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
     """Clear/deactivate workflow for a session."""
     state_manager = get_state_manager()
 
-    if not session_id:
-        db = LocalDatabase()
-        row = db.fetchone(
-            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-        )
-        if row:
-            session_id = row["id"]
-        else:
-            click.echo("No active session found. Specify --session ID.", err=True)
-            raise SystemExit(1)
-
-    if session_id is None:
-        raise click.ClickException("Session ID is required")
+    try:
+        session_id = resolve_session_id(session_id)
+    except click.ClickException as e:
+        raise SystemExit(1) from e
 
     state = state_manager.get_state(session_id)
     if not state:
@@ -378,19 +355,10 @@ def set_step(ctx: click.Context, step_name: str, session_id: str | None, force: 
     state_manager = get_state_manager()
     project_path = get_project_path()
 
-    if not session_id:
-        db = LocalDatabase()
-        row = db.fetchone(
-            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-        )
-        if row:
-            session_id = row["id"]
-        else:
-            click.echo("No active session found. Specify --session ID.", err=True)
-            raise SystemExit(1)
-
-    if session_id is None:
-        raise click.ClickException("Session ID is required")
+    try:
+        session_id = resolve_session_id(session_id)
+    except click.ClickException as e:
+        raise SystemExit(1) from e
 
     state = state_manager.get_state(session_id)
     if not state:
@@ -431,19 +399,10 @@ def reset_workflow(ctx: click.Context, session_id: str | None, force: bool) -> N
 
     state_manager = get_state_manager()
 
-    if not session_id:
-        db = LocalDatabase()
-        row = db.fetchone(
-            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-        )
-        if row:
-            session_id = row["id"]
-        else:
-            click.echo("No active session found. Specify --session ID.", err=True)
-            raise SystemExit(1)
-
-    if session_id is None:
-        raise click.ClickException("Session ID is required")
+    try:
+        session_id = resolve_session_id(session_id)
+    except click.ClickException as e:
+        raise SystemExit(1) from e
 
     state = state_manager.get_state(session_id)
     if not state:
@@ -483,19 +442,10 @@ def disable_workflow(ctx: click.Context, session_id: str | None, reason: str | N
     """Temporarily disable workflow enforcement (escape hatch)."""
     state_manager = get_state_manager()
 
-    if not session_id:
-        db = LocalDatabase()
-        row = db.fetchone(
-            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-        )
-        if row:
-            session_id = row["id"]
-        else:
-            click.echo("No active session found. Specify --session ID.", err=True)
-            raise SystemExit(1)
-
-    if session_id is None:
-        raise click.ClickException("Session ID is required")
+    try:
+        session_id = resolve_session_id(session_id)
+    except click.ClickException as e:
+        raise SystemExit(1) from e
 
     state = state_manager.get_state(session_id)
     if not state:
@@ -522,19 +472,10 @@ def enable_workflow(ctx: click.Context, session_id: str | None) -> None:
     """Re-enable a disabled workflow."""
     state_manager = get_state_manager()
 
-    if not session_id:
-        db = LocalDatabase()
-        row = db.fetchone(
-            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-        )
-        if row:
-            session_id = row["id"]
-        else:
-            click.echo("No active session found. Specify --session ID.", err=True)
-            raise SystemExit(1)
-
-    if session_id is None:
-        raise click.ClickException("Session ID is required")
+    try:
+        session_id = resolve_session_id(session_id)
+    except click.ClickException as e:
+        raise SystemExit(1) from e
 
     state = state_manager.get_state(session_id)
     if not state:
@@ -564,19 +505,10 @@ def mark_artifact(
     """Mark an artifact as complete (plan, spec, test, etc.)."""
     state_manager = get_state_manager()
 
-    if not session_id:
-        db = LocalDatabase()
-        row = db.fetchone(
-            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-        )
-        if row:
-            session_id = row["id"]
-        else:
-            click.echo("No active session found. Specify --session ID.", err=True)
-            raise SystemExit(1)
-
-    if session_id is None:
-        raise click.ClickException("Session ID is required")
+    try:
+        session_id = resolve_session_id(session_id)
+    except click.ClickException as e:
+        raise SystemExit(1) from e
 
     state = state_manager.get_state(session_id)
     if not state:
@@ -743,20 +675,10 @@ def audit_workflow(
 
     audit_manager = WorkflowAuditManager()
 
-    if not session_id:
-        # Try to find the most recent active session
-        db = LocalDatabase()
-        row = db.fetchone(
-            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
-        )
-        if row:
-            session_id = row["id"]
-        else:
-            click.echo("No active session found. Specify --session ID.", err=True)
-            raise SystemExit(1)
-
-    if session_id is None:
-        raise click.ClickException("Session ID is required")
+    try:
+        session_id = resolve_session_id(session_id)
+    except click.ClickException as e:
+        raise SystemExit(1) from e
 
     entries = audit_manager.get_entries(
         session_id=session_id,

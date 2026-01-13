@@ -19,7 +19,7 @@ import json
 import click
 import httpx
 
-from gobby.cli.utils import resolve_project_ref
+from gobby.cli.utils import resolve_project_ref, resolve_session_id
 from gobby.storage.database import LocalDatabase
 from gobby.storage.worktrees import LocalWorktreeManager
 
@@ -285,6 +285,11 @@ def spawn_in_worktree(
 @click.argument("session_id")
 def claim_worktree(worktree_id: str, session_id: str) -> None:
     """Claim a worktree for a session."""
+    try:
+        session_id = resolve_session_id(session_id)
+    except click.ClickException as e:
+        raise SystemExit(1) from e
+
     manager = get_worktree_manager()
 
     result = manager.claim(worktree_id, session_id)

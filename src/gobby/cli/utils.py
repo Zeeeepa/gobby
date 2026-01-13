@@ -14,6 +14,7 @@ import psutil
 from gobby.config.app import load_config
 from gobby.storage.database import LocalDatabase
 from gobby.storage.projects import LocalProjectManager
+from gobby.storage.sessions import LocalSessionManager, Session
 from gobby.utils.project_context import get_project_context
 
 logger = logging.getLogger(__name__)
@@ -56,11 +57,62 @@ def resolve_project_ref(project_ref: str | None, exit_on_not_found: bool = True)
     finally:
         db.close()
 
-    # Not found
-    click.echo(f"Project not found: {project_ref}", err=True)
-    if exit_on_not_found:
-        raise SystemExit(1)
     return None
+
+
+def get_active_session_id(db: LocalDatabase | None = None) -> str | None:
+    """Get the most recent active session ID."""
+    close_db = False
+    if db is None:
+        db = LocalDatabase()
+        close_db = True
+
+    try:
+        # SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1
+        # Using format compatible with the rest of the codebase (raw SQL) to avoid circular imports
+        # if using session manager directly which might pull in other things.
+        # But we import LocalSessionManager at top, so let's use it if possible or raw SQL for speed.
+        row = db.fetchone(
+            "SELECT id FROM sessions WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
+        )
+        return row["id"] if row else None
+    finally:
+        if close_db:
+            db.close()
+
+
+def resolve_session_id(session_ref: str | None) -> str:
+    """
+    Resolve session reference to UUID.
+
+    Centralized logic used by all CLI commands.
+
+    Args:
+        session_ref: User input string (UUID, #N, N, prefix) or None
+
+    Returns:
+        Resolved UUID string
+
+    Raises:
+        click.ClickException: If session not found or ambiguous
+    """
+    db = LocalDatabase()
+    try:
+        # If no reference provided, try to find active session
+        if not session_ref:
+            active_id = get_active_session_id(db)
+            if not active_id:
+                raise click.ClickException("No active session found. Specify --session.")
+            return active_id
+
+        # Use SessionManager for resolution logic
+        manager = LocalSessionManager(db)
+        try:
+            return manager.resolve_session_reference(session_ref)
+        except ValueError as e:
+            raise click.ClickException(str(e))
+    finally:
+        db.close()
 
 
 def list_project_names() -> list[str]:

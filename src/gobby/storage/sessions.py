@@ -49,6 +49,8 @@ class Session:
     usage_total_cost_usd: float = 0.0
     # Terminal context (JSON blob with tty, parent_pid, term_session_id, etc.)
     terminal_context: dict[str, Any] | None = None
+    # Global sequence number
+    seq_num: int | None = None
 
     @classmethod
     def from_row(cls, row: Any) -> Session:
@@ -81,6 +83,7 @@ class Session:
             usage_cache_read_tokens=row["usage_cache_read_tokens"] or 0,
             usage_total_cost_usd=row["usage_total_cost_usd"] or 0.0,
             terminal_context=cls._parse_terminal_context(row["terminal_context"]),
+            seq_num=row["seq_num"] if "seq_num" in row.keys() else None,
         )
 
     @classmethod
@@ -132,6 +135,7 @@ class Session:
             "terminal_context": self.terminal_context,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "seq_num": self.seq_num,
         }
 
 
@@ -212,33 +216,54 @@ class LocalSessionManager:
 
         # New session - create it
         session_id = str(uuid.uuid4())
-        self.db.execute(
-            """
-            INSERT INTO sessions (
-                id, external_id, machine_id, source, project_id, title,
-                jsonl_path, git_branch, parent_session_id,
-                agent_depth, spawned_by_agent_id, terminal_context,
-                status, created_at, updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
-            """,
-            (
-                session_id,
-                external_id,
-                machine_id,
-                source,
-                project_id,
-                title,
-                jsonl_path,
-                git_branch,
-                parent_session_id,
-                agent_depth,
-                spawned_by_agent_id,
-                json.dumps(terminal_context) if terminal_context else None,
-                now,
-                now,
-            ),
-        )
+
+        # Retry loop for seq_num assignment
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Get next seq_num (global)
+                max_seq_row = self.db.fetchone("SELECT MAX(seq_num) as max_seq FROM sessions")
+                next_seq_num = ((max_seq_row["max_seq"] if max_seq_row else None) or 0) + 1
+
+                self.db.execute(
+                    """
+                    INSERT INTO sessions (
+                        id, external_id, machine_id, source, project_id, title,
+                        jsonl_path, git_branch, parent_session_id,
+                        agent_depth, spawned_by_agent_id, terminal_context,
+                        status, created_at, updated_at, seq_num
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
+                    """,
+                    (
+                        session_id,
+                        external_id,
+                        machine_id,
+                        source,
+                        project_id,
+                        title,
+                        jsonl_path,
+                        git_branch,
+                        parent_session_id,
+                        agent_depth,
+                        spawned_by_agent_id,
+                        json.dumps(terminal_context) if terminal_context else None,
+                        now,
+                        now,
+                        next_seq_num,
+                    ),
+                )
+                break
+            except Exception as e:
+                # Check for unique constraint violation on seq_num
+                if (
+                    "UNIQUE constraint failed: sessions.seq_num" in str(e)
+                    and attempt < max_retries - 1
+                ):
+                    logger.warning(f"Seq_num collision ({next_seq_num}), retrying...")
+                    continue
+                raise
+
         logger.debug(f"Created new session {session_id} for external_id={external_id}")
 
         session = self.get(session_id)
@@ -250,6 +275,57 @@ class LocalSessionManager:
         """Get session by ID."""
         row = self.db.fetchone("SELECT * FROM sessions WHERE id = ?", (session_id,))
         return Session.from_row(row) if row else None
+
+    def resolve_session_reference(self, ref: str) -> str:
+        """
+        Resolve a session reference to a UUID.
+
+        Supports:
+        - #N: Global Sequence Number (e.g., #1)
+        - N: Integer string treated as #N (e.g., "1")
+        - UUID: Full UUID
+        - Prefix: UUID prefix (must be unambiguous)
+
+        Args:
+            ref: Session reference string
+
+        Returns:
+            Resolved Session UUID
+
+        Raises:
+            ValueError: If not found or ambiguous
+        """
+        if not ref:
+            raise ValueError("Empty session reference")
+
+        # #N or N format: seq_num lookup
+        seq_num_ref = ref
+        if ref.startswith("#"):
+            seq_num_ref = ref[1:]
+
+        if seq_num_ref.isdigit():
+            seq_num = int(seq_num_ref)
+            row = self.db.fetchone("SELECT id FROM sessions WHERE seq_num = ?", (seq_num,))
+            if not row:
+                raise ValueError(f"Session #{seq_num} not found")
+            return str(row["id"])
+
+        # Full UUID check
+        try:
+            uuid_obj = uuid.UUID(ref)
+            return str(uuid_obj)
+        except ValueError:
+            pass  # Not a valid UUID, try prefix
+
+        # Prefix matching
+        rows = self.db.fetchall("SELECT id FROM sessions WHERE id LIKE ? LIMIT 5", (f"{ref}%",))
+        if not rows:
+            raise ValueError(f"Session '{ref}' not found")
+        if len(rows) > 1:
+            matches = [str(r["id"]) for r in rows]
+            raise ValueError(f"Ambiguous session '{ref}' matches: {', '.join(matches[:3])}...")
+
+        return str(rows[0]["id"])
 
     def find_current(
         self,

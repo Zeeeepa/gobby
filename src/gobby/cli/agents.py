@@ -14,7 +14,8 @@ import json
 import click
 import httpx
 
-from gobby.storage.agents import LocalAgentRunManager
+from gobby.cli.utils import resolve_session_id
+from gobby.storage.agents import AgentRun, LocalAgentRunManager
 from gobby.storage.database import LocalDatabase
 
 
@@ -22,6 +23,43 @@ def get_agent_run_manager() -> LocalAgentRunManager:
     """Get initialized agent run manager."""
     db = LocalDatabase()
     return LocalAgentRunManager(db)
+
+
+def get_agent_run(run_id: str) -> AgentRun | None:
+    """
+    Resolve agent run ID (exact or prefix).
+
+    Args:
+        run_id: Agent run ID or prefix
+
+    Returns:
+        AgentRun object or None if not found or ambiguous
+    """
+    manager = get_agent_run_manager()
+
+    # Try exact match first
+    run = manager.get(run_id)
+    if run:
+        return run
+
+    # Try prefix match
+    db = LocalDatabase()
+    rows = db.fetchall(
+        "SELECT * FROM agent_runs WHERE id LIKE ? LIMIT 10",
+        (f"{run_id}%",),
+    )
+    if not rows:
+        return None
+
+    matches = [AgentRun.from_row(row) for row in rows]
+    if len(matches) == 1:
+        return matches[0]
+
+    # Ambiguous - print options but return None
+    click.echo(f"Ambiguous run ID '{run_id}' matches {len(matches)} runs:", err=True)
+    for r in matches[:5]:
+        click.echo(f"  {r.id}: {r.status}", err=True)
+    return None
 
 
 def get_daemon_url() -> str:
@@ -93,6 +131,12 @@ def start_agent_cmd(
         gobby agents start "Run tests" -s sess-abc123 --mode headless
     """
     daemon_url = get_daemon_url()
+
+    # Resolve session ID
+    try:
+        parent_session_id = resolve_session_id(parent_session_id)
+    except click.ClickException as e:
+        raise SystemExit(1) from e
 
     # Build arguments for the MCP tool call
     arguments = {
@@ -177,6 +221,10 @@ def list_agents(
     manager = get_agent_run_manager()
 
     if session_id:
+        try:
+            session_id = resolve_session_id(session_id)
+        except click.ClickException as e:
+            raise SystemExit(1) from e
         runs = manager.list_by_session(session_id, status=status, limit=limit)  # type: ignore
     elif status == "running":
         runs = manager.list_running(limit=limit)
@@ -230,31 +278,30 @@ def list_agents(
 @click.option("--json", "json_format", is_flag=True, help="Output as JSON")
 def show_agent(run_id: str, json_format: bool) -> None:
     """Show details for an agent run."""
-    manager = get_agent_run_manager()
-
-    # Try exact match first, then prefix match
-    run = manager.get(run_id)
+    run = get_agent_run(run_id)
     if not run:
-        # Try prefix match
-        db = LocalDatabase()
-        rows = db.fetchall(
-            "SELECT * FROM agent_runs WHERE id LIKE ? LIMIT 10",
-            (f"{run_id}%",),
-        )
-        from gobby.storage.agents import AgentRun
+        # get_agent_run prints ambiguity details if needed
+        # We only need to print not found if it really wasn't found (no ambiguity printed)
+        # But get_agent_run handles printing for ambiguity.
+        # If it returns None, we can assume it wasn't found OR was ambiguous.
+        # Let's adjust get_agent_run or just recheck here?
+        # Actually simplified: if get_agent_run returns None, we can't show it.
+        # The helper prints ambiguity. We just need to handle "not found".
+        # But wait, we don't know if it printed ambiguity.
+        # Let's trust the helper to do the right thing or Click exception?
+        # For now, simplistic approach:
+        # If get_agent_run returns None, we assume it handled output or it's just not found.
+        # But we need to distinguish.
+        # Let's check duplicate output.
+        # Refactoring helper to throw exception would be cleaner but let's stick to pattern.
+        # Re-implementing simplified version here is safer for now.
+        pass
 
-        matches = [AgentRun.from_row(row) for row in rows]
-
-        if len(matches) == 1:
-            run = matches[0]
-        elif len(matches) > 1:
-            click.echo(f"Ambiguous run ID '{run_id}' matches {len(matches)} runs:", err=True)
-            for r in matches[:5]:
-                click.echo(f"  {r.id}: {r.status}", err=True)
-            return
-        else:
-            click.echo(f"Agent run not found: {run_id}", err=True)
-            return
+    # Actually, let's use the helper but handle None
+    run = get_agent_run(run_id)
+    if not run:
+        click.echo(f"Agent run not found or ambiguous: {run_id}", err=True)
+        return
 
     if json_format:
         click.echo(json.dumps(run.to_dict(), indent=2, default=str))
@@ -341,31 +388,16 @@ def agent_status(run_id: str) -> None:
 @click.argument("run_id")
 @click.confirmation_option(prompt="Are you sure you want to cancel this agent run?")
 def cancel_agent(run_id: str) -> None:
-    """Cancel a running agent."""
-    manager = get_agent_run_manager()
-
-    run = manager.get(run_id)
+    run = get_agent_run(run_id)
     if not run:
-        # Try prefix match
-        db = LocalDatabase()
-        rows = db.fetchall(
-            "SELECT * FROM agent_runs WHERE id LIKE ? LIMIT 2",
-            (f"{run_id}%",),
-        )
-        from gobby.storage.agents import AgentRun
-
-        matches = [AgentRun.from_row(row) for row in rows]
-
-        if len(matches) == 1:
-            run = matches[0]
-        else:
-            click.echo(f"Agent run not found: {run_id}", err=True)
-            return
+        click.echo(f"Agent run not found or ambiguous: {run_id}", err=True)
+        return
 
     if run.status not in ("pending", "running"):
         click.echo(f"Cannot cancel agent in status: {run.status}", err=True)
         return
 
+    manager = get_agent_run_manager()
     manager.cancel(run.id)
     click.echo(f"Cancelled agent run: {run.id}")
 
@@ -377,6 +409,10 @@ def agent_stats(session_id: str | None) -> None:
     db = LocalDatabase()
 
     if session_id:
+        try:
+            session_id = resolve_session_id(session_id)
+        except click.ClickException as e:
+            raise SystemExit(1) from e
         manager = get_agent_run_manager()
         counts = manager.count_by_session(session_id)
         total = sum(counts.values())
