@@ -245,7 +245,7 @@ Ceremony optimization:
 
 - Planning poker
 - Story mapping
-- Velocity gaming
+- Velocity forecasting
 - Burndown analysis
 - Review preparation
 - Retro formats

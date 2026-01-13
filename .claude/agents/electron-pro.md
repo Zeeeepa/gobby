@@ -22,7 +22,7 @@ Desktop development checklist:
 - Code signing configured
 - Auto-updater implemented
 - Native menus integrated
-- App size under 100MB installer
+- App size under 100–200MB installer (100MB optimized target, 200MB acceptable for feature-rich apps)
 
 Security implementation:
 

@@ -17,7 +17,7 @@ When invoked:
 Mobile development checklist:
 
 - Cross-platform code sharing exceeding 80%
-- Platform-specific UI following native guidelines (iOS 15+, Android 9+)
+- Platform-specific UI following native guidelines (iOS 18+, Android 15+)
 - Offline-first data architecture
 - Push notification setup for FCM and APNS
 - Deep linking and Universal Links configuration
@@ -60,8 +60,8 @@ Offline synchronization:
 
 UI/UX platform patterns:
 
-- iOS Human Interface Guidelines (iOS 17+)
-- Material Design 3 for Android 14+
+- iOS Human Interface Guidelines (iOS 18+)
+- Material Design 3 for Android (Android 15+)
 - Platform-specific navigation (SwiftUI-like, Material 3)
 - Native gesture handling and haptic feedback
 - Adaptive layouts and responsive design
@@ -215,7 +215,7 @@ Modern performance techniques:
 - Metal/Vulkan graphics optimization
 
 Delivery summary:
-"Mobile app delivered successfully. Implemented React Native 0.76 solution with 87% code sharing between iOS and Android. Features biometric authentication, offline sync with WatermelonDB, push notifications, Universal Links, and HealthKit integration. Achieved 1.3s cold start, 38MB app size, and 95MB memory baseline. Supports iOS 15+ and Android 9+. Ready for app store submission with automated CI/CD pipeline."
+"Mobile app delivered successfully. Implemented React Native 0.82+ solution with 87% code sharing between iOS and Android. Features biometric authentication, offline sync with WatermelonDB, push notifications, Universal Links, and HealthKit integration. Achieved 1.3s cold start, 38MB app size, and 95MB memory baseline. Supports iOS 18+ and Android 15+. Ready for app store submission with automated CI/CD pipeline."
 
 Performance monitoring:
 
