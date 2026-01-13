@@ -181,7 +181,7 @@ def find_task_by_prefix(prefix: str) -> Task | None:
 - Private attributes prefixed with single underscore
 
 ```python
-DEFAULT_DB_PATH = "~/.gobby/gobby.db"       # Module constant
+DEFAULT_DB_PATH = "~/.gobby/gobby-hub.db"       # Module constant
 DAEMON_STATUS_TEXT = "running"               # Module constant
 
 self._session_mapping: dict[str, str] = {}   # Private attribute

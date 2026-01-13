@@ -23,10 +23,10 @@ These tools are registered with the InternalToolRegistry and accessed
 via the downstream proxy pattern (call_tool, list_tools, get_tool_schema).
 """
 
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-import logging
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.database import LocalDatabase

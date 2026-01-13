@@ -306,7 +306,7 @@ Memories work seamlessly across Claude Code, Gemini CLI, and Codex CLI:
 
 ### How Sharing Works
 
-1. **Unified Storage**: All memories stored in `~/.gobby/gobby.db`
+1. **Unified Storage**: All memories stored in `~/.gobby/gobby-hub.db`
 2. **Project Binding**: Memories linked to projects via `.gobby/project.json`
 3. **Session Source Tracking**: Each memory tracks which CLI created it
 
@@ -416,7 +416,7 @@ triggers:
 
 | Path | Description |
 | ---- | ----------- |
-| `~/.gobby/gobby.db` | SQLite database with memories table |
+| `~/.gobby/gobby-hub.db` | SQLite database with memories table |
 | `.gobby/memories.jsonl` | Git-synced memory export |
 | `.gobby/memories_meta.json` | Sync metadata (checksums, timestamps) |
 | `~/.gobby/config.yaml` | Memory configuration |

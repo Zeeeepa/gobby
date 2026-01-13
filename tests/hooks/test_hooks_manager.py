@@ -1,8 +1,8 @@
 """Tests for the HookManager coordinator."""
 
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -39,12 +39,28 @@ def hook_manager_with_mocks(temp_dir: Path, mock_daemon_client: MagicMock):
     gobby_dir.mkdir()
     (gobby_dir / "project.json").write_text(f'{{"id": "{project.id}", "name": "test-project"}}')
 
-    with patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient:
+    from gobby.config.app import DaemonConfig, HookExtensionsConfig, PluginsConfig, WebhooksConfig
+
+    # Create config with temp DB and disabled webhooks
+    test_config = DaemonConfig(
+        database_path=str(db_path),
+        hook_extensions=HookExtensionsConfig(
+            webhooks=WebhooksConfig(enabled=False),
+            plugins=PluginsConfig(enabled=False),
+        ),
+    )
+
+    with (
+        patch("gobby.hooks.hook_manager.DaemonClient") as MockDaemonClient,
+        patch("gobby.hooks.webhooks.httpx.AsyncClient") as MockHttpClient,
+    ):
         MockDaemonClient.return_value = mock_daemon_client
+        MockHttpClient.return_value = MagicMock()
 
         manager = HookManager(
             daemon_host="localhost",
             daemon_port=8765,
+            config=test_config,
             log_file=str(temp_dir / "logs" / "hook-manager.log"),
         )
 
@@ -55,7 +71,7 @@ def hook_manager_with_mocks(temp_dir: Path, mock_daemon_client: MagicMock):
         yield manager
 
         # Cleanup: Remove test sessions from HookManager's database (uses production DB)
-        # The HookManager creates its own LocalDatabase() connection to ~/.gobby/gobby.db
+        # The HookManager creates its own LocalDatabase() connection to ~/.gobby/gobby-hub.db
         test_external_ids = [
             "test-external-id-123",
             "test-resume-session-123",
@@ -80,7 +96,7 @@ def sample_session_start_event(temp_dir: Path) -> HookEvent:
         event_type=HookEventType.SESSION_START,
         session_id="test-external-id-123",
         source=SessionSource.CLAUDE,
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(UTC),
         data={
             "source": "startup",
             "cwd": str(temp_dir),
@@ -169,7 +185,7 @@ class TestHookManagerHandle:
             event_type=HookEventType.NOTIFICATION,
             session_id="test",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={},
         )
 
@@ -224,7 +240,7 @@ class TestHookManagerSessionStart:
             event_type=HookEventType.SESSION_START,
             session_id="test-resume-session-123",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={
                 "source": "resume",  # Key: this is a resume, not startup
                 "cwd": str(temp_dir),
@@ -267,7 +283,7 @@ class TestHookManagerSessionEnd:
             event_type=HookEventType.SESSION_END,
             session_id="test-external-id-123",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={"transcript_path": str(transcript_path)},
             machine_id="test-machine-id",
         )
@@ -327,7 +343,7 @@ class TestHookManagerSessionEnd:
                 event_type=HookEventType.SESSION_END,
                 session_id="test-external-id-123",
                 source=SessionSource.CLAUDE,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC),
                 data={"transcript_path": str(transcript_path), "cwd": str(temp_dir)},
                 machine_id="test-machine-id",
                 metadata={"_platform_session_id": "test-session-id"},
@@ -361,7 +377,7 @@ class TestHookManagerBeforeAgent:
             event_type=HookEventType.BEFORE_AGENT,
             session_id="test-external-id-123",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={"prompt": "Help me write a function"},
             machine_id="test-machine-id",
         )
@@ -385,7 +401,7 @@ class TestHookManagerToolEvents:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="test-external-id-123",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={"tool_name": "bash", "tool_input": {"command": "ls"}},
             machine_id="test-machine-id",
         )
@@ -405,7 +421,7 @@ class TestHookManagerToolEvents:
             event_type=HookEventType.AFTER_TOOL,
             session_id="test-external-id-123",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={"tool_name": "bash", "tool_output": "file1.txt\nfile2.txt"},
             machine_id="test-machine-id",
         )
@@ -542,7 +558,7 @@ class TestHookManagerWorkflowBlocking:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="test-workflow-block",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={"tool_name": "bash"},
             machine_id="test-machine-id",
         )
@@ -568,7 +584,7 @@ class TestHookManagerWorkflowBlocking:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="test-workflow-ask",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={"tool_name": "bash"},
             machine_id="test-machine-id",
         )
@@ -629,7 +645,7 @@ class TestHookManagerWebhookBlocking:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="test-webhook-block",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={"tool_name": "bash"},
             machine_id="test-machine-id",
         )
@@ -677,7 +693,7 @@ class TestHookManagerPluginHandling:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="test-plugin-block",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={"tool_name": "bash"},
             machine_id="test-machine-id",
         )
@@ -706,7 +722,7 @@ class TestHookManagerPluginHandling:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="test-plugin-deny",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={"tool_name": "bash"},
             machine_id="test-machine-id",
         )
@@ -807,7 +823,7 @@ class TestHookManagerHandlerErrors:
             event_type=HookEventType.SESSION_START,
             session_id="test-handler-error",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={"cwd": str(temp_dir)},
             machine_id="test-machine-id",
         )
@@ -887,6 +903,7 @@ class TestHookManagerBroadcasting:
             # Give the loop time to process the scheduled coroutine
             time.sleep(0.1)
         finally:
+            manager._loop = None
             loop.call_soon_threadsafe(loop.stop)
             loop_thread.join(timeout=1)
             loop.close()
@@ -963,7 +980,7 @@ class TestHookManagerSessionLookup:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="unknown-session-id",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={"tool_name": "bash", "cwd": str(temp_dir)},
             machine_id="test-machine-id",
         )
@@ -985,7 +1002,7 @@ class TestHookManagerSessionLookup:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="auto-register-session",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={
                 "tool_name": "bash",
                 "cwd": str(temp_dir),
@@ -1021,7 +1038,7 @@ class TestHookManagerSessionLookup:
             event_type=HookEventType.SESSION_START,
             session_id="task-session",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={"cwd": str(temp_dir)},
             machine_id="test-machine-id",
         )
@@ -1032,7 +1049,7 @@ class TestHookManagerSessionLookup:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="task-session",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={"tool_name": "bash"},
             machine_id="test-machine-id",
         )
@@ -1064,7 +1081,7 @@ class TestHookManagerSessionLookup:
             event_type=HookEventType.SESSION_START,
             session_id="task-error-session",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={"cwd": str(temp_dir)},
             machine_id="test-machine-id",
         )
@@ -1074,7 +1091,7 @@ class TestHookManagerSessionLookup:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="task-error-session",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={"tool_name": "bash"},
             machine_id="test-machine-id",
         )
@@ -1103,7 +1120,7 @@ class TestHookManagerWebhookDispatch:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="webhook-test",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={},
             machine_id="test-machine-id",
         )
@@ -1124,7 +1141,7 @@ class TestHookManagerWebhookDispatch:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="webhook-test",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={},
             machine_id="test-machine-id",
         )
@@ -1148,7 +1165,7 @@ class TestHookManagerWebhookDispatch:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="webhook-test",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={},
             machine_id="test-machine-id",
         )
@@ -1199,7 +1216,7 @@ class TestHookManagerWebhookDispatch:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="webhook-async-test",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={},
             machine_id="test-machine-id",
         )
@@ -1220,7 +1237,7 @@ class TestHookManagerWebhookDispatch:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="webhook-async-test",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={},
             machine_id="test-machine-id",
         )
@@ -1247,7 +1264,7 @@ class TestHookManagerWebhookDispatch:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="webhook-async-test",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={},
             machine_id="test-machine-id",
         )
@@ -1281,7 +1298,7 @@ class TestHookManagerWebhookDispatch:
                 patch.object(
                     manager._webhook_dispatcher,
                     "_dispatch_single",
-                    return_value=MagicMock(),
+                    new_callable=AsyncMock,
                 ),
             ):
                 # Should schedule async task
@@ -1305,7 +1322,7 @@ class TestHookManagerWebhookDispatch:
             event_type=HookEventType.BEFORE_TOOL,
             session_id="webhook-async-loop-test",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={},
             machine_id="test-machine-id",
         )
@@ -1328,7 +1345,7 @@ class TestHookManagerWebhookDispatch:
                 patch.object(
                     manager._webhook_dispatcher,
                     "_dispatch_single",
-                    return_value=MagicMock(),
+                    new_callable=AsyncMock,
                 ),
             ):
                 # Should create task in current loop
@@ -1350,13 +1367,25 @@ class TestHookManagerShutdownWebhook:
 
         manager = hook_manager_with_mocks
 
-        # Set up a loop
+        # Set up a loop in a separate thread (like in real async context)
+        import threading
+
         loop = asyncio.new_event_loop()
         manager._loop = loop
+
+        def run_loop():
+            asyncio.set_event_loop(loop)
+            loop.run_forever()
+
+        loop_thread = threading.Thread(target=run_loop, daemon=True)
+        loop_thread.start()
 
         try:
             manager.shutdown()
         finally:
+            manager._loop = None
+            loop.call_soon_threadsafe(loop.stop)
+            loop_thread.join(timeout=1)
             loop.close()
 
         assert manager._health_monitor._is_shutdown is True

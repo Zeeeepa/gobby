@@ -382,20 +382,14 @@ def create_admin_router(server: "HTTPServer") -> APIRouter:
                     "message": "Workflow registry not available",
                 }
 
-            # Call reload_cache tool directly
-            # We bypass the MCP tool proxy and call the function directly
-            # since we are inside the daemon process
-            reload_tool = workflows_registry.get_tool("reload_cache")
-            if not reload_tool:
+            # Call reload_cache tool directly via registry.call which handles async/sync
+            try:
+                result = await workflows_registry.call("reload_cache", {})
+            except ValueError:
                 return {
                     "status": "error",
                     "message": "reload_cache tool not found",
                 }
-
-            # Execute the tool
-            try:
-                # The tool function takes no arguments
-                result = reload_tool.fn()
             except Exception as e:
                 logger.error(f"Failed to execute reload_cache: {e}")
                 return {

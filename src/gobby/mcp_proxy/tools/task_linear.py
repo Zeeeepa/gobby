@@ -195,7 +195,7 @@ def create_linear_sync_registry(
     @registry.tool(
         name="create_linear_issue_for_task",
         description=(
-            "Create a Linear issue from a gobby task. " "Links the issue to the task for tracking."
+            "Create a Linear issue from a gobby task. Links the issue to the task for tracking."
         ),
     )
     async def create_linear_issue_for_task(

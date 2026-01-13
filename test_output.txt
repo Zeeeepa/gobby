@@ -1,123 +1,187 @@
 ============================= test session starts ==============================
-platform darwin -- Python 3.12.12, pytest-9.0.2, pluggy-1.6.0 -- /Users/josh/Projects/gobby/.venv/bin/python
+platform darwin -- Python 3.13.3, pytest-9.0.2, pluggy-1.6.0 -- /Users/josh/Projects/gobby/.venv/bin/python
 cachedir: .pytest_cache
 rootdir: /Users/josh/Projects/gobby
 configfile: pyproject.toml
-plugins: mock-3.15.1, anyio-4.12.0, asyncio-1.3.0, cov-7.0.0
+plugins: anyio-4.12.1, mock-3.15.1, asyncio-1.3.0, cov-7.0.0
 asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
-collecting ... collected 1 item
+collecting ... collected 3 items
 
-tests/e2e/test_worktrees_e2e.py::TestWorktreeDeletion::test_delete_worktree_removes_branch DEBUG: src_dir=/Users/josh/Projects/gobby/src PYTHONPATH=/Users/josh/Projects/gobby/src
-
-=== DAEMON STDOUT ===
-
-
-=== DAEMON STDERR ===
-[01/11/26 23:02:25] INFO     StreamableHTTP       streamable_http_manager.py:115
-                             session manager                                    
-                             started                                            
-                    INFO     server listening on [::1]:52451       server.py:341
-                    INFO     server listening on 127.0.0.1:52451   server.py:341
-
-FAILED
-ERROR: Coverage failure: total of 1 is less than fail-under=80
+tests/mcp_proxy/tools/test_task_orchestration_tool.py::TestOrchestrateReadyTasks::test_orchestrate_basic FAILED [ 33%]
+tests/mcp_proxy/tools/test_task_orchestration_tool.py::TestOrchestrateReadyTasks::test_max_concurrent_limit FAILED [ 66%]
+tests/mcp_proxy/tools/test_task_orchestration_tool.py::TestGetOrchestrationStatus::test_get_status PASSED [100%]
+ERROR: Coverage failure: total of 6 is less than fail-under=80
 
 
 =================================== FAILURES ===================================
-___________ TestWorktreeDeletion.test_delete_worktree_removes_branch ___________
+_______________ TestOrchestrateReadyTasks.test_orchestrate_basic _______________
 
-self = <tests.e2e.test_worktrees_e2e.TestWorktreeDeletion object at 0x108186de0>
-daemon_instance = DaemonInstance(process=<Popen: returncode: None args: ['/Users/josh/Projects/gobby/.venv/bin/python...>, pid=6213, http_port=52450, ws_port=52451, project_dir=PosixPath('/var/folders/s9/818ytv8923v72hrbbgt2g58m0000gn/T/gobby_e2e_7db6yixv'), gobby_dir=PosixPath('/var/folders/s9/818ytv8923v72hrbbgt2g58m0000gn/T/gobby_e2e_7db6yixv/.gobby'), log_file=PosixPath('/var/folders/s9/818ytv8923v72hrbbgt2g58m0000gn/T/gobby_e2e_7db6yixv/.gobby-home/logs/daemon.log'), error_log_file=PosixPath('/var/folders/s9/818ytv8923v72hrbbgt2g58m0000gn/T/gobby_e2e_7db6yixv/.gobby-home/logs/daemon_error.log'), db_path=PosixPath('/var/folders/s9/818ytv8923v72hrbbgt2g58m0000gn/T/gobby_e2e_7db6yixv/.gobby-home/gobby.db'), config_path=PosixPath('/var/folders/s9/818ytv8923v72hrbbgt2g58m0000gn/T/gobby_e2e_7db6yixv/.gobby-home/config.yaml'))
-mcp_client = <tests.e2e.conftest.MCPTestClient object at 0x1082a4080>
-git_repo_with_origin = PosixPath('/var/folders/s9/818ytv8923v72hrbbgt2g58m0000gn/T/gobby_e2e_7db6yixv')
+self = <tools.test_task_orchestration_tool.TestOrchestrateReadyTasks object at 0x1095ac690>
+orchestration_tools = <gobby.mcp_proxy.tools.internal.InternalToolRegistry object at 0x1094fa660>
+mock_task_manager = <MagicMock spec='LocalTaskManager' id='4451181840'>
+mock_worktree_storage = <MagicMock spec='LocalWorktreeManager' id='4451182512'>
+mock_git_manager = <MagicMock spec='WorktreeGitManager' id='4451182848'>
+mock_agent_runner = <MagicMock spec='AgentRunner' id='4451183184'>
 
-    def test_delete_worktree_removes_branch(
+    @pytest.mark.async_io
+    async def test_orchestrate_basic(
         self,
-        daemon_instance: DaemonInstance,
-        mcp_client: MCPTestClient,
-        git_repo_with_origin: Path,
+        orchestration_tools,
+        mock_task_manager,
+        mock_worktree_storage,
+        mock_git_manager,
+        mock_agent_runner,
     ):
-        """Deleting a worktree should also delete the git branch."""
-        try:
-            branch_name = "feature/delete-branch-test"
+        tool = orchestration_tools._tools["orchestrate_ready_tasks"]
     
-            # Create worktree
-            create_response = mcp_client.call_tool(
-                server_name="gobby-worktrees",
-                tool_name="create_worktree",
-                arguments={
-                    "branch_name": branch_name,
-                    "project_path": str(git_repo_with_origin),
-                },
-            )
-            result = extract_result(create_response)
-            assert result.get("success") is True
-            worktree_id = result["worktree_id"]
+        # Setup mocks
+        subtask1 = Task(
+            id="T2",
+            title="Subtask 1",
+            project_id="test-project",
+            status="open",
+            parent_task_id="T1",
+            priority=2,
+            task_type="task",
+            created_at="2024-01-01T00:00:00Z",
+            updated_at="2024-01-01T00:00:00Z",
+        )
     
-            # Verify branch exists
-            branch_check = subprocess.run(
-                ["git", "rev-parse", "--verify", branch_name],
-                cwd=str(git_repo_with_origin),
-                capture_output=True,
-            )
-            assert branch_check.returncode == 0, "Branch should exist before deletion"
+        # _get_ready_descendants mock
+        with patch(
+            "gobby.mcp_proxy.tools.task_orchestration._get_ready_descendants",
+            return_value=[subtask1],
+        ):
+            with patch("gobby.mcp_proxy.tools.tasks.resolve_task_id_for_mcp", return_value="T1"):
+                # Mock worktrees list (none running)
+                mock_worktree_storage.list_worktrees.return_value = []
     
-            # Delete worktree
-            delete_response = mcp_client.call_tool(
-                server_name="gobby-worktrees",
-                tool_name="delete_worktree",
-                arguments={
-                    "worktree_id": worktree_id,
-                    "force": True,
-                },
-            )
-            delete_result = extract_result(delete_response)
-            assert delete_result.get("success") is True
+                # Mock git worktree creation
+                mock_git_manager.create_worktree.return_value = GitOperationResult(
+                    success=True, message="Created"
+                )
+                mock_git_manager.repo_path = "/repo"
     
-            # Verify branch is gone
-            branch_check_after = subprocess.run(
-                ["git", "rev-parse", "--verify", branch_name],
-                cwd=str(git_repo_with_origin),
-                capture_output=True,
-            )
->           assert branch_check_after.returncode != 0, "Branch should be deleted"
-E           AssertionError: Branch should be deleted
-E           assert 0 != 0
-E            +  where 0 = CompletedProcess(args=['git', 'rev-parse', '--verify', 'feature/delete-branch-test'], returncode=0, stdout=b'022151e28fc767cc0aea4d9c6d4db7bb4294ceea\n', stderr=b'').returncode
+                # Mock worktree storage creation
+>               mock_wt = Worktree(
+                    id="wt-1",
+                    project_id="test-project",
+                    branch_name="task/T2",
+                    worktree_path="/tmp/wt-1",
+                    base_branch="main",
+                    task_id="T2",
+                )
+E               TypeError: Worktree.__init__() missing 5 required positional arguments: 'agent_session_id', 'status', 'created_at', 'updated_at', and 'merged_at'
 
-tests/e2e/test_worktrees_e2e.py:636: AssertionError
+tests/mcp_proxy/tools/test_task_orchestration_tool.py:94: TypeError
+_____________ TestOrchestrateReadyTasks.test_max_concurrent_limit ______________
+
+self = <tools.test_task_orchestration_tool.TestOrchestrateReadyTasks object at 0x1095acb90>
+orchestration_tools = <gobby.mcp_proxy.tools.internal.InternalToolRegistry object at 0x1095ad090>
+mock_task_manager = <MagicMock spec='LocalTaskManager' id='4452143792'>
+mock_worktree_storage = <MagicMock spec='LocalWorktreeManager' id='4452144128'>
+
+    @pytest.mark.async_io
+    async def test_max_concurrent_limit(
+        self, orchestration_tools, mock_task_manager, mock_worktree_storage
+    ):
+        tool = orchestration_tools._tools["orchestrate_ready_tasks"]
+    
+        # 3 tasks ready
+        tasks = [
+            Task(
+                id=f"T{i}",
+                title=f"Task {i}",
+                project_id="test-project",
+                priority=2,
+                task_type="task",
+                created_at="2024-01-01T00:00:00Z",
+                updated_at="2024-01-01T00:00:00Z",
+                status="open",
+            )
+            for i in range(3)
+        ]
+    
+        with patch(
+            "gobby.mcp_proxy.tools.task_orchestration._get_ready_descendants", return_value=tasks
+        ):
+            with patch(
+                "gobby.mcp_proxy.tools.tasks.resolve_task_id_for_mcp", return_value="T-Parent"
+            ):
+                with patch(
+                    "gobby.mcp_proxy.tools.task_orchestration.get_current_project_id",
+                    return_value="test-project",
+                ):
+                    # Mock 2 already running
+                    running_wt1 = MagicMock(agent_session_id="sess-1")
+                    running_wt2 = MagicMock(agent_session_id="sess-2")
+                    mock_worktree_storage.list_worktrees.return_value = [running_wt1, running_wt2]
+    
+                    # Max concurrent = 3, so only 1 slot left
+>                   result = await tool.func(
+                        parent_task_id="T-Parent",
+                        parent_session_id="parent-session",
+                        max_concurrent=3,
+                    )
+
+tests/mcp_proxy/tools/test_task_orchestration_tool.py:184: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+src/gobby/mcp_proxy/tools/task_orchestration.py:211: in orchestrate_ready_tasks
+    state_manager = WorkflowStateManager(task_manager.db)
+                                         ^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <MagicMock spec='LocalTaskManager' id='4452143792'>, name = 'db'
+
+    def __getattr__(self, name):
+        if name in {'_mock_methods', '_mock_unsafe'}:
+            raise AttributeError(name)
+        elif self._mock_methods is not None:
+            if name not in self._mock_methods or name in _all_magics:
+>               raise AttributeError("Mock object has no attribute %r" % name)
+E               AttributeError: Mock object has no attribute 'db'
+
+../../.local/share/uv/python/cpython-3.13.3-macos-aarch64-none/lib/python3.13/unittest/mock.py:690: AttributeError
 =============================== warnings summary ===============================
-tests/e2e/test_worktrees_e2e.py::TestWorktreeDeletion::test_delete_worktree_removes_branch
-  /Users/josh/Projects/gobby/src/gobby/storage/projects.py:80: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
-    now = datetime.utcnow().isoformat()
+tests/mcp_proxy/tools/test_task_orchestration_tool.py:54
+  /Users/josh/Projects/gobby/tests/mcp_proxy/tools/test_task_orchestration_tool.py:54: PytestUnknownMarkWarning: Unknown pytest.mark.async_io - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.async_io
+
+tests/mcp_proxy/tools/test_task_orchestration_tool.py:147
+  /Users/josh/Projects/gobby/tests/mcp_proxy/tools/test_task_orchestration_tool.py:147: PytestUnknownMarkWarning: Unknown pytest.mark.async_io - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.async_io
+
+tests/mcp_proxy/tools/test_task_orchestration_tool.py:204
+  /Users/josh/Projects/gobby/tests/mcp_proxy/tools/test_task_orchestration_tool.py:204: PytestUnknownMarkWarning: Unknown pytest.mark.async_io - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.async_io
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 ================================ tests coverage ================================
-______________ coverage: platform darwin, python 3.12.12-final-0 _______________
+_______________ coverage: platform darwin, python 3.13.3-final-0 _______________
 
 Name                                              Stmts   Miss Branch BrPart  Cover   Missing
 ---------------------------------------------------------------------------------------------
 src/gobby/__init__.py                                 1      0      0      0   100%
 src/gobby/adapters/__init__.py                        5      5      0      0     0%   18-23
 src/gobby/adapters/base.py                           17     17      2      0     0%   8-93
-src/gobby/adapters/claude_code.py                    64     64     30      0     0%   18-269
+src/gobby/adapters/claude_code.py                    64     64     30      0     0%   18-276
 src/gobby/adapters/codex.py                         469    469    132      0     0%   31-1292
 src/gobby/adapters/gemini.py                         93     93     44      0     0%   23-343
-src/gobby/agents/__init__.py                          4      4      0      0     0%   26-30
+src/gobby/agents/__init__.py                          4      0      0      0   100%
 src/gobby/agents/constants.py                        19     19      6      0     0%   18-102
 src/gobby/agents/context.py                         123    123     40      0     0%   12-362
 src/gobby/agents/definitions.py                      58     58     18      0     0%   9-133
-src/gobby/agents/registry.py                        138    138     30      0     0%   9-421
-src/gobby/agents/runner.py                          302    302     66      0     0%   11-968
-src/gobby/agents/session.py                          87     87     24      0     0%   9-250
+src/gobby/agents/registry.py                        138     80     30      0    35%   76, 121-125, 136-137, 149-155, 164-170, 192-193, 206-222, 234-238, 250-254, 266-267, 283-284, 293-294, 303-304, 316-317, 334-354, 366-388, 397-401, 417-421
+src/gobby/agents/runner.py                          302    202     66      0    27%   120, 148, 153, 195-213, 217, 221-222, 235, 257-447, 475-632, 659-667, 671, 680, 688-706, 751-770, 784-789, 815-820, 834-835, 852-858, 869-870, 884-885, 905-968
+src/gobby/agents/session.py                          87     54     24      0    30%   81-83, 100-115, 128-143, 162-209, 221, 233-250
 src/gobby/agents/spawn.py                           164    164     60      0     0%   3-595
 src/gobby/agents/spawners/__init__.py                 8      8      0      0     0%   19-50
 src/gobby/agents/spawners/base.py                    80     80      4      0     0%   3-142
 src/gobby/agents/spawners/cross_platform.py         109    109     28      0     0%   3-262
-src/gobby/agents/spawners/embedded.py                70     70     16      0     0%   3-227
-src/gobby/agents/spawners/headless.py                67     67     20      0     0%   3-228
+src/gobby/agents/spawners/embedded.py                70     70     16      0     0%   3-225
+src/gobby/agents/spawners/headless.py                67     67     20      0     0%   3-226
 src/gobby/agents/spawners/linux.py                   60     60     12      0     0%   3-121
-src/gobby/agents/spawners/macos.py                  113    113     32      0     0%   3-258
+src/gobby/agents/spawners/macos.py                  113    113     32      0     0%   3-273
 src/gobby/agents/spawners/windows.py                145    145     42      0     0%   3-304
 src/gobby/agents/tty_config.py                       66     66     16      0     0%   8-319
 src/gobby/autonomous/__init__.py                      4      4      0      0     0%   9-22
@@ -127,17 +191,17 @@ src/gobby/autonomous/stuck_detector.py              110    110     34      0    
 src/gobby/cli/__init__.py                            48     48      0      0     0%   5-65
 src/gobby/cli/__main__.py                             1      1      0      0     0%   5
 src/gobby/cli/agents.py                             237    237     84      0     0%   12-456
-src/gobby/cli/artifacts.py                          134    134     52      0     0%   3-265
+src/gobby/cli/artifacts.py                          135    135     52      0     0%   3-266
 src/gobby/cli/daemon.py                             174    174     30      0     0%   5-328
 src/gobby/cli/extensions.py                         271    271    124      0     0%   5-526
 src/gobby/cli/github.py                             141    141     22      0     0%   7-263
 src/gobby/cli/init.py                                37     37     18      0     0%   5-53
 src/gobby/cli/install.py                            365    365    206      0     0%   5-614
-src/gobby/cli/installers/__init__.py                  7      7      0      0     0%   8-20
-src/gobby/cli/installers/antigravity.py              16     16      2      0     0%   11-54
-src/gobby/cli/installers/claude.py                  220    220     56      0     0%   8-367
-src/gobby/cli/installers/codex.py                    95     95     26      0     0%   8-183
-src/gobby/cli/installers/gemini.py                  120    120     40      0     0%   8-247
+src/gobby/cli/installers/__init__.py                  7      7      0      0     0%   8-19
+src/gobby/cli/installers/antigravity.py              22     22      2      0     0%   11-65
+src/gobby/cli/installers/claude.py                  218    218     48      0     0%   8-363
+src/gobby/cli/installers/codex.py                   100    100     26      0     0%   8-192
+src/gobby/cli/installers/gemini.py                  125    125     40      0     0%   8-256
 src/gobby/cli/installers/git_hooks.py               121    121     44      0     0%   14-377
 src/gobby/cli/installers/shared.py                  360    360    100      0     0%   8-726
 src/gobby/cli/linear.py                             134    134     18      0     0%   7-239
@@ -148,109 +212,109 @@ src/gobby/cli/merge.py                              200    200     56      0    
 src/gobby/cli/projects.py                            50     50     18      0     0%   5-79
 src/gobby/cli/sessions.py                           373    373    158      0     0%   5-630
 src/gobby/cli/tasks/__init__.py                       3      3      0      0     0%   14-21
-src/gobby/cli/tasks/_utils.py                       214    214     86      0     0%   5-449
-src/gobby/cli/tasks/ai.py                           557    557    188      0     0%   5-973
+src/gobby/cli/tasks/_utils.py                       220    220     88      0     0%   5-472
+src/gobby/cli/tasks/ai.py                           557    557    188      0     0%   5-977
 src/gobby/cli/tasks/commits.py                       97     97     32      0     0%   5-169
-src/gobby/cli/tasks/crud.py                         333    333    126      0     0%   5-593
+src/gobby/cli/tasks/crud.py                         333    333    126      0     0%   5-595
 src/gobby/cli/tasks/deps.py                          76     76     22      0     0%   5-135
 src/gobby/cli/tasks/labels.py                        41     41      4      0     0%   5-63
 src/gobby/cli/tasks/main.py                         207    207     50      0     0%   5-339
 src/gobby/cli/utils.py                              209    209     74      0     0%   5-418
-src/gobby/cli/workflows.py                          526    526    198      0     0%   5-929
+src/gobby/cli/workflows.py                          569    569    210      0     0%   5-991
 src/gobby/cli/worktrees.py                          302    302     68      0     0%   17-492
-src/gobby/config/__init__.py                         10     10      0      0     0%   20-86
-src/gobby/config/app.py                             147    147     30      0     0%   8-521
-src/gobby/config/extensions.py                       34     34      0      0     0%   15-164
-src/gobby/config/features.py                         67     67      8      0     0%   14-373
-src/gobby/config/llm_providers.py                    26     26      8      0     0%   11-98
-src/gobby/config/logging.py                          19     19      2      0     0%   10-66
+src/gobby/config/__init__.py                         10      0      0      0   100%
+src/gobby/config/app.py                             147     83     30      0    36%   130-144, 295, 299, 303, 307, 311, 315, 319, 323, 327, 333-335, 341-343, 359-392, 409-426, 436-446, 468-488, 505-521
+src/gobby/config/extensions.py                       34      0      0      0   100%
+src/gobby/config/features.py                         67     14      8      0    71%   231-233, 298-301, 309-314, 372-373
+src/gobby/config/llm_providers.py                    26     11      8      0    44%   31, 89-98
+src/gobby/config/logging.py                          19      3      2      0    76%   64-66
 src/gobby/config/mcp.py                             118    118     52      0     0%   8-346
-src/gobby/config/persistence.py                      41     41      8      0     0%   11-113
-src/gobby/config/servers.py                          57     57     12      0     0%   11-141
-src/gobby/config/sessions.py                         62     62      8      0     0%   14-228
-src/gobby/config/tasks.py                            96     96     10      0     0%   16-718
+src/gobby/config/persistence.py                      41     13      8      0    57%   71-73, 79-81, 87-92, 111-113
+src/gobby/config/servers.py                          57     18     12      0    57%   42-44, 50-52, 115-117, 123-125, 131-133, 139-141
+src/gobby/config/sessions.py                         62     12      8      0    71%   54-56, 102-104, 181-183, 226-228
+src/gobby/config/tasks.py                            96     16     10      0    75%   273-275, 281-283, 635-637, 705-718
 src/gobby/hooks/__init__.py                          13     13      0      0     0%   46-76
 src/gobby/hooks/artifact_capture.py                  79     79     30      0     0%   13-213
-src/gobby/hooks/broadcaster.py                       73     73     36      0     0%   7-228
+src/gobby/hooks/broadcaster.py                       76     76     40      0     0%   7-233
 src/gobby/hooks/event_handlers.py                   359    359    142      0     0%   11-717
 src/gobby/hooks/events.py                            49     49      0      0     0%   13-141
 src/gobby/hooks/git.py                               61     61      8      0     0%   7-169
 src/gobby/hooks/health_monitor.py                    56     56     10      0     0%   11-145
-src/gobby/hooks/hook_manager.py                     317    317     82      0     0%   30-811
+src/gobby/hooks/hook_manager.py                     320    320     84      0     0%   30-818
 src/gobby/hooks/hook_types.py                       180    180      0      0     0%   36-561
 src/gobby/hooks/plugins.py                          264    264    100      0     0%   11-813
 src/gobby/hooks/session_coordinator.py              143    143     36      0     0%   12-396
 src/gobby/hooks/verification_runner.py               88     88     18      0     0%   6-268
 src/gobby/hooks/webhooks.py                         121    121     42      0     0%   11-339
-src/gobby/integrations/__init__.py                    3      3      0      0     0%   7-10
-src/gobby/integrations/github.py                     51     51     20      0     0%   7-145
-src/gobby/integrations/linear.py                     51     51     20      0     0%   7-145
-src/gobby/llm/__init__.py                             7      7      0      0     0%   12-26
-src/gobby/llm/base.py                                20     20      0      0     0%   5-98
-src/gobby/llm/claude.py                             213    213    102      0     0%   5-485
-src/gobby/llm/claude_executor.py                    165    165     58      0     0%   9-497
+src/gobby/integrations/__init__.py                    3      0      0      0   100%
+src/gobby/integrations/github.py                     51     40     20      0    15%   45-49, 64-76, 81-95, 99-100, 108-131, 143-145
+src/gobby/integrations/linear.py                     51     40     20      0    15%   45-49, 64-76, 81-95, 99-100, 108-131, 143-145
+src/gobby/llm/__init__.py                             7      0      0      0   100%
+src/gobby/llm/base.py                                20      5      0      0    75%   33, 46, 62, 78, 98
+src/gobby/llm/claude.py                             213    175    102      0    12%   71, 80-82, 91-106, 118-148, 156-206, 214-264, 275-324, 367-485
+src/gobby/llm/claude_executor.py                    165    143     58      0    10%   75-99, 104, 110-121, 151-162, 183-339, 363-497
 src/gobby/llm/codex.py                               95     95     28      0     0%   13-251
 src/gobby/llm/codex_executor.py                     157    157     50      0     0%   22-507
-src/gobby/llm/executor.py                            82     82      4      0     0%   8-316
-src/gobby/llm/factory.py                              6      6      0      0     0%   7-34
+src/gobby/llm/executor.py                            82     19      4      0    73%   149, 184, 225-316
+src/gobby/llm/factory.py                              6      1      0      0    83%   34
 src/gobby/llm/gemini.py                              93     93     22      0     0%   9-203
 src/gobby/llm/gemini_executor.py                    107    107     30      0     0%   9-333
 src/gobby/llm/litellm.py                             73     73     20      0     0%   11-215
 src/gobby/llm/litellm_executor.py                    98     98     30      0     0%   9-297
 src/gobby/llm/resolver.py                           183    183     70      0     0%   13-499
-src/gobby/llm/service.py                             75     75     28      0     0%   9-236
-src/gobby/mcp_proxy/__init__.py                       3      3      0      0     0%   11-21
+src/gobby/llm/service.py                             75     60     28      0    15%   56-65, 80-126, 145, 176-195, 207-219, 224-226, 231, 234-236
+src/gobby/mcp_proxy/__init__.py                       3      0      0      0   100%
 src/gobby/mcp_proxy/actions.py                       43     43      8      0     0%   7-171
 src/gobby/mcp_proxy/daemon_control.py                95     95     28      0     0%   3-198
 src/gobby/mcp_proxy/importer.py                     138    138     66      0     0%   3-436
-src/gobby/mcp_proxy/lazy.py                         129    129     26      0     0%   9-323
-src/gobby/mcp_proxy/manager.py                      368    368    148      0     0%   8-798
+src/gobby/mcp_proxy/lazy.py                         129     72     26      0    37%   55-57, 61-71, 75-97, 111-112, 134, 138-139, 143-145, 149-150, 181-184, 195-200, 209-210, 222, 234-235, 247-250, 259-262, 272-275, 289-291, 300, 321-323
+src/gobby/mcp_proxy/manager.py                      368    324    148      0     9%   84-145, 156-169, 174, 178, 182, 186-190, 194, 198-237, 245-265, 269, 274, 289-355, 369, 373-395, 400-432, 436-470, 493-563, 583, 593-628, 632-642, 654-683, 692-703, 707-742, 746-755, 759, 774-776, 786-798
 src/gobby/mcp_proxy/metrics.py                      151    151     44      0     0%   3-615
-src/gobby/mcp_proxy/models.py                        65     65     14      0     0%   5-139
+src/gobby/mcp_proxy/models.py                        65     23     14      0    53%   30-31, 66-70, 79-87, 128-139
 src/gobby/mcp_proxy/registries.py                    68     68     24      0     0%   3-215
 src/gobby/mcp_proxy/schema_hash.py                   86     86     16      0     0%   7-381
 src/gobby/mcp_proxy/semantic_search.py              195    195     44      0     0%   10-706
-src/gobby/mcp_proxy/server.py                       157    157     38      0     0%   5-549
+src/gobby/mcp_proxy/server.py                       157    127     38      0    15%   40-54, 66, 70-84, 100, 104, 108, 112, 128, 134, 144, 170, 202-233, 255-287, 298-339, 361-419, 430-456, 472-508, 516-549
 src/gobby/mcp_proxy/services/__init__.py              0      0      0      0   100%
 src/gobby/mcp_proxy/services/fallback.py             77     77     14      0     0%   7-306
-src/gobby/mcp_proxy/services/recommendation.py       80     80     20      0     0%   3-224
-src/gobby/mcp_proxy/services/server_mgmt.py          79     79     26      0     0%   3-214
-src/gobby/mcp_proxy/services/system.py               22     22      4      0     0%   3-62
+src/gobby/mcp_proxy/services/recommendation.py       80     67     20      0    13%   29-33, 37-41, 70-81, 87-129, 136-186, 190-224
+src/gobby/mcp_proxy/services/server_mgmt.py          79     69     26      0    10%   30-32, 47-106, 113-141, 162-214
+src/gobby/mcp_proxy/services/system.py               22     14      4      0    31%   18-21, 25-62
 src/gobby/mcp_proxy/services/tool_filter.py          92     92     42      0     0%   3-231
-src/gobby/mcp_proxy/services/tool_proxy.py          125    125     68      0     0%   3-309
+src/gobby/mcp_proxy/services/tool_proxy.py          125    110     68      0     8%   19-25, 39-43, 55-75, 96-136, 158-220, 224, 229-248, 263-278, 298-309
 src/gobby/mcp_proxy/stdio.py                        141    141     26      0     0%   8-562
-src/gobby/mcp_proxy/tools/__init__.py                 8      8      0      0     0%   9-17
+src/gobby/mcp_proxy/tools/__init__.py                 8      0      0      0   100%
 src/gobby/mcp_proxy/tools/agents.py                 220    220     80      0     0%   14-849
 src/gobby/mcp_proxy/tools/artifacts.py               48     48     10      0     0%   14-207
 src/gobby/mcp_proxy/tools/hub.py                     85     85     22      0     0%   13-335
-src/gobby/mcp_proxy/tools/internal.py               105    105     38      0     0%   12-338
+src/gobby/mcp_proxy/tools/internal.py               105     67     38      0    27%   39-71, 144-178, 195-203, 212, 230-234, 242, 256, 265-266, 278-280, 292, 301, 317, 331-334, 338
 src/gobby/mcp_proxy/tools/memory.py                 100    100     10      0     0%   17-409
 src/gobby/mcp_proxy/tools/merge.py                  110    110     50      0     0%   15-422
 src/gobby/mcp_proxy/tools/metrics.py                 62     62      0      0     0%   12-283
 src/gobby/mcp_proxy/tools/session_messages.py       353    353    192      0     0%   14-958
-src/gobby/mcp_proxy/tools/task_dependencies.py       69     69     10      0     0%   13-219
-src/gobby/mcp_proxy/tools/task_expansion.py         227    227     98      0     0%   14-655
-src/gobby/mcp_proxy/tools/task_github.py             93     93     14      0     0%   14-365
+src/gobby/mcp_proxy/tools/task_dependencies.py       69     59     10      0    13%   29-30, 38-39, 57-219
+src/gobby/mcp_proxy/tools/task_expansion.py         227    214     98      0     4%   59-655
+src/gobby/mcp_proxy/tools/task_github.py             93     84     14      0     8%   56-365
 src/gobby/mcp_proxy/tools/task_linear.py             91     91     12      0     0%   14-351
-src/gobby/mcp_proxy/tools/task_orchestration.py     572    572    250      0     0%   11-2209
-src/gobby/mcp_proxy/tools/task_readiness.py         147    147     64      0     0%   12-496
-src/gobby/mcp_proxy/tools/task_sync.py               98     98     26      0     0%   15-335
-src/gobby/mcp_proxy/tools/task_validation.py        239    239     80      0     0%   17-843
-src/gobby/mcp_proxy/tools/tasks.py                  426    426    166      0     0%   25-1446
-src/gobby/mcp_proxy/tools/workflows.py              209    209    106      0     0%   20-732
-src/gobby/mcp_proxy/tools/worktrees.py              313    313    144      0     0%   14-1163
+src/gobby/mcp_proxy/tools/task_orchestration.py     572    493    250     11    12%   38-39, 120-121, 129, 137, 147-149, 152, 155, 170, 191, 212-581, 594-616, 714-715, 723-725, 728, 731, 830-998, 1070-1269, 1282-1306, 1393-1617, 1723-1884, 1917-1999, 2070-2168
+src/gobby/mcp_proxy/tools/task_readiness.py         147    133     64      0     7%   32-33, 58-81, 103-118, 136-150, 171-189, 197-198, 214-496
+src/gobby/mcp_proxy/tools/task_sync.py               98     88     26      0     8%   32-33, 41-42, 66-335
+src/gobby/mcp_proxy/tools/task_validation.py        239    231     80      0     3%   53-843
+src/gobby/mcp_proxy/tools/tasks.py                  426    384    166      6     8%   106-110, 117-118, 148->153, 154, 158, 162, 171, 206-1446
+src/gobby/mcp_proxy/tools/workflows.py              216    216    106      0     0%   26-761
+src/gobby/mcp_proxy/tools/worktrees.py              321    321    148      0     0%   14-1179
 src/gobby/mcp_proxy/transports/__init__.py            0      0      0      0   100%
-src/gobby/mcp_proxy/transports/base.py               42     42      2      0     0%   3-95
-src/gobby/mcp_proxy/transports/factory.py            13     13      2      0     0%   3-44
-src/gobby/mcp_proxy/transports/http.py               86     86     18      0     0%   3-139
-src/gobby/mcp_proxy/transports/stdio.py             108    108     26      0     0%   3-213
-src/gobby/mcp_proxy/transports/websocket.py          78     78     18      0     0%   3-136
-src/gobby/runner.py                                 255    255     52      0     0%   1-467
+src/gobby/mcp_proxy/transports/base.py               42     24      2      0    41%   38-45, 49, 53, 58, 63, 68, 72, 84-95
+src/gobby/mcp_proxy/transports/factory.py            13      5      2      0    53%   32-44
+src/gobby/mcp_proxy/transports/http.py               86     72     18      0    13%   24-29, 33-69, 73-116, 120-131, 135-139
+src/gobby/mcp_proxy/transports/stdio.py             108     89     26      0    14%   30-44, 56-59, 71-74, 93-97, 101-179, 184-213
+src/gobby/mcp_proxy/transports/websocket.py          78     65     18      0    14%   30-31, 35-100, 105-136
+src/gobby/runner.py                                 260    260     52      0     0%   1-476
 src/gobby/servers/__init__.py                         0      0      0      0   100%
-src/gobby/servers/http.py                           233    233     52      0     0%   8-625
+src/gobby/servers/http.py                           233    233     52      0     0%   8-626
 src/gobby/servers/models.py                          13     13      0      0     0%   5-31
 src/gobby/servers/routes/__init__.py                  4      4      0      0     0%   7-16
-src/gobby/servers/routes/admin.py                   147    147     26      0     0%   7-360
+src/gobby/servers/routes/admin.py                   175    175     34      0     0%   7-416
 src/gobby/servers/routes/dependencies.py             42     42      6      0     0%   10-118
 src/gobby/servers/routes/mcp/__init__.py              5      5      0      0     0%   14-19
 src/gobby/servers/routes/mcp/hooks.py                58     58     12      0     0%   8-133
@@ -271,96 +335,96 @@ src/gobby/sessions/transcripts/claude.py            145    145     68      0    
 src/gobby/sessions/transcripts/codex.py              65     65     20      0     0%   7-143
 src/gobby/sessions/transcripts/gemini.py             92     92     42      0     0%   7-195
 src/gobby/storage/__init__.py                         8      0      0      0   100%
-src/gobby/storage/agents.py                          99     99      8      0     0%   3-409
+src/gobby/storage/agents.py                          99     53      8      0    43%   43, 64, 89, 114-142, 146-147, 151-160, 181-195, 216-230, 234-247, 251-260, 264-273, 292-312, 316-325, 337-346, 350-351, 363-379, 393-409
 src/gobby/storage/artifact_classifier.py            141    141     62      0     0%   14-341
 src/gobby/storage/artifacts.py                      104    104     28      0     0%   8-285
 src/gobby/storage/compaction.py                      23     23      0      0     0%   3-63
-src/gobby/storage/database.py                       103     41     16      1    55%   27, 32, 37, 41, 45, 49, 53, 63, 67, 71, 136-143, 151, 160-161, 198-223, 235-242, 250->exit
+src/gobby/storage/database.py                       103     60     16      0    36%   27, 32, 37, 41, 45, 49, 53, 63, 67, 71, 96-100, 104, 108-118, 123, 136-143, 147, 151, 155-156, 160-161, 198-223, 235-242, 247-252
 src/gobby/storage/mcp.py                            241    187     86      0    17%   37, 55, 73-92, 110, 122, 138, 166-209, 220-227, 231-232, 249-260, 274-279, 289-329, 339-344, 360-392, 402-410, 440-546, 563-616, 634-680
 src/gobby/storage/memories.py                       184    184     50      0     0%   1-543
 src/gobby/storage/merge_resolutions.py              171    171     36      0     0%   7-550
-src/gobby/storage/migrations.py                      97     75     42      2    19%   23-57, 73-154, 164-204, 1303-1304, 1325-1346, 1349
-src/gobby/storage/projects.py                        59     20      6      1    62%   30, 43, 101-102, 118, 123-124, 137-156, 165-166
+src/gobby/storage/migrations.py                      97     85     42      0     9%   23-57, 73-154, 164-204, 1300-1304, 1319-1351
+src/gobby/storage/projects.py                        59     30      6      0    45%   30, 43, 60, 79-90, 101-102, 106-107, 116-119, 123-124, 137-156, 165-166
 src/gobby/storage/session_messages.py                76     76     14      0     0%   5-251
-src/gobby/storage/session_tasks.py                   33     33      4      0     0%   1-97
+src/gobby/storage/session_tasks.py                   33     19      4      0    38%   17, 29-44, 53-61, 68-87, 94-97
 src/gobby/storage/sessions.py                       218    149     48      0    26%   56, 96-103, 107, 143, 181-247, 251-252, 261-268, 293-300, 321-331, 343-351, 355-360, 364-369, 378-389, 393-403, 407-412, 438-457, 478-504, 523-543, 552-553, 557-558, 570-583, 598-611, 625-636, 648-653, 665-670, 682-709, 735-752
 src/gobby/storage/task_dependencies.py              109     79     36      0    21%   24, 34, 51, 57-78, 82-88, 92-96, 100-104, 108-112, 119-138, 153-181, 185-223
-src/gobby/storage/tasks.py                          635    540    258      0    11%   23-34, 93-99, 164, 217, 262-263, 276-308, 316-317, 321, 325-329, 345-376, 387-394, 407-421, 450-575, 579-582, 587-595, 599-600, 621-673, 708-854, 879-930, 946-985, 989-994, 998-1003, 1020-1033, 1050-1064, 1073-1093, 1117-1158, 1194-1280, 1303-1346, 1368-1383, 1400-1411, 1423-1433, 1450-1481, 1498-1529, 1593-1714, 1754-1846
+src/gobby/storage/tasks.py                          681    585    284      0    10%   23-34, 95-101, 166, 219, 264-265, 278-376, 384-385, 389, 393-397, 413-444, 455-462, 475-489, 518-643, 647-650, 655-663, 667-668, 689-741, 776-922, 947-998, 1014-1053, 1057-1062, 1066-1071, 1088-1101, 1118-1132, 1141-1161, 1185-1253, 1289-1375, 1398-1441, 1463-1478, 1495-1506, 1518-1528, 1545-1576, 1593-1624, 1688-1809, 1849-1941
 src/gobby/storage/workflow_audit.py                  91     91     16      0     0%   7-393
-src/gobby/storage/worktrees.py                      133    133     22      0     0%   3-547
-src/gobby/sync/__init__.py                            3      3      0      0     0%   7-20
-src/gobby/sync/github.py                             87     87     28      0     0%   7-333
-src/gobby/sync/linear.py                             73     73     16      0     0%   7-304
-src/gobby/sync/memories.py                          119    119     42      0     0%   1-215
-src/gobby/sync/tasks.py                             201    201     66      0     0%   1-529
-src/gobby/tasks/__init__.py                           3      3      0      0     0%   5-8
-src/gobby/tasks/auto_decompose.py                    87     87     46      0     0%   7-251
+src/gobby/storage/worktrees.py                      133     79     22      0    35%   47-54, 71, 92, 117-142, 158-159, 163-164, 168-172, 176-177, 198-224, 256-276, 288-289, 304, 316, 328, 340-341, 357, 377-392, 415-426, 438-447, 462, 481-501, 523-530, 547
+src/gobby/sync/__init__.py                            3      0      0      0   100%
+src/gobby/sync/github.py                             87     67     28      0    17%   42-43, 60-62, 98-102, 110, 134-164, 181-218, 243-281, 297-307, 323-333
+src/gobby/sync/linear.py                             73     53     16      0    22%   42-43, 60-62, 98-102, 110, 135-169, 186-213, 235-265, 276-284, 295-304
+src/gobby/sync/memories.py                          138    138     46      0     0%   1-244
+src/gobby/sync/tasks.py                             201    183     66      0     7%   33-37, 47-59, 69-176, 186-330, 336-363, 369-373, 390-524, 528-529
+src/gobby/tasks/__init__.py                           3      0      0      0   100%
+src/gobby/tasks/auto_decompose.py                    87     80     46      0     5%   80-137, 163-214, 232-251
 src/gobby/tasks/build_verification.py                60     60     18      0     0%   6-193
-src/gobby/tasks/commits.py                          243    243    132      0     0%   6-635
-src/gobby/tasks/context.py                          333    333    148      0     0%   8-712
-src/gobby/tasks/criteria.py                         133    133     82      0     0%   9-342
+src/gobby/tasks/commits.py                          243    214    132      0     8%   58-108, 129-145, 172-294, 313-328, 381-421, 437-486, 520-529, 567-635
+src/gobby/tasks/context.py                          333    289    148      0     9%   42, 68-71, 89-154, 172-177, 184-218, 222-237, 241-256, 269-290, 305-355, 368-386, 405-435, 447-463, 467-477, 489-538, 542-547, 565-597, 610-620, 632-662, 677-712
+src/gobby/tasks/criteria.py                         133    117     82      0     7%   45-46, 62-92, 100-116, 132-141, 161-184, 204-229, 256-260, 282-313, 327-342
 src/gobby/tasks/enhanced_validator.py                67     67     14      0     0%   6-219
 src/gobby/tasks/escalation.py                        67     67     10      0     0%   6-258
-src/gobby/tasks/expansion.py                        245    245    106      0     0%   8-654
+src/gobby/tasks/expansion.py                        248    215    106      0     9%   51-67, 103-132, 151-249, 262-300, 304, 333-522, 539-562, 581-657
 src/gobby/tasks/external_validator.py               179    179     66      0     0%   11-735
 src/gobby/tasks/issue_extraction.py                  65     65     28      0     0%   6-164
+src/gobby/tasks/prompts/expand.py                    60     49     34      0    12%   189, 198-204, 215-290
 src/gobby/tasks/research.py                         221    221    116      0     0%   5-416
-src/gobby/tasks/spec_parser.py                      432    432    172      0     0%   11-1406
-src/gobby/tasks/tdd_repair.py                        37     37     10      0     0%   1-102
-src/gobby/tasks/validation.py                       243    243    106      0     0%   16-671
-src/gobby/tasks/validation_history.py                99     99     38      0     0%   6-354
-src/gobby/tasks/validation_models.py                 29     29      0      0     0%   6-81
+src/gobby/tasks/spec_parser.py                      418    319    148      0    17%   77-90, 106-141, 153-163, 174-195, 210-234, 246-248, 263-266, 288-289, 296, 300, 351, 360, 364-372, 401-402, 414-425, 443-491, 506-527, 546-572, 604, 608, 634, 639, 681-689, 694-698, 717, 742-761, 785-811, 835-881, 899-936, 961-986, 1018-1082, 1107-1124, 1150-1254, 1271-1279, 1298-1311, 1325-1326, 1345-1360, 1377-1402
+src/gobby/tasks/tdd_repair.py                        38     38     10      0     0%   1-100
+src/gobby/tasks/validation.py                       243    210    106      0     9%   54-64, 80-88, 104-114, 132-140, 158-166, 183-212, 230-252, 268-290, 322-374, 395-424, 439-440, 452-461, 488-582, 605-671
+src/gobby/tasks/validation_history.py                99     69     38      0    22%   61, 87-109, 120-127, 138-148, 156-162, 174-180, 214-239, 258-263, 281-298, 318-354
+src/gobby/tasks/validation_models.py                 29      4      0      0    86%   53, 78-81
 src/gobby/tools/__init__.py                           0      0      0      0   100%
 src/gobby/tools/summarizer.py                        58     58     24      0     0%   8-170
-src/gobby/utils/__init__.py                           1      1      0      0     0%   3
+src/gobby/utils/__init__.py                           1      0      0      0   100%
 src/gobby/utils/daemon_client.py                     68     68     16      0     0%   26-230
-src/gobby/utils/git.py                               68     68     20      0     0%   11-180
-src/gobby/utils/id.py                                14     14      8      0     0%   3-38
-src/gobby/utils/json_helpers.py                      59     59     22      0     0%   9-163
+src/gobby/utils/git.py                               68     56     20      0    14%   38-62, 76-95, 110-122, 149-180
+src/gobby/utils/id.py                                14     11      8      0    14%   24-38
+src/gobby/utils/json_helpers.py                      59     49     22      0    12%   47-84, 99-111, 150-163
 src/gobby/utils/logging.py                          137    137     28      0     0%   8-376
 src/gobby/utils/machine_id.py                        48     48      8      0     0%   7-135
 src/gobby/utils/metrics.py                          206    206     42      0     0%   8-589
-src/gobby/utils/project_context.py                   68     68     20      0     0%   5-182
-src/gobby/utils/project_init.py                     113    113     40      0     0%   8-263
+src/gobby/utils/project_context.py                   68     40     20      4    36%   29->32, 36->34, 38, 61, 69-71, 90-101, 114-115, 128, 141-155, 168-182
+src/gobby/utils/project_init.py                     113     87     40      0    17%   31-42, 70-125, 151-218, 244-263
 src/gobby/utils/status.py                           132    132     76      0     0%   7-256
 src/gobby/utils/validation.py                        32     32      2      0     0%   3-75
 src/gobby/utils/version.py                            6      6      0      0     0%   3-23
-src/gobby/workflows/__init__.py                       2      2      0      0     0%   2-4
-src/gobby/workflows/actions.py                      398    398    110      0     0%   1-1183
+src/gobby/workflows/__init__.py                       2      0      0      0   100%
+src/gobby/workflows/actions.py                      432    432    118      0     0%   1-1241
 src/gobby/workflows/artifact_actions.py              46     46     26      0     0%   7-103
 src/gobby/workflows/autonomous_actions.py            60     60     22      0     0%   9-276
-src/gobby/workflows/context_actions.py              172    172    102      0     0%   7-351
-src/gobby/workflows/definitions.py                   76     76      4      0     0%   1-130
-src/gobby/workflows/engine.py                       516    516    250      0     0%   1-1296
+src/gobby/workflows/context_actions.py              183    183    106      0     0%   7-380
+src/gobby/workflows/definitions.py                   76      5      4      0    89%   65, 85-88
+src/gobby/workflows/engine.py                       519    519    252      0     0%   1-1309
 src/gobby/workflows/evaluator.py                    226    226    116      0     0%   1-565
 src/gobby/workflows/git_utils.py                     36     36     10      0     0%   7-96
 src/gobby/workflows/hooks.py                         73     73     20      0     0%   1-168
 src/gobby/workflows/llm_actions.py                   26     26      6      0     0%   7-70
-src/gobby/workflows/loader.py                       145    145     62      0     0%   1-324
+src/gobby/workflows/loader.py                       148    123     62      0    12%   27-30, 52-105, 108-120, 127-141, 148-168, 189-221, 237-281, 288-289, 294, 316-333
 src/gobby/workflows/mcp_actions.py                   23     23     12      0     0%   7-60
 src/gobby/workflows/memory_actions.py               106    106     54      0     0%   7-272
 src/gobby/workflows/session_actions.py               50     50     24      0     0%   7-137
 src/gobby/workflows/state_actions.py                 42     42     16      0     0%   7-123
-src/gobby/workflows/state_manager.py                 22     22      2      0     0%   1-104
+src/gobby/workflows/state_manager.py                 22     11      2      0    46%   18, 21-55, 59, 104
 src/gobby/workflows/stop_signal_actions.py           37     37     12      0     0%   7-163
 src/gobby/workflows/summary_actions.py              137    137     70      0     0%   7-334
 src/gobby/workflows/task_actions.py                  70     70     22      0     0%   9-243
-src/gobby/workflows/task_enforcement_actions.py     264    264    128      0     0%   8-757
+src/gobby/workflows/task_enforcement_actions.py     265    265    128      0     0%   8-758
 src/gobby/workflows/templates.py                     24     24      2      0     0%   1-52
 src/gobby/workflows/todo_actions.py                  38     38     12      0     0%   7-84
 src/gobby/workflows/webhook.py                       95     95     36      0     0%   8-223
 src/gobby/workflows/webhook_executor.py             124    124     38      0     0%   8-393
-src/gobby/worktrees/__init__.py                       2      2      0      0     0%   3-5
-src/gobby/worktrees/git.py                          203    203     80      0     0%   3-645
+src/gobby/worktrees/__init__.py                       2      0      0      0   100%
+src/gobby/worktrees/git.py                          217    175     88      0    14%   65-67, 88-109, 130-192, 217-272, 295-357, 376-452, 461-529, 538-555, 576-596, 612-631
 src/gobby/worktrees/merge/__init__.py                 3      3      0      0     0%   3-12
 src/gobby/worktrees/merge/conflict_parser.py         79     79     32      0     0%   7-167
 src/gobby/worktrees/merge/resolver.py               162    162     50      0     0%   10-485
 ---------------------------------------------------------------------------------------------
-TOTAL                                             31628  31248  10534      4     1%
+TOTAL                                             31927  29548  10620     21     6%
 Coverage HTML written to dir htmlcov
-FAIL Required test coverage of 80% not reached. Total coverage: 0.92%
+FAIL Required test coverage of 80% not reached. Total coverage: 5.66%
 =========================== short test summary info ============================
-FAILED tests/e2e/test_worktrees_e2e.py::TestWorktreeDeletion::test_delete_worktree_removes_branch - AssertionError: Branch should be deleted
-assert 0 != 0
- +  where 0 = CompletedProcess(args=['git', 'rev-parse', '--verify', 'feature/delete-branch-test'], returncode=0, stdout=b'022151e28fc767cc0aea4d9c6d4db7bb4294ceea\n', stderr=b'').returncode
-========================= 1 failed, 1 warning in 8.32s =========================
+FAILED tests/mcp_proxy/tools/test_task_orchestration_tool.py::TestOrchestrateReadyTasks::test_orchestrate_basic
+FAILED tests/mcp_proxy/tools/test_task_orchestration_tool.py::TestOrchestrateReadyTasks::test_max_concurrent_limit
+=================== 2 failed, 1 passed, 3 warnings in 7.89s ====================

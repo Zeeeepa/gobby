@@ -150,9 +150,7 @@ class TaskExpander:
         # Gather enhanced context
         task_obj = self.task_manager.get_task(task_id)
         if not task_obj:
-            logger.warning(
-                f"Task {task_id} not found for context gathering, using basic info"
-            )
+            logger.warning(f"Task {task_id} not found for context gathering, using basic info")
             task_obj = Task(
                 id=task_id,
                 project_id="unknown",
@@ -180,9 +178,7 @@ class TaskExpander:
         # Combine user context with pattern criteria if detected
         combined_instructions = context or ""
         if pattern_criteria:
-            logger.info(
-                f"Detected patterns for {task_id}, adding pattern-specific criteria"
-            )
+            logger.info(f"Detected patterns for {task_id}, adding pattern-specific criteria")
             if combined_instructions:
                 combined_instructions += f"\n\n{pattern_criteria}"
             else:
@@ -207,9 +203,7 @@ class TaskExpander:
 
             response = await provider.generate_text(
                 prompt=prompt,
-                system_prompt=self.prompt_builder.get_system_prompt(
-                    tdd_mode=tdd_for_prompt
-                ),
+                system_prompt=self.prompt_builder.get_system_prompt(tdd_mode=tdd_for_prompt),
                 model=self.config.model,
             )
 
@@ -241,9 +235,7 @@ class TaskExpander:
             # Save expansion context to the parent task for audit/reuse
             self._save_expansion_context(task_id, expansion_ctx)
 
-            logger.info(
-                f"Expansion complete for {task_id}: created {len(subtask_ids)} subtasks"
-            )
+            logger.info(f"Expansion complete for {task_id}: created {len(subtask_ids)} subtasks")
 
             return {
                 "subtask_ids": subtask_ids,
@@ -281,9 +273,7 @@ class TaskExpander:
         # Extract subtasks array
         subtasks_data = data.get("subtasks", [])
         if not isinstance(subtasks_data, list):
-            logger.warning(
-                f"Expected 'subtasks' to be a list, got {type(subtasks_data)}"
-            )
+            logger.warning(f"Expected 'subtasks' to be a list, got {type(subtasks_data)}")
             return []
 
         # Parse each subtask
@@ -374,13 +364,9 @@ class TaskExpander:
             # With the simplified prompt, the LLM outputs feature names (not test/impl/refactor titles),
             # and we create triplets deterministically based on task_type.
             is_coding_type = spec.task_type in ("task", "feature", "bug", "chore")
-            is_non_coding_title = any(
-                spec.title.lower().startswith(p) for p in NON_CODING_PREFIXES
-            )
+            is_non_coding_title = any(spec.title.lower().startswith(p) for p in NON_CODING_PREFIXES)
             # Skip expansion if title already looks like a TDD triplet task (legacy/manual)
-            is_already_tdd_title = any(
-                spec.title.lower().startswith(p) for p in TDD_TITLE_PREFIXES
-            )
+            is_already_tdd_title = any(spec.title.lower().startswith(p) for p in TDD_TITLE_PREFIXES)
             # Check if this task depends on a test task (legacy test→impl pairs)
             has_test_dependency = False
             if spec.depends_on:
@@ -422,9 +408,7 @@ class TaskExpander:
                         if dep_idx in spec_index_to_id:
                             blocker_id = spec_index_to_id[dep_idx]
                             try:
-                                dep_manager.add_dependency(
-                                    test_task.id, blocker_id, "blocks"
-                                )
+                                dep_manager.add_dependency(test_task.id, blocker_id, "blocks")
                             except Exception as e:
                                 logger.warning(f"Failed to add dependency: {e}")
 
@@ -433,7 +417,9 @@ class TaskExpander:
                 impl_desc = spec.description or ""
                 if impl_desc:
                     impl_desc += "\n\n"
-                impl_desc += "Test strategy: All tests from previous subtask should pass (green phase)"
+                impl_desc += (
+                    "Test strategy: All tests from previous subtask should pass (green phase)"
+                )
 
                 # Generate criteria for implementation
                 if expansion_context:
@@ -524,12 +510,8 @@ class TaskExpander:
                         if dep_idx in spec_index_to_id:
                             blocker_id = spec_index_to_id[dep_idx]
                             try:
-                                dep_manager.add_dependency(
-                                    task.id, blocker_id, "blocks"
-                                )
-                                logger.debug(
-                                    f"Added dependency: {task.id} blocked by {blocker_id}"
-                                )
+                                dep_manager.add_dependency(task.id, blocker_id, "blocks")
+                                logger.debug(f"Added dependency: {task.id} blocked by {blocker_id}")
                             except Exception as e:
                                 logger.warning(f"Failed to add dependency: {e}")
                         else:
@@ -574,9 +556,7 @@ class TaskExpander:
             # Serialize and update the task
             context_json = json.dumps(context_data)
             self.task_manager.update_task(task_id, expansion_context=context_json)
-            logger.info(
-                f"Saved expansion context for {task_id} ({len(context_json)} bytes)"
-            )
+            logger.info(f"Saved expansion context for {task_id} ({len(context_json)} bytes)")
 
         except Exception as e:
             logger.warning(f"Failed to save expansion context for {task_id}: {e}")
@@ -653,9 +633,7 @@ class TaskExpander:
                             # Last resort: use existing split logic
                             try:
                                 func_name = (
-                                    sig.split("(")[0].split()[-1]
-                                    if "(" in sig
-                                    else sig.split()[-1]
+                                    sig.split("(")[0].split()[-1] if "(" in sig else sig.split()[-1]
                                 )
                             except (IndexError, AttributeError):
                                 continue

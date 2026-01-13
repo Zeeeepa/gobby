@@ -27,13 +27,11 @@ MAX_ENV_PROMPT_LENGTH = 4096
 
 
 # Import these from spawn.py to avoid duplication
-def _get_spawn_utils() -> (
-    tuple[
-        Callable[..., list[str]],
-        Callable[[str, str], str],
-        int,
-    ]
-):
+def _get_spawn_utils() -> tuple[
+    Callable[..., list[str]],
+    Callable[[str, str], str],
+    int,
+]:
     """Lazy import to avoid circular dependencies."""
     from gobby.agents.spawn import (
         MAX_ENV_PROMPT_LENGTH as _MAX_ENV_PROMPT_LENGTH,

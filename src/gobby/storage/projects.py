@@ -3,7 +3,7 @@
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from gobby.storage.database import DatabaseProtocol
@@ -77,7 +77,7 @@ class LocalProjectManager:
             Created Project instance
         """
         project_id = str(uuid.uuid4())
-        now = datetime.utcnow().isoformat()
+        now = datetime.now(UTC).isoformat()
 
         self.db.execute(
             """
@@ -142,7 +142,7 @@ class LocalProjectManager:
         if not fields:
             return self.get(project_id)
 
-        fields["updated_at"] = datetime.utcnow().isoformat()
+        fields["updated_at"] = datetime.now(UTC).isoformat()
 
         # nosec B608: fields validated against allowlist above, values parameterized
         set_clause = ", ".join(f"{k} = ?" for k in fields)

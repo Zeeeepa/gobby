@@ -141,7 +141,7 @@ CREATE TABLE tools (
 ```text
 ~/.gobby/
 ├── config.yaml          # Global config (human-editable, keep as-is)
-├── gobby.db             # SQLite database
+├── gobby-hub.db         # SQLite database
 └── projects/
     └── {project_name}/
         └── summaries/
@@ -188,7 +188,7 @@ CREATE TABLE tools (
 - [x] 2.2 Create `gobby/storage/database.py`
   - [x] 2.2.1 `LocalDatabase` class with connection pooling
   - [x] 2.2.2 Context manager for transactions
-  - [x] 2.2.3 Auto-create `~/.gobby/gobby.db` on first access
+  - [x] 2.2.3 Auto-create `~/.gobby/gobby-hub.db` on first access
 - [x] 2.3 Create `gobby/storage/migrations.py`
   - [x] 2.3.1 Schema version tracking table
   - [x] 2.3.2 Migration 001: Create projects table
@@ -232,7 +232,7 @@ CREATE TABLE tools (
   - [x] 3.2.1 Remove `platform_url` from config
   - [x] 3.2.2 Remove `platform_api_key` from config
   - [x] 3.2.3 Remove platform-related validation
-  - [x] 3.2.4 Add `database_path` config (default: `~/.gobby/gobby.db`)
+  - [x] 3.2.4 Add `database_path` config (default: `~/.gobby/gobby-hub.db`)
 - [x] 3.3 Skip `config/mcp.py` - obsolete (LocalMCPManager in storage/ replaces it)
 - [x] 3.4 All imports use `gobby` package
 - [x] 3.5 Verified config loads without platform settings

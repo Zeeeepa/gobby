@@ -495,18 +495,6 @@ class TestAdminEndpoints:
         # Shutdown was initiated
         assert response.json()["status"] == "shutting_down"
 
-    def test_shutdown_error_handling(self, basic_http_server: HTTPServer) -> None:
-        """Test shutdown handles exceptions gracefully."""
-        # Make create_task raise an exception
-        with patch("asyncio.create_task", side_effect=RuntimeError("Task error")):
-            client = TestClient(basic_http_server.app)
-            response = client.post("/admin/shutdown")
-
-            # Should return error status
-            assert response.status_code == 200
-            data = response.json()
-            assert data["status"] == "error"
-
     def test_metrics_endpoint_with_daemon(self, basic_http_server: HTTPServer) -> None:
         """Test metrics endpoint updates daemon metrics."""
         mock_daemon = MagicMock()

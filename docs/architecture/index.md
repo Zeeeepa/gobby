@@ -79,7 +79,7 @@ gobby status
                           │
 ┌─────────────────────────▼────────────────────────────────────┐
 │                    Data Layer                                 │
-│              SQLite (~/.gobby/gobby.db)                      │
+│              SQLite (~/.gobby/gobby-hub.db)                      │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -123,7 +123,7 @@ gobby status
 | Path | Purpose |
 |------|---------|
 | `~/.gobby/config.yaml` | Daemon configuration |
-| `~/.gobby/gobby.db` | SQLite database |
+| `~/.gobby/gobby-hub.db` | SQLite database |
 | `~/.gobby/logs/` | Log files |
 | `~/.gobby/session_summaries/` | Generated summaries |
 

@@ -763,7 +763,11 @@ def expand_all_cmd(
     default="generic",
     help="Type of specification document",
 )
-@click.option("--parent", "parent_task_id", help="Parent task reference: #N, N (seq_num), path (1.2.3), or UUID")
+@click.option(
+    "--parent",
+    "parent_task_id",
+    help="Parent task reference: #N, N (seq_num), path (1.2.3), or UUID",
+)
 def import_spec_cmd(file: str, spec_type: str, parent_task_id: str | None) -> None:
     """Create tasks from a specification document."""
     import asyncio

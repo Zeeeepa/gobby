@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import sqlite3
 import threading
@@ -93,6 +94,12 @@ class LocalDatabase:
         Args:
             db_path: Path to SQLite database file. Defaults to ~/.gobby/gobby-hub.db
         """
+        # SAFETY SWITCH: During tests, override with safe path from environment
+        if db_path is None and os.environ.get("GOBBY_TEST_PROTECT") == "1":
+            safe_path = os.environ.get("GOBBY_DATABASE_PATH")
+            if safe_path:
+                db_path = safe_path
+
         self.db_path = Path(db_path) if db_path else DEFAULT_DB_PATH
         self._local = threading.local()
         self._artifact_manager: LocalArtifactManager | None = None

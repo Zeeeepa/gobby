@@ -128,7 +128,7 @@ class TestTDDTripletStructure:
 
         # Verify titles
         assert tasks[0].title == "Write tests for: Add user login"
-        assert tasks[1].title == "Add user login"
+        assert tasks[1].title == "Implement: Add user login"
         assert tasks[2].title == "Refactor: Add user login"
 
     def test_spec_parser_creates_triplet_with_parent(self, task_manager, dep_manager):
@@ -302,7 +302,7 @@ class TestTDDCheckboxProcessing:
         # Should create 3 tasks
         assert len(created_tasks) == 3
         assert created_tasks[0].title == "Write tests for: Add validation"
-        assert created_tasks[1].title == "Add validation"
+        assert created_tasks[1].title == "Implement: Add validation"
         assert created_tasks[2].title == "Refactor: Add validation"
 
 
@@ -336,7 +336,7 @@ class TestTDDHeadingProcessing:
         # Should create 3 tasks
         assert len(created_tasks) == 3
         assert created_tasks[0].title == "Write tests for: Add middleware"
-        assert created_tasks[1].title == "Add middleware"
+        assert created_tasks[1].title == "Implement: Add middleware"
         assert created_tasks[2].title == "Refactor: Add middleware"
 
     def test_epic_heading_no_triplet(self, task_manager, dep_manager):

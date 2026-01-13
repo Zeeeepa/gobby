@@ -156,7 +156,9 @@ class TFIDFSearcher:
             query_vec = vectorizer.transform([query])
 
             # Compute cosine similarities
-            similarities: npt.NDArray[np.floating] = cosine_similarity(query_vec, self._vectors)[0]
+            similarities: npt.NDArray[np.floating[Any]] = cosine_similarity(
+                query_vec, self._vectors
+            )[0]
 
             # Get top-k indices (handling case where we have fewer results)
             k = min(top_k, len(similarities))

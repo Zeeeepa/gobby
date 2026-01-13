@@ -189,7 +189,7 @@ class LinearSyncService:
 
         if not task.linear_issue_id:
             raise ValueError(
-                f"Task {task_id} has no linked Linear issue. " "Set linear_issue_id to sync."
+                f"Task {task_id} has no linked Linear issue. Set linear_issue_id to sync."
             )
 
         result = await self.mcp_manager.call_tool(

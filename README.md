@@ -310,7 +310,7 @@ recommend_tools:
 | Path | Description |
 |------|-------------|
 | `~/.gobby/config.yaml` | Daemon configuration |
-| `~/.gobby/gobby.db` | SQLite database (sessions, projects, tasks, memories, MCP servers) |
+| `~/.gobby/gobby-hub.db` | SQLite database (sessions, projects, tasks, memories, MCP servers) |
 | `~/.gobby/logs/` | Log files |
 | `~/.gobby/session_summaries/` | Generated session summaries |
 | `.gobby/project.json` | Project-level configuration |

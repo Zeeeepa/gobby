@@ -379,7 +379,7 @@ class SessionManager:
         limit: int | None = None,
         include_parent: bool | None = None,
         max_lineage_depth: int | None = None,
-    ) -> list:
+    ) -> list[Artifact]:
         """
         Get artifacts for a session using LocalArtifactManager.
 

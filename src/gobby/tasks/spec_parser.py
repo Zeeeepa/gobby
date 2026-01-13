@@ -715,7 +715,8 @@ class TaskHierarchyBuilder:
             List of top-level checkboxes that fall within the heading's line range
         """
         return [
-            cb for cb in all_checkboxes
+            cb
+            for cb in all_checkboxes
             if cb.parent_heading == heading.text
             and heading.line_start <= cb.line_number <= heading.line_end
             and cb.depth == 0

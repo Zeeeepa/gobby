@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import html
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gobby.storage.memories import Memory, MemoryCrossRef
@@ -105,7 +105,7 @@ def _build_tooltip(memory: Memory) -> str:
     """.strip()
 
 
-def _generate_html(nodes: list[dict], edges: list[dict], title: str) -> str:
+def _generate_html(nodes: list[dict[str, Any]], edges: list[dict[str, Any]], title: str) -> str:
     """Generate the complete HTML document with vis.js."""
     nodes_json = json.dumps(nodes)
     edges_json = json.dumps(edges)

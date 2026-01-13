@@ -452,7 +452,7 @@ gobby tasks stats
 
 ## Data Storage
 
-- **Database**: `~/.gobby/gobby.db` (SQLite)
+- **Database**: `~/.gobby/gobby-hub.db` (SQLite)
 - **Git sync**: `.gobby/tasks.jsonl` (or `~/.gobby/tasks/{project}.jsonl` in stealth mode)
 - **Metadata**: `.gobby/tasks_meta.json`
 

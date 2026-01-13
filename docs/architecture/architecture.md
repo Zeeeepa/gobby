@@ -63,7 +63,7 @@ Gobby is a **local-first daemon** that unifies AI coding assistants (Claude Code
 │  │  LocalDatabase  │  │  MCPDBManager   │  │ File Storage    │         │
 │  │   (SQLite)      │  │ (tool caching)  │  │ (summaries)     │         │
 │  └─────────────────┘  └─────────────────┘  └─────────────────┘         │
-│                    ~/.gobby/gobby.db                                    │
+│                    ~/.gobby/gobby-hub.db                                    │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -274,7 +274,7 @@ CREATE TABLE tools (
 
 ```yaml
 daemon_port: 8765
-database_path: "~/.gobby/gobby.db"
+database_path: "~/.gobby/gobby-hub.db"
 
 websocket:
   enabled: true
@@ -321,7 +321,7 @@ llm_providers:
 
 ## Key Design Decisions
 
-1. **Local-First**: All data stored in SQLite (`~/.gobby/gobby.db`), no cloud dependency
+1. **Local-First**: All data stored in SQLite (`~/.gobby/gobby-hub.db`), no cloud dependency
 2. **CLI-Agnostic**: Adapter pattern normalizes different CLI hook formats to unified events
 3. **Progressive Discovery**: MCP tools loaded on-demand to reduce token usage
 4. **Multi-Provider LLM**: Abstraction layer supports Claude, Codex, Gemini, and LiteLLM

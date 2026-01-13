@@ -654,12 +654,13 @@ def reload_workflows(ctx: click.Context) -> None:
     """Reload workflow definitions from disk."""
     import httpx
     import psutil
+
     from gobby.config.app import load_config
 
     # Try to tell daemon to reload
     try:
         config = load_config()
-        port = config.get_http_config().port
+        port = config.daemon_port
 
         # Check if running
         is_running = False

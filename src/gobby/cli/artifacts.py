@@ -1,6 +1,7 @@
 """CLI commands for session artifacts."""
 
 import json
+from typing import Any
 
 import click
 
@@ -174,7 +175,7 @@ def timeline(
             _display_timeline_entry(artifact)
 
 
-def _display_artifact_list(artifacts_list: list) -> None:
+def _display_artifact_list(artifacts_list: list[Any]) -> None:
     """Display a list of artifacts in table format."""
     # Header
     click.echo(f"{'ID':<12} {'Type':<8} {'Source':<20} {'Created':<20}")
@@ -215,7 +216,7 @@ def _display_artifact_detail(artifact: Artifact, verbose: bool) -> None:
     _display_content(artifact.content, artifact.artifact_type, artifact.metadata)
 
 
-def _display_content(content: str, artifact_type: str, metadata: dict | None) -> None:
+def _display_content(content: str, artifact_type: str, metadata: dict[str, Any] | None) -> None:
     """Display content with appropriate formatting."""
     # Try to use rich for syntax highlighting if available
     try:

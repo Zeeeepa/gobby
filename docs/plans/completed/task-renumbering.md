@@ -61,11 +61,7 @@ SELECT id, path, depth FROM task_path;
 
 ## Migration Strategy
 
-**Note:** Changes applied to BOTH databases automatically:
-- `.gobby/gobby.db` (project-local)
-- `~/.gobby/gobby-hub.db` (global hub)
-
-The existing `run_migrations()` is called on both databases at startup (`runner.py:275-276`), so the migration will be applied to both when Gobby restarts.
+The existing `run_migrations()` is called on the database at startup (`runner.py:275-276`).
 
 ### Phase 1: Add New Columns + Convert IDs
 

@@ -33,7 +33,7 @@ def get_current_project_id() -> str | None:
 
     ctx = get_project_context()
     if ctx and ctx.get("id"):
-        return ctx["id"]
+        return str(ctx["id"])
     return None
 
 

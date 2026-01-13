@@ -136,7 +136,7 @@ def inject_context(
 
     if content:
         if template:
-            render_context: dict[str, Any] = {
+            render_context = {
                 "session": session_manager.get(session_id),
                 "state": state,
                 "artifacts": state.artifacts,

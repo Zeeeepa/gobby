@@ -11,7 +11,7 @@ variables:
   # Task enforcement - require active task before file modifications
   require_task_before_edit: true
   # Auto-decompose multi-step task descriptions into subtasks
-  auto_decompose: true
+  auto_decompose: false
   # Enable TDD mode for task expansion (test-implementation pairs)
   tdd_mode: true
 

@@ -126,7 +126,7 @@ CREATE INDEX idx_session_memories_memory ON session_memories(memory_id);
 │     • Skill learning: Generate from trajectory                   │
 │                                                                  │
 │  2. STORAGE                                                      │
-│     • SQLite (local): ~/.gobby/gobby.db                         │
+│     • SQLite (local): ~/.gobby/gobby-hub.db                         │
 │     • Git sync (optional): .gobby/memories.jsonl                │
 │     • Embeddings for semantic search                             │
 │                                                                  │
@@ -395,7 +395,7 @@ gobby skill stats
 .gobby/
 ├── memories.jsonl        # Memory records (optional, stealth mode disables)
 ├── memory_meta.json      # Sync metadata
-└── gobby.db              # SQLite cache (not committed)
+
 
 .claude/
 └── skills/               # Skill files (Claude Code native format)

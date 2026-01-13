@@ -52,7 +52,7 @@ uv run pytest
 * `src/gobby/servers/`: HTTP (:8765) and WebSocket (:8766) servers.
 * `src/gobby/hooks/`: Central hook management logic.
 * `src/gobby/mcp_proxy/`: Logic for connecting to downstream MCP servers.
-* `src/gobby/storage/`: SQLite database layer (`~/.gobby/gobby.db`).
+* `src/gobby/storage/`: SQLite database layer (`~/.gobby/gobby-hub.db`).
 
 ## Architecture Quick Reference
 

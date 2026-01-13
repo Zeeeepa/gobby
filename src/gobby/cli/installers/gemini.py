@@ -17,8 +17,8 @@ from gobby.cli.utils import get_install_dir
 from .shared import (
     configure_mcp_server_json,
     install_cli_content,
-    install_shared_skills,
     install_shared_content,
+    install_shared_skills,
     remove_mcp_server_json,
 )
 

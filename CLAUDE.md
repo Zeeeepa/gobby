@@ -36,7 +36,7 @@ uv run mypy src/                 # Type check
 ### Key File Locations
 
 - Config: `~/.gobby/config.yaml`
-- Database: `.gobby/gobby.db` (project-local), `~/.gobby/gobby-hub.db` (hub)
+- Database: `~/.gobby/gobby-hub.db`
 - Logs: `~/.gobby/logs/`
 - Project config: `.gobby/project.json`
 - Task sync: `.gobby/tasks.jsonl`

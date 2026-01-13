@@ -184,7 +184,7 @@ class GitHubSyncService:
 
         if not task.github_issue_number:
             raise ValueError(
-                f"Task {task_id} has no linked GitHub issue. " "Set github_issue_number to sync."
+                f"Task {task_id} has no linked GitHub issue. Set github_issue_number to sync."
             )
 
         repo = task.github_repo or self.github_repo

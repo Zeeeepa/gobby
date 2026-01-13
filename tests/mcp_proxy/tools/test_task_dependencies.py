@@ -48,7 +48,7 @@ class TestAddDependency:
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 
         dep_manager = MagicMock()
-        registry = create_dependency_registry(dep_manager=dep_manager)
+        registry = create_dependency_registry(task_manager=MagicMock(), dep_manager=dep_manager)
 
         add_dep = registry.get_tool("add_dependency")
         add_dep(task_id="task-1", depends_on="task-2")
@@ -63,7 +63,7 @@ class TestAddDependency:
         dep_manager = MagicMock()
         dep_manager.add_dependency.side_effect = ValueError("Cycle detected")
 
-        registry = create_dependency_registry(dep_manager=dep_manager)
+        registry = create_dependency_registry(task_manager=MagicMock(), dep_manager=dep_manager)
         add_dep = registry.get_tool("add_dependency")
 
         result = add_dep(task_id="task-1", depends_on="task-2")
@@ -78,7 +78,7 @@ class TestAddDependency:
         dep_manager = MagicMock()
         dep_manager.add_dependency.side_effect = ValueError("Cannot depend on itself")
 
-        registry = create_dependency_registry(dep_manager=dep_manager)
+        registry = create_dependency_registry(task_manager=MagicMock(), dep_manager=dep_manager)
         add_dep = registry.get_tool("add_dependency")
 
         result = add_dep(task_id="task-1", depends_on="task-1")
@@ -96,7 +96,7 @@ class TestRemoveDependency:
         dep_manager = MagicMock()
         dep_manager.remove_dependency.return_value = True
 
-        registry = create_dependency_registry(dep_manager=dep_manager)
+        registry = create_dependency_registry(task_manager=MagicMock(), dep_manager=dep_manager)
         remove_dep = registry.get_tool("remove_dependency")
 
         result = remove_dep(task_id="task-1", depends_on="task-2")
@@ -112,7 +112,7 @@ class TestRemoveDependency:
         dep_manager = MagicMock()
         dep_manager.remove_dependency.return_value = False
 
-        registry = create_dependency_registry(dep_manager=dep_manager)
+        registry = create_dependency_registry(task_manager=MagicMock(), dep_manager=dep_manager)
         remove_dep = registry.get_tool("remove_dependency")
 
         result = remove_dep(task_id="task-1", depends_on="task-2")
@@ -135,7 +135,7 @@ class TestGetDependencyTree:
             "blocking": [{"id": "task-3", "blocking": []}],
         }
 
-        registry = create_dependency_registry(dep_manager=dep_manager)
+        registry = create_dependency_registry(task_manager=MagicMock(), dep_manager=dep_manager)
         get_tree = registry.get_tool("get_dependency_tree")
 
         result = get_tree(task_id="task-1", direction="both")
@@ -154,7 +154,7 @@ class TestGetDependencyTree:
             "blocking": [{"id": "task-3"}],
         }
 
-        registry = create_dependency_registry(dep_manager=dep_manager)
+        registry = create_dependency_registry(task_manager=MagicMock(), dep_manager=dep_manager)
         get_tree = registry.get_tool("get_dependency_tree")
 
         result = get_tree(task_id="task-1", direction="blockers")
@@ -173,7 +173,7 @@ class TestGetDependencyTree:
             "blocking": [{"id": "task-3"}],
         }
 
-        registry = create_dependency_registry(dep_manager=dep_manager)
+        registry = create_dependency_registry(task_manager=MagicMock(), dep_manager=dep_manager)
         get_tree = registry.get_tool("get_dependency_tree")
 
         result = get_tree(task_id="task-1", direction="blocking")
@@ -196,7 +196,7 @@ class TestGetDependencyTree:
             ],
         }
 
-        registry = create_dependency_registry(dep_manager=dep_manager)
+        registry = create_dependency_registry(task_manager=MagicMock(), dep_manager=dep_manager)
         get_tree = registry.get_tool("get_dependency_tree")
 
         result = get_tree(task_id="task-1", direction="blockers")
@@ -216,7 +216,7 @@ class TestCheckDependencyCycles:
         dep_manager = MagicMock()
         dep_manager.check_cycles.return_value = []
 
-        registry = create_dependency_registry(dep_manager=dep_manager)
+        registry = create_dependency_registry(task_manager=MagicMock(), dep_manager=dep_manager)
         check_cycles = registry.get_tool("check_dependency_cycles")
 
         result = check_cycles()
@@ -231,7 +231,7 @@ class TestCheckDependencyCycles:
         dep_manager = MagicMock()
         dep_manager.check_cycles.return_value = [["task-1", "task-2", "task-1"]]
 
-        registry = create_dependency_registry(dep_manager=dep_manager)
+        registry = create_dependency_registry(task_manager=MagicMock(), dep_manager=dep_manager)
         check_cycles = registry.get_tool("check_dependency_cycles")
 
         result = check_cycles()
@@ -250,7 +250,7 @@ class TestCheckDependencyCycles:
             ["task-3", "task-4", "task-5", "task-3"],
         ]
 
-        registry = create_dependency_registry(dep_manager=dep_manager)
+        registry = create_dependency_registry(task_manager=MagicMock(), dep_manager=dep_manager)
         check_cycles = registry.get_tool("check_dependency_cycles")
 
         result = check_cycles()
@@ -273,7 +273,7 @@ class TestEdgeCases:
             "blocking": [],
         }
 
-        registry = create_dependency_registry(dep_manager=dep_manager)
+        registry = create_dependency_registry(task_manager=MagicMock(), dep_manager=dep_manager)
         get_tree = registry.get_tool("get_dependency_tree")
 
         result = get_tree(task_id="task-1")
@@ -286,7 +286,7 @@ class TestEdgeCases:
         from gobby.mcp_proxy.tools.task_dependencies import create_dependency_registry
 
         dep_manager = MagicMock()
-        registry = create_dependency_registry(dep_manager=dep_manager)
+        registry = create_dependency_registry(task_manager=MagicMock(), dep_manager=dep_manager)
         add_dep = registry.get_tool("add_dependency")
 
         # Test each dep_type

@@ -251,8 +251,9 @@ class TestValidateTaskTool:
         """Test validate_task with non-existent task."""
         mock_task_manager.get_task.return_value = None
 
-        with pytest.raises(ValueError, match="not found"):
-            await validation_registry.call("validate_task", {"task_id": "nonexistent"})
+        result = await validation_registry.call("validate_task", {"task_id": "nonexistent"})
+        assert "error" in result
+        assert "invalid" in result["error"].lower()
 
     @pytest.mark.asyncio
     async def test_validate_task_creates_fix_task_on_failure(
@@ -490,10 +491,11 @@ class TestGenerateValidationCriteriaTool:
         """Test generate_validation_criteria with non-existent task."""
         mock_task_manager.get_task.return_value = None
 
-        with pytest.raises(ValueError, match="not found"):
-            await validation_registry.call(
-                "generate_validation_criteria", {"task_id": "nonexistent"}
-            )
+        result = await validation_registry.call(
+            "generate_validation_criteria", {"task_id": "nonexistent"}
+        )
+        assert "error" in result
+        assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
     async def test_generate_criteria_passes_labels_to_validator(
@@ -575,8 +577,9 @@ class TestGetValidationStatusTool:
         """Test get_validation_status with non-existent task."""
         mock_task_manager.get_task.return_value = None
 
-        with pytest.raises(ValueError, match="not found"):
-            await validation_registry.call("get_validation_status", {"task_id": "nonexistent"})
+        result = await validation_registry.call("get_validation_status", {"task_id": "nonexistent"})
+        assert "error" in result
+        assert "not found" in result["error"].lower()
 
 
 # ============================================================================
@@ -627,8 +630,11 @@ class TestResetValidationCountTool:
         """Test reset_validation_count with non-existent task."""
         mock_task_manager.get_task.return_value = None
 
-        with pytest.raises(ValueError, match="not found"):
-            await validation_registry.call("reset_validation_count", {"task_id": "nonexistent"})
+        result = await validation_registry.call(
+            "reset_validation_count", {"task_id": "nonexistent"}
+        )
+        assert "error" in result
+        assert "not found" in result["error"].lower()
 
 
 # ============================================================================
@@ -747,7 +753,7 @@ class TestRunFixAttemptTool:
 
             result = await registry.call("run_fix_attempt", {"task_id": "nonexistent"})
 
-        assert result["success"] is False
+        assert "error" in result
         assert "not found" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -801,9 +807,8 @@ class TestValidateAndFixTool:
         mock_task_manager.get_task.return_value = None
 
         result = await validation_registry.call("validate_and_fix", {"task_id": "nonexistent"})
-
-        assert result["success"] is False
-        assert "not found" in result["error"].lower()
+        assert "error" in result
+        assert "invalid" in result["error"].lower()
 
     @pytest.mark.asyncio
     async def test_validate_and_fix_parent_task(

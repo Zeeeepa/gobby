@@ -768,6 +768,9 @@ class HookManager:
         except Exception as e:
             self.logger.warning(f"Failed to close webhook dispatcher: {e}")
 
+        if hasattr(self, "_database"):
+            self._database.close()
+
         self.logger.debug("HookManager shutdown complete")
 
     # ==================== HELPER METHODS ====================

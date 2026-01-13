@@ -268,9 +268,7 @@ class ExpansionPromptBuilder:
             )
 
         context_str = (
-            "\n".join(context_parts)
-            if context_parts
-            else "No additional context available."
+            "\n".join(context_parts) if context_parts else "No additional context available."
         )
 
         # Format research findings

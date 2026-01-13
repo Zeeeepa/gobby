@@ -231,3 +231,5 @@ bmad-custom-src/
 .DS_Store
 .scripts/
 .gobby/config.yaml
+reports/
+bandit_report.json

@@ -21,7 +21,7 @@ class TestSyncTasks:
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
         sync_manager = MagicMock()
-        registry = create_sync_registry(sync_manager=sync_manager)
+        registry = create_sync_registry(task_manager=MagicMock(), sync_manager=sync_manager)
 
         sync = registry.get_tool("sync_tasks")
         result = sync(direction="both")
@@ -36,7 +36,7 @@ class TestSyncTasks:
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
         sync_manager = MagicMock()
-        registry = create_sync_registry(sync_manager=sync_manager)
+        registry = create_sync_registry(task_manager=MagicMock(), sync_manager=sync_manager)
 
         sync = registry.get_tool("sync_tasks")
         result = sync(direction="import")
@@ -51,7 +51,7 @@ class TestSyncTasks:
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
         sync_manager = MagicMock()
-        registry = create_sync_registry(sync_manager=sync_manager)
+        registry = create_sync_registry(task_manager=MagicMock(), sync_manager=sync_manager)
 
         sync = registry.get_tool("sync_tasks")
         result = sync(direction="export")
@@ -66,7 +66,7 @@ class TestSyncTasks:
         from gobby.mcp_proxy.tools.task_sync import create_sync_registry
 
         sync_manager = MagicMock()
-        registry = create_sync_registry(sync_manager=sync_manager)
+        registry = create_sync_registry(task_manager=MagicMock(), sync_manager=sync_manager)
 
         sync = registry.get_tool("sync_tasks")
         result = sync()
@@ -88,7 +88,7 @@ class TestGetSyncStatus:
             "last_export": "2026-01-01T00:00:00Z",
             "pending_changes": 0,
         }
-        registry = create_sync_registry(sync_manager=sync_manager)
+        registry = create_sync_registry(task_manager=MagicMock(), sync_manager=sync_manager)
 
         get_status = registry.get_tool("get_sync_status")
         result = get_status()

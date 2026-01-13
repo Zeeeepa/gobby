@@ -197,7 +197,7 @@ class DaemonConfig(BaseModel):
     # Local storage
     database_path: str = Field(
         default="~/.gobby/gobby-hub.db",
-        description="Path to hub database for cross-project queries. Project-local databases are always at .gobby/gobby.db",
+        description="Path to hub database for cross-project queries.",
     )
 
     # Sub-configs
@@ -479,6 +479,24 @@ def load_config(
 
     # Apply CLI argument overrides
     config_dict = apply_cli_overrides(config_dict, cli_overrides)
+
+    # SAFETY SWITCH: Protect production resources during tests
+    # If GOBBY_TEST_PROTECT is set, force safe paths from environment
+    if os.environ.get("GOBBY_TEST_PROTECT") == "1":
+        # Override database path
+        if safe_db := os.environ.get("GOBBY_DATABASE_PATH"):
+            config_dict["database_path"] = safe_db
+
+        # Override logging paths
+        logging_config = config_dict.setdefault("logging", {})
+        if safe_client := os.environ.get("GOBBY_LOGGING_CLIENT"):
+            logging_config["client"] = safe_client
+        if safe_error := os.environ.get("GOBBY_LOGGING_CLIENT_ERROR"):
+            logging_config["client_error"] = safe_error
+        if safe_mcp_server := os.environ.get("GOBBY_LOGGING_MCP_SERVER"):
+            logging_config["mcp_server"] = safe_mcp_server
+        if safe_mcp_client := os.environ.get("GOBBY_LOGGING_MCP_CLIENT"):
+            logging_config["mcp_client"] = safe_mcp_client
 
     # Validate and create config object
     try:

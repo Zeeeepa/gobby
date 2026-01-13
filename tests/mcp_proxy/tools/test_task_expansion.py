@@ -256,8 +256,9 @@ class TestExpandTaskTool:
         """Test expand_task with non-existent task."""
         mock_task_manager.get_task.return_value = None
 
-        with pytest.raises(ValueError, match="not found"):
-            await expansion_registry.call("expand_task", {"task_id": "nonexistent"})
+        result = await expansion_registry.call("expand_task", {"task_id": "nonexistent"})
+        assert "error" in result
+        assert "invalid" in result["error"].lower()
 
     @pytest.mark.asyncio
     async def test_expand_task_creates_dependencies(
@@ -1427,9 +1428,9 @@ class TestExpandAllTool:
 
         # Verify list_tasks was called with task_type filter in at least one call
         call_args_list = mock_task_manager.list_tasks.call_args_list
-        assert any(
-            call.kwargs.get("task_type") == "feature" for call in call_args_list
-        ), f"Expected task_type='feature' in one of the calls: {call_args_list}"
+        assert any(call.kwargs.get("task_type") == "feature" for call in call_args_list), (
+            f"Expected task_type='feature' in one of the calls: {call_args_list}"
+        )
 
     @pytest.mark.asyncio
     async def test_expand_all_filters_by_min_complexity(
@@ -1515,8 +1516,9 @@ class TestAnalyzeComplexityTool:
         """Test analyze_complexity with non-existent task."""
         mock_task_manager.get_task.return_value = None
 
-        with pytest.raises(ValueError, match="not found"):
-            await expansion_registry.call("analyze_complexity", {"task_id": "nonexistent"})
+        result = await expansion_registry.call("analyze_complexity", {"task_id": "nonexistent"})
+        assert "error" in result
+        assert "invalid" in result["error"].lower()
 
     @pytest.mark.asyncio
     async def test_analyze_complexity_with_existing_subtasks(

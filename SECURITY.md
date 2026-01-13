@@ -26,7 +26,7 @@ We will acknowledge receipt within 48 hours and aim to provide a fix within 7 da
 
 Gobby is designed as a local-first daemon:
 
-- All data is stored locally in SQLite (`~/.gobby/gobby.db`)
+- All data is stored locally in SQLite (`~/.gobby/gobby-hub.db`)
 - No data is sent to external servers unless explicitly configured
 - MCP proxy connections are user-configured
 

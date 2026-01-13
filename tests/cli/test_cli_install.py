@@ -263,7 +263,7 @@ class TestInstallCommand:
         assert "Gemini CLI" in result.output
         assert "Installed 1 hooks" in result.output
         assert "Installed 1 workflows" in result.output
-        assert "Installed 1 commands" in result.output
+        assert "Installed 1 skills/commands" in result.output
         assert "Installed 1 plugins" in result.output
         assert "MCP server already configured" in result.output
         mock_install_gemini.assert_called_once()
