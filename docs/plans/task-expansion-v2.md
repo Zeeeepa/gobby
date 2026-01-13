@@ -1050,6 +1050,7 @@ B  `- [ ] Implement enrichment` (too vague)
 1. Review the spec for completeness
 2. Run `gobby tasks parse-spec docs/plans/{feature}.md` to create tasks
 3. Verify task structure with `gobby tasks list --tree`
+
 ```python
 
 #### 9c. Spec Writing Guide
@@ -1276,6 +1277,7 @@ async def test_full_spec_to_tdd_workflow():
 ```
 
 **Expected outputs from memory-v3.md:**
+
 - 1 epic task with `reference_doc="docs/plans/memory-v3.md"`
 - 4-6 phase tasks (Phase 1: Foundation, Phase 2: Enhanced Search, etc.)
 - 15-25 leaf tasks with smart descriptions containing "Part of: ``<phase name>``"
@@ -1284,6 +1286,7 @@ async def test_full_spec_to_tdd_workflow():
 - Each code task transformed into 3 TDD subtasks with blocking dependencies
 
 **CLI verification:**
+
 ```bash
 # Parse spec
 gobby tasks parse-spec docs/plans/memory-v3.md -v
@@ -1411,8 +1414,8 @@ rg "\.test_strategy" --type py
 ```
 
 **Files to check manually:**
-- `CLAUDE.md` - Update task workflow documentation
 
+- `CLAUDE.md` - Update task workflow documentation
 - `GEMINI.md` - Update task expansion references (if exists)
 - `AGENTS.md` - Update task expansion references (if exists)
 - `docs/guides/tasks.md` - Remove auto_decompose mentions, document new workflow
