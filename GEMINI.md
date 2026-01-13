@@ -74,7 +74,7 @@ You are operating within a Gobby-enabled environment. You **must** use the `gobb
 **Required Sequence (Progressive Disclosure):**
 1. **List Tools:** `mcp_list_tools(server_name="gobby-tasks")` (Metadata only, finding tools)
 2. **Get Schema:** `mcp_get_tool_schema(server="gobby-tasks", tool="create_task")`
-    *   *Constraint:* You MUST fetch the schema for a specific tool **at least once** in the current session before calling it.
+    * *Constraint:* You MUST fetch the schema for a specific tool **at least once** in the current session before calling it.
 3. **Create Task:** `mcp_call_tool(server="gobby-tasks", tool="create_task", ...)`
 4. **Link Session:** `mcp_call_tool(server="gobby-tasks", tool="link_task_to_session", ...)`
 
@@ -85,16 +85,16 @@ You are operating within a Gobby-enabled environment. You **must** use the `gobb
 ### 1. Start of Session
 
 1. **Check Context:**
-    *   `mcp_call_tool("gobby-tasks", "list_ready_tasks", {})`
-    *   `mcp_call_tool("gobby-tasks", "get_task", {"task_id": "..."})` (if ID is known)
+    * `mcp_call_tool("gobby-tasks", "list_ready_tasks", {})`
+    * `mcp_call_tool("gobby-tasks", "get_task", {"task_id": "..."})` (if ID is known)
 
 2. **Define Work:**
-    *   **Get Schema:** `mcp_get_tool_schema(server="gobby-tasks", tool="create_task")`
-        *   *Constraint:* You MUST fetch the schema for a specific tool **at least once** in the current session before calling it.
-    *   **Create Task:** `mcp_call_tool(server="gobby-tasks", tool="create_task", arguments={"title": "..."})`
+    * **Get Schema:** `mcp_get_tool_schema(server="gobby-tasks", tool="create_task")`
+        * *Constraint:* You MUST fetch the schema for a specific tool **at least once** in the current session before calling it.
+    * **Create Task:** `mcp_call_tool(server="gobby-tasks", tool="create_task", arguments={"title": "..."})`
 
 3. **Link Session:**
-    *   `mcp_call_tool(server="gobby-tasks", tool="link_task_to_session", {})`
+    * `mcp_call_tool(server="gobby-tasks", tool="link_task_to_session", {})`
 
 ### 2. Execution Loop
 
@@ -105,8 +105,8 @@ You are operating within a Gobby-enabled environment. You **must** use the `gobb
 ### Task Workflow (Mandatory)
 
 1. **Start Task**:
-    * **Get Schema:** `mcp_get_tool_schema(..., tool="update_task")` (If not yet fetched this session)
-    * **Update Status:** `mcp_call_tool(..., tool="update_task", arguments={..., "status": "in_progress"})`
+   * **Get Schema:** `mcp_get_tool_schema(..., tool="update_task")` (If not yet fetched this session)
+   * **Update Status:** `mcp_call_tool(..., tool="update_task", arguments={..., "status": "in_progress"})`
 2. **Understand**: Read the task details and linked issues.
 3. **Work**: Implement the changes.
 4. **Confirm**: `gobby-tasks.list_tasks(status="in_progress")` to verify tracking.
@@ -135,4 +135,4 @@ Gobby uses a proxy pattern for tools.
 
 ## Task Validation Overrides
 
-*   **Task #2124 (Workflow Cache Reload):** Validation criteria demanded comprehensive automatic cache invalidation (watchdog/mtime), but implementation followed the simpler manual reload approach specified in the task description. User authorized override on 2026-01-12.
+* **Task #2124 (Workflow Cache Reload):** Validation criteria demanded comprehensive automatic cache invalidation (watchdog/mtime), but implementation followed the simpler manual reload approach specified in the task description. User authorized override on 2026-01-12.

@@ -79,6 +79,7 @@ Legend:
 ---
 
 ## Next (make it undeniable)
+
 Goal: a developer installs Gobby and immediately understands the value in minutes.
 
 ### 1) Security posture for tool access (must-have for “1000 MCP servers”)
@@ -103,6 +104,7 @@ Goal: a developer installs Gobby and immediately understands the value in minute
 ---
 
 ## Near term (make it visible: UI + autonomy foundations)
+
 Goal: reduce cognitive load; make the daemon’s behavior legible.
 
 ### 1) Minimal Web UI (read-only first)
@@ -127,6 +129,7 @@ Goal: reduce cognitive load; make the daemon’s behavior legible.
 ---
 
 ## Longer term (ecosystem + enterprise hardening)
+
 Goal: make Gobby the obvious substrate for serious local agentic coding.
 
 ### 1) Memory adapters + open Memory API
@@ -156,3 +159,4 @@ Goal: make Gobby the obvious substrate for serious local agentic coding.
 - Hiding behavior behind “magic prompts”
 
 Gobby wins by being the **boring, reliable system layer** under your AI tools.
+

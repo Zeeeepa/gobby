@@ -110,6 +110,7 @@ Internal prompts used by gobby's Python code. Agents don't interact with these d
 | `validate-criteria.md` | Validation criteria generation | `enrich_task` tool |
 
 **Loading pattern:**
+
 ```python
 def load_prompt(name: str) -> str:
     """Load prompt from ~/.gobby/prompts/{name}.md"""
@@ -149,6 +150,7 @@ Check input size **before processing**. If too large, return immediately with CL
 | Combined input to LLM | 100,000 chars | Prevent context overflow |
 
 **Enforcement in MCP tools:**
+
 ```python
 async def enrich_task(task_id: str, ...):
     task = get_task(task_id)
@@ -273,12 +275,17 @@ def _build_smart_description(
 1. Rename column `test_strategy` -> `category`
 2. Add new column `agent_name` (TEXT, nullable)
 3. Update existing data: map old test_strategy values to categories
-   - `"manual"` -> `"manual"`
-   - `"automated"` -> `"code"`
-   - `NULL` -> remains `NULL`
+  - `"manual"` -> `"manual"`
+  - `"automated"` -> `"code"`
+1. Rename column `test_strategy` -> `category`
+2. Add new column `agent_name` (TEXT, nullable)
+3. Update existing data: map old test_strategy values to categories
+   -   `"manual"` -> `"manual"`
+   -   `"automated"` -> `"code"`
+   -   `NULL` -> remains `NULL`
 
-4. Add new column `reference_doc` (TEXT, nullable) - path to source spec
-5. Add new columns `is_enriched`, `is_expanded` (BOOLEAN, default FALSE)
+4.  Add new column `reference_doc` (TEXT, nullable) - path to source spec
+5.  Add new columns `is_enriched`, `is_expanded` (BOOLEAN, default FALSE)
 
 ```sql
 -- Rename test_strategy to category
@@ -390,11 +397,11 @@ Errors:
 **File:** `src/gobby/mcp_proxy/tools/task_expansion.py`
 
 1. Simplify to single-level expansion only
-2. Use stored `expansion_context` if available
-3. If no context, optionally call `enrich_task` first
-4. Support batch parallel: `expand_task(task_ids=["#1", "#2", "#3"])`
-5. Sets `is_expanded=True` on successful completion
-6. Parent's `validation_criteria` updated to "All child tasks completed" (parent becomes container)
+2.  Use stored `expansion_context` if available
+3.  If no context, optionally call `enrich_task` first
+4.  Support batch parallel: `expand_task(task_ids=["#1", "#2", "#3"])`
+5.  Sets `is_expanded=True` on successful completion
+6.  Parent's `validation_criteria` updated to "All child tasks completed" (parent becomes container)
 
 **MCP Tool: `expand_task`**
 
@@ -468,11 +475,13 @@ Errors:
     - "Response too large" - Suggests CLI command with timeout
 ```
 
+
 ### Phase 6: Add apply_tdd Tool
 
 **New file:** `src/gobby/tasks/tdd_transform.py`
 
 Deterministic transformation (no LLM):
+
 ```python
 # Templated validation criteria for TDD phases
 TDD_CRITERIA_RED = """## Deliverable
@@ -639,9 +648,9 @@ Errors:
 Rename current `expand_from_spec` to `parse_spec` with simplified behavior:
 
 - Parse markdown structure
-- Create epic + phases + tasks with smart descriptions
-- NO research, NO subtask generation, NO TDD transformation
-- Fast and deterministic
+-   Create epic + phases + tasks with smart descriptions
+-   NO research, NO subtask generation, NO TDD transformation
+-   Fast and deterministic
 
 ```python
 @registry.tool(name="parse_spec")
@@ -654,12 +663,14 @@ async def parse_spec(
     Parse a specification file and create tasks from its structure.
 
     Creates tasks from headings and checkboxes with smart context extraction.
+
     Does NOT research or generate subtasks - use enrich_task and expand_task
     for that.
     """
 ```
 
 Keep `expand_from_spec` as an alias that calls the full workflow:
+
 ```python
 @registry.tool(name="expand_from_spec")  # Backwards compat
 async def expand_from_spec(...):
@@ -676,12 +687,13 @@ async def expand_from_spec(...):
 
 All CLI commands accepting task refs should support:
 
-- `42` - plain number
-- `#42` - hash prefix
-- `#42,#43,#44` - comma-separated list
-- `42 43 44` - space-separated (shell args)
+-   `42` - plain number
+-   `#42` - hash prefix
+-   `#42,#43,#44` - comma-separated list
+-   `42 43 44` - space-separated (shell args)
 
 Add helper function in `src/gobby/cli/tasks/utils.py`:
+
 ```python
 def parse_task_refs(refs: tuple[str, ...]) -> list[str]:
     """Parse flexible task reference formats into normalized list."""
@@ -811,6 +823,7 @@ Options:
   --help                  Show this message and exit.
 
 Examples:
+
   gobby tasks parse-spec docs/plans/memory-v3.md
   gobby tasks parse-spec spec.md --parent #42
   gobby tasks parse-spec spec.md -p my-project -v
@@ -819,19 +832,22 @@ Examples:
 #### 8f. Add `--project/-p` flag to existing commands
 
 Update `gobby tasks create`, `gobby tasks list`, etc. with:
+
 ```python
 @click.option("-p", "--project", help="Project name or ID (auto-detects from cwd)")
 ```
 
+
 Auto-detection logic:
 
-1. If `--project` provided: look up by name or ID
-2. Else check if cwd is under a project path in `projects` table
-3. Else create task with `project_id=NULL` (personal task)
+1.  If `--project` provided: look up by name or ID
+2.  Else check if cwd is under a project path in `projects` table
+3.  Else create task with `project_id=NULL` (personal task)
 
 #### 8g. Progress bar implementation
 
 For `--cascade` operations:
+
 ```python
 def run_cascade_operation(task_refs, operation_fn, label):
     """Run operation on task tree with progress bar."""
@@ -1026,9 +1042,10 @@ Never close a task without committing first unless it's a non-code task.
 ## Task Granularity Guidelines
 
 Each checkbox should be:
-- **Atomic**: Completable in one session (< 2 hours)
-- **Testable**: Has clear pass/fail criteria
-- **Verb-led**: Starts with action verb (Add, Create, Implement, Update, Remove)
+-   **Atomic**: Completable in one session (< 2 hours)
+-   **Testable**: Has clear pass/fail criteria
+-   **Verb-led**: Starts with action verb (Add, Create, Implement, Update, Remove)
+
 - **Scoped**: References specific files/functions when possible
 
 Good: `- [ ] Add TaskEnricher class to src/gobby/tasks/enrich.py`
@@ -1036,9 +1053,9 @@ Bad: `- [ ] Implement enrichment` (too vague)
 
 ## After Writing Your Spec
 
-1. Review the spec for completeness
-2. Run `gobby tasks parse-spec docs/plans/{feature}.md` to create tasks
-3. Verify task structure with `gobby tasks list --tree`
+1.  Review the spec for completeness
+2.  Run `gobby tasks parse-spec docs/plans/{feature}.md` to create tasks
+3.  Verify task structure with `gobby tasks list --tree`
 ```python
 
 #### 9c. Spec Writing Guide
@@ -1046,13 +1063,13 @@ Bad: `- [ ] Implement enrichment` (too vague)
 **New file:** `docs/guides/spec-writing.md`
 
 Documentation explaining:
-- Heading levels and their meaning
-- Checkbox format best practices
-- How context flows into task descriptions
-- Dependency notation syntax
-- Parallel work track conventions
-- Task mapping maintenance
-- Example specs
+-   Heading levels and their meaning
+-   Checkbox format best practices
+-   How context flows into task descriptions
+-   Dependency notation syntax
+-   Parallel work track conventions
+-   Task mapping maintenance
+-   Example specs
 
 ### Phase 10: Cleanup (Final)
 
@@ -1060,75 +1077,75 @@ Documentation explaining:
 
 **Auto-decomposition cleanup:**
 
-1. `.gobby/workflows/lifecycle/session-lifecycle.yaml`
-   - Remove `auto_decompose: false` variable (no longer used)
-   - Keep `tdd_mode: true` OR remove if apply_tdd is explicit-only
+1.  `.gobby/workflows/lifecycle/session-lifecycle.yaml`
+    -   Remove `auto_decompose: false` variable (no longer used)
+    -   Keep `tdd_mode: true` OR remove if apply_tdd is explicit-only
 
-2. `src/gobby/config/tasks.py`
-   - Remove `auto_decompose` from `WorkflowVariablesConfig`
-   - Decide on `tdd_mode` retention
+2.  `src/gobby/config/tasks.py`
+    -   Remove `auto_decompose` from `WorkflowVariablesConfig`
+    -   Decide on `tdd_mode` retention
 
-3. `src/gobby/tasks/auto_decompose.py`
-   - Delete file entirely (no longer used)
+3.  `src/gobby/tasks/auto_decompose.py`
+    -   Delete file entirely (no longer used)
 
-4. `src/gobby/mcp_proxy/tools/tasks.py`
-   - Remove any remaining imports/references to auto_decompose
+4.  `src/gobby/mcp_proxy/tools/tasks.py`
+    -   Remove any remaining imports/references to auto_decompose
 
-5. Clean up any `auto*.yaml` workflow files if they exist
+5.  Clean up any `auto*.yaml` workflow files if they exist
 
 **Stealth mode removal:**
 
-6. `src/gobby/cli/tasks/main.py`
-   - Remove `stealth_cmd` command (lines 216-274)
+6.  `src/gobby/cli/tasks/main.py`
+    -   Remove `stealth_cmd` command (lines 216-274)
 
-7. `src/gobby/cli/tasks/_utils.py`
-   - Remove stealth mode check in `get_sync_manager()` (lines 53-64)
+7.  `src/gobby/cli/tasks/_utils.py`
+    -   Remove stealth mode check in `get_sync_manager()` (lines 53-64)
 
-8. `src/gobby/sync/tasks.py`
-   - Remove stealth mode comment (line 73)
+8.  `src/gobby/sync/tasks.py`
+    -   Remove stealth mode comment (line 73)
 
-9. `src/gobby/config/persistence.py`
-   - Remove stealth references from `MemorySyncConfig`
+9.  `src/gobby/config/persistence.py`
+    -   Remove stealth references from `MemorySyncConfig`
 
 10. `tests/cli/test_stealth.py`
-    - Delete entire test file
+    -   Delete entire test file
 
 11. `src/gobby/cli/tasks/__init__.py`
-    - Remove stealth mention from docstring
+    -   Remove stealth mention from docstring
 
 **Deprecated gt- format removal:**
 
 12. `src/gobby/storage/tasks.py`
-    - Remove gt- deprecation error (lines 693-697)
+    -   Remove gt- deprecation error (lines 693-697)
 
 13. `src/gobby/mcp_proxy/tools/tasks.py`
-    - Remove gt- deprecation check (lines 161-165)
+    -   Remove gt- deprecation check (lines 161-165)
 
 **Documentation updates:**
 
 14. `docs/guides/tasks.md`
-    - Update expansion workflow documentation
-    - Document new tools: `parse_spec`, `enrich_task`, `expand_task`, `apply_tdd`
-    - Remove auto-decomposition references
+    -   Update expansion workflow documentation
+    -   Document new tools: `parse_spec`, `enrich_task`, `expand_task`, `apply_tdd`
+    -   Remove auto-decomposition references
 
 15. `CLAUDE.md`
-    - Update task workflow section
-    - Document new phased approach
+    -   Update task workflow section
+    -   Document new phased approach
 
 16. `GEMINI.md` (if exists)
-    - Update task expansion references
+    -   Update task expansion references
 
 17. `AGENTS.md` (if exists)
-    - Update task expansion references
+    -   Update task expansion references
 
 18. `skills/*.toml` and `SKILL.md` files
-    - Search: `rg -l "expand.*task|task.*expan" skills/ docs/skills/`
-    - Update any task expansion references
+    -   Search: `rg -l "expand.*task|task.*expan" skills/ docs/skills/`
+    -   Update any task expansion references
 
 **Verification before cleanup:**
-- All tests pass with new workflow
-- Integration test with memory-v3.md succeeds
-- No references to deprecated functions in code/docs
+-   All tests pass with new workflow
+-   Integration test with memory-v3.md succeeds
+-   No references to deprecated functions in code/docs
 
 ---
 
@@ -1264,6 +1281,7 @@ async def test_full_spec_to_tdd_workflow():
         assert refactor_task.depends_on == [impl_task.id]
 ```
 
+
 **Expected outputs from memory-v3.md:**
 - 1 epic task with `reference_doc="docs/plans/memory-v3.md"`
 - 4-6 phase tasks (Phase 1: Foundation, Phase 2: Enhanced Search, etc.)
@@ -1314,6 +1332,7 @@ gobby tasks apply-tdd #105,#106,#107
 
 # Expected output:
 # Applying TDD to #105: Create Memory dataclass
+
 #   Created: #108 Write tests for: Create Memory dataclass
 #   Created: #109 Implement: Create Memory dataclass
 #   Created: #110 Refactor: Create Memory dataclass
@@ -1399,6 +1418,7 @@ rg "\.test_strategy" --type py
 
 **Files to check manually:**
 - `CLAUDE.md` - Update task workflow documentation
+
 - `GEMINI.md` - Update task expansion references (if exists)
 - `AGENTS.md` - Update task expansion references (if exists)
 - `docs/guides/tasks.md` - Remove auto_decompose mentions, document new workflow
