@@ -234,3 +234,5 @@ bmad-custom-src/
 reports/
 bandit_report.json
 /*.txt
+_bmad/
+test-projects/
