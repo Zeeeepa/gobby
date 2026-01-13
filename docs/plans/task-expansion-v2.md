@@ -167,6 +167,7 @@ async def enrich_task(task_id: str, ...):
 ```
 
 ### Timeouts
+
 - **MCP tools**: 2 minute default (matches Claude Code Bash default)
 - **CLI commands**: 10 minute default, `--timeout` flag for override
 - **Subagent delegation**: 30 minute timeout for complex expansions
@@ -202,6 +203,7 @@ async def enrich_task(task_id: str, ...):
 7. Update docstring to clarify create_task only creates ONE task, fast
 
 **Before:**
+
 ```python
 is_multi_step = detect_multi_step(description)
 tdd_enabled = resolve_tdd_mode(session_id)
@@ -216,6 +218,7 @@ if should_generate and task_validator:
 ```
 
 **After:**
+
 ```python
 # create_task just creates one task, no auto-expansion, no validation gen
 task = task_manager.create_task(...)
@@ -232,6 +235,7 @@ task = task_manager.create_task(...)
    - Format as focused context for this task
 
 **New method:**
+
 ```python
 def _build_smart_description(
     self,
