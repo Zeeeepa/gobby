@@ -1,220 +1,158 @@
-# Gobby Implementation Roadmap
+# Gobby Roadmap
 
-## Overview
+Gobby is a **local-first control plane for AI coding tools**: sessions + hooks + tasks + workflows + MCP at scale.
 
-This document defines the implementation order across all Gobby planning documents. Each phase is designed to deliver standalone value while building toward the complete vision: transforming Gobby from a session tracker into a full **agent orchestration platform**.
+This roadmap is organized by outcomes (what developers feel), not internal modules.
 
-## Document References
+Legend:
 
-### Completed Plans
-
-| Document               | Location                                           | Focus                                                      |
-| ---------------------- | -------------------------------------------------- | ---------------------------------------------------------- |
-| WORKFLOWS              | `docs/plans/completed/WORKFLOWS.md`                | Step-based workflow enforcement                            |
-| TASKS                  | `docs/plans/completed/TASKS.md`                    | Persistent task tracking system (includes V2 enhancements) |
-| SESSION_TRACKING       | `docs/plans/completed/SESSION_TRACKING.md`         | Async JSONL processing, multi-CLI message storage          |
-| SESSION_MANAGEMENT     | `docs/plans/completed/SESSION_MANAGEMENT.md`       | Session CRUD tools, handoff MCP tools                      |
-| HOOK_EXTENSIONS        | `docs/plans/completed/HOOK_EXTENSIONS.md`          | WebSocket events, webhooks, plugins                        |
-| MCP_PROXY_IMPROVEMENTS | `docs/plans/completed/MCP_PROXY_IMPROVEMENTS.md`   | Tool metrics, semantic search, self-healing                |
-| MEMORY                 | `docs/plans/completed/MEMORY.md`                   | Persistent memory system                                   |
-| AUTONOMOUS_HANDOFF     | `docs/plans/completed/AUTONOMOUS_HANDOFF.md`       | Pre-compact context extraction, session chaining           |
-| SUBAGENTS              | `docs/plans/completed/SUBAGENTS.md`                | Multi-provider agent spawning system                       |
-
-### Post-MVP Plans
-
-| Document     | Location                     | Focus                                                                          | Status  |
-| ------------ | ---------------------------- | ------------------------------------------------------------------------------ | ------- |
-| ENHANCEMENTS | `docs/plans/enhancements.md` | 10 major phases: worktrees, merge resolution, GitHub/Linear, autonomous loops  | Partial |
-| UI           | `docs/plans/UI.md`           | Web dashboard, real-time visualization                                         | Pending |
-
-## Sprint Summary Table
-
-### Completed Sprints
-
-| Focus                        | Plan Reference                             |
-| ---------------------------- | ------------------------------------------ |
-| WebSocket Broadcasting       | HOOK_EXTENSIONS Phase 1                    |
-| Core Task System             | TASKS Phases 1-6                           |
-| Task MCP/CLI                 | TASKS Phases 7-10                          |
-| Task Extensions              | TASKS Phases 9.5-9.9                       |
-| Workflow Foundation          | WORKFLOWS Phases 0-2                       |
-| Workflow Hooks               | WORKFLOWS Phase 3                          |
-| Workflow Actions             | WORKFLOWS Phase 4                          |
-| Context & Templates          | WORKFLOWS Phases 5-6                       |
-| Session Message Foundation   | SESSION_TRACKING Phase 1                   |
-| Async Message Processor      | SESSION_TRACKING Phase 2                   |
-| Session Tracking Integration | SESSION_TRACKING Phases 3-4                |
-| Multi-CLI Parsers & API      | SESSION_TRACKING Phases 5-6                |
-| Memory Storage & Operations  | MEMORY Phases 1-2                          |
-| Memory MCP/CLI               | MEMORY Phases 5-6                          |
-| Memory Sync & Enhancements   | MEMORY Phases 7-10                         |
-| Webhooks                     | HOOK_EXTENSIONS Phase 2                    |
-| Python Plugins               | HOOK_EXTENSIONS Phase 3                    |
-| Workflow CLI/MCP             | WORKFLOWS Phases 7-8                       |
-| Workflow-Task Integration    | TASKS Phases 11-13                         |
-| Tool Metrics                 | MCP_PROXY Phase 1                          |
-| Lazy Init                    | MCP_PROXY Phase 2                          |
-| Semantic Tool Search         | MCP_PROXY Phase 3                          |
-| Self-Healing MCP             | MCP_PROXY Phases 4-5                       |
-| Hook Workflow Integration    | HOOK_EXTENSIONS Phases 4-5                 |
-| Feature Gap Coverage         | MCP_PROXY, HOOK_EXT, MEMORY, HANDOFF gaps  |
-| Session Management Tools     | SESSION_MANAGEMENT                         |
-| Subagent System              | SUBAGENTS Phases 1-4                       |
-
-### Remaining Sprints
-
-| Focus                        | Plan Reference             | Notes                                                       |
-| ---------------------------- | -------------------------- | ----------------------------------------------------------- |
-| Task V2: Enhanced Validation | TASKS Phases 12.6-12.13    | 🔶 Remaining: external validator agent spawning             |
-| Worktree Coordination        | ENHANCEMENTS Phase 1       | 🔶 Remaining: tiered merge conflict resolution              |
-| Merge Resolution             | ENHANCEMENTS Phase 2       |                                                             |
-| GitHub Integration           | ENHANCEMENTS Phase 4       |                                                             |
-| Linear Integration           | ENHANCEMENTS Phase 5       |                                                             |
-| Artifact Index               | ENHANCEMENTS Phase 6       |                                                             |
-| Semantic Memory Search       | ENHANCEMENTS Phase 8       |                                                             |
-| Web Dashboard                | UI Phases 1-7              |                                                             |
-| End-to-End Testing           | WORKFLOWS Phases 9-11      |                                                             |
-| Documentation                | All Plans, User Guides     |                                                             |
+- ✅ Shipped
+- 🧪 Beta / needs hardening
+- 🚧 In progress
+- 🗺️ Planned
 
 ---
 
-## Parallel Tracks
+## Guiding principles
 
-Remaining work can run in parallel if multiple contributors are available:
-
-### Track A: Intelligence
-
-Artifact Index → Semantic Memory Search
-
-### Track B: Integrations
-
-Worktree Coordination → Merge Resolution → GitHub Integration → Linear Integration
-
-### Track C: Visualization
-
-Web Dashboard (can start independently)
-
-### Track D: Final Polish
-
-End-to-End Testing → Documentation (should be last)
+- **Local-first by default** (your code/data stays on your machine)
+- **Determinism beats vibes** (hooks + workflows + guardrails)
+- **Progressive disclosure everywhere** (tools, schemas, context)
+- **Interoperability > lock-in** (plugins + adapters + open interfaces)
 
 ---
 
-## Completed Milestones
+## Current (shipped + in progress)
 
-### "Monitoring" ✅
+### MCP hub + progressive tool discovery
 
-- WebSocket event streaming
-- Full task system with CLI
-- **Value**: External tools can monitor sessions, agents can track work
+- ✅ Persistent daemon MCP server
+- ✅ Downstream MCP proxy with progressive discovery (metadata → schema → call)
+- ✅ Tool browsing/search utilities
+- ✅ Dynamic MCP server management (add/remove/import)
+- 🧪 Harden: timeouts, retries, partial failures, metrics
 
-### "Workflow Engine" ✅
+> Rationale: large MCP toolsets can blow up token usage; progressive discovery / dynamic toolsets is the direction the ecosystem is moving.  [oai_citation:0‡Anthropic](https://www.anthropic.com/engineering/code-execution-with-mcp?utm_source=chatgpt.com)
 
-- Workflow foundation (loader, state manager, engine)
-- Session lifecycle hooks (session_start, session_end)
-- Handoff actions (find_parent, restore_context, generate_handoff)
-- LLM-powered session summaries with context handoff
-- Context sources (previous_session_summary, handoff, artifacts, observations, workflow_state)
-- Jinja2 templating for context injection
-- All 7 built-in templates (session-handoff, plan-execute, react, plan-act-reflect, plan-to-tasks, architect, test-driven)
-- **Value**: Complete workflow templating system ready for step-based enforcement
+### Sessions + handoffs
 
-### "Session Recording" ✅
+- ✅ Session tracking + local persistence
+- ✅ `/clear`, `/compact`, auto-compact: enhanced handoff context + injection
+- ✅ Summaries/artifacts persisted locally
 
-- Async JSONL message processing for all CLIs
-- Multi-CLI parsers (Claude, Gemini, Codex, Antigravity)
-- Real-time WebSocket message streaming
-- Message search and query API
-- **Value**: Full conversation history for memory, analytics, and debugging
+### Hooks (determinism layer)
 
-### "Memory-First Agents" ✅
+- ✅ Claude Code hook integration
+- ✅ Gemini CLI integration ready on your side
+- 🚧 Gemini CLI: enable on day-1 when upstream hooks v1 is fully landed and stable (tracked upstream)  [oai_citation:1‡GitHub](https://github.com/google-gemini/gemini-cli/issues/9070?utm_source=chatgpt.com)
+- ⚠️ Codex CLI: partial (basic notify/handoff); expand once the right extension points are stable
 
-- Persistent memory across sessions (remember/recall/forget operations)
-- MCP tools for memory management (`gobby-memory`)
-- CLI commands for memory operations
-- JSONL sync for memories (`.gobby/memories.jsonl`)
-- Cross-CLI memory sharing via unified storage
-- **Value**: Agents that remember like coworkers, not contractors
+### Tasks + TDD expansion (red/green/blue)
 
-### "Extensible" 🔶
+- ✅ `gobby-tasks` MCP: tasks, labels, dependencies, sync (`.gobby/tasks.jsonl`)
+- 🚧 Refactor TDD expansion engine for repeatability + better coverage
+- 🧪 Publish comparisons + guidance: “Gobby tasks vs Beads vs Task Master”
+  - Beads is dependency-graph-first for agent planning/memory  [oai_citation:2‡GitHub](https://github.com/steveyegge/beads?utm_source=chatgpt.com)
 
-- [x] Webhook integrations (WebhookDispatcher with retry, blocking/non-blocking)
-- [x] Python plugin system (PluginLoader, HookPlugin, @hook_handler decorator)
-- [x] Plugin-defined workflow actions and conditions
-- [ ] Webhook as workflow condition (conditional branching based on response) → gt-bbe107
-- **Value**: Infinite customization without forking
+### Workflows
 
-### "Smart MCP Proxy" ✅
+- 🚧 Workflow engine (phases, tool restrictions, exit conditions)
+- 🚧 Autonomous runner over a dependency graph (task list execution with guardrails)
 
-- Tool metrics and recommendations
-- Lazy server initialization
-- Semantic search with OpenAI embeddings
-- Self-healing fallbacks
-- **Value**: Intelligent tool orchestration across MCP servers
+### Worktrees
 
-### "Multi-Agent Orchestration" ✅
+- ✅ Worktree creation + agent spawning primitives
+- 🧪 Production hardening + test matrix
+- 🗺️ UI integration for worktree lifecycle + agent terminals/PTY
 
-- `AgentExecutor` interface with multi-provider support
-- Claude, Gemini, Codex executors
-- MCP tools: `start_agent`, `stop_agent`, `list_agents`, `get_agent_status`
-- Context injection with `session_context` parameter
-- Agent depth tracking and safety limits
-- Terminal and headless spawn modes
-- **Value**: Orchestrate specialized agents with different models
+### Memory
+
+- 🚧 `gobby-memory` MCP: lightweight, local, user-initiated memory (fast retrieval, no embeddings required)
+- 🗺️ Pluggable Memory API + adapters for popular memory backends (embeddings/vector DBs/graphs/etc.)
+
+### Integrations + extensibility
+
+- ✅ GitHub integration
+- ✅ Linear integration
+- ✅ Plugin architecture (extensible domains/tools)
 
 ---
 
-## Remaining Milestones
+## Next (make it undeniable)
+Goal: a developer installs Gobby and immediately understands the value in minutes.
 
-### "Task System V2" 🔶
+### 1) Security posture for tool access (must-have for “1000 MCP servers”)
 
-- [x] Commit linking infrastructure
-- [x] MCP tools: `link_commit`, `auto_link_commits`, `get_task_diff`
-- [x] CLI commands: `gobby tasks commit link/unlink/auto/list`
-- [x] Validation history tracking, structured issues, escalation workflow
-- [ ] External validator agent (spawn separate agent, not just different LLM)
-- **Value**: Production-grade QA loops with traceability
+- 🗺️ MCP server allow/deny lists
+- 🗺️ Quarantine unknown servers until approved
+- 🗺️ Per-tool risk levels + confirmation gates (filesystem write, shell, network, etc.)
+- 🗺️ Audit log for tool calls (who/what/when/args summary)
 
-### "Worktree Orchestration" 🔶
+### 2) Observability (debugging + trust)
 
-- [x] Daemon-managed worktree registry
-- [x] Agent spawning in worktrees (`spawn_agent_in_worktree`)
-- [x] Stale worktree detection and cleanup
-- [ ] Tiered merge conflict resolution (Auto-Claude inspired)
-- **Value**: True parallel development with multiple agents
+- 🗺️ Tool call tracing (latency, success/error, payload size)
+- 🗺️ Session timeline view (hooks fired, tools invoked, compactions, files changed)
+- 🗺️ Exportable run reports (for PR descriptions / team sharing)
 
-### "External Integrations"
+### 3) Flagship demos (distribution)
 
-- [ ] GitHub Issues ↔ gobby-tasks sync
-- [ ] PR creation from completed tasks
-- [ ] Linear Issues ↔ gobby-tasks sync - deferred to Post MVP
-- **Value**: Bridge between local AI development and team workflows
+- 🗺️ “MCP at scale without token tax” demo (progressive discovery)
+- 🗺️ “Spec → tasks → TDD red/green/blue → validated PR” demo
+- 🗺️ “Hooks enforce discipline” demo pack (format/lint/test gates)
 
-### "Intelligence Layer"
+---
 
-- [ ] Artifact Index with FTS5
-- [ ] Semantic memory search with sqlite-vec
-- **Value**: Agents that get smarter over time
+## Near term (make it visible: UI + autonomy foundations)
+Goal: reduce cognitive load; make the daemon’s behavior legible.
 
-### "Autonomous Execution" ✅
+### 1) Minimal Web UI (read-only first)
 
-- [x] Session chaining for context limits (`auto-loop.yaml` workflow)
-- [x] Task-driven work loops (`auto-task.yaml` workflow with exit conditions)
-- [x] Stop signals via HTTP (`POST /sessions/{id}/stop`), StopRegistry, and workflow actions
-- [x] Progress tracking (`ProgressTracker`) with stuck detection (`StuckDetector`)
-- **Value**: Hands-off task execution overnight
+- 🗺️ Sessions list + handoff summaries
+- 🗺️ Task graph view (deps, blocked/ready, validation status)
+- 🗺️ MCP servers + tools browser (search → schema → call)
+- 🗺️ Workflow run status + logs
+- 🗺️ Hook inspector (what ran, what changed, what was blocked)
 
-### "Visual Control Center"
+### 2) Controlled autonomy (safe automation, not chaos)
 
-- [ ] React + Vite web dashboard
-- [ ] Real-time WebSocket updates
-- [ ] Task graph visualization (Cytoscape.js)
-- [ ] MCP Observatory (server health, tool analytics)
-- [ ] Memory browser
-- **Value**: See everything happening across all agents
+- 🗺️ Workflow runner can execute tasks end-to-end with policy constraints
+- 🗺️ Guardrails: tool allowlists, budget caps, approvals, rollback strategy
+- 🗺️ “Stop/resume” semantics and deterministic replay where possible
 
-### "Production Ready" (Final)
+### 3) Worktree production readiness
 
-- [ ] End-to-end testing, crash recovery
-- [ ] Documentation and user guides
-- **Value**: Ship it!
+- 🗺️ Cleanup/GC, conflict strategy, concurrency rules
+- 🗺️ Run workflows per worktree; merge automation hooks
+
+---
+
+## Longer term (ecosystem + enterprise hardening)
+Goal: make Gobby the obvious substrate for serious local agentic coding.
+
+### 1) Memory adapters + open Memory API
+
+- 🗺️ Stable Memory API (store/retrieve/summarize/evict)
+- 🗺️ Adapters for popular memory systems (vector DBs, knowledge graphs, etc.)
+- 🗺️ Clear guidance: baseline local memory vs advanced backends
+
+### 2) Plugin ecosystem + templates
+
+- 🗺️ Curated “starter packs” (hooks + workflows + tasks) by stack (Python/Node/Go/etc.)
+- 🗺️ Plugin registry conventions + compatibility checks
+- 🗺️ Community examples: integrations, workflows, hook packs
+
+### 3) Team workflows (still local-first)
+
+- 🗺️ Optional shared artifacts (sanitized session summaries, workflow outcomes)
+- 🗺️ Multi-dev coordination patterns without centralizing code/data
+- 🗺️ Policy packs (security/logging/compliance defaults)
+
+---
+
+## Explicit non-goals (unless proven necessary)
+
+- Moving core execution to a hosted SaaS
+- Forcing a single agent framework
+- Hiding behavior behind “magic prompts”
+
+Gobby wins by being the **boring, reliable system layer** under your AI tools.

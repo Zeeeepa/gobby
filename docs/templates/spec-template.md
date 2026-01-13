@@ -222,18 +222,20 @@ Each checkbox should be:
 - **Scoped**: References specific files/functions when possible
 
 **Good examples:**
+
 - `- [ ] Add TaskEnricher class to src/gobby/tasks/enrich.py`
 - `- [ ] Create database migration for category field`
 - `- [ ] Update CLAUDE.md with new task workflow`
 
 **Bad examples:**
+
 - `- [ ] Implement enrichment` (too vague)
 - `- [ ] Fix bugs` (not specific)
 - `- [ ] Make it work` (no clear criteria)
 
 ## Complete Example
 
-```markdown
+````markdown
 ---
 title: 'User Authentication'
 slug: 'user-auth'
@@ -279,7 +281,7 @@ Existing endpoints will require authentication via a decorator.
 
 ### Component Diagram
 
-```
+```text
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
 │   Client    │───>│  Middleware │───>│   Routes    │
 └─────────────┘    └─────────────┘    └─────────────┘
@@ -393,7 +395,7 @@ When completing a task:
 3. Commit with task reference: `git commit -m "[#N] description"`
 4. Close the task: `gobby tasks close #N --commit-sha <sha>`
 5. Update the checkbox above to `[x]`
-```
+````
 
 ## After Writing Your Spec
 

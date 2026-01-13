@@ -1039,7 +1039,7 @@ Bad: `- [ ] Implement enrichment` (too vague)
 1. Review the spec for completeness
 2. Run `gobby tasks parse-spec docs/plans/{feature}.md` to create tasks
 3. Verify task structure with `gobby tasks list --tree`
-```
+```python
 
 #### 9c. Spec Writing Guide
 
@@ -1267,7 +1267,7 @@ async def test_full_spec_to_tdd_workflow():
 **Expected outputs from memory-v3.md:**
 - 1 epic task with `reference_doc="docs/plans/memory-v3.md"`
 - 4-6 phase tasks (Phase 1: Foundation, Phase 2: Enhanced Search, etc.)
-- 15-25 leaf tasks with smart descriptions containing "Part of: <phase name>"
+- 15-25 leaf tasks with smart descriptions containing "Part of: ``<phase name>``"
 - Each enriched task has `category` assigned (likely mix of "code" and "document")
 - Each expanded task has subtasks with `depends_on` relationships
 - Each code task transformed into 3 TDD subtasks with blocking dependencies
