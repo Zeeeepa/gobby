@@ -69,18 +69,31 @@ uv run pytest
 
 You are operating within a Gobby-enabled environment. You **must** use the `gobby-tasks` system to track your work. Do not rely on chat history or loose files.
 
+## 🛑 CRITICAL: NO CODE EDITS WITHOUT TASK ID
+**Required Sequence (Progressive Disclosure):**
+1.  **List Tools:** `mcp_list_tools(server_name="gobby-tasks")` (Metadata only, finding tools)
+2.  **Get Schema:** `mcp_get_tool_schema(server="gobby-tasks", tool="create_task")`
+    *   *Constraint:* You MUST fetch the schema for a specific tool **at least once** in the current session before calling it.
+3.  **Create Task:** `mcp_call_tool(server="gobby-tasks", tool="create_task", ...)`
+4.  **Link Session:** `mcp_call_tool(server="gobby-tasks", tool="link_task_to_session", ...)`
+
+> "If it's not a task, it didn't happen."
+
+You are operating within a Gobby-enabled environment. You **must** use the `gobby-tasks` system to track your work. Do not rely on chat history or loose files.
+
 ### 1. Start of Session
 
-1. **Check Context:**
-   * `mcp_call_tool("gobby-tasks", "list_ready_tasks", {})`
-   * `mcp_call_tool("gobby-tasks", "get_task", {"task_id": "..."})` (if ID is known)
+1.  **Check Context:**
+    *   `mcp_call_tool("gobby-tasks", "list_ready_tasks", {})`
+    *   `mcp_call_tool("gobby-tasks", "get_task", {"task_id": "..."})` (if ID is known)
 
-2. **Define Work:**
-   * If new request: `mcp_call_tool("gobby-tasks", "create_task", {"title": "..."})`
-   * If complex: Break down into subtasks using `parent_task_id`.
+2.  **Define Work:**
+    *   **Get Schema:** `mcp_get_tool_schema(server="gobby-tasks", tool="create_task")`
+        *   *Constraint:* You MUST fetch the schema for a specific tool **at least once** in the current session before calling it.
+    *   **Create Task:** `mcp_call_tool(server="gobby-tasks", tool="create_task", arguments={"title": "..."})`
 
-3. **Link Session:**
-   * `mcp_call_tool("gobby-tasks", "link_task_to_session", {})`
+3.  **Link Session:**
+    *   `mcp_call_tool(server="gobby-tasks", tool="link_task_to_session", {})`
 
 ### 2. Execution Loop
 
@@ -90,18 +103,23 @@ You are operating within a Gobby-enabled environment. You **must** use the `gobb
 
 ### Task Workflow (Mandatory)
 
-1.  **Start Task**: `gobby-tasks.update_task(<id>, status="in_progress")`
+1.  **Start Task**:
+    *   **Get Schema:** `mcp_get_tool_schema(..., tool="update_task")` (If not yet fetched this session)
+    *   **Update Status:** `mcp_call_tool(..., tool="update_task", arguments={..., "status": "in_progress"})`
 2.  **Understand**: Read the task details and linked issues.
 3.  **Work**: Implement the changes.
 4.  **Confirm**: `gobby-tasks.list_tasks(status="in_progress")` to verify tracking.
-5.  **Close**: `gobby-tasks.close_task(<id>, commit_sha="<sha>")` when done.
+5.  **Close**: See Exit Protocol below.
 
 > **CRITICAL**: Do NOT leave tasks `in_progress` if you are done. Always close them with a commit SHA.
 
 ### 3. End of Session ("Landing the Plane")
 
-* **Close Tasks:** `mcp_call_tool("gobby-tasks", "close_task", {"task_id": "...", "reason": "completed"})`
-* **Clean Up:** Don't leave tasks `in_progress` if you stopped working on them.
+## 🏁 EXIT PROTOCOL
+1.  **Commit Work:** `git commit -m "..."`
+2.  **Verify SHA:** `git rev-parse HEAD`
+3.  **Get Schema:** `mcp_get_tool_schema(..., tool="close_task")` (If not yet fetched this session)
+4.  **Close Task:** `mcp_call_tool(..., tool="close_task", arguments={..., "commit_sha": "..."})`
 
 ## MCP Tool Usage Guide
 
