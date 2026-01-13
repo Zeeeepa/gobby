@@ -125,7 +125,6 @@ uv pip install -e .
 
 Works with your Claude, Gemini, or Codex subscriptions—or bring your own API keys. Local model support coming soon.
 
-Works with your Claude, Gemini, or Codex subscriptions—or bring your own API keys. Local model support coming soon.
 
 ## Configure Your AI CLI
 
@@ -275,7 +274,7 @@ We'd love your help. Gobby is built by developers who got frustrated with the st
 - **Have a feature idea?** Open a discussion first
 - **Want to contribute code?** PRs welcome — check the roadmap for what's in flight
 - **UI/UX skills?** We *really* need you. The maintainer is colorblind and Photoshop makes him itch.
-- **UI/UX skills?** We *really* need you. The maintainer is colorblind and Photoshop makes him itch.
+
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
