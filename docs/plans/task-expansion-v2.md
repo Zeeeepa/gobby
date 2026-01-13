@@ -53,11 +53,12 @@ Optional field to attach a spec/doc reference to a task.
 - Path to the source document (e.g., `docs/plans/memory-v3.md`)
 - Enables traceability from tasks back to requirements
 
-### New fields: `is_enriched`, `is_expanded`
+### New fields: `is_enriched`, `is_expanded`, `is_tdd_applied`
 
 Boolean flags for idempotent batch operations and recovery:
 - `is_enriched: bool = False` - Set True after successful `enrich_task`
 - `is_expanded: bool = False` - Set True after successful `expand_task`
+- `is_tdd_applied: bool = False` - Set True after successful `apply_tdd`
 
 Batch operations skip tasks where the relevant flag is already True.
 Failed operations leave flag as False for retry.
@@ -238,6 +239,7 @@ ALTER TABLE tasks ADD COLUMN reference_doc TEXT;
 -- Add expansion state flags
 ALTER TABLE tasks ADD COLUMN is_enriched BOOLEAN DEFAULT FALSE;
 ALTER TABLE tasks ADD COLUMN is_expanded BOOLEAN DEFAULT FALSE;
+ALTER TABLE tasks ADD COLUMN is_tdd_applied BOOLEAN DEFAULT FALSE;
 ```
 
 ### Phase 4: Add enrich_task MCP Tool
@@ -338,6 +340,7 @@ Errors:
 3. If no context, optionally call `enrich_task` first
 4. Support batch parallel: `expand_task(task_ids=["#1", "#2", "#3"])`
 5. Sets `is_expanded=True` on successful completion
+6. Parent's `validation_criteria` updated to "All child tasks completed" (parent becomes container)
 
 **MCP Tool: `expand_task`**
 
@@ -348,6 +351,7 @@ Description:
     Uses stored expansion_context from enrich_task if available.
     Single-level expansion only - does not recursively expand children.
     Sets is_expanded=True on successful completion.
+    Parent's validation_criteria updated to "All child tasks completed".
 
     Batch operations skip tasks where is_expanded=True unless force=True.
 
@@ -416,20 +420,60 @@ Errors:
 
 Deterministic transformation (no LLM):
 ```python
+# Templated validation criteria for TDD phases
+TDD_CRITERIA_RED = """## Deliverable
+- [ ] Tests written that define expected behavior
+- [ ] Tests fail when run (no implementation yet)
+- [ ] Test coverage addresses acceptance criteria from parent task
+"""
+
+TDD_CRITERIA_BLUE = """## Deliverable
+- [ ] All tests continue to pass
+- [ ] Code refactored for clarity and maintainability
+- [ ] No new functionality added (refactor only)
+"""
+
+PARENT_CRITERIA = """## Deliverable
+- [ ] All child tasks completed
+"""
+
 def transform_to_tdd_triplet(task: Task) -> list[Task]:
     """Transform a code/config task into Test->Implement->Refactor triplet."""
     # Only transform if:
     # - category in ("code", "config")
-    # - Not already a TDD task (doesn't start with "Write tests for:", etc.)
-    # - Has no children yet
+    # - is_tdd_applied == False
+    # - Not already a TDD task (title starts with "Write tests for:", etc.)
+
+    # Save parent's original criteria for the implement task
+    original_criteria = task.validation_criteria
 
     test_task = create_task(
         title=f"Write tests for: {task.title}",
-        description=f"{task.description}\n\nTest strategy: Tests should fail initially (red phase)",
-        parent_task_id=task.parent_task_id,
+        description=task.description,
+        validation_criteria=TDD_CRITERIA_RED,  # Templated
+        parent_task_id=task.id,
     )
-    # ... impl_task, refactor_task ...
-    # Wire dependencies: test -> impl -> refactor
+
+    impl_task = create_task(
+        title=f"Implement: {task.title}",
+        description=task.description,
+        validation_criteria=original_criteria,  # Inherited from parent
+        parent_task_id=task.id,
+        depends_on=[test_task.id],
+    )
+
+    refactor_task = create_task(
+        title=f"Refactor: {task.title}",
+        description=task.description,
+        validation_criteria=TDD_CRITERIA_BLUE,  # Templated
+        parent_task_id=task.id,
+        depends_on=[impl_task.id],
+    )
+
+    # Parent becomes container - update its criteria
+    task.validation_criteria = PARENT_CRITERIA
+    task.is_tdd_applied = True
+
     return [test_task, impl_task, refactor_task]
 ```
 
@@ -443,7 +487,14 @@ Description:
 
     Deterministic transformation - no LLM needed.
     Automatically filters for tasks with category in ("code", "config").
-    Skips tasks that already have children or are already TDD tasks.
+    Skips tasks where is_tdd_applied=True or title indicates TDD task.
+    Sets is_tdd_applied=True on successful transformation.
+
+    Validation criteria:
+    - Parent task: Set to "All child tasks completed" (parent is now a container)
+    - Red (test): Templated TDD criteria for writing failing tests
+    - Green (implement): Inherits parent's original validation_criteria
+    - Blue (refactor): Templated TDD criteria for code cleanup
 
 Parameters:
     task_id: str (optional)
@@ -467,7 +518,7 @@ Returns:
       "skipped_count": 3,
       "skipped_reasons": {
         "#45": "category is 'document'",
-        "#46": "already has children",
+        "#46": "is_tdd_applied=True",
         "#47": "title starts with 'Write tests for:'"
       },
       "results": [
@@ -747,11 +798,11 @@ Documentation explaining:
 - How context flows into task descriptions
 - Example specs
 
-### Phase 10: Workflow Cleanup (Final)
+### Phase 10: Cleanup (Final)
 
 **Strangler Fig final phase** - remove deprecated code after new system is validated.
 
-**Files to clean up:**
+**Auto-decomposition cleanup:**
 
 1. `.gobby/workflows/lifecycle/session-lifecycle.yaml`
    - Remove `auto_decompose: false` variable (no longer used)
@@ -769,10 +820,51 @@ Documentation explaining:
 
 5. Clean up any `auto*.yaml` workflow files if they exist
 
+**Stealth mode removal:**
+
+6. `src/gobby/cli/tasks/main.py`
+   - Remove `stealth_cmd` command (lines 216-274)
+
+7. `src/gobby/cli/tasks/_utils.py`
+   - Remove stealth mode check in `get_sync_manager()` (lines 53-64)
+
+8. `src/gobby/sync/tasks.py`
+   - Remove stealth mode comment (line 73)
+
+9. `src/gobby/config/persistence.py`
+   - Remove stealth references from `MemorySyncConfig`
+
+10. `tests/cli/test_stealth.py`
+    - Delete entire test file
+
+11. `src/gobby/cli/tasks/__init__.py`
+    - Remove stealth mention from docstring
+
+**Documentation updates:**
+
+12. `docs/guides/tasks.md`
+    - Update expansion workflow documentation
+    - Document new tools: `parse_spec`, `enrich_task`, `expand_task`, `apply_tdd`
+    - Remove auto-decomposition references
+
+13. `CLAUDE.md`
+    - Update task workflow section
+    - Document new phased approach
+
+14. `GEMINI.md` (if exists)
+    - Update task expansion references
+
+15. `AGENTS.md` (if exists)
+    - Update task expansion references
+
+16. `skills/*.toml` and `SKILL.md` files
+    - Search: `rg -l "expand.*task|task.*expan" skills/ docs/skills/`
+    - Update any task expansion references
+
 **Verification before cleanup:**
 - All tests pass with new workflow
 - Integration test with memory-v3.md succeeds
-- No references to deprecated functions in agents/docs
+- No references to deprecated functions in code/docs
 
 ---
 
@@ -1002,7 +1094,7 @@ time gobby tasks apply-tdd #42
 
 ```bash
 # Search for auto_decompose references
-rg -l "auto_decompose" --type py --type yaml
+rg -l "auto_decompose" --type py --type yaml --type md
 # Expected: Only in tests/mocks, deprecation warnings, or migration comments
 
 # Search for detect_multi_step usage
@@ -1021,14 +1113,31 @@ rg "tdd_mode" --type yaml --type py
 # Search for test_strategy field (renamed to category)
 rg "test_strategy" --type py --type sql
 # Expected: Only in migration code
+
+# Search for stealth mode references
+rg -l "stealth" --type py --type yaml --type md
+rg -l "tasks_stealth" --type py --type json
+# Expected: None after cleanup
+
+# Search for old expansion patterns in docs
+rg -l "expand_from_spec|expand_task" docs/ skills/
+# Expected: Updated to reference new workflow
+
+# Search for deprecated field names in code
+rg "\.test_strategy" --type py
+# Expected: None (renamed to category)
 ```
 
 **Files to check manually:**
 - `CLAUDE.md` - Update task workflow documentation
-- `docs/guides/tasks.md` - Remove auto_decompose mentions
+- `GEMINI.md` - Update task expansion references (if exists)
+- `AGENTS.md` - Update task expansion references (if exists)
+- `docs/guides/tasks.md` - Remove auto_decompose mentions, document new workflow
 - `docs/architecture/` - Update any architecture docs
 - `.gobby/workflows/` - Remove deprecated variables
 - `src/gobby/config/` - Remove deprecated config options
+- `skills/*.toml` - Update task-related skill definitions
+- `docs/skills/SKILL.md` files - Update task expansion documentation
 
 **Cleanup verification script:**
 ```bash
@@ -1042,6 +1151,8 @@ DEPRECATED_TERMS=(
     "detect_multi_step"
     "extract_steps"
     "test_strategy"  # should be category now
+    "stealth"        # stealth mode removed
+    "tasks_stealth"
 )
 
 ERRORS=0
