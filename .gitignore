@@ -233,3 +233,4 @@ bmad-custom-src/
 .gobby/config.yaml
 reports/
 bandit_report.json
+/*.txt
