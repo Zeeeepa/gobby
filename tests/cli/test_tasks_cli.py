@@ -528,7 +528,7 @@ class TestCreateTaskCommand:
         mock_task: MagicMock,
     ):
         """Test creating a task."""
-        mock_project_ctx.return_value = {"id": "proj-123"}
+        mock_project_ctx.return_value = {"id": "proj-123", "name": "Test Project"}
         mock_manager = MagicMock()
         mock_manager.create_task.return_value = mock_task
         mock_get_manager.return_value = mock_manager
@@ -536,7 +536,7 @@ class TestCreateTaskCommand:
         result = runner.invoke(cli, ["tasks", "create", "My new task"])
 
         assert result.exit_code == 0
-        assert "Created task" in result.output
+        assert "Created task Test Project-1: Test Task" in result.output
         mock_manager.create_task.assert_called_once()
 
     @patch("gobby.cli.tasks.crud.get_task_manager")

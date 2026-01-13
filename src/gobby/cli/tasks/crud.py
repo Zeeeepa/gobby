@@ -334,7 +334,13 @@ def create_task(title: str, description: str | None, priority: int, task_type: s
         priority=priority,
         task_type=task_type,
     )
-    click.echo(f"Created task {task.id[:8]}: {task.title}")
+    task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+    project_name = project_ctx.get("name") if project_ctx else None
+
+    if project_name and task.seq_num:
+        click.echo(f"Created task {project_name}-{task.seq_num}: {task.title}")
+    else:
+        click.echo(f"Created task {task_ref}: {task.title}")
 
 
 @click.command("show")
@@ -352,6 +358,8 @@ def show_task(task_id: str) -> None:
 
     click.echo(f"Task: {task.title}")
     click.echo(f"ID: {task.id}")
+    if task.seq_num:
+        click.echo(f"Ref: #{task.seq_num}")
     click.echo(f"Status: {task.status}")
     click.echo(f"Priority: {task.priority}")
     click.echo(f"Type: {task.task_type}")
@@ -412,7 +420,10 @@ def update_task(
         kwargs["parent_task_id"] = resolved_parent_id
 
     task = manager.update_task(resolved.id, **kwargs)
-    click.echo(f"Updated task {task.id[:8]}")
+
+    # Use standardized ref
+    task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+    click.echo(f"Updated task {task_ref}")
 
 
 @click.command("close")
@@ -452,7 +463,10 @@ def close_task_cmd(task_id: str, reason: str, skip_validation: bool, force: bool
                 return
 
     task = manager.close_task(resolved.id, reason=reason)
-    click.echo(f"Closed task {task.id[:8]} ({reason})")
+
+    # Use standardized ref
+    task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+    click.echo(f"Closed task {task_ref} ({reason})")
 
 
 @click.command("reopen")
@@ -470,15 +484,22 @@ def reopen_task_cmd(task_id: str, reason: str | None) -> None:
     if not resolved:
         return
 
+    # Use standardized ref for errors
+    resolved_ref = f"#{resolved.seq_num}" if resolved.seq_num else resolved.id[:8]
+
     if resolved.status != "closed":
-        click.echo(f"Task {resolved.id[:8]} is not closed (status: {resolved.status})", err=True)
+        click.echo(f"Task {resolved_ref} is not closed (status: {resolved.status})", err=True)
         return
 
     task = manager.reopen_task(resolved.id, reason=reason)
+
+    # Use standardized ref
+    task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+
     if reason:
-        click.echo(f"Reopened task {task.id[:8]} ({reason})")
+        click.echo(f"Reopened task {task_ref} ({reason})")
     else:
-        click.echo(f"Reopened task {task.id[:8]}")
+        click.echo(f"Reopened task {task_ref}")
 
 
 @click.command("delete")
