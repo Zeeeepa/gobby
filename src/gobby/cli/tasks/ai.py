@@ -336,7 +336,7 @@ def _generate_criteria_for_all(manager: LocalTaskManager) -> None:
         task_ref = task.id
         if task.seq_num:
             if project_name:
-                task_ref = f"({project_name}) #{task.seq_num}"
+                task_ref = f"{project_name}-#{task.seq_num}"
             else:
                 task_ref = f"#{task.seq_num}"
 
