@@ -191,7 +191,6 @@ class TestCreateTaskTool:
             result = await registry.call("create_task", {"title": "New Task"})
 
             assert result == {
-                "success": True,
                 "id": "550e8400-e29b-41d4-a716-446655440001",
                 "seq_num": 42,
                 "ref": "#42",
@@ -461,42 +460,8 @@ class TestCreateTaskTool:
 
             result = await registry.call("create_task", {"title": "Task"})
 
-            mock_task_validator.generate_criteria.assert_called_once()
-            mock_task_manager.update_task.assert_called()
-            assert result.get("validation_generated") is True
-
-    @pytest.mark.asyncio
-    async def test_create_task_skips_validation_for_epics(
-        self, mock_task_manager, mock_sync_manager, mock_task_validator, mock_config
-    ):
-        """Test create_task skips validation generation for epic tasks."""
-        mock_config.get_gobby_tasks_config.return_value.validation.auto_generate_on_create = True
-
-        registry = create_task_registry(
-            mock_task_manager,
-            mock_sync_manager,
-            task_validator=mock_task_validator,
-            config=mock_config,
-        )
-
-        mock_task = MagicMock()
-        mock_task.id = "550e8400-e29b-41d4-a716-446655440013"
-        mock_task.task_type = "epic"
-        mock_task.to_dict.return_value = {"id": "550e8400-e29b-41d4-a716-446655440013"}
-        mock_task_manager.create_task_with_decomposition.return_value = {
-            "auto_decomposed": False,
-            "task": {"id": "550e8400-e29b-41d4-a716-446655440013"},
-        }
-        mock_task_manager.get_task.return_value = mock_task
-
-        with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
-            mock_ctx.return_value = {"id": "proj-1"}
-
-            result = await registry.call("create_task", {"title": "Epic", "task_type": "epic"})
-
-            mock_task_validator.generate_criteria.assert_not_called()
+            mock_task_manager.update_task.assert_not_called()
             assert "validation_generated" not in result
-
 
 # =============================================================================
 # get_task Tool Tests
@@ -602,7 +567,7 @@ class TestUpdateTaskTool:
         mock_task_manager.update_task.assert_called_with(
             "550e8400-e29b-41d4-a716-446655440000", title="Updated Title"
         )
-        assert result == {"success": True}
+        assert result == {}
 
     @pytest.mark.asyncio
     async def test_update_task_not_found(self, mock_task_manager, mock_sync_manager):
@@ -706,7 +671,7 @@ class TestLabelTools:
         mock_task_manager.add_label.assert_called_with(
             "550e8400-e29b-41d4-a716-446655440000", "new"
         )
-        assert result == {"success": True}
+        assert result == {}
 
     @pytest.mark.asyncio
     async def test_add_label_task_not_found(self, mock_task_manager, mock_sync_manager):
@@ -736,7 +701,7 @@ class TestLabelTools:
         mock_task_manager.remove_label.assert_called_with(
             "550e8400-e29b-41d4-a716-446655440000", "old"
         )
-        assert result == {"success": True}
+        assert result == {}
 
     @pytest.mark.asyncio
     async def test_remove_label_task_not_found(self, mock_task_manager, mock_sync_manager):
@@ -927,7 +892,7 @@ class TestCloseTaskTool:
                 "close_task", {"task_id": "550e8400-e29b-41d4-a716-446655440000"}
             )
 
-            assert result == {"success": True}
+            assert result == {}
 
     @pytest.mark.asyncio
     async def test_close_task_with_commit_sha_links_first(
@@ -1004,7 +969,7 @@ class TestCloseTaskTool:
                 },
             )
 
-            assert result == {"success": True}
+            assert result == {}
 
 
 # =============================================================================
@@ -1030,7 +995,7 @@ class TestReopenTaskTool:
         mock_task_manager.reopen_task.assert_called_with(
             "550e8400-e29b-41d4-a716-446655440000", reason=None
         )
-        assert result == {"success": True}
+        assert result == {}
 
     @pytest.mark.asyncio
     async def test_reopen_task_with_reason(self, mock_task_manager, mock_sync_manager):
@@ -1113,7 +1078,7 @@ class TestDeleteTaskTool:
         mock_task_manager.delete_task.assert_called_with(
             "550e8400-e29b-41d4-a716-446655440000", cascade=True
         )
-        assert result["success"] is True
+        assert "error" not in result
         assert result["deleted_task_id"] == "550e8400-e29b-41d4-a716-446655440000"
 
     @pytest.mark.asyncio
@@ -1127,7 +1092,6 @@ class TestDeleteTaskTool:
             "delete_task", {"task_id": "00000000-0000-0000-0000-000000000000"}
         )
 
-        assert result["success"] is False
         assert "error" in result
 
     @pytest.mark.asyncio
@@ -1270,7 +1234,7 @@ class TestSessionIntegrationTools:
             mock_st_instance.link_task.assert_called_with(
                 "sess-123", "550e8400-e29b-41d4-a716-446655440000", "worked_on"
             )
-            assert result == {"success": True}
+            assert result == {}
 
     @pytest.mark.asyncio
     async def test_link_task_to_session_missing_session_id(

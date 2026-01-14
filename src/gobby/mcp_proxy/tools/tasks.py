@@ -43,7 +43,6 @@ from gobby.storage.tasks import (
 )
 from gobby.storage.worktrees import LocalWorktreeManager
 from gobby.sync.tasks import TaskSyncManager
-from gobby.tasks.auto_decompose import detect_multi_step
 from gobby.tasks.commits import auto_link_commits as auto_link_commits_fn
 from gobby.tasks.commits import get_task_diff, is_doc_only_diff, summarize_diff_for_validation
 from gobby.tasks.expansion import TaskExpander
@@ -281,7 +280,6 @@ def create_task_registry(
         test_strategy: str | None = None,
         validation_criteria: str | None = None,
         session_id: str | None = None,
-        generate_validation: bool | None = None,
     ) -> dict[str, Any]:
         """Create a new task in the current project.
 
@@ -323,148 +321,48 @@ def create_task_registry(
         if effective_test_strategy is None:
             effective_test_strategy = _infer_test_strategy(title, description)
 
-        # Check if TDD mode should route multi-step tasks through TaskExpander
-        is_multi_step = detect_multi_step(description)
-        tdd_enabled = resolve_tdd_mode(session_id)
-        use_tdd_expansion = (
-            is_multi_step and tdd_enabled and task_expander is not None and task_type != "epic"
+        # Standard path: Use regex-based decomposition or no decomposition
+        create_result = task_manager.create_task_with_decomposition(
+            project_id=project_id,
+            title=title,
+            description=description,
+            priority=priority,
+            task_type=task_type,
+            parent_task_id=parent_task_id,
+            labels=labels,
+            test_strategy=effective_test_strategy,
+            validation_criteria=validation_criteria,
+            created_in_session_id=session_id,
         )
 
-        import logging
-
-        logger = logging.getLogger(__name__)
-
-        tdd_expansion_result = None
-        if use_tdd_expansion:
-            # TDD mode: Create parent task without auto-decomposition,
-            # then use TaskExpander for intelligent TDD pair generation
-            logger.debug(f"TDD mode enabled for multi-step task: {title}")
-
-            # Create parent task without decomposition
-            create_result = task_manager.create_task_with_decomposition(
-                project_id=project_id,
-                title=title,
-                description=description,
-                priority=priority,
-                task_type=task_type,
-                parent_task_id=parent_task_id,
-                labels=labels,
-                test_strategy=effective_test_strategy,
-                validation_criteria=validation_criteria,
-                created_in_session_id=session_id,
-                auto_decompose=False,  # Disable regex extraction
-            )
-
-            # Get the created task
-            task = task_manager.get_task(create_result["task"]["id"])
-
-            # Now expand with TaskExpander for TDD pairs
-            try:
-                assert task_expander is not None  # Checked in use_tdd_expansion condition
-                tdd_expansion_result = await task_expander.expand_task(
-                    task.id, task.title, task.description
-                )
-                subtasks = []  # Will be populated from expansion result
-                logger.debug(
-                    f"TDD expansion created {tdd_expansion_result.get('subtask_count', 0)} subtasks"
-                )
-            except Exception as e:
-                logger.warning(f"TDD expansion failed for {task.id}, falling back to regex: {e}")
-                # Fall back to regex decomposition
-                # Delete the task and recreate with auto_decompose=True
-                task_manager.delete_task(task.id)
-                create_result = task_manager.create_task_with_decomposition(
-                    project_id=project_id,
-                    title=title,
-                    description=description,
-                    priority=priority,
-                    task_type=task_type,
-                    parent_task_id=parent_task_id,
-                    labels=labels,
-                    test_strategy=effective_test_strategy,
-                    validation_criteria=validation_criteria,
-                    created_in_session_id=session_id,
-                    auto_decompose=True,
-                )
-                if create_result.get("auto_decomposed"):
-                    task = task_manager.get_task(create_result["parent_task"]["id"])
-                    subtasks = create_result.get("subtasks", [])
-                else:
-                    task = task_manager.get_task(create_result["task"]["id"])
-                    subtasks = []
-                tdd_expansion_result = None  # Clear the failed expansion
+        # Handle auto-decomposed vs single task results
+        auto_decomposed = create_result.get("auto_decomposed", False)
+        if auto_decomposed:
+            # Multi-step task was decomposed into parent + subtasks
+            task = task_manager.get_task(create_result["parent_task"]["id"])
+            subtasks = create_result.get("subtasks", [])
         else:
-            # Standard path: Use regex-based decomposition or no decomposition
-            create_result = task_manager.create_task_with_decomposition(
-                project_id=project_id,
-                title=title,
-                description=description,
-                priority=priority,
-                task_type=task_type,
-                parent_task_id=parent_task_id,
-                labels=labels,
-                test_strategy=effective_test_strategy,
-                validation_criteria=validation_criteria,
-                created_in_session_id=session_id,
-            )
-
-            # Handle auto-decomposed vs single task results
-            auto_decomposed = create_result.get("auto_decomposed", False)
-            if auto_decomposed:
-                # Multi-step task was decomposed into parent + subtasks
-                task = task_manager.get_task(create_result["parent_task"]["id"])
-                subtasks = create_result.get("subtasks", [])
-            else:
-                # Single task created
-                task = task_manager.get_task(create_result["task"]["id"])
-                subtasks = []
+            # Single task created
+            task = task_manager.get_task(create_result["task"]["id"])
+            subtasks = []
 
         # Handle 'blocks' argument if provided (syntactic sugar)
         if blocks:
             for blocked_id in blocks:
                 dep_manager.add_dependency(task.id, blocked_id, "blocks")
 
-        # Auto-generate validation criteria if enabled and not already provided
-        should_generate = (
-            generate_validation if generate_validation is not None else auto_generate_on_create
-        )
-        validation_generated = False
-        if should_generate and not validation_criteria and task_type != "epic" and task_validator:
-            try:
-                criteria = await task_validator.generate_criteria(
-                    title=title,
-                    description=description,
-                )
-                if criteria:
-                    task_manager.update_task(task.id, validation_criteria=criteria)
-                    task = task_manager.get_task(task.id)  # Refresh task
-                    validation_generated = True
-            except Exception as e:
-                import logging
-
-                logging.getLogger(__name__).warning(
-                    f"Failed to auto-generate validation criteria for {task.id}: {e}"
-                )
-
         # Return minimal or full result based on config
         if show_result_on_create:
             result = task.to_dict()
         else:
             result = {
-                "success": True,
                 "id": task.id,
                 "seq_num": task.seq_num,
                 "ref": f"#{task.seq_num}",
             }
-        if validation_generated:
-            result["validation_generated"] = True
 
-        # Handle TDD expansion result
-        if tdd_expansion_result is not None:
-            result["auto_decomposed"] = True
-            result["subtask_count"] = tdd_expansion_result.get("subtask_count", 0)
-            result["tdd_expanded"] = True
-        elif create_result.get("auto_decomposed"):
+        # Handle auto-decomposed result
+        if create_result.get("auto_decomposed"):
             result["auto_decomposed"] = True
             result["subtask_count"] = len(subtasks)
 
@@ -523,11 +421,6 @@ def create_task_registry(
                 "session_id": {
                     "type": "string",
                     "description": "Your session ID (from system context). Pass this to track which session created the task.",
-                    "default": None,
-                },
-                "generate_validation": {
-                    "type": "boolean",
-                    "description": "Auto-generate validation criteria if not provided. Defaults to config setting. Skipped for epic tasks.",
                     "default": None,
                 },
             },
