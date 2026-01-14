@@ -451,4 +451,4 @@ class TestActivateWorkflowWithVariables:
         )
 
         assert result["success"] is False
-        assert "already has workflow" in result["error"]
+        assert "already has step workflow" in result["error"]

@@ -270,13 +270,23 @@ def create_workflows_registry(
             }
 
         # Check for existing workflow
-        # Allow replacing __lifecycle__ (placeholder) workflows
+        # Allow if:
+        # - No existing state
+        # - Existing is __lifecycle__ placeholder
+        # - Existing is a lifecycle-type workflow (they run concurrently with step workflows)
         existing = _state_manager.get_state(session_id)
         if existing and existing.workflow_name != "__lifecycle__":
-            return {
-                "success": False,
-                "error": f"Session already has workflow '{existing.workflow_name}' active. Use end_workflow first.",
-            }
+            # Check if existing workflow is a lifecycle type
+            existing_def = _loader.load_workflow(existing.workflow_name, proj)
+            # Only allow if we can confirm it's a lifecycle workflow
+            # If definition not found or it's a step workflow, block activation
+            if not existing_def or existing_def.type != "lifecycle":
+                # It's a step workflow (or unknown) - can only have one active
+                return {
+                    "success": False,
+                    "error": f"Session already has step workflow '{existing.workflow_name}' active. Use end_workflow first.",
+                }
+            # Existing is a lifecycle workflow - allow step workflow to activate alongside it
 
         # Determine initial step
         if initial_step:
