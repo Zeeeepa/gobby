@@ -220,7 +220,6 @@ __marimo__/
 .claude/tts*.txt
 .gemini/
 .codex/
-.gobby/gobby.db*
 .agent/
 .agentvibes/
 .antigravity/
@@ -233,6 +232,9 @@ bmad-custom-src/
 .gobby/config.yaml
 reports/
 bandit_report.json
-/*.txt
+./*.txt
+./*.log
 _bmad/
 test-projects/
+docs/archive/
+docs/plans/
