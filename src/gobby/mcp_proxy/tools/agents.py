@@ -453,6 +453,101 @@ def create_agents_registry(
                 "pid": terminal_result.pid,
             }
 
+        # Special handling for Codex terminal mode: requires preflight session capture
+        # Codex outputs session_id in startup banner, which we parse from `codex exec "exit"`
+        if mode == "terminal" and effective_provider == "codex":
+            from gobby.agents.spawn import (
+                build_codex_command_with_resume,
+                prepare_codex_spawn_with_preflight,
+            )
+
+            # Ensure project_id is non-None for spawning
+            if project_id is None:
+                return {
+                    "success": False,
+                    "error": "project_id is required for spawning Codex agent",
+                }
+
+            # Determine working directory
+            cwd = project_path or "."
+
+            try:
+                # Preflight capture: gets Codex's session_id and creates linked Gobby session
+                spawn_context = await prepare_codex_spawn_with_preflight(
+                    session_manager=runner._child_session_manager,
+                    parent_session_id=parent_session_id,
+                    project_id=project_id,
+                    machine_id=socket.gethostname(),
+                    workflow_name=workflow,
+                    git_branch=None,  # Will be detected by hook
+                )
+            except FileNotFoundError as e:
+                return {
+                    "success": False,
+                    "error": str(e),
+                }
+            except Exception as e:
+                logger.error(f"Codex preflight capture failed: {e}", exc_info=True)
+                return {
+                    "success": False,
+                    "error": f"Codex preflight capture failed: {e}",
+                }
+
+            # Extract IDs from prepared spawn context
+            gobby_session_id = spawn_context.session_id
+            codex_session_id = spawn_context.env_vars["GOBBY_CODEX_EXTERNAL_ID"]
+
+            # Build command with session context injected into prompt
+            # build_codex_command_with_resume handles the context prefix
+            cmd = build_codex_command_with_resume(
+                codex_external_id=codex_session_id,
+                prompt=effective_prompt,
+                auto_approve=True,  # --full-auto for sandboxed autonomy
+                gobby_session_id=gobby_session_id,
+                working_directory=cwd,
+            )
+
+            # Spawn in terminal
+            terminal_spawner = TerminalSpawner()
+            terminal_result = terminal_spawner.spawn(
+                command=cmd,
+                cwd=cwd,
+                terminal=terminal,
+            )
+
+            if not terminal_result.success:
+                return {
+                    "success": False,
+                    "error": terminal_result.error or terminal_result.message,
+                    "child_session_id": gobby_session_id,
+                }
+
+            # Register in running agents registry
+            registry = get_running_agent_registry()
+            running_agent = RunningAgent(
+                run_id=f"codex-{codex_session_id[:8]}",
+                session_id=gobby_session_id,
+                parent_session_id=parent_session_id,
+                pid=terminal_result.pid,
+                mode="terminal",
+                provider="codex",
+                workflow_name=workflow,
+            )
+            registry.add(running_agent)
+
+            return {
+                "success": True,
+                "run_id": running_agent.run_id,
+                "child_session_id": gobby_session_id,
+                "codex_session_id": codex_session_id,
+                "mode": "terminal",
+                "message": (
+                    f"Codex agent spawned in terminal with session "
+                    f"{gobby_session_id}"
+                ),
+                "pid": terminal_result.pid,
+            }
+
         # Terminal, embedded, or headless mode: prepare run then spawn
         # Use prepare_run to create session and run records
         from gobby.llm.executor import AgentResult

@@ -750,3 +750,165 @@ def build_gemini_command_with_resume(
         command.extend(["-i", full_prompt])
 
     return command
+
+
+# =============================================================================
+# Codex Preflight Capture
+# =============================================================================
+
+
+async def prepare_codex_spawn_with_preflight(
+    session_manager: ChildSessionManager,
+    parent_session_id: str,
+    project_id: str,
+    machine_id: str,
+    agent_id: str | None = None,
+    workflow_name: str | None = None,
+    title: str | None = None,
+    git_branch: str | None = None,
+    prompt: str | None = None,
+    max_agent_depth: int = 3,
+    preflight_timeout: float = 30.0,
+) -> PreparedSpawn:
+    """
+    Prepare a Codex terminal spawn with preflight session ID capture.
+
+    This is necessary because we need Codex's session_id before launching
+    interactive mode to properly link sessions. We use preflight capture to:
+    1. Launch Codex with `exec "exit"` to capture its session_id
+    2. Create the Gobby session with that external_id
+    3. Resume the Codex session with `codex resume {session_id}`
+
+    Args:
+        session_manager: ChildSessionManager for session creation
+        parent_session_id: Parent session ID
+        project_id: Project ID
+        machine_id: Machine ID
+        agent_id: Optional agent ID
+        workflow_name: Optional workflow to activate
+        title: Optional session title
+        git_branch: Optional git branch
+        prompt: Optional initial prompt
+        max_agent_depth: Maximum agent depth
+        preflight_timeout: Timeout for preflight capture (default 30s)
+
+    Returns:
+        PreparedSpawn with codex_external_id set in env_vars
+
+    Raises:
+        ValueError: If max agent depth exceeded
+        asyncio.TimeoutError: If preflight capture times out
+    """
+    import uuid
+
+    from gobby.agents.codex_session import capture_codex_session_id
+
+    # 1. Preflight: capture Codex's session_id
+    logger.info("Starting Codex preflight capture...")
+    codex_info = await capture_codex_session_id(timeout=preflight_timeout)
+    logger.info(f"Captured Codex session_id: {codex_info.session_id}")
+
+    # 2. Create child session config with Codex's session_id as external_id
+    config = ChildSessionConfig(
+        parent_session_id=parent_session_id,
+        project_id=project_id,
+        machine_id=machine_id,
+        source="codex",
+        agent_id=agent_id,
+        workflow_name=workflow_name,
+        title=title,
+        git_branch=git_branch,
+        external_id=codex_info.session_id,  # Link to Codex's session
+    )
+
+    # Create the child session
+    child_session = session_manager.create_child_session(config)
+
+    # Generate agent run ID
+    agent_run_id = f"run-{uuid.uuid4().hex[:12]}"
+
+    # Handle prompt - decide env var vs file
+    prompt_env: str | None = None
+    prompt_file: str | None = None
+
+    if prompt:
+        if len(prompt) <= MAX_ENV_PROMPT_LENGTH:
+            prompt_env = prompt
+        else:
+            prompt_file = _create_prompt_file(prompt, child_session.id)
+
+    # Build environment variables
+    env_vars = get_terminal_env_vars(
+        session_id=child_session.id,
+        parent_session_id=parent_session_id,
+        agent_run_id=agent_run_id,
+        project_id=project_id,
+        workflow_name=workflow_name,
+        agent_depth=child_session.agent_depth,
+        max_agent_depth=max_agent_depth,
+        prompt=prompt_env,
+        prompt_file=prompt_file,
+    )
+
+    # Add Codex-specific env vars for session linking
+    env_vars["GOBBY_CODEX_EXTERNAL_ID"] = codex_info.session_id
+    if codex_info.model:
+        env_vars["GOBBY_CODEX_MODEL"] = codex_info.model
+
+    return PreparedSpawn(
+        session_id=child_session.id,
+        agent_run_id=agent_run_id,
+        parent_session_id=parent_session_id,
+        project_id=project_id,
+        workflow_name=workflow_name,
+        agent_depth=child_session.agent_depth,
+        env_vars=env_vars,
+    )
+
+
+def build_codex_command_with_resume(
+    codex_external_id: str,
+    prompt: str | None = None,
+    auto_approve: bool = False,
+    gobby_session_id: str | None = None,
+    working_directory: str | None = None,
+) -> list[str]:
+    """
+    Build Codex CLI command with session resume.
+
+    Uses `codex resume {session_id}` to resume a preflight-captured session,
+    with session context injected into the prompt.
+
+    Args:
+        codex_external_id: Codex's session_id from preflight capture
+        prompt: Optional user prompt
+        auto_approve: If True, add --full-auto flag
+        gobby_session_id: Gobby session ID to inject into context
+        working_directory: Optional working directory override
+
+    Returns:
+        Command list for subprocess execution
+    """
+    command = ["codex", "resume", codex_external_id]
+
+    if auto_approve:
+        command.append("--full-auto")
+
+    if working_directory:
+        command.extend(["-C", working_directory])
+
+    # Build prompt with session context
+    if gobby_session_id:
+        context_prefix = (
+            f"Your Gobby session_id is: {gobby_session_id}\n"
+            f"Use this when calling Gobby MCP tools.\n\n"
+        )
+        full_prompt = context_prefix + (prompt or "")
+    else:
+        full_prompt = prompt
+
+    # Prompt is a positional argument after session_id
+    if full_prompt:
+        command.append(full_prompt)
+
+    return command
