@@ -50,14 +50,16 @@ Legend:
 ### Tasks + TDD expansion (red/green/blue)
 
 - ✅ `gobby-tasks` MCP: tasks, labels, dependencies, sync (`.gobby/tasks.jsonl`)
-- 🚧 Refactor TDD expansion engine for repeatability + better coverage
-- 🧪 Publish comparisons + guidance: “Gobby tasks vs Beads vs Task Master”
+- ✅ Commit linking (task IDs in commit messages auto-link)
+- ✅ Validation gates (criteria checked before task close)
+- 🚧 TDD expansion v2: phased workflow (parse_spec → enrich → expand → apply_tdd)
+- 🧪 Publish comparisons + guidance: "Gobby tasks vs Beads vs Task Master"
   - Beads is dependency-graph-first for agent planning/memory  [oai_citation:2‡GitHub](https://github.com/steveyegge/beads?utm_source=chatgpt.com)
 
 ### Workflows
 
-- 🚧 Workflow engine (phases, tool restrictions, exit conditions)
-- 🚧 Autonomous runner over a dependency graph (task list execution with guardrails)
+- ✅ Workflow engine (phases, tool restrictions, exit conditions)
+- 🚧 Autonomous orchestration: inter-agent messaging, review gates, conductor daemon
 
 ### Worktrees
 
@@ -67,14 +69,16 @@ Legend:
 
 ### Memory
 
-- 🚧 `gobby-memory` MCP: lightweight, local, user-initiated memory (fast retrieval, no embeddings required)
-- 🗺️ Pluggable Memory API + adapters for popular memory backends (embeddings/vector DBs/graphs/etc.)
+- ✅ `gobby-memory` MCP: lightweight, local, user-initiated memory (TF-IDF search)
+- 🚧 Memory v3: backend abstraction layer (SQLite, MemU, Mem0, OpenMemory)
 
 ### Integrations + extensibility
 
 - ✅ GitHub integration
 - ✅ Linear integration
 - ✅ Plugin architecture (extensible domains/tools)
+
+**Implementation sequence:** TDD expansion v2 → Memory v3 → Orchestration
 
 ---
 
@@ -115,11 +119,13 @@ Goal: reduce cognitive load; make the daemon’s behavior legible.
 - 🗺️ Workflow run status + logs
 - 🗺️ Hook inspector (what ran, what changed, what was blocked)
 
-### 2) Controlled autonomy (safe automation, not chaos)
+### 2) Orchestration (controlled autonomy)
 
-- 🗺️ Workflow runner can execute tasks end-to-end with policy constraints
-- 🗺️ Guardrails: tool allowlists, budget caps, approvals, rollback strategy
-- 🗺️ “Stop/resume” semantics and deterministic replay where possible
+- 🗺️ Conductor daemon: persistent monitoring, TARS-style haiku status
+- 🗺️ Inter-agent messaging: parent↔child message passing during execution
+- 🗺️ Token budget tracking: aggregation, pricing, throttling
+- 🗺️ Review gates: `pending_review` status, blocking wait tools
+- 🗺️ callme integration: phone alerts for stuck agents/critical events
 
 ### 3) Worktree production readiness
 
