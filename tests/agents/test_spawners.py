@@ -1133,7 +1133,7 @@ class TestITermSpawner:
         assert result.pid == 12345
 
         call_args = mock_popen.call_args[0][0]
-        assert call_args[0] == "osascript"
+        assert call_args[0].endswith("osascript")  # Accept /usr/bin/osascript or osascript
         assert "-e" in call_args
 
     @patch("subprocess.Popen")
@@ -1265,7 +1265,7 @@ class TestTerminalAppSpawner:
         assert result.success is True
 
         call_args = mock_popen.call_args[0][0]
-        assert call_args[0] == "osascript"
+        assert call_args[0].endswith("osascript")  # Accept /usr/bin/osascript or osascript
         assert "-e" in call_args
 
     @patch("subprocess.Popen")

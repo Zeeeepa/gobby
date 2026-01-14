@@ -329,7 +329,7 @@ class TestTDDHeadingProcessing:
         builder._process_heading(
             heading=heading,
             parent_task_id=None,
-            checkbox_lookup={},
+            all_checkboxes=[],
             created_tasks=created_tasks,
         )
 
@@ -359,7 +359,7 @@ class TestTDDHeadingProcessing:
         builder._process_heading(
             heading=heading,
             parent_task_id=None,
-            checkbox_lookup={},
+            all_checkboxes=[],
             created_tasks=created_tasks,
         )
 

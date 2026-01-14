@@ -99,6 +99,7 @@ class TestMergeCliImports:
 class TestMergeStartCommand:
     """Tests for 'gobby merge start' command."""
 
+    @patch("gobby.cli.merge.get_worktree_context")
     @patch("gobby.cli.merge.get_merge_manager")
     @patch("gobby.cli.merge.get_merge_resolver")
     @patch("gobby.cli.merge.get_project_context")
@@ -107,6 +108,7 @@ class TestMergeStartCommand:
         mock_project_ctx: MagicMock,
         mock_get_resolver: MagicMock,
         mock_get_manager: MagicMock,
+        mock_worktree_ctx: MagicMock,
         runner: CliRunner,
         mock_resolution: MagicMock,
     ):
@@ -114,6 +116,7 @@ class TestMergeStartCommand:
         from gobby.cli import cli
 
         mock_project_ctx.return_value = {"id": "proj-123"}
+        mock_worktree_ctx.return_value = None  # Not in a worktree
         mock_manager = MagicMock()
         mock_manager.create_resolution.return_value = mock_resolution
         mock_get_manager.return_value = mock_manager
@@ -126,6 +129,7 @@ class TestMergeStartCommand:
         assert result.exit_code == 0
         assert "mr-abc123" in result.output or "feature/test" in result.output
 
+    @patch("gobby.cli.merge.get_worktree_context")
     @patch("gobby.cli.merge.get_merge_manager")
     @patch("gobby.cli.merge.get_merge_resolver")
     @patch("gobby.cli.merge.get_project_context")
@@ -134,6 +138,7 @@ class TestMergeStartCommand:
         mock_project_ctx: MagicMock,
         mock_get_resolver: MagicMock,
         mock_get_manager: MagicMock,
+        mock_worktree_ctx: MagicMock,
         runner: CliRunner,
         mock_resolution: MagicMock,
     ):
@@ -141,6 +146,7 @@ class TestMergeStartCommand:
         from gobby.cli import cli
 
         mock_project_ctx.return_value = {"id": "proj-123"}
+        mock_worktree_ctx.return_value = None  # Not in a worktree
         mock_manager = MagicMock()
         mock_manager.create_resolution.return_value = mock_resolution
         mock_get_manager.return_value = mock_manager
@@ -185,12 +191,14 @@ class TestMergeStartCommand:
 class TestMergeStatusCommand:
     """Tests for 'gobby merge status' command."""
 
+    @patch("gobby.cli.merge.get_worktree_context")
     @patch("gobby.cli.merge.get_merge_manager")
     @patch("gobby.cli.merge.get_project_context")
     def test_merge_status_basic(
         self,
         mock_project_ctx: MagicMock,
         mock_get_manager: MagicMock,
+        mock_worktree_ctx: MagicMock,
         runner: CliRunner,
         mock_resolution: MagicMock,
     ):
@@ -198,6 +206,7 @@ class TestMergeStatusCommand:
         from gobby.cli import cli
 
         mock_project_ctx.return_value = {"id": "proj-123"}
+        mock_worktree_ctx.return_value = None  # Not in a worktree
         mock_manager = MagicMock()
         mock_manager.list_resolutions.return_value = [mock_resolution]
         mock_manager.list_conflicts.return_value = []
@@ -207,12 +216,14 @@ class TestMergeStatusCommand:
 
         assert result.exit_code == 0
 
+    @patch("gobby.cli.merge.get_worktree_context")
     @patch("gobby.cli.merge.get_merge_manager")
     @patch("gobby.cli.merge.get_project_context")
     def test_merge_status_verbose(
         self,
         mock_project_ctx: MagicMock,
         mock_get_manager: MagicMock,
+        mock_worktree_ctx: MagicMock,
         runner: CliRunner,
         mock_resolution: MagicMock,
         mock_conflict: MagicMock,
@@ -221,6 +232,7 @@ class TestMergeStatusCommand:
         from gobby.cli import cli
 
         mock_project_ctx.return_value = {"id": "proj-123"}
+        mock_worktree_ctx.return_value = None  # Not in a worktree
         mock_manager = MagicMock()
         mock_manager.list_resolutions.return_value = [mock_resolution]
         mock_manager.list_conflicts.return_value = [mock_conflict]
@@ -232,18 +244,21 @@ class TestMergeStatusCommand:
         # Verbose should show conflict details
         assert "src/test.py" in result.output or "conflict" in result.output.lower()
 
+    @patch("gobby.cli.merge.get_worktree_context")
     @patch("gobby.cli.merge.get_merge_manager")
     @patch("gobby.cli.merge.get_project_context")
     def test_merge_status_no_active_merges(
         self,
         mock_project_ctx: MagicMock,
         mock_get_manager: MagicMock,
+        mock_worktree_ctx: MagicMock,
         runner: CliRunner,
     ):
         """Test merge status when no active merges."""
         from gobby.cli import cli
 
         mock_project_ctx.return_value = {"id": "proj-123"}
+        mock_worktree_ctx.return_value = None  # Not in a worktree
         mock_manager = MagicMock()
         mock_manager.list_resolutions.return_value = []
         mock_get_manager.return_value = mock_manager
@@ -520,12 +535,14 @@ class TestMergeAbortCommand:
 class TestMergeOutputFormatting:
     """Tests for merge command output formatting."""
 
+    @patch("gobby.cli.merge.get_worktree_context")
     @patch("gobby.cli.merge.get_merge_manager")
     @patch("gobby.cli.merge.get_project_context")
     def test_status_output_format(
         self,
         mock_project_ctx: MagicMock,
         mock_get_manager: MagicMock,
+        mock_worktree_ctx: MagicMock,
         runner: CliRunner,
         mock_resolution: MagicMock,
         mock_conflict: MagicMock,
@@ -534,6 +551,7 @@ class TestMergeOutputFormatting:
         from gobby.cli import cli
 
         mock_project_ctx.return_value = {"id": "proj-123"}
+        mock_worktree_ctx.return_value = None  # Not in a worktree
         mock_manager = MagicMock()
         mock_manager.list_resolutions.return_value = [mock_resolution]
         mock_manager.list_conflicts.return_value = [mock_conflict]

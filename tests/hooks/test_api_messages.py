@@ -57,6 +57,7 @@ def mock_db():
             usage_cache_creation_tokens INTEGER DEFAULT 0,
             usage_cache_read_tokens INTEGER DEFAULT 0,
             usage_total_cost_usd REAL DEFAULT 0.0,
+            seq_num INTEGER,
             UNIQUE(external_id, machine_id, source)
         );
     """

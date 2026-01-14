@@ -168,7 +168,8 @@ class TestVerificationRunner:
         result = runner.run_stage("pre-commit")
 
         assert result.skipped is True
-        assert result.success is False
+        # Skipping verification is not a failure - it's a successful skip
+        assert result.success is True
         assert "No verification commands defined" in result.skip_reason
 
     @patch("gobby.hooks.verification_runner.run_command")

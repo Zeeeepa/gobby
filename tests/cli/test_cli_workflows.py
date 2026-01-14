@@ -1,7 +1,9 @@
 import json
 from unittest.mock import MagicMock, patch
+
 import pytest
 from click.testing import CliRunner
+
 from gobby.cli.workflows import workflows
 from gobby.workflows.definitions import WorkflowDefinition, WorkflowState, WorkflowStep
 
@@ -67,62 +69,68 @@ def test_show_workflow(cli_runner, mock_loader):
 
 
 def test_status_no_session(cli_runner, mock_state_manager):
+    import click
     with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        # Mock DB fetchone
-        with patch("gobby.cli.workflows.LocalDatabase") as MockDB:
-            MockDB.return_value.fetchone.return_value = None
-
+        # Mock resolve_session_id to raise no active session error
+        # The CLI catches this and does SystemExit(1) without message
+        with patch(
+            "gobby.cli.workflows.resolve_session_id",
+            side_effect=click.ClickException("No active session found"),
+        ):
             result = cli_runner.invoke(workflows, ["status"])
+            # Exit code 1 indicates no session found
             assert result.exit_code == 1
-            assert "No active session found" in result.output
 
 
 def test_status_active(cli_runner, mock_state_manager):
     with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        state = MagicMock(spec=WorkflowState)
-        state.workflow_name = "active_wf"
-        state.step = "step1"
-        state.step_action_count = 5
-        state.total_action_count = 10
-        state.disabled = False
-        state.artifacts = {}
-        state.task_list = None
-        state.reflection_pending = False
-        mock_state_manager.get_state.return_value = state
+        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+            state = MagicMock(spec=WorkflowState)
+            state.workflow_name = "active_wf"
+            state.step = "step1"
+            state.step_action_count = 5
+            state.total_action_count = 10
+            state.disabled = False
+            state.artifacts = {}
+            state.task_list = None
+            state.reflection_pending = False
+            mock_state_manager.get_state.return_value = state
 
-        result = cli_runner.invoke(workflows, ["status", "--session", "sess1"])
+            result = cli_runner.invoke(workflows, ["status", "--session", "sess1"])
 
-        assert result.exit_code == 0
-        assert "Workflow: active_wf" in result.output
-        assert "Step: step1" in result.output
+            assert result.exit_code == 0
+            assert "Workflow: active_wf" in result.output
+            assert "Step: step1" in result.output
 
 
 def test_set_workflow(cli_runner, mock_loader, mock_state_manager):
     with patch("gobby.cli.workflows.get_workflow_loader", return_value=mock_loader):
         with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
             with patch("gobby.cli.workflows.get_project_path", return_value=None):
-                # Mock definition
-                defi = WorkflowDefinition(name="new_wf", steps=[WorkflowStep(name="start")])
-                mock_loader.load_workflow.return_value = defi
+                with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+                    # Mock definition
+                    defi = WorkflowDefinition(name="new_wf", steps=[WorkflowStep(name="start")])
+                    mock_loader.load_workflow.return_value = defi
 
-                # Mock no existing state
-                mock_state_manager.get_state.return_value = None
+                    # Mock no existing state
+                    mock_state_manager.get_state.return_value = None
 
-                result = cli_runner.invoke(workflows, ["set", "new_wf", "--session", "sess1"])
+                    result = cli_runner.invoke(workflows, ["set", "new_wf", "--session", "sess1"])
 
-                assert result.exit_code == 0
-                assert "Activated workflow 'new_wf'" in result.output
-                mock_state_manager.save_state.assert_called_once()
+                    assert result.exit_code == 0
+                    assert "Activated workflow 'new_wf'" in result.output
+                    mock_state_manager.save_state.assert_called_once()
 
 
 def test_clear_workflow(cli_runner, mock_state_manager):
     with patch("gobby.cli.workflows.get_state_manager", return_value=mock_state_manager):
-        state = MagicMock(spec=WorkflowState)
-        state.workflow_name = "w1"
-        mock_state_manager.get_state.return_value = state
+        with patch("gobby.cli.workflows.resolve_session_id", return_value="sess1"):
+            state = MagicMock(spec=WorkflowState)
+            state.workflow_name = "w1"
+            mock_state_manager.get_state.return_value = state
 
-        result = cli_runner.invoke(workflows, ["clear", "--session", "sess1", "--force"])
+            result = cli_runner.invoke(workflows, ["clear", "--session", "sess1", "--force"])
 
-        assert result.exit_code == 0
-        assert "Cleared workflow" in result.output
-        mock_state_manager.delete_state.assert_called_with("sess1")
+            assert result.exit_code == 0
+            assert "Cleared workflow" in result.output
+            mock_state_manager.delete_state.assert_called_with("sess1")

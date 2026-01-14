@@ -160,12 +160,18 @@ class LocalDatabase:
     def fetchone(self, sql: str, params: tuple[Any, ...] = ()) -> sqlite3.Row | None:
         """Execute query and fetch one row."""
         cursor = self.execute(sql, params)
-        return cast(sqlite3.Row | None, cursor.fetchone())
+        try:
+            return cast(sqlite3.Row | None, cursor.fetchone())
+        finally:
+            cursor.close()
 
     def fetchall(self, sql: str, params: tuple[Any, ...] = ()) -> list[sqlite3.Row]:
         """Execute query and fetch all rows."""
         cursor = self.execute(sql, params)
-        return cursor.fetchall()
+        try:
+            return cursor.fetchall()
+        finally:
+            cursor.close()
 
     def safe_update(
         self,
@@ -203,8 +209,10 @@ class LocalDatabase:
             )
         """
         if not values:
-            # No-op: return cursor without executing
-            return self.connection.cursor()
+            # No-op: return closed cursor without executing
+            cursor = self.connection.cursor()
+            cursor.close()
+            return cursor
 
         # Validate table name
         if not _SQL_IDENTIFIER_PATTERN.match(table):

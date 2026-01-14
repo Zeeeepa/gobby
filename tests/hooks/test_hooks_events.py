@@ -1,6 +1,6 @@
 """Tests for hook event models."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from gobby.hooks.events import (
     EVENT_TYPE_CLI_SUPPORT,
@@ -69,7 +69,7 @@ class TestHookEvent:
             event_type=HookEventType.SESSION_START,
             session_id="test-session-123",
             source=SessionSource.CLAUDE,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={},
         )
 
@@ -80,7 +80,7 @@ class TestHookEvent:
 
     def test_create_full_event(self):
         """Test creating event with all fields."""
-        now = datetime.utcnow()
+        now = datetime.now(UTC)
         event = HookEvent(
             event_type=HookEventType.BEFORE_TOOL,
             session_id="full-session",
@@ -110,7 +110,7 @@ class TestHookEvent:
             event_type=HookEventType.SESSION_END,
             session_id="defaults-test",
             source=SessionSource.CODEX,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(UTC),
             data={},
         )
 

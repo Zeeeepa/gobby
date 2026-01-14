@@ -16,6 +16,12 @@ from gobby.storage.tasks import LocalTaskManager
 from gobby.tasks.auto_decompose import detect_multi_step, extract_steps
 from gobby.workflows.definitions import WorkflowState
 
+# Skip all tests in this module - auto-decomposition disabled in Phase 1
+# See commit 9321ec7 for context. Tests can be re-enabled when feature returns.
+pytestmark = pytest.mark.skip(
+    reason="Auto-decomposition disabled in Phase 1 - see commit 9321ec7"
+)
+
 
 class TestDetectMultiStepPositive:
     """Tests for positive detection of multi-step descriptions."""

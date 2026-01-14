@@ -3,14 +3,20 @@ from unittest.mock import patch
 
 from gobby.storage.database import LocalDatabase
 from gobby.storage.migrations import (
-    MIGRATIONS,
+    BASELINE_VERSION,
     get_current_version,
     run_migrations,
 )
+from gobby.storage.migrations_legacy import LEGACY_MIGRATIONS
 
 
 def test_migrations_fresh_db(tmp_path):
-    """Test running migrations on a fresh database."""
+    """Test running migrations on a fresh database.
+
+    With the baseline schema architecture:
+    - Fresh databases get BASELINE_SCHEMA applied directly (counts as 1 migration)
+    - This jumps the version to BASELINE_VERSION (60)
+    """
     db_path = tmp_path / "migration_test.db"
     db = LocalDatabase(db_path)
 
@@ -20,13 +26,12 @@ def test_migrations_fresh_db(tmp_path):
     # Run migrations
     applied = run_migrations(db)
 
-    # Should apply all migrations
-    expected_count = len(MIGRATIONS)
-    assert applied == expected_count
+    # Fresh databases apply the baseline schema (counts as 1)
+    assert applied == 1
 
-    # Verify version
+    # Verify version jumps to baseline
     current_version = get_current_version(db)
-    assert current_version == expected_count
+    assert current_version == BASELINE_VERSION
 
     # Check tables exist (sample check)
     tables = [
@@ -56,6 +61,7 @@ def test_migrations_idempotency(tmp_path):
 
     run_migrations(db)
     initial_version = get_current_version(db)
+    assert initial_version == BASELINE_VERSION
 
     # Run again
     applied = run_migrations(db)
@@ -400,16 +406,14 @@ def test_github_columns_store_values(tmp_path):
 
 def test_github_migration_number_is_48(tmp_path):
     """Test that GitHub columns are added in migration 48."""
-    from gobby.storage.migrations import MIGRATIONS
-
-    # Find migration 48
+    # Migration 48 is in LEGACY_MIGRATIONS (pre-baseline migrations)
     migration_48 = None
-    for version, description, sql in MIGRATIONS:
+    for version, description, sql in LEGACY_MIGRATIONS:
         if version == 48:
             migration_48 = (version, description, sql)
             break
 
-    assert migration_48 is not None, "Migration 48 not found in MIGRATIONS list"
+    assert migration_48 is not None, "Migration 48 not found in LEGACY_MIGRATIONS list"
     assert "github" in migration_48[1].lower(), "Migration 48 should be for GitHub columns"
 
 
@@ -525,16 +529,14 @@ def test_seq_num_stores_integer_values(tmp_path):
 
 def test_seq_num_migration_number_is_52(tmp_path):
     """Test that seq_num and path_cache are added in migration 52."""
-    from gobby.storage.migrations import MIGRATIONS
-
-    # Find migration 52
+    # Migration 52 is in LEGACY_MIGRATIONS (pre-baseline migrations)
     migration_52 = None
-    for version, description, sql in MIGRATIONS:
+    for version, description, sql in LEGACY_MIGRATIONS:
         if version == 52:
             migration_52 = (version, description, sql)
             break
 
-    assert migration_52 is not None, "Migration 52 not found in MIGRATIONS list"
+    assert migration_52 is not None, "Migration 52 not found in LEGACY_MIGRATIONS list"
     assert "seq_num" in migration_52[2].lower(), "Migration 52 should add seq_num column"
     assert "path_cache" in migration_52[2].lower(), "Migration 52 should add path_cache column"
 
@@ -550,9 +552,8 @@ def test_uuid_migration_converts_task_ids(tmp_path):
     db = LocalDatabase(db_path)
 
     # Run migrations up to 52 (before UUID conversion)
-    from gobby.storage.migrations import MIGRATIONS
-
-    for version, _description, action in MIGRATIONS:
+    # These are in LEGACY_MIGRATIONS (pre-baseline migrations)
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version <= 52:
             if callable(action):
                 action(db)
@@ -575,7 +576,7 @@ def test_uuid_migration_converts_task_ids(tmp_path):
     )
 
     # Run migration 53
-    for version, _description, action in MIGRATIONS:
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version == 53:
             if callable(action):
                 action(db)
@@ -603,9 +604,8 @@ def test_uuid_migration_updates_parent_task_id(tmp_path):
     db = LocalDatabase(db_path)
 
     # Run migrations up to 52
-    from gobby.storage.migrations import MIGRATIONS
-
-    for version, _description, action in MIGRATIONS:
+    # These are in LEGACY_MIGRATIONS (pre-baseline migrations)
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version <= 52:
             if callable(action):
                 action(db)
@@ -633,7 +633,7 @@ def test_uuid_migration_updates_parent_task_id(tmp_path):
     )
 
     # Run migration 53
-    for version, _description, action in MIGRATIONS:
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version == 53:
             if callable(action):
                 action(db)
@@ -665,16 +665,14 @@ def test_uuid_migration_skips_when_no_gt_ids(tmp_path):
 
 def test_uuid_migration_number_is_53(tmp_path):
     """Test that UUID conversion is migration 53."""
-    from gobby.storage.migrations import MIGRATIONS
-
-    # Find migration 53
+    # Migration 53 is in LEGACY_MIGRATIONS (pre-baseline migrations)
     migration_53 = None
-    for version, description, action in MIGRATIONS:
+    for version, description, action in LEGACY_MIGRATIONS:
         if version == 53:
             migration_53 = (version, description, action)
             break
 
-    assert migration_53 is not None, "Migration 53 not found in MIGRATIONS list"
+    assert migration_53 is not None, "Migration 53 not found in LEGACY_MIGRATIONS list"
     assert "uuid" in migration_53[1].lower(), "Migration 53 should be for UUID conversion"
     assert callable(migration_53[2]), "Migration 53 should be a callable (Python migration)"
 
@@ -690,9 +688,8 @@ def test_seq_num_backfill_assigns_sequential_numbers(tmp_path):
     db = LocalDatabase(db_path)
 
     # Run migrations up to 53 (before seq_num backfill)
-    from gobby.storage.migrations import MIGRATIONS
-
-    for version, _description, action in MIGRATIONS:
+    # These are in LEGACY_MIGRATIONS (pre-baseline migrations)
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version <= 53:
             if callable(action):
                 action(db)
@@ -725,7 +722,7 @@ def test_seq_num_backfill_assigns_sequential_numbers(tmp_path):
     )
 
     # Run migration 54
-    for version, _description, action in MIGRATIONS:
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version == 54:
             if callable(action):
                 action(db)
@@ -749,9 +746,8 @@ def test_seq_num_backfill_per_project(tmp_path):
     db = LocalDatabase(db_path)
 
     # Run migrations up to 53
-    from gobby.storage.migrations import MIGRATIONS
-
-    for version, _description, action in MIGRATIONS:
+    # These are in LEGACY_MIGRATIONS (pre-baseline migrations)
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version <= 53:
             if callable(action):
                 action(db)
@@ -792,7 +788,7 @@ def test_seq_num_backfill_per_project(tmp_path):
     )
 
     # Run migration 54
-    for version, _description, action in MIGRATIONS:
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version == 54:
             if callable(action):
                 action(db)
@@ -829,16 +825,14 @@ def test_seq_num_backfill_skips_already_set(tmp_path):
 
 def test_seq_num_backfill_migration_number_is_54(tmp_path):
     """Test that seq_num backfill is migration 54."""
-    from gobby.storage.migrations import MIGRATIONS
-
-    # Find migration 54
+    # Migration 54 is in LEGACY_MIGRATIONS (pre-baseline migrations)
     migration_54 = None
-    for version, description, action in MIGRATIONS:
+    for version, description, action in LEGACY_MIGRATIONS:
         if version == 54:
             migration_54 = (version, description, action)
             break
 
-    assert migration_54 is not None, "Migration 54 not found in MIGRATIONS list"
+    assert migration_54 is not None, "Migration 54 not found in LEGACY_MIGRATIONS list"
     assert "seq_num" in migration_54[1].lower(), "Migration 54 should be for seq_num backfill"
     assert callable(migration_54[2]), "Migration 54 should be a callable (Python migration)"
 
@@ -852,9 +846,8 @@ def test_path_cache_backfill_computes_root_task_path(tmp_path):
     db = LocalDatabase(db_path)
 
     # Run migrations up to 54 (includes seq_num assignment)
-    from gobby.storage.migrations import MIGRATIONS
-
-    for version, _description, action in MIGRATIONS:
+    # These are in LEGACY_MIGRATIONS (pre-baseline migrations)
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version <= 54:
             if callable(action):
                 action(db)
@@ -877,7 +870,7 @@ def test_path_cache_backfill_computes_root_task_path(tmp_path):
     )
 
     # Run migration 55
-    for version, _description, action in MIGRATIONS:
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version == 55:
             if callable(action):
                 action(db)
@@ -894,9 +887,8 @@ def test_path_cache_backfill_computes_child_task_path(tmp_path):
     db = LocalDatabase(db_path)
 
     # Run migrations up to 54
-    from gobby.storage.migrations import MIGRATIONS
-
-    for version, _description, action in MIGRATIONS:
+    # These are in LEGACY_MIGRATIONS (pre-baseline migrations)
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version <= 54:
             if callable(action):
                 action(db)
@@ -924,7 +916,7 @@ def test_path_cache_backfill_computes_child_task_path(tmp_path):
     )
 
     # Run migration 55
-    for version, _description, action in MIGRATIONS:
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version == 55:
             if callable(action):
                 action(db)
@@ -944,9 +936,8 @@ def test_path_cache_backfill_deep_hierarchy(tmp_path):
     db = LocalDatabase(db_path)
 
     # Run migrations up to 54
-    from gobby.storage.migrations import MIGRATIONS
-
-    for version, _description, action in MIGRATIONS:
+    # These are in LEGACY_MIGRATIONS (pre-baseline migrations)
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version <= 54:
             if callable(action):
                 action(db)
@@ -984,7 +975,7 @@ def test_path_cache_backfill_deep_hierarchy(tmp_path):
     )
 
     # Run migration 55
-    for version, _description, action in MIGRATIONS:
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version == 55:
             if callable(action):
                 action(db)
@@ -1001,9 +992,8 @@ def test_path_cache_backfill_skips_no_seq_num(tmp_path):
     db = LocalDatabase(db_path)
 
     # Run migrations up to 54
-    from gobby.storage.migrations import MIGRATIONS
-
-    for version, _description, action in MIGRATIONS:
+    # These are in LEGACY_MIGRATIONS (pre-baseline migrations)
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version <= 54:
             if callable(action):
                 action(db)
@@ -1026,7 +1016,7 @@ def test_path_cache_backfill_skips_no_seq_num(tmp_path):
     )
 
     # Run migration 55
-    for version, _description, action in MIGRATIONS:
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version == 55:
             if callable(action):
                 action(db)
@@ -1039,16 +1029,14 @@ def test_path_cache_backfill_skips_no_seq_num(tmp_path):
 
 def test_path_cache_backfill_migration_number_is_55(tmp_path):
     """Test that path_cache backfill is migration 55."""
-    from gobby.storage.migrations import MIGRATIONS
-
-    # Find migration 55
+    # Migration 55 is in LEGACY_MIGRATIONS (pre-baseline migrations)
     migration_55 = None
-    for version, description, action in MIGRATIONS:
+    for version, description, action in LEGACY_MIGRATIONS:
         if version == 55:
             migration_55 = (version, description, action)
             break
 
-    assert migration_55 is not None, "Migration 55 not found in MIGRATIONS list"
+    assert migration_55 is not None, "Migration 55 not found in LEGACY_MIGRATIONS list"
     assert "path_cache" in migration_55[1].lower(), "Migration 55 should be for path_cache backfill"
     assert callable(migration_55[2]), "Migration 55 should be a callable (Python migration)"
 
@@ -1067,10 +1055,9 @@ def test_full_migration_sequence_end_to_end(tmp_path):
     db_path = tmp_path / "full_migration.db"
     db = LocalDatabase(db_path)
 
-    from gobby.storage.migrations import MIGRATIONS
-
     # Run migrations up to 51 (before task renumbering changes)
-    for version, _description, action in MIGRATIONS:
+    # These are in LEGACY_MIGRATIONS (pre-baseline migrations)
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version <= 51:
             if callable(action):
                 action(db)
@@ -1129,7 +1116,7 @@ def test_full_migration_sequence_end_to_end(tmp_path):
     )
 
     # === Run Migration 52: Add seq_num and path_cache columns ===
-    for version, _description, action in MIGRATIONS:
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version == 52:
             if callable(action):
                 action(db)
@@ -1146,7 +1133,7 @@ def test_full_migration_sequence_end_to_end(tmp_path):
     assert "path_cache" in cols, "path_cache column should exist after migration 52"
 
     # === Run Migration 53: Convert gt-* IDs to UUIDs ===
-    for version, _description, action in MIGRATIONS:
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version == 53:
             if callable(action):
                 action(db)
@@ -1191,7 +1178,7 @@ def test_full_migration_sequence_end_to_end(tmp_path):
     ), "Dependency should reference child1's new UUID"
 
     # === Run Migration 54: Backfill seq_num ===
-    for version, _description, action in MIGRATIONS:
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version == 54:
             if callable(action):
                 action(db)
@@ -1208,7 +1195,7 @@ def test_full_migration_sequence_end_to_end(tmp_path):
     assert tasks_by_seq[3]["title"] == "Grandchild" and tasks_by_seq[3]["seq_num"] == 4
 
     # === Run Migration 55: Backfill path_cache ===
-    for version, _description, action in MIGRATIONS:
+    for version, _description, action in LEGACY_MIGRATIONS:
         if version == 55:
             if callable(action):
                 action(db)

@@ -1,14 +1,15 @@
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from gobby.agents.runner import AgentRunner
 from gobby.mcp_proxy.tools.task_orchestration import (
     create_orchestration_registry,
 )
-from gobby.storage.tasks import Task, LocalTaskManager
-from gobby.storage.worktrees import LocalWorktreeManager, Worktree
-from gobby.worktrees.git import WorktreeGitManager, GitOperationResult
-from gobby.agents.runner import AgentRunner
 from gobby.storage.sessions import Session
+from gobby.storage.tasks import LocalTaskManager, Task
+from gobby.storage.worktrees import LocalWorktreeManager, Worktree
+from gobby.worktrees.git import GitOperationResult, WorktreeGitManager
 
 
 @pytest.fixture
@@ -53,7 +54,7 @@ def orchestration_tools(
 
 
 class TestOrchestrateReadyTasks:
-    @pytest.mark.async_io
+    @pytest.mark.asyncio
     async def test_orchestrate_basic(
         self,
         orchestration_tools,
@@ -151,7 +152,7 @@ class TestOrchestrateReadyTasks:
                         mock_worktree_storage.claim.assert_called_with("wt-1", "session-1")
                         mock_task_manager.update_task.assert_called_with("T2", status="in_progress")
 
-    @pytest.mark.async_io
+    @pytest.mark.asyncio
     async def test_max_concurrent_limit(
         self, orchestration_tools, mock_task_manager, mock_worktree_storage
     ):
@@ -208,7 +209,7 @@ class TestOrchestrateReadyTasks:
 
 
 class TestGetOrchestrationStatus:
-    @pytest.mark.async_io
+    @pytest.mark.asyncio
     async def test_get_status(self, orchestration_tools, mock_task_manager, mock_worktree_storage):
         tool = orchestration_tools._tools["get_orchestration_status"]
 
