@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 Gobby is a local-first daemon that unifies AI coding assistants (Claude Code, Gemini CLI, Codex) under one persistent, extensible platform. It provides:
+
 - **Session management** that survives restarts and context compactions
 - **Task system** with dependency graphs, TDD expansion, and validation gates
 - **MCP proxy** with progressive disclosure (tools stay lightweight until needed)
@@ -277,6 +278,7 @@ Gobby automatically creates test/implement pairs when `tdd_mode=true` (default):
 ```
 
 **To disable TDD mode for a session**:
+
 ```python
 call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
     "name": "tdd_mode",
@@ -302,7 +304,8 @@ call_tool(server_name="gobby-tasks", tool_name="expand_from_spec", arguments={
 Include task ID in commit messages for automatic linking:
 
 **Recommended format**:
-```
+
+```text
 [<task-id>] <type>: <description>
 
 Examples:
@@ -312,12 +315,13 @@ Examples:
 ```
 
 **Also supported**:
+
 ```
 <task-id>: <description>
 ```
 
 **IMPORTANT**: Do NOT add the following trailers to commit messages:
-- ~~`Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>`~~
+
 - ~~`Generated with Claude Code`~~
 
 Gobby automatically links commits to tasks - no additional trailers needed.
@@ -325,6 +329,7 @@ Gobby automatically links commits to tasks - no additional trailers needed.
 ### Closing Tasks: Rules and Gotchas
 
 **Rule 1**: Always commit BEFORE closing
+
 ```python
 # ❌ WRONG - close_task will error
 call_tool("gobby-tasks", "close_task", {"task_id": "abc"})
@@ -335,6 +340,7 @@ call_tool("gobby-tasks", "close_task", {"task_id": "abc", "commit_sha": "a1b2c3"
 ```
 
 **Rule 2**: Use `no_commit_needed=true` ONLY for non-code tasks
+
 ```python
 # ✅ Valid use cases:
 # - Research tasks
@@ -421,12 +427,14 @@ call_tool(server_name="gobby-agents", tool_name="start_agent", arguments={
 ```
 
 **Context sources** (`session_context`):
+
 - `summary_markdown` - Session summary
 - `compact_markdown` - Compacted context
 - `transcript:N` - Last N messages from transcript
 - `file:path` - File content
 
 **Safety limits**:
+
 - Max agent depth: 3 (configurable)
 - Tools filtered per workflow step
 - Agents inherit workflow restrictions
@@ -446,12 +454,14 @@ call_tool(server_name="gobby-worktrees", tool_name="spawn_agent_in_worktree", ar
 ```
 
 **Worktree lifecycle**:
+
 - `active` - Currently being used
 - `stale` - No activity for N hours
 - `merged` - Branch merged to main
 - `abandoned` - Explicitly abandoned
 
 **Cleanup**:
+
 ```bash
 uv run gobby worktrees cleanup  # Remove merged/abandoned worktrees
 ```
@@ -524,6 +534,7 @@ call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
 ```
 
 **Key variables**:
+
 - `session_task` - Task that must complete before stopping
 - `auto_decompose` - Auto-expand multi-step tasks (default: `true`)
 - `tdd_mode` - Generate test/implement pairs (default: `true`)
@@ -545,6 +556,7 @@ uv run gobby workflows set auto-task --variable session_task=<task-id>
 ```
 
 **Features**:
+
 - Stays in `work` step until `task_tree_complete()`
 - Blocks session stop if task incomplete
 - Auto-suggests next subtask when current one done
@@ -574,6 +586,7 @@ call_tool(server_name="gobby-memory", tool_name="forget", arguments={
 ```
 
 **Search modes**:
+
 - TF-IDF (default)
 - Semantic (requires embeddings)
 
@@ -598,6 +611,7 @@ Gobby intercepts CLI events through hooks (13 total):
 | `permission-request` | Permission requested (Claude only) | Yes |
 
 **Plugins**: Place custom plugins in:
+
 - `~/.gobby/plugins/` (global)
 - `.gobby/plugins/` (project-specific)
 
@@ -787,6 +801,7 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
 **Problem**: Calling `close_task` without committing first
 
 **Solution**: Always commit before closing:
+
 ```bash
 git add .
 git commit -m "[task-id] feat: implement feature"
@@ -798,6 +813,7 @@ uv run gobby tasks close <task-id> --commit <sha>
 **Problem**: Trying to modify files without a task set to `in_progress`
 
 **Solution**: Create or update a task first:
+
 ```python
 call_tool("gobby-tasks", "update_task", {
     "task_id": "abc123",
@@ -810,6 +826,7 @@ call_tool("gobby-tasks", "update_task", {
 **Problem**: Can't transition to next step
 
 **Solution**: Force transition or clear workflow:
+
 ```bash
 uv run gobby workflows step <target-step> --force
 uv run gobby workflows clear --force
@@ -820,6 +837,7 @@ uv run gobby workflows clear --force
 **Problem**: Too many nested agent spawns
 
 **Solution**: Reduce nesting or increase limit in config:
+
 ```yaml
 agents:
   max_depth: 5  # Default is 3
