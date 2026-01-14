@@ -669,10 +669,10 @@ def create_session_messages_registry(
             }
 
         @registry.tool(
-            name="this_session",
+            name="get_current",
             description="Get your current session ID. Pass your external_id (from context) and source.",
         )
-        def this_session(
+        def get_current(
             external_id: str,
             source: str,
         ) -> dict[str, Any]:
