@@ -1370,6 +1370,91 @@ class TestImportSpecCommand:
         assert "--type" in result.output
         assert "--parent" in result.output
 
+    @patch("gobby.cli.tasks.ai.get_task_manager")
+    def test_import_spec_execution(
+        self,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+        tmp_path,
+    ):
+        """Test import-spec execution."""
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        # Create dummy spec file
+        spec_file = tmp_path / "spec.md"
+        spec_file.write_text("# Spec")
+
+        with patch("gobby.tasks.expansion.TaskExpander") as MockExpander:
+            with patch("gobby.utils.project_init.initialize_project"):  # Mock init
+                mock_instance = MockExpander.return_value
+
+                async def mock_expand(*args, **kwargs):
+                    return {"subtask_ids": ["t1", "t2"]}
+
+                mock_instance.expand_task.side_effect = mock_expand
+
+                result = runner.invoke(
+                    cli, ["tasks", "import-spec", str(spec_file), "--type", "prd"]
+                )
+
+                assert result.exit_code == 0
+                assert "Created 2 tasks" in result.output
+                mock_instance.expand_task.assert_called_once()
+
+    @patch("gobby.cli.tasks.ai.get_task_manager")
+    @patch("gobby.cli.tasks.ai.resolve_task_id")
+    def test_import_spec_with_parent(
+        self,
+        mock_resolve: MagicMock,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+        mock_task: MagicMock,
+        tmp_path,
+    ):
+        """Test import-spec with parent task."""
+        mock_resolve.return_value = mock_task
+        mock_manager = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        spec_file = tmp_path / "spec.md"
+        spec_file.write_text("# Spec")
+
+        with patch("gobby.tasks.expansion.TaskExpander") as MockExpander:
+            with patch("gobby.utils.project_init.initialize_project"):
+                mock_instance = MockExpander.return_value
+
+                async def mock_expand(*args, **kwargs):
+                    return {"subtask_ids": ["t1"]}
+
+                mock_instance.expand_task.side_effect = mock_expand
+
+                result = runner.invoke(
+                    cli, ["tasks", "import-spec", str(spec_file), "--parent", "gt-abc123"]
+                )
+
+                assert result.exit_code == 0
+                # Verify parent task used (implicitly via create_task for spec_task)
+                # But here checking expand_task args if we want, or just exit status
+
+    @patch("gobby.cli.tasks.ai.get_task_manager")
+    def test_import_spec_empty_file(
+        self,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+        tmp_path,
+    ):
+        """Test import-spec with empty file."""
+        mock_get_manager.return_value = MagicMock()
+
+        empty_file = tmp_path / "empty.md"
+        empty_file.write_text("   ")
+
+        result = runner.invoke(cli, ["tasks", "import-spec", str(empty_file)])
+
+        assert result.exit_code == 0
+        assert "Spec file is empty" in result.output
+
 
 class TestValidateCommand:
     """Tests for gobby tasks validate command - AI module."""
@@ -1655,6 +1740,105 @@ class TestValidateCommandExtended:
         # Command should attempt to validate (may fail on config but accepts the file)
         assert result.exit_code == 0
 
+    @patch("gobby.cli.tasks.ai.get_task_manager")
+    @patch("gobby.cli.tasks.ai.resolve_task_id")
+    def test_validate_history(
+        self,
+        mock_resolve: MagicMock,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+        mock_task: MagicMock,
+    ):
+        """Test validate --history."""
+        mock_resolve.return_value = mock_task
+        mock_manager = MagicMock()
+        mock_manager.db = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.tasks.validation_history.ValidationHistoryManager") as MockHistory:
+            history_mock = MockHistory.return_value
+            history_mock.get_iteration_history.return_value = [
+                MagicMock(iteration=1, status="invalid", feedback="Bad code", issues=["bug"])
+            ]
+
+            result = runner.invoke(cli, ["tasks", "validate", "gt-abc123", "--history"])
+
+            assert result.exit_code == 0
+            assert "Iteration 1: invalid" in result.output
+            assert "Bad code" in result.output
+
+    @patch("gobby.cli.tasks.ai.get_task_manager")
+    @patch("gobby.cli.tasks.ai.resolve_task_id")
+    def test_validate_recurring(
+        self,
+        mock_resolve: MagicMock,
+        mock_get_manager: MagicMock,
+        runner: CliRunner,
+        mock_task: MagicMock,
+    ):
+        """Test validate --recurring."""
+        mock_resolve.return_value = mock_task
+        mock_manager = MagicMock()
+        mock_manager.db = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.tasks.validation_history.ValidationHistoryManager") as MockHistory:
+            history_mock = MockHistory.return_value
+            history_mock.get_recurring_issue_summary.return_value = {
+                "total_iterations": 3,
+                "recurring_issues": [{"title": "Lint Error", "count": 2}],
+            }
+            history_mock.has_recurring_issues.return_value = True
+
+            result = runner.invoke(cli, ["tasks", "validate", "gt-abc123", "--recurring"])
+
+            assert result.exit_code == 0
+            assert "Lint Error (count: 2)" in result.output
+            assert "Total iterations: 3" in result.output
+
+    @patch("gobby.config.app.load_config")
+    @patch("gobby.cli.tasks.ai.get_task_manager")
+    @patch("gobby.cli.tasks.ai.resolve_task_id")
+    def test_validate_max_retries_exceeded(
+        self,
+        mock_resolve: MagicMock,
+        mock_get_manager: MagicMock,
+        mock_config: MagicMock,
+        runner: CliRunner,
+        mock_task: MagicMock,
+    ):
+        """Test validation failure exceeding max retries."""
+        mock_task.validation_fail_count = 2  # Already failed 2 times
+        mock_resolve.return_value = mock_task
+        mock_manager = MagicMock()
+        mock_manager.list_tasks.return_value = []
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.tasks.validation.TaskValidator") as MockValidator:
+            validator_mock = MockValidator.return_value
+            # Mock async validation result
+            future = MagicMock()
+            future.status = "invalid"
+            future.feedback = "Still broken"
+
+            async def async_result(*args, **kwargs):
+                return future
+
+            validator_mock.validate_task.side_effect = async_result
+
+            # Max retries is 3 in code. With 2 failures + 1 new failure = 3 -> Exceeded if check is < MAX
+            # Code: if new_fail_count < MAX_RETRIES (3): create fix task
+            # 2 + 1 = 3. 3 < 3 is False. So it should mark as failed.
+
+            result = runner.invoke(cli, ["tasks", "validate", "gt-abc123", "--summary", "fix"])
+
+            assert result.exit_code == 0
+            assert "Exceeded max retries" in result.output
+            mock_manager.update_task.assert_called()
+            # Verify status update
+            call_kwargs = mock_manager.update_task.call_args.kwargs
+            assert call_kwargs["status"] == "failed"
+
 
 class TestComplexityCommandExtended:
     """Extended tests for complexity command."""
@@ -1882,6 +2066,50 @@ class TestGenerateCriteriaCommandExtended:
         assert result.exit_code == 0
         assert "Error initializing validator" in result.output
 
+    @patch("gobby.config.app.load_config")
+    @patch("gobby.cli.tasks.ai.get_task_manager")
+    @patch("gobby.cli.tasks.ai.get_project_context")
+    def test_generate_criteria_all(
+        self,
+        mock_project_ctx: MagicMock,
+        mock_get_manager: MagicMock,
+        mock_config: MagicMock,
+        runner: CliRunner,
+    ):
+        """Test generate-criteria --all."""
+        mock_project_ctx.return_value = {"name": "TestProj"}
+        mock_manager = MagicMock()
+
+        # Two tasks needing criteria: one parent, one leaf
+        parent = MagicMock(id="t1", seq_num=1, title="Parent", validation_criteria=None)
+        leaf = MagicMock(
+            id="t2", seq_num=2, title="Leaf", description="Desc", validation_criteria=None
+        )
+
+        mock_manager.list_tasks.side_effect = [
+            [parent, leaf],  # First call for all open tasks
+            [leaf],  # Child check for parent (has child)
+            [],  # Child check for leaf (no child)
+        ]
+        mock_manager.update_task.return_value = None
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.tasks.validation.TaskValidator") as MockValidator:
+            validator = MockValidator.return_value
+
+            async def async_gen(*args, **kwargs):
+                return "AI Criteria"
+
+            validator.generate_criteria.side_effect = async_gen
+
+            result = runner.invoke(cli, ["tasks", "generate-criteria", "--all"])
+
+            assert result.exit_code == 0
+            assert "Found 2 tasks" in result.output
+            assert "[parent] TestProj-#1" in result.output
+            assert "[leaf] TestProj-#2" in result.output
+            assert "AI Criteria" in result.output
+
 
 class TestExpandCommandExtended:
     """Extended tests for expand command."""
@@ -1930,6 +2158,128 @@ class TestExpandCommandExtended:
         # Should attempt expansion (fails on config, but accepted the context)
         assert result.exit_code == 0
 
+    @patch("gobby.config.app.load_config")
+    @patch("gobby.cli.tasks.ai.get_task_manager")
+    @patch("gobby.cli.tasks.ai.resolve_task_id")
+    def test_expand_success_with_wiring(
+        self,
+        mock_resolve: MagicMock,
+        mock_get_manager: MagicMock,
+        mock_config: MagicMock,
+        runner: CliRunner,
+        mock_task: MagicMock,
+    ):
+        """Test successful expansion with subtasks and dependency wiring."""
+        mock_resolve.return_value = mock_task
+        mock_manager = MagicMock()
+        mock_manager.create_task.side_effect = lambda **kwargs: MagicMock(
+            id=f"gt-sub-{kwargs['title']}", title=kwargs["title"]
+        )
+        mock_manager.db = MagicMock()
+        mock_get_manager.return_value = mock_manager
+
+        # Mock expander result with phases and dependencies
+        expander_result = {
+            "phases": [
+                {
+                    "name": "Phase 1",
+                    "subtasks": [
+                        {"title": "Subtask A", "description": "Desc A", "depends_on_indices": []},
+                        {
+                            "title": "Subtask B",
+                            "description": "Desc B",
+                            "depends_on_indices": [0],
+                        },  # Depends on A (index 0)
+                    ],
+                }
+            ],
+            "complexity_analysis": {"score": 5, "reasoning": "Medium"},
+        }
+
+        # Mock TaskExpander
+        with patch("gobby.tasks.expansion.TaskExpander") as MockExpander:
+            mock_instance = MockExpander.return_value
+
+            async def mock_expand(*args, **kwargs):
+                return expander_result
+
+            mock_instance.expand_task.side_effect = mock_expand
+
+            # Mock TaskDependencyManager
+            with patch("gobby.storage.task_dependencies.TaskDependencyManager") as MockDepManager:
+                mock_dep_instance = MockDepManager.return_value
+
+                result = runner.invoke(cli, ["tasks", "expand", "gt-abc123"])
+
+                assert result.exit_code == 0
+                assert "Created 2 subtasks" in result.output
+                assert "Phase 1" in result.output
+                assert "Subtask A" in result.output
+                assert "Subtask B" in result.output
+
+                # Verify dependencies wired
+                # Subtask B (index 1) depends on Subtask A (index 0)
+                # Global index 0 is A, 1 is B
+                mock_dep_instance.add_dependency.assert_any_call(
+                    task_id="gt-sub-Subtask B", depends_on="gt-sub-Subtask A", dep_type="blocks"
+                )
+
+    @patch("gobby.config.app.load_config")
+    @patch("gobby.cli.tasks.ai.get_task_manager")
+    @patch("gobby.cli.tasks.ai.resolve_task_id")
+    def test_expand_error_result(
+        self,
+        mock_resolve: MagicMock,
+        mock_get_manager: MagicMock,
+        mock_config: MagicMock,
+        runner: CliRunner,
+        mock_task: MagicMock,
+    ):
+        """Test expand when AI returns an error."""
+        mock_resolve.return_value = mock_task
+        mock_get_manager.return_value = MagicMock()
+
+        with patch("gobby.tasks.expansion.TaskExpander") as MockExpander:
+            mock_instance = MockExpander.return_value
+
+            async def mock_expand(*args, **kwargs):
+                return {"error": "AI refused"}
+
+            mock_instance.expand_task.side_effect = mock_expand
+
+            result = runner.invoke(cli, ["tasks", "expand", "gt-abc123"])
+
+            assert result.exit_code == 0
+            assert "Error: AI refused" in result.output
+
+    @patch("gobby.config.app.load_config")
+    @patch("gobby.cli.tasks.ai.get_task_manager")
+    @patch("gobby.cli.tasks.ai.resolve_task_id")
+    def test_expand_empty_result(
+        self,
+        mock_resolve: MagicMock,
+        mock_get_manager: MagicMock,
+        mock_config: MagicMock,
+        runner: CliRunner,
+        mock_task: MagicMock,
+    ):
+        """Test expand when AI returns empty result."""
+        mock_resolve.return_value = mock_task
+        mock_get_manager.return_value = MagicMock()
+
+        with patch("gobby.tasks.expansion.TaskExpander") as MockExpander:
+            mock_instance = MockExpander.return_value
+
+            async def mock_expand(*args, **kwargs):
+                return None
+
+            mock_instance.expand_task.side_effect = mock_expand
+
+            result = runner.invoke(cli, ["tasks", "expand", "gt-abc123"])
+
+            assert result.exit_code == 0
+            assert "Expansion returned no results" in result.output
+
 
 class TestExpandAllCommandExtended:
     """Extended tests for expand-all command."""
@@ -1971,6 +2321,74 @@ class TestExpandAllCommandExtended:
         # Verify type filter was passed
         first_call = mock_manager.list_tasks.call_args_list[0]
         assert first_call.kwargs.get("task_type") == "feature"
+
+    @patch("gobby.config.app.load_config")
+    @patch("gobby.cli.tasks.ai.get_task_manager")
+    def test_expand_all_execution(
+        self,
+        mock_get_manager: MagicMock,
+        mock_config: MagicMock,
+        runner: CliRunner,
+        mock_task: MagicMock,
+    ):
+        """Test expand-all execution flow."""
+        mock_task.complexity_score = 5
+        mock_manager = MagicMock()
+        mock_manager.list_tasks.side_effect = [[mock_task], []]
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.tasks.expansion.TaskExpander") as MockExpander:
+            mock_instance = MockExpander.return_value
+
+            async def mock_expand(*args, **kwargs):
+                return {"subtask_ids": ["sub1", "sub2"]}
+
+            mock_instance.expand_task.side_effect = mock_expand
+
+            result = runner.invoke(cli, ["tasks", "expand-all"])
+
+            assert result.exit_code == 0
+            assert "Expanding 1 tasks" in result.output
+            assert "Expanded 1/1 tasks successfully" in result.output
+
+    @patch("gobby.config.app.load_config")
+    @patch("gobby.cli.tasks.ai.get_task_manager")
+    def test_expand_all_partial_failure(
+        self,
+        mock_get_manager: MagicMock,
+        mock_config: MagicMock,
+        runner: CliRunner,
+        mock_task: MagicMock,
+    ):
+        """Test expand-all with mixed success/failure."""
+        task1 = MagicMock(id="t1", title="Task 1", complexity_score=5)
+        task2 = MagicMock(id="t2", title="Task 2", complexity_score=5)
+
+        mock_manager = MagicMock()
+        # First call lists all tasks, then check children for each
+        # logic in command: list_tasks(open) -> for t in tasks: list_tasks(parent=t.id)
+        mock_manager.list_tasks.side_effect = [
+            [task1, task2],  # Initial list
+            [],  # t1 children
+            [],  # t2 children
+        ]
+        mock_get_manager.return_value = mock_manager
+
+        with patch("gobby.tasks.expansion.TaskExpander") as MockExpander:
+            mock_instance = MockExpander.return_value
+
+            async def side_effect(task_id, **kwargs):
+                if task_id == "t1":
+                    return {"subtask_ids": ["s1"]}
+                raise Exception("AI Error")
+
+            mock_instance.expand_task.side_effect = side_effect
+
+            result = runner.invoke(cli, ["tasks", "expand-all"])
+
+            assert result.exit_code == 0
+            assert "Expanded 1/2 tasks successfully" in result.output
+            assert "Error: AI Error" in result.output
 
 
 class TestUtilsHelpers:
