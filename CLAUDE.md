@@ -35,11 +35,9 @@ uv run ruff check src/           # Lint
 uv run ruff format src/          # Auto-format
 uv run mypy src/                 # Type check
 
-# Testing
-uv run pytest                    # Run all tests
-uv run pytest tests/file.py -v   # Run specific test file
-uv run pytest -m "not slow"      # Skip slow tests
-uv run pytest -m integration     # Run only integration tests
+# Testing (full suite runs pre-push - only run specific tests)
+uv run pytest tests/test_file.py -v    # Run specific test file
+uv run pytest tests/storage/ -v        # Run specific module
 ```
 
 **Coverage threshold**: 80% (enforced in CI)
@@ -169,15 +167,19 @@ MCP Tool Call → MCPClientManager → [Internal Registry OR Downstream Server] 
 **IMPORTANT**: Gobby uses progressive disclosure to minimize token usage. Follow this pattern:
 
 ```python
-# 1. List tools (lightweight - just names and brief descriptions)
-list_tools(server="gobby-tasks")
-# Returns: ~200 tokens per server
+# 1. Discover available servers
+list_mcp_servers()
+# Returns: Server names and connection status
 
-# 2. Get full schema when you need to call a tool
+# 2. List tools on a specific server (lightweight)
+list_tools(server="gobby-tasks")
+# Returns: ~200 tokens per server (names + brief descriptions)
+
+# 3. Get full schema when you need to call a tool
 get_tool_schema(server_name="gobby-tasks", tool_name="create_task")
 # Returns: Full inputSchema with all parameters
 
-# 3. Execute the tool
+# 4. Execute the tool
 call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
     "title": "Fix authentication bug",
     "task_type": "bug"
@@ -191,14 +193,16 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
 | Server | Purpose | Key Tools |
 |--------|---------|-----------|
 | `gobby-tasks` | Task management | `create_task`, `expand_task`, `close_task`, `suggest_next_task` |
-| `gobby-agents` | Agent spawning | `start_agent`, `list_agents`, `cancel_agent` |
-| `gobby-worktrees` | Git worktrees | `create_worktree`, `spawn_agent_in_worktree`, `list_worktrees` |
+| `gobby-sessions` | Session handoff | `pickup`, `get_handoff_context`, `list_sessions` |
 | `gobby-memory` | Persistent memory | `remember`, `recall`, `forget` |
 | `gobby-workflows` | Workflow control | `activate_workflow`, `set_variable`, `get_status` |
-| `gobby-sessions` | Session handoff | `pickup`, `get_handoff_context`, `list_sessions` |
+| `gobby-agents` | Agent spawning | `start_agent`, `list_agents`, `cancel_agent` |
+| `gobby-worktrees` | Git worktrees | `create_worktree`, `spawn_agent_in_worktree`, `list_worktrees` |
+| `gobby-merge` | AI merge resolution | `merge_start`, `merge_resolve`, `merge_apply` |
+| `gobby-hub` | Cross-project queries | `list_all_projects`, `hub_stats` |
 | `gobby-metrics` | Tool metrics | `get_metrics`, `get_failing_tools` |
 
-Use `list_tools(server="gobby-tasks")` to see all available tools for a server, then `get_tool_schema()` for details.
+Use `list_mcp_servers()` to see connected servers, then `list_tools(server="...")` for tools.
 
 ## Task Management (CRITICAL)
 
@@ -369,23 +373,38 @@ call_tool("gobby-tasks", "create_task", {
 
 ## Session Handoff
 
+Gobby preserves context across sessions through the hook system:
+
+### How It Works
+
+1. **pre-compact hook** fires before `/compact` - extracts:
+   - Git state (branch, uncommitted changes)
+   - Recent tool calls and file modifications
+   - TodoWrite state and in-progress tasks
+   - Generates `compact_markdown` summary
+
+2. **session-start hook** fires on session resume - injects:
+   - `## Continuation Context` block with previous state
+   - Task context if `session_task` was set
+   - Memory injection if enabled
+
 ### Automatic Handoff (Claude Code/Gemini)
 
-On `/compact` (context compaction), Gobby:
-1. Extracts continuation context (git state, tool calls, todo state)
-2. Generates a summary
-3. Injects context on next session start via `session-start` hook
-
-Look for `## Continuation Context` blocks at session start.
+Context is automatically extracted and injected. Look for `## Continuation Context` blocks at session start - this is your previous session state.
 
 ### Manual Handoff (Codex or cross-CLI)
 
 ```python
-# In new session, restore context from previous session
+# Resume most recent session
+call_tool(server_name="gobby-sessions", tool_name="pickup", arguments={})
+
+# Resume specific session
 call_tool(server_name="gobby-sessions", tool_name="pickup", arguments={
     "session_id": "previous-session-id"
 })
 ```
+
+Use `/gobby-sessions` skill for more commands: `list`, `show`, `handoff`, `search`.
 
 ## Agent Spawning
 
@@ -560,18 +579,23 @@ call_tool(server_name="gobby-memory", tool_name="forget", arguments={
 
 ## Hook System
 
-Gobby intercepts CLI events through hooks:
+Gobby intercepts CLI events through hooks (13 total):
 
-| Hook Type | Description | Can Block? |
-|-----------|-------------|------------|
-| `session_start` | Session begins | No |
-| `session_end` | Session ends | No |
-| `before_tool` | Before tool execution | Yes |
-| `after_tool` | After tool execution | No |
+| Hook | Description | Can Block? |
+|------|-------------|------------|
+| `session-start` | Session begins (startup/resume/compact) | No |
+| `session-end` | Session ends | No |
+| `user-prompt-submit` | Before prompt submitted | Yes |
+| `pre-tool-use` | Before tool execution | Yes |
+| `post-tool-use` | After tool execution | No |
+| `pre-compact` | Before context compaction | No |
 | `stop` | Agent stop request | Yes |
-| `pre_compact` | Before context compaction | No |
-| `before_agent` | Before agent turn | No |
-| `after_agent` | After agent turn | No |
+| `subagent-start` | Subagent spawned | No |
+| `subagent-stop` | Subagent stopped | No |
+| `notification` | System notifications | No |
+| `before-model` | Before inference (Gemini only) | No |
+| `after-model` | After inference (Gemini only) | No |
+| `permission-request` | Permission requested (Claude only) | Yes |
 
 **Plugins**: Place custom plugins in:
 - `~/.gobby/plugins/` (global)
@@ -740,18 +764,19 @@ for task in subtasks:
 ### Progressive MCP Discovery
 
 ```python
-# 1. List servers
-servers = list_mcp_servers()
+# 1. Discover available servers
+list_mcp_servers()
 
-# 2. Check what tools are available (lightweight)
-tools = list_tools(server="context7")
+# 2. List tools on a server (lightweight metadata)
+list_tools(server="gobby-tasks")
 
-# 3. Get schema only when needed
-schema = get_tool_schema("context7", "get-library-docs")
+# 3. Get full schema when needed
+get_tool_schema(server_name="gobby-tasks", tool_name="create_task")
 
 # 4. Execute
-result = call_tool("context7", "get-library-docs", {
-    "libraryId": "/react/react"
+call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
+    "title": "Fix bug",
+    "task_type": "bug"
 })
 ```
 
