@@ -404,7 +404,7 @@ class GobbyRunner:
             # Start HTTP server
             config = uvicorn.Config(
                 self.http_server.app,
-                host="0.0.0.0",
+                host="0.0.0.0",  # nosec B104 - local daemon needs network access
                 port=self.http_server.port,
                 log_level="warning",
                 access_log=False,

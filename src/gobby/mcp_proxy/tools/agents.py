@@ -772,7 +772,7 @@ def create_agents_registry(
                         runner._run_storage.fail(agent_run.id, error=str(e))
                         agent_registry.remove(agent_run.id)
                     except Exception:
-                        pass
+                        pass  # nosec B110 - Best-effort cleanup during error handling
 
             # Schedule monitoring task and store reference to prevent GC
             running_agent.monitor_task = asyncio.create_task(monitor_headless_process())

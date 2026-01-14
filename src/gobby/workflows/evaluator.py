@@ -251,6 +251,7 @@ class ConditionEvaluator:
                 # Provide a no-op that returns False when no stop_registry
                 allowed_globals["has_stop_signal"] = lambda session_id: False
 
+            # nosec B307 - eval used with restricted allowed_globals for workflow conditions
             return bool(eval(condition, allowed_globals, context))
         except Exception as e:
             logger.warning(f"Condition evaluation failed: '{condition}'. Error: {e}")

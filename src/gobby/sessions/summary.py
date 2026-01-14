@@ -478,7 +478,7 @@ class SummaryFileGenerator:
             Git status output or error message
         """
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603,B607
                 ["git", "status", "--short"],
                 capture_output=True,
                 text=True,
@@ -497,7 +497,7 @@ class SummaryFileGenerator:
         """
         try:
             # Get changed files with status
-            diff_result = subprocess.run(
+            diff_result = subprocess.run(  # nosec B603,B607
                 ["git", "diff", "HEAD", "--name-status"],
                 capture_output=True,
                 text=True,
@@ -505,7 +505,7 @@ class SummaryFileGenerator:
             )
 
             # Get untracked files
-            untracked_result = subprocess.run(
+            untracked_result = subprocess.run(  # nosec B603,B607
                 ["git", "ls-files", "--others", "--exclude-standard"],
                 capture_output=True,
                 text=True,

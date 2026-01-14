@@ -92,7 +92,7 @@ class WorktreeGitManager:
         logger.debug(f"Running: {' '.join(cmd)} in {cwd}")
 
         try:
-            result = subprocess.run(
+            result = subprocess.run(  # nosec B603
                 cmd,
                 cwd=cwd,
                 capture_output=True,
@@ -224,7 +224,7 @@ class WorktreeGitManager:
                     if status:
                         branch_name = status.branch
                 except Exception:
-                    # Ignore errors getting status, we just won't have the branch name
+                    # nosec B110 - Ignore errors getting status, we just won't have the branch name
                     pass
 
             # Remove worktree

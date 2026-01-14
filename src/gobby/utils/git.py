@@ -36,7 +36,7 @@ def run_git_command(command: list[str], cwd: str | Path, timeout: int = 5) -> st
         Command output as string (stripped), or None if command fails
     """
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603
             command,
             cwd=cwd,
             capture_output=True,

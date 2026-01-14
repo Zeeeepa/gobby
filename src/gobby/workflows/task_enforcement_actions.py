@@ -34,7 +34,7 @@ def _get_dirty_files(project_path: str | None = None) -> set[str]:
         Set of dirty file paths (relative to repo root)
     """
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603,B607
             ["git", "status", "--porcelain"],
             cwd=project_path,
             capture_output=True,

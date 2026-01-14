@@ -185,6 +185,7 @@ class ToolMetricsManager:
 
         where_clause = " AND ".join(conditions) if conditions else "1=1"
 
+        # nosec B608 - where_clause built from hardcoded condition strings, values parameterized
         rows = self.db.fetchall(
             f"""
             SELECT * FROM tool_metrics
@@ -238,6 +239,7 @@ class ToolMetricsManager:
             order_by = "call_count"
 
         if project_id:
+            # nosec B608 - order_by validated against allowlist above
             rows = self.db.fetchall(
                 f"""
                 SELECT * FROM tool_metrics
@@ -248,6 +250,7 @@ class ToolMetricsManager:
                 (project_id, limit),
             )
         else:
+            # nosec B608 - order_by validated against allowlist above
             rows = self.db.fetchall(
                 f"""
                 SELECT * FROM tool_metrics
@@ -374,6 +377,7 @@ class ToolMetricsManager:
 
         if conditions:
             where_clause = " AND ".join(conditions)
+            # nosec B608 - where_clause built from hardcoded condition strings
             cursor = self.db.execute(
                 f"DELETE FROM tool_metrics WHERE {where_clause}",
                 tuple(params),
@@ -542,6 +546,7 @@ class ToolMetricsManager:
 
         where_clause = " AND ".join(conditions) if conditions else "1=1"
 
+        # nosec B608 - where_clause built from hardcoded condition strings, values parameterized
         rows = self.db.fetchall(
             f"""
             SELECT * FROM tool_metrics_daily

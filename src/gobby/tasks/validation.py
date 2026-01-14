@@ -52,7 +52,7 @@ def run_git_command(
         CompletedProcess on success, None if exception occurred
     """
     try:
-        return subprocess.run(
+        return subprocess.run(  # nosec B603
             cmd,
             capture_output=True,
             text=True,

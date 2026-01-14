@@ -354,7 +354,7 @@ History:
                                 break  # One match per file for brevity in overview
                         count += 1
             except Exception:
-                continue
+                continue  # nosec B112 - Skip files we can't read
 
         return "\n".join(results) or "No matches found"
 

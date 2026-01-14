@@ -404,7 +404,9 @@ class TaskSyncManager:
 
             # Check if gh CLI is available
             try:
-                subprocess.run(["gh", "--version"], capture_output=True, check=True)
+                subprocess.run(  # nosec B603,B607
+                    ["gh", "--version"], capture_output=True, check=True
+                )
             except (subprocess.CalledProcessError, FileNotFoundError):
                 return {
                     "success": False,
@@ -426,7 +428,7 @@ class TaskSyncManager:
                 "number,title,body,labels,createdAt",
             ]
 
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = subprocess.run(cmd, capture_output=True, text=True)  # nosec B603
             if result.returncode != 0:
                 return {
                     "success": False,

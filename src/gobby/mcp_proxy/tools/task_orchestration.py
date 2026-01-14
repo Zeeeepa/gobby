@@ -249,7 +249,7 @@ def create_orchestration_registry(
             if platform.system() == "Windows":
                 base = Path(tempfile.gettempdir()) / "gobby-worktrees"
             else:
-                base = Path("/tmp").resolve() / "gobby-worktrees"
+                base = Path("/tmp").resolve() / "gobby-worktrees"  # nosec B108
             base.mkdir(parents=True, exist_ok=True)
             return base
 
@@ -1581,7 +1581,7 @@ def create_orchestration_registry(
                             )
                             continue
                         except Exception:
-                            pass
+                            pass  # nosec B110 - Best-effort task reopen on crash
 
             # Non-retriable - escalate
             escalated.append(

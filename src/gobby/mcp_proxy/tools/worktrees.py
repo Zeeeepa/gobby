@@ -55,7 +55,7 @@ def _get_worktree_base_dir() -> Path:
     else:
         # macOS/Linux: use /tmp for better isolation
         # Resolve symlink on macOS (/tmp -> /private/tmp) for consistent paths
-        base = Path("/tmp").resolve() / "gobby-worktrees"
+        base = Path("/tmp").resolve() / "gobby-worktrees"  # nosec B108
 
     base.mkdir(parents=True, exist_ok=True)
     return base

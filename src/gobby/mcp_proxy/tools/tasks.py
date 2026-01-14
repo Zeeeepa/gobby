@@ -892,7 +892,7 @@ def create_task_registry(
             try:
                 session_task_manager.link_task(session_id, resolved_id, "closed")
             except Exception:
-                pass  # Best-effort linking, don't fail the close
+                pass  # nosec B110 - Best-effort linking, don't fail the close
 
         # Update worktree status based on closure reason (case-insensitive)
         try:
@@ -910,7 +910,7 @@ def create_task_registry(
                 elif reason_normalized == "completed":
                     worktree_manager.mark_merged(wt.id)
         except Exception:
-            pass  # Best-effort worktree update, don't fail the close
+            pass  # nosec B110 - Best-effort worktree update, don't fail the close
 
         return {}
 
@@ -1007,7 +1007,7 @@ def create_task_registry(
                 ):
                     worktree_manager.update(wt.id, status=WorktreeStatus.ACTIVE.value)
             except Exception:
-                pass  # Best-effort worktree update
+                pass  # nosec B110 - Best-effort worktree update
 
             return {}
         except ValueError as e:

@@ -1231,6 +1231,7 @@ class LocalTaskManager:
             # We want to populate task.blocked_by = {set of blockers}
             # So we query where task_id is the task we have (the blocked one)
             placeholders = ", ".join("?" for _ in task_ids)
+            # nosec B608 - placeholders are just '?' characters, values parameterized
             dep_rows = self.db.fetchall(
                 f"SELECT task_id, depends_on FROM task_dependencies WHERE dep_type = 'blocks' AND task_id IN ({placeholders})",
                 tuple(task_ids),

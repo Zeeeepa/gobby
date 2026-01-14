@@ -334,6 +334,7 @@ class SchemaHashManager:
 
         # Build placeholders for IN clause
         placeholders = ",".join("?" for _ in valid_tool_names)
+        # nosec B608 - placeholders are just '?' characters, values parameterized
         cursor = self.db.execute(
             f"""
             DELETE FROM tool_schema_hashes

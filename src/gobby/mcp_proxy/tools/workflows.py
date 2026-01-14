@@ -202,7 +202,7 @@ def create_workflows_registry(
                     seen_names.add(name)
 
                 except Exception:
-                    pass
+                    pass  # nosec B110 - Skip invalid workflow files
 
         return {"workflows": workflows, "count": len(workflows)}
 

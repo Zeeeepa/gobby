@@ -256,7 +256,7 @@ class CodeGuardianPlugin(HookPlugin):
             return []
 
         try:
-            result = subprocess.run(  # nosec B603
+            result = subprocess.run(  # nosec B603,B607
                 ["ruff", "check", "--output-format=concise", str(path)],
                 capture_output=True,
                 text=True,
@@ -307,7 +307,7 @@ class CodeGuardianPlugin(HookPlugin):
             return []
 
         try:
-            result = subprocess.run(  # nosec B603
+            result = subprocess.run(  # nosec B603,B607
                 ["mypy", "--no-error-summary", str(path)],
                 capture_output=True,
                 text=True,
@@ -399,7 +399,7 @@ class CodeGuardianPlugin(HookPlugin):
         for file_path in target_files:
             path = Path(file_path)
             try:
-                result = subprocess.run(  # nosec B603
+                result = subprocess.run(  # nosec B603,B607
                     ["ruff", "format", str(path)],
                     capture_output=True,
                     text=True,

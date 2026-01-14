@@ -17,7 +17,7 @@ def get_git_status() -> str:
         Short git status output, or error message if not a git repo.
     """
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603,B607
             ["git", "status", "--short"],
             capture_output=True,
             text=True,
@@ -38,7 +38,7 @@ def get_recent_git_commits(max_commits: int = 10) -> list[dict[str, str]]:
         List of dicts with 'hash' and 'message' keys
     """
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603,B607
             ["git", "log", f"-{max_commits}", "--format=%H|%s"],
             capture_output=True,
             text=True,
@@ -65,7 +65,7 @@ def get_file_changes() -> str:
     """
     try:
         # Get changed files with status
-        diff_result = subprocess.run(
+        diff_result = subprocess.run(  # nosec B603,B607
             ["git", "diff", "HEAD", "--name-status"],
             capture_output=True,
             text=True,
@@ -73,7 +73,7 @@ def get_file_changes() -> str:
         )
 
         # Get untracked files
-        untracked_result = subprocess.run(
+        untracked_result = subprocess.run(  # nosec B603,B607
             ["git", "ls-files", "--others", "--exclude-standard"],
             capture_output=True,
             text=True,

@@ -68,7 +68,7 @@ def start_new_session(
         if prompt and command in ["claude", "gemini"]:
             full_cmd.extend(["-p", prompt])
 
-        proc = subprocess.Popen(
+        proc = subprocess.Popen(  # nosec B603
             full_cmd,
             cwd=cwd,
             stdout=subprocess.DEVNULL,

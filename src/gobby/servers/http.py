@@ -568,7 +568,7 @@ async def create_server(
 
 async def run_server(
     server: HTTPServer,
-    host: str = "0.0.0.0",
+    host: str = "0.0.0.0",  # nosec B104 - local daemon needs network access
     workers: int = 1,
     limit_concurrency: int | None = 1000,
     limit_max_requests: int | None = None,
