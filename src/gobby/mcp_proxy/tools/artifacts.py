@@ -76,7 +76,7 @@ def create_artifacts_registry(
             Dict with success status and list of matching artifacts
         """
         if not query or not query.strip():
-            return {"artifacts": [], "count": 0}
+            return {"success": True, "artifacts": [], "count": 0}
 
         try:
             artifacts = _artifact_manager.search_artifacts(
@@ -86,11 +86,12 @@ def create_artifacts_registry(
                 limit=limit,
             )
             return {
+                "success": True,
                 "artifacts": [a.to_dict() for a in artifacts],
                 "count": len(artifacts),
             }
         except Exception as e:
-            return {"error": str(e), "artifacts": []}
+            return {"success": False, "error": str(e), "artifacts": []}
 
     @registry.tool(
         name="list_artifacts",

@@ -21,7 +21,8 @@ from gobby.storage.mcp import LocalMCPManager
 @pytest.fixture
 def semantic_search(temp_db: LocalDatabase) -> SemanticToolSearch:
     """Create a SemanticToolSearch instance with temp database."""
-    return SemanticToolSearch(temp_db)
+    # Provide a fake API key for testing - actual embedding calls are mocked
+    return SemanticToolSearch(temp_db, openai_api_key="sk-test-fake-key")
 
 
 @pytest.fixture
