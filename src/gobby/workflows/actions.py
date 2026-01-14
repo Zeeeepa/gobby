@@ -793,10 +793,27 @@ class ActionExecutor:
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Capture baseline dirty files at session start."""
-        # Get project path from event data (cwd from hook payload)
+        # Get project path with fallback chain
         project_path = None
+
+        # 1. Try event_data.cwd (hook payload - most reliable)
         if context.event_data:
             project_path = context.event_data.get("cwd")
+
+        # 2. If still None, try to get from session's project repo_path
+        if not project_path and context.session_id and context.session_manager:
+            session = context.session_manager.get(context.session_id)
+            if session and session.project_id:
+                from gobby.storage.projects import LocalProjectManager
+
+                project_mgr = LocalProjectManager(context.db)
+                project = project_mgr.get(session.project_id)
+                if project and project.repo_path:
+                    project_path = project.repo_path
+                    logger.debug(
+                        f"capture_baseline_dirty_files: Using project repo_path "
+                        f"fallback: {project_path}"
+                    )
 
         return await capture_baseline_dirty_files(
             workflow_state=context.state,
@@ -826,10 +843,23 @@ class ActionExecutor:
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Block stop if task has uncommitted changes."""
-        # Get project path from event data (cwd from hook payload)
+        # Get project path with fallback chain (same as capture_baseline_dirty_files)
         project_path = None
+
+        # 1. Try event_data.cwd (hook payload - most reliable)
         if context.event_data:
             project_path = context.event_data.get("cwd")
+
+        # 2. If still None, try to get from session's project repo_path
+        if not project_path and context.session_id and context.session_manager:
+            session = context.session_manager.get(context.session_id)
+            if session and session.project_id:
+                from gobby.storage.projects import LocalProjectManager
+
+                project_mgr = LocalProjectManager(context.db)
+                project = project_mgr.get(session.project_id)
+                if project and project.repo_path:
+                    project_path = project.repo_path
 
         return await require_commit_before_stop(
             workflow_state=context.state,

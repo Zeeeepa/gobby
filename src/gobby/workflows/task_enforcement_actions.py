@@ -33,6 +33,12 @@ def _get_dirty_files(project_path: str | None = None) -> set[str]:
     Returns:
         Set of dirty file paths (relative to repo root)
     """
+    if project_path is None:
+        logger.warning(
+            "_get_dirty_files: project_path is None, git status will use daemon's cwd "
+            "which may not be the project directory"
+        )
+
     try:
         result = subprocess.run(  # nosec B603,B607
             ["git", "status", "--porcelain"],
@@ -141,7 +147,12 @@ async def capture_baseline_dirty_files(
     # Store as a list in workflow state (sets aren't JSON serializable)
     workflow_state.variables["baseline_dirty_files"] = list(dirty_files)
 
-    logger.debug(f"capture_baseline_dirty_files: Captured {len(dirty_files)} baseline dirty files")
+    # Log for debugging baseline capture issues
+    files_preview = list(dirty_files)[:5]
+    logger.info(
+        f"capture_baseline_dirty_files: project_path={project_path}, "
+        f"captured {len(dirty_files)} files: {files_preview}"
+    )
 
     return {
         "baseline_captured": True,
