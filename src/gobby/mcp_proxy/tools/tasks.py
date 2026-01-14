@@ -205,13 +205,11 @@ def create_task_registry(
     from gobby.config.tasks import TaskValidationConfig
 
     show_result_on_create = False
-    auto_generate_on_create = True
     auto_generate_on_expand = True
     validation_config: TaskValidationConfig | None = None
     if config is not None:
         show_result_on_create = config.get_gobby_tasks_config().show_result_on_create
         validation_config = config.get_gobby_tasks_config().validation
-        auto_generate_on_create = validation_config.auto_generate_on_create
         auto_generate_on_expand = validation_config.auto_generate_on_expand
     registry = InternalToolRegistry(
         name="gobby-tasks",

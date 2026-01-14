@@ -64,7 +64,7 @@ async def capture_gemini_session_id(
     except FileNotFoundError:
         raise FileNotFoundError(
             "Gemini CLI not found. Install with: npm install -g @google/gemini-cli"
-        )
+        ) from None
 
     try:
 
