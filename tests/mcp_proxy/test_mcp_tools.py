@@ -92,7 +92,9 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
     with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
         mock_ctx.return_value = {"id": "test-project-id"}
 
-        result = await registry.call("create_task", {"title": "Test Task", "priority": 1})
+        result = await registry.call(
+            "create_task", {"title": "Test Task", "priority": 1, "session_id": "test-session"}
+        )
 
         mock_task_manager.create_task_with_decomposition.assert_called_with(
             project_id="test-project-id",
@@ -104,9 +106,9 @@ async def test_create_task(mock_task_manager, mock_sync_manager):
             labels=None,
             test_strategy=None,
             validation_criteria=None,
-            created_in_session_id=None,
+            created_in_session_id="test-session",
         )
-    assert result == {"success": True, "id": "t1", "seq_num": 123, "ref": "#123"}
+    assert result == {"id": "t1", "seq_num": 123, "ref": "#123"}
 
 
 @pytest.mark.asyncio
@@ -146,7 +148,7 @@ async def test_create_task_with_session_id(mock_task_manager, mock_sync_manager)
             validation_criteria=None,
             created_in_session_id="session-abc123",
         )
-    assert result == {"success": True, "id": "t1", "seq_num": 456, "ref": "#456"}
+    assert result == {"id": "t1", "seq_num": 456, "ref": "#456"}
 
 
 @pytest.mark.asyncio
@@ -264,7 +266,9 @@ async def test_expand_task_integration(mock_task_manager, mock_sync_manager):
         sub2.id = "sub2"
         sub2.title = "Subtask 2"
         sub2.status = "open"
-        mock_task_manager.get_task.side_effect = [msg_task, sub1, sub2]
+        # Note: resolve_task_id_for_mcp calls get_task first to validate UUID exists,
+        # then expand_task calls it again, then it loops through subtask_ids
+        mock_task_manager.get_task.side_effect = [msg_task, msg_task, sub1, sub2]
 
         result = await registry.call("expand_task", {"task_id": "t1", "context": "extra info"})
 
