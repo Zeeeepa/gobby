@@ -1064,29 +1064,46 @@ class WorkflowEngine:
 
         # Handle premature stop based on action type
         handler = workflow.on_premature_stop
+
+        # Render the message through template engine (supports Jinja2 variables)
+        rendered_message = handler.message
+        if self.action_executor and self.action_executor.template_engine and handler.message:
+            render_context = {
+                "variables": state.variables,
+                "state": state,
+                "workflow": workflow,
+            }
+            try:
+                rendered_message = self.action_executor.template_engine.render(
+                    handler.message, render_context
+                )
+            except Exception as e:
+                logger.warning(f"Failed to render on_premature_stop message: {e}")
+                # Fall back to unrendered message
+
         logger.info(
             f"Premature stop detected for workflow '{workflow.name}': "
-            f"action={handler.action}, message={handler.message}, "
+            f"action={handler.action}, message={rendered_message[:100] if rendered_message else None}..., "
             f"attempt {stop_count}/{max_attempts}"
         )
 
         if handler.action == "block":
             return HookResponse(
                 decision="block",
-                reason=handler.message,
+                reason=rendered_message,
             )
         elif handler.action == "warn":
             return HookResponse(
                 decision="allow",
-                context=f"⚠️ **Warning**: {handler.message}",
+                context=f"⚠️ **Warning**: {rendered_message}",
             )
         else:  # guide_continuation (default)
             return HookResponse(
                 decision="block",
-                reason=handler.message,
+                reason=rendered_message,
                 context=(
                     f"📋 **Task Incomplete**\n\n"
-                    f"{handler.message}\n\n"
+                    f"{rendered_message}\n\n"
                     f"The workflow exit condition `{workflow.exit_condition}` is not yet satisfied."
                 ),
             )

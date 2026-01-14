@@ -45,6 +45,9 @@ def mock_action_executor():
     executor.db = MagicMock()
     executor.session_manager = MagicMock()
     executor.template_engine = MagicMock()
+    # Configure template_engine.render to return its first argument (template string)
+    # This simulates pass-through rendering for tests
+    executor.template_engine.render.side_effect = lambda template, context: template
     executor.llm_service = MagicMock()
     executor.transcript_processor = MagicMock()
     executor.config = MagicMock()
@@ -636,6 +639,49 @@ class TestCheckPrematureStop:
         # Should propagate premature stop response
         assert response.decision == "block"
         assert response.reason == "Not done yet"
+
+    async def test_premature_stop_renders_jinja_variables(
+        self, workflow_engine, mock_state_manager, mock_loader, mock_evaluator, mock_action_executor
+    ):
+        """on_premature_stop message should render Jinja2 variables."""
+        state = WorkflowState(
+            session_id="sess1",
+            workflow_name="test_wf",
+            step="working",
+            step_entered_at=datetime.now(UTC),
+            variables={"session_task": "task-123", "worktree_path": "/tmp/worktree"},
+        )
+        mock_state_manager.get_state.return_value = state
+
+        workflow = MagicMock(spec=WorkflowDefinition)
+        workflow.type = "step"
+        workflow.name = "test_wf"
+        workflow.exit_condition = "variables.task_complete"
+        workflow.on_premature_stop = PrematureStopHandler(
+            action="guide_continuation",
+            message="Task {{ variables.session_task }} not complete. Worktree: {{ variables.worktree_path }}",
+        )
+        mock_loader.load_workflow.return_value = workflow
+
+        mock_evaluator.evaluate.return_value = False
+
+        # Configure template_engine.render to actually render like a real Jinja template
+        def render_template(template, context):
+            from jinja2 import Template
+            return Template(template).render(**context)
+
+        mock_action_executor.template_engine.render.side_effect = render_template
+
+        event = create_event(event_type=HookEventType.STOP, cwd="/project")
+
+        result = await workflow_engine._check_premature_stop(event, {})
+
+        assert result is not None
+        assert result.decision == "block"
+        # Verify variables were rendered
+        assert "task-123" in result.reason
+        assert "/tmp/worktree" in result.reason
+        assert "{{ variables.session_task }}" not in result.reason  # Not literal
 
 
 class TestLogApproval:
