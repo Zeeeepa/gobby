@@ -14,7 +14,7 @@ import psutil
 from gobby.config.app import load_config
 from gobby.storage.database import LocalDatabase
 from gobby.storage.projects import LocalProjectManager
-from gobby.storage.sessions import LocalSessionManager, Session
+from gobby.storage.sessions import LocalSessionManager
 from gobby.utils.project_context import get_project_context
 
 logger = logging.getLogger(__name__)
@@ -110,7 +110,7 @@ def resolve_session_id(session_ref: str | None) -> str:
         try:
             return manager.resolve_session_reference(session_ref)
         except ValueError as e:
-            raise click.ClickException(str(e))
+            raise click.ClickException(str(e)) from None
     finally:
         db.close()
 
