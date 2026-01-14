@@ -331,22 +331,6 @@ class LocalSessionManager:
 
         return str(rows[0]["id"])
 
-    def find_current(
-        self,
-        external_id: str,
-        machine_id: str,
-        source: str,
-    ) -> Session | None:
-        """Find current session by external_id, machine_id, and source."""
-        row = self.db.fetchone(
-            """
-            SELECT * FROM sessions
-            WHERE external_id = ? AND machine_id = ? AND source = ?
-            """,
-            (external_id, machine_id, source),
-        )
-        return Session.from_row(row) if row else None
-
     def find_by_external_id(
         self,
         external_id: str,

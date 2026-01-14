@@ -416,16 +416,40 @@ class TestFindCurrentSessionEdgeCases:
                 "external_id": "test",
                 "machine_id": "machine",
                 "source": "claude",
+                "project_id": "test-project",
             },
         )
         assert response.status_code == 503
         assert "Session manager not available" in response.json()["detail"]
 
+    def test_find_current_session_missing_project_id(
+        self,
+        session_storage: LocalSessionManager,
+    ) -> None:
+        """Test find_current without project_id or cwd returns 400."""
+        server = HTTPServer(
+            port=8765,
+            test_mode=True,
+            session_manager=session_storage,
+        )
+        test_client = TestClient(server.app)
+
+        response = test_client.post(
+            "/sessions/find_current",
+            json={
+                "external_id": "test",
+                "machine_id": "machine",
+                "source": "claude",
+            },
+        )
+        assert response.status_code == 400
+        assert "project_id or cwd" in response.json()["detail"]
+
     def test_find_current_session_internal_error(
         self,
         session_storage: LocalSessionManager,
     ) -> None:
-        """Test that internal errors during find_current return 500."""
+        """Test that internal errors during find_by_external_id return 500."""
         server = HTTPServer(
             port=8765,
             test_mode=True,
@@ -434,7 +458,7 @@ class TestFindCurrentSessionEdgeCases:
         test_client = TestClient(server.app)
 
         with patch.object(
-            session_storage, "find_current", side_effect=RuntimeError("Database error")
+            session_storage, "find_by_external_id", side_effect=RuntimeError("Database error")
         ):
             response = test_client.post(
                 "/sessions/find_current",
@@ -442,6 +466,7 @@ class TestFindCurrentSessionEdgeCases:
                     "external_id": "test",
                     "machine_id": "machine",
                     "source": "claude",
+                    "project_id": "test-project",
                 },
             )
 

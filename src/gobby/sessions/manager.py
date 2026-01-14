@@ -254,14 +254,17 @@ class SessionManager:
             self.logger.error(f"Failed to update session status: {e}", exc_info=True)
             return False
 
-    def lookup_session_id(self, external_id: str, source: str, machine_id: str) -> str | None:
+    def lookup_session_id(
+        self, external_id: str, source: str, machine_id: str, project_id: str
+    ) -> str | None:
         """
-        Look up session_id from database by external_id.
+        Look up session_id from database by full composite key.
 
         Args:
             external_id: External session identifier
-            source: CLI source identifier (e.g., "claude", "gemini", "codex") - REQUIRED
+            source: CLI source identifier (e.g., "claude", "gemini", "codex")
             machine_id: Machine identifier
+            project_id: Project identifier
 
         Returns:
             session_id (database PK) or None if not found
@@ -272,8 +275,10 @@ class SessionManager:
                 if external_id in self._session_mapping:
                     return self._session_mapping[external_id]
 
-            # Find current session from storage
-            session = self._storage.find_current(external_id, machine_id, source)
+            # Find session using full composite key (safe lookup)
+            session = self._storage.find_by_external_id(
+                external_id, machine_id, project_id, source
+            )
 
             if session:
                 session_id: str = session.id

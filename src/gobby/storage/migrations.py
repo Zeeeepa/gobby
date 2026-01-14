@@ -1340,6 +1340,15 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         "Backfill seq_num for existing sessions",
         _backfill_session_seq_num,
     ),
+    (
+        60,
+        "Add project_id to sessions unique index for safer lookups",
+        """
+        DROP INDEX IF EXISTS idx_sessions_unique;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_unique
+            ON sessions(external_id, machine_id, source, project_id);
+        """,
+    ),
 ]
 
 

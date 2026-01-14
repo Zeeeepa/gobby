@@ -260,7 +260,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
         """
         Find current active session by composite key.
 
-        Uses composite key: external_id, machine_id, source
+        Uses composite key: external_id, machine_id, source, project_id
+        Accepts either project_id directly or cwd (which is resolved to project_id).
         """
         try:
             if server.session_manager is None:
@@ -270,6 +271,8 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
             external_id = body.get("external_id")
             machine_id = body.get("machine_id")
             source = body.get("source")
+            project_id = body.get("project_id")
+            cwd = body.get("cwd")
 
             if not external_id or not machine_id or not source:
                 raise HTTPException(
@@ -277,7 +280,19 @@ def create_sessions_router(server: "HTTPServer") -> APIRouter:
                     detail="Required fields: external_id, machine_id, source",
                 )
 
-            session = server.session_manager.find_current(external_id, machine_id, source)
+            # Resolve project_id from cwd if not provided
+            if not project_id and cwd:
+                project_id = server._resolve_project_id(None, cwd)
+
+            if not project_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Required: project_id or cwd (to resolve project)",
+                )
+
+            session = server.session_manager.find_by_external_id(
+                external_id, machine_id, project_id, source
+            )
 
             if session is None:
                 return {"session": None}

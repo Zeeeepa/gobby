@@ -474,10 +474,17 @@ class HookManager:
                         self.logger.debug(
                             f"Session not in mapping, querying database for external_id={external_id}"
                         )
-                        # Pass source for multi-CLI support
+                        # Resolve context for lookup
                         machine_id = event.machine_id or self.get_machine_id()
+                        cwd = event.data.get("cwd")
+                        project_id = self._resolve_project_id(event.data.get("project_id"), cwd)
+
+                        # Lookup with full composite key
                         platform_session_id = self._session_manager.lookup_session_id(
-                            external_id, source=event.source.value, machine_id=machine_id
+                            external_id,
+                            source=event.source.value,
+                            machine_id=machine_id,
+                            project_id=project_id,
                         )
                         if platform_session_id:
                             self.logger.debug(
@@ -488,9 +495,6 @@ class HookManager:
                             self.logger.debug(
                                 f"Session not found for external_id={external_id}, auto-registering"
                             )
-                            # Resolve project_id from cwd
-                            cwd = event.data.get("cwd")
-                            project_id = self._resolve_project_id(event.data.get("project_id"), cwd)
                             platform_session_id = self._session_manager.register_session(
                                 external_id=external_id,
                                 machine_id=machine_id,

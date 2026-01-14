@@ -669,6 +669,73 @@ def create_session_messages_registry(
             }
 
         @registry.tool(
+            name="this_session",
+            description="Get your current session ID. Pass your external_id (from context) and source.",
+        )
+        def this_session(
+            external_id: str,
+            source: str,
+        ) -> dict[str, Any]:
+            """
+            Look up your internal session_id from external_id and source.
+
+            The agent passes external_id (from injected context or GOBBY_SESSION_ID env var)
+            and source (claude, gemini, codex). project_id and machine_id are
+            auto-resolved from config files.
+
+            Args:
+                external_id: Your CLI's session ID (from context or GOBBY_SESSION_ID env)
+                source: CLI source - "claude", "gemini", or "codex"
+
+            Returns:
+                session_id: Internal Gobby session ID (use for parent_session_id, etc.)
+                Plus basic session metadata
+            """
+            from gobby.utils.machine_id import get_machine_id
+            from gobby.utils.project_context import get_project_context
+
+            if session_manager is None:
+                return {"error": "Session manager not available"}
+
+            # Auto-resolve context
+            machine_id = get_machine_id()
+            project_ctx = get_project_context()
+            project_id = project_ctx.get("id") if project_ctx else None
+
+            if not machine_id:
+                return {"error": "Could not determine machine_id"}
+            if not project_id:
+                return {"error": "Could not determine project_id (not in a gobby project?)"}
+
+            # Use find_by_external_id with full composite key (safe lookup)
+            session = session_manager.find_by_external_id(
+                external_id=external_id,
+                machine_id=machine_id,
+                project_id=project_id,
+                source=source,
+            )
+
+            if not session:
+                return {
+                    "found": False,
+                    "error": "Session not found",
+                    "lookup": {
+                        "external_id": external_id,
+                        "source": source,
+                        "project_id": project_id,
+                    },
+                }
+
+            return {
+                "found": True,
+                "session_id": session.id,
+                "external_id": session.external_id,
+                "source": session.source,
+                "project_id": session.project_id,
+                "status": session.status,
+            }
+
+        @registry.tool(
             name="list_sessions",
             description="List sessions with optional filtering.",
         )

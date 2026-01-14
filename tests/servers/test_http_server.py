@@ -233,6 +233,7 @@ class TestSessionEndpoints:
                 "external_id": "find-current",
                 "machine_id": "my-machine",
                 "source": "gemini",
+                "project_id": test_project["id"],
             },
         )
 
@@ -240,7 +241,9 @@ class TestSessionEndpoints:
         data = response.json()
         assert data["session"]["id"] == session.id
 
-    def test_find_current_session_not_found(self, client: TestClient) -> None:
+    def test_find_current_session_not_found(
+        self, client: TestClient, test_project: dict
+    ) -> None:
         """Test finding nonexistent current session."""
         response = client.post(
             "/sessions/find_current",
@@ -248,6 +251,7 @@ class TestSessionEndpoints:
                 "external_id": "nonexistent",
                 "machine_id": "machine",
                 "source": "claude",
+                "project_id": test_project["id"],
             },
         )
 
@@ -263,6 +267,20 @@ class TestSessionEndpoints:
         )
 
         assert response.status_code == 400
+
+    def test_find_current_session_missing_project_id(self, client: TestClient) -> None:
+        """Test find_current without project_id or cwd returns 400."""
+        response = client.post(
+            "/sessions/find_current",
+            json={
+                "external_id": "test",
+                "machine_id": "machine",
+                "source": "claude",
+            },
+        )
+
+        assert response.status_code == 400
+        assert "project_id or cwd" in response.json()["detail"]
 
     def test_find_parent_session(
         self,

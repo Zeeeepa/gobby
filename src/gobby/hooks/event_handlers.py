@@ -359,10 +359,16 @@ class EventHandlers:
         # If not in mapping, query database
         if not session_id and external_id and self._session_manager:
             self.logger.debug(f"external_id {external_id} not in mapping, querying database")
-            # Always use Gobby's machine_id for cross-CLI consistency
+            # Resolve context for lookup
             machine_id = self._get_machine_id()
+            cwd = event.data.get("cwd")
+            project_id = self._resolve_project_id(event.data.get("project_id"), cwd)
+            # Lookup with full composite key
             session_id = self._session_manager.lookup_session_id(
-                external_id, source=event.source.value, machine_id=machine_id
+                external_id,
+                source=event.source.value,
+                machine_id=machine_id,
+                project_id=project_id,
             )
 
         # Ensure session_id is available in event metadata for workflow actions

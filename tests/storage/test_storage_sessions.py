@@ -134,12 +134,12 @@ class TestLocalSessionManager:
         result = session_manager.get("nonexistent-id")
         assert result is None
 
-    def test_find_current(
+    def test_find_by_external_id(
         self,
         session_manager: LocalSessionManager,
         sample_project: dict,
     ):
-        """Test finding current session by external_id, machine_id, source."""
+        """Test finding session by external_id, machine_id, project_id, source."""
         session = session_manager.register(
             external_id="findable",
             machine_id="my-machine",
@@ -147,20 +147,22 @@ class TestLocalSessionManager:
             project_id=sample_project["id"],
         )
 
-        found = session_manager.find_current(
+        found = session_manager.find_by_external_id(
             external_id="findable",
             machine_id="my-machine",
+            project_id=sample_project["id"],
             source="claude",
         )
 
         assert found is not None
         assert found.id == session.id
 
-    def test_find_current_not_found(self, session_manager: LocalSessionManager):
-        """Test find_current returns None when not found."""
-        result = session_manager.find_current(
+    def test_find_by_external_id_not_found(self, session_manager: LocalSessionManager):
+        """Test find_by_external_id returns None when not found."""
+        result = session_manager.find_by_external_id(
             external_id="nonexistent",
             machine_id="machine",
+            project_id="nonexistent-project",
             source="claude",
         )
         assert result is None

@@ -158,11 +158,12 @@ class TestSessionManagerLookup:
         # Clear cache
         session_mgr._session_mapping.clear()
 
-        # Should look up from database
+        # Should look up from database (requires full composite key)
         result = session_mgr.lookup_session_id(
             external_id="db-lookup",
             source="codex",
             machine_id="machine-1",
+            project_id=test_project["id"],
         )
         assert result == session_id
 
@@ -182,11 +183,12 @@ class TestSessionManagerLookup:
         # Clear cache
         session_mgr._session_mapping.clear()
 
-        # Lookup
+        # Lookup with full composite key
         session_mgr.lookup_session_id(
             external_id="cache-lookup",
             source="claude",
             machine_id="machine",
+            project_id=test_project["id"],
         )
 
         # Should now be cached
