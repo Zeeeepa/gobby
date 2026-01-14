@@ -450,12 +450,9 @@ def create_worktrees_registry(
 
         updated = worktree_storage.claim(worktree_id, session_id)
         if not updated:
-            return {
-                "success": False,
-                "error": "Failed to claim worktree",
-            }
+            return {"error": "Failed to claim worktree"}
 
-        return {"success": True}
+        return {}
 
     @registry.tool(
         name="release_worktree",
@@ -473,19 +470,13 @@ def create_worktrees_registry(
         """
         worktree = worktree_storage.get(worktree_id)
         if not worktree:
-            return {
-                "success": False,
-                "error": f"Worktree '{worktree_id}' not found",
-            }
+            return {"error": f"Worktree '{worktree_id}' not found"}
 
         updated = worktree_storage.release(worktree_id)
         if not updated:
-            return {
-                "success": False,
-                "error": "Failed to release worktree",
-            }
+            return {"error": "Failed to release worktree"}
 
-        return {"success": True}
+        return {}
 
     @registry.tool(
         name="delete_worktree",
@@ -555,12 +546,9 @@ def create_worktrees_registry(
         # Delete database record
         deleted = worktree_storage.delete(worktree_id)
         if not deleted:
-            return {
-                "success": False,
-                "error": "Failed to delete worktree record",
-            }
+            return {"error": "Failed to delete worktree record"}
 
-        return {"success": True}
+        return {}
 
     @registry.tool(
         name="sync_worktree",
@@ -654,12 +642,9 @@ def create_worktrees_registry(
 
         updated = worktree_storage.mark_merged(worktree_id)
         if not updated:
-            return {
-                "success": False,
-                "error": "Failed to mark worktree as merged",
-            }
+            return {"error": "Failed to mark worktree as merged"}
 
-        return {"success": True}
+        return {}
 
     @registry.tool(
         name="detect_stale_worktrees",
@@ -867,12 +852,9 @@ def create_worktrees_registry(
 
         updated = worktree_storage.update(worktree_id, task_id=task_id)
         if not updated:
-            return {
-                "success": False,
-                "error": "Failed to link task to worktree",
-            }
+            return {"error": "Failed to link task to worktree"}
 
-        return {"success": True}
+        return {}
 
     @registry.tool(
         name="spawn_agent_in_worktree",

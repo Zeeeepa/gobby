@@ -642,7 +642,7 @@ def create_task_registry(
         task = task_manager.update_task(resolved_id, **kwargs)
         if not task:
             return {"error": f"Task {task_id} not found"}
-        return {"success": True}
+        return {}
 
     registry.register(
         name="update_task",
@@ -719,7 +719,7 @@ def create_task_registry(
         task = task_manager.add_label(resolved_id, label)
         if not task:
             return {"error": f"Task {task_id} not found"}
-        return {"success": True}
+        return {}
 
     registry.register(
         name="add_label",
@@ -747,7 +747,7 @@ def create_task_registry(
         task = task_manager.remove_label(resolved_id, label)
         if not task:
             return {"error": f"Task {task_id} not found"}
-        return {"success": True}
+        return {}
 
     registry.register(
         name="remove_label",
@@ -1119,7 +1119,7 @@ def create_task_registry(
             except Exception:
                 pass  # Best-effort worktree update
 
-            return {"success": True}
+            return {}
         except ValueError as e:
             return {"error": str(e)}
 
@@ -1149,16 +1149,13 @@ def create_task_registry(
         try:
             resolved_id = resolve_task_id_for_mcp(task_manager, task_id)
         except (TaskNotFoundError, ValueError) as e:
-            return {"success": False, "error": str(e)}
+            return {"error": str(e)}
 
         deleted = task_manager.delete_task(resolved_id, cascade=cascade)
         if not deleted:
-            return {"success": False, "error": f"Task {task_id} not found"}
+            return {"error": f"Task {task_id} not found"}
 
-        return {
-            "success": True,
-            "deleted_task_id": resolved_id,
-        }
+        return {"deleted_task_id": resolved_id}
 
     registry.register(
         name="delete_task",
@@ -1295,7 +1292,7 @@ def create_task_registry(
 
         try:
             session_task_manager.link_task(session_id, resolved_id, action)
-            return {"success": True}
+            return {}
         except ValueError as e:
             return {"error": str(e)}
 

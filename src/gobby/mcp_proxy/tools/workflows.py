@@ -353,11 +353,11 @@ def create_workflows_registry(
 
         state = _state_manager.get_state(session_id)
         if not state:
-            return {"success": False, "error": "No workflow active for session"}
+            return {"error": "No workflow active for session"}
 
         _state_manager.delete_state(session_id)
 
-        return {"success": True}
+        return {}
 
     @registry.tool(
         name="get_workflow_status",
@@ -517,13 +517,13 @@ def create_workflows_registry(
 
         state = _state_manager.get_state(session_id)
         if not state:
-            return {"success": False, "error": "No workflow active for session"}
+            return {"error": "No workflow active for session"}
 
         # Update artifacts
         state.artifacts[artifact_type] = file_path
         _state_manager.save_state(state)
 
-        return {"success": True}
+        return {}
 
     @registry.tool(
         name="set_variable",
@@ -593,7 +593,6 @@ def create_workflows_registry(
         # Add deprecation warning for session_task variable (when no workflow active)
         if name == "session_task" and value and state.workflow_name == "__lifecycle__":
             return {
-                "success": True,
                 "warning": (
                     "DEPRECATED: Setting session_task directly is deprecated. "
                     "Use activate_workflow(name='auto-task', variables={'session_task': ...}) instead "
@@ -601,7 +600,7 @@ def create_workflows_registry(
                 ),
             }
 
-        return {"success": True}
+        return {}
 
     @registry.tool(
         name="get_variable",
@@ -756,6 +755,6 @@ def create_workflows_registry(
         """
         _loader.clear_cache()
         logger.info("Workflow cache cleared via reload_cache tool")
-        return {"success": True, "message": "Workflow cache cleared"}
+        return {"message": "Workflow cache cleared"}
 
     return registry
