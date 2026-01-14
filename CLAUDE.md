@@ -49,7 +49,7 @@ uv run pytest tests/storage/ -v        # Run specific module
 
 ### Directory Structure
 
-```
+```text
 src/gobby/
 ├── cli/                    # CLI commands (Click)
 │   ├── __init__.py        # Main CLI group
@@ -142,19 +142,21 @@ src/gobby/
 ### Data Flow
 
 **Inbound (Hook Events)**:
-```
+
+```text
 CLI Hook → HTTP POST → Adapter → HookManager → Service Layer → Storage
 ```
 
 **Outbound (MCP Tools)**:
-```
+
+```text
 MCP Tool Call → MCPClientManager → [Internal Registry OR Downstream Server] → Response
 ```
 
 ### Key File Locations
 
 | Path | Purpose |
-|------|---------|
+| :--- | :--- |
 | `~/.gobby/config.yaml` | Daemon configuration |
 | `~/.gobby/gobby-hub.db` | SQLite database (sessions, tasks, etc.) |
 | `~/.gobby/logs/` | Log files |
@@ -316,7 +318,7 @@ Examples:
 
 **Also supported**:
 
-```
+```text
 <task-id>: <description>
 ```
 
@@ -350,6 +352,7 @@ call_tool("gobby-tasks", "close_task", {"task_id": "abc", "no_commit_needed": tr
 ```
 
 **Rule 3**: Never fabricate `override_justification`
+
 ```python
 # ❌ WRONG - lying to the system
 call_tool("gobby-tasks", "close_task", {
@@ -483,7 +486,7 @@ uv run gobby workflows clear      # Deactivate workflow
 ### Built-in Workflows
 
 | Workflow | Type | Purpose |
-|----------|------|---------|
+| :--- | :--- | :--- |
 | `session-handoff` | lifecycle | Auto-generates handoff context (always active) |
 | `plan-execute` | step | Enforces planning phase before implementation |
 | `test-driven` | step | TDD workflow (test → implement → refactor) |
@@ -595,7 +598,7 @@ call_tool(server_name="gobby-memory", tool_name="forget", arguments={
 Gobby intercepts CLI events through hooks (13 total):
 
 | Hook | Description | Can Block? |
-|------|-------------|------------|
+| :--- | :--- | :--- |
 | `session-start` | Session begins (startup/resume/compact) | No |
 | `session-end` | Session ends | No |
 | `user-prompt-submit` | Before prompt submitted | Yes |

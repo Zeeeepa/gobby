@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD033 MD041 -->
 <p align="center">
   <img src="logo.png" alt="Gobby" width="200" />
 </p>
@@ -23,6 +24,7 @@ Gobby is a local-first daemon that unifies your AI coding assistants—Claude Co
 **Gobby is built with Gobby.** Most of this codebase was written by AI agents running through Gobby's own task system and workflows. Dogfooding isn't a buzzword here—it's the development process.
 
 Note: Gobby is currently in alpha. Expect rough edges and breaking changes until the first stable release.
+
 ## Why Gobby?
 
 ### 🎯 A Task System That Actually Works
@@ -50,7 +52,7 @@ gobby tasks list --ready
 
 Connect 5 MCP servers and watch 50K+ tokens vanish before you write a single line of code. Gobby's proxy uses **progressive disclosure**—tools stay as lightweight metadata until you actually need them:
 
-```
+```text
 list_tools()           → Just names and descriptions (~200 tokens)
 get_tool_schema(name)  → Full inputSchema when you need it
 call_tool(name, args)  → Execute
@@ -131,6 +133,7 @@ Works with your Claude, Gemini, or Codex subscriptions—or bring your own API k
 Add Gobby as an MCP server:
 
 **Claude Code** (`.mcp.json` or `~/.claude.json`):
+
 ```json
 {
   "mcpServers": {
@@ -143,6 +146,7 @@ Add Gobby as an MCP server:
 ```
 
 **Gemini CLI** (`.gemini/settings.json`):
+
 ```json
 {
   "mcpServers": {
@@ -155,6 +159,7 @@ Add Gobby as an MCP server:
 ```
 
 **Codex CLI** (`~/.codex/config.toml`):
+
 ```toml
 [mcp_servers.gobby]
 command = "uv"
@@ -162,6 +167,7 @@ args = ["run", "gobby", "mcp-server"]
 ```
 
 **Gemini Antigravity** (`~/.gemini/antigravity/mcp_config.json`):
+
 ```json
 {
   "mcpServers": {
@@ -177,7 +183,7 @@ args = ["run", "gobby", "mcp-server"]
 ## CLI Support
 
 | CLI | Hooks | Status |
-|-----|-------|--------|
+| :--- | :--- | :--- |
 | **Claude Code** | ✅ All 14 types | Full support |
 | **Gemini CLI** | ⏳ Ready | Waiting on upstream PR (see [#9070](https://github.com/google-gemini/gemini-cli/issues/9070)) |
 | **Codex CLI** | 🔸 Basic | `after_agent` only |
@@ -185,7 +191,7 @@ args = ["run", "gobby", "mcp-server"]
 ## How It Compares
 
 | | Gobby | TaskMaster | Beads | mcp-agent |
-|---|:---:|:---:|:---:|:---:|
+| :--- | :---: | :---: | :---: | :---: |
 | Task dependencies | ✅ | ✅ | ✅ | ❌ |
 | TDD expansion | ✅ | ❌ | ❌ | ❌ |
 | Validation gates | ✅ | ❌ | ❌ | ❌ |
@@ -199,7 +205,7 @@ args = ["run", "gobby", "mcp-server"]
 
 ## Architecture
 
-```
+```text
 AI CLI (Claude/Gemini/Codex)
         │ hooks fire
         ▼
@@ -299,4 +305,3 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 <p align="center">
   <sub>Built with 🤖 by humans and AI, working together.</sub>
 </p>
-
