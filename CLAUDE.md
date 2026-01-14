@@ -190,17 +190,17 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
 
 ### Internal MCP Servers
 
-| Server | Purpose | Key Tools |
-|--------|---------|-----------|
-| `gobby-tasks` | Task management | `create_task`, `expand_task`, `close_task`, `suggest_next_task` |
-| `gobby-sessions` | Session handoff | `pickup`, `get_handoff_context`, `list_sessions` |
-| `gobby-memory` | Persistent memory | `remember`, `recall`, `forget` |
-| `gobby-workflows` | Workflow control | `activate_workflow`, `set_variable`, `get_status` |
-| `gobby-agents` | Agent spawning | `start_agent`, `list_agents`, `cancel_agent` |
-| `gobby-worktrees` | Git worktrees | `create_worktree`, `spawn_agent_in_worktree`, `list_worktrees` |
-| `gobby-merge` | AI merge resolution | `merge_start`, `merge_resolve`, `merge_apply` |
-| `gobby-hub` | Cross-project queries | `list_all_projects`, `hub_stats` |
-| `gobby-metrics` | Tool metrics | `get_metrics`, `get_failing_tools` |
+| Server            | Purpose               | Key Tools                                                        |
+|-------------------|-----------------------|------------------------------------------------------------------|
+| `gobby-tasks`     | Task management       | `create_task`, `expand_task`, `close_task`, `suggest_next_task`  |
+| `gobby-sessions`  | Session handoff       | `pickup`, `get_handoff_context`, `list_sessions`                 |
+| `gobby-memory`    | Persistent memory     | `remember`, `recall`, `forget`                                   |
+| `gobby-workflows` | Workflow control      | `activate_workflow`, `set_variable`, `get_status`                |
+| `gobby-agents`    | Agent spawning        | `start_agent`, `list_agents`, `cancel_agent`                     |
+| `gobby-worktrees` | Git worktrees         | `create_worktree`, `spawn_agent_in_worktree`, `list_worktrees`   |
+| `gobby-merge`     | AI merge resolution   | `merge_start`, `merge_resolve`, `merge_apply`                    |
+| `gobby-hub`       | Cross-project queries | `list_all_projects`, `hub_stats`                                 |
+| `gobby-metrics`   | Tool metrics          | `get_metrics`, `get_failing_tools`                               |
 
 Use `list_mcp_servers()` to see connected servers, then `list_tools(server="...")` for tools.
 
