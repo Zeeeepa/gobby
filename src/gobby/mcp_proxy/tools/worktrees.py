@@ -488,10 +488,18 @@ def create_worktrees_registry(
         project_path: str | None = None,
     ) -> dict[str, Any]:
         """
-        Delete a worktree (both git and database record).
+        Delete a worktree completely (handles all cleanup).
+
+        This is the proper way to remove a worktree. It handles:
+        - Removes the worktree directory and all temporary files
+        - Cleans up git's worktree tracking (.git/worktrees/)
+        - Deletes the associated git branch
+        - Removes the Gobby database record
+
+        Do NOT manually run `git worktree remove` - use this tool instead.
 
         Args:
-            worktree_id: The worktree ID to delete.
+            worktree_id: The worktree ID to delete (e.g., "wt-abc123").
             force: Force deletion even if there are uncommitted changes.
             project_path: Optional path to project root to resolve git context.
 
