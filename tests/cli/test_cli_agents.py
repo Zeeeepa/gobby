@@ -205,16 +205,19 @@ class TestAgentsStartCommand:
         assert result.exit_code == 2
         assert "Missing option" in result.output or "required" in result.output.lower()
 
+    @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")
     @patch("gobby.cli.agents.get_daemon_url")
     def test_start_success(
         self,
         mock_get_url: MagicMock,
         mock_post: MagicMock,
+        mock_resolve_session: MagicMock,
         runner: CliRunner,
     ):
         """Test successful agent start."""
         mock_get_url.return_value = "http://localhost:8765"
+        mock_resolve_session.return_value = "sess-parent123"
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "success": True,
@@ -235,16 +238,19 @@ class TestAgentsStartCommand:
         assert "ar-newrun123" in result.output
         assert "sess-child001" in result.output
 
+    @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")
     @patch("gobby.cli.agents.get_daemon_url")
     def test_start_with_all_options(
         self,
         mock_get_url: MagicMock,
         mock_post: MagicMock,
+        mock_resolve_session: MagicMock,
         runner: CliRunner,
     ):
         """Test start with all optional parameters."""
         mock_get_url.return_value = "http://localhost:8765"
+        mock_resolve_session.return_value = "sess-parent123"
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "success": True,
@@ -303,16 +309,19 @@ class TestAgentsStartCommand:
         assert call_args[1]["json"]["max_turns"] == 20
         assert call_args[1]["json"]["session_context"] == "compact_markdown"
 
+    @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")
     @patch("gobby.cli.agents.get_daemon_url")
     def test_start_json_output(
         self,
         mock_get_url: MagicMock,
         mock_post: MagicMock,
+        mock_resolve_session: MagicMock,
         runner: CliRunner,
     ):
         """Test start with JSON output format."""
         mock_get_url.return_value = "http://localhost:8765"
+        mock_resolve_session.return_value = "sess-parent"
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "success": True,
@@ -340,12 +349,14 @@ class TestAgentsStartCommand:
         assert data["success"] is True
         assert data["run_id"] == "ar-json123"
 
+    @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")
     @patch("gobby.cli.agents.get_daemon_url")
     def test_start_daemon_connection_error(
         self,
         mock_get_url: MagicMock,
         mock_post: MagicMock,
+        mock_resolve_session: MagicMock,
         runner: CliRunner,
     ):
         """Test start when daemon is not running."""
@@ -353,6 +364,7 @@ class TestAgentsStartCommand:
 
         mock_get_url.return_value = "http://localhost:8765"
         mock_post.side_effect = httpx.ConnectError("Connection refused")
+        mock_resolve_session.return_value = "sess-parent"
 
         result = runner.invoke(
             cli,
@@ -363,18 +375,21 @@ class TestAgentsStartCommand:
         assert "Cannot connect to Gobby daemon" in result.output
         assert "gobby start" in result.output
 
+    @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")
     @patch("gobby.cli.agents.get_daemon_url")
     def test_start_daemon_http_error(
         self,
         mock_get_url: MagicMock,
         mock_post: MagicMock,
+        mock_resolve_session: MagicMock,
         runner: CliRunner,
     ):
         """Test start when daemon returns HTTP error."""
         import httpx
 
         mock_get_url.return_value = "http://localhost:8765"
+        mock_resolve_session.return_value = "sess-parent"
         mock_response = MagicMock()
         mock_response.status_code = 500
         mock_response.text = "Internal server error"
@@ -391,16 +406,19 @@ class TestAgentsStartCommand:
         assert result.exit_code == 0
         assert "Error: Daemon returned 500" in result.output
 
+    @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")
     @patch("gobby.cli.agents.get_daemon_url")
     def test_start_failure_response(
         self,
         mock_get_url: MagicMock,
         mock_post: MagicMock,
+        mock_resolve_session: MagicMock,
         runner: CliRunner,
     ):
         """Test start with failure response from daemon."""
         mock_get_url.return_value = "http://localhost:8765"
+        mock_resolve_session.return_value = "sess-nonexistent"
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "success": False,
@@ -418,16 +436,19 @@ class TestAgentsStartCommand:
         assert "Failed to start agent" in result.output
         assert "Session not found" in result.output
 
+    @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")
     @patch("gobby.cli.agents.get_daemon_url")
     def test_start_in_process_mode_with_output(
         self,
         mock_get_url: MagicMock,
         mock_post: MagicMock,
+        mock_resolve_session: MagicMock,
         runner: CliRunner,
     ):
         """Test start in in_process mode shows output."""
         mock_get_url.return_value = "http://localhost:8765"
+        mock_resolve_session.return_value = "sess-parent"
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "success": True,
@@ -457,16 +478,19 @@ class TestAgentsStartCommand:
         assert "Output:" in result.output
         assert "Feature X implemented successfully" in result.output
 
+    @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.httpx.post")
     @patch("gobby.cli.agents.get_daemon_url")
     def test_start_generic_exception(
         self,
         mock_get_url: MagicMock,
         mock_post: MagicMock,
+        mock_resolve_session: MagicMock,
         runner: CliRunner,
     ):
         """Test start handles generic exceptions."""
         mock_get_url.return_value = "http://localhost:8765"
+        mock_resolve_session.return_value = "sess-parent"
         mock_post.side_effect = Exception("Unexpected error")
 
         result = runner.invoke(
@@ -596,10 +620,12 @@ class TestAgentsListCommand:
             assert "ar-abc123def" in result.output  # Truncated ID (12 chars)
             assert "running" in result.output
 
+    @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_list_by_session(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve_session: MagicMock,
         runner: CliRunner,
         mock_agent_run: MagicMock,
     ):
@@ -607,6 +633,7 @@ class TestAgentsListCommand:
         mock_manager = MagicMock()
         mock_manager.list_by_session.return_value = [mock_agent_run]
         mock_get_manager.return_value = mock_manager
+        mock_resolve_session.return_value = "sess-parent123"
 
         result = runner.invoke(cli, ["agents", "list", "--session", "sess-parent123"])
 
@@ -673,10 +700,12 @@ class TestAgentsListCommand:
             assert result.exit_code == 0
             assert "success" in result.output
 
+    @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_list_session_with_status(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve_session: MagicMock,
         runner: CliRunner,
         mock_completed_run: MagicMock,
     ):
@@ -684,6 +713,7 @@ class TestAgentsListCommand:
         mock_manager = MagicMock()
         mock_manager.list_by_session.return_value = [mock_completed_run]
         mock_get_manager.return_value = mock_manager
+        mock_resolve_session.return_value = "sess-123"
 
         result = runner.invoke(
             cli,
@@ -865,13 +895,15 @@ class TestAgentsShowCommand:
         result = runner.invoke(cli, ["agents", "show", "--help"])
 
         assert result.exit_code == 0
-        assert "RUN_ID" in result.output
+        assert "RUN_REF" in result.output
         assert "--json" in result.output
 
+    @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_show_exact_match(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve: MagicMock,
         runner: CliRunner,
         mock_completed_run: MagicMock,
     ):
@@ -879,6 +911,7 @@ class TestAgentsShowCommand:
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_completed_run
         mock_get_manager.return_value = mock_manager
+        mock_resolve.return_value = "ar-completed123"
 
         result = runner.invoke(cli, ["agents", "show", "ar-completed123"])
 
@@ -899,7 +932,9 @@ class TestAgentsShowCommand:
     ):
         """Test show with single prefix match."""
         mock_manager = MagicMock()
-        mock_manager.get.return_value = None  # No exact match
+        # When resolve succeeds, it returns the ID, then manager.get(ID) is called.
+        # We need manager.get to return the run.
+        mock_manager.get.return_value = mock_agent_run
         mock_get_manager.return_value = mock_manager
 
         mock_db = MagicMock()
@@ -986,9 +1021,11 @@ class TestAgentsShowCommand:
 
         result = runner.invoke(cli, ["agents", "show", "ar-abc"])
 
-        assert result.exit_code == 0
-        assert "Ambiguous run ID" in result.output
-        assert "matches 2 runs" in result.output
+        # ClickException causes non-zero exit code
+        assert result.exit_code != 0
+        assert "Ambiguous agent run reference" in result.output
+        # matches: ... is printed to stderr by click.echo before raising exception
+        assert "matches:" in result.output
         assert "ar-abc123" in result.output
         assert "ar-abc456" in result.output
 
@@ -1011,13 +1048,16 @@ class TestAgentsShowCommand:
 
         result = runner.invoke(cli, ["agents", "show", "ar-nonexistent"])
 
-        assert result.exit_code == 0
+        # ClickException causes non-zero exit code
+        assert result.exit_code != 0
         assert "Agent run not found" in result.output
 
+    @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_show_json_output(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve: MagicMock,
         runner: CliRunner,
         mock_completed_run: MagicMock,
     ):
@@ -1025,6 +1065,7 @@ class TestAgentsShowCommand:
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_completed_run
         mock_get_manager.return_value = mock_manager
+        mock_resolve.return_value = "ar-completed123"
 
         result = runner.invoke(cli, ["agents", "show", "ar-completed123", "--json"])
 
@@ -1033,10 +1074,12 @@ class TestAgentsShowCommand:
         assert data["id"] == "ar-completed123"
         assert data["status"] == "success"
 
+    @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_show_with_result(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve: MagicMock,
         runner: CliRunner,
         mock_completed_run: MagicMock,
     ):
@@ -1044,6 +1087,7 @@ class TestAgentsShowCommand:
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_completed_run
         mock_get_manager.return_value = mock_manager
+        mock_resolve.return_value = "ar-completed123"
 
         result = runner.invoke(cli, ["agents", "show", "ar-completed123"])
 
@@ -1051,10 +1095,12 @@ class TestAgentsShowCommand:
         assert "Result:" in result.output
         assert "Task completed successfully" in result.output
 
+    @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_show_with_error(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve: MagicMock,
         runner: CliRunner,
         mock_failed_run: MagicMock,
     ):
@@ -1062,6 +1108,7 @@ class TestAgentsShowCommand:
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_failed_run
         mock_get_manager.return_value = mock_manager
+        mock_resolve.return_value = "ar-failed456"
 
         result = runner.invoke(cli, ["agents", "show", "ar-failed456"])
 
@@ -1069,15 +1116,18 @@ class TestAgentsShowCommand:
         assert "Error:" in result.output
         assert "Connection timeout" in result.output
 
+    @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_show_truncates_long_prompt(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve: MagicMock,
         runner: CliRunner,
     ):
         """Test show truncates long prompts."""
         run = MagicMock()
         run.id = "ar-longprompt"
+        # ... (rest is same) -> actually I need to preserve lines 1081-1095
         run.status = "running"
         run.provider = "claude"
         run.model = None
@@ -1097,20 +1147,24 @@ class TestAgentsShowCommand:
         mock_manager = MagicMock()
         mock_manager.get.return_value = run
         mock_get_manager.return_value = mock_manager
+        mock_resolve.return_value = "ar-longprompt"
 
         result = runner.invoke(cli, ["agents", "show", "ar-longprompt"])
 
         assert result.exit_code == 0
         assert "..." in result.output
 
+    @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_show_truncates_long_result(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve: MagicMock,
         runner: CliRunner,
     ):
         """Test show truncates long results."""
         run = MagicMock()
+        # ... preserved setup ...
         run.id = "ar-longresult"
         run.status = "success"
         run.provider = "claude"
@@ -1131,6 +1185,7 @@ class TestAgentsShowCommand:
         mock_manager = MagicMock()
         mock_manager.get.return_value = run
         mock_get_manager.return_value = mock_manager
+        mock_resolve.return_value = "ar-longresult"
 
         result = runner.invoke(cli, ["agents", "show", "ar-longresult"])
 
@@ -1152,12 +1207,14 @@ class TestAgentsStatusCommand:
         result = runner.invoke(cli, ["agents", "status", "--help"])
 
         assert result.exit_code == 0
-        assert "RUN_ID" in result.output
+        assert "RUN_REF" in result.output
 
+    @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_status_running(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve: MagicMock,
         runner: CliRunner,
         mock_agent_run: MagicMock,
     ):
@@ -1165,6 +1222,7 @@ class TestAgentsStatusCommand:
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_agent_run
         mock_get_manager.return_value = mock_manager
+        mock_resolve.return_value = mock_agent_run.id
 
         result = runner.invoke(cli, ["agents", "status", mock_agent_run.id])
 
@@ -1174,10 +1232,12 @@ class TestAgentsStatusCommand:
         assert "Running since:" in result.output
         assert "Turns used:" in result.output
 
+    @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_status_success(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve: MagicMock,
         runner: CliRunner,
         mock_completed_run: MagicMock,
     ):
@@ -1185,6 +1245,7 @@ class TestAgentsStatusCommand:
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_completed_run
         mock_get_manager.return_value = mock_manager
+        mock_resolve.return_value = mock_completed_run.id
 
         result = runner.invoke(cli, ["agents", "status", mock_completed_run.id])
 
@@ -1192,10 +1253,12 @@ class TestAgentsStatusCommand:
         assert "success" in result.output
         assert "Completed:" in result.output
 
+    @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_status_error(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve: MagicMock,
         runner: CliRunner,
         mock_failed_run: MagicMock,
     ):
@@ -1203,6 +1266,7 @@ class TestAgentsStatusCommand:
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_failed_run
         mock_get_manager.return_value = mock_manager
+        mock_resolve.return_value = mock_failed_run.id
 
         result = runner.invoke(cli, ["agents", "status", mock_failed_run.id])
 
@@ -1222,7 +1286,8 @@ class TestAgentsStatusCommand:
     ):
         """Test status with prefix match."""
         mock_manager = MagicMock()
-        mock_manager.get.return_value = None
+        # Ensure manager returns run when resolved ID is passed
+        mock_manager.get.return_value = mock_agent_run
         mock_get_manager.return_value = mock_manager
 
         mock_db = MagicMock()
@@ -1272,7 +1337,7 @@ class TestAgentsStatusCommand:
 
         result = runner.invoke(cli, ["agents", "status", "ar-nonexistent"])
 
-        assert result.exit_code == 0
+        assert result.exit_code != 0
         assert "Agent run not found" in result.output
 
 
@@ -1289,12 +1354,14 @@ class TestAgentsCancelCommand:
         result = runner.invoke(cli, ["agents", "cancel", "--help"])
 
         assert result.exit_code == 0
-        assert "RUN_ID" in result.output
+        assert "RUN_REF" in result.output
 
+    @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_cancel_running_agent(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve: MagicMock,
         runner: CliRunner,
         mock_agent_run: MagicMock,
     ):
@@ -1302,6 +1369,7 @@ class TestAgentsCancelCommand:
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_agent_run
         mock_get_manager.return_value = mock_manager
+        mock_resolve.return_value = mock_agent_run.id
 
         result = runner.invoke(cli, ["agents", "cancel", mock_agent_run.id, "--yes"])
 
@@ -1309,10 +1377,12 @@ class TestAgentsCancelCommand:
         assert "Cancelled agent run" in result.output
         mock_manager.cancel.assert_called_once_with(mock_agent_run.id)
 
+    @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_cancel_pending_agent(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve: MagicMock,
         runner: CliRunner,
     ):
         """Test cancelling a pending agent."""
@@ -1323,16 +1393,19 @@ class TestAgentsCancelCommand:
         mock_manager = MagicMock()
         mock_manager.get.return_value = pending_run
         mock_get_manager.return_value = mock_manager
+        mock_resolve.return_value = "ar-pending123"
 
         result = runner.invoke(cli, ["agents", "cancel", "ar-pending123", "--yes"])
 
         assert result.exit_code == 0
         assert "Cancelled agent run" in result.output
 
+    @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_cancel_already_completed(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve: MagicMock,
         runner: CliRunner,
         mock_completed_run: MagicMock,
     ):
@@ -1340,6 +1413,7 @@ class TestAgentsCancelCommand:
         mock_manager = MagicMock()
         mock_manager.get.return_value = mock_completed_run
         mock_get_manager.return_value = mock_manager
+        mock_resolve.return_value = mock_completed_run.id
 
         result = runner.invoke(cli, ["agents", "cancel", mock_completed_run.id, "--yes"])
 
@@ -1365,7 +1439,7 @@ class TestAgentsCancelCommand:
 
         result = runner.invoke(cli, ["agents", "cancel", "ar-nonexistent", "--yes"])
 
-        assert result.exit_code == 0
+        assert result.exit_code != 0
         assert "Agent run not found" in result.output
 
     @patch("gobby.cli.agents.get_agent_run_manager")
@@ -1379,7 +1453,8 @@ class TestAgentsCancelCommand:
     ):
         """Test cancel with prefix match."""
         mock_manager = MagicMock()
-        mock_manager.get.return_value = None
+        # Fix: ensure manager.get returns the run for the resolved ID
+        mock_manager.get.return_value = mock_agent_run
         mock_get_manager.return_value = mock_manager
 
         mock_db = MagicMock()
@@ -1463,10 +1538,12 @@ class TestAgentsStatsCommand:
         assert "Running: 5" in result.output
         assert "Success Rate: 80.0%" in result.output
 
+    @patch("gobby.cli.agents.resolve_session_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_stats_by_session(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve_session: MagicMock,
         runner: CliRunner,
     ):
         """Test session-specific agent statistics."""
@@ -1477,6 +1554,7 @@ class TestAgentsStatsCommand:
             "running": 1,
         }
         mock_get_manager.return_value = mock_manager
+        mock_resolve_session.return_value = "sess-test123"
 
         result = runner.invoke(cli, ["agents", "stats", "--session", "sess-test123"])
 
@@ -1719,10 +1797,12 @@ class TestEdgeCases:
             run_lines = [line for line in lines if "ar-multiline" in line]
             assert len(run_lines) == 1  # Should be on a single line
 
+    @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_show_without_optional_fields(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve: MagicMock,
         runner: CliRunner,
     ):
         """Test show handles run without optional fields."""
@@ -1747,6 +1827,7 @@ class TestEdgeCases:
         mock_manager = MagicMock()
         mock_manager.get.return_value = run
         mock_get_manager.return_value = mock_manager
+        mock_resolve.return_value = "ar-minimal"
 
         result = runner.invoke(cli, ["agents", "show", "ar-minimal"])
 
@@ -1759,10 +1840,12 @@ class TestEdgeCases:
         child_session_lines = [line for line in lines if "Child Session:" in line]
         assert len(child_session_lines) == 0
 
+    @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_status_with_timeout_status(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve: MagicMock,
         runner: CliRunner,
     ):
         """Test status display for timed-out agent."""
@@ -1775,6 +1858,7 @@ class TestEdgeCases:
         mock_manager = MagicMock()
         mock_manager.get.return_value = run
         mock_get_manager.return_value = mock_manager
+        mock_resolve.return_value = "ar-timeout"
 
         result = runner.invoke(cli, ["agents", "status", "ar-timeout"])
 
@@ -1782,10 +1866,12 @@ class TestEdgeCases:
         assert "timeout" in result.output
         assert "Completed:" in result.output
 
+    @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_status_with_cancelled_status(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve: MagicMock,
         runner: CliRunner,
     ):
         """Test status display for cancelled agent."""
@@ -1798,16 +1884,19 @@ class TestEdgeCases:
         mock_manager = MagicMock()
         mock_manager.get.return_value = run
         mock_get_manager.return_value = mock_manager
+        mock_resolve.return_value = "ar-cancelled"
 
         result = runner.invoke(cli, ["agents", "status", "ar-cancelled"])
 
         assert result.exit_code == 0
         assert "cancelled" in result.output
 
+    @patch("gobby.cli.agents.resolve_agent_run_id")
     @patch("gobby.cli.agents.get_agent_run_manager")
     def test_cancel_error_status(
         self,
         mock_get_manager: MagicMock,
+        mock_resolve: MagicMock,
         runner: CliRunner,
     ):
         """Test cannot cancel agent already in error status."""
@@ -1818,6 +1907,7 @@ class TestEdgeCases:
         mock_manager = MagicMock()
         mock_manager.get.return_value = run
         mock_get_manager.return_value = mock_manager
+        mock_resolve.return_value = "ar-error"
 
         result = runner.invoke(cli, ["agents", "cancel", "ar-error", "--yes"])
 

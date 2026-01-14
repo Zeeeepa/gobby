@@ -92,11 +92,12 @@ def recall(
 
 
 @memory.command()
-@click.argument("memory_id")
+@click.argument("memory_ref")
 @click.pass_context
-def delete(ctx: click.Context, memory_id: str) -> None:
-    """Delete a memory by ID."""
+def delete(ctx: click.Context, memory_ref: str) -> None:
+    """Delete a memory by ID (UUID or prefix)."""
     manager = get_memory_manager(ctx)
+    memory_id = resolve_memory_id(manager, memory_ref)
     success = manager.forget(memory_id)
     if success:
         click.echo(f"Deleted memory: {memory_id}")
@@ -147,16 +148,17 @@ def list_memories(
 
     for mem in memories:
         tags_str = f" [{', '.join(mem.tags)}]" if mem.tags else ""
-        click.echo(f"[{mem.id}] ({mem.memory_type}, {mem.importance:.2f}){tags_str}")
+        click.echo(f"[{mem.id[:8]}] ({mem.memory_type}, {mem.importance:.2f}){tags_str}")
         click.echo(f"  {mem.content[:100]}{'...' if len(mem.content) > 100 else ''}")
 
 
 @memory.command("show")
-@click.argument("memory_id")
+@click.argument("memory_ref")
 @click.pass_context
-def show_memory(ctx: click.Context, memory_id: str) -> None:
-    """Show details of a specific memory."""
+def show_memory(ctx: click.Context, memory_ref: str) -> None:
+    """Show details of a specific memory (UUID or prefix)."""
     manager = get_memory_manager(ctx)
+    memory_id = resolve_memory_id(manager, memory_ref)
     memory = manager.get_memory(memory_id)
     if not memory:
         click.echo(f"Memory not found: {memory_id}")
@@ -175,20 +177,21 @@ def show_memory(ctx: click.Context, memory_id: str) -> None:
 
 
 @memory.command("update")
-@click.argument("memory_id")
+@click.argument("memory_ref")
 @click.option("--content", "-c", help="New content")
 @click.option("--importance", "-i", type=float, help="New importance (0.0-1.0)")
 @click.option("--tags", "-t", help="New tags (comma-separated)")
 @click.pass_context
 def update_memory(
     ctx: click.Context,
-    memory_id: str,
+    memory_ref: str,
     content: str | None,
     importance: float | None,
     tags: str | None,
 ) -> None:
-    """Update an existing memory."""
+    """Update an existing memory (UUID or prefix)."""
     manager = get_memory_manager(ctx)
+    memory_id = resolve_memory_id(manager, memory_ref)
 
     # Parse tags if provided
     tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None
@@ -225,3 +228,28 @@ def memory_stats(ctx: click.Context, project_ref: str | None) -> None:
         click.echo("  By Type:")
         for mem_type, count in stats["by_type"].items():
             click.echo(f"    {mem_type}: {count}")
+
+
+def resolve_memory_id(manager: MemoryManager, memory_ref: str) -> str:
+    """Resolve memory reference (UUID or prefix) to full ID."""
+    # Try exact match first
+    # Optimization: check 36 chars?
+    if len(memory_ref) == 36 and manager.get_memory(memory_ref):
+        return memory_ref
+
+    # Try prefix match
+    rows = manager.db.fetchall(
+        "SELECT id FROM memories WHERE id LIKE ? LIMIT 5",
+        (f"{memory_ref}%",),
+    )
+
+    if not rows:
+        raise click.ClickException(f"Memory not found: {memory_ref}")
+
+    if len(rows) > 1:
+        click.echo(f"Ambiguous memory reference '{memory_ref}' matches:", err=True)
+        for row in rows:
+            click.echo(f"  {row['id']}", err=True)
+        raise click.ClickException(f"Ambiguous memory reference: {memory_ref}")
+
+    return rows[0]["id"]

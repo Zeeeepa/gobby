@@ -10,6 +10,7 @@ import logging
 
 import click
 
+from gobby.cli.tasks._utils import resolve_task_id
 from gobby.integrations.linear import LinearIntegration
 from gobby.mcp_proxy.manager import MCPClientManager
 from gobby.storage.database import LocalDatabase
@@ -199,8 +200,13 @@ def linear_sync(task_id: str, json_format: bool) -> None:
     Updates the Linear issue title and description to match the task.
     """
     try:
+        task_manager, _, _, _ = get_linear_deps()
+        resolved = resolve_task_id(task_manager, task_id)
+        if not resolved:
+            return
+
         service = get_sync_service()
-        result = asyncio.run(service.sync_task_to_linear(task_id))
+        result = asyncio.run(service.sync_task_to_linear(resolved.id))
 
         if json_format:
             click.echo(json.dumps(result, indent=2))
@@ -222,8 +228,13 @@ def linear_sync(task_id: str, json_format: bool) -> None:
 def linear_create(task_id: str, team_id: str | None, json_format: bool) -> None:
     """Create a Linear issue from a gobby task."""
     try:
+        task_manager, _, _, _ = get_linear_deps()
+        resolved = resolve_task_id(task_manager, task_id)
+        if not resolved:
+            return
+
         service = get_sync_service(team_id)
-        result = asyncio.run(service.create_issue_for_task(task_id=task_id, team_id=team_id))
+        result = asyncio.run(service.create_issue_for_task(task_id=resolved.id, team_id=team_id))
 
         if json_format:
             click.echo(json.dumps(result, indent=2))
