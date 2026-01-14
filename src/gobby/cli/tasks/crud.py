@@ -427,46 +427,73 @@ def update_task(
 
 
 @click.command("close")
-@click.argument("task_id", metavar="TASK")
+@click.argument("task_ids", metavar="TASK", nargs=-1, required=True)
 @click.option("--reason", "-r", default="completed", help="Reason for closing")
 @click.option("--skip-validation", is_flag=True, help="Skip validation checks")
 @click.option("--force", "-f", is_flag=True, help="Alias for --skip-validation")
-def close_task_cmd(task_id: str, reason: str, skip_validation: bool, force: bool) -> None:
-    """Close a task.
+def close_task_cmd(task_ids: tuple[str, ...], reason: str, skip_validation: bool, force: bool) -> None:
+    """Close one or more tasks.
 
-    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
+    TASK can be: #N (e.g., #1, #47), seq_num (e.g., 47), path (e.g., 1.2.3), or UUID.
+    Multiple tasks can be specified separated by spaces or commas.
+
+    Examples:
+        gobby tasks close #42
+        gobby tasks close 42 43 44
+        gobby tasks close abc123,#45,46
 
     Parent tasks require all children to be closed first.
     Use --skip-validation or --force for wont_fix, duplicate, etc.
     """
     manager = get_task_manager()
-    resolved = resolve_task_id(manager, task_id)
-    if not resolved:
-        return
-
     skip = skip_validation or force
 
-    if not skip:
-        # Check if task has children (is a parent task)
-        children = manager.list_tasks(parent_task_id=resolved.id, limit=1000)
+    # Expand comma-separated values into individual IDs
+    expanded_ids: list[str] = []
+    for task_id in task_ids:
+        if "," in task_id:
+            expanded_ids.extend(part.strip() for part in task_id.split(",") if part.strip())
+        else:
+            expanded_ids.append(task_id)
 
-        if children:
-            # Parent task: must have all children closed
-            open_children = [c for c in children if c.status != "closed"]
-            if open_children:
-                click.echo(f"Cannot close: {len(open_children)} child tasks still open:", err=True)
-                for c in open_children[:5]:
-                    click.echo(f"  - {c.id}: {c.title}", err=True)
-                if len(open_children) > 5:
-                    click.echo(f"  ... and {len(open_children) - 5} more", err=True)
-                click.echo("\nUse --force to close anyway.", err=True)
-                return
+    closed_count = 0
+    failed_count = 0
 
-    task = manager.close_task(resolved.id, reason=reason)
+    for task_id in expanded_ids:
+        resolved = resolve_task_id(manager, task_id)
+        if not resolved:
+            failed_count += 1
+            continue
 
-    # Use standardized ref
-    task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
-    click.echo(f"Closed task {task_ref} ({reason})")
+        if not skip:
+            # Check if task has children (is a parent task)
+            children = manager.list_tasks(parent_task_id=resolved.id, limit=1000)
+
+            if children:
+                # Parent task: must have all children closed
+                open_children = [c for c in children if c.status != "closed"]
+                if open_children:
+                    task_ref = f"#{resolved.seq_num}" if resolved.seq_num else resolved.id[:8]
+                    click.echo(
+                        f"Cannot close {task_ref}: {len(open_children)} child tasks still open",
+                        err=True,
+                    )
+                    failed_count += 1
+                    continue
+
+        task = manager.close_task(resolved.id, reason=reason)
+
+        # Use standardized ref
+        task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+        click.echo(f"Closed task {task_ref} ({reason})")
+        closed_count += 1
+
+    # Summary if multiple tasks were processed
+    if len(expanded_ids) > 1:
+        if failed_count > 0:
+            click.echo(f"\nClosed {closed_count}/{len(expanded_ids)} tasks ({failed_count} failed)")
+        else:
+            click.echo(f"\nClosed {closed_count} tasks")
 
 
 @click.command("reopen")
