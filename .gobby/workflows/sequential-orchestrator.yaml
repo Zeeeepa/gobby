@@ -130,3 +130,17 @@ steps:
     allowed_tools: all
 
 exit_condition: "task_tree_complete(variables.session_task)"
+
+on_premature_stop:
+  action: guide_continuation
+  message: |
+    You cannot stop yet. The epic task tree is not complete.
+
+    Current state:
+    - Epic: {{ variables.session_task }}
+    - Worktree: {{ variables.worktree_path }}
+    - Current agent: {{ variables.current_agent_run_id }}
+
+    If an agent is running, check its status with get_agent_result().
+    If no agent is running, use suggest_next_task() to find the next subtask.
+    Continue until task_tree_complete({{ variables.session_task }}).
