@@ -265,7 +265,7 @@ See [ROADMAP.md](ROADMAP.md) for the full plan, but highlights:
 
 **Next:** Autonomous orchestration, TUI, Web UI (for remote access to your agents), Observability (tool call tracing, OpenTelemetry), Security posture for MCP (allow/deny lists, audit logging)
 
-**Vision:** Always local first, but Pro cloud features to keep the lights on:Fleet management (manage sessions across multiple machines), Plugin ecosystem, Team workflows, Enterprise hardening
+**Vision:** Always local first, but Pro cloud features to keep the lights on: Fleet management (manage sessions across multiple machines), Plugin ecosystem, Team workflows, Enterprise hardening
 
 ## Development
 

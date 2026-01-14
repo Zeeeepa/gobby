@@ -313,6 +313,10 @@ class LocalSessionManager:
         # Full UUID check
         try:
             uuid_obj = uuid.UUID(ref)
+            # Verify the session exists in the database
+            row = self.db.fetchone("SELECT id FROM sessions WHERE id = ?", (str(uuid_obj),))
+            if not row:
+                raise ValueError(f"Session '{ref}' not found")
             return str(uuid_obj)
         except ValueError:
             pass  # Not a valid UUID, try prefix

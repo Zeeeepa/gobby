@@ -404,7 +404,10 @@ def create_handoff(
             return
     else:
         # Get most recent active session
-        session_id = resolve_session_id(None)  # uses get_active_session_id internally
+        try:
+            session_id = resolve_session_id(None)  # uses get_active_session_id internally
+        except click.ClickException as e:
+            raise SystemExit(1) from e
         session = manager.get(session_id)
 
     # Check for transcript

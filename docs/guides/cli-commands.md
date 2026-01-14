@@ -140,8 +140,8 @@ Show agent run details.
 ```bash
 gobby agents show RUN_ID
 ```
-  
-  ## Project Management
+
+## Project Management
 
 ### `gobby init`
 

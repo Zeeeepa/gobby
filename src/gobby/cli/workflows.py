@@ -188,7 +188,10 @@ def workflow_status(ctx: click.Context, session_id: str | None, json_format: boo
             # Re-raise to match expected behavior or exit
             raise SystemExit(1) from e
     else:
-        session_id = resolve_session_id(session_id)
+        try:
+            session_id = resolve_session_id(session_id)
+        except click.ClickException as e:
+            raise SystemExit(1) from e
 
     state = state_manager.get_state(session_id)
 
