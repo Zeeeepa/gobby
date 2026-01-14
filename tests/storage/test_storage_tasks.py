@@ -1152,7 +1152,7 @@ class TestOrderTasksHierarchically:
 
 @pytest.mark.integration
 class TestCreateTaskWithDecomposition:
-    """Test create_task_with_decomposition for auto-decomposition."""
+    """Test create_task_with_decomposition (Phase 1: auto-decomposition disabled)."""
 
     def test_create_single_step_task(self, task_manager, project_id):
         """Test creating a simple task without steps."""
@@ -1166,8 +1166,8 @@ class TestCreateTaskWithDecomposition:
         assert "task" in result
         assert result["task"]["title"] == "Simple Task"
 
-    def test_create_multi_step_task_with_auto_decompose(self, task_manager, project_id):
-        """Test creating a multi-step task auto-decomposes."""
+    def test_create_multi_step_task_no_auto_decompose(self, task_manager, project_id):
+        """Test multi-step descriptions are NOT auto-decomposed (Phase 1)."""
         description = """Steps to complete:
 1. First step
 2. Second step
@@ -1177,17 +1177,17 @@ class TestCreateTaskWithDecomposition:
             project_id=project_id,
             title="Multi-Step Task",
             description=description,
-            auto_decompose=True,
+            auto_decompose=True,  # Ignored in Phase 1
         )
 
-        assert result["auto_decomposed"] is True
-        assert "parent_task" in result
-        assert "subtasks" in result
-        assert len(result["subtasks"]) == 3
+        # Phase 1: Always returns single task, no decomposition
+        assert result["auto_decomposed"] is False
+        assert "task" in result
+        assert result["task"]["title"] == "Multi-Step Task"
+        assert "subtasks" not in result
 
-    def test_create_multi_step_task_opt_out(self, task_manager, project_id):
-        """Test creating multi-step task with auto_decompose=False."""
-        # Need at least 3 numbered items for detect_multi_step to return True
+    def test_create_multi_step_task_auto_decompose_param_ignored(self, task_manager, project_id):
+        """Test auto_decompose=False is accepted but has no special behavior (Phase 1)."""
         description = """Steps:
 1. Step one
 2. Step two
@@ -1200,20 +1200,19 @@ class TestCreateTaskWithDecomposition:
             auto_decompose=False,
         )
 
+        # Phase 1: Returns single task with status "open" (not needs_decomposition)
         assert result["auto_decomposed"] is False
-        assert result["task"]["status"] == "needs_decomposition"
+        assert result["task"]["status"] == "open"
 
-    def test_create_task_with_workflow_state_opt_out(self, task_manager, project_id):
-        """Test auto_decompose respects workflow state variable."""
+    def test_create_task_workflow_state_auto_decompose_ignored(self, task_manager, project_id):
+        """Test workflow state auto_decompose variable is ignored (Phase 1)."""
         from unittest.mock import MagicMock
 
-        # Need at least 3 numbered items for detect_multi_step to return True
         description = """Steps:
 1. First
 2. Second
 3. Third"""
 
-        # Mock workflow state with auto_decompose=False
         workflow_state = MagicMock()
         workflow_state.variables = {"auto_decompose": False}
 
@@ -1224,20 +1223,19 @@ class TestCreateTaskWithDecomposition:
             workflow_state=workflow_state,
         )
 
+        # Phase 1: Returns single task, workflow variable ignored
         assert result["auto_decomposed"] is False
-        assert result["task"]["status"] == "needs_decomposition"
+        assert result["task"]["status"] == "open"
 
-    def test_create_task_explicit_param_overrides_workflow_state(self, task_manager, project_id):
-        """Test explicit auto_decompose param overrides workflow state."""
+    def test_create_task_explicit_param_ignored(self, task_manager, project_id):
+        """Test explicit auto_decompose=True param is ignored (Phase 1)."""
         from unittest.mock import MagicMock
 
-        # Need at least 3 numbered items for detect_multi_step to return True
         description = """Steps:
 1. First
 2. Second
 3. Third"""
 
-        # Workflow says False, but explicit param says True
         workflow_state = MagicMock()
         workflow_state.variables = {"auto_decompose": False}
 
@@ -1245,60 +1243,63 @@ class TestCreateTaskWithDecomposition:
             project_id=project_id,
             title="Explicit Override",
             description=description,
-            auto_decompose=True,  # Override workflow state
+            auto_decompose=True,  # Ignored in Phase 1
             workflow_state=workflow_state,
         )
 
-        assert result["auto_decomposed"] is True
+        # Phase 1: Always returns single task
+        assert result["auto_decomposed"] is False
 
 
 @pytest.mark.integration
 class TestUpdateTaskWithStepDetection:
-    """Test update_task_with_step_detection for multi-step handling."""
+    """Test update_task_with_step_detection (Phase 1: step detection disabled)."""
 
-    def test_update_no_steps_detected(self, task_manager, project_id):
-        """Test updating with description that has no steps."""
+    def test_update_simple_description(self, task_manager, project_id):
+        """Test updating with simple description."""
         task = task_manager.create_task(project_id, "Task")
 
         result = task_manager.update_task_with_step_detection(task.id, description="Simple update")
 
+        # Phase 1: Always returns steps_detected=False
         assert result["steps_detected"] is False
         assert result["step_count"] == 0
         assert result["auto_decomposed"] is False
+        assert result["task"]["description"] == "Simple update"
 
-    def test_update_steps_detected_auto_decompose(self, task_manager, project_id):
-        """Test updating with steps triggers auto-decomposition."""
+    def test_update_multi_step_no_detection(self, task_manager, project_id):
+        """Test multi-step descriptions are NOT detected (Phase 1)."""
         task = task_manager.create_task(project_id, "Task")
 
         result = task_manager.update_task_with_step_detection(
             task.id,
             description="1. First\n2. Second\n3. Third",
-            auto_decompose=True,
+            auto_decompose=True,  # Ignored in Phase 1
         )
 
-        assert result["steps_detected"] is True
-        assert result["step_count"] == 3
-        assert result["auto_decomposed"] is True
-        assert "subtasks" in result
-        assert len(result["subtasks"]) == 3
+        # Phase 1: No step detection, just updates description
+        assert result["steps_detected"] is False
+        assert result["step_count"] == 0
+        assert result["auto_decomposed"] is False
+        assert "subtasks" not in result
 
-    def test_update_steps_detected_opt_out(self, task_manager, project_id):
-        """Test updating with steps but opt out sets needs_decomposition."""
+    def test_update_auto_decompose_param_ignored(self, task_manager, project_id):
+        """Test auto_decompose=False param is ignored (Phase 1)."""
         task = task_manager.create_task(project_id, "Task")
 
-        # Need at least 3 numbered items for detect_multi_step to return True
         result = task_manager.update_task_with_step_detection(
             task.id,
             description="1. First\n2. Second\n3. Third",
             auto_decompose=False,
         )
 
-        assert result["steps_detected"] is True
+        # Phase 1: No needs_decomposition status, just normal update
+        assert result["steps_detected"] is False
         assert result["auto_decomposed"] is False
-        assert result["task"]["status"] == "needs_decomposition"
+        assert result["task"]["status"] == "open"
 
-    def test_update_skips_detection_if_has_children(self, task_manager, project_id):
-        """Test step detection is skipped if task already has children."""
+    def test_update_with_children(self, task_manager, project_id):
+        """Test updating task that already has children."""
         parent = task_manager.create_task(project_id, "Parent")
         task_manager.create_task(project_id, "Child", parent_task_id=parent.id)
 
@@ -1306,7 +1307,7 @@ class TestUpdateTaskWithStepDetection:
             parent.id, description="1. First\n2. Second"
         )
 
-        # Should skip detection because task already has children
+        # Phase 1: Just updates description, no special handling
         assert result["steps_detected"] is False
         assert result["auto_decomposed"] is False
 
@@ -1318,8 +1319,8 @@ class TestUpdateTaskWithStepDetection:
 
         assert result["steps_detected"] is False
 
-    def test_update_with_workflow_state_opt_out(self, task_manager, project_id):
-        """Test workflow state variable controls auto_decompose."""
+    def test_update_workflow_state_ignored(self, task_manager, project_id):
+        """Test workflow state auto_decompose variable is ignored (Phase 1)."""
         from unittest.mock import MagicMock
 
         task = task_manager.create_task(project_id, "Task")
@@ -1327,32 +1328,30 @@ class TestUpdateTaskWithStepDetection:
         workflow_state = MagicMock()
         workflow_state.variables = {"auto_decompose": False}
 
-        # Need at least 3 numbered items for detect_multi_step to return True
         result = task_manager.update_task_with_step_detection(
             task.id,
             description="1. First\n2. Second\n3. Third",
             workflow_state=workflow_state,
         )
 
-        assert result["steps_detected"] is True
+        # Phase 1: Workflow variable ignored, no step detection
+        assert result["steps_detected"] is False
         assert result["auto_decomposed"] is False
-        assert result["task"]["status"] == "needs_decomposition"
+        assert result["task"]["status"] == "open"
 
-    def test_update_default_auto_decompose(self, task_manager, project_id):
-        """Test default auto_decompose=True when no explicit param or workflow state."""
+    def test_update_default_no_decompose(self, task_manager, project_id):
+        """Test default behavior is no decomposition (Phase 1)."""
         task = task_manager.create_task(project_id, "Task")
 
-        # No explicit auto_decompose param, no workflow_state
-        # Default should be True, so it auto-decomposes
         result = task_manager.update_task_with_step_detection(
             task.id,
             description="1. First\n2. Second\n3. Third",
         )
 
-        assert result["steps_detected"] is True
-        assert result["auto_decomposed"] is True
-        assert "subtasks" in result
-        assert len(result["subtasks"]) == 3
+        # Phase 1: No step detection by default
+        assert result["steps_detected"] is False
+        assert result["auto_decomposed"] is False
+        assert "subtasks" not in result
 
 
 @pytest.mark.integration
@@ -1384,12 +1383,12 @@ class TestListTasksBranchCoverage:
 
 @pytest.mark.integration
 class TestCreateTaskWithDecompositionDefaults:
-    """Test default behavior for create_task_with_decomposition."""
+    """Test default behavior for create_task_with_decomposition (Phase 1)."""
 
-    def test_create_default_auto_decompose_with_multi_step(self, task_manager, project_id):
-        """Test default auto_decompose=True when no explicit param or workflow state."""
+    def test_create_default_no_decompose_with_multi_step(self, task_manager, project_id):
+        """Test default behavior is NO decomposition (Phase 1)."""
         # No explicit auto_decompose param, no workflow_state
-        # Default should be True
+        # Phase 1: Default is NO decomposition
         description = """Steps:
 1. First step
 2. Second step
@@ -1401,10 +1400,10 @@ class TestCreateTaskWithDecompositionDefaults:
             description=description,
         )
 
-        # Default is True, so it should auto-decompose
-        assert result["auto_decomposed"] is True
-        assert "parent_task" in result
-        assert len(result["subtasks"]) == 3
+        # Phase 1: No auto-decomposition, just single task
+        assert result["auto_decomposed"] is False
+        assert "task" in result
+        assert "subtasks" not in result
 
 
 @pytest.mark.integration

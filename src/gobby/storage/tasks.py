@@ -1676,6 +1676,13 @@ class LocalTaskManager:
         Returns:
             Dict with auto_decomposed=False and task details.
         """
+        if auto_decompose is not None:
+            logger.warning("auto_decompose parameter is deprecated and will be removed in Phase 2.")
+        if workflow_state and workflow_state.variables.get("auto_decompose") is not None:
+            logger.warning(
+                "auto_decompose workflow variable is deprecated and will be removed in Phase 2."
+            )
+
         task = self.create_task(
             project_id=project_id,
             title=title,

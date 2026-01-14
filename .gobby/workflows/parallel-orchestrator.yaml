@@ -27,7 +27,7 @@ steps:
           Max concurrent: {{ variables.max_concurrent }}
           Currently running: {{ variables.spawned_agents | length }}
 
-          1. Call list_ready_tasks() for task tree {{ variables.session_task }}
+          1. Call list_ready_tasks(parent_task_id="{{ variables.session_task }}") to get ready subtasks
           2. For each ready task (up to max_concurrent - currently_running):
              - create_worktree(branch="task/<task_id>")
              - start_agent(provider="{{ variables.coding_provider }}",

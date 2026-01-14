@@ -188,7 +188,7 @@ class TestCreateTaskTool:
         with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
-            result = await registry.call("create_task", {"title": "New Task"})
+            result = await registry.call("create_task", {"title": "New Task", "session_id": "test-session"})
 
             assert result == {
                 "id": "550e8400-e29b-41d4-a716-446655440001",
@@ -222,6 +222,7 @@ class TestCreateTaskTool:
                     "create_task",
                     {
                         "title": "Blocker Task",
+                        "session_id": "test-session",
                         "blocks": [
                             "550e8400-e29b-41d4-a716-446655440003",
                             "550e8400-e29b-41d4-a716-446655440004",
@@ -264,7 +265,7 @@ class TestCreateTaskTool:
             mock_ctx.return_value = {"id": "proj-1"}
 
             await registry.call(
-                "create_task", {"title": "Labeled Task", "labels": ["urgent", "bug"]}
+                "create_task", {"title": "Labeled Task", "session_id": "test-session", "labels": ["urgent", "bug"]}
             )
 
             mock_task_manager.create_task_with_decomposition.assert_called_once()
@@ -288,7 +289,7 @@ class TestCreateTaskTool:
         with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
-            await registry.call("create_task", {"title": "Verify that the feature works correctly"})
+            await registry.call("create_task", {"title": "Verify that the feature works correctly", "session_id": "test-session"})
 
             call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
             assert call_kwargs["test_strategy"] == "manual"
@@ -315,7 +316,7 @@ class TestCreateTaskTool:
             # Title would infer "manual", but explicit value overrides
             await registry.call(
                 "create_task",
-                {"title": "Verify that tests pass", "test_strategy": "automated"},
+                {"title": "Verify that tests pass", "session_id": "test-session", "test_strategy": "automated"},
             )
 
             call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
@@ -387,7 +388,7 @@ class TestCreateTaskTool:
             mock_init_result.project_id = "new-proj"
             mock_init.return_value = mock_init_result
 
-            await registry.call("create_task", {"title": "Task"})
+            await registry.call("create_task", {"title": "Task", "session_id": "test-session"})
 
             mock_init.assert_called_once()
             call_kwargs = mock_task_manager.create_task_with_decomposition.call_args.kwargs
@@ -422,7 +423,7 @@ class TestCreateTaskTool:
         with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
-            result = await registry.call("create_task", {"title": "Full Task"})
+            result = await registry.call("create_task", {"title": "Full Task", "session_id": "test-session"})
 
             # Should return full task dict, not minimal
             assert result == {
@@ -458,7 +459,7 @@ class TestCreateTaskTool:
         with patch("gobby.mcp_proxy.tools.tasks.get_project_context") as mock_ctx:
             mock_ctx.return_value = {"id": "proj-1"}
 
-            result = await registry.call("create_task", {"title": "Task"})
+            result = await registry.call("create_task", {"title": "Task", "session_id": "test-session"})
 
             mock_task_manager.update_task.assert_not_called()
             assert "validation_generated" not in result

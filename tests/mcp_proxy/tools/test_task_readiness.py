@@ -500,6 +500,164 @@ class TestSuggestNextTaskWithParentId:
         assert "No ready tasks" in result["reason"]
 
 
+class TestSuggestNextTaskWithSessionId:
+    """Tests for suggest_next_task with session_id auto-scoping."""
+
+    def test_suggest_next_task_with_session_id_scopes_to_session_task(
+        self, mock_readiness_registry, monkeypatch
+    ):
+        """Test suggest_next_task auto-scopes when session_id has session_task variable."""
+        from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
+        from gobby.workflows.definitions import WorkflowState
+
+        task_manager = MagicMock()
+
+        # Create child task (descendant of session_task)
+        child_task = MagicMock()
+        child_task.id = "child-1"
+        child_task.parent_task_id = "epic-1"
+        child_task.priority = 2
+        child_task.status = "open"
+        child_task.configure_mock(complexity_score=None, test_strategy=None)
+        child_task.to_dict.return_value = {"id": "child-1", "title": "Child task"}
+
+        # Create unrelated task (not a descendant)
+        other_task = MagicMock()
+        other_task.id = "other-1"
+        other_task.parent_task_id = "other-epic"
+        other_task.priority = 1  # Higher priority but outside scope
+        other_task.status = "open"
+        other_task.configure_mock(complexity_score=None, test_strategy=None)
+        other_task.to_dict.return_value = {"id": "other-1"}
+
+        # list_ready_tasks returns both tasks
+        task_manager.list_ready_tasks.return_value = [child_task, other_task]
+
+        def list_tasks_side_effect(**kwargs):
+            parent_id = kwargs.get("parent_task_id")
+            status = kwargs.get("status")
+            if status == "in_progress":
+                return []  # No in_progress tasks
+            if parent_id == "epic-1":
+                return [child_task]
+            return []
+
+        task_manager.list_tasks.side_effect = list_tasks_side_effect
+
+        # Patch WorkflowStateManager.get_state to return a workflow with session_task
+        mock_workflow_state = WorkflowState(
+            session_id="test-session-123",
+            workflow_name="auto-task",
+            step="work",
+            variables={"session_task": "epic-1"},
+        )
+        monkeypatch.setattr(
+            "gobby.workflows.state_manager.WorkflowStateManager.get_state",
+            lambda self, sid: mock_workflow_state if sid == "test-session-123" else None,
+        )
+
+        registry = create_readiness_registry(task_manager=task_manager)
+        suggest = registry.get_tool("suggest_next_task")
+
+        result = suggest(session_id="test-session-123")
+
+        # Should only suggest child task due to session_task scoping
+        assert result["suggestion"] is not None
+        assert result["suggestion"]["id"] == "child-1"
+
+    def test_suggest_next_task_session_id_ignored_if_parent_id_set(
+        self, mock_readiness_registry, monkeypatch
+    ):
+        """Test session_id auto-scoping is skipped when parent_id is explicitly set."""
+        from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
+        from gobby.workflows.definitions import WorkflowState
+
+        task_manager = MagicMock()
+
+        child_task = MagicMock()
+        child_task.id = "child-of-explicit"
+        child_task.parent_task_id = "explicit-parent"
+        child_task.priority = 2
+        child_task.status = "open"
+        child_task.configure_mock(complexity_score=None, test_strategy=None)
+        child_task.to_dict.return_value = {"id": "child-of-explicit"}
+
+        task_manager.list_ready_tasks.return_value = [child_task]
+
+        def list_tasks_side_effect(**kwargs):
+            parent_id = kwargs.get("parent_task_id")
+            status = kwargs.get("status")
+            if status == "in_progress":
+                return []
+            if parent_id == "explicit-parent":
+                return [child_task]
+            return []
+
+        task_manager.list_tasks.side_effect = list_tasks_side_effect
+
+        # Patch WorkflowStateManager - session_task is set but parent_id takes precedence
+        mock_workflow_state = WorkflowState(
+            session_id="test-session",
+            workflow_name="auto-task",
+            step="work",
+            variables={"session_task": "epic-1"},  # Different from explicit-parent
+        )
+        monkeypatch.setattr(
+            "gobby.workflows.state_manager.WorkflowStateManager.get_state",
+            lambda self, sid: mock_workflow_state,
+        )
+
+        registry = create_readiness_registry(task_manager=task_manager)
+        suggest = registry.get_tool("suggest_next_task")
+
+        # parent_id takes precedence over session_id
+        result = suggest(session_id="test-session", parent_id="explicit-parent")
+
+        assert result["suggestion"] is not None
+        assert result["suggestion"]["id"] == "child-of-explicit"
+
+    def test_suggest_next_task_session_id_star_does_not_scope(
+        self, mock_readiness_registry, monkeypatch
+    ):
+        """Test session_task='*' does not scope (allows all tasks)."""
+        from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
+        from gobby.workflows.definitions import WorkflowState
+
+        task_manager = MagicMock()
+
+        task = MagicMock()
+        task.id = "any-task"
+        task.parent_task_id = None
+        task.priority = 1
+        task.status = "open"
+        task.configure_mock(complexity_score=None, test_strategy=None)
+        task.to_dict.return_value = {"id": "any-task"}
+
+        task_manager.list_ready_tasks.return_value = [task]
+        task_manager.list_tasks.return_value = []
+
+        # Patch WorkflowStateManager - session_task set to "*" (no scoping)
+        mock_workflow_state = WorkflowState(
+            session_id="test-session",
+            workflow_name="auto-task",
+            step="work",
+            variables={"session_task": "*"},
+        )
+        monkeypatch.setattr(
+            "gobby.workflows.state_manager.WorkflowStateManager.get_state",
+            lambda self, sid: mock_workflow_state,
+        )
+
+        registry = create_readiness_registry(task_manager=task_manager)
+        suggest = registry.get_tool("suggest_next_task")
+
+        result = suggest(session_id="test-session")
+
+        # Should return any-task since "*" doesn't scope
+        assert result["suggestion"] is not None
+        assert result["suggestion"]["id"] == "any-task"
+
+
 class TestIsDescendantOf:
     """Tests for is_descendant_of helper function."""
 

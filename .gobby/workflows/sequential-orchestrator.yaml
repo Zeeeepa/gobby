@@ -42,7 +42,8 @@ steps:
     on_enter:
       - action: inject_message
         content: |
-          Get the next ready task with suggest_next_task().
+          Get the next ready task with suggest_next_task(session_id=<your_session_id>).
+          This will auto-scope to subtasks of {{ variables.session_task }}.
 
           If a task is available:
           - Spawn Gemini in the worktree: {{ variables.worktree_path }}

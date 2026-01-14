@@ -22,7 +22,9 @@ from typing import TYPE_CHECKING, Any, Literal, cast
 
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.utils.project_context import get_project_context
+from gobby.workflows.definitions import WorkflowState
 from gobby.workflows.loader import WorkflowLoader
+from gobby.workflows.state_manager import WorkflowStateManager
 from gobby.worktrees.git import WorktreeGitManager
 
 if TYPE_CHECKING:
@@ -219,6 +221,65 @@ def _install_provider_hooks(
     except Exception as e:
         logger.warning(f"Failed to install {provider} hooks in worktree: {e}")
     return False
+
+
+def _build_worktree_context_prompt(
+    original_prompt: str,
+    worktree_path: str,
+    branch_name: str,
+    task_id: str | None,
+    main_repo_path: str | None = None,
+) -> str:
+    """
+    Build an enhanced prompt with worktree context injected.
+
+    This helps the spawned agent understand it's working in an isolated worktree,
+    not the main repository. Critical for preventing the agent from accessing
+    wrong files or working in the wrong directory.
+
+    Args:
+        original_prompt: The original task prompt
+        worktree_path: Path to the worktree
+        branch_name: Name of the worktree branch
+        task_id: Task ID being worked on (if any)
+        main_repo_path: Path to the main repo (to explicitly warn against accessing it)
+
+    Returns:
+        Enhanced prompt with worktree context prepended
+    """
+    context_lines = [
+        "## CRITICAL: Worktree Context",
+        "You are working in an ISOLATED git worktree, NOT the main repository.",
+        "",
+        f"**Your workspace:** {worktree_path}",
+        f"**Your branch:** {branch_name}",
+    ]
+
+    if task_id:
+        context_lines.append(f"**Your task:** {task_id}")
+
+    context_lines.extend([
+        "",
+        "**IMPORTANT RULES:**",
+        f"1. ALL file operations must be within {worktree_path}",
+    ])
+
+    if main_repo_path:
+        context_lines.append(f"2. Do NOT access {main_repo_path} (main repo)")
+    else:
+        context_lines.append("2. Do NOT access the main repository")
+
+    context_lines.extend([
+        "3. Run `pwd` to verify your location before any file operations",
+        f"4. Commit to YOUR branch ({branch_name}), not main/dev",
+        "5. When your assigned task is complete, STOP - do not claim other tasks",
+        "",
+        "---",
+        "",
+    ])
+
+    worktree_context = "\n".join(context_lines)
+    return f"{worktree_context}{original_prompt}"
 
 
 def create_worktrees_registry(
@@ -1066,6 +1127,36 @@ def create_worktrees_registry(
         # Claim worktree for the child session
         worktree_storage.claim(worktree.id, child_session.id)
 
+        # Pre-save workflow state with session_task if task_id is provided
+        # This ensures suggest_next_task() will scope to this task's subtasks
+        if task_id and workflow:
+            try:
+                workflow_state_manager = WorkflowStateManager(worktree_storage.db)
+                initial_state = WorkflowState(
+                    session_id=child_session.id,
+                    workflow_name=workflow,
+                    step="",  # Will be set when workflow actually starts
+                    variables={"session_task": task_id},
+                )
+                workflow_state_manager.save_state(initial_state)
+                logger.debug(
+                    f"Pre-saved workflow state for session {child_session.id} "
+                    f"with session_task={task_id}"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to pre-save workflow state: {e}")
+                # Continue anyway - this is an optimization, not a requirement
+
+        # Build enhanced prompt with worktree context
+        # This helps the agent understand it's in an isolated worktree, not the main repo
+        enhanced_prompt = _build_worktree_context_prompt(
+            original_prompt=prompt,
+            worktree_path=worktree.worktree_path,
+            branch_name=worktree.branch_name,
+            task_id=task_id,
+            main_repo_path=resolved_git_mgr.repo_path,
+        )
+
         # Spawn in terminal using TerminalSpawner
         if mode == "terminal":
             from gobby.agents.spawn import TerminalSpawner
@@ -1082,7 +1173,7 @@ def create_worktrees_registry(
                 agent_depth=child_session.agent_depth,
                 max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
                 terminal=terminal,
-                prompt=prompt,
+                prompt=enhanced_prompt,
             )
 
             if not terminal_result.success:
@@ -1123,7 +1214,7 @@ def create_worktrees_registry(
                 workflow_name=workflow,
                 agent_depth=child_session.agent_depth,
                 max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
-                prompt=prompt,
+                prompt=enhanced_prompt,
             )
 
             return {
@@ -1151,7 +1242,7 @@ def create_worktrees_registry(
                 workflow_name=workflow,
                 agent_depth=child_session.agent_depth,
                 max_agent_depth=agent_runner._child_session_manager.max_agent_depth,
-                prompt=prompt,
+                prompt=enhanced_prompt,
             )
 
             return {

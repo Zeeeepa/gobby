@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.tasks import TaskNotFoundError
 from gobby.utils.project_context import get_project_context
+from gobby.workflows.state_manager import WorkflowStateManager
 
 if TYPE_CHECKING:
     from gobby.storage.tasks import LocalTaskManager
@@ -221,6 +222,9 @@ def create_readiness_registry(
     if task_manager is None:
         raise ValueError("task_manager is required")
 
+    # Create workflow state manager for session_task scoping
+    workflow_state_manager = WorkflowStateManager(task_manager.db)
+
     # --- list_ready_tasks ---
 
     def list_ready_tasks(
@@ -338,6 +342,7 @@ def create_readiness_registry(
         task_type: str | None = None,
         prefer_subtasks: bool = True,
         parent_id: str | None = None,
+        session_id: str | None = None,
     ) -> dict[str, Any]:
         """
         Suggest the best next task to work on.
@@ -355,12 +360,24 @@ def create_readiness_registry(
             parent_id: Filter to descendants of this task (optional).
                       When set, only tasks under this parent hierarchy are considered.
                       Use this to scope suggestions to a specific epic/feature.
+            session_id: Your session ID (optional). If provided and parent_id is not set,
+                       checks workflow state for session_task variable and auto-scopes
+                       suggestions to that task's hierarchy.
 
         Returns:
             Suggested task with reasoning
         """
         # Filter by current project
         project_id = get_current_project_id()
+
+        # Auto-scope to session_task if session_id is provided and parent_id is not set
+        if session_id and not parent_id:
+            workflow_state = workflow_state_manager.get_state(session_id)
+            if workflow_state:
+                session_task = workflow_state.variables.get("session_task")
+                if session_task and session_task != "*":
+                    # session_task is set, use it as parent_id for scoping
+                    parent_id = session_task
 
         # Resolve parent_id if it's a reference format
         if parent_id:
@@ -467,7 +484,8 @@ def create_readiness_registry(
     registry.register(
         name="suggest_next_task",
         description="Suggest the best next task to work on based on priority, readiness, and complexity. "
-        "Use parent_id to scope suggestions to a specific epic/feature hierarchy.",
+        "Use parent_id to scope suggestions to a specific epic/feature hierarchy. "
+        "Pass session_id to auto-scope based on workflow's session_task variable.",
         input_schema={
             "type": "object",
             "properties": {
@@ -486,6 +504,12 @@ def create_readiness_registry(
                     "description": "Filter to descendants of this task (#N, N, path, or UUID). "
                     "When set, only tasks under this parent hierarchy are considered. "
                     "Use this to scope suggestions to a specific epic/feature.",
+                    "default": None,
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Your session ID (optional). If provided and parent_id is not set, "
+                    "auto-scopes suggestions based on workflow's session_task variable.",
                     "default": None,
                 },
             },

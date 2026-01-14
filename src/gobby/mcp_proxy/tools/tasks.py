@@ -271,6 +271,7 @@ def create_task_registry(
 
     async def create_task(
         title: str,
+        session_id: str,
         description: str | None = None,
         priority: int = 2,
         task_type: str = "task",
@@ -279,12 +280,15 @@ def create_task_registry(
         labels: list[str] | None = None,
         test_strategy: str | None = None,
         validation_criteria: str | None = None,
-        session_id: str | None = None,
     ) -> dict[str, Any]:
-        """Create a new task in the current project.
+        """Create a single task in the current project.
+
+        This tool creates exactly ONE task. Auto-decomposition of multi-step
+        descriptions is disabled. Use expand_task for complex decompositions.
 
         Args:
             title: Task title
+            session_id: Your session ID for tracking (REQUIRED)
             description: Detailed description
             priority: Priority level (1=High, 2=Medium, 3=Low)
             task_type: Task type (task, bug, feature, epic)
@@ -293,10 +297,6 @@ def create_task_registry(
             labels: List of labels
             test_strategy: Testing strategy for this task
             validation_criteria: Acceptance criteria for validating completion.
-                If not provided and generate_validation is True, criteria will be auto-generated.
-            session_id: Your session ID for tracking
-            generate_validation: Auto-generate validation criteria if not provided.
-                Defaults to config setting. Skipped for epic tasks.
 
         Returns:
             Created task dict with id (minimal) or full task details based on config.
@@ -420,11 +420,10 @@ def create_task_registry(
                 },
                 "session_id": {
                     "type": "string",
-                    "description": "Your session ID (from system context). Pass this to track which session created the task.",
-                    "default": None,
+                    "description": "Your session ID (from system context). Required to track which session created the task.",
                 },
             },
-            "required": ["title"],
+            "required": ["title", "session_id"],
         },
         func=create_task,
     )

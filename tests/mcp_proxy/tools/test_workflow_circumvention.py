@@ -95,7 +95,7 @@ class TestBlockManualTransitionToConditionalSteps:
             session_id="test-session",
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "conditional auto-transition" in result["error"]
         assert "task_tree_complete" in result["error"]
         assert "workflow circumvention" in result["error"]
@@ -131,7 +131,7 @@ class TestBlockManualTransitionToConditionalSteps:
             session_id="test-session",
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["to_step"] == "execute"
 
     def test_allows_transition_to_step_with_unconditional_transition(
@@ -166,7 +166,7 @@ class TestBlockManualTransitionToConditionalSteps:
             session_id="test-session",
         )
 
-        assert result["success"] is True
+        assert "error" not in result
 
     def test_blocks_only_transitions_to_conditional_targets(
         self, registry, mock_loader, mock_state_manager
@@ -205,7 +205,7 @@ class TestBlockManualTransitionToConditionalSteps:
             session_id="test-session",
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         assert result["to_step"] == "step2"
 
 
@@ -231,7 +231,7 @@ class TestBlockSessionTaskModification:
             session_id="test-session",
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "Cannot modify session_task" in result["error"]
         assert "auto-task" in result["error"]
         assert "gt-parent-123" in result["error"]
@@ -253,7 +253,7 @@ class TestBlockSessionTaskModification:
             session_id="test-session",
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         # Should have deprecation warning
         assert "warning" in result
         assert "DEPRECATED" in result["warning"]
@@ -270,7 +270,7 @@ class TestBlockSessionTaskModification:
             session_id="test-session",
         )
 
-        assert result["success"] is True
+        assert "error" not in result
         # Should still save state and show warning
         mock_state_manager.save_state.assert_called_once()
 
@@ -291,7 +291,7 @@ class TestBlockSessionTaskModification:
         )
 
         # Should allow since there's no existing value to protect
-        assert result["success"] is True
+        assert "error" not in result
 
     def test_allows_setting_same_session_task_value(self, registry, mock_state_manager):
         """Setting session_task to same value is allowed (idempotent)."""
@@ -308,7 +308,7 @@ class TestBlockSessionTaskModification:
             session_id="test-session",
         )
 
-        assert result["success"] is True
+        assert "error" not in result
 
     def test_allows_other_variable_modification_with_active_workflow(
         self, registry, mock_state_manager
@@ -327,7 +327,7 @@ class TestBlockSessionTaskModification:
             session_id="test-session",
         )
 
-        assert result == {"success": True}
+        assert result == {}
 
     def test_blocks_session_task_modification_suggests_end_workflow(
         self, registry, mock_state_manager
@@ -346,5 +346,5 @@ class TestBlockSessionTaskModification:
             session_id="test-session",
         )
 
-        assert result["success"] is False
+        assert "error" in result
         assert "end_workflow()" in result["error"]
