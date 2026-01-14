@@ -47,6 +47,9 @@ class ChildSessionConfig:
     git_branch: str | None = None
     """Git branch for the session."""
 
+    external_id: str | None = None
+    """External session ID (e.g., Gemini's session_id from preflight capture)."""
+
     lifecycle_variables: dict[str, Any] | None = None
     """Lifecycle variables for the session."""
 
@@ -166,8 +169,13 @@ class ChildSessionManager:
         # Calculate child's agent depth (parent depth + 1)
         child_depth = parent_depth + 1
 
-        # Generate a placeholder external_id (will be updated to match internal id)
-        external_id = f"agent-{uuid.uuid4().hex[:12]}"
+        # Use provided external_id (e.g., from Gemini preflight) or generate placeholder
+        if config.external_id:
+            external_id = config.external_id
+            use_provided_external_id = True
+        else:
+            external_id = f"agent-{uuid.uuid4().hex[:12]}"
+            use_provided_external_id = False
 
         # Create title if not provided
         title = config.title
@@ -190,12 +198,13 @@ class ChildSessionManager:
             spawned_by_agent_id=config.agent_id,
         )
 
-        # Update external_id to match internal id for terminal mode lookup
-        # When we spawn an agent with --session-id <internal_id>, the session_start
-        # hook receives that id as external_id. By making external_id = id, the
-        # hook can find this pre-created session by querying for id = external_id.
         child_id = child.id
-        self._storage.update(session_id=child_id, external_id=child_id)
+
+        # For sessions with provided external_id (e.g., Gemini preflight), keep it.
+        # For sessions without (e.g., Claude with --session-id), update external_id
+        # to match internal id so session_start hook can find this pre-created session.
+        if not use_provided_external_id:
+            self._storage.update(session_id=child_id, external_id=child_id)
         # Re-fetch to get updated external_id
         updated_child = self._storage.get(child_id)
         if updated_child is None:

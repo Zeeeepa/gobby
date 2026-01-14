@@ -65,8 +65,10 @@ __all__ = [
     # Helpers
     "PreparedSpawn",
     "prepare_terminal_spawn",
+    "prepare_gemini_spawn_with_preflight",
     "read_prompt_from_env",
     "build_cli_command",
+    "build_gemini_command_with_resume",
     "MAX_ENV_PROMPT_LENGTH",
 ]
 
@@ -593,3 +595,158 @@ def read_prompt_from_env() -> str | None:
 
     # Fall back to inline prompt
     return os.environ.get(GOBBY_PROMPT)
+
+
+async def prepare_gemini_spawn_with_preflight(
+    session_manager: ChildSessionManager,
+    parent_session_id: str,
+    project_id: str,
+    machine_id: str,
+    agent_id: str | None = None,
+    workflow_name: str | None = None,
+    title: str | None = None,
+    git_branch: str | None = None,
+    prompt: str | None = None,
+    max_agent_depth: int = 3,
+    preflight_timeout: float = 10.0,
+) -> PreparedSpawn:
+    """
+    Prepare a Gemini terminal spawn with preflight session ID capture.
+
+    This is necessary because Gemini CLI in interactive mode cannot introspect
+    its own session_id. We use preflight capture to:
+    1. Launch Gemini with stream-json to capture its session_id
+    2. Create the Gobby session with that external_id
+    3. Resume the Gemini session with -r flag
+
+    Args:
+        session_manager: ChildSessionManager for session creation
+        parent_session_id: Parent session ID
+        project_id: Project ID
+        machine_id: Machine ID
+        agent_id: Optional agent ID
+        workflow_name: Optional workflow to activate
+        title: Optional session title
+        git_branch: Optional git branch
+        prompt: Optional initial prompt
+        max_agent_depth: Maximum agent depth
+        preflight_timeout: Timeout for preflight capture (default 10s)
+
+    Returns:
+        PreparedSpawn with gemini_external_id set in env_vars
+
+    Raises:
+        ValueError: If max agent depth exceeded
+        asyncio.TimeoutError: If preflight capture times out
+    """
+    import uuid
+
+    from gobby.agents.gemini_session import capture_gemini_session_id
+
+    # 1. Preflight: capture Gemini's session_id
+    logger.info("Starting Gemini preflight capture...")
+    gemini_info = await capture_gemini_session_id(timeout=preflight_timeout)
+    logger.info(f"Captured Gemini session_id: {gemini_info.session_id}")
+
+    # 2. Create child session config with Gemini's session_id as external_id
+    config = ChildSessionConfig(
+        parent_session_id=parent_session_id,
+        project_id=project_id,
+        machine_id=machine_id,
+        source="gemini",
+        agent_id=agent_id,
+        workflow_name=workflow_name,
+        title=title,
+        git_branch=git_branch,
+        external_id=gemini_info.session_id,  # Link to Gemini's session
+    )
+
+    # Create the child session
+    child_session = session_manager.create_child_session(config)
+
+    # Generate agent run ID
+    agent_run_id = f"run-{uuid.uuid4().hex[:12]}"
+
+    # Handle prompt - decide env var vs file
+    prompt_env: str | None = None
+    prompt_file: str | None = None
+
+    if prompt:
+        if len(prompt) <= MAX_ENV_PROMPT_LENGTH:
+            prompt_env = prompt
+        else:
+            prompt_file = _create_prompt_file(prompt, child_session.id)
+
+    # Build environment variables
+    env_vars = get_terminal_env_vars(
+        session_id=child_session.id,
+        parent_session_id=parent_session_id,
+        agent_run_id=agent_run_id,
+        project_id=project_id,
+        workflow_name=workflow_name,
+        agent_depth=child_session.agent_depth,
+        max_agent_depth=max_agent_depth,
+        prompt=prompt_env,
+        prompt_file=prompt_file,
+    )
+
+    # Add Gemini-specific env vars for session linking
+    env_vars["GOBBY_GEMINI_EXTERNAL_ID"] = gemini_info.session_id
+    if gemini_info.model:
+        env_vars["GOBBY_GEMINI_MODEL"] = gemini_info.model
+
+    return PreparedSpawn(
+        session_id=child_session.id,
+        agent_run_id=agent_run_id,
+        parent_session_id=parent_session_id,
+        project_id=project_id,
+        workflow_name=workflow_name,
+        agent_depth=child_session.agent_depth,
+        env_vars=env_vars,
+    )
+
+
+def build_gemini_command_with_resume(
+    gemini_external_id: str,
+    prompt: str | None = None,
+    auto_approve: bool = False,
+    gobby_session_id: str | None = None,
+) -> list[str]:
+    """
+    Build Gemini CLI command with session resume.
+
+    Uses -r flag to resume a preflight-captured session, with session context
+    injected into the initial prompt.
+
+    Args:
+        gemini_external_id: Gemini's session_id from preflight capture
+        prompt: Optional user prompt
+        auto_approve: If True, add --approval-mode yolo
+        gobby_session_id: Gobby session ID to inject into context
+
+    Returns:
+        Command list for subprocess execution
+    """
+    command = ["gemini"]
+
+    # Resume the preflight session
+    command.extend(["-r", gemini_external_id])
+
+    if auto_approve:
+        command.extend(["--approval-mode", "yolo"])
+
+    # Build prompt with session context
+    if gobby_session_id:
+        context_prefix = (
+            f"Your Gobby session_id is: {gobby_session_id}\n"
+            f"Use this when calling Gobby MCP tools.\n\n"
+        )
+        full_prompt = context_prefix + (prompt or "")
+    else:
+        full_prompt = prompt
+
+    # Use -i for interactive mode with initial prompt
+    if full_prompt:
+        command.extend(["-i", full_prompt])
+
+    return command

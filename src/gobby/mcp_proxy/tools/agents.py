@@ -356,6 +356,103 @@ def create_agents_registry(
                 "tool_calls_count": len(result.tool_calls),
             }
 
+        # Special handling for Gemini terminal mode: requires preflight session capture
+        # Gemini CLI in interactive mode can't introspect its session_id, so we:
+        # 1. Launch preflight to capture session_id from stream-json output
+        # 2. Create Gobby session with external_id = gemini's session_id
+        # 3. Launch interactive with -r {session_id} to resume
+        if mode == "terminal" and effective_provider == "gemini":
+            from gobby.agents.spawn import (
+                build_gemini_command_with_resume,
+                prepare_gemini_spawn_with_preflight,
+            )
+
+            # Ensure project_id is non-None for spawning
+            if project_id is None:
+                return {
+                    "success": False,
+                    "error": "project_id is required for spawning Gemini agent",
+                }
+
+            # Determine working directory
+            cwd = project_path or "."
+
+            try:
+                # Preflight capture: gets Gemini's session_id and creates linked Gobby session
+                spawn_context = await prepare_gemini_spawn_with_preflight(
+                    session_manager=runner._child_session_manager,
+                    parent_session_id=parent_session_id,
+                    project_id=project_id,
+                    machine_id=socket.gethostname(),
+                    workflow_name=workflow,
+                    git_branch=None,  # Will be detected by hook
+                )
+            except FileNotFoundError as e:
+                return {
+                    "success": False,
+                    "error": str(e),
+                }
+            except Exception as e:
+                logger.error(f"Gemini preflight capture failed: {e}", exc_info=True)
+                return {
+                    "success": False,
+                    "error": f"Gemini preflight capture failed: {e}",
+                }
+
+            # Extract IDs from prepared spawn context
+            gobby_session_id = spawn_context.session_id
+            gemini_session_id = spawn_context.env_vars["GOBBY_GEMINI_EXTERNAL_ID"]
+
+            # Build command with session context injected into prompt
+            # build_gemini_command_with_resume handles the context prefix
+            cmd = build_gemini_command_with_resume(
+                gemini_external_id=gemini_session_id,
+                prompt=effective_prompt,
+                auto_approve=True,  # Subagents need to work autonomously
+                gobby_session_id=gobby_session_id,
+            )
+
+            # Spawn in terminal
+            terminal_spawner = TerminalSpawner()
+            terminal_result = terminal_spawner.spawn(
+                command=cmd,
+                cwd=cwd,
+                terminal=terminal,
+            )
+
+            if not terminal_result.success:
+                return {
+                    "success": False,
+                    "error": terminal_result.error or terminal_result.message,
+                    "child_session_id": gobby_session_id,
+                }
+
+            # Register in running agents registry
+            registry = get_running_agent_registry()
+            running_agent = RunningAgent(
+                run_id=f"gemini-{gemini_session_id[:8]}",
+                session_id=gobby_session_id,
+                parent_session_id=parent_session_id,
+                pid=terminal_result.pid,
+                mode="terminal",
+                provider="gemini",
+                workflow_name=workflow,
+            )
+            registry.add(running_agent)
+
+            return {
+                "success": True,
+                "run_id": running_agent.run_id,
+                "child_session_id": gobby_session_id,
+                "gemini_session_id": gemini_session_id,
+                "mode": "terminal",
+                "message": (
+                    f"Gemini agent spawned in terminal with session "
+                    f"{gobby_session_id}"
+                ),
+                "pid": terminal_result.pid,
+            }
+
         # Terminal, embedded, or headless mode: prepare run then spawn
         # Use prepare_run to create session and run records
         from gobby.llm.executor import AgentResult

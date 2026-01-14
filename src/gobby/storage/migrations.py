@@ -57,6 +57,41 @@ def _backfill_seq_num(db: LocalDatabase) -> None:
         logger.debug(f"Backfilled seq_num for {len(tasks)} tasks in project {project_id}")
 
 
+def _backfill_session_seq_num(db: LocalDatabase) -> None:
+    """
+    Backfill seq_num values for existing sessions.
+
+    Assigns sequential numbers globally, ordered by created_at.
+    Sessions get contiguous seq_num values starting from 1.
+    """
+    # Get all sessions that need seq_num
+    sessions = db.fetchall(
+        """
+        SELECT id FROM sessions
+        WHERE seq_num IS NULL
+        ORDER BY created_at ASC, id ASC
+        """
+    )
+
+    if not sessions:
+        logger.debug("No sessions need seq_num backfill")
+        return
+
+    # Find the max existing seq_num (in case of partial migration)
+    max_seq_row = db.fetchone("SELECT MAX(seq_num) as max_seq FROM sessions")
+    next_seq = ((max_seq_row["max_seq"] if max_seq_row else None) or 0) + 1
+
+    # Assign sequential numbers
+    for session in sessions:
+        db.execute(
+            "UPDATE sessions SET seq_num = ? WHERE id = ?",
+            (next_seq, session["id"]),
+        )
+        next_seq += 1
+
+    logger.debug(f"Backfilled seq_num for {len(sessions)} sessions")
+
+
 def _migrate_task_ids_to_uuid(db: LocalDatabase) -> None:
     """
     Convert gt-* format task IDs to full UUIDs.
@@ -1291,6 +1326,19 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
         """
         ALTER TABLE memories DROP COLUMN embedding;
         """,
+    ),
+    (
+        58,
+        "Add seq_num column to sessions table for human-friendly IDs (#N)",
+        """
+        ALTER TABLE sessions ADD COLUMN seq_num INTEGER;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_seq_num ON sessions(seq_num);
+        """,
+    ),
+    (
+        59,
+        "Backfill seq_num for existing sessions",
+        _backfill_session_seq_num,
     ),
 ]
 
