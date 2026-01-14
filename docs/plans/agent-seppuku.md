@@ -613,3 +613,4 @@ async def terminate_agent(run_id: str, graceful: bool = True, timeout: float = 1
 ## Related
 
 - Task: #3363 (Add kill_agent functionality)
+- Task: #3364 (Fix task_claimed reset bug)
