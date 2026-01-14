@@ -72,7 +72,7 @@ Execute a tool on a connected MCP server or internal registry.
 call_tool("context7", "get-library-docs", {"libraryId": "/react/react"})
 
 # Call internal task tool
-call_tool("gobby-tasks", "create_task", {"title": "Fix bug", "priority": 1})
+call_tool("gobby-tasks", "create_task", {"title": "Fix bug", "priority": 1, "session_id": "<your_session_id>"})
 ```
 
 #### `list_tools(server?)`
@@ -411,7 +411,8 @@ get_tool_schema(server_name="gobby-tasks", tool_name="create_task")
 call_tool("gobby-tasks", "create_task", {
     "title": "Implement authentication",
     "priority": 1,
-    "task_type": "feature"
+    "task_type": "feature",
+    "session_id": "<your_session_id>"  # Required
 })
 
 # 4. Find ready work

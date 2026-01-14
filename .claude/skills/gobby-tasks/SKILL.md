@@ -27,6 +27,7 @@ Tasks can be referenced by:
 ### `/gobby-tasks create <title>` - Create a new task
 Call `gobby-tasks.create_task` with:
 - `title`: (required) The task title
+- `session_id`: (required) Your session ID from SessionStart context
 - `description`: Detailed description
 - `task_type`: "task" (default), "bug", "feature", or "epic"
 - `priority`: 1=High, 2=Medium (default), 3=Low
@@ -34,12 +35,10 @@ Call `gobby-tasks.create_task` with:
 - `blocks`: List of task IDs this task blocks
 - `labels`: List of labels
 - `test_strategy`: "manual", "automated", or "none"
-- `validation_criteria`: Acceptance criteria (auto-generated if not provided)
-- `generate_validation`: Auto-generate validation criteria (default true)
-- `session_id`: Your session ID for tracking
+- `validation_criteria`: Acceptance criteria
 
-Example: `/gobby-tasks create Fix login button` → `create_task(title="Fix login button")`
-Example: `/gobby-tasks create Add OAuth support --type=feature` → `create_task(title="Add OAuth support", task_type="feature")`
+Example: `/gobby-tasks create Fix login button` → `create_task(title="Fix login button", session_id="<your_session_id>")`
+Example: `/gobby-tasks create Add OAuth support --type=feature` → `create_task(title="Add OAuth support", task_type="feature", session_id="<your_session_id>")`
 
 ### `/gobby-tasks show <task-id>` - Show task details
 Call `gobby-tasks.get_task` with:

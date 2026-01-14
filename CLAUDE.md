@@ -185,7 +185,8 @@ get_tool_schema(server_name="gobby-tasks", tool_name="create_task")
 # 4. Execute the tool
 call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
     "title": "Fix authentication bug",
-    "task_type": "bug"
+    "task_type": "bug",
+    "session_id": "<your_session_id>"  # Required - from SessionStart context
 })
 ```
 
@@ -221,7 +222,8 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
     "title": "Fix user authentication bug",
     "description": "Users cannot log in after password reset",
     "task_type": "bug",  # task, bug, feature, epic
-    "priority": 1
+    "priority": 1,
+    "session_id": "<your_session_id>"  # Required
 })
 # Returns: {"task_id": "abc123", ...}
 
@@ -793,7 +795,8 @@ get_tool_schema(server_name="gobby-tasks", tool_name="create_task")
 # 4. Execute
 call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
     "title": "Fix bug",
-    "task_type": "bug"
+    "task_type": "bug",
+    "session_id": "<your_session_id>"  # Required
 })
 ```
 

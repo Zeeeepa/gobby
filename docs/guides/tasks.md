@@ -22,7 +22,8 @@ call_tool(server_name="gobby-tasks", tool_name="list_ready_tasks", arguments={})
 call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
     "title": "Fix authentication bug",
     "priority": 1,
-    "task_type": "bug"
+    "task_type": "bug",
+    "session_id": "<your_session_id>"  # Required
 })
 
 # Claim and work on it
@@ -104,7 +105,8 @@ call_tool(server_name="gobby-tasks", tool_name="add_dependency", arguments={
 # Create task with dependencies in one call
 call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
     "title": "Implement feature",
-    "blocks": ["gt-parent-epic"]  # This task blocks the parent
+    "blocks": ["gt-parent-epic"],  # This task blocks the parent
+    "session_id": "<your_session_id>"  # Required
 })
 ```
 
@@ -123,13 +125,15 @@ When creating tasks with multi-step descriptions (numbered lists, bullet points 
 ### How It Works
 
 ```python
-# This description with 3+ numbered steps triggers auto-decomposition
+# Multi-step descriptions are preserved but NOT auto-decomposed (use expand_task instead)
 call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
     "title": "Implement auth",
     "description": """1. Create user model
 2. Add login endpoint
-3. Generate JWT tokens"""
+3. Generate JWT tokens""",
+    "session_id": "<your_session_id>"  # Required
 })
+# Note: Auto-decomposition is disabled. Use expand_task() to break down complex tasks
 # Result: parent task + 3 subtasks with sequential dependencies
 ```
 
@@ -150,12 +154,13 @@ Multi-step content is detected when:
 ### Opting Out
 
 ```python
-# Disable auto-decomposition for a single task
+# Create a complex task (auto-decomposition is disabled by default)
 call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
     "title": "Complex task",
     "description": "1. Step one\n2. Step two\n3. Step three",
-    "auto_decompose": False  # Creates single task with needs_decomposition status
+    "session_id": "<your_session_id>"  # Required
 })
+# Note: auto_decompose parameter is deprecated. Use expand_task() to decompose tasks
 
 # Disable for entire session via workflow variable
 call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
@@ -179,7 +184,8 @@ if task["status"] == "needs_decomposition":
     # Add subtasks manually
     call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
         "title": "Subtask 1",
-        "parent_task_id": task["id"]
+        "parent_task_id": task["id"],
+        "session_id": "<your_session_id>"  # Required
     })
     # Parent automatically transitions to 'open'
 ```
@@ -249,7 +255,8 @@ call_tool(server_name="gobby-tasks", tool_name="generate_validation_criteria", a
 # Or set criteria manually when creating/updating
 call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
     "title": "Add logout button",
-    "validation_criteria": "- Logout button visible in header\n- Clicking logs user out\n- Redirects to login page"
+    "validation_criteria": "- Logout button visible in header\n- Clicking logs user out\n- Redirects to login page",
+    "session_id": "<your_session_id>"  # Required
 })
 ```
 
