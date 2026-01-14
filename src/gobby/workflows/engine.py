@@ -1243,13 +1243,25 @@ class WorkflowEngine:
             if isinstance(result, dict) and result.get("error"):
                 return
 
-        # Handle close_task - clear the claim
+        # Handle close_task - clear the claim only if closing the claimed task
         if is_close_task:
-            state.variables["task_claimed"] = False
-            state.variables["claimed_task_id"] = None
-            logger.info(
-                f"Session {state.session_id}: task_claimed=False (task closed via close_task)"
-            )
+            arguments = tool_input.get("arguments", {}) or {}
+            closed_task_id = arguments.get("task_id")
+            claimed_task_id = state.variables.get("claimed_task_id")
+
+            # Only clear task_claimed if we're closing the task that was claimed
+            if closed_task_id and claimed_task_id and closed_task_id == claimed_task_id:
+                state.variables["task_claimed"] = False
+                state.variables["claimed_task_id"] = None
+                logger.info(
+                    f"Session {state.session_id}: task_claimed=False "
+                    f"(claimed task {closed_task_id} closed via close_task)"
+                )
+            else:
+                logger.debug(
+                    f"Session {state.session_id}: close_task for {closed_task_id} "
+                    f"(claimed: {claimed_task_id}) - not clearing task_claimed"
+                )
             return
 
         # Extract task_id based on tool type
