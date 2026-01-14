@@ -66,9 +66,11 @@ __all__ = [
     "PreparedSpawn",
     "prepare_terminal_spawn",
     "prepare_gemini_spawn_with_preflight",
+    "prepare_codex_spawn_with_preflight",
     "read_prompt_from_env",
     "build_cli_command",
     "build_gemini_command_with_resume",
+    "build_codex_command_with_resume",
     "MAX_ENV_PROMPT_LENGTH",
 ]
 

@@ -542,6 +542,25 @@ class MemoryManager:
         except ValueError:
             return None
 
+    def find_by_prefix(self, prefix: str, limit: int = 5) -> list[Memory]:
+        """
+        Find memories whose IDs start with the given prefix.
+
+        Used for resolving short ID references (e.g., "abc123" -> full UUID).
+
+        Args:
+            prefix: ID prefix to search for
+            limit: Maximum number of results
+
+        Returns:
+            List of Memory objects with matching ID prefixes
+        """
+        rows = self.db.fetchall(
+            "SELECT * FROM memories WHERE id LIKE ? LIMIT ?",
+            (f"{prefix}%", limit),
+        )
+        return [Memory.from_row(row) for row in rows]
+
     def update_memory(
         self,
         memory_id: str,

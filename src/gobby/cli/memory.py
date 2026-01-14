@@ -237,19 +237,16 @@ def resolve_memory_id(manager: MemoryManager, memory_ref: str) -> str:
     if len(memory_ref) == 36 and manager.get_memory(memory_ref):
         return memory_ref
 
-    # Try prefix match
-    rows = manager.db.fetchall(
-        "SELECT id FROM memories WHERE id LIKE ? LIMIT 5",
-        (f"{memory_ref}%",),
-    )
+    # Try prefix match using MemoryManager method
+    memories = manager.find_by_prefix(memory_ref, limit=5)
 
-    if not rows:
+    if not memories:
         raise click.ClickException(f"Memory not found: {memory_ref}")
 
-    if len(rows) > 1:
+    if len(memories) > 1:
         click.echo(f"Ambiguous memory reference '{memory_ref}' matches:", err=True)
-        for row in rows:
-            click.echo(f"  {row['id']}", err=True)
+        for mem in memories:
+            click.echo(f"  {mem.id}", err=True)
         raise click.ClickException(f"Ambiguous memory reference: {memory_ref}")
 
-    return str(rows[0]["id"])
+    return memories[0].id
