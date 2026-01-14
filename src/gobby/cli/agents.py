@@ -61,7 +61,7 @@ def resolve_agent_run_id(run_ref: str) -> str:
             click.echo(f"  {row['id']}", err=True)
         raise click.ClickException(f"Ambiguous agent run reference: {run_ref}")
 
-    return rows[0]["id"]
+    return str(rows[0]["id"])
 
 
 def get_daemon_url() -> str:

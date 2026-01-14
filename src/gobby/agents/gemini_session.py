@@ -70,6 +70,8 @@ async def capture_gemini_session_id(
 
         async def read_init() -> GeminiSessionInfo:
             """Read lines until we find the init JSON."""
+            if proc.stdout is None:
+                raise RuntimeError("Process stdout is not available")
             async for line in proc.stdout:
                 text = line.decode().strip()
 

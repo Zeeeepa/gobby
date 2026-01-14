@@ -409,6 +409,9 @@ def create_handoff(
         except click.ClickException as e:
             raise SystemExit(1) from e
         session = manager.get(session_id)
+        if not session:
+            click.echo(f"Session not found: {session_id}", err=True)
+            return
 
     # Check for transcript
     if not session.jsonl_path:

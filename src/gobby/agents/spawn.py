@@ -743,7 +743,7 @@ def build_gemini_command_with_resume(
         )
         full_prompt = context_prefix + (prompt or "")
     else:
-        full_prompt = prompt
+        full_prompt = prompt or ""
 
     # Use -i for interactive mode with initial prompt
     if full_prompt:
@@ -905,7 +905,7 @@ def build_codex_command_with_resume(
         )
         full_prompt = context_prefix + (prompt or "")
     else:
-        full_prompt = prompt
+        full_prompt = prompt or ""
 
     # Prompt is a positional argument after session_id
     if full_prompt:

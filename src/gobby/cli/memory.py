@@ -252,4 +252,4 @@ def resolve_memory_id(manager: MemoryManager, memory_ref: str) -> str:
             click.echo(f"  {row['id']}", err=True)
         raise click.ClickException(f"Ambiguous memory reference: {memory_ref}")
 
-    return rows[0]["id"]
+    return str(rows[0]["id"])

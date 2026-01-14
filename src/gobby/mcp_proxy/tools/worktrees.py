@@ -584,8 +584,7 @@ def create_worktrees_registry(
                 if mgr:
                     resolved_git_mgr = mgr
             except Exception:
-                # If context resolution fails, implicit behavior is to continue
-                # (potentially without git manager)
+                # nosec B110 - If context resolution fails, continue without git manager
                 pass
 
         # Check for uncommitted changes if not forcing
@@ -1154,7 +1153,7 @@ def create_worktrees_registry(
             worktree_path=worktree.worktree_path,
             branch_name=worktree.branch_name,
             task_id=task_id,
-            main_repo_path=resolved_git_mgr.repo_path,
+            main_repo_path=str(resolved_git_mgr.repo_path),
         )
 
         # Spawn in terminal using TerminalSpawner
