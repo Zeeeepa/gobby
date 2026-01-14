@@ -229,42 +229,144 @@ task = task_manager.create_task(...)
 **File:** `src/gobby/tasks/spec_parser.py`
 
 1. Modify `TaskHierarchyBuilder._process_checkbox()` to build smart descriptions
-2. Add method `_build_smart_description(checkbox, heading, spec_content)`:
+2. Add method `_build_smart_description(checkbox, heading, all_checkboxes)`:
    - Extract goal from parent heading
    - Extract related files/tasks mentioned
    - Format as focused context for this task
+   - **Fall back to LLM if structured extraction yields minimal results**
+3. Add method `_generate_description_llm(checkbox, heading, existing_context)`:
+   - Generate description via LLM when structured extraction fails
+   - Graceful degradation if LLM unavailable
+4. Make methods async to support LLM calls
+5. Update `_create_task` calls to use smart descriptions
 
-**New method:**
+#### Configuration
+
+**Add to `src/gobby/config/features.py`:**
 
 ```python
-def _build_smart_description(
+class TaskDescriptionConfig(BaseModel):
+    """Config for LLM-based task description generation."""
+
+    enabled: bool = Field(default=True, description="Enable LLM fallback for descriptions")
+    provider: str = Field(default="claude", description="LLM provider name")
+    model: str = Field(default="claude-haiku-4-5", description="Model for description generation")
+    min_structured_length: int = Field(default=50, description="Min chars before LLM fallback")
+    prompt: str = Field(
+        default="""Generate a brief task description (2-3 sentences) for:
+
+Task: {task_title}
+Section: {section_title}
+Section content: {section_content}
+Existing context: {existing_context}
+
+Focus on: what this task accomplishes, key files/components involved."""
+    )
+    system_prompt: str = Field(
+        default="You are a technical writer creating concise task descriptions for a software project."
+    )
+```
+
+**Add to DaemonConfig:**
+
+```python
+task_description: TaskDescriptionConfig = Field(default_factory=TaskDescriptionConfig)
+```
+
+#### New methods
+
+```python
+async def _build_smart_description(
     self,
     checkbox: CheckboxItem,
-    heading: HeadingNode,
+    heading: HeadingNode | None,
     all_checkboxes: list[CheckboxItem],
-) -> str:
-    """Build focused description with context from spec."""
+) -> str | None:
+    """Build focused description with context from spec.
+
+    Tries structured extraction first, falls back to LLM if minimal.
+    """
     parts = []
 
-    # Parent context
+    # Structured extraction
     if heading:
         parts.append(f"Part of: {heading.text}")
 
         # Extract goal if present
-        goal_match = re.search(r'\*\*Goal\*\*:?\s*(.+?)(?:\n\n|\*\*)', heading.content)
+        goal_match = re.search(
+            r'\*\*Goal\*\*:?\s*(.+?)(?:\n\n|\*\*)',
+            heading.content,
+            re.DOTALL
+        )
         if goal_match:
             parts.append(f"Goal: {goal_match.group(1).strip()}")
 
     # Related tasks (siblings)
-    siblings = [cb for cb in all_checkboxes
-                if cb.parent_heading == heading.text and cb != checkbox]
-    if siblings:
-        parts.append(f"Related tasks: {', '.join(cb.text[:40] for cb in siblings[:3])}")
+    if heading:
+        siblings = [
+            cb for cb in all_checkboxes
+            if cb.parent_heading == heading.text and cb != checkbox
+        ]
+        if siblings:
+            related = ', '.join(cb.text[:40] for cb in siblings[:3])
+            parts.append(f"Related tasks: {related}")
 
-    return "\n\n".join(parts)
+    description = "\n\n".join(parts) if parts else None
+
+    # LLM fallback if structured extraction yielded minimal results
+    min_length = self.config.task_description.min_structured_length if self.config else 50
+    if not description or len(description) < min_length:
+        description = await self._generate_description_llm(
+            checkbox, heading, description
+        )
+
+    return description
+
+
+async def _generate_description_llm(
+    self,
+    checkbox: CheckboxItem,
+    heading: HeadingNode | None,
+    existing_context: str | None,
+) -> str | None:
+    """Generate description via LLM when structured extraction fails.
+
+    Uses configured provider/model. Supports subscription or API key auth.
+    """
+    if not self.llm_service:
+        return existing_context
+
+    config = self.config.task_description if self.config else None
+    if not config or not config.enabled:
+        return existing_context
+
+    try:
+        provider = self.llm_service.get_provider(config.provider)
+    except ValueError:
+        # Provider not available, use default or skip
+        try:
+            provider = self.llm_service.get_default_provider()
+        except ValueError:
+            return existing_context
+
+    # Build prompt from template
+    prompt = config.prompt.format(
+        task_title=checkbox.text,
+        section_title=heading.text if heading else "",
+        section_content=(heading.content[:500] if heading and heading.content else ""),
+        existing_context=existing_context or "",
+    )
+
+    try:
+        response = await provider.generate_text(
+            prompt=prompt,
+            system_prompt=config.system_prompt,
+            model=config.model,
+        )
+        return response.strip() or existing_context
+    except Exception:
+        return existing_context  # Graceful degradation on LLM failure
 ```
-
-1. Update `_create_task` calls to use smart descriptions
 
 ### Phase 3: Database Migration
 
