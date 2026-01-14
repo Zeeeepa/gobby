@@ -122,7 +122,7 @@ def create_agents_registry(
         task: str | None = None,
         agent: str | None = None,
         session_context: str = "summary_markdown",
-        mode: str = "in_process",
+        mode: str = "terminal",
         terminal: str = "auto",
         provider: str | None = None,
         model: str | None = None,

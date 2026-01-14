@@ -12,6 +12,7 @@ variables:
   worktree_id: null           # Created worktree ID
   worktree_path: null         # Path to worktree
   coding_provider: "gemini"   # Provider for subtasks
+  spawn_mode: "terminal"      # Mode for spawning subagents (terminal, in_process, embedded, headless)
   current_agent_run_id: null  # Track spawned agent
 
 steps:
@@ -47,6 +48,7 @@ steps:
           - Spawn Gemini in the worktree: {{ variables.worktree_path }}
           - Use start_agent() with:
             - provider: {{ variables.coding_provider }}
+            - mode: {{ variables.spawn_mode }}
             - project_path: {{ variables.worktree_path }}
             - task: <task_id>
             - workflow: "auto-task"

@@ -11,6 +11,7 @@ variables:
   target_branch: "dev"        # Branch to merge into (configurable)
   max_concurrent: 3           # Max parallel agents
   coding_provider: "gemini"   # Provider for subtasks
+  spawn_mode: "terminal"      # Mode for spawning subagents (terminal, in_process, embedded, headless)
   spawned_agents: []          # Track {task_id, run_id, worktree_id, worktree_path}
   completed_worktrees: []     # Worktrees with completed work
 
@@ -30,6 +31,7 @@ steps:
           2. For each ready task (up to max_concurrent - currently_running):
              - create_worktree(branch="task/<task_id>")
              - start_agent(provider="{{ variables.coding_provider }}",
+                          mode="{{ variables.spawn_mode }}",
                           project_path=<worktree_path>,
                           task=<task_id>,
                           workflow="auto-task")
