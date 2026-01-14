@@ -62,7 +62,8 @@ class SessionManager:
         self._config = config
 
         # Session caches with locks
-        self._session_mapping: dict[str, str] = {}  # external_id -> session_id
+        # Key is (external_id, source) tuple to prevent cross-CLI collisions
+        self._session_mapping: dict[tuple[str, str], str] = {}  # (external_id, source) -> session_id
         self._session_mapping_lock = threading.Lock()
         self._session_metadata: dict[str, dict[str, Any]] = {}  # session_id -> metadata
         self._session_metadata_lock = threading.Lock()
@@ -128,7 +129,7 @@ class SessionManager:
 
             # Cache session mapping and metadata
             with self._session_mapping_lock:
-                self._session_mapping[external_id] = session_id
+                self._session_mapping[(external_id, source)] = session_id
 
             with self._session_metadata_lock:
                 self._session_metadata[session_id] = {
@@ -270,10 +271,11 @@ class SessionManager:
             session_id (database PK) or None if not found
         """
         try:
-            # Check cache first
+            # Check cache first (keyed by (external_id, source) to prevent cross-CLI collisions)
+            cache_key = (external_id, source)
             with self._session_mapping_lock:
-                if external_id in self._session_mapping:
-                    return self._session_mapping[external_id]
+                if cache_key in self._session_mapping:
+                    return self._session_mapping[cache_key]
 
             # Find session using full composite key (safe lookup)
             session = self._storage.find_by_external_id(
@@ -287,7 +289,7 @@ class SessionManager:
                 )
                 # Cache it
                 with self._session_mapping_lock:
-                    self._session_mapping[external_id] = session_id
+                    self._session_mapping[cache_key] = session_id
                 return session_id
 
             return None
@@ -326,29 +328,31 @@ class SessionManager:
 
         return None
 
-    def get_session_id(self, external_id: str) -> str | None:
+    def get_session_id(self, external_id: str, source: str) -> str | None:
         """
-        Get cached session_id for a external_id.
+        Get cached session_id for an external_id and source.
 
         Args:
             external_id: External session identifier
+            source: CLI source identifier (e.g., "claude", "gemini", "codex")
 
         Returns:
             session_id or None if not cached
         """
         with self._session_mapping_lock:
-            return self._session_mapping.get(external_id)
+            return self._session_mapping.get((external_id, source))
 
-    def cache_session_mapping(self, external_id: str, session_id: str) -> None:
+    def cache_session_mapping(self, external_id: str, source: str, session_id: str) -> None:
         """
-        Cache a external_id -> session_id mapping.
+        Cache an (external_id, source) -> session_id mapping.
 
         Args:
             external_id: External session identifier
+            source: CLI source identifier (e.g., "claude", "gemini", "codex")
             session_id: Database session ID
         """
         with self._session_mapping_lock:
-            self._session_mapping[external_id] = session_id
+            self._session_mapping[(external_id, source)] = session_id
 
     def get_session(self, session_id: str) -> dict[str, Any] | None:
         """

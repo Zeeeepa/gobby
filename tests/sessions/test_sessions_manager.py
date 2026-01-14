@@ -95,8 +95,8 @@ class TestSessionManagerRegistration:
             project_id=test_project["id"],
         )
 
-        # Should be cached
-        cached_id = session_mgr.get_session_id("cached-cli")
+        # Should be cached (keyed by (external_id, source))
+        cached_id = session_mgr.get_session_id("cached-cli", "claude")
         assert cached_id == session_id
 
     def test_register_extracts_git_branch(
@@ -134,12 +134,12 @@ class TestSessionManagerLookup:
             project_id=test_project["id"],
         )
 
-        result = session_mgr.get_session_id("lookup-test")
+        result = session_mgr.get_session_id("lookup-test", "claude")
         assert result == session_id
 
     def test_get_session_id_not_cached(self, session_mgr: SessionManager):
         """Test getting session_id when not cached returns None."""
-        result = session_mgr.get_session_id("nonexistent")
+        result = session_mgr.get_session_id("nonexistent", "claude")
         assert result is None
 
     def test_lookup_session_id(
@@ -191,8 +191,8 @@ class TestSessionManagerLookup:
             project_id=test_project["id"],
         )
 
-        # Should now be cached
-        assert session_mgr.get_session_id("cache-lookup") == session_id
+        # Should now be cached (keyed by (external_id, source))
+        assert session_mgr.get_session_id("cache-lookup", "claude") == session_id
 
     def test_get_session(
         self,
@@ -372,9 +372,9 @@ class TestSessionManagerCaching:
 
     def test_cache_session_mapping(self, session_mgr: SessionManager):
         """Test manually caching session mapping."""
-        session_mgr.cache_session_mapping("manual-cli", "manual-session-id")
+        session_mgr.cache_session_mapping("manual-cli", "claude", "manual-session-id")
 
-        result = session_mgr.get_session_id("manual-cli")
+        result = session_mgr.get_session_id("manual-cli", "claude")
         assert result == "manual-session-id"
 
     def test_thread_safety(

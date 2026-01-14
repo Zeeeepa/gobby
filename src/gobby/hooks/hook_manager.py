@@ -461,14 +461,18 @@ class HookManager:
         platform_session_id = None
 
         if external_id:
-            # Check SessionManager's cache first
-            platform_session_id = self._session_manager.get_session_id(external_id)
+            # Check SessionManager's cache first (keyed by (external_id, source))
+            platform_session_id = self._session_manager.get_session_id(
+                external_id, event.source.value
+            )
 
             # If not in mapping and not session-start, try to query database
             if not platform_session_id and event.event_type != HookEventType.SESSION_START:
                 with self._session_coordinator.get_lookup_lock():
                     # Double check in case another thread finished lookup
-                    platform_session_id = self._session_manager.get_session_id(external_id)
+                    platform_session_id = self._session_manager.get_session_id(
+                        external_id, event.source.value
+                    )
 
                     if not platform_session_id:
                         self.logger.debug(
