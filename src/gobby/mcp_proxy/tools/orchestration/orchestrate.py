@@ -45,6 +45,7 @@ def register_orchestrator(
         project_path: str | None = None,
         coding_provider: Literal["claude", "gemini", "codex", "antigravity"] | None = None,
         coding_model: str | None = None,
+        base_branch: str | None = None,
     ) -> dict[str, Any]:
         """
         Orchestrate spawning agents in worktrees for ready subtasks.
@@ -70,6 +71,7 @@ def register_orchestrator(
             project_path: Path to project directory
             coding_provider: LLM provider for implementation tasks (overrides provider)
             coding_model: Model for implementation tasks (overrides model)
+            base_branch: Branch to base worktrees on (auto-detected if not provided)
 
         Returns:
             Dict with:
@@ -222,6 +224,14 @@ def register_orchestrator(
             base.mkdir(parents=True, exist_ok=True)
             return base
 
+        # Detect base_branch if not provided
+        effective_base_branch = base_branch
+        if not effective_base_branch and git_manager is not None:
+            effective_base_branch = git_manager.get_default_branch()
+            logger.debug(f"Auto-detected base branch: {effective_base_branch}")
+        elif not effective_base_branch:
+            effective_base_branch = "main"  # Fallback when no git_manager
+
         for task in tasks_to_spawn:
             try:
                 # Generate branch name from task ID
@@ -283,7 +293,7 @@ def register_orchestrator(
                     result = git_manager.create_worktree(
                         worktree_path=worktree_path,
                         branch_name=branch_name,
-                        base_branch="main",
+                        base_branch=effective_base_branch,
                         create_branch=True,
                     )
 
@@ -302,7 +312,7 @@ def register_orchestrator(
                         project_id=resolved_project_id,
                         branch_name=branch_name,
                         worktree_path=worktree_path,
-                        base_branch="main",
+                        base_branch=effective_base_branch,
                         task_id=task.id,
                     )
 
@@ -625,6 +635,14 @@ def register_orchestrator(
                 "project_path": {
                     "type": "string",
                     "description": "Path to project directory",
+                    "default": None,
+                },
+                "base_branch": {
+                    "type": "string",
+                    "description": (
+                        "Branch to base worktrees on (e.g., main, master, develop). "
+                        "Auto-detected from repository if not provided."
+                    ),
                     "default": None,
                 },
             },

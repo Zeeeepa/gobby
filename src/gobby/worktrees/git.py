@@ -633,3 +633,58 @@ class WorktreeGitManager:
                 message=f"Error unlocking worktree: {e}",
                 error=str(e),
             )
+
+    def get_default_branch(self) -> str:
+        """
+        Get the default branch for the repository.
+
+        Tries multiple methods to detect the default branch:
+        1. Check origin/HEAD symbolic ref (most reliable for cloned repos)
+        2. Check for common default branch names (main, master, develop)
+        3. Fall back to "main" if detection fails
+
+        Returns:
+            Default branch name (e.g., "main", "master", "develop")
+        """
+        # Method 1: Try to get the default branch from origin/HEAD
+        try:
+            result = self._run_git(
+                ["symbolic-ref", "refs/remotes/origin/HEAD"],
+                timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                # Output is like "refs/remotes/origin/main"
+                ref = result.stdout.strip()
+                if ref.startswith("refs/remotes/origin/"):
+                    branch = ref[len("refs/remotes/origin/") :]
+                    logger.debug(f"Detected default branch from origin/HEAD: {branch}")
+                    return branch
+        except Exception:
+            pass
+
+        # Method 2: Check which common default branches exist
+        for branch in ["main", "master", "develop"]:
+            try:
+                # Check if the branch exists locally or remotely
+                result = self._run_git(
+                    ["rev-parse", "--verify", f"refs/heads/{branch}"],
+                    timeout=5,
+                )
+                if result.returncode == 0:
+                    logger.debug(f"Detected default branch from local ref: {branch}")
+                    return branch
+
+                # Check remote
+                result = self._run_git(
+                    ["rev-parse", "--verify", f"refs/remotes/origin/{branch}"],
+                    timeout=5,
+                )
+                if result.returncode == 0:
+                    logger.debug(f"Detected default branch from remote ref: {branch}")
+                    return branch
+            except Exception:
+                continue
+
+        # Method 3: Fall back to "main"
+        logger.debug("Could not detect default branch, falling back to 'main'")
+        return "main"

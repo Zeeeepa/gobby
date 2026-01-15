@@ -1530,3 +1530,155 @@ class TestWorktreeGitManagerBranchCoverage:
         assert status.has_staged_changes is True
         # The line[1] access will return " " since there's only 1 char
         assert status.has_uncommitted_changes is False
+
+
+@patch("gobby.worktrees.git.subprocess.run")
+class TestWorktreeGitManagerGetDefaultBranch:
+    """Tests for get_default_branch method."""
+
+    def test_get_default_branch_from_origin_head(self, mock_run, tmp_path):
+        """Get default branch from origin/HEAD symbolic ref."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        manager = WorktreeGitManager(repo_path)
+
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git", "symbolic-ref"],
+            returncode=0,
+            stdout="refs/remotes/origin/main\n",
+            stderr="",
+        )
+
+        branch = manager.get_default_branch()
+
+        assert branch == "main"
+
+    def test_get_default_branch_from_origin_head_master(self, mock_run, tmp_path):
+        """Get default branch 'master' from origin/HEAD."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        manager = WorktreeGitManager(repo_path)
+
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git", "symbolic-ref"],
+            returncode=0,
+            stdout="refs/remotes/origin/master\n",
+            stderr="",
+        )
+
+        branch = manager.get_default_branch()
+
+        assert branch == "master"
+
+    def test_get_default_branch_fallback_to_local_main(self, mock_run, tmp_path):
+        """Fall back to local main branch when origin/HEAD fails."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        manager = WorktreeGitManager(repo_path)
+
+        mock_run.side_effect = [
+            # symbolic-ref fails (no origin/HEAD)
+            subprocess.CompletedProcess(
+                args=["git", "symbolic-ref"],
+                returncode=128,
+                stdout="",
+                stderr="fatal: ref refs/remotes/origin/HEAD is not a symbolic ref",
+            ),
+            # rev-parse for local main succeeds
+            subprocess.CompletedProcess(
+                args=["git", "rev-parse"],
+                returncode=0,
+                stdout="abc123\n",
+                stderr="",
+            ),
+        ]
+
+        branch = manager.get_default_branch()
+
+        assert branch == "main"
+
+    def test_get_default_branch_fallback_to_remote_master(self, mock_run, tmp_path):
+        """Fall back to remote master when main doesn't exist."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        manager = WorktreeGitManager(repo_path)
+
+        mock_run.side_effect = [
+            # symbolic-ref fails
+            subprocess.CompletedProcess(
+                args=["git", "symbolic-ref"],
+                returncode=128,
+                stdout="",
+                stderr="fatal: not a symbolic ref",
+            ),
+            # rev-parse for local main fails
+            subprocess.CompletedProcess(
+                args=["git", "rev-parse"],
+                returncode=128,
+                stdout="",
+                stderr="fatal: Needed a single revision",
+            ),
+            # rev-parse for remote main fails
+            subprocess.CompletedProcess(
+                args=["git", "rev-parse"],
+                returncode=128,
+                stdout="",
+                stderr="fatal: Needed a single revision",
+            ),
+            # rev-parse for local master fails
+            subprocess.CompletedProcess(
+                args=["git", "rev-parse"],
+                returncode=128,
+                stdout="",
+                stderr="fatal: Needed a single revision",
+            ),
+            # rev-parse for remote master succeeds
+            subprocess.CompletedProcess(
+                args=["git", "rev-parse"],
+                returncode=0,
+                stdout="def456\n",
+                stderr="",
+            ),
+        ]
+
+        branch = manager.get_default_branch()
+
+        assert branch == "master"
+
+    def test_get_default_branch_fallback_to_main(self, mock_run, tmp_path):
+        """Fall back to 'main' when all detection methods fail."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        manager = WorktreeGitManager(repo_path)
+
+        # All git commands fail
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git"],
+            returncode=128,
+            stdout="",
+            stderr="fatal: error",
+        )
+
+        branch = manager.get_default_branch()
+
+        # Should fall back to "main"
+        assert branch == "main"
+
+    def test_get_default_branch_handles_exception(self, mock_run, tmp_path):
+        """Handle exception gracefully and fall back to main."""
+        repo_path = tmp_path / "repo"
+        repo_path.mkdir()
+
+        manager = WorktreeGitManager(repo_path)
+
+        mock_run.side_effect = Exception("Git not available")
+
+        branch = manager.get_default_branch()
+
+        # Should fall back to "main"
+        assert branch == "main"
