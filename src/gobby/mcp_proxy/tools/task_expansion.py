@@ -38,6 +38,9 @@ if TYPE_CHECKING:
 
 __all__ = ["create_expansion_registry"]
 
+# TDD triplet prefixes - used for both skip detection and triplet creation
+TDD_PREFIXES = ("Write tests for:", "Implement:", "Refactor:")
+
 
 def create_expansion_registry(
     task_manager: LocalTaskManager,
@@ -1065,47 +1068,35 @@ def create_expansion_registry(
             }
 
         # Skip if title already has TDD prefix
-        tdd_prefixes = ("Write tests for:", "Implement:", "Refactor:")
-        if task.title.startswith(tdd_prefixes):
+        if task.title.startswith(TDD_PREFIXES):
             return {
                 "skipped": True,
                 "reason": "Task title already has TDD prefix",
                 "task_id": task.id,
             }
 
-        # Get project_id from task
-        project_id = task.project_id
+        # Create TDD triplet: Test -> Implement -> Refactor
+        # Each step depends on the previous (Impl blocked by Test, Refactor blocked by Impl)
+        created_tasks: list[dict[str, Any]] = []
+        triplet_ids: list[str] = []  # [test_id, impl_id, refactor_id]
 
-        # Create TDD triplet with dependencies
-        # Order: Test -> Implement -> Refactor
-        # Dependencies: Impl blocked by Test, Refactor blocked by Impl
-        created_tasks = []
-        task_ids: dict[str, str] = {}  # prefix -> task_id mapping
-
-        for prefix in ("Write tests for:", "Implement:", "Refactor:"):
-            subtask_title = f"{prefix} {task.title}"
+        for prefix in TDD_PREFIXES:
             subtask = task_manager.create_task(
-                title=subtask_title,
-                project_id=project_id,
+                title=f"{prefix} {task.title}",
+                project_id=task.project_id,
                 parent_task_id=task.id,
                 task_type="task",
                 priority=task.priority,
             )
-            task_ids[prefix] = subtask.id
-            subtask_info: dict[str, Any] = {
-                "id": subtask.id,
-                "title": subtask.title,
-            }
+            triplet_ids.append(subtask.id)
+            subtask_info: dict[str, Any] = {"id": subtask.id, "title": subtask.title}
             if subtask.seq_num is not None:
                 subtask_info["seq_num"] = subtask.seq_num
                 subtask_info["ref"] = f"#{subtask.seq_num}"
             created_tasks.append(subtask_info)
 
-        # Create dependencies: Implement blocked by Test, Refactor blocked by Implement
-        test_id = task_ids["Write tests for:"]
-        impl_id = task_ids["Implement:"]
-        refactor_id = task_ids["Refactor:"]
-
+        # Wire dependencies: each step blocked by previous
+        test_id, impl_id, refactor_id = triplet_ids
         dep_manager.add_dependency(impl_id, test_id, "blocks")
         dep_manager.add_dependency(refactor_id, impl_id, "blocks")
 
