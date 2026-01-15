@@ -468,13 +468,21 @@ def enrich_cmd(
         error_count = 0
 
         for task in tasks_to_enrich:
-            # Skip if already enriched and not forcing
-            if task.is_enriched and not force:
-                click.echo(f"Skipping #{task.seq_num}: already enriched (use --force)")
+            task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+
+            # Skip tasks with children (epics/parent tasks) - only enrich leaf tasks
+            children = manager.list_tasks(parent_task_id=task.id)
+            if children:
+                click.echo(f"Skipping {task_ref}: has {len(children)} children (not a leaf task)")
                 skipped_count += 1
                 continue
 
-            task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+            # Skip if already enriched and not forcing
+            if task.is_enriched and not force:
+                click.echo(f"Skipping {task_ref}: already enriched (use --force)")
+                skipped_count += 1
+                continue
+
             click.echo(f"Enriching {task_ref}: {task.title[:40]}...")
 
             try:
