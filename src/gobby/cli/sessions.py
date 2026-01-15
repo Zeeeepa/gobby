@@ -521,12 +521,11 @@ def create_handoff(
 
             if not prompt_template:
                 click.echo(
-                    "Warning: No prompt template configured. "
+                    "Error: No prompt template configured. "
                     "Set 'session_summary.prompt' in ~/.gobby/config.yaml",
                     err=True,
                 )
-                if full_summary and not compact:
-                    return
+                return
 
             # Prepare context for LLM
             last_turns = transcript_parser.extract_turns_since_clear(turns, max_turns=50)

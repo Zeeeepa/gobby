@@ -119,9 +119,31 @@ class SessionSummaryConfig(BaseModel):
         default="claude-haiku-4-5",
         description="Model to use for session summary generation",
     )
-    prompt: str | None = Field(
-        default=None,
-        description="Custom prompt template for session summary",
+    prompt: str = Field(
+        default="""Generate a concise session summary for handoff to another agent or future session.
+
+## Session Context
+Transcript Summary:
+{transcript_summary}
+
+Git Status:
+{git_status}
+
+File Changes:
+{file_changes}
+
+{todo_list}
+
+{session_tasks}
+
+## Instructions
+Create a summary with these sections:
+1. **What was accomplished** - Key completions in 2-3 bullet points
+2. **Current state** - What's in progress or pending
+3. **Next steps** - Clear actionable items for continuation
+
+Be concise. Focus on what the next agent needs to know to continue effectively.""",
+        description="Prompt template for session summary (use placeholders: {transcript_summary}, {git_status}, {file_changes}, {todo_list}, {session_tasks})",
     )
     summary_file_path: str = Field(
         default="~/.gobby/session_summaries",

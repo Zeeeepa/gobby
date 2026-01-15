@@ -316,6 +316,13 @@ class SummaryFileGenerator:
             "session_source": session_source,
         }
 
+        # Validate prompt is available
+        if not prompt:
+            return (
+                "Session summary unavailable: No prompt template configured. "
+                "Set 'session_summary.prompt' in ~/.gobby/config.yaml"
+            )
+
         try:
 
             async def _run_gen() -> str:
@@ -323,12 +330,9 @@ class SummaryFileGenerator:
                 active_provider = provider
                 if not active_provider:
                     return ""
-                if prompt:
-                    result: str = await active_provider.generate_summary(
-                        context, prompt_template=prompt
-                    )
-                    return result
-                result = await active_provider.generate_summary(context)
+                result: str = await active_provider.generate_summary(
+                    context, prompt_template=prompt
+                )
                 return result
 
             llm_summary: str = anyio.run(_run_gen)
