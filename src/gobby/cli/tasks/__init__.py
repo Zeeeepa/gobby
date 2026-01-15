@@ -15,6 +15,7 @@ from gobby.cli.tasks._utils import (
     check_tasks_enabled,
     get_sync_manager,
     get_task_manager,
+    parse_task_refs,
 )
 from gobby.cli.tasks.main import tasks
 
@@ -22,5 +23,6 @@ __all__ = [
     "check_tasks_enabled",
     "get_task_manager",
     "get_sync_manager",
+    "parse_task_refs",
     "tasks",
 ]
