@@ -427,6 +427,7 @@ def register_orchestrator(
                     )
 
                     if not spawn_result.success:
+                        worktree_storage.release(worktree.id)
                         skipped.append(
                             {
                                 "task_id": task.id,
@@ -471,6 +472,7 @@ def register_orchestrator(
                     )
 
                     if not embedded_result.success:
+                        worktree_storage.release(worktree.id)
                         skipped.append(
                             {
                                 "task_id": task.id,
@@ -513,6 +515,7 @@ def register_orchestrator(
                     )
 
                     if not headless_result.success:
+                        worktree_storage.release(worktree.id)
                         skipped.append(
                             {
                                 "task_id": task.id,
