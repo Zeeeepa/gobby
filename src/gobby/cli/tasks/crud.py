@@ -532,27 +532,57 @@ def reopen_task_cmd(task_id: str, reason: str | None) -> None:
 
 
 @click.command("delete")
-@click.argument("task_id", metavar="TASK")
+@click.argument("task_refs", nargs=-1, required=True, metavar="TASKS...")
 @click.option("--cascade", "-c", is_flag=True, help="Delete child tasks")
-@click.confirmation_option(prompt="Are you sure you want to delete this task?")
-def delete_task(task_id: str, cascade: bool) -> None:
-    """Delete a task.
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+def delete_task(task_refs: tuple[str, ...], cascade: bool, yes: bool) -> None:
+    """Delete one or more tasks.
 
-    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
+    TASKS can be: #N (e.g., #1, #47), comma-separated (#1,#2,#3), or UUIDs.
+    Multiple tasks can be specified separated by spaces or commas.
+
+    Examples:
+        gobby tasks delete #42
+        gobby tasks delete #42,#43,#44 --cascade
+        gobby tasks delete #42 #43 #44 --yes
     """
+    from gobby.cli.tasks._utils import parse_task_refs
+
     manager = get_task_manager()
-    resolved = resolve_task_id(manager, task_id)
-    if not resolved:
+
+    # Parse and resolve all task refs
+    all_refs = parse_task_refs(task_refs)
+    resolved_tasks = []
+    for ref in all_refs:
+        resolved = resolve_task_id(manager, ref)
+        if resolved:
+            resolved_tasks.append((ref, resolved))
+
+    if not resolved_tasks:
         return
 
-    try:
-        manager.delete_task(resolved.id, cascade=cascade)
-    except ValueError as e:
-        msg = str(e)
-        if "has children" in msg and "cascade=True" in msg:
-            msg = f"Task {task_id} has children. Use --cascade to delete with all subtasks."
-        raise click.ClickException(msg)
-    click.echo(f"Deleted task {resolved.id}")
+    # Confirm deletion
+    if not yes:
+        task_list = ", ".join(ref for ref, _ in resolved_tasks)
+        if not click.confirm(f"Delete {len(resolved_tasks)} task(s): {task_list}?"):
+            click.echo("Cancelled.")
+            return
+
+    # Delete tasks
+    deleted = 0
+    for ref, resolved in resolved_tasks:
+        try:
+            manager.delete_task(resolved.id, cascade=cascade)
+            click.echo(f"Deleted task {resolved.id}")
+            deleted += 1
+        except ValueError as e:
+            msg = str(e)
+            if "has children" in msg and "cascade=True" in msg:
+                msg = f"Task {ref} has children. Use --cascade to delete with all subtasks."
+            click.echo(f"Error: {msg}", err=True)
+
+    if len(resolved_tasks) > 1:
+        click.echo(f"\nDeleted {deleted}/{len(resolved_tasks)} tasks.")
 
 
 @click.command("de-escalate")
