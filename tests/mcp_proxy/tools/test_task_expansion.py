@@ -2939,3 +2939,118 @@ class TestEnrichIfMissingParameter:
         # Auto-enriched should be True and context should have enrichment data
         assert result.get("auto_enriched") is True
         assert "Auto-enrichment findings from mock" in context
+
+
+class TestBatchParallelExpansion:
+    """Tests for batch parallel expansion via task_ids parameter."""
+
+    @pytest.mark.asyncio
+    async def test_expand_task_batch_multiple_tasks(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test expanding multiple tasks in parallel with task_ids."""
+        task1 = Task(
+            id="t1",
+            title="Task 1",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        task2 = Task(
+            id="t2",
+            title="Task 2",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+
+        def get_task_fn(task_id):
+            return {"t1": task1, "t2": task2}.get(task_id)
+
+        mock_task_manager.get_task.side_effect = get_task_fn
+        mock_task_manager.list_tasks.return_value = []
+        mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1"]}
+
+        # Call with task_ids parameter for batch expansion
+        result = await expansion_registry.call(
+            "expand_task", {"task_ids": ["t1", "t2"]}
+        )
+
+        # Should return results for both tasks
+        assert "results" in result, "Batch mode should return 'results' list"
+        assert len(result["results"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_expand_task_batch_mixed_results(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test batch expansion with some tasks failing."""
+        task1 = Task(
+            id="t1",
+            title="Task 1",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        # t2 doesn't exist
+
+        def get_task_fn(task_id):
+            if task_id == "t1":
+                return task1
+            return None
+
+        mock_task_manager.get_task.side_effect = get_task_fn
+        mock_task_manager.list_tasks.return_value = []
+        mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1"]}
+
+        # Call with task_ids where one task doesn't exist
+        result = await expansion_registry.call(
+            "expand_task", {"task_ids": ["t1", "nonexistent"]}
+        )
+
+        # Should return results for both (one success, one error)
+        assert "results" in result
+        assert len(result["results"]) == 2
+        # At least one should have error
+        errors = [r for r in result["results"] if "error" in r]
+        successes = [r for r in result["results"] if "tasks_created" in r]
+        assert len(errors) == 1
+        assert len(successes) == 1
+
+    @pytest.mark.asyncio
+    async def test_expand_task_batch_empty_list_error(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that empty task_ids list returns error."""
+        result = await expansion_registry.call(
+            "expand_task", {"task_ids": []}
+        )
+
+        # Empty list should return error
+        assert "error" in result
+
+    @pytest.mark.asyncio
+    async def test_expand_task_single_and_batch_mutually_exclusive(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that task_id and task_ids are mutually exclusive."""
+        mock_task_manager.get_task.return_value = None
+        mock_task_manager.list_tasks.return_value = []
+
+        # Call with both task_id and task_ids
+        result = await expansion_registry.call(
+            "expand_task", {"task_id": "t1", "task_ids": ["t2"]}
+        )
+
+        # Should return error about mutual exclusion
+        assert "error" in result
+        assert "mutually exclusive" in result["error"].lower() or "one of" in result["error"].lower()
