@@ -1234,6 +1234,7 @@ def create_expansion_registry(
             description=spec_content,
             parent_task_id=parent_task_id,
             task_type="epic",
+            reference_doc=str(path),
         )
 
         subtask_ids: list[str] = []
@@ -1245,6 +1246,7 @@ def create_expansion_registry(
             parent_task_id=spec_task.id,
             criteria_generator=None,  # No criteria generation in parse_spec
             tdd_mode=False,  # No TDD in parse_spec
+            reference_doc=str(path),
         )
 
         if headings:

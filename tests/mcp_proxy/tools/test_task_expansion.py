@@ -3926,6 +3926,10 @@ class TestParseSpecTool:
                 spec_path = f.name
 
             try:
+                # Resolve the path to canonical form (parse_spec does this internally)
+                from pathlib import Path
+                resolved_spec_path = str(Path(spec_path).resolve())
+
                 mock_task_manager.create_task.return_value = Task(
                     id="epic-1", title="Spec", project_id="p1",
                     status="open", priority=2, task_type="epic",
@@ -3936,17 +3940,17 @@ class TestParseSpecTool:
                     "parse_spec", {"spec_path": spec_path}
                 )
 
-                # Verify create_task was called with reference_doc set to spec_path
+                # Verify create_task was called with reference_doc set to resolved path
                 create_calls = mock_task_manager.create_task.call_args_list
                 assert len(create_calls) > 0, "create_task should be called"
 
-                # At least one call should have reference_doc set
+                # At least one call should have reference_doc set to resolved path
                 reference_doc_set = any(
-                    call.kwargs.get("reference_doc") == spec_path
+                    call.kwargs.get("reference_doc") == resolved_spec_path
                     for call in create_calls
                 )
                 assert reference_doc_set, (
-                    f"At least one task should have reference_doc={spec_path}, "
+                    f"At least one task should have reference_doc={resolved_spec_path}, "
                     f"got calls: {create_calls}"
                 )
             finally:

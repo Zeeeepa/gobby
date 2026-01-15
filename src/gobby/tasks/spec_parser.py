@@ -670,6 +670,7 @@ class TaskHierarchyBuilder:
         tdd_mode: bool = False,
         llm_service: LLMService | None = None,
         config: DaemonConfig | None = None,
+        reference_doc: str | None = None,
     ) -> None:
         """Initialize the builder.
 
@@ -683,6 +684,7 @@ class TaskHierarchyBuilder:
             tdd_mode: If True, create test→implement pairs for coding tasks
             llm_service: Optional LLMService for generating task descriptions
             config: Optional DaemonConfig with task_description settings
+            reference_doc: Path to source specification document for traceability
         """
         self.task_manager = task_manager
         self.project_id = project_id
@@ -693,6 +695,7 @@ class TaskHierarchyBuilder:
         self.tdd_mode = tdd_mode
         self.llm_service = llm_service
         self.config = config
+        self.reference_doc = reference_doc
         # Lazy-load dependency manager when needed
         self._dep_manager: Any = None
 
@@ -1118,6 +1121,7 @@ class TaskHierarchyBuilder:
             priority=self.default_priority,
             labels=labels,
             validation_criteria=validation_criteria if validation_criteria else None,
+            reference_doc=self.reference_doc,
         )
 
         # Update status if not default
