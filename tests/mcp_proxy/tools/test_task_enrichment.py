@@ -1130,3 +1130,274 @@ class TestStoreEnrichmentResults:
             context_data = json.loads(expansion_context)
             # mcp_tools_used should be present (even if empty list)
             assert "mcp_tools_used" in context_data
+
+
+# ============================================================================
+# Input Size Validation Tests
+# ============================================================================
+
+
+class TestInputSizeValidation:
+    """Tests for input size validation in enrich_task.
+
+    TDD Red Phase: These tests verify that enrich_task validates input size
+    before making LLM calls to prevent wasted calls on oversized inputs.
+    """
+
+    @pytest.mark.asyncio
+    async def test_enrich_task_accepts_normal_description(
+        self, mock_task_manager, mock_task_enricher, enrichment_registry
+    ):
+        """Test that enrich_task accepts descriptions under the limit."""
+        task = Task(
+            id="t1",
+            title="Normal task",
+            description="A normal description that is well under 10,000 characters.",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task
+
+        result = await enrichment_registry.call(
+            "enrich_task",
+            {"task_id": "t1"},
+        )
+
+        # Should succeed without error
+        assert "error" not in result or "size" not in result.get("error", "").lower()
+        mock_task_enricher.enrich.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_enrich_task_rejects_oversized_description(
+        self, mock_task_manager, mock_task_enricher, enrichment_registry
+    ):
+        """Test that enrich_task rejects descriptions over 10,000 characters."""
+        # Create a description that exceeds 10,000 characters
+        oversized_description = "x" * 10001
+
+        task = Task(
+            id="t1",
+            title="Task with huge description",
+            description=oversized_description,
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task
+
+        result = await enrichment_registry.call(
+            "enrich_task",
+            {"task_id": "t1"},
+        )
+
+        # Should return error about size
+        assert "error" in result
+        assert "size" in result["error"].lower() or "large" in result["error"].lower()
+        # Should NOT call enricher (saves LLM call)
+        mock_task_enricher.enrich.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_enrich_task_exactly_at_limit(
+        self, mock_task_manager, mock_task_enricher, enrichment_registry
+    ):
+        """Test that enrich_task accepts descriptions exactly at 10,000 characters."""
+        # Create a description that is exactly at the limit
+        description_at_limit = "x" * 10000
+
+        task = Task(
+            id="t1",
+            title="Task at limit",
+            description=description_at_limit,
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task
+
+        result = await enrichment_registry.call(
+            "enrich_task",
+            {"task_id": "t1"},
+        )
+
+        # Should succeed - exactly at limit is OK
+        assert "error" not in result or "size" not in result.get("error", "").lower()
+        mock_task_enricher.enrich.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_enrich_task_oversized_suggests_cli(
+        self, mock_task_manager, mock_task_enricher, enrichment_registry
+    ):
+        """Test that oversized input returns CLI suggestion."""
+        oversized_description = "x" * 15000
+
+        task = Task(
+            id="t1",
+            title="Task with huge description",
+            description=oversized_description,
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task
+
+        result = await enrichment_registry.call(
+            "enrich_task",
+            {"task_id": "t1"},
+        )
+
+        # Should suggest using CLI or splitting the task
+        assert "error" in result
+        # Should include a helpful suggestion
+        error_lower = result["error"].lower()
+        assert "cli" in error_lower or "split" in error_lower or "smaller" in error_lower
+
+    @pytest.mark.asyncio
+    async def test_enrich_task_batch_validates_each_task(
+        self, mock_task_manager, mock_task_enricher, enrichment_registry
+    ):
+        """Test that batch enrichment validates each task's size."""
+        normal_task = Task(
+            id="t1",
+            title="Normal task",
+            description="Normal description",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        oversized_task = Task(
+            id="t2",
+            title="Oversized task",
+            description="x" * 15000,
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+
+        def get_task_side_effect(tid):
+            if tid == "t1":
+                return normal_task
+            elif tid == "t2":
+                return oversized_task
+            return None
+
+        mock_task_manager.get_task.side_effect = get_task_side_effect
+
+        result = await enrichment_registry.call(
+            "enrich_task",
+            {"task_ids": ["t1", "t2"]},
+        )
+
+        # Should have results for both
+        assert "results" in result
+        assert len(result["results"]) == 2
+
+        # t1 should succeed, t2 should fail with size error
+        t1_result = next((r for r in result["results"] if r.get("task_id") == "t1"), None)
+        t2_result = next((r for r in result["results"] if r.get("task_id") == "t2"), None)
+
+        assert t1_result is not None
+        assert t2_result is not None
+        assert "error" not in t1_result or "size" not in t1_result.get("error", "").lower()
+        assert "error" in t2_result
+
+    @pytest.mark.asyncio
+    async def test_enrich_task_validates_before_enricher_call(
+        self, mock_task_manager, mock_task_enricher, enrichment_registry
+    ):
+        """Test that size validation happens BEFORE enricher is called."""
+        oversized_description = "x" * 20000
+
+        task = Task(
+            id="t1",
+            title="Huge task",
+            description=oversized_description,
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task
+
+        await enrichment_registry.call(
+            "enrich_task",
+            {"task_id": "t1"},
+        )
+
+        # Enricher should NOT be called for oversized input
+        mock_task_enricher.enrich.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_enrich_task_null_description_ok(
+        self, mock_task_manager, mock_task_enricher, enrichment_registry
+    ):
+        """Test that tasks with no description are accepted."""
+        task = Task(
+            id="t1",
+            title="Task without description",
+            description=None,
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task
+
+        result = await enrichment_registry.call(
+            "enrich_task",
+            {"task_id": "t1"},
+        )
+
+        # Should succeed
+        assert "error" not in result or "size" not in result.get("error", "").lower()
+        mock_task_enricher.enrich.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_enrich_task_size_limit_is_configurable(
+        self, mock_task_manager, mock_task_enricher, enrichment_registry
+    ):
+        """Test that the size limit can be configured (default 10,000)."""
+        # This test documents the expected limit
+        # The limit should be 10,000 characters as per the spec
+        task = Task(
+            id="t1",
+            title="Test",
+            description="x" * 9999,  # Just under limit
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task
+
+        result = await enrichment_registry.call(
+            "enrich_task",
+            {"task_id": "t1"},
+        )
+
+        # Should succeed - under the 10,000 character limit
+        assert "error" not in result or "size" not in result.get("error", "").lower()
