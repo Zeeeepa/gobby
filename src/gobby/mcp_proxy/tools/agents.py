@@ -1038,4 +1038,132 @@ def create_agents_registry(
             "by_parent_count": len(by_parent),
         }
 
+    @registry.tool(
+        name="close_terminal",
+        description=(
+            "Close the current terminal window/pane. Launches the agent_shutdown.sh "
+            "script which handles terminal-specific shutdown (tmux, iTerm, etc.). "
+            "Rebuilds the script if missing."
+        ),
+    )
+    async def close_terminal(
+        signal: str = "TERM",
+        delay_ms: int = 0,
+    ) -> dict[str, Any]:
+        """
+        Close the current terminal by running the agent shutdown script.
+
+        The script is located at ~/.gobby/scripts/agent_shutdown.sh and is
+        automatically rebuilt if missing. It handles different terminal types
+        (tmux, iTerm, Terminal.app, Ghostty, etc.).
+
+        Args:
+            signal: Signal to use for shutdown (TERM, KILL, INT). Default: TERM.
+            delay_ms: Optional delay in milliseconds before shutdown. Default: 0.
+
+        Returns:
+            Dict with success status and message.
+        """
+        import asyncio
+        import os
+        import stat
+        import subprocess
+
+        # Script location
+        gobby_dir = Path.home() / ".gobby"
+        scripts_dir = gobby_dir / "scripts"
+        script_path = scripts_dir / "agent_shutdown.sh"
+
+        # Default script content - handles various terminal types
+        default_script = '''#!/bin/bash
+# Gobby Agent Shutdown Script
+# Closes the current terminal window/pane based on terminal type
+
+SIGNAL="${1:-TERM}"
+DELAY_MS="${2:-0}"
+
+# Apply delay if specified
+if [ "$DELAY_MS" -gt 0 ]; then
+    sleep $(echo "scale=3; $DELAY_MS/1000" | bc)
+fi
+
+# Detect terminal type and close appropriately
+if [ -n "$TMUX" ]; then
+    # Running in tmux - kill the pane
+    tmux kill-pane
+elif [ "$TERM_PROGRAM" = "iTerm.app" ]; then
+    # iTerm2 - use AppleScript to close tab/window
+    osascript -e 'tell application "iTerm2" to close current session of current window'
+elif [ "$TERM_PROGRAM" = "Apple_Terminal" ]; then
+    # Terminal.app - use AppleScript
+    osascript -e 'tell application "Terminal" to close front window'
+elif [ "$TERM_PROGRAM" = "ghostty" ]; then
+    # Ghostty - send quit signal
+    kill -s "$SIGNAL" "$$"
+elif [ -n "$KITTY_WINDOW_ID" ]; then
+    # Kitty terminal
+    kitty @ close-window --self
+elif [ -n "$WEZTERM_PANE" ]; then
+    # WezTerm
+    wezterm cli kill-pane
+else
+    # Generic fallback - exit the shell
+    kill -s "$SIGNAL" "$$"
+fi
+'''
+
+        # Ensure directories exist and script is present
+        script_rebuilt = False
+        try:
+            scripts_dir.mkdir(parents=True, exist_ok=True)
+
+            if not script_path.exists():
+                script_path.write_text(default_script)
+                # Make executable
+                script_path.chmod(script_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP)
+                script_rebuilt = True
+                logger.info(f"Created agent shutdown script at {script_path}")
+        except OSError as e:
+            return {
+                "success": False,
+                "error": f"Failed to create shutdown script: {e}",
+            }
+
+        # Validate signal
+        valid_signals = {"TERM", "KILL", "INT", "HUP", "QUIT"}
+        if signal.upper() not in valid_signals:
+            return {
+                "success": False,
+                "error": f"Invalid signal '{signal}'. Valid: {valid_signals}",
+            }
+
+        # Apply delay before launching script (non-blocking)
+        if delay_ms > 0:
+            await asyncio.sleep(delay_ms / 1000.0)
+
+        # Launch the script
+        try:
+            # Run in background - we don't wait for it since it kills our process
+            env = os.environ.copy()
+            subprocess.Popen(
+                [str(script_path), signal.upper(), "0"],  # Delay already applied
+                env=env,
+                start_new_session=True,  # Detach from parent
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+            return {
+                "success": True,
+                "message": "Shutdown script launched",
+                "script_path": str(script_path),
+                "script_rebuilt": script_rebuilt,
+                "signal": signal.upper(),
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to launch shutdown script: {e}",
+            }
+
     return registry
