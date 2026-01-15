@@ -647,6 +647,7 @@ def create_expansion_registry(
             description=spec_content,
             parent_task_id=parent_task_id,
             task_type="epic",  # Specs typically become epics
+            reference_doc=str(path),
         )
 
         subtask_ids: list[str] = []
@@ -673,6 +674,7 @@ def create_expansion_registry(
                 parent_task_id=spec_task.id,
                 criteria_generator=criteria_generator,
                 tdd_mode=tdd_mode or False,
+                reference_doc=str(path),
             )
 
             # Use fallback method if task_expander available (for hybrid specs)
@@ -685,7 +687,7 @@ def create_expansion_registry(
                 subtask_ids = hierarchy_result.task_ids
             elif checkboxes.total_count > 0:
                 # Only checkboxes, no headings
-                hierarchy_result = builder.build_from_checkboxes(checkboxes)
+                hierarchy_result = await builder.build_from_checkboxes(checkboxes)
                 subtask_ids = hierarchy_result.task_ids
 
         else:
