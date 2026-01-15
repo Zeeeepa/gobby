@@ -595,6 +595,30 @@ def cascade_progress(
                 raise error from None
 
 
+def get_all_descendants(manager: LocalTaskManager, task_id: str) -> list[Task]:
+    """Recursively get all descendants of a task (children, grandchildren, etc.).
+
+    Returns tasks in depth-first order (parent before children).
+
+    Args:
+        manager: The task manager
+        task_id: UUID of the parent task
+
+    Returns:
+        List of all descendant tasks
+    """
+    descendants: list[Task] = []
+
+    def collect_children(parent_id: str) -> None:
+        children = manager.list_tasks(parent_task_id=parent_id)
+        for child in children:
+            descendants.append(child)
+            collect_children(child.id)  # Recurse into grandchildren
+
+    collect_children(task_id)
+    return descendants
+
+
 def parse_task_refs(refs: tuple[str, ...]) -> list[str]:
     """Parse task references from various CLI input formats.
 

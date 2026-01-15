@@ -416,7 +416,7 @@ def enrich_cmd(
     """
     import asyncio
 
-    from gobby.cli.tasks._utils import parse_task_refs
+    from gobby.cli.tasks._utils import get_all_descendants, parse_task_refs
     from gobby.config.app import load_config
     from gobby.llm import LLMService
     from gobby.tasks.enrich import TaskEnricher
@@ -438,10 +438,10 @@ def enrich_cmd(
             continue
         tasks_to_enrich.append(task)
 
-        # If cascade, get subtasks too
+        # If cascade, get ALL descendants recursively (not just direct children)
         if cascade:
-            subtasks = manager.list_tasks(parent_task_id=task.id)
-            tasks_to_enrich.extend(subtasks)
+            descendants = get_all_descendants(manager, task.id)
+            tasks_to_enrich.extend(descendants)
 
     if not tasks_to_enrich:
         click.echo("No valid tasks to enrich.", err=True)
@@ -551,7 +551,7 @@ def apply_tdd_cmd(
     """
     import asyncio
 
-    from gobby.cli.tasks._utils import parse_task_refs
+    from gobby.cli.tasks._utils import get_all_descendants, parse_task_refs
     from gobby.config.app import load_config
     from gobby.llm import LLMService
     from gobby.storage.task_dependencies import TaskDependencyManager
@@ -601,10 +601,10 @@ def apply_tdd_cmd(
             continue
         tasks_to_transform.append(task)
 
-        # If cascade, get subtasks too
+        # If cascade, get ALL descendants recursively (not just direct children)
         if cascade:
-            subtasks = manager.list_tasks(parent_task_id=task.id)
-            tasks_to_transform.extend(subtasks)
+            descendants = get_all_descendants(manager, task.id)
+            tasks_to_transform.extend(descendants)
 
     if not tasks_to_transform:
         click.echo("No valid tasks to transform.", err=True)
@@ -755,7 +755,7 @@ def expand_task_cmd(
     import asyncio
     from dataclasses import dataclass
 
-    from gobby.cli.tasks._utils import parse_task_refs
+    from gobby.cli.tasks._utils import get_all_descendants, parse_task_refs
     from gobby.config.app import load_config
     from gobby.llm import LLMService
     from gobby.storage.task_dependencies import TaskDependencyManager
@@ -778,10 +778,10 @@ def expand_task_cmd(
             continue
         tasks_to_expand.append(task)
 
-        # If cascade, get subtasks too
+        # If cascade, get ALL descendants recursively (not just direct children)
         if cascade:
-            subtasks = manager.list_tasks(parent_task_id=task.id)
-            tasks_to_expand.extend(subtasks)
+            descendants = get_all_descendants(manager, task.id)
+            tasks_to_expand.extend(descendants)
 
     if not tasks_to_expand:
         click.echo("No valid tasks to expand.", err=True)
