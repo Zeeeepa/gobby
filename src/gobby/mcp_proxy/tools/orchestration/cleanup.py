@@ -508,9 +508,16 @@ def _merge_branch_to_base(
 
         if merge_result.returncode != 0:
             # Check for conflicts
-            if "CONFLICT" in merge_result.stdout or "CONFLICT" in merge_result.stderr:
-                # Abort the merge
-                git_manager._run_git(["merge", "--abort"], timeout=10)
+            has_conflicts = "CONFLICT" in merge_result.stdout or "CONFLICT" in merge_result.stderr
+
+            # Always try to abort/reset the repo to ensure clean state
+            abort_result = git_manager._run_git(["merge", "--abort"], timeout=10)
+            if abort_result.returncode != 0:
+                # Abort failed, force reset to clean state
+                git_manager._run_git(["reset", "--hard", "HEAD"], timeout=10)
+                git_manager._run_git(["clean", "-fd"], timeout=10)
+
+            if has_conflicts:
                 return {
                     "success": False,
                     "error": "Merge conflict detected",

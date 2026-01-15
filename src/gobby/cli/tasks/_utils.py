@@ -7,7 +7,7 @@ import logging
 import sys
 from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import click
 from wcwidth import wcswidth
@@ -570,6 +570,15 @@ def cascade_progress(
             # Exception is always suppressed when on_error is provided
             return
         raise
+    finally:
+        # Handle any pending error from final iteration (report_error called on last task)
+        if iterator._pending_error is not None:
+            error = iterator._pending_error
+            iterator._pending_error = None
+            task = iterator._current_task
+            if on_error is not None and task is not None:
+                on_error(task, error)
+            # Don't re-raise - error has been handled via callback
 
 
 def parse_task_refs(refs: tuple[str, ...]) -> list[str]:

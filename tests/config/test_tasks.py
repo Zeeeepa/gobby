@@ -1036,7 +1036,6 @@ class TestBackwardCompatibilityLayer:
         # Should match hardcoded defaults
         assert effective["require_task_before_edit"] is False
         assert effective["tdd_mode"] is True
-        assert effective["tdd_mode"] is True
         assert effective["session_task"] is None
 
     def test_deprecation_warning_logged_for_old_location(self) -> None:

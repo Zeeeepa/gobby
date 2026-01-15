@@ -219,7 +219,7 @@ steps:
 
     transitions:
       - to: summarize
-        when: "not variables.get('task_claimed', True)"
+        when: "mcp_called('gobby-tasks', 'close_task')"
 
   # ─────────────────────────────────────────────────────────────
   # Step 7: Summarize

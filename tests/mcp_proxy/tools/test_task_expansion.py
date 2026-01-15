@@ -2807,7 +2807,7 @@ class TestEnrichIfMissingParameter:
 
     @pytest.mark.asyncio
     async def test_expand_task_skips_enrichment_when_disabled(
-        self, mock_task_manager, mock_task_expander, expansion_registry
+        self, mock_task_manager, mock_task_expander, mock_task_enricher, expansion_registry_with_enricher
     ):
         """Test that expand_task skips enrichment when enrich_if_missing=False."""
         # Unenriched task
@@ -2829,7 +2829,7 @@ class TestEnrichIfMissingParameter:
         mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1"]}
 
         # Call with enrich_if_missing=False
-        result = await expansion_registry.call(
+        result = await expansion_registry_with_enricher.call(
             "expand_task", {"task_id": "parent", "enrich_if_missing": False}
         )
 
@@ -2839,10 +2839,12 @@ class TestEnrichIfMissingParameter:
         )
         # Should still expand successfully
         assert result["tasks_created"] == 1
+        # Verify enricher was NOT called
+        mock_task_enricher.enrich.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_expand_task_skips_enrichment_when_already_enriched(
-        self, mock_task_manager, mock_task_expander, expansion_registry
+        self, mock_task_manager, mock_task_expander, mock_task_enricher, expansion_registry_with_enricher
     ):
         """Test that expand_task skips enrichment when task already has expansion_context."""
         import json
@@ -2869,13 +2871,15 @@ class TestEnrichIfMissingParameter:
         mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1"]}
 
         # Call with default enrich_if_missing=True
-        result = await expansion_registry.call("expand_task", {"task_id": "parent"})
+        result = await expansion_registry_with_enricher.call("expand_task", {"task_id": "parent"})
 
         # Should NOT have auto-enriched (already has context)
         assert result.get("auto_enriched") is not True, (
             "Should not auto-enrich when task already has expansion_context"
         )
         assert result["tasks_created"] == 1
+        # Verify enricher was NOT called
+        mock_task_enricher.enrich.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_expand_task_uses_enrichment_result_in_expansion(

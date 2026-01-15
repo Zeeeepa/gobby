@@ -164,6 +164,7 @@ class TestResolveTddMode:
 class TestTaskHierarchyBuilderTddMode:
     """Test TaskHierarchyBuilder creates test→implementation pairs when tdd_mode enabled."""
 
+    @pytest.mark.asyncio
     async def test_build_from_checkboxes_creates_tdd_pairs_when_enabled(
         self,
         task_manager: LocalTaskManager,
@@ -229,6 +230,7 @@ class TestTaskHierarchyBuilderTddMode:
             if matching_tests:
                 assert matching_tests[0].id in blocked_by_ids
 
+    @pytest.mark.asyncio
     async def test_build_from_checkboxes_no_tdd_pairs_when_disabled(
         self,
         task_manager: LocalTaskManager,

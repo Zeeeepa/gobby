@@ -584,6 +584,7 @@ def apply_tdd_cmd(
     # Apply TDD to each task
     applied_count = 0
     skipped_count = 0
+    error_count = 0
 
     for task in tasks_to_transform:
         # Skip if already TDD-applied (unless force)
@@ -631,8 +632,9 @@ def apply_tdd_cmd(
 
         except Exception as e:
             click.echo(f"  Error: {e}", err=True)
+            error_count += 1
 
-    click.echo(f"\nDone: {applied_count} transformed, {skipped_count} skipped")
+    click.echo(f"\nDone: {applied_count} transformed, {skipped_count} skipped, {error_count} failed")
 
 
 @click.command("expand")

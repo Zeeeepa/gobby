@@ -60,7 +60,12 @@ def temp_db(tmp_path):
             linear_issue_id TEXT,
             linear_team_id TEXT,
             seq_num INTEGER,
-            path_cache TEXT
+            path_cache TEXT,
+            agent_name TEXT,
+            reference_doc TEXT,
+            is_enriched INTEGER DEFAULT 0,
+            is_expanded INTEGER DEFAULT 0,
+            is_tdd_applied INTEGER DEFAULT 0
         )
     """)
 

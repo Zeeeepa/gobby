@@ -145,7 +145,6 @@ def register_monitor(
 
     async def poll_agent_status(
         parent_session_id: str,
-        project_path: str | None = None,
     ) -> dict[str, Any]:
         """
         Poll running agents and update tracking lists in workflow state.
@@ -156,7 +155,6 @@ def register_monitor(
 
         Args:
             parent_session_id: Parent session ID (orchestrator session)
-            project_path: Path to project directory
 
         Returns:
             Dict with:
@@ -365,11 +363,6 @@ def register_monitor(
                 "parent_session_id": {
                     "type": "string",
                     "description": "Parent session ID (orchestrator session)",
-                },
-                "project_path": {
-                    "type": "string",
-                    "description": "Path to project directory",
-                    "default": None,
                 },
             },
             "required": ["parent_session_id"],

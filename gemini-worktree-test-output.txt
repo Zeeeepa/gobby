@@ -29,7 +29,7 @@
 
   2. Warnings, Errors, and Failures
 
-   * Worktree Violation (Critical): I failed to check for or create a worktree at the start. I edited files directly in the dev branch (/Users/josh/Projects/gobby).
+   * Worktree Violation (Critical): I failed to check for or create a worktree at the start. I edited files directly in the dev branch ($PROJECT_ROOT).
    * Test Failures:
        * TypeError: ... missing 1 required positional argument: 'session_id' (Caused by my API change).
        * AssertionError: assert {} == {'success': True} (Caused by my API cleanup).

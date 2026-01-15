@@ -115,7 +115,7 @@ Do not add quotes, extra formatting, or implementation details.""",
     @field_validator("min_structured_length")
     @classmethod
     def validate_min_structured_length(cls, v: int) -> int:
-        """Validate min_structured_length is positive."""
+        """Validate min_structured_length is non-negative."""
         if v < 0:
             raise ValueError("min_structured_length must be non-negative")
         return v

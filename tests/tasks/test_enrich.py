@@ -4,8 +4,6 @@ Tests for task enrichment module.
 TDD Red phase: These tests should fail until the enrich.py module is implemented.
 """
 
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -289,21 +287,31 @@ class TestCodeResearch:
 
     @pytest.mark.asyncio
     async def test_code_research_handles_empty_codebase(self):
-        """Test that code research handles empty/no codebase gracefully."""
+        """Test that code research handles empty/no codebase gracefully.
+
+        Simulates an empty codebase by providing no code_context or project_context,
+        verifying the enricher handles this case without errors.
+        """
         from gobby.tasks.enrich import TaskEnricher
 
         enricher = TaskEnricher()
 
-        # Even without codebase access, should return valid result
+        # Simulate empty codebase by providing empty/None context
+        # This tests the enricher handles no code context gracefully
         result = await enricher.enrich(
             task_id="test-task",
             title="Initial setup",
             description="Set up project structure",
+            code_context=None,  # No code context - simulates empty codebase
+            project_context=None,  # No project context
             enable_code_research=True,
         )
 
         # Should not raise, should return basic enrichment
         assert result.task_id == "test-task"
+        # Should still produce valid enrichment data even without codebase
+        assert result.category is not None
+        assert result.complexity_score is not None
 
     @pytest.mark.asyncio
     async def test_code_research_pattern_detection(self):

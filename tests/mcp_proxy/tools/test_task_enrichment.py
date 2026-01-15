@@ -1,7 +1,7 @@
 """Tests for task enrichment MCP tool.
 
-TDD Red Phase: These tests should fail until the enrich_task tool is implemented
-in the task_expansion module.
+These tests are skipped until the task_expansion module is available.
+The pytestmark skipif ensures tests don't run without the required module.
 
 Task: #3245 - Write tests for: Add enrich_task MCP tool
 Parent: #3153 - Add enrich_task MCP tool to gobby-tasks server
@@ -1093,7 +1093,10 @@ class TestStoreEnrichmentResults:
                     tasks_with_expansion_context.add(task_id)
 
         # Both tasks should have expansion_context set
-        assert len(tasks_with_expansion_context) >= 1  # At least one task updated
+        assert tasks_with_expansion_context == {"t1", "t2"}, (
+            f"Expected both t1 and t2 to have expansion_context set, "
+            f"got {tasks_with_expansion_context}"
+        )
 
     @pytest.mark.asyncio
     async def test_expansion_context_includes_mcp_tools_used(

@@ -66,8 +66,22 @@ class TestExpandMultipleTaskRefs:
             # Test with comma-separated task refs
             result = runner.invoke(tasks, ["expand", "#42,#43,#44"])
 
-            # Should accept multiple refs
-            assert result.exit_code == 0 or "multiple" not in result.output.lower()
+            # Verify CLI exits successfully
+            assert result.exit_code == 0, f"Expected exit code 0, got {result.exit_code}. Output: {result.output}"
+
+            # Verify expander was called three times (once per task ref)
+            assert mock_expander.expand_task.call_count == 3, (
+                f"Expected 3 calls to expand_task, got {mock_expander.expand_task.call_count}"
+            )
+
+            # Verify expander was called with the resolved mock task
+            for call in mock_expander.expand_task.call_args_list:
+                assert call.kwargs.get("task") == mock_task or (call.args and call.args[0] == mock_task), (
+                    f"Expected expand_task to be called with mock_task, got {call}"
+                )
+
+            # Verify output contains expected expansion content
+            assert "Sub 1" in result.output, f"Expected 'Sub 1' in output, got: {result.output}"
 
 
 class TestExpandCascade:
@@ -99,8 +113,30 @@ class TestExpandCascade:
 
             result = runner.invoke(tasks, ["expand", "#42", "--cascade"])
 
-            # The --cascade option should be recognized
-            assert result.exit_code == 0 or "--cascade" not in result.output
+            # Verify CLI exits successfully
+            assert result.exit_code == 0, f"Expected exit code 0, got {result.exit_code}. Output: {result.output}"
+
+            # Verify expander was called for both parent and child tasks (cascade processing)
+            # With cascade, expand_task should be called for parent (#42) and its child
+            assert mock_expander.expand_task.call_count >= 1, (
+                f"Expected at least 1 call to expand_task, got {mock_expander.expand_task.call_count}"
+            )
+
+            # Verify list_tasks was called to get child tasks for cascade
+            mock_manager.list_tasks.assert_called()
+
+            # Verify child task is processed in cascade mode - check output mentions child
+            # or expander was called multiple times
+            child_processed = (
+                "Child Task" in result.output
+                or "child-123" in result.output
+                or "#43" in result.output
+                or mock_expander.expand_task.call_count >= 2
+            )
+            assert child_processed, (
+                f"Expected child task to be processed in cascade mode. "
+                f"Call count: {mock_expander.expand_task.call_count}, Output: {result.output}"
+            )
 
 
 class TestExpandNoEnrich:
