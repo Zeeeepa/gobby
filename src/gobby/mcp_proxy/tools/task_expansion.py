@@ -134,55 +134,28 @@ def create_expansion_registry(
             return "\n\n".join(enrichment_parts)
         return None
 
-    @registry.tool(
-        name="expand_task",
-        description="Expand a high-level task into smaller subtasks using AI.",
-    )
-    async def expand_task(
-        task_id: str,
-        context: str | None = None,
-        enable_web_research: bool = False,
-        enable_code_context: bool = True,
-        generate_validation: bool | None = None,
-        session_id: str | None = None,
-        enrich_if_missing: bool = True,
+    async def _expand_single_task(
+        single_task_id: str,
+        context: str | None,
+        enable_web_research: bool,
+        enable_code_context: bool,
+        should_generate_validation: bool,
+        session_id: str | None,
+        enrich_if_missing: bool,
     ) -> dict[str, Any]:
-        """
-        Expand a task into subtasks using tool-based expansion.
-
-        The expansion agent calls create_task MCP tool directly to create subtasks,
-        wiring dependencies via the 'blocks' parameter.
-
-        Args:
-            task_id: ID of the task to expand
-            context: Additional context for expansion
-            enable_web_research: Whether to enable web research (default: False)
-            enable_code_context: Whether to enable code context gathering (default: True)
-            generate_validation: Whether to auto-generate validation_criteria for subtasks.
-                Defaults to config setting (gobby_tasks.validation.auto_generate_on_expand).
-            session_id: Session ID to resolve TDD mode from workflow state.
-            enrich_if_missing: Auto-run enrichment if task has no expansion_context.
-                Defaults to True, ensuring expansion always has enrichment data.
-
-        Returns:
-            Dictionary with subtask_ids, tool_calls count, and agent text
-        """
+        """Internal helper to expand a single task."""
         # Resolve task reference
         try:
-            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, single_task_id)
         except (TaskNotFoundError, ValueError) as e:
-            return {"error": f"Invalid task_id: {e}", "subtask_ids": [], "tool_calls": 0}
+            return {"error": f"Invalid task_id: {e}", "task_id": single_task_id}
 
-        # Use config default if not specified
-        should_generate_validation = (
-            generate_validation if generate_validation is not None else auto_generate_on_expand
-        )
         if not task_expander:
-            raise RuntimeError("Task expansion is not enabled")
+            return {"error": "Task expansion is not enabled", "task_id": single_task_id}
 
         task = task_manager.get_task(resolved_task_id)
         if not task:
-            raise ValueError(f"Task not found: {task_id}")
+            return {"error": f"Task not found: {single_task_id}", "task_id": single_task_id}
 
         # Auto-enrich if task has no expansion_context and enrich_if_missing=True
         auto_enriched = False
@@ -202,18 +175,18 @@ def create_expansion_registry(
                 expansion_context_json = json.dumps(enrichment_result.to_dict())
 
                 # Update task with enrichment results
-                update_kwargs: dict[str, Any] = {
+                enrich_update_kwargs: dict[str, Any] = {
                     "is_enriched": True,
                     "expansion_context": expansion_context_json,
                 }
                 if enrichment_result.category:
-                    update_kwargs["category"] = enrichment_result.category
+                    enrich_update_kwargs["category"] = enrichment_result.category
                 if enrichment_result.complexity_score:
-                    update_kwargs["complexity_score"] = enrichment_result.complexity_score
+                    enrich_update_kwargs["complexity_score"] = enrichment_result.complexity_score
                 if enrichment_result.validation_criteria:
-                    update_kwargs["validation_criteria"] = enrichment_result.validation_criteria
+                    enrich_update_kwargs["validation_criteria"] = enrichment_result.validation_criteria
 
-                task_manager.update_task(task.id, **update_kwargs)
+                task_manager.update_task(task.id, **enrich_update_kwargs)
 
                 # Refresh task to get updated expansion_context
                 task = task_manager.get_task(resolved_task_id)
@@ -240,23 +213,21 @@ def create_expansion_registry(
 
         # Handle errors
         if "error" in result:
-            return {"error": result["error"], "subtask_ids": [], "tool_calls": 0}
+            return {"error": result["error"], "task_id": task.id}
 
         # Extract subtask IDs (already created by agent via create_task tool calls)
         subtask_ids = result.get("subtask_ids", [])
 
         # Wire parent → subtask dependencies
-        # The parent task is blocked by all subtasks (can't close until children done)
         for subtask_id in subtask_ids:
             try:
                 dep_manager.add_dependency(
                     task_id=task.id, depends_on=subtask_id, dep_type="blocks"
                 )
             except ValueError:
-                # Ignore cycle errors or duplicate deps
                 pass
 
-        # Fetch created subtasks for the response (brief format for token efficiency)
+        # Fetch created subtasks for the response
         created_subtasks = []
         for sid in subtask_ids:
             subtask = task_manager.get_task(sid)
@@ -268,17 +239,10 @@ def create_expansion_registry(
         validation_skipped_reason = None
         if should_generate_validation and subtask_ids:
             if not task_validator:
-                import logging
-
-                logging.getLogger(__name__).warning(
-                    "generate_validation=True but task_validator not available. "
-                    "Enable task validation in config to auto-generate criteria."
-                )
                 validation_skipped_reason = "task_validator not configured"
             else:
                 for sid in subtask_ids:
                     subtask = task_manager.get_task(sid)
-                    # Skip epics - they close when all children are closed
                     if subtask and not subtask.validation_criteria and subtask.task_type != "epic":
                         try:
                             criteria = await task_validator.generate_criteria(
@@ -288,13 +252,8 @@ def create_expansion_registry(
                             if criteria:
                                 task_manager.update_task(sid, validation_criteria=criteria)
                                 validation_generated += 1
-                        except Exception as e:
-                            # Log but don't fail expansion if validation criteria generation fails
-                            import logging
-
-                            logging.getLogger(__name__).warning(
-                                f"Failed to generate validation criteria for {sid}: {e}"
-                            )
+                        except Exception:
+                            pass
 
         # Update parent task validation criteria
         task_manager.update_task(
@@ -302,11 +261,11 @@ def create_expansion_registry(
             validation_criteria="All child tasks must be completed (status: closed).",
         )
 
-        # Return concise response (use get_task for full details)
+        # Build response
         response: dict[str, Any] = {
             "task_id": task.id,
             "tasks_created": len(subtask_ids),
-            "subtasks": created_subtasks,  # Brief: [{id, title}, ...]
+            "subtasks": created_subtasks,
         }
         if auto_enriched:
             response["auto_enriched"] = True
@@ -315,6 +274,83 @@ def create_expansion_registry(
         if validation_skipped_reason:
             response["validation_skipped_reason"] = validation_skipped_reason
         return response
+
+    @registry.tool(
+        name="expand_task",
+        description="Expand a high-level task into smaller subtasks using AI.",
+    )
+    async def expand_task(
+        task_id: str | None = None,
+        task_ids: list[str] | None = None,
+        context: str | None = None,
+        enable_web_research: bool = False,
+        enable_code_context: bool = True,
+        generate_validation: bool | None = None,
+        session_id: str | None = None,
+        enrich_if_missing: bool = True,
+    ) -> dict[str, Any]:
+        """
+        Expand a task into subtasks using tool-based expansion.
+
+        The expansion agent calls create_task MCP tool directly to create subtasks,
+        wiring dependencies via the 'blocks' parameter.
+
+        Args:
+            task_id: ID of single task to expand (mutually exclusive with task_ids)
+            task_ids: List of task IDs for batch parallel expansion
+            context: Additional context for expansion
+            enable_web_research: Whether to enable web research (default: False)
+            enable_code_context: Whether to enable code context gathering (default: True)
+            generate_validation: Whether to auto-generate validation_criteria for subtasks.
+                Defaults to config setting (gobby_tasks.validation.auto_generate_on_expand).
+            session_id: Session ID to resolve TDD mode from workflow state.
+            enrich_if_missing: Auto-run enrichment if task has no expansion_context.
+                Defaults to True, ensuring expansion always has enrichment data.
+
+        Returns:
+            Dictionary with subtask_ids for single task, or results list for batch mode
+        """
+        import asyncio
+
+        # Use config default if not specified
+        should_generate_validation = (
+            generate_validation if generate_validation is not None else auto_generate_on_expand
+        )
+
+        # Validate parameters
+        if task_id and task_ids:
+            return {"error": "task_id and task_ids are mutually exclusive. Provide one or the other."}
+        if not task_id and not task_ids:
+            return {"error": "Either task_id or task_ids must be provided"}
+        if task_ids is not None and len(task_ids) == 0:
+            return {"error": "task_ids list cannot be empty"}
+
+        # Single task mode
+        if task_id:
+            return await _expand_single_task(
+                single_task_id=task_id,
+                context=context,
+                enable_web_research=enable_web_research,
+                enable_code_context=enable_code_context,
+                should_generate_validation=should_generate_validation,
+                session_id=session_id,
+                enrich_if_missing=enrich_if_missing,
+            )
+
+        # Batch mode - process tasks in parallel
+        async def expand_one(tid: str) -> dict[str, Any]:
+            return await _expand_single_task(
+                single_task_id=tid,
+                context=context,
+                enable_web_research=enable_web_research,
+                enable_code_context=enable_code_context,
+                should_generate_validation=should_generate_validation,
+                session_id=session_id,
+                enrich_if_missing=enrich_if_missing,
+            )
+
+        results = await asyncio.gather(*[expand_one(tid) for tid in task_ids])
+        return {"results": list(results)}
 
     @registry.tool(
         name="analyze_complexity",
