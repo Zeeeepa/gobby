@@ -21,6 +21,7 @@ __all__ = [
     "CompactHandoffConfig",
     "FileExtractionConfig",
     "PatternCriteriaConfig",
+    "TaskEnrichmentConfig",
     "TaskExpansionConfig",
     "TaskValidationConfig",
     "GobbyTasksConfig",
@@ -95,6 +96,39 @@ class PatternCriteriaConfig(BaseModel):
             "refactoring": ["refactor", "refactoring", "restructure", "reorganize"],
         },
         description="Pattern name to list of keywords that trigger pattern detection in task descriptions.",
+    )
+
+
+class TaskEnrichmentConfig(BaseModel):
+    """Configuration for task enrichment (adding context, categorization, validation criteria)."""
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable task enrichment",
+    )
+    provider: str = Field(
+        default="claude",
+        description="LLM provider to use for enrichment",
+    )
+    model: str = Field(
+        default="claude-haiku-4-5",
+        description="Model to use for enrichment (lightweight model for speed)",
+    )
+    enable_code_research: bool = Field(
+        default=True,
+        description="Enable codebase research during enrichment",
+    )
+    enable_web_research: bool = Field(
+        default=False,
+        description="Enable web research during enrichment",
+    )
+    enable_mcp_tools: bool = Field(
+        default=False,
+        description="Enable MCP tool calls during enrichment",
+    )
+    generate_validation: bool = Field(
+        default=True,
+        description="Generate validation criteria during enrichment",
     )
 
 
@@ -597,6 +631,10 @@ class GobbyTasksConfig(BaseModel):
     file_extraction: FileExtractionConfig = Field(
         default_factory=FileExtractionConfig,
         description="Configuration for extracting file paths from task descriptions",
+    )
+    enrichment: TaskEnrichmentConfig = Field(
+        default_factory=TaskEnrichmentConfig,
+        description="Task enrichment configuration",
     )
     expansion: TaskExpansionConfig = Field(
         default_factory=lambda: TaskExpansionConfig(),
