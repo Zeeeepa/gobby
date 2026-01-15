@@ -3196,3 +3196,168 @@ class TestIsExpandedFlag:
         # Response should include is_expanded=True
         assert "error" not in result
         assert result.get("is_expanded") is True, "Response should include is_expanded=True"
+
+
+# ============================================================================
+# Seq_num in Response Tests
+# ============================================================================
+
+
+class TestSeqNumsInResponse:
+    """Tests for returning seq_nums in expand_task response."""
+
+    @pytest.mark.asyncio
+    async def test_expand_task_returns_seq_num_for_subtasks(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that expand_task returns seq_num for each created subtask."""
+        parent_task = Task(
+            id="parent-1",
+            title="Implement feature",
+            description="A feature to implement",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            created_at="now",
+            updated_at="now",
+            seq_num=100,
+        )
+        subtask1 = Task(
+            id="sub-1",
+            title="Subtask 1",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+            seq_num=101,
+        )
+        subtask2 = Task(
+            id="sub-2",
+            title="Subtask 2",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+            seq_num=102,
+        )
+
+        def get_task_side_effect(tid):
+            return {"parent-1": parent_task, "sub-1": subtask1, "sub-2": subtask2}.get(tid)
+
+        mock_task_manager.get_task.side_effect = get_task_side_effect
+        mock_task_manager.list_tasks.return_value = []
+
+        mock_task_expander.expand_task.return_value = {
+            "subtask_ids": ["sub-1", "sub-2"],
+        }
+
+        result = await expansion_registry.call(
+            "expand_task", {"task_id": "parent-1"}
+        )
+
+        # Should succeed
+        assert "error" not in result
+        assert result["tasks_created"] == 2
+
+        # Each subtask should have seq_num
+        for subtask in result["subtasks"]:
+            assert "seq_num" in subtask, "Subtask should include seq_num"
+            assert isinstance(subtask["seq_num"], int), "seq_num should be an integer"
+
+        # Verify specific seq_nums
+        seq_nums = [s["seq_num"] for s in result["subtasks"]]
+        assert 101 in seq_nums
+        assert 102 in seq_nums
+
+    @pytest.mark.asyncio
+    async def test_expand_task_returns_ref_for_subtasks(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that expand_task returns ref (#N format) for each subtask."""
+        parent_task = Task(
+            id="parent-1",
+            title="Implement feature",
+            description="A feature to implement",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            created_at="now",
+            updated_at="now",
+            seq_num=100,
+        )
+        subtask1 = Task(
+            id="sub-1",
+            title="Subtask 1",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+            seq_num=101,
+        )
+
+        def get_task_side_effect(tid):
+            return {"parent-1": parent_task, "sub-1": subtask1}.get(tid)
+
+        mock_task_manager.get_task.side_effect = get_task_side_effect
+        mock_task_manager.list_tasks.return_value = []
+
+        mock_task_expander.expand_task.return_value = {
+            "subtask_ids": ["sub-1"],
+        }
+
+        result = await expansion_registry.call(
+            "expand_task", {"task_id": "parent-1"}
+        )
+
+        # Should succeed
+        assert "error" not in result
+
+        # Each subtask should have ref in #N format
+        for subtask in result["subtasks"]:
+            assert "ref" in subtask, "Subtask should include ref"
+            assert subtask["ref"].startswith("#"), "ref should start with #"
+
+        # Verify specific ref
+        assert result["subtasks"][0]["ref"] == "#101"
+
+    @pytest.mark.asyncio
+    async def test_expand_task_returns_parent_seq_num(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that expand_task returns parent_seq_num in response."""
+        parent_task = Task(
+            id="parent-1",
+            title="Implement feature",
+            description="A feature to implement",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            created_at="now",
+            updated_at="now",
+            seq_num=100,
+        )
+
+        mock_task_manager.get_task.return_value = parent_task
+        mock_task_manager.list_tasks.return_value = []
+
+        mock_task_expander.expand_task.return_value = {
+            "subtask_ids": ["sub-1"],
+        }
+
+        result = await expansion_registry.call(
+            "expand_task", {"task_id": "parent-1"}
+        )
+
+        # Response should include parent_seq_num
+        assert "error" not in result
+        assert result.get("parent_seq_num") == 100, "Response should include parent_seq_num"
+        assert result.get("parent_ref") == "#100", "Response should include parent_ref"
