@@ -79,6 +79,61 @@ def create_expansion_registry(
         project = project_manager.get(project_id)
         return project.repo_path if project else None
 
+    def _build_expansion_context(task: Any, user_context: str | None) -> str | None:
+        """
+        Build context for expansion by merging stored enrichment data with user context.
+
+        If the task has expansion_context (from prior enrich_task call), parse it and
+        include research findings, validation criteria, and complexity info.
+
+        Args:
+            task: The Task object with optional expansion_context
+            user_context: User-provided context string (may be None)
+
+        Returns:
+            Merged context string, or None if no context available
+        """
+        enrichment_parts: list[str] = []
+
+        # Parse stored expansion_context from prior enrichment
+        if task.expansion_context:
+            try:
+                enrichment_data = json.loads(task.expansion_context)
+
+                # Include research findings
+                if research := enrichment_data.get("research_findings"):
+                    enrichment_parts.append(f"## Research Findings\n{research}")
+
+                # Include validation criteria
+                if validation := enrichment_data.get("validation_criteria"):
+                    enrichment_parts.append(f"## Validation Criteria\n{validation}")
+
+                # Include complexity info
+                complexity_score = enrichment_data.get("complexity_score")
+                subtask_count = enrichment_data.get("suggested_subtask_count")
+                if complexity_score or subtask_count:
+                    complexity_info = []
+                    if complexity_score:
+                        complexity_info.append(f"Complexity score: {complexity_score}")
+                    if subtask_count:
+                        complexity_info.append(f"Suggested subtask count: {subtask_count}")
+                    enrichment_parts.append(
+                        "## Complexity Analysis\n" + "\n".join(complexity_info)
+                    )
+
+            except (json.JSONDecodeError, TypeError):
+                # Invalid JSON - skip enrichment context, continue with user context
+                pass
+
+        # Add user-provided context
+        if user_context:
+            enrichment_parts.append(f"## Additional Context\n{user_context}")
+
+        # Return merged context or None
+        if enrichment_parts:
+            return "\n\n".join(enrichment_parts)
+        return None
+
     @registry.tool(
         name="expand_task",
         description="Expand a high-level task into smaller subtasks using AI.",
@@ -129,11 +184,14 @@ def create_expansion_registry(
         # Resolve TDD mode from workflow state if resolver provided
         tdd_mode = resolve_tdd_mode(session_id) if resolve_tdd_mode else None
 
+        # Build context from expansion_context (enrichment data) + user context
+        merged_context = _build_expansion_context(task, context)
+
         result = await task_expander.expand_task(
             task_id=task.id,
             title=task.title,
             description=task.description,
-            context=context,
+            context=merged_context,
             enable_web_research=enable_web_research,
             enable_code_context=enable_code_context,
             tdd_mode=tdd_mode,

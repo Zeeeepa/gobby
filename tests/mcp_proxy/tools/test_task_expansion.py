@@ -223,10 +223,11 @@ class TestExpandTaskTool:
             {"task_id": "t1", "context": "This is a Python project using FastAPI"},
         )
 
-        # Verify context was passed to expander
+        # Verify context was passed to expander (may be wrapped in structure)
         mock_task_expander.expand_task.assert_called_once()
         call_kwargs = mock_task_expander.expand_task.call_args.kwargs
-        assert call_kwargs.get("context") == "This is a Python project using FastAPI"
+        context = call_kwargs.get("context") or ""
+        assert "This is a Python project using FastAPI" in context
 
     @pytest.mark.asyncio
     async def test_expand_task_handles_error(
