@@ -29,7 +29,14 @@ def test_expand_command_with_flags(mock_task_manager, mock_expander):
         patch("gobby.cli.tasks.ai.get_task_manager", return_value=mock_task_manager),
         patch(
             "gobby.cli.tasks.ai.resolve_task_id",
-            return_value=MagicMock(id="t1", project_id="p1", title="Task 1", description=None),
+            return_value=MagicMock(
+                id="t1",
+                project_id="p1",
+                title="Task 1",
+                description=None,
+                seq_num=1,
+                is_expanded=False,
+            ),
         ),
         patch("gobby.config.app.load_config") as mock_config,
         patch("gobby.llm.LLMService"),

@@ -504,14 +504,18 @@ def enrich_cmd(
                     update_kwargs["validation_criteria"] = result.validation_criteria
 
                 manager.update_task(task.id, **update_kwargs)
-                click.echo(f"  ✓ Enriched (category={result.category}, complexity={result.complexity_score})")
+                click.echo(
+                    f"  ✓ Enriched (category={result.category}, complexity={result.complexity_score})"
+                )
                 enriched_count += 1
 
             except Exception as e:
                 click.echo(f"  ✗ Error: {e}", err=True)
                 error_count += 1
 
-        click.echo(f"\nDone: {enriched_count} enriched, {skipped_count} skipped, {error_count} errors")
+        click.echo(
+            f"\nDone: {enriched_count} enriched, {skipped_count} skipped, {error_count} errors"
+        )
 
     try:
         asyncio.run(enrich_tasks())
@@ -706,22 +710,6 @@ def expand_task_cmd(
         click.echo("No valid tasks to expand.", err=True)
         return
 
-    # For single task, use original behavior
-    # For multiple tasks, show summary
-    if len(tasks_to_expand) == 1:
-        resolved = tasks_to_expand[0]
-        click.echo(f"Expanding task {resolved.id}...")
-        if web_research:
-            click.echo("  • Web research enabled")
-        if code_context:
-            click.echo("  • Code context enabled")
-    else:
-        click.echo(f"Expanding {len(tasks_to_expand)} tasks...")
-
-    # Note: For backward compatibility, we use the first task as 'resolved'
-    # Multi-task expansion is handled separately below
-    resolved = tasks_to_expand[0]
-
     # Initialize services
     try:
         config = load_config()
@@ -738,111 +726,136 @@ def expand_task_cmd(
         click.echo(f"Error initializing services: {e}", err=True)
         return
 
-    # Run expansion
-    try:
-        result = asyncio.run(
-            expander.expand_task(
-                task_id=resolved.id,
-                title=resolved.title,
-                description=resolved.description,
-                context=context,
-                enable_web_research=web_research,
-                enable_code_context=code_context,
-            )
-        )
-    except Exception as e:
-        click.echo(f"Error during expansion: {e}", err=True)
-        return
-
-    if not result:
-        click.echo("Expansion returned no results.")
-        return
-
-    if "error" in result:
-        click.echo(f"Error: {result['error']}", err=True)
-        return
-
-    # Process results (Create subtasks)
-    @dataclass
-    class PendingWeb:
-        task_id: str
-        depends_on_indices: list[int]
-        original_index: int
-
-    pending_wiring: list[PendingWeb] = []
-    created_subtasks: list[Task] = []
-    global_index = 0
-
-    # Capture parent details safely for closure logic
-    parent_id = resolved.id
-    parent_project_id = resolved.project_id
-
-    def process_subtask_data(data: dict[str, Any]) -> Task:
-        nonlocal global_index
-        desc = data.get("description", "")
-        if "category" in data:
-            desc += f"\n\nTest Strategy: {data['category']}"
-
-        subtask = manager.create_task(
-            title=data["title"],
-            description=desc,
-            parent_task_id=parent_id,
-            project_id=parent_project_id,
-        )
-        indices = data.get("depends_on_indices", [])
-        pending_wiring.append(
-            PendingWeb(task_id=subtask.id, depends_on_indices=indices, original_index=global_index)
-        )
-        global_index += 1
-        return subtask
-
-    click.echo("\nProposed Plan:")
-    # Print analysis if available
-    if "complexity_analysis" in result:
-        analysis = result["complexity_analysis"]
-        click.echo(f"Complexity Score: {analysis.get('score', '?')}/10")
-        click.echo(f"Reasoning: {analysis.get('reasoning', '')}\n")
-
-    phases = result.get("phases", [])
-    if not phases and isinstance(result, list):
-        # Legacy list support
-        phases = [{"name": "Plan", "subtasks": result}]
-
-    for phase in phases:
-        click.echo(f"Phase: {phase.get('name', 'Unnamed')}")
-        for sub_data in phase.get("subtasks", []):
-            subtask = process_subtask_data(sub_data)
-            created_subtasks.append(subtask)
-            click.echo(f"  + Created {subtask.id}: {subtask.title}")
-
-    # Wire dependencies
     dep_manager = TaskDependencyManager(manager.db)
-    index_to_id = {p.original_index: p.task_id for p in pending_wiring}
 
-    wired_count = 0
-    for pending in pending_wiring:
-        # Subtask -> Subtask
-        for dep_idx in pending.depends_on_indices:
-            if dep_idx in index_to_id and index_to_id[dep_idx] != pending.task_id:
-                try:
-                    dep_manager.add_dependency(
-                        task_id=pending.task_id,
-                        depends_on=index_to_id[dep_idx],
-                        dep_type="blocks",
-                    )
-                    wired_count += 1
-                except ValueError:
-                    pass
+    # Process each task
+    total_created = 0
+    total_wired = 0
 
-        # Parent -> Subtask (Parent blocked by subtask)
+    for resolved in tasks_to_expand:
+        # Check if already expanded (unless force)
+        if resolved.is_expanded and not force:
+            click.echo(f"Skipping #{resolved.seq_num}: already expanded (use --force)")
+            continue
+
+        task_ref = f"#{resolved.seq_num}" if resolved.seq_num else resolved.id[:8]
+        click.echo(f"\nExpanding {task_ref}: {resolved.title[:50]}...")
+        if web_research:
+            click.echo("  • Web research enabled")
+        if code_context:
+            click.echo("  • Code context enabled")
+
+        # Run expansion
         try:
-            dep_manager.add_dependency(
-                task_id=resolved.id, depends_on=pending.task_id, dep_type="blocks"
+            result = asyncio.run(
+                expander.expand_task(
+                    task_id=resolved.id,
+                    title=resolved.title,
+                    description=resolved.description,
+                    context=context,
+                    enable_web_research=web_research,
+                    enable_code_context=code_context,
+                )
             )
-        except ValueError:
-            pass
+        except Exception as e:
+            click.echo(f"  Error during expansion: {e}", err=True)
+            continue
 
-    click.echo(f"\nCreated {len(created_subtasks)} subtasks with {wired_count} dependencies.")
+        if not result:
+            click.echo("  Expansion returned no results.")
+            continue
+
+        if "error" in result:
+            click.echo(f"  Error: {result['error']}", err=True)
+            continue
+
+        # Process results (Create subtasks)
+        @dataclass
+        class PendingDep:
+            task_id: str
+            depends_on_indices: list[int]
+            original_index: int
+
+        pending_wiring: list[PendingDep] = []
+        created_subtasks: list[Task] = []
+        global_index = 0
+
+        # Process subtasks for this task
+        def create_subtask(
+            data: dict[str, Any],
+            idx: int,
+            parent_id: str = resolved.id,
+            parent_project_id: str = resolved.project_id,
+        ) -> tuple[Task, int]:
+            """Create a subtask from expansion data."""
+            desc = data.get("description", "")
+            if "category" in data:
+                desc += f"\n\nCategory: {data['category']}"
+
+            subtask = manager.create_task(
+                title=data["title"],
+                description=desc,
+                parent_task_id=parent_id,
+                project_id=parent_project_id,
+            )
+            return subtask, idx
+
+        # Print analysis if available
+        if "complexity_analysis" in result:
+            analysis = result["complexity_analysis"]
+            click.echo(f"  Complexity Score: {analysis.get('score', '?')}/10")
+            click.echo(f"  Reasoning: {analysis.get('reasoning', '')}")
+
+        phases = result.get("phases", [])
+        if not phases and isinstance(result, list):
+            # Legacy list support
+            phases = [{"name": "Plan", "subtasks": result}]
+
+        for phase in phases:
+            click.echo(f"  Phase: {phase.get('name', 'Unnamed')}")
+            for sub_data in phase.get("subtasks", []):
+                subtask, idx = create_subtask(sub_data, global_index)
+                created_subtasks.append(subtask)
+                indices = sub_data.get("depends_on_indices", [])
+                pending_wiring.append(
+                    PendingDep(task_id=subtask.id, depends_on_indices=indices, original_index=idx)
+                )
+                global_index += 1
+                sub_ref = f"#{subtask.seq_num}" if subtask.seq_num else subtask.id[:8]
+                click.echo(f"    + Created {sub_ref}: {subtask.title[:50]}")
+
+        # Wire dependencies
+        index_to_id = {p.original_index: p.task_id for p in pending_wiring}
+
+        wired_count = 0
+        for pending in pending_wiring:
+            # Subtask -> Subtask
+            for dep_idx in pending.depends_on_indices:
+                if dep_idx in index_to_id and index_to_id[dep_idx] != pending.task_id:
+                    try:
+                        dep_manager.add_dependency(
+                            task_id=pending.task_id,
+                            depends_on=index_to_id[dep_idx],
+                            dep_type="blocks",
+                        )
+                        wired_count += 1
+                    except ValueError:
+                        pass
+
+            # Parent -> Subtask (Parent blocked by subtask)
+            try:
+                dep_manager.add_dependency(
+                    task_id=resolved.id, depends_on=pending.task_id, dep_type="blocks"
+                )
+            except ValueError:
+                pass
+
+        click.echo(f"  Created {len(created_subtasks)} subtasks with {wired_count} dependencies")
+        total_created += len(created_subtasks)
+        total_wired += wired_count
+
+    if len(tasks_to_expand) > 1:
+        click.echo(f"\nTotal: {total_created} subtasks with {total_wired} dependencies")
 
 
 @click.command("complexity")
@@ -1255,7 +1268,9 @@ def parse_spec_cmd(
         if ctx and ctx.get("name") == project_name:
             project_id = ctx.get("id")
         else:
-            click.echo(f"Warning: Project '{project_name}' not found, using current project", err=True)
+            click.echo(
+                f"Warning: Project '{project_name}' not found, using current project", err=True
+            )
 
     if not project_id:
         ctx = get_project_context()
