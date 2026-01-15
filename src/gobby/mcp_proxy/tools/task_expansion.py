@@ -657,6 +657,9 @@ def create_expansion_registry(
             "subtasks": subtasks,  # Brief: [{id, title}, ...]
         }
 
+    # Default size limit for task descriptions (prevents wasted LLM calls)
+    DEFAULT_MAX_DESCRIPTION_SIZE = 10000
+
     @registry.tool(
         name="enrich_task",
         description="Enrich task(s) with additional context, research findings, and metadata.",
@@ -670,6 +673,7 @@ def create_expansion_registry(
         generate_validation: bool = True,
         force: bool = False,
         session_id: str | None = None,
+        max_description_size: int | None = None,
     ) -> dict[str, Any]:
         """
         Enrich task(s) with additional context and metadata.
@@ -687,10 +691,30 @@ def create_expansion_registry(
             generate_validation: Generate validation criteria (default: True)
             force: Re-enrich even if task is already enriched (default: False)
             session_id: Optional session ID for context
+            max_description_size: Maximum description size in characters (default: 10000).
+                Descriptions exceeding this limit will be rejected to prevent wasted LLM calls.
 
         Returns:
             Enrichment result(s) with category, complexity, and findings
         """
+        # Use default limit if not specified
+        size_limit = max_description_size if max_description_size is not None else DEFAULT_MAX_DESCRIPTION_SIZE
+
+        def validate_description_size(desc: str | None, tid: str, title: str) -> dict[str, Any] | None:
+            """Check if description exceeds size limit. Returns error dict if invalid, None if OK."""
+            if desc is None:
+                return None
+            if len(desc) > size_limit:
+                return {
+                    "error": f"Description exceeds maximum size ({len(desc)} > {size_limit} characters). "
+                    "Consider splitting the task or summarizing the description.",
+                    "task_id": tid,
+                    "title": title,
+                    "description_size": len(desc),
+                    "max_size": size_limit,
+                    "suggestion": "Use the CLI to edit the task description, or split into smaller tasks.",
+                }
+            return None
         if not task_enricher:
             raise RuntimeError("Task enrichment is not enabled or not configured")
 
@@ -723,6 +747,11 @@ def create_expansion_registry(
                     "already_enriched": True,
                     "message": "Task is already enriched. Use force=True to re-enrich.",
                 }
+
+            # Validate description size BEFORE calling enricher
+            size_error = validate_description_size(task.description, task.id, task.title)
+            if size_error:
+                return size_error
 
             try:
                 result = await task_enricher.enrich(
@@ -786,6 +815,12 @@ def create_expansion_registry(
                     "skipped": True,
                     "already_enriched": True,
                 })
+                continue
+
+            # Validate description size BEFORE calling enricher
+            size_error = validate_description_size(task.description, task.id, task.title)
+            if size_error:
+                results.append(size_error)
                 continue
 
             try:
