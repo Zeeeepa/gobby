@@ -12,6 +12,7 @@ Provides tools for expanding tasks into subtasks using AI or structured parsing:
 Extracted from tasks.py using Strangler Fig pattern for code decomposition.
 """
 
+import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -734,8 +735,14 @@ def create_expansion_registry(
                     generate_validation=generate_validation,
                 )
 
+                # Store full enrichment result in expansion_context as JSON
+                expansion_context = json.dumps(result.to_dict())
+
                 # Update task with enrichment results
-                update_kwargs: dict[str, Any] = {"is_enriched": True}
+                update_kwargs: dict[str, Any] = {
+                    "is_enriched": True,
+                    "expansion_context": expansion_context,
+                }
                 if result.category:
                     update_kwargs["category"] = result.category
                 if result.complexity_score:
@@ -792,8 +799,14 @@ def create_expansion_registry(
                     generate_validation=generate_validation,
                 )
 
+                # Store full enrichment result in expansion_context as JSON
+                expansion_context = json.dumps(result.to_dict())
+
                 # Update task with enrichment results
-                update_kwargs = {"is_enriched": True}
+                update_kwargs: dict[str, Any] = {
+                    "is_enriched": True,
+                    "expansion_context": expansion_context,
+                }
                 if result.category:
                     update_kwargs["category"] = result.category
                 if result.complexity_score:
