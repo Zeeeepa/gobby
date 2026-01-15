@@ -24,6 +24,7 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
 
     Workflows are cross-CLI and go to {project_path}/.gobby/workflows/.
     Plugins are global and go to ~/.gobby/plugins/.
+    Docs are project-local and go to {project_path}/.gobby/docs/.
 
     Args:
         cli_path: Path to CLI config directory (e.g., .claude, .gemini)
@@ -33,7 +34,7 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
         Dict with lists of installed items by type
     """
     shared_dir = get_install_dir() / "shared"
-    installed: dict[str, list[str]] = {"workflows": [], "plugins": []}
+    installed: dict[str, list[str]] = {"workflows": [], "plugins": [], "docs": []}
 
     # Install shared workflows to .gobby/workflows/ (cross-CLI)
     shared_workflows = shared_dir / "workflows"
@@ -54,6 +55,16 @@ def install_shared_content(cli_path: Path, project_path: Path) -> dict[str, list
             if plugin_file.is_file() and plugin_file.suffix == ".py":
                 copy2(plugin_file, target_plugins / plugin_file.name)
                 installed["plugins"].append(plugin_file.name)
+
+    # Install shared docs to .gobby/docs/ (project-local)
+    shared_docs = shared_dir / "docs"
+    if shared_docs.exists():
+        target_docs = project_path / ".gobby" / "docs"
+        target_docs.mkdir(parents=True, exist_ok=True)
+        for doc_file in shared_docs.iterdir():
+            if doc_file.is_file():
+                copy2(doc_file, target_docs / doc_file.name)
+                installed["docs"].append(doc_file.name)
 
     return installed
 

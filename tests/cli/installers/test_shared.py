@@ -38,7 +38,7 @@ class TestInstallSharedContent:
             # Don't create shared dir
             result = install_shared_content(cli_path, project_path)
 
-        assert result == {"workflows": [], "plugins": []}
+        assert result == {"workflows": [], "plugins": [], "docs": []}
 
     def test_install_shared_workflows(self, temp_dir: Path):
         """Test installing shared workflows to .gobby/workflows/."""
