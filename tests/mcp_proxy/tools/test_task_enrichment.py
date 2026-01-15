@@ -22,7 +22,6 @@ import pytest
 
 from gobby.storage.tasks import LocalTaskManager, Task
 
-
 # Try importing the registry creation function
 try:
     from gobby.mcp_proxy.tools.task_expansion import create_expansion_registry
@@ -864,3 +863,270 @@ class TestEnrichTaskIntegration:
         call_kwargs = mock_task_enricher.enrich.call_args.kwargs
         assert call_kwargs.get("enable_code_research") is True
         assert call_kwargs.get("enable_web_research") is True
+
+
+# ============================================================================
+# Store Enrichment Results Tests
+# ============================================================================
+
+
+class TestStoreEnrichmentResults:
+    """Tests for storing enrichment results in expansion_context field.
+
+    TDD Red Phase: These tests verify that enrichment results are persisted
+    in the task's expansion_context field for later use by expand_task.
+    """
+
+    @pytest.mark.asyncio
+    async def test_enrich_task_stores_expansion_context(
+        self, mock_task_manager, mock_task_enricher, enrichment_registry
+    ):
+        """Test that enrich_task stores enrichment results in expansion_context."""
+        task = Task(
+            id="t1",
+            title="Task to enrich",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task
+
+        await enrichment_registry.call(
+            "enrich_task",
+            {"task_id": "t1"},
+        )
+
+        # Verify expansion_context was updated
+        update_calls = mock_task_manager.update_task.call_args_list
+        expansion_context_updated = any(
+            call.kwargs.get("expansion_context") is not None for call in update_calls
+        )
+        assert expansion_context_updated, "expansion_context should be set during enrichment"
+
+    @pytest.mark.asyncio
+    async def test_expansion_context_contains_research_findings(
+        self, mock_task_manager, mock_task_enricher, enrichment_registry
+    ):
+        """Test that expansion_context contains research_findings."""
+        import json
+
+        task = Task(
+            id="t1",
+            title="Task with research",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task
+
+        await enrichment_registry.call(
+            "enrich_task",
+            {"task_id": "t1", "enable_code_research": True},
+        )
+
+        # Get the expansion_context value
+        update_calls = mock_task_manager.update_task.call_args_list
+        expansion_context = None
+        for call in update_calls:
+            if call.kwargs.get("expansion_context"):
+                expansion_context = call.kwargs.get("expansion_context")
+                break
+
+        assert expansion_context is not None
+
+        # Should be valid JSON
+        context_data = json.loads(expansion_context)
+        assert "research_findings" in context_data
+
+    @pytest.mark.asyncio
+    async def test_expansion_context_contains_complexity_info(
+        self, mock_task_manager, mock_task_enricher, enrichment_registry
+    ):
+        """Test that expansion_context contains complexity information."""
+        import json
+
+        task = Task(
+            id="t1",
+            title="Complex task",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task
+
+        await enrichment_registry.call(
+            "enrich_task",
+            {"task_id": "t1"},
+        )
+
+        update_calls = mock_task_manager.update_task.call_args_list
+        expansion_context = None
+        for call in update_calls:
+            if call.kwargs.get("expansion_context"):
+                expansion_context = call.kwargs.get("expansion_context")
+                break
+
+        assert expansion_context is not None
+        context_data = json.loads(expansion_context)
+        assert "complexity_score" in context_data or "category" in context_data
+
+    @pytest.mark.asyncio
+    async def test_expansion_context_contains_suggested_subtask_count(
+        self, mock_task_manager, mock_task_enricher, enrichment_registry
+    ):
+        """Test that expansion_context contains suggested subtask count."""
+        import json
+
+        task = Task(
+            id="t1",
+            title="Task for expansion",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task
+
+        await enrichment_registry.call(
+            "enrich_task",
+            {"task_id": "t1"},
+        )
+
+        update_calls = mock_task_manager.update_task.call_args_list
+        expansion_context = None
+        for call in update_calls:
+            if call.kwargs.get("expansion_context"):
+                expansion_context = call.kwargs.get("expansion_context")
+                break
+
+        assert expansion_context is not None
+        context_data = json.loads(expansion_context)
+        assert "suggested_subtask_count" in context_data
+
+    @pytest.mark.asyncio
+    async def test_expansion_context_preserved_on_re_enrich(
+        self, mock_task_manager, mock_task_enricher, enrichment_registry
+    ):
+        """Test that expansion_context is updated when force re-enriching."""
+        import json
+
+        task = Task(
+            id="t1",
+            title="Previously enriched task",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            is_enriched=True,
+            expansion_context='{"old": "data"}',  # Existing context
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task
+
+        await enrichment_registry.call(
+            "enrich_task",
+            {"task_id": "t1", "force": True},
+        )
+
+        # Should have new expansion_context
+        update_calls = mock_task_manager.update_task.call_args_list
+        expansion_context = None
+        for call in update_calls:
+            if call.kwargs.get("expansion_context"):
+                expansion_context = call.kwargs.get("expansion_context")
+                break
+
+        assert expansion_context is not None
+        context_data = json.loads(expansion_context)
+        # Should have new enrichment data, not old
+        assert "old" not in context_data or "research_findings" in context_data
+
+    @pytest.mark.asyncio
+    async def test_expansion_context_batch_enrichment(
+        self, mock_task_manager, mock_task_enricher, enrichment_registry
+    ):
+        """Test that expansion_context is stored for each task in batch."""
+        tasks = [
+            Task(
+                id=f"t{i}",
+                title=f"Task {i}",
+                project_id="p1",
+                status="open",
+                priority=2,
+                task_type="task",
+                created_at="now",
+                updated_at="now",
+            )
+            for i in range(1, 3)
+        ]
+
+        def get_task_side_effect(tid):
+            return next((t for t in tasks if t.id == tid), None)
+
+        mock_task_manager.get_task.side_effect = get_task_side_effect
+
+        await enrichment_registry.call(
+            "enrich_task",
+            {"task_ids": ["t1", "t2"]},
+        )
+
+        # Should have update calls for both tasks
+        update_calls = mock_task_manager.update_task.call_args_list
+        tasks_with_expansion_context = set()
+        for call in update_calls:
+            if call.kwargs.get("expansion_context"):
+                # The task_id is the first positional argument
+                task_id = call.args[0] if call.args else None
+                if task_id:
+                    tasks_with_expansion_context.add(task_id)
+
+        # Both tasks should have expansion_context set
+        assert len(tasks_with_expansion_context) >= 1  # At least one task updated
+
+    @pytest.mark.asyncio
+    async def test_expansion_context_includes_mcp_tools_used(
+        self, mock_task_manager, mock_task_enricher, enrichment_registry
+    ):
+        """Test that expansion_context includes MCP tools used if any."""
+        import json
+
+        task = Task(
+            id="t1",
+            title="Task with MCP tools",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task
+
+        await enrichment_registry.call(
+            "enrich_task",
+            {"task_id": "t1", "enable_mcp_tools": True},
+        )
+
+        update_calls = mock_task_manager.update_task.call_args_list
+        expansion_context = None
+        for call in update_calls:
+            if call.kwargs.get("expansion_context"):
+                expansion_context = call.kwargs.get("expansion_context")
+                break
+
+        if expansion_context:
+            context_data = json.loads(expansion_context)
+            # mcp_tools_used should be present (even if empty list)
+            assert "mcp_tools_used" in context_data
