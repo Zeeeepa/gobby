@@ -257,7 +257,8 @@ call_tool(server_name="gobby-tasks", tool_name="close_task", arguments={
 
 3. **Complex tasks** (multi-step work):
    - `expand_task(task_id)` - LLM-based decomposition into subtasks with TDD pairs
-   - `expand_from_spec(spec_path)` - Parse spec document into task tree
+   - `enrich_task(task_id)` - Add validation criteria and test strategy to a task
+   - `apply_tdd(task_id)` - Transform task into TEST/IMPL pairs
    - Expansion creates subtasks with proper dependencies and test strategies
 
 4. **Track progress**:
@@ -292,14 +293,27 @@ call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
 
 ### Spec Document Parsing
 
-When creating tasks from a spec/PRD/design doc:
+When creating tasks from a spec/PRD/design doc, use the phased workflow:
+
+```bash
+# 1. Parse spec into tasks (fast, extracts checkboxes)
+gobby tasks parse-spec docs/plans/feature.md
+
+# 2. Enrich with context (adds validation criteria, test strategy)
+gobby tasks enrich #N --cascade
+
+# 3. Expand complex tasks into subtasks
+gobby tasks expand #N
+
+# 4. Apply TDD pairs to implementation tasks
+gobby tasks apply-tdd #N --cascade
+```
+
+Or via MCP tool:
 
 ```python
-# DON'T manually iterate through the spec - this is inefficient
-# DO use expand_from_spec() - it ensures proper TDD pairs and dependencies
-call_tool(server_name="gobby-tasks", tool_name="expand_from_spec", arguments={
-    "task_id": "parent-task-id",
-    "spec_path": "docs/feature-spec.md"
+call_tool(server_name="gobby-tasks", tool_name="parse_spec", arguments={
+    "spec_path": "docs/plans/feature.md"
 })
 ```
 
@@ -525,12 +539,6 @@ call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
     "value": "task-id"  # Or "*" for all ready tasks
 })
 
-# Disable auto-decomposition
-call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
-    "name": "auto_decompose",
-    "value": False
-})
-
 # Change TDD mode for session
 call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
     "name": "tdd_mode",
@@ -541,7 +549,6 @@ call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
 **Key variables**:
 
 - `session_task` - Task that must complete before stopping
-- `auto_decompose` - Auto-expand multi-step tasks (default: `true`)
 - `tdd_mode` - Generate test/implement pairs (default: `true`)
 - `require_task_before_edit` - Block Edit/Write without active task (default: `false`)
 
