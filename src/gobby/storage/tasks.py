@@ -1671,7 +1671,6 @@ class LocalTaskManager:
         project_id: str,
         title: str,
         description: str | None = None,
-        auto_decompose: bool | None = None,
         parent_task_id: str | None = None,
         created_in_session_id: str | None = None,
         priority: int = 2,
@@ -1687,18 +1686,13 @@ class LocalTaskManager:
         workflow_name: str | None = None,
         verification: str | None = None,
         sequence_order: int | None = None,
-        workflow_state: "WorkflowState | None" = None,
     ) -> dict[str, Any]:
-        """Create a task with optional auto-decomposition of multi-step descriptions.
-
-        NOTE: Auto-decomposition is currently disabled (Phase 1).
-        All tasks are created as single tasks regardless of description content.
+        """Create a task and return result dict.
 
         Args:
             project_id: Project ID
             title: Task title
             description: Task description
-            auto_decompose: Ignored.
             parent_task_id: Optional parent task ID
             created_in_session_id: Session ID where task was created
             priority: Task priority
@@ -1714,18 +1708,10 @@ class LocalTaskManager:
             workflow_name: Workflow name
             verification: Verification steps
             sequence_order: Sequence order in parent
-            workflow_state: Optional workflow state
 
         Returns:
-            Dict with auto_decomposed=False and task details.
+            Dict with task details.
         """
-        if auto_decompose is not None:
-            logger.warning("auto_decompose parameter is deprecated and will be removed in Phase 2.")
-        if workflow_state and workflow_state.variables.get("auto_decompose") is not None:
-            logger.warning(
-                "auto_decompose workflow variable is deprecated and will be removed in Phase 2."
-            )
-
         task = self.create_task(
             project_id=project_id,
             title=title,
@@ -1746,30 +1732,21 @@ class LocalTaskManager:
             verification=verification,
             sequence_order=sequence_order,
         )
-        return {"auto_decomposed": False, "task": task.to_dict()}
+        return {"task": task.to_dict()}
 
-    def update_task_with_step_detection(
+    def update_task_with_result(
         self,
         task_id: str,
         description: str | None = None,
-        auto_decompose: bool | None = None,
-        workflow_state: "WorkflowState | None" = None,
     ) -> dict[str, Any]:
-        """Update a task's description. Multi-step detection is currently disabled (Phase 1).
+        """Update a task's description and return result dict.
 
         Args:
             task_id: Task ID
             description: New description
-            auto_decompose: Ignored.
-            workflow_state: Optional workflow state
 
         Returns:
-            Dict with steps_detected=False and task details.
+            Dict with task details.
         """
         updated = self.update_task(task_id, description=description)
-        return {
-            "steps_detected": False,
-            "step_count": 0,
-            "auto_decomposed": False,
-            "task": updated.to_dict(),
-        }
+        return {"task": updated.to_dict()}

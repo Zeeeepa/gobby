@@ -319,7 +319,7 @@ def create_task_registry(
         if effective_category is None:
             effective_category = _infer_category(title, description)
 
-        # Standard path: Use regex-based decomposition or no decomposition
+        # Create task
         create_result = task_manager.create_task_with_decomposition(
             project_id=project_id,
             title=title,
@@ -333,16 +333,7 @@ def create_task_registry(
             created_in_session_id=session_id,
         )
 
-        # Handle auto-decomposed vs single task results
-        auto_decomposed = create_result.get("auto_decomposed", False)
-        if auto_decomposed:
-            # Multi-step task was decomposed into parent + subtasks
-            task = task_manager.get_task(create_result["parent_task"]["id"])
-            subtasks = create_result.get("subtasks", [])
-        else:
-            # Single task created
-            task = task_manager.get_task(create_result["task"]["id"])
-            subtasks = []
+        task = task_manager.get_task(create_result["task"]["id"])
 
         # Handle 'blocks' argument if provided (syntactic sugar)
         if blocks:
@@ -358,11 +349,6 @@ def create_task_registry(
                 "seq_num": task.seq_num,
                 "ref": f"#{task.seq_num}",
             }
-
-        # Handle auto-decomposed result
-        if create_result.get("auto_decomposed"):
-            result["auto_decomposed"] = True
-            result["subtask_count"] = len(subtasks)
 
         return result
 
