@@ -3493,6 +3493,53 @@ class TestApplyTddTool:
         )
         assert is_tdd_applied_set, "is_tdd_applied=True should be set after transformation"
 
+    @pytest.mark.asyncio
+    async def test_apply_tdd_sets_validation_criteria(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that apply_tdd sets validation_criteria on parent task."""
+        parent_task = Task(
+            id="parent-1",
+            title="Add user authentication",
+            description="Implement login functionality",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+            is_tdd_applied=False,
+        )
+        mock_task_manager.get_task.return_value = parent_task
+        mock_task_manager.create_task.side_effect = [
+            Task(id="test-1", title="Write tests for: Add user authentication",
+                 project_id="p1", status="open", priority=2, task_type="task",
+                 created_at="now", updated_at="now", seq_num=101),
+            Task(id="impl-1", title="Implement: Add user authentication",
+                 project_id="p1", status="open", priority=2, task_type="task",
+                 created_at="now", updated_at="now", seq_num=102),
+            Task(id="refactor-1", title="Refactor: Add user authentication",
+                 project_id="p1", status="open", priority=2, task_type="task",
+                 created_at="now", updated_at="now", seq_num=103),
+        ]
+
+        result = await expansion_registry.call(
+            "apply_tdd", {"task_id": "parent-1"}
+        )
+
+        # Should succeed
+        assert "error" not in result
+
+        # Verify validation_criteria was set via update_task
+        update_calls = mock_task_manager.update_task.call_args_list
+        validation_criteria_set = any(
+            "child tasks" in str(call.kwargs.get("validation_criteria", "")).lower()
+            for call in update_calls
+        )
+        assert validation_criteria_set, (
+            "validation_criteria should be set to child completion message after transformation"
+        )
+
 
 # ============================================================================
 # TDD Triplet Dependencies Tests
