@@ -1131,11 +1131,12 @@ def create_expansion_registry(
                 "task_id": task.id,
             }
 
-        # Skip if title already has TDD prefix
-        if task.title.startswith(TDD_PREFIXES):
+        # Skip if title matches TDD skip patterns (case-insensitive)
+        # Includes: TDD prefixes, deletion tasks, documentation/config updates
+        if should_skip_tdd(task.title):
             return {
                 "skipped": True,
-                "reason": "Task title already has TDD prefix",
+                "reason": "Task title matches TDD skip pattern",
                 "task_id": task.id,
             }
 

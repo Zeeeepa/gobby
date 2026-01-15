@@ -90,8 +90,7 @@ class TestApplyTddCommand:
 
             result = runner.invoke(tasks, ["apply-tdd", "#42", "--cascade"])
 
-            # The --cascade option should be recognized
-            assert result.exit_code == 0 or "--cascade" not in result.output
+            assert result.exit_code == 0, f"--cascade flag should be recognized: {result.output}"
 
     def test_apply_tdd_with_force(self, runner: CliRunner, mock_task):
         """Test reapplying TDD with force flag."""
@@ -105,8 +104,13 @@ class TestApplyTddCommand:
 
             result = runner.invoke(tasks, ["apply-tdd", "#42", "--force"])
 
-            # The --force option should be recognized
-            assert result.exit_code == 0 or "--force" not in result.output
+            assert result.exit_code == 0, f"Command failed: {result.output}"
+            # Verify the command executed (either created TDD tasks or reported skip)
+            assert (
+                "created" in result.output.lower()
+                or "skipped" in result.output.lower()
+                or "applied" in result.output.lower()
+            ), f"--force flag should produce output: {result.output}"
 
 
 class TestApplyTddErrors:

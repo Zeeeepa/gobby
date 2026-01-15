@@ -249,9 +249,9 @@ def test_validation_history_foreign_key(tmp_path):
     sql_lower = row["sql"].lower()
 
     # Check for foreign key reference to tasks
-    assert (
-        "references tasks" in sql_lower or "foreign key" in sql_lower
-    ), "task_validation_history missing foreign key to tasks"
+    assert "references tasks" in sql_lower or "foreign key" in sql_lower, (
+        "task_validation_history missing foreign key to tasks"
+    )
 
 
 def test_validation_history_index_exists(tmp_path):
@@ -1166,25 +1166,25 @@ def test_full_migration_sequence_end_to_end(tmp_path):
     child1_row = db.fetchone(
         "SELECT parent_task_id FROM tasks WHERE id = ?", (uuid_map["First Child"],)
     )
-    assert (
-        child1_row["parent_task_id"] == uuid_map["Root Task"]
-    ), "Child1 should reference root's new UUID"
+    assert child1_row["parent_task_id"] == uuid_map["Root Task"], (
+        "Child1 should reference root's new UUID"
+    )
 
     grandchild_row = db.fetchone(
         "SELECT parent_task_id FROM tasks WHERE id = ?", (uuid_map["Grandchild"],)
     )
-    assert (
-        grandchild_row["parent_task_id"] == uuid_map["First Child"]
-    ), "Grandchild should reference child1's new UUID"
+    assert grandchild_row["parent_task_id"] == uuid_map["First Child"], (
+        "Grandchild should reference child1's new UUID"
+    )
 
     # Verify dependency was updated
     dep_row = db.fetchone(
         "SELECT task_id, depends_on FROM task_dependencies WHERE task_id = ?",
         (uuid_map["Second Child"],),
     )
-    assert (
-        dep_row["depends_on"] == uuid_map["First Child"]
-    ), "Dependency should reference child1's new UUID"
+    assert dep_row["depends_on"] == uuid_map["First Child"], (
+        "Dependency should reference child1's new UUID"
+    )
 
     # === Run Migration 54: Backfill seq_num ===
     for version, _description, action in LEGACY_MIGRATIONS:
@@ -1235,7 +1235,7 @@ def test_full_migration_sequence_end_to_end(tmp_path):
 
     # Verify final schema version
     version = get_current_version(db)
-    assert version == 55, "Should be at schema version 55"
+    assert version == EXPECTED_FINAL_VERSION, f"Should be at final schema version {EXPECTED_FINAL_VERSION}"
 
 
 # =============================================================================

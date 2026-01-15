@@ -59,6 +59,24 @@ def register_reviewer(
             - session_id: Child session ID
             - error: Optional error message
         """
+        # Validate mode and review_provider
+        allowed_modes = {"terminal", "embedded", "headless"}
+        allowed_providers = {"claude", "gemini", "codex", "antigravity"}
+
+        mode_lower = mode.lower() if mode else "terminal"
+        if mode_lower not in allowed_modes:
+            return {
+                "success": False,
+                "error": f"Invalid mode '{mode}'. Must be one of: {sorted(allowed_modes)}",
+            }
+        mode = mode_lower  # Use normalized value
+
+        if review_provider not in allowed_providers:
+            return {
+                "success": False,
+                "error": f"Invalid review_provider '{review_provider}'. Must be one of: {sorted(allowed_providers)}",
+            }
+
         # Resolve task_id reference
         try:
             resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
@@ -101,7 +119,13 @@ def register_reviewer(
             }
 
         # Get the task
-        task = task_manager.get_task(resolved_task_id)
+        try:
+            task = task_manager.get_task(resolved_task_id)
+        except ValueError as e:
+            return {
+                "success": False,
+                "error": f"Task {task_id} not found: {e}",
+            }
         if not task:
             return {
                 "success": False,
@@ -381,8 +405,9 @@ def register_reviewer(
         workflow_vars = state.variables
         completed_agents = workflow_vars.get("completed_agents", [])
         failed_agents = workflow_vars.get("failed_agents", [])
-        reviewed_agents = workflow_vars.get("reviewed_agents", [])
-        review_agents_spawned = workflow_vars.get("review_agents_spawned", [])
+        # Create a fresh list for newly reviewed agents to avoid aliasing the stored list
+        newly_reviewed: list[dict[str, Any]] = []
+        review_agents_spawned = list(workflow_vars.get("review_agents_spawned", []))
 
         # Resolve review provider from workflow vars or parameters
         effective_review_provider = (
@@ -413,7 +438,16 @@ def register_reviewer(
                 continue
 
             # Check task validation status
-            task = task_manager.get_task(task_id)
+            try:
+                task = task_manager.get_task(task_id)
+            except ValueError as e:
+                escalated.append(
+                    {
+                        **agent_info,
+                        "escalation_reason": f"Task lookup failed: {e}",
+                    }
+                )
+                continue
             if not task:
                 escalated.append(
                     {
@@ -432,7 +466,7 @@ def register_reviewer(
                         "validation_status": "valid",
                     }
                 )
-                reviewed_agents.append(agent_info)
+                newly_reviewed.append(agent_info)
                 continue
 
             # Check if task validation failed - may need retry
@@ -522,7 +556,7 @@ def register_reviewer(
                         "skipped_review": True,
                     }
                 )
-                reviewed_agents.append(agent_info)
+                newly_reviewed.append(agent_info)
 
         # Process failed agents
         still_failed: list[dict[str, Any]] = []
@@ -564,9 +598,9 @@ def register_reviewer(
             if state:
                 # Update completed_agents to only include pending review
                 state.variables["completed_agents"] = still_pending_review
-                # Update reviewed_agents
-                existing_reviewed = state.variables.get("reviewed_agents", [])
-                existing_reviewed.extend(reviewed_agents)
+                # Update reviewed_agents - copy existing to avoid aliasing, then extend
+                existing_reviewed = list(state.variables.get("reviewed_agents", []))
+                existing_reviewed.extend(newly_reviewed)
                 state.variables["reviewed_agents"] = existing_reviewed
                 # Update review_agents_spawned
                 state.variables["review_agents_spawned"] = review_agents_spawned

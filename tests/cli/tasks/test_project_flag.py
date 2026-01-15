@@ -62,7 +62,6 @@ class TestEnrichProjectFlag:
             mock_enricher.enrich = MagicMock()
             mock_enricher_cls.return_value = mock_enricher
 
-            import asyncio
             from gobby.tasks.enrich import EnrichmentResult
 
             async def mock_enrich(*args, **kwargs):
@@ -76,8 +75,10 @@ class TestEnrichProjectFlag:
 
             result = runner.invoke(tasks, ["enrich", "#42", "--project", "myproject"])
 
-            # The --project option should be recognized
-            assert result.exit_code == 0 or "--project" not in result.output
+            # Command should succeed with --project flag
+            assert result.exit_code == 0, f"--project flag failed: {result.output}"
+            # Verify the enricher was invoked
+            assert mock_enricher_cls.called, "TaskEnricher should be instantiated"
 
 
 class TestExpandProjectFlag:
@@ -105,8 +106,6 @@ class TestExpandProjectFlag:
             mock_expander = MagicMock()
             mock_expander_cls.return_value = mock_expander
 
-            import asyncio
-
             async def mock_expand(*args, **kwargs):
                 return {"phases": []}
 
@@ -114,8 +113,10 @@ class TestExpandProjectFlag:
 
             result = runner.invoke(tasks, ["expand", "#42", "--project", "myproject"])
 
-            # The --project option should be recognized
-            assert result.exit_code == 0 or "--project" not in result.output
+            # Command should succeed with --project flag
+            assert result.exit_code == 0, f"--project flag failed: {result.output}"
+            # Verify the expander was invoked
+            assert mock_expander_cls.called, "TaskExpander should be instantiated"
 
 
 class TestApplyTddProjectFlag:

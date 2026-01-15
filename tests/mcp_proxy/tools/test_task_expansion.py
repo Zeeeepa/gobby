@@ -270,7 +270,9 @@ class TestExpandTaskTool:
         mock_task_expander.expand_task.assert_called_once()
         call_kwargs = mock_task_expander.expand_task.call_args.kwargs
         context = call_kwargs.get("context") or ""
-        assert "This is a Python project using FastAPI" in context
+        # Coerce context to string since it may be a dict/list
+        context_str = str(context) if not isinstance(context, str) else context
+        assert "This is a Python project using FastAPI" in context_str
 
     @pytest.mark.asyncio
     async def test_expand_task_handles_error(
@@ -2437,10 +2439,10 @@ class TestSingleLevelExpansion:
         assert child_ids == {"child1", "child2", "child3"}
 
     @pytest.mark.asyncio
-    async def test_expand_task_is_idempotent_single_level(
+    async def test_expand_task_non_recursive_across_calls(
         self, mock_task_manager, mock_task_expander, expansion_registry
     ):
-        """Test that calling expand_task multiple times doesn't create nested levels."""
+        """Test that calling expand_task multiple times does not create nested levels or recursive expansion."""
         parent_task = Task(
             id="parent",
             title="Parent task",

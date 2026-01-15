@@ -306,7 +306,13 @@ def register_monitor(
                     )
 
         # Update workflow state
-        if newly_completed or newly_failed or still_running != spawned_agents:
+        # Compare by session IDs to detect real changes in agent membership
+        # (dict comparison would fail due to added fields like running_since)
+        still_running_ids = {a.get("session_id") for a in still_running}
+        spawned_ids = {a.get("session_id") for a in spawned_agents}
+        agents_changed = still_running_ids != spawned_ids
+
+        if newly_completed or newly_failed or agents_changed:
             try:
                 # Re-fetch state to ensure we have the latest
                 state = state_manager.get_state(parent_session_id)

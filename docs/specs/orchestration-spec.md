@@ -270,14 +270,6 @@ Validate the system end-to-end and update documentation.
 - [ ] Test haiku templates render correctly
 - [ ] Test message creation and retrieval
 
-gobby - call_tool (MCP)(server_name: "gobby-tasks", tool_name: "orchestrate_ready_tasks", arguments: {"parent_task_id":"53879476-21b3-473e-b202-5cd0f00060df"})
-
-# 4. Agent Manager returns that orchestrator has started
-gobby -> (System) Orchestrator started for parent task 53879476-21b3-473e-b202-5cd0f00060df
-
-# 5. User checks status
-gobby - call_tool (MCP)(server_name: "gobby-tasks", tool_name: "get_orchestration_status", arguments: {"parent_task_id":"53879476-21b3-473e-b202-5cd0f00060df"})
-
 ### E2E Tests
 
 - [ ] Create `tests/e2e/test_inter_agent_messages.py`

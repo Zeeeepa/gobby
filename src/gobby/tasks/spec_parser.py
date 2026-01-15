@@ -735,8 +735,13 @@ class TaskHierarchyBuilder:
             return existing_context
 
         # Try configured provider, fall back to default
+        provider_name = getattr(config, "provider", None)
         try:
-            provider = self.llm_service.get_provider(config.provider)
+            provider = (
+                self.llm_service.get_provider(provider_name)
+                if provider_name
+                else self.llm_service.get_default_provider()
+            )
         except ValueError:
             # Provider not available, try default
             try:
@@ -744,19 +749,28 @@ class TaskHierarchyBuilder:
             except ValueError:
                 return existing_context
 
-        # Build prompt from template
-        prompt = config.prompt.format(
-            task_title=checkbox.text,
-            section_title=heading.text if heading else "",
-            section_content=(heading.content[:500] if heading and heading.content else ""),
-            existing_context=existing_context or "",
-        )
+        # Get config attributes with safe defaults
+        prompt_template = getattr(config, "prompt", "{task_title}")
+        model = getattr(config, "model", None)
+        system_prompt = getattr(config, "system_prompt", None)
+
+        # Build prompt from template with safe fallbacks
+        try:
+            prompt = prompt_template.format(
+                task_title=checkbox.text or "",
+                section_title=heading.text if heading else "",
+                section_content=(heading.content[:500] if heading and heading.content else ""),
+                existing_context=existing_context or "",
+            )
+        except (KeyError, IndexError, ValueError, TypeError):
+            # Template format error - skip LLM generation
+            return existing_context
 
         try:
             response = await provider.generate_text(
                 prompt=prompt,
-                system_prompt=config.system_prompt,
-                model=config.model,
+                system_prompt=system_prompt,
+                model=model,
             )
             return response.strip() or existing_context
         except Exception:

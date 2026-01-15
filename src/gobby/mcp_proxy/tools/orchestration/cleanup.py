@@ -408,8 +408,7 @@ def register_cleanup(
                 },
                 "project_path": {
                     "type": "string",
-                    "description": "Path to project directory",
-                    "default": None,
+                    "description": "Path to project directory (optional)",
                 },
             },
             "required": ["parent_session_id"],
@@ -428,8 +427,7 @@ def register_cleanup(
             "properties": {
                 "project_path": {
                     "type": "string",
-                    "description": "Path to project directory",
-                    "default": None,
+                    "description": "Path to project directory (optional)",
                 },
                 "older_than_hours": {
                     "type": "integer",

@@ -6,9 +6,9 @@ Tests verify the parse-spec command for creating tasks from spec files:
 - --project flag for project
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
 import tempfile
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
@@ -67,8 +67,12 @@ class TestParseSpecCommand:
 
                 result = runner.invoke(tasks, ["parse-spec", spec_path])
 
-                # Should accept the spec path
-                assert result.exit_code == 0 or "not found" not in result.output.lower()
+                # Command should succeed and not report file not found
+                assert result.exit_code == 0, f"Command failed: {result.output}"
+                assert "not found" not in result.output.lower(), (
+                    f"Unexpected 'not found' error: {result.output}"
+                )
+
         finally:
             Path(spec_path).unlink()
 
@@ -92,8 +96,11 @@ class TestParseSpecCommand:
 
                 result = runner.invoke(tasks, ["parse-spec", spec_path, "--parent", "#42"])
 
-                # The --parent option should be recognized
-                assert result.exit_code == 0 or "--parent" not in result.output
+                # Command should succeed with --parent flag
+                assert result.exit_code == 0, f"--parent flag failed: {result.output}"
+                assert "not found" not in result.output.lower(), (
+                    f"Unexpected 'not found' error: {result.output}"
+                )
         finally:
             Path(spec_path).unlink()
 
@@ -116,8 +123,11 @@ class TestParseSpecCommand:
 
                 result = runner.invoke(tasks, ["parse-spec", spec_path, "--project", "myproject"])
 
-                # The --project option should be recognized
-                assert result.exit_code == 0 or "--project" not in result.output
+                # Command should succeed with --project flag
+                assert result.exit_code == 0, f"--project flag failed: {result.output}"
+                assert "not found" not in result.output.lower(), (
+                    f"Unexpected 'not found' error: {result.output}"
+                )
         finally:
             Path(spec_path).unlink()
 
