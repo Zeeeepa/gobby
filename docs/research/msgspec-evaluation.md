@@ -117,7 +117,28 @@ def decode_llm_response(
     *,
     strict: bool = True,
 ) -> T | None:
-    """Extract JSON from LLM response and decode to typed struct."""
+    """Extract JSON from LLM response and decode to typed struct.
+
+    Args:
+        text: Raw LLM response text that may contain JSON
+        response_type: The msgspec Struct type to decode into
+        strict: Controls type coercion in msgspec.json.decode():
+            - strict=True (default): Enforces exact types. Safer for internal
+              or pre-validated data. A string "123" won't coerce to int 123.
+            - strict=False: Allows type coercion. Useful for noisy LLM outputs
+              where the model might return "3" instead of 3, or "true" instead
+              of true. Tests and recommendations prefer strict=False for LLM
+              responses since models frequently return slightly mistyped JSON.
+
+    Returns:
+        Decoded struct instance, or None if extraction/validation fails.
+
+    Note:
+        This helper defaults to strict=True for safety (fail-fast on type
+        mismatches), but callers processing raw LLM output should typically
+        pass strict=False to tolerate common LLM JSON quirks. The underlying
+        msgspec.json.decode() call respects this flag.
+    """
     json_str = extract_json_from_text(text)
     if json_str is None:
         return None

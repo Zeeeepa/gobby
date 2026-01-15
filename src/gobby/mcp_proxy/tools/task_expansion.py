@@ -993,24 +993,27 @@ def create_expansion_registry(
                 expansion_context = json.dumps(result.to_dict())
 
                 # Update task with enrichment results
+                # Map EnrichmentResult fields to Task model fields:
+                # - domain_category -> category (Task field)
+                # - complexity_level -> complexity_score (Task field, note: different scales)
                 update_kwargs: dict[str, Any] = {
                     "is_enriched": True,
                     "expansion_context": expansion_context,
                 }
-                if result.category:
-                    update_kwargs["category"] = result.category
-                if result.complexity_score:
-                    update_kwargs["complexity_score"] = result.complexity_score
+                if result.domain_category:
+                    update_kwargs["category"] = result.domain_category
+                if result.complexity_level:
+                    update_kwargs["complexity_score"] = result.complexity_level
                 if result.validation_criteria and generate_validation:
                     update_kwargs["validation_criteria"] = result.validation_criteria
 
                 task_manager.update_task(task.id, **update_kwargs)
 
-                # Return enrichment result
+                # Return enrichment result (using EnrichmentResult field names)
                 return {
                     "task_id": task.id,
-                    "category": result.category,
-                    "complexity_score": result.complexity_score,
+                    "domain_category": result.domain_category,
+                    "complexity_level": result.complexity_level,
                     "research_findings": result.research_findings,
                     "suggested_subtask_count": result.suggested_subtask_count,
                     "validation_criteria": result.validation_criteria,
@@ -1063,14 +1066,15 @@ def create_expansion_registry(
                 expansion_context = json.dumps(result.to_dict())
 
                 # Update task with enrichment results
+                # Map EnrichmentResult fields to Task model fields
                 update_kwargs: dict[str, Any] = {
                     "is_enriched": True,
                     "expansion_context": expansion_context,
                 }
-                if result.category:
-                    update_kwargs["category"] = result.category
-                if result.complexity_score:
-                    update_kwargs["complexity_score"] = result.complexity_score
+                if result.domain_category:
+                    update_kwargs["category"] = result.domain_category
+                if result.complexity_level:
+                    update_kwargs["complexity_score"] = result.complexity_level
                 if result.validation_criteria and generate_validation:
                     update_kwargs["validation_criteria"] = result.validation_criteria
 
@@ -1078,8 +1082,8 @@ def create_expansion_registry(
 
                 results.append({
                     "task_id": task.id,
-                    "category": result.category,
-                    "complexity_score": result.complexity_score,
+                    "domain_category": result.domain_category,
+                    "complexity_level": result.complexity_level,
                     "research_findings": result.research_findings,
                 })
             except Exception as e:

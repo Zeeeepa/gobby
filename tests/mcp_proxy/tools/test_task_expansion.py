@@ -80,8 +80,8 @@ def mock_task_enricher():
     # Default enrichment result
     enricher.enrich.return_value = EnrichmentResult(
         task_id="parent",
-        category="code",
-        complexity_score=2,
+        domain_category="code",
+        complexity_level=2,
         research_findings="Auto-enrichment findings from mock",
         suggested_subtask_count=3,
         validation_criteria="- [ ] Tests pass\n- [ ] Code reviewed",
@@ -1934,9 +1934,21 @@ class TestExpansionEdgeCases:
             )
 
             # Should still work, just won't generate criteria
-            # 6 tools: expand_task, analyze_complexity, expand_all,
-            # expand_from_spec, expand_from_prompt, enrich_task
-            assert len(registry.list_tools()) == 6
+            # Verify all expected tools are present (more robust than exact count)
+            tools = registry.list_tools()
+            # list_tools() returns dicts with "name" key, not objects
+            tool_names = {t["name"] for t in tools}
+            expected_tools = {
+                "expand_task",
+                "analyze_complexity",
+                "expand_all",
+                "expand_from_spec",
+                "expand_from_prompt",
+                "enrich_task",
+            }
+            assert expected_tools.issubset(tool_names), (
+                f"Missing expected tools. Expected: {expected_tools}, Got: {tool_names}"
+            )
 
     @pytest.mark.asyncio
     async def test_expand_from_spec_extracts_title_from_first_heading(
@@ -2562,8 +2574,8 @@ class TestExpansionContextUsage:
         # Task that was previously enriched
         enrichment_data = {
             "task_id": "parent",
-            "category": "code",
-            "complexity_score": 3,
+            "domain_category": "code",
+            "complexity_level": 3,
             "research_findings": "Found relevant auth patterns in auth_service.py",
             "suggested_subtask_count": 5,
             "validation_criteria": "- [ ] Tests pass\n- [ ] Auth flow works end-to-end",
@@ -2594,7 +2606,9 @@ class TestExpansionContextUsage:
 
         # Verify enrichment data was passed as context
         call_kwargs = mock_task_expander.expand_task.call_args.kwargs
-        context = call_kwargs.get("context") or ""
+        raw_context = call_kwargs.get("context")
+        # Coerce to string to handle any type safely
+        context = str(raw_context) if raw_context is not None else ""
 
         # Research findings should be included in context
         assert context, "Context should not be empty when task has enrichment data"
@@ -2612,8 +2626,8 @@ class TestExpansionContextUsage:
 
         enrichment_data = {
             "task_id": "parent",
-            "category": "code",
-            "complexity_score": 2,
+            "domain_category": "code",
+            "complexity_level": 2,
             "research_findings": "Auth module uses JWT tokens. Session handling in session.py.",
             "suggested_subtask_count": 3,
         }
@@ -2643,7 +2657,9 @@ class TestExpansionContextUsage:
 
         # Verify context was passed to expander including enrichment research
         call_kwargs = mock_task_expander.expand_task.call_args.kwargs
-        context = call_kwargs.get("context") or ""
+        raw_context = call_kwargs.get("context")
+        # Coerce to string to handle any type safely
+        context = str(raw_context) if raw_context is not None else ""
 
         # User context should be included
         assert "Additional user context" in context

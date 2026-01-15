@@ -75,8 +75,8 @@ def mock_task_enricher():
         """Return EnrichmentResult with the provided task_id."""
         return EnrichmentResult(
             task_id=task_id,
-            category="code",
-            complexity_score=2,
+            domain_category="code",
+            complexity_level=2,
             research_findings="Found relevant patterns",
             suggested_subtask_count=3,
             validation_criteria="Tests pass, code review approved",
@@ -478,9 +478,9 @@ class TestEnrichTaskTool:
 
         # Result should contain enrichment data
         assert "task_id" in result
-        # Should have category, complexity_score, etc. if enrichment succeeded
+        # Should have domain_category, complexity_level, etc. if enrichment succeeded
         if "error" not in result:
-            assert "category" in result or "enrichment" in result
+            assert "domain_category" in result or "enrichment" in result
 
     @pytest.mark.asyncio
     async def test_enrich_task_with_session_id(
@@ -982,7 +982,7 @@ class TestStoreEnrichmentResults:
 
         assert expansion_context is not None
         context_data = json.loads(expansion_context)
-        assert "complexity_score" in context_data or "category" in context_data
+        assert "complexity_level" in context_data or "domain_category" in context_data
 
     @pytest.mark.asyncio
     async def test_expansion_context_contains_suggested_subtask_count(

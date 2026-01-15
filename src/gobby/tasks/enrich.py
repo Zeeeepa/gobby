@@ -6,7 +6,7 @@ research findings, and validation criteria.
 """
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -16,8 +16,12 @@ class EnrichmentResult:
 
     Attributes:
         task_id: The ID of the enriched task
-        category: Task category (code, document, research, config, test, manual)
-        complexity_score: Estimated complexity (1=low, 2=medium, 3=high)
+        domain_category: Task domain category (code, document, research, config, test, manual).
+            Named 'domain_category' to distinguish from Task.category which denotes testing strategy.
+        complexity_level: Estimated complexity level (1=low, 2=medium, 3=high).
+            Named 'complexity_level' to align with the discrete level semantics; note that
+            Task.complexity_score uses a 1-10 scale, so consumers should be aware of the
+            different scale if mapping between the two.
         research_findings: Summary of research and analysis performed
         suggested_subtask_count: Recommended number of subtasks
         validation_criteria: Generated acceptance criteria for completion
@@ -25,8 +29,8 @@ class EnrichmentResult:
     """
 
     task_id: str
-    category: str | None = None
-    complexity_score: int | None = None
+    domain_category: str | None = None
+    complexity_level: int | None = None
     research_findings: str | None = None
     suggested_subtask_count: int | None = None
     validation_criteria: str | None = None
@@ -36,8 +40,8 @@ class EnrichmentResult:
         """Convert to dictionary representation."""
         return {
             "task_id": self.task_id,
-            "category": self.category,
-            "complexity_score": self.complexity_score,
+            "domain_category": self.domain_category,
+            "complexity_level": self.complexity_level,
             "research_findings": self.research_findings,
             "suggested_subtask_count": self.suggested_subtask_count,
             "validation_criteria": self.validation_criteria,
@@ -519,8 +523,8 @@ class TaskEnricher:
 
         return EnrichmentResult(
             task_id=task_id,
-            category=category,
-            complexity_score=complexity,
+            domain_category=category,
+            complexity_level=complexity,
             research_findings=research_findings,
             suggested_subtask_count=subtask_count,
             validation_criteria=validation_criteria,

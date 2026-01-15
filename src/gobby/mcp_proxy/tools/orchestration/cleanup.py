@@ -211,7 +211,11 @@ def register_cleanup(
             state = state_manager.get_state(parent_session_id)
             if state:
                 # Remove successfully cleaned agents from reviewed_agents
-                remaining_reviewed = [a for a in reviewed_agents if a not in cleaned_agents]
+                # Compare by worktree_id to avoid dict identity issues
+                cleaned_worktree_ids = {a.get("worktree_id") for a in cleaned_agents}
+                remaining_reviewed = [
+                    a for a in reviewed_agents if a.get("worktree_id") not in cleaned_worktree_ids
+                ]
                 state.variables["reviewed_agents"] = remaining_reviewed
 
                 # Track cleanup history

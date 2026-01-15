@@ -1264,14 +1264,14 @@ def parse_spec_cmd(
 
     # Determine project ID
     project_id: str | None = None
-    if project_name:
+    if _project_name:
         # Look up project by name
         ctx = get_project_context()
-        if ctx and ctx.get("name") == project_name:
+        if ctx and ctx.get("name") == _project_name:
             project_id = ctx.get("id")
         else:
             click.echo(
-                f"Warning: Project '{project_name}' not found, using current project", err=True
+                f"Warning: Project '{_project_name}' not found, using current project", err=True
             )
 
     if not project_id:

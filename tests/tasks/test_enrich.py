@@ -24,8 +24,8 @@ class TestEnrichmentResult:
         # Create an instance with required fields
         result = EnrichmentResult(
             task_id="test-task-123",
-            category="code",
-            complexity_score=2,
+            domain_category="code",
+            complexity_level=2,
             research_findings="Found relevant patterns in auth module",
             suggested_subtask_count=3,
             validation_criteria="All tests pass, code review approved",
@@ -33,8 +33,8 @@ class TestEnrichmentResult:
         )
 
         assert result.task_id == "test-task-123"
-        assert result.category == "code"
-        assert result.complexity_score == 2
+        assert result.domain_category == "code"
+        assert result.complexity_level == 2
         assert result.research_findings == "Found relevant patterns in auth module"
         assert result.suggested_subtask_count == 3
         assert result.validation_criteria == "All tests pass, code review approved"
@@ -48,8 +48,8 @@ class TestEnrichmentResult:
         result = EnrichmentResult(task_id="test-task-456")
 
         assert result.task_id == "test-task-456"
-        assert result.category is None
-        assert result.complexity_score is None
+        assert result.domain_category is None
+        assert result.complexity_level is None
         assert result.research_findings is None
         assert result.suggested_subtask_count is None
         assert result.validation_criteria is None
@@ -61,27 +61,27 @@ class TestEnrichmentResult:
 
         result = EnrichmentResult(
             task_id="test-task-789",
-            category="document",
-            complexity_score=1,
+            domain_category="document",
+            complexity_level=1,
         )
 
         result_dict = result.to_dict()
 
         assert isinstance(result_dict, dict)
         assert result_dict["task_id"] == "test-task-789"
-        assert result_dict["category"] == "document"
-        assert result_dict["complexity_score"] == 1
+        assert result_dict["domain_category"] == "document"
+        assert result_dict["complexity_level"] == 1
 
-    def test_enrichment_result_category_validation(self):
-        """Test that category accepts valid values."""
+    def test_enrichment_result_domain_category_validation(self):
+        """Test that domain_category accepts valid values."""
         from gobby.tasks.enrich import EnrichmentResult
 
-        # Valid categories based on the spec
+        # Valid domain categories based on the spec
         valid_categories = ["code", "document", "research", "config", "test", "manual"]
 
         for category in valid_categories:
-            result = EnrichmentResult(task_id="test", category=category)
-            assert result.category == category
+            result = EnrichmentResult(task_id="test", domain_category=category)
+            assert result.domain_category == category
 
 
 class TestTaskEnricher:
@@ -221,8 +221,8 @@ class TestCodeResearch:
         )
 
         # Should categorize as "test" based on title/description
-        assert result.category is not None
-        assert result.category == "test"
+        assert result.domain_category is not None
+        assert result.domain_category == "test"
 
     @pytest.mark.asyncio
     async def test_code_research_estimates_complexity(self):
@@ -238,9 +238,9 @@ class TestCodeResearch:
             enable_code_research=True,
         )
 
-        # Should estimate complexity (1=low, 2=medium, 3=high)
-        assert result.complexity_score is not None
-        assert 1 <= result.complexity_score <= 3
+        # Should estimate complexity level (1=low, 2=medium, 3=high)
+        assert result.complexity_level is not None
+        assert 1 <= result.complexity_level <= 3
 
     @pytest.mark.asyncio
     async def test_code_research_suggests_subtask_count(self):
@@ -310,8 +310,8 @@ class TestCodeResearch:
         # Should not raise, should return basic enrichment
         assert result.task_id == "test-task"
         # Should still produce valid enrichment data even without codebase
-        assert result.category is not None
-        assert result.complexity_score is not None
+        assert result.domain_category is not None
+        assert result.complexity_level is not None
 
     @pytest.mark.asyncio
     async def test_code_research_pattern_detection(self):
