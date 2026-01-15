@@ -5,8 +5,10 @@ Shared utilities for task CLI commands.
 import json
 import logging
 import sys
+from collections.abc import Callable, Generator, Iterator
+from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import click
 from wcwidth import wcswidth
@@ -473,22 +475,14 @@ def _is_path_format(ref: str) -> bool:
     return all(part.isdigit() for part in parts)
 
 
-from collections.abc import Callable, Generator, Iterator
-from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from gobby.storage.tasks import Task
-
-
 class _CascadeIterator:
     """Iterator wrapper that handles errors via callback."""
 
     def __init__(
         self,
-        tasks: list["Task"],
+        tasks: list[Task],
         label: str,
-        on_error: Callable[["Task", Exception], bool] | None,
+        on_error: Callable[[Task, Exception], bool] | None,
     ):
         self._tasks = tasks
         self._label = label
@@ -502,7 +496,7 @@ class _CascadeIterator:
     def __iter__(self) -> "_CascadeIterator":
         return self
 
-    def __next__(self) -> tuple["Task", Callable[[], None]]:
+    def __next__(self) -> tuple[Task, Callable[[], None]]:
         # Handle any pending error from previous iteration
         if self._pending_error is not None:
             error = self._pending_error
@@ -548,10 +542,10 @@ class _CascadeIterator:
 
 @contextmanager
 def cascade_progress(
-    tasks: list["Task"],
+    tasks: list[Task],
     label: str = "Processing",
-    on_error: Callable[["Task", Exception], bool] | None = None,
-) -> Generator[Iterator[tuple["Task", Callable[[], None]]], None, None]:
+    on_error: Callable[[Task, Exception], bool] | None = None,
+) -> Generator[Iterator[tuple[Task, Callable[[], None]]], None, None]:
     """Context manager for cascade operations with progress display.
 
     Yields (task, update) pairs for each task. Call update() after

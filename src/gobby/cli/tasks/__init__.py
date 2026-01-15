@@ -12,6 +12,7 @@ This package contains the task management commands, split into logical modules:
 """
 
 from gobby.cli.tasks._utils import (
+    cascade_progress,
     check_tasks_enabled,
     get_sync_manager,
     get_task_manager,
@@ -20,6 +21,7 @@ from gobby.cli.tasks._utils import (
 from gobby.cli.tasks.main import tasks
 
 __all__ = [
+    "cascade_progress",
     "check_tasks_enabled",
     "get_task_manager",
     "get_sync_manager",
