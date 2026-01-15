@@ -228,10 +228,10 @@ def create_expansion_registry(
                     "is_enriched": True,
                     "expansion_context": expansion_context_json,
                 }
-                if enrichment_result.category:
-                    enrich_update_kwargs["category"] = enrichment_result.category
-                if enrichment_result.complexity_score:
-                    enrich_update_kwargs["complexity_score"] = enrichment_result.complexity_score
+                if enrichment_result.domain_category:
+                    enrich_update_kwargs["category"] = enrichment_result.domain_category
+                if enrichment_result.complexity_level is not None:
+                    enrich_update_kwargs["complexity_score"] = enrichment_result.complexity_level
                 if enrichment_result.validation_criteria:
                     enrich_update_kwargs["validation_criteria"] = enrichment_result.validation_criteria
 

@@ -376,7 +376,6 @@ def stop_agent(run_ref: str) -> None:
         click.echo(f"Cannot stop agent in status: {run.status}", err=True)
         return
 
-    manager = get_agent_run_manager()
     manager.cancel(run.id)
     click.echo(f"Stopped agent run: {run.id}")
 
@@ -405,11 +404,9 @@ def kill_agent(run_ref: str, force: bool, stop: bool, yes: bool) -> None:
     run_id = resolve_agent_run_id(run_ref)
 
     if not yes:
-        msg = "Force kill" if force else "Kill"
+        msg = "Force kill agent" if force else "Kill agent"
         if stop:
             msg += " and end workflow for"
-        else:
-            msg += " agent"
         if not click.confirm(f"{msg} {run_id[:12]}?"):
             return
 

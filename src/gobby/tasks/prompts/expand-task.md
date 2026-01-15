@@ -13,7 +13,8 @@ You MUST respond with a JSON object containing a "subtasks" array. Each subtask 
 | description | string | No | Detailed description including implementation notes |
 | priority | integer | No | 1=High, 2=Medium (default), 3=Low |
 | task_type | string | No | "task" (default), "bug", "feature", "epic" |
-| category | string | No | How to verify this subtask is complete |
+| category | string | No | Testing strategy for the subtask (e.g., "manual", "unit", "integration", "e2e") |
+| validation_criteria | string | No | How to verify this subtask is complete |
 | depends_on | array[int] | No | Indices (0-based) of subtasks this one depends on |
 
 ## Example Output
@@ -25,19 +26,22 @@ You MUST respond with a JSON object containing a "subtasks" array. Each subtask 
       "title": "Create database schema",
       "description": "Define tables for users, sessions, and permissions",
       "priority": 1,
-      "category": "Run migrations and verify tables exist"
+      "category": "manual",
+      "validation_criteria": "Run migrations and verify tables exist"
     },
     {
       "title": "Implement data access layer",
       "description": "Create repository classes for CRUD operations",
       "depends_on": [0],
-      "category": "Unit tests for all repository methods pass"
+      "category": "unit",
+      "validation_criteria": "Unit tests for all repository methods pass"
     },
     {
       "title": "Add API endpoints",
       "description": "REST endpoints for user management",
       "depends_on": [1],
-      "category": "Integration tests for all endpoints pass"
+      "category": "integration",
+      "validation_criteria": "Integration tests for all endpoints pass"
     }
   ]
 }
@@ -55,14 +59,14 @@ Use `depends_on` to specify execution order:
 1. **Atomicity**: Each subtask should be small enough to be completed in one session (10-30 mins of work).
 2. **Dependencies**: Use `depends_on` to enforce logical order (e.g., create file before importing it).
 3. **Context Awareness**: Reference specific existing files or functions from the provided codebase context.
-4. **Testing**: Every coding subtask MUST have a category.
+4. **Testing**: Every coding subtask MUST have a category and validation_criteria.
 5. **Completeness**: The set of subtasks must fully accomplish the parent task.
 6. **JSON Only**: Output ONLY valid JSON - no markdown prose or explanation. Code fences (```json) are allowed.
 7. **No Scope Creep**: Do NOT include optional features, alternatives, or "nice-to-haves". Each subtask must be a concrete requirement from the parent task. Never invent additional features, suggest "consider also adding X", or include "(Optional)" sections. Implement exactly what is specified.
 
 ## Validation Criteria Rules
 
-For each subtask, generate PRECISE validation criteria in the `category` field.
+For each subtask, generate PRECISE validation criteria in the `validation_criteria` field.
 Use the project's verification commands (provided in context) rather than hardcoded commands.
 
 ### 1. Measurable

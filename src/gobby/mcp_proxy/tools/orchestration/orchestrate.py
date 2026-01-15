@@ -80,6 +80,16 @@ def register_orchestrator(
             - skipped: List of {task_id, reason} for tasks not spawned
             - error: Optional error message
         """
+        # Validate mode parameter
+        valid_modes = {"terminal", "headless", "auto"}
+        if mode not in valid_modes:
+            return {
+                "success": False,
+                "error": f"Invalid mode '{mode}'. Must be one of: {', '.join(sorted(valid_modes))}",
+                "spawned": [],
+                "skipped": [],
+            }
+
         # Resolve parent_task_id reference
         try:
             resolved_parent_task_id = resolve_task_id_for_mcp(task_manager, parent_task_id)
@@ -144,13 +154,13 @@ def register_orchestrator(
                 "skipped": [],
             }
 
-        # Check how many agents are currently running for this parent
+        # Check how many agents are currently running for this project
+        # Get exact count by not limiting the query - ensures max_concurrent is respected
         from gobby.storage.worktrees import WorktreeStatus
 
         active_worktrees = worktree_storage.list_worktrees(
             project_id=resolved_project_id,
             status=WorktreeStatus.ACTIVE.value,
-            limit=100,
         )
 
         # Count worktrees claimed by active sessions (have agent_session_id)

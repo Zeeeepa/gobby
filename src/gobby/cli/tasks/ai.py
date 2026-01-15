@@ -496,16 +496,16 @@ def enrich_cmd(
                     "is_enriched": True,
                     "expansion_context": expansion_context,
                 }
-                if result.category:
-                    update_kwargs["category"] = result.category
-                if result.complexity_score:
-                    update_kwargs["complexity_score"] = result.complexity_score
+                if result.domain_category:
+                    update_kwargs["category"] = result.domain_category
+                if result.complexity_level is not None:
+                    update_kwargs["complexity_score"] = result.complexity_level
                 if result.validation_criteria:
                     update_kwargs["validation_criteria"] = result.validation_criteria
 
                 manager.update_task(task.id, **update_kwargs)
                 click.echo(
-                    f"  ✓ Enriched (category={result.category}, complexity={result.complexity_score})"
+                    f"  ✓ Enriched (category={result.domain_category}, complexity={result.complexity_level})"
                 )
                 enriched_count += 1
 
@@ -685,6 +685,7 @@ def expand_task_cmd(
     from gobby.config.app import load_config
     from gobby.llm import LLMService
     from gobby.storage.task_dependencies import TaskDependencyManager
+    from gobby.tasks.enrich import TaskEnricher
     from gobby.tasks.expansion import TaskExpander
 
     # Parse task references
@@ -723,6 +724,7 @@ def expand_task_cmd(
         expander = TaskExpander(
             config.gobby_tasks.expansion, llm_service, manager, mcp_manager=None
         )
+        enricher = TaskEnricher(llm_service, manager) if enrich else None
 
     except Exception as e:
         click.echo(f"Error initializing services: {e}", err=True)
@@ -746,6 +748,41 @@ def expand_task_cmd(
             click.echo("  • Web research enabled")
         if code_context:
             click.echo("  • Code context enabled")
+
+        # Auto-enrich if enabled and task has no expansion_context
+        if enricher and not resolved.expansion_context:
+            click.echo("  • Auto-enriching task...")
+            try:
+                enrichment_result = asyncio.run(
+                    enricher.enrich(
+                        task_id=resolved.id,
+                        title=resolved.title,
+                        description=resolved.description,
+                        enable_code_research=code_context,
+                        enable_web_research=web_research,
+                        enable_mcp_tools=False,
+                        generate_validation=True,
+                    )
+                )
+                # Update task with enrichment results
+                import json
+
+                enrich_kwargs: dict[str, Any] = {
+                    "is_enriched": True,
+                    "expansion_context": json.dumps(enrichment_result.to_dict()),
+                }
+                if enrichment_result.domain_category:
+                    enrich_kwargs["category"] = enrichment_result.domain_category
+                if enrichment_result.complexity_level:
+                    enrich_kwargs["complexity_score"] = enrichment_result.complexity_level
+                if enrichment_result.validation_criteria:
+                    enrich_kwargs["validation_criteria"] = enrichment_result.validation_criteria
+                manager.update_task(resolved.id, **enrich_kwargs)
+                # Refresh task
+                resolved = manager.get_task(resolved.id)  # type: ignore[assignment]
+                click.echo("  • Enrichment complete")
+            except Exception as e:
+                click.echo(f"  • Enrichment failed (continuing): {e}", err=True)
 
         # Run expansion
         try:

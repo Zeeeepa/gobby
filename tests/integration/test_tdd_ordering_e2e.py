@@ -281,6 +281,7 @@ class TestTDDReadyTaskOrdering:
 class TestTDDCheckboxProcessing:
     """Test TDD triplets created from checkboxes."""
 
+    @pytest.mark.asyncio
     async def test_checkbox_creates_triplet(self, task_manager, dep_manager):
         """Processing a checkbox in TDD mode creates a triplet."""
         builder = TaskHierarchyBuilder(
@@ -314,6 +315,7 @@ class TestTDDCheckboxProcessing:
 class TestTDDHeadingProcessing:
     """Test TDD triplets created from headings."""
 
+    @pytest.mark.asyncio
     async def test_h4_heading_creates_triplet(self, task_manager, dep_manager):
         """Processing an H4 heading in TDD mode creates a triplet."""
         builder = TaskHierarchyBuilder(
@@ -344,6 +346,7 @@ class TestTDDHeadingProcessing:
         assert created_tasks[1].title == "Implement: Add middleware"
         assert created_tasks[2].title == "Refactor: Add middleware"
 
+    @pytest.mark.asyncio
     async def test_epic_heading_no_triplet(self, task_manager, dep_manager):
         """H2/H3 headings (epics) don't create triplets."""
         builder = TaskHierarchyBuilder(
