@@ -228,12 +228,19 @@ def create_expansion_registry(
             except ValueError:
                 pass
 
-        # Fetch created subtasks for the response
+        # Fetch created subtasks for the response (include seq_num for ergonomics)
         created_subtasks = []
         for sid in subtask_ids:
             subtask = task_manager.get_task(sid)
             if subtask:
-                created_subtasks.append({"id": subtask.id, "title": subtask.title})
+                subtask_info: dict[str, Any] = {
+                    "id": subtask.id,
+                    "title": subtask.title,
+                }
+                if subtask.seq_num is not None:
+                    subtask_info["seq_num"] = subtask.seq_num
+                    subtask_info["ref"] = f"#{subtask.seq_num}"
+                created_subtasks.append(subtask_info)
 
         # Auto-generate validation criteria for each subtask (when enabled)
         validation_generated = 0
@@ -270,6 +277,10 @@ def create_expansion_registry(
             "subtasks": created_subtasks,
             "is_expanded": True,
         }
+        # Include parent seq_num for ergonomics
+        if task.seq_num is not None:
+            response["parent_seq_num"] = task.seq_num
+            response["parent_ref"] = f"#{task.seq_num}"
         if auto_enriched:
             response["auto_enriched"] = True
         if validation_generated > 0:
