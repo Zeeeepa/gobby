@@ -2720,3 +2720,359 @@ class TestTaskHierarchyBuilderLLMServiceConfig:
         # Verify new parameters
         assert builder.llm_service is llm_service
         assert builder.config is config
+
+
+class TestGenerateDescriptionLLM:
+    """Tests for _generate_description_llm method.
+
+    These tests verify the LLM fallback for generating task descriptions
+    when structured extraction yields minimal results.
+    """
+
+    @pytest.mark.asyncio
+    async def test_returns_existing_context_when_no_llm_service(self, mock_task_manager):
+        """Without llm_service, should return existing_context unchanged."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=None,  # No LLM service
+        )
+
+        checkbox = CheckboxItem(
+            text="Test task",
+            checked=False,
+            line_number=1,
+            indent_level=0,
+            raw_line="- [ ] Test task",
+        )
+
+        result = await builder._generate_description_llm(
+            checkbox=checkbox,
+            heading=None,
+            existing_context="Existing description",
+        )
+
+        assert result == "Existing description"
+
+    @pytest.mark.asyncio
+    async def test_returns_existing_context_when_no_config(self, mock_task_manager):
+        """Without config, should return existing_context unchanged."""
+        llm_service = MockLLMService()
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=llm_service,
+            config=None,  # No config
+        )
+
+        checkbox = CheckboxItem(
+            text="Test task",
+            checked=False,
+            line_number=1,
+            indent_level=0,
+            raw_line="- [ ] Test task",
+        )
+
+        result = await builder._generate_description_llm(
+            checkbox=checkbox,
+            heading=None,
+            existing_context="Existing description",
+        )
+
+        assert result == "Existing description"
+
+    @pytest.mark.asyncio
+    async def test_returns_existing_context_when_disabled(self, mock_task_manager):
+        """When task_description.enabled=False, should return existing_context."""
+        llm_service = MockLLMService()
+        config = MockDaemonConfig(
+            task_description=MockTaskDescriptionConfig(enabled=False)
+        )
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=llm_service,
+            config=config,
+        )
+
+        checkbox = CheckboxItem(
+            text="Test task",
+            checked=False,
+            line_number=1,
+            indent_level=0,
+            raw_line="- [ ] Test task",
+        )
+
+        result = await builder._generate_description_llm(
+            checkbox=checkbox,
+            heading=None,
+            existing_context="Existing description",
+        )
+
+        assert result == "Existing description"
+
+    @pytest.mark.asyncio
+    async def test_generates_description_via_llm(self, mock_task_manager):
+        """When LLM is available and enabled, should generate description."""
+        llm_service = MockLLMService()
+        config = MockDaemonConfig(
+            task_description=MockTaskDescriptionConfig(enabled=True)
+        )
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=llm_service,
+            config=config,
+        )
+
+        checkbox = CheckboxItem(
+            text="Implement user authentication",
+            checked=False,
+            line_number=1,
+            indent_level=0,
+            raw_line="- [ ] Implement user authentication",
+        )
+
+        heading = HeadingNode(
+            text="Phase 1: Authentication",
+            level=3,
+            line_start=1,
+            line_end=10,
+            content="This phase handles user auth flows.",
+        )
+
+        result = await builder._generate_description_llm(
+            checkbox=checkbox,
+            heading=heading,
+            existing_context=None,
+        )
+
+        # Should return a generated description (from mock)
+        assert result is not None
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+    @pytest.mark.asyncio
+    async def test_returns_none_preserved_when_no_context(self, mock_task_manager):
+        """When existing_context is None and no LLM, should return None."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=None,
+        )
+
+        checkbox = CheckboxItem(
+            text="Test task",
+            checked=False,
+            line_number=1,
+            indent_level=0,
+            raw_line="- [ ] Test task",
+        )
+
+        result = await builder._generate_description_llm(
+            checkbox=checkbox,
+            heading=None,
+            existing_context=None,
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_graceful_degradation_on_llm_error(self, mock_task_manager):
+        """On LLM error, should return existing_context (graceful degradation)."""
+
+        class FailingLLMService:
+            """Mock LLM service that always fails."""
+
+            def get_provider(self, name: str):
+                return FailingLLMProvider()
+
+            def get_default_provider(self):
+                return FailingLLMProvider()
+
+        class FailingLLMProvider:
+            """Mock LLM provider that raises an exception."""
+
+            async def generate_text(self, *args, **kwargs):
+                raise RuntimeError("LLM service unavailable")
+
+        llm_service = FailingLLMService()
+        config = MockDaemonConfig(
+            task_description=MockTaskDescriptionConfig(enabled=True)
+        )
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=llm_service,
+            config=config,
+        )
+
+        checkbox = CheckboxItem(
+            text="Test task",
+            checked=False,
+            line_number=1,
+            indent_level=0,
+            raw_line="- [ ] Test task",
+        )
+
+        result = await builder._generate_description_llm(
+            checkbox=checkbox,
+            heading=None,
+            existing_context="Fallback description",
+        )
+
+        # Should gracefully return existing_context on error
+        assert result == "Fallback description"
+
+    @pytest.mark.asyncio
+    async def test_falls_back_to_default_provider(self, mock_task_manager):
+        """When specified provider unavailable, should try default provider."""
+
+        class PartialLLMService:
+            """Mock LLM service with only default provider."""
+
+            def get_provider(self, name: str):
+                raise ValueError(f"Provider '{name}' not configured")
+
+            def get_default_provider(self):
+                return MockLLMProvider()
+
+        llm_service = PartialLLMService()
+        config = MockDaemonConfig(
+            task_description=MockTaskDescriptionConfig(
+                enabled=True,
+                provider="nonexistent",  # Provider that doesn't exist
+            )
+        )
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=llm_service,
+            config=config,
+        )
+
+        checkbox = CheckboxItem(
+            text="Test task",
+            checked=False,
+            line_number=1,
+            indent_level=0,
+            raw_line="- [ ] Test task",
+        )
+
+        result = await builder._generate_description_llm(
+            checkbox=checkbox,
+            heading=None,
+            existing_context=None,
+        )
+
+        # Should use default provider and return generated description
+        assert result is not None
+        assert isinstance(result, str)
+
+    @pytest.mark.asyncio
+    async def test_returns_existing_when_all_providers_fail(self, mock_task_manager):
+        """When both specified and default providers fail, return existing_context."""
+
+        class NoProviderLLMService:
+            """Mock LLM service with no available providers."""
+
+            def get_provider(self, name: str):
+                raise ValueError(f"Provider '{name}' not configured")
+
+            def get_default_provider(self):
+                raise ValueError("No default provider configured")
+
+        llm_service = NoProviderLLMService()
+        config = MockDaemonConfig(
+            task_description=MockTaskDescriptionConfig(enabled=True)
+        )
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=llm_service,
+            config=config,
+        )
+
+        checkbox = CheckboxItem(
+            text="Test task",
+            checked=False,
+            line_number=1,
+            indent_level=0,
+            raw_line="- [ ] Test task",
+        )
+
+        result = await builder._generate_description_llm(
+            checkbox=checkbox,
+            heading=None,
+            existing_context="Original context",
+        )
+
+        # Should return existing_context when no providers available
+        assert result == "Original context"
+
+    @pytest.mark.asyncio
+    async def test_uses_heading_content_in_prompt(self, mock_task_manager):
+        """Should use heading content when building the prompt."""
+
+        class TrackingLLMProvider:
+            """LLM provider that tracks the prompt it receives."""
+
+            def __init__(self):
+                self.last_prompt = None
+
+            async def generate_text(self, prompt: str, **kwargs) -> str:
+                self.last_prompt = prompt
+                return "Generated description"
+
+        class TrackingLLMService:
+            def __init__(self):
+                self.provider = TrackingLLMProvider()
+
+            def get_provider(self, name: str):
+                return self.provider
+
+        llm_service = TrackingLLMService()
+        config = MockDaemonConfig(
+            task_description=MockTaskDescriptionConfig(enabled=True)
+        )
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=llm_service,
+            config=config,
+        )
+
+        checkbox = CheckboxItem(
+            text="Add validation logic",
+            checked=False,
+            line_number=5,
+            indent_level=0,
+            raw_line="- [ ] Add validation logic",
+        )
+
+        heading = HeadingNode(
+            text="Security Features",
+            level=3,
+            line_start=1,
+            line_end=10,
+            content="Implement security measures including input validation.",
+        )
+
+        await builder._generate_description_llm(
+            checkbox=checkbox,
+            heading=heading,
+            existing_context="Basic context",
+        )
+
+        # Verify heading info was included in prompt
+        prompt = llm_service.provider.last_prompt
+        assert "Add validation logic" in prompt  # Task title
+        assert "Security Features" in prompt  # Section title
+        assert "security measures" in prompt  # Section content (truncated)
