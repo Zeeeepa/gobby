@@ -705,6 +705,60 @@ class TaskHierarchyBuilder:
             self._dep_manager = TaskDependencyManager(self.task_manager.db)
         return self._dep_manager
 
+    async def _generate_description_llm(
+        self,
+        checkbox: CheckboxItem,
+        heading: HeadingNode | None,
+        existing_context: str | None,
+    ) -> str | None:
+        """Generate description via LLM when structured extraction fails.
+
+        Uses configured provider/model. Supports subscription or API key auth.
+
+        Args:
+            checkbox: The checkbox item to generate description for
+            heading: Optional parent heading node with section context
+            existing_context: Existing description from structured extraction
+
+        Returns:
+            Generated description string, or existing_context if LLM unavailable
+        """
+        if not self.llm_service:
+            return existing_context
+
+        # TaskDescriptionConfig may not exist on DaemonConfig yet (Phase 2)
+        config = getattr(self.config, "task_description", None) if self.config else None
+        if not config or not getattr(config, "enabled", False):
+            return existing_context
+
+        # Try configured provider, fall back to default
+        try:
+            provider = self.llm_service.get_provider(config.provider)
+        except ValueError:
+            # Provider not available, try default
+            try:
+                provider = self.llm_service.get_default_provider()
+            except ValueError:
+                return existing_context
+
+        # Build prompt from template
+        prompt = config.prompt.format(
+            task_title=checkbox.text,
+            section_title=heading.text if heading else "",
+            section_content=(heading.content[:500] if heading and heading.content else ""),
+            existing_context=existing_context or "",
+        )
+
+        try:
+            response = await provider.generate_text(
+                prompt=prompt,
+                system_prompt=config.system_prompt,
+                model=config.model,
+            )
+            return response.strip() or existing_context
+        except Exception:
+            return existing_context  # Graceful degradation on LLM failure
+
     def _get_checkboxes_for_heading(
         self,
         heading: HeadingNode,
