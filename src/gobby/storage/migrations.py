@@ -355,6 +355,7 @@ CREATE TABLE tasks (
     linear_team_id TEXT,
     seq_num INTEGER,
     path_cache TEXT,
+    agent_name TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -576,9 +577,22 @@ def _migrate_test_strategy_to_category(db: LocalDatabase) -> None:
         logger.debug("test_strategy column not found (fresh database), skipping rename")
 
 
+def _migrate_add_agent_name(db: LocalDatabase) -> None:
+    """Add agent_name column to tasks table for agent configuration."""
+    # Check if agent_name column already exists (fresh database)
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
+    if row and "agent_name" not in row["sql"].lower():
+        db.execute("ALTER TABLE tasks ADD COLUMN agent_name TEXT")
+        logger.info("Added agent_name column to tasks table")
+    else:
+        logger.debug("agent_name column already exists, skipping")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # TDD Expansion Restructure: Rename test_strategy to category
     (61, "Rename test_strategy to category", _migrate_test_strategy_to_category),
+    # TDD Expansion Restructure: Add agent_name column
+    (62, "Add agent_name column to tasks", _migrate_add_agent_name),
 ]
 
 

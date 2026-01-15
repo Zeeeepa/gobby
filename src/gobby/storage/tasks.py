@@ -86,6 +86,8 @@ class Task:
     # Human-friendly ID fields (task renumbering)
     seq_num: int | None = None
     path_cache: str | None = None
+    # Agent configuration
+    agent_name: str | None = None  # Subagent config file to use for this task
     # Dependency fields (populated on demand, not stored in tasks table)
     blocked_by: set[str] = field(default_factory=set)
 
@@ -159,6 +161,7 @@ class Task:
             linear_team_id=row["linear_team_id"] if "linear_team_id" in keys else None,
             seq_num=row["seq_num"] if "seq_num" in keys else None,
             path_cache=row["path_cache"] if "path_cache" in keys else None,
+            agent_name=row["agent_name"] if "agent_name" in keys else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -204,6 +207,7 @@ class Task:
             "linear_team_id": self.linear_team_id,
             "seq_num": self.seq_num,
             "path_cache": self.path_cache,
+            "agent_name": self.agent_name,
         }
 
     def to_brief(self) -> dict[str, Any]:
@@ -513,6 +517,7 @@ class LocalTaskManager:
         github_repo: str | None = None,
         linear_issue_id: str | None = None,
         linear_team_id: str | None = None,
+        agent_name: str | None = None,
     ) -> Task:
         """Create a new task with collision handling."""
         max_retries = 3
@@ -548,8 +553,8 @@ class LocalTaskManager:
                             validation_criteria, use_external_validator, validation_fail_count,
                             workflow_name, verification, sequence_order,
                             github_issue_number, github_pr_number, github_repo,
-                            linear_issue_id, linear_team_id, seq_num
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            linear_issue_id, linear_team_id, seq_num, agent_name
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             task_id,
@@ -580,6 +585,7 @@ class LocalTaskManager:
                             linear_issue_id,
                             linear_team_id,
                             next_seq_num,
+                            agent_name,
                         ),
                     )
 
@@ -770,6 +776,7 @@ class LocalTaskManager:
         github_repo: str | None | Any = UNSET,
         linear_issue_id: str | None | Any = UNSET,
         linear_team_id: str | None | Any = UNSET,
+        agent_name: str | None | Any = UNSET,
     ) -> Task:
         """Update task fields."""
         # Validate status transitions from needs_decomposition
@@ -897,6 +904,9 @@ class LocalTaskManager:
         if linear_team_id is not UNSET:
             updates.append("linear_team_id = ?")
             params.append(linear_team_id)
+        if agent_name is not UNSET:
+            updates.append("agent_name = ?")
+            params.append(agent_name)
 
         if not updates:
             return self.get_task(task_id)
