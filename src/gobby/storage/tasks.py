@@ -42,7 +42,7 @@ class Task:
     id: str
     project_id: str
     title: str
-    status: Literal["open", "in_progress", "closed", "failed", "escalated", "needs_decomposition"]
+    status: Literal["open", "in_progress", "review", "closed", "failed", "escalated", "needs_decomposition"]
     priority: int
     task_type: str  # bug, feature, task, epic, chore
     created_at: str
@@ -94,6 +94,9 @@ class Task:
     is_enriched: bool = False  # Context has been added
     is_expanded: bool = False  # Subtasks have been created
     is_tdd_applied: bool = False  # TDD pairs have been generated
+    # Review status fields (HITL support)
+    requires_user_review: bool = False  # Task requires user sign-off before closing
+    accepted_by_user: bool = False  # Set True when user moves review → closed
     # Dependency fields (populated on demand, not stored in tasks table)
     blocked_by: set[str] = field(default_factory=set)
 
@@ -172,6 +175,12 @@ class Task:
             is_enriched=bool(row["is_enriched"]) if "is_enriched" in keys else False,
             is_expanded=bool(row["is_expanded"]) if "is_expanded" in keys else False,
             is_tdd_applied=bool(row["is_tdd_applied"]) if "is_tdd_applied" in keys else False,
+            requires_user_review=(
+                bool(row["requires_user_review"]) if "requires_user_review" in keys else False
+            ),
+            accepted_by_user=(
+                bool(row["accepted_by_user"]) if "accepted_by_user" in keys else False
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -222,6 +231,8 @@ class Task:
             "is_enriched": self.is_enriched,
             "is_expanded": self.is_expanded,
             "is_tdd_applied": self.is_tdd_applied,
+            "requires_user_review": self.requires_user_review,
+            "accepted_by_user": self.accepted_by_user,
             "id": self.id,  # UUID at end for backwards compat
         }
 
@@ -246,6 +257,7 @@ class Task:
             "updated_at": self.updated_at,
             "seq_num": self.seq_num,
             "path_cache": self.path_cache,
+            "requires_user_review": self.requires_user_review,
             "id": self.id,  # UUID at end for backwards compat
         }
 
@@ -790,6 +802,8 @@ class LocalTaskManager:
         is_enriched: bool | None | Any = UNSET,
         is_expanded: bool | None | Any = UNSET,
         is_tdd_applied: bool | None | Any = UNSET,
+        validation_override_reason: str | None | Any = UNSET,
+        requires_user_review: bool | None | Any = UNSET,
     ) -> Task:
         """Update task fields."""
         # Validate status transitions from needs_decomposition
@@ -932,6 +946,19 @@ class LocalTaskManager:
         if is_tdd_applied is not UNSET:
             updates.append("is_tdd_applied = ?")
             params.append(1 if is_tdd_applied else 0)
+        if validation_override_reason is not UNSET:
+            updates.append("validation_override_reason = ?")
+            params.append(validation_override_reason)
+        if requires_user_review is not UNSET:
+            updates.append("requires_user_review = ?")
+            params.append(1 if requires_user_review else 0)
+
+        # Auto-reset accepted_by_user when transitioning from 'closed' to any other status
+        if status is not UNSET and status != "closed":
+            current_task = self.get_task(task_id)
+            if current_task and current_task.status == "closed":
+                updates.append("accepted_by_user = ?")
+                params.append(0)
 
         if not updates:
             return self.get_task(task_id)
@@ -992,6 +1019,10 @@ class LocalTaskManager:
                     f"Cannot close task {task_id}: has {len(open_children)} open child task(s): {child_list}"
                 )
 
+        # Check if task is being closed from review state (user acceptance)
+        current_task = self.get_task(task_id)
+        accepted_by_user = current_task.status == "review" if current_task else False
+
         now = datetime.now(UTC).isoformat()
         with self.db.transaction() as conn:
             cursor = conn.execute(
@@ -1002,6 +1033,7 @@ class LocalTaskManager:
                     closed_in_session_id = ?,
                     closed_commit_sha = ?,
                     validation_override_reason = ?,
+                    accepted_by_user = ?,
                     updated_at = ?
                 WHERE id = ?""",
                 (
@@ -1010,6 +1042,7 @@ class LocalTaskManager:
                     closed_in_session_id,
                     closed_commit_sha,
                     validation_override_reason,
+                    1 if accepted_by_user else 0,
                     now,
                     task_id,
                 ),
@@ -1037,18 +1070,18 @@ class LocalTaskManager:
         task_id: str,
         reason: str | None = None,
     ) -> Task:
-        """Reopen a closed task.
+        """Reopen a closed or review task.
 
         Args:
             task_id: The task ID to reopen
             reason: Optional reason for reopening
 
         Raises:
-            ValueError: If task not found or not closed
+            ValueError: If task not found or not closed/review
         """
         task = self.get_task(task_id)
-        if task.status != "closed":
-            raise ValueError(f"Task {task_id} is not closed (status: {task.status})")
+        if task.status not in ("closed", "review"):
+            raise ValueError(f"Task {task_id} is not closed or in review (status: {task.status})")
 
         now = datetime.now(UTC).isoformat()
 
@@ -1066,6 +1099,7 @@ class LocalTaskManager:
                     closed_at = NULL,
                     closed_in_session_id = NULL,
                     closed_commit_sha = NULL,
+                    accepted_by_user = 0,
                     description = ?,
                     updated_at = ?
                 WHERE id = ?""",
@@ -1333,7 +1367,11 @@ class LocalTaskManager:
                 JOIN tasks blocker ON d.depends_on = blocker.id
                 WHERE d.task_id = t.id
                   AND d.dep_type = 'blocks'
-                  AND blocker.status != 'closed'
+                  -- Blocker is unresolved if not closed AND not in review without requiring user review
+                  AND NOT (
+                      blocker.status = 'closed'
+                      OR (blocker.status = 'review' AND blocker.requires_user_review = 0)
+                  )
                   -- Exclude ancestor blocked by any descendant (completion block, not work block)
                   -- Check if t.id appears anywhere in blocker's ancestor chain
                   AND NOT EXISTS (
@@ -1360,7 +1398,11 @@ class LocalTaskManager:
                 JOIN tasks blocker ON d.depends_on = blocker.id
                 WHERE d.task_id = t.id
                   AND d.dep_type = 'blocks'
-                  AND blocker.status != 'closed'
+                  -- Blocker is unresolved if not closed AND not in review without requiring user review
+                  AND NOT (
+                      blocker.status = 'closed'
+                      OR (blocker.status = 'review' AND blocker.requires_user_review = 0)
+                  )
                   -- Exclude ancestor blocked by any descendant (completion block, not work block)
                   AND NOT EXISTS (
                       WITH RECURSIVE ancestors AS (
@@ -1439,7 +1481,11 @@ class LocalTaskManager:
             JOIN tasks blocker ON d.depends_on = blocker.id
             WHERE d.task_id = t.id
               AND d.dep_type = 'blocks'
-              AND blocker.status != 'closed'
+              -- Blocker is unresolved if not closed AND not in review without requiring user review
+              AND NOT (
+                  blocker.status = 'closed'
+                  OR (blocker.status = 'review' AND blocker.requires_user_review = 0)
+              )
               -- Exclude ancestor blocked by any descendant (completion block, not work block)
               -- Check if t.id appears anywhere in blocker's ancestor chain
               AND NOT EXISTS (
@@ -1586,7 +1632,11 @@ class LocalTaskManager:
             JOIN tasks blocker ON d.depends_on = blocker.id
             WHERE d.task_id = t.id
               AND d.dep_type = 'blocks'
-              AND blocker.status != 'closed'
+              -- Blocker is unresolved if not closed AND not in review without requiring user review
+              AND NOT (
+                  blocker.status = 'closed'
+                  OR (blocker.status = 'review' AND blocker.requires_user_review = 0)
+              )
               -- Exclude ancestor blocked by any descendant (completion block, not work block)
               -- Check if t.id appears anywhere in blocker's ancestor chain
               AND NOT EXISTS (
@@ -1634,7 +1684,11 @@ class LocalTaskManager:
             JOIN tasks blocker ON d.depends_on = blocker.id
             WHERE d.task_id = t.id
               AND d.dep_type = 'blocks'
-              AND blocker.status != 'closed'
+              -- Blocker is unresolved if not closed AND not in review without requiring user review
+              AND NOT (
+                  blocker.status = 'closed'
+                  OR (blocker.status = 'review' AND blocker.requires_user_review = 0)
+              )
               -- Exclude ancestor blocked by any descendant (completion block, not work block)
               -- Check if t.id appears anywhere in blocker's ancestor chain
               AND NOT EXISTS (

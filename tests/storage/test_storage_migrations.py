@@ -1233,6 +1233,10 @@ def test_full_migration_sequence_end_to_end(tmp_path):
     null_paths = db.fetchone("SELECT COUNT(*) as count FROM tasks WHERE path_cache IS NULL")
     assert null_paths["count"] == 0, "All tasks should have path_cache set"
 
+    # Run remaining migrations (61+) from MIGRATIONS list
+    # This brings the database up to the current schema version
+    run_migrations(db)
+
     # Verify final schema version
     version = get_current_version(db)
     assert version == EXPECTED_FINAL_VERSION, f"Should be at final schema version {EXPECTED_FINAL_VERSION}"

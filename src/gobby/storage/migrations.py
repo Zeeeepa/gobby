@@ -360,6 +360,8 @@ CREATE TABLE tasks (
     is_enriched INTEGER DEFAULT 0,
     is_expanded INTEGER DEFAULT 0,
     is_tdd_applied INTEGER DEFAULT 0,
+    requires_user_review INTEGER DEFAULT 0,
+    accepted_by_user INTEGER DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -625,6 +627,23 @@ def _migrate_add_boolean_columns(db: LocalDatabase) -> None:
         logger.info("Added is_tdd_applied column to tasks table")
 
 
+def _migrate_add_review_columns(db: LocalDatabase) -> None:
+    """Add requires_user_review and accepted_by_user columns for review status support."""
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
+    if not row:
+        return
+
+    sql_lower = row["sql"].lower()
+
+    if "requires_user_review" not in sql_lower:
+        db.execute("ALTER TABLE tasks ADD COLUMN requires_user_review INTEGER DEFAULT 0")
+        logger.info("Added requires_user_review column to tasks table")
+
+    if "accepted_by_user" not in sql_lower:
+        db.execute("ALTER TABLE tasks ADD COLUMN accepted_by_user INTEGER DEFAULT 0")
+        logger.info("Added accepted_by_user column to tasks table")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # TDD Expansion Restructure: Rename test_strategy to category
     (61, "Rename test_strategy to category", _migrate_test_strategy_to_category),
@@ -634,6 +653,8 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (63, "Add reference_doc column to tasks", _migrate_add_reference_doc),
     # TDD Expansion Restructure: Add boolean columns for idempotent operations
     (64, "Add boolean columns to tasks", _migrate_add_boolean_columns),
+    # Review status: Add columns for HITL review workflow
+    (65, "Add review columns to tasks", _migrate_add_review_columns),
 ]
 
 

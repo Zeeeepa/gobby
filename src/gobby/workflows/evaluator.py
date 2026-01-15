@@ -17,9 +17,63 @@ APPROVAL_KEYWORDS = {"yes", "approve", "approved", "proceed", "continue", "ok", 
 REJECTION_KEYWORDS = {"no", "reject", "rejected", "stop", "cancel", "abort", "n"}
 
 
+def is_task_complete(task: Any) -> bool:
+    """
+    Check if a task counts as complete for workflow purposes.
+
+    A task is complete if:
+    - status is 'closed', OR
+    - status is 'review' AND requires_user_review is False
+      (agent marked for visibility but doesn't need user sign-off)
+
+    Tasks in 'review' with requires_user_review=True are NOT complete
+    because they're awaiting user approval.
+
+    Args:
+        task: Task object with status and requires_user_review attributes
+
+    Returns:
+        True if task is complete, False otherwise
+    """
+    if task.status == "closed":
+        return True
+    if task.status == "review" and not task.requires_user_review:
+        return True
+    return False
+
+
+def task_needs_user_review(task_manager: Any, task_id: str | None) -> bool:
+    """
+    Check if a task is awaiting user review (in review + HITL flag).
+
+    Used in workflow transition conditions like:
+        when: "task_needs_user_review(variables.session_task)"
+
+    Args:
+        task_manager: LocalTaskManager instance for querying tasks
+        task_id: Task ID to check
+
+    Returns:
+        True if task is in 'review' status AND has requires_user_review=True.
+        Returns False if task_id is None or task not found.
+    """
+    if not task_id or not task_manager:
+        return False
+
+    task = task_manager.get_task(task_id)
+    if not task:
+        return False
+
+    return bool(task.status == "review" and task.requires_user_review)
+
+
 def task_tree_complete(task_manager: Any, task_id: str | list[str] | None) -> bool:
     """
-    Check if a task and all its subtasks are complete (closed).
+    Check if a task and all its subtasks are complete.
+
+    A task is complete if:
+    - status is 'closed', OR
+    - status is 'review' AND requires_user_review is False
 
     Used in workflow transition conditions like:
         when: "task_tree_complete(variables.session_task)"
@@ -29,7 +83,7 @@ def task_tree_complete(task_manager: Any, task_id: str | list[str] | None) -> bo
         task_id: Single task ID, list of task IDs, or None
 
     Returns:
-        True if all tasks and their subtasks are closed, False otherwise.
+        True if all tasks and their subtasks are complete, False otherwise.
         Returns True if task_id is None (no task to check).
     """
     if not task_id:
@@ -49,9 +103,9 @@ def task_tree_complete(task_manager: Any, task_id: str | list[str] | None) -> bo
             logger.warning(f"task_tree_complete: Task '{tid}' not found")
             return False
 
-        # Check if main task is closed
-        if task.status != "closed":
-            logger.debug(f"task_tree_complete: Task '{tid}' is not closed (status={task.status})")
+        # Check if main task is complete
+        if not is_task_complete(task):
+            logger.debug(f"task_tree_complete: Task '{tid}' is not complete (status={task.status})")
             return False
 
         # Check all subtasks recursively
@@ -62,13 +116,13 @@ def task_tree_complete(task_manager: Any, task_id: str | list[str] | None) -> bo
 
 
 def _subtasks_complete(task_manager: Any, parent_id: str) -> bool:
-    """Recursively check if all subtasks are closed."""
+    """Recursively check if all subtasks are complete."""
     subtasks = task_manager.list_tasks(parent_task_id=parent_id)
 
     for subtask in subtasks:
-        if subtask.status != "closed":
+        if not is_task_complete(subtask):
             logger.debug(
-                f"_subtasks_complete: Subtask '{subtask.id}' is not closed (status={subtask.status})"
+                f"_subtasks_complete: Subtask '{subtask.id}' is not complete (status={subtask.status})"
             )
             return False
 
@@ -238,9 +292,16 @@ class ConditionEvaluator:
                     return task_tree_complete(self._task_manager, task_id)
 
                 allowed_globals["task_tree_complete"] = _task_tree_complete_wrapper
+
+                def _task_needs_user_review_wrapper(task_id: str | None) -> bool:
+                    # Helper wrapper for HITL check
+                    return task_needs_user_review(self._task_manager, task_id)
+
+                allowed_globals["task_needs_user_review"] = _task_needs_user_review_wrapper
             else:
-                # Provide a no-op that returns True when no task_manager
+                # Provide no-ops when no task_manager
                 allowed_globals["task_tree_complete"] = lambda task_id: True
+                allowed_globals["task_needs_user_review"] = lambda task_id: False
 
             # Add stop signal helpers (bind stop_registry via closure)
             if self._stop_registry:

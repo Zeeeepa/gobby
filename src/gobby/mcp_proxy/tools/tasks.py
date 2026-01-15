@@ -854,9 +854,43 @@ def create_task_registry(
 
         commit_sha = run_git_command(["git", "rev-parse", "HEAD"], cwd=cwd)
 
-        # All checks passed - close the task with session and commit tracking
-        # Store override reason if validation was skipped or no commit was needed
+        # Determine target status: route to review if task requires user review OR override was used
+        # This ensures tasks with HITL flag or skipped validation go through human review
         store_override = should_skip or no_commit_needed
+        route_to_review = task.requires_user_review or (
+            override_justification and store_override
+        )
+
+        if route_to_review:
+            # Route to review status instead of closing
+            # Task stays in review until user explicitly closes
+            task_manager.update_task(
+                resolved_id,
+                status="review",
+                validation_override_reason=override_justification if store_override else None,
+            )
+
+            # Auto-link session if provided
+            if session_id:
+                try:
+                    session_task_manager.link_task(session_id, resolved_id, "review")
+                except Exception:
+                    pass  # nosec B110 - Best-effort linking
+
+            return {
+                "routed_to_review": True,
+                "message": (
+                    "Task routed to review status. "
+                    + (
+                        "Reason: requires user review before closing."
+                        if task.requires_user_review
+                        else "Reason: validation was overridden, human review recommended."
+                    )
+                ),
+                "task_id": resolved_id,
+            }
+
+        # All checks passed - close the task with session and commit tracking
         task_manager.close_task(
             resolved_id,
             reason=reason,
