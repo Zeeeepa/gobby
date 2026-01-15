@@ -284,8 +284,9 @@ class RunningAgentRegistry:
             # Strategy 2: pgrep fallback (for Codex/Gemini without hooks)
             if found_via == "registry" or not target_pid:
                 try:
+                    # Use -- to prevent pgrep from interpreting pattern as options
                     result = subprocess.run(
-                        ["pgrep", "-f", f"Your Gobby session_id is: {agent.session_id}"],
+                        ["pgrep", "-f", "--", f"session-id {agent.session_id}"],
                         capture_output=True,
                         text=True,
                         timeout=5.0,
