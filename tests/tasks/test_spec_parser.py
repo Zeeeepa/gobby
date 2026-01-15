@@ -2534,3 +2534,189 @@ class TestTDDMode:
         assert len(created_tasks) == 1
         assert created_tasks[0].title == "Storage Layer"
         assert created_tasks[0].task_type == "epic"
+
+
+# =============================================================================
+# LLM Service and Config Tests (Phase 2: Smart Context Extraction)
+# =============================================================================
+
+
+class MockLLMService:
+    """Mock LLM service for testing TaskHierarchyBuilder LLM integration."""
+
+    def __init__(self):
+        self.generate_calls: list[dict] = []
+
+    def get_provider(self, name: str):
+        """Mock get_provider method."""
+        return MockLLMProvider()
+
+    def get_default_provider(self):
+        """Mock get_default_provider method."""
+        return MockLLMProvider()
+
+
+class MockLLMProvider:
+    """Mock LLM provider for testing."""
+
+    async def generate_text(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        model: str | None = None,
+    ) -> str:
+        """Mock generate_text that returns a predictable response."""
+        return f"Generated description for: {prompt[:50]}"
+
+
+class MockTaskDescriptionConfig:
+    """Mock TaskDescriptionConfig for testing."""
+
+    def __init__(
+        self,
+        enabled: bool = True,
+        provider: str = "claude",
+        model: str = "claude-haiku-4-5",
+        min_structured_length: int = 50,
+    ):
+        self.enabled = enabled
+        self.provider = provider
+        self.model = model
+        self.min_structured_length = min_structured_length
+        self.prompt = """Generate a brief task description for:
+Task: {task_title}
+Section: {section_title}
+Section content: {section_content}
+Existing context: {existing_context}"""
+        self.system_prompt = "You are a technical writer."
+
+
+class MockDaemonConfig:
+    """Mock DaemonConfig for testing LLM integration."""
+
+    def __init__(self, task_description: MockTaskDescriptionConfig | None = None):
+        self.task_description = task_description or MockTaskDescriptionConfig()
+
+
+class TestTaskHierarchyBuilderLLMServiceConfig:
+    """Tests for LLM service and config parameters in TaskHierarchyBuilder.
+
+    These tests verify Phase 2 implementation: Adding LLM service imports
+    and config to TaskHierarchyBuilder for smart context extraction.
+    """
+
+    def test_init_accepts_llm_service_parameter(self, mock_task_manager):
+        """TaskHierarchyBuilder should accept llm_service parameter."""
+        llm_service = MockLLMService()
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=llm_service,
+        )
+
+        assert builder.llm_service is llm_service
+
+    def test_init_accepts_config_parameter(self, mock_task_manager):
+        """TaskHierarchyBuilder should accept config parameter."""
+        config = MockDaemonConfig()
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            config=config,
+        )
+
+        assert builder.config is config
+
+    def test_init_accepts_both_llm_service_and_config(self, mock_task_manager):
+        """TaskHierarchyBuilder should accept both llm_service and config."""
+        llm_service = MockLLMService()
+        config = MockDaemonConfig()
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=llm_service,
+            config=config,
+        )
+
+        assert builder.llm_service is llm_service
+        assert builder.config is config
+
+    def test_llm_service_defaults_to_none(self, mock_task_manager):
+        """llm_service should default to None when not provided."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        assert builder.llm_service is None
+
+    def test_config_defaults_to_none(self, mock_task_manager):
+        """config should default to None when not provided."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        assert builder.config is None
+
+    def test_config_task_description_accessible(self, mock_task_manager):
+        """config.task_description should be accessible."""
+        task_desc_config = MockTaskDescriptionConfig(
+            enabled=True,
+            provider="claude",
+            model="claude-haiku-4-5",
+        )
+        config = MockDaemonConfig(task_description=task_desc_config)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            config=config,
+        )
+
+        assert builder.config.task_description.enabled is True
+        assert builder.config.task_description.provider == "claude"
+        assert builder.config.task_description.model == "claude-haiku-4-5"
+
+    def test_config_task_description_min_structured_length(self, mock_task_manager):
+        """config.task_description.min_structured_length should be accessible."""
+        task_desc_config = MockTaskDescriptionConfig(min_structured_length=100)
+        config = MockDaemonConfig(task_description=task_desc_config)
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            config=config,
+        )
+
+        assert builder.config.task_description.min_structured_length == 100
+
+    def test_llm_service_with_all_existing_parameters(self, mock_task_manager):
+        """llm_service should work alongside all existing parameters."""
+        llm_service = MockLLMService()
+        config = MockDaemonConfig()
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            parent_task_id="gt-parent",
+            default_priority=1,
+            parent_labels=["label1", "label2"],
+            tdd_mode=True,
+            llm_service=llm_service,
+            config=config,
+        )
+
+        # Verify existing parameters still work
+        assert builder.project_id == "test-project"
+        assert builder.parent_task_id == "gt-parent"
+        assert builder.default_priority == 1
+        assert builder.parent_labels == ["label1", "label2"]
+        assert builder.tdd_mode is True
+
+        # Verify new parameters
+        assert builder.llm_service is llm_service
+        assert builder.config is config
