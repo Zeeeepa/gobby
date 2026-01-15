@@ -7,7 +7,7 @@ This spec defines the Gobby Conductor orchestration system for coordinating mult
 **Key capabilities:**
 - Inter-agent messaging (parent ↔ child)
 - Blocking wait tools for task synchronization
-- `pending_review` status for review gates
+- `review` status for review gates
 - Token aggregation, pricing, and budget throttling
 - Conductor daemon with TARS-style haiku personality
 - Phone alerts via callme integration
@@ -42,18 +42,18 @@ Enable parent ↔ child message passing during agent execution.
 
 ## Phase B: Task Status Extensions
 
-Support review workflow with `pending_review` status and blocking wait tools.
+Support review workflow with `review` status and blocking wait tools.
 
 ### Database Changes
 
-- [ ] Add `pending_review` to task status enum
-- [ ] Add `pending_review_at` timestamp column to tasks table
-- [ ] Update JSONL sync to handle `pending_review` status
+- [ ] Add `review` to task status enum
+- [ ] Add `review_at` timestamp column to tasks table
+- [ ] Update JSONL sync to handle `review` status
 
 ### Modified `close_task` Behavior
 
 - [ ] Detect agent context via `session.agent_depth`
-- [ ] Transition to `pending_review` when agent_depth > 0
+- [ ] Transition to `review` when agent_depth > 0
 - [ ] Transition to `completed` when called by orchestrator
 - [ ] Add `force_complete` parameter for override
 
@@ -70,7 +70,7 @@ Support review workflow with `pending_review` status and blocking wait tools.
   - [ ] Accept list of task_ids
   - [ ] Return dict of task statuses
 - [ ] Add `reopen_task` tool to gobby-tasks
-  - [ ] Transition `pending_review` back to `in_progress`
+  - [ ] Transition `review` back to `in_progress`
   - [ ] Clear commit_sha
   - [ ] Log reopen reason
 - [ ] Add `approve_and_cleanup` tool to gobby-tasks
@@ -259,7 +259,7 @@ Validate the system end-to-end and update documentation.
 
 ### Unit Tests
 
-- [ ] Test close_task transitions to pending_review for agents
+- [ ] Test close_task transitions to review for agents
 - [ ] Test wait_for_task returns on status change
 - [ ] Test wait_for_task timeout behavior
 - [ ] Test wait_for_any_task returns first completed

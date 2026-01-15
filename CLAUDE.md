@@ -267,8 +267,19 @@ call_tool(server_name="gobby-tasks", tool_name="close_task", arguments={
 
 5. **Complete work**:
    - Commit changes with `[task-id]` prefix
-   - `close_task(task_id, commit_sha="...")` - Mark task complete
+   - `close_task(task_id, commit_sha="...")` - Mark task complete or route to review
    - Alternative: `close_task(task_id, no_commit_needed=true)` for non-code tasks (research, planning)
+
+6. **Review status** (HITL - Human-in-the-Loop):
+   - Tasks may enter `review` status instead of `closed` when:
+     - Task has `requires_user_review=true`
+     - Agent uses `override_justification` to bypass validation
+   - User must explicitly close reviewed tasks (sets `accepted_by_user=true`)
+   - `reopen_task()` works from both `closed` and `review` statuses
+
+**Task lifecycle**: `open → in_progress → review → closed`
+
+Note: Tasks in `review` with `requires_user_review=false` unblock dependents (treated as complete for dependency resolution).
 
 ### Task Expansion and TDD Mode
 
@@ -551,6 +562,11 @@ call_tool(server_name="gobby-workflows", tool_name="set_variable", arguments={
 - `session_task` - Task that must complete before stopping
 - `tdd_mode` - Generate test/implement pairs (default: `true`)
 - `require_task_before_edit` - Block Edit/Write without active task (default: `false`)
+
+**Workflow conditions**:
+
+- `task_tree_complete()` - True when session_task and all subtasks are complete
+- `task_needs_user_review()` - True when session_task is in `review` with `requires_user_review=true`
 
 ### Auto-Task Workflow
 

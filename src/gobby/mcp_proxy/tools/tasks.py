@@ -530,7 +530,7 @@ def create_task_registry(
                 },
                 "status": {
                     "type": "string",
-                    "description": "New status (open, in_progress, closed)",
+                    "description": "New status (open, in_progress, review, closed)",
                     "default": None,
                 },
                 "priority": {"type": "integer", "description": "New priority", "default": None},
@@ -990,14 +990,14 @@ def create_task_registry(
     )
 
     def reopen_task(task_id: str, reason: str | None = None) -> dict[str, Any]:
-        """Reopen a closed task.
+        """Reopen a closed or review task.
 
         Args:
             task_id: Task reference (#N, path, or UUID)
             reason: Optional reason for reopening
 
         Returns:
-            Reopened task or error
+            Reopened task or error. Resets accepted_by_user to false.
         """
         try:
             resolved_id = resolve_task_id_for_mcp(task_manager, task_id)

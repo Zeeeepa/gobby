@@ -124,7 +124,7 @@ Goal: reduce cognitive load; make the daemon’s behavior legible.
 - 🗺️ Conductor daemon: persistent monitoring, TARS-style haiku status
 - 🗺️ Inter-agent messaging: parent↔child message passing during execution
 - 🗺️ Token budget tracking: aggregation, pricing, throttling
-- 🗺️ Review gates: `pending_review` status, blocking wait tools
+- 🗺️ Review gates: `review` status, blocking wait tools
 - 🗺️ callme integration: phone alerts for stuck agents/critical events
 
 ### 3) Worktree production readiness

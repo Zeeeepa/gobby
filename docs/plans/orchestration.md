@@ -34,7 +34,7 @@ The Conductor is Gobby's persistent orchestration daemon that monitors tasks, co
 │   │                    SHARED INFRASTRUCTURE                        │   │
 │   │                                                                 │   │
 │   │  Inter-Agent Messaging    Task Status Extensions   Token Track  │   │
-│   │  - send_to_parent         - pending_review         - Usage API  │   │
+│   │  - send_to_parent         - review         - Usage API  │   │
 │   │  - send_to_child          - wait_for_task          - Budget %   │   │
 │   │  - poll_messages          - reopen_task            - Throttle   │   │
 │   │  - mark_read              - approve_and_cleanup                 │   │
@@ -57,7 +57,7 @@ The Conductor is Gobby's persistent orchestration daemon that monitors tasks, co
 |------------|-------------|
 | Inter-agent messaging | Parent↔child message passing during execution |
 | Blocking wait tools | Synchronous wait for task completion |
-| `pending_review` status | Review gates in task flow |
+| `review` status | Review gates in task flow |
 | Token aggregation/pricing | Sum across sessions + cost calculation |
 | Conductor daemon loop | Persistent monitoring + TARS personality |
 
@@ -178,7 +178,7 @@ Active Agents: 2
 Pending Tasks: 5
   • #2130 (ready) - Add user avatar upload
   • #2128 (blocked by #2127) - Integrate S3 storage
-  • #2125 (pending_review) - Auth middleware refactor
+  • #2125 (review) - Auth middleware refactor
 
 Token Usage (7d): $12.45 / $50.00 (24.9%)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -329,7 +329,7 @@ class HaikuGenerator:
 ### 5.1 Status Flow Diagram
 
 ```
-pending → in_progress → pending_review → completed
+pending → in_progress → review → completed
                  ↑              │
                  └──────────────┘  (reopen if review fails)
 ```
@@ -337,18 +337,18 @@ pending → in_progress → pending_review → completed
 **Flow explanation:**
 1. Task starts as `pending`
 2. Agent picks up task → `in_progress`
-3. Agent completes work → `pending_review` (awaiting orchestrator review)
+3. Agent completes work → `review` (awaiting orchestrator review)
 4. Orchestrator approves → `completed`
 5. Orchestrator finds issues → `reopen` back to `in_progress`, fix, close again
 
-### 5.2 `pending_review` Status
+### 5.2 `review` Status
 
-When `close_task` is called by an agent (session.agent_depth > 0), it transitions to `pending_review` instead of `completed`. This creates a review gate where the orchestrator must approve the work.
+When `close_task` is called by an agent (session.agent_depth > 0), it transitions to `review` instead of `completed`. This creates a review gate where the orchestrator must approve the work.
 
 **Schema change:**
 ```sql
--- Add pending_review_at timestamp
-ALTER TABLE tasks ADD COLUMN pending_review_at TIMESTAMP;
+-- Add review_at timestamp
+ALTER TABLE tasks ADD COLUMN review_at TIMESTAMP;
 ```
 
 **Logic in close_task:**
@@ -357,9 +357,9 @@ def close_task(task_id: str, commit_sha: str, force_complete: bool = False):
     session = get_current_session()
 
     if session.agent_depth > 0 and not force_complete:
-        # Agent closes to pending_review
-        task.status = "pending_review"
-        task.pending_review_at = datetime.utcnow()
+        # Agent closes to review
+        task.status = "review"
+        task.review_at = datetime.utcnow()
     else:
         # Orchestrator closes to completed
         task.status = "completed"
@@ -370,7 +370,7 @@ def close_task(task_id: str, commit_sha: str, force_complete: bool = False):
 
 **`wait_for_task(task_id, timeout_seconds=300, poll_interval=5)`**
 
-Polls task status until it leaves `in_progress`. Returns when task becomes `pending_review` or `completed`.
+Polls task status until it leaves `in_progress`. Returns when task becomes `review` or `completed`.
 
 ```python
 wait_for_task(task_id: str, timeout_seconds: int = 300) -> TaskStatus
@@ -400,7 +400,7 @@ wait_for_all_tasks(task_ids: List[str], timeout_seconds: int) -> Dict[str, statu
 
 **`reopen_task(task_id, reason=None)`**
 
-Transitions from `pending_review` → `in_progress`. Used when orchestrator finds issues during review.
+Transitions from `review` → `in_progress`. Used when orchestrator finds issues during review.
 
 ```python
 reopen_task(task_id: str, reason: str = None) -> Task
@@ -562,7 +562,7 @@ mark_read(message_id: str) -> dict
       │                                           │
       │                           [does work]     │
       │                                           │
-      │◄────────── close_task(pending_review) ────┤
+      │◄────────── close_task(review) ────┤
       │                                           │
       │ [reviews code]                            │
       │                                           │
@@ -571,7 +571,7 @@ mark_read(message_id: str) -> dict
       │                           [polls msgs]    │
       │                           [fixes code]    │
       │                                           │
-      │◄────────── close_task(pending_review) ────┤
+      │◄────────── close_task(review) ────┤
       │                                           │
       │ approve_and_cleanup()                     │
       │                                           │
@@ -1161,15 +1161,15 @@ mark_read(message_id: str) -> bool
 
 ### Phase B: Task Status Extensions
 
-**Goal**: Support review workflow with `pending_review` status
+**Goal**: Support review workflow with `review` status
 
 **Files to modify**:
-- `src/gobby/storage/tasks.py` - Add `pending_review` status + `pending_review_at` timestamp
+- `src/gobby/storage/tasks.py` - Add `review` status + `review_at` timestamp
 - `src/gobby/mcp_proxy/tools/tasks.py` - Modify `close_task` behavior based on agent context
-- `src/gobby/mcp_proxy/tools/task_sync.py` - Handle `pending_review` in JSONL
+- `src/gobby/mcp_proxy/tools/task_sync.py` - Handle `review` in JSONL
 
 **Logic Change**:
-- When `close_task` called by agent (session.agent_depth > 0) → transitions to `pending_review`
+- When `close_task` called by agent (session.agent_depth > 0) → transitions to `review`
 - When called by orchestrator → transitions to `completed`
 
 **New MCP Tools**:
@@ -1264,7 +1264,7 @@ class ConductorLoop:
    - Create epic with 2 subtasks
    - Activate `sequential-orchestrator` workflow
    - Watch Claude spawn Gemini on task 1
-   - Verify task transitions: `in_progress` → `pending_review`
+   - Verify task transitions: `in_progress` → `review`
    - Claude reviews, approves
    - Verify merge and task completion
    - Repeat for task 2
@@ -1318,11 +1318,11 @@ class ConductorLoop:
 |------|---------|
 | `src/gobby/storage/migrations.py` | Add `inter_session_messages` table, `model` column |
 | `src/gobby/storage/sessions.py` | Add model column, aggregation queries |
-| `src/gobby/storage/tasks.py` | Add `pending_review` status |
+| `src/gobby/storage/tasks.py` | Add `review` status |
 | `src/gobby/sessions/transcripts/claude.py` | Extract model from JSONL |
 | `src/gobby/mcp_proxy/tools/agents.py` | Add messaging tools |
 | `src/gobby/mcp_proxy/tools/tasks.py` | Add wait/reopen tools |
-| `src/gobby/mcp_proxy/tools/task_sync.py` | Handle pending_review in JSONL |
+| `src/gobby/mcp_proxy/tools/task_sync.py` | Handle review in JSONL |
 | `src/gobby/mcp_proxy/tools/worktrees.py` | Auto-activate worktree-agent workflow |
 | `src/gobby/config/app.py` | Add conductor config section |
 | `src/gobby/runner.py` | Start ConductorLoop |
@@ -1349,7 +1349,7 @@ class ConductorLoop:
 
 ### 14.1 Unit Test Requirements
 
-- `close_task` → `pending_review` when session.agent_depth > 0
+- `close_task` → `review` when session.agent_depth > 0
 - `wait_for_task` returns on status change or timeout
 - `wait_for_any_task` returns when first task completes
 - `wait_for_all_tasks` returns when all tasks complete
@@ -1377,7 +1377,7 @@ gobby worktrees create feature/task-1
 gobby worktrees spawn feature/task-1 --task=<task-id> --provider=gemini
 
 # 4. Wait for Gemini to complete, then verify
-gobby tasks list --status=pending_review
+gobby tasks list --status=review
 
 # 5. Merge using gobby-merge
 # Via MCP: merge_start(worktree_id, source_branch, target_branch="dev")
@@ -1510,7 +1510,7 @@ conductor:
 | Phase | Key Output | Validates |
 |-------|-----------|-----------|
 | A | Inter-agent messaging MCP tools | WebSocket + message passing |
-| B | `pending_review` status + wait tools | Review gates |
+| B | `review` status + wait tools | Review gates |
 | C | Orchestration workflow definitions | Interactive mode |
 | D | Token tracking + throttling | Budget awareness |
 | E | ConductorLoop + TARS haikus | Autonomous mode |

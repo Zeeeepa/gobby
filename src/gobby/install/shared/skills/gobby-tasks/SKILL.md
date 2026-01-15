@@ -57,7 +57,7 @@ Example: `/gobby-tasks update #1 status=in_progress` → `update_task(task_id="#
 
 ### `/gobby-tasks list [status]` - List tasks
 Call `gobby-tasks.list_tasks` with:
-- `status`: Filter (open, in_progress, closed, or comma-separated)
+- `status`: Filter (open, in_progress, review, closed, or comma-separated)
 - `priority`: Filter by priority
 - `task_type`: Filter by type
 - `assignee`: Filter by assignee
@@ -83,12 +83,20 @@ Call `gobby-tasks.close_task` with:
 
 **IMPORTANT**: Commit changes first, then close with commit SHA.
 
+**Review routing**: Tasks may route to `review` status instead of `closed` when:
+- Task has `requires_user_review=true`, OR
+- `override_justification` is provided
+
+Returns `routed_to_review: true` if task was sent to review instead of closed.
+
 Example: `/gobby-tasks close #1` → First commit, then `close_task(task_id="#1", commit_sha="<sha>")`
 
-### `/gobby-tasks reopen <task-id>` - Reopen a closed task
+### `/gobby-tasks reopen <task-id>` - Reopen a closed or review task
 Call `gobby-tasks.reopen_task` with:
 - `task_id`: (required) Task reference
 - `append_description`: Additional context for reopening
+
+Works on both `closed` and `review` status tasks. Resets `accepted_by_user` to false.
 
 Example: `/gobby-tasks reopen #1` → `reopen_task(task_id="#1")`
 

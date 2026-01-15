@@ -61,16 +61,34 @@ gobby tasks sync
 ## Task Lifecycle
 
 ```text
-open → in_progress → closed
-   ↘                ↘ failed (validation failures)
-    needs_decomposition → open (when subtasks added)
+open → in_progress → review → closed
+   ↘                    ↓      ↘ failed (validation failures)
+    needs_decomposition ↑ open (when subtasks added)
 ```
 
 - **open**: Ready or blocked, not started
 - **in_progress**: Currently being worked on
+- **review**: Agent-complete, awaiting user sign-off (HITL)
 - **closed**: Completed with reason
 - **failed**: Exceeded validation retry limit
 - **needs_decomposition**: Multi-step task awaiting breakdown into subtasks
+
+### Review Status (HITL)
+
+Tasks enter `review` status instead of `closed` when:
+- Task has `requires_user_review=true` (explicitly flagged for human approval)
+- Agent uses `override_justification` to bypass validation failures
+
+**Fields:**
+- `requires_user_review`: Boolean flag for mandatory human approval
+- `accepted_by_user`: Audit trail - set to `true` when user closes from review
+
+**Dependency behavior:**
+- Tasks in `review` with `requires_user_review=false` unblock dependents (treated as complete)
+- Tasks in `review` with `requires_user_review=true` keep dependents blocked until user closes
+
+**Workflow condition:**
+- `task_needs_user_review()` - Returns true when session_task is in review AND requires user approval
 
 ## Task Types
 
@@ -92,7 +110,11 @@ open → in_progress → closed
 
 ## Dependencies
 
-Tasks can block other tasks. A blocked task won't appear in `list_ready_tasks` until its blockers are closed.
+Tasks can block other tasks. A blocked task won't appear in `list_ready_tasks` until its blockers are complete.
+
+**Complete for dependency purposes:**
+- Status is `closed`, OR
+- Status is `review` AND `requires_user_review=false`
 
 ```python
 # Task A blocks Task B (B depends on A completing first)

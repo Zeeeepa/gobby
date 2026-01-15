@@ -26,7 +26,7 @@ from gobby.utils.project_context import get_project_context
 @click.option(
     "--status",
     "-s",
-    help="Filter by status (open, in_progress, closed, blocked). Comma-separated for multiple.",
+    help="Filter by status (open, in_progress, review, closed, blocked). Comma-separated for multiple.",
 )
 @click.option(
     "--active",
@@ -266,7 +266,7 @@ def task_stats(project_ref: str | None, json_format: bool) -> None:
     # Get counts by status
     all_tasks = manager.list_tasks(project_id=project_id, limit=10000)
     total = len(all_tasks)
-    by_status = {"open": 0, "in_progress": 0, "closed": 0}
+    by_status = {"open": 0, "in_progress": 0, "review": 0, "closed": 0}
     by_priority = {1: 0, 2: 0, 3: 0}
     by_type: dict[str, int] = {}
 
@@ -302,6 +302,7 @@ def task_stats(project_ref: str | None, json_format: bool) -> None:
     click.echo(f"  Total: {total}")
     click.echo(f"  Open: {by_status.get('open', 0)}")
     click.echo(f"  In Progress: {by_status.get('in_progress', 0)}")
+    click.echo(f"  Review: {by_status.get('review', 0)}")
     click.echo(f"  Closed: {by_status.get('closed', 0)}")
     click.echo(f"\n  Ready (no blockers): {ready_count}")
     click.echo(f"  Blocked: {blocked_count}")
@@ -500,11 +501,12 @@ def close_task_cmd(task_ids: tuple[str, ...], reason: str, skip_validation: bool
 @click.argument("task_id", metavar="TASK")
 @click.option("--reason", "-r", default=None, help="Reason for reopening")
 def reopen_task_cmd(task_id: str, reason: str | None) -> None:
-    """Reopen a closed task.
+    """Reopen a closed or review task.
 
     TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
 
-    Sets status back to 'open' and clears closed_at, closed_reason, etc.
+    Sets status back to 'open', clears closed_at/closed_reason, and resets
+    accepted_by_user to false.
     """
     manager = get_task_manager()
     resolved = resolve_task_id(manager, task_id)
