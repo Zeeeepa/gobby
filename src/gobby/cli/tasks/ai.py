@@ -517,6 +517,116 @@ def enrich_cmd(
         click.echo(f"Error during enrichment: {e}", err=True)
 
 
+@click.command("apply-tdd")
+@click.argument("task_refs", nargs=-1, required=True, metavar="TASKS...")
+@click.option("--cascade", "-c", is_flag=True, help="Also apply TDD to subtasks")
+@click.option("--force", "-f", is_flag=True, help="Reapply TDD even if already applied")
+def apply_tdd_cmd(
+    task_refs: tuple[str, ...],
+    cascade: bool,
+    force: bool,
+) -> None:
+    """Transform tasks into TDD triplets (test, implement, refactor).
+
+    TASKS can be: #N (e.g., #1, #47), comma-separated (#1,#2,#3), or UUIDs.
+    Multiple tasks can be specified separated by spaces or commas.
+
+    Creates three subtasks for each task:
+    1. [TEST] Write tests for: <title>
+    2. [IMPL] Implement: <title>
+    3. [REFACTOR] Refactor: <title>
+
+    Examples:
+        gobby tasks apply-tdd #42
+        gobby tasks apply-tdd #42,#43
+        gobby tasks apply-tdd #42 --cascade
+    """
+    from gobby.cli.tasks._utils import parse_task_refs
+    from gobby.storage.task_dependencies import TaskDependencyManager
+
+    # TDD prefixes (same as in MCP tool)
+    TDD_PREFIXES = ("[TEST]", "[IMPL]", "[REFACTOR]")
+
+    # Parse task references
+    refs = parse_task_refs(task_refs)
+    if not refs:
+        click.echo("Error: No task references provided", err=True)
+        return
+
+    manager = get_task_manager()
+    dep_manager = TaskDependencyManager(manager.db)
+
+    # Resolve all tasks
+    tasks_to_transform: list[Task] = []
+    for ref in refs:
+        task = resolve_task_id(manager, ref)
+        if not task:
+            continue
+        tasks_to_transform.append(task)
+
+        # If cascade, get subtasks too
+        if cascade:
+            subtasks = manager.list_tasks(parent_task_id=task.id)
+            tasks_to_transform.extend(subtasks)
+
+    if not tasks_to_transform:
+        click.echo("No valid tasks to transform.", err=True)
+        return
+
+    # Apply TDD to each task
+    applied_count = 0
+    skipped_count = 0
+
+    for task in tasks_to_transform:
+        # Skip if already TDD-applied (unless force)
+        if task.is_tdd_applied and not force:
+            click.echo(f"Skipping #{task.seq_num}: TDD already applied (use --force)")
+            skipped_count += 1
+            continue
+
+        # Skip if title has TDD prefix
+        if task.title.startswith(TDD_PREFIXES):
+            click.echo(f"Skipping #{task.seq_num}: already a TDD subtask")
+            skipped_count += 1
+            continue
+
+        task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+        click.echo(f"Applying TDD to {task_ref}: {task.title[:40]}...")
+
+        try:
+            # Create TDD triplet
+            triplet_ids: list[str] = []
+            for prefix in TDD_PREFIXES:
+                subtask = manager.create_task(
+                    title=f"{prefix} {task.title}",
+                    project_id=task.project_id,
+                    parent_task_id=task.id,
+                    task_type="task",
+                    priority=task.priority,
+                )
+                triplet_ids.append(subtask.id)
+                sub_ref = f"#{subtask.seq_num}" if subtask.seq_num else subtask.id[:8]
+                click.echo(f"  Created {sub_ref}: {subtask.title[:50]}")
+
+            # Wire dependencies
+            test_id, impl_id, refactor_id = triplet_ids
+            dep_manager.add_dependency(impl_id, test_id, "blocks")
+            dep_manager.add_dependency(refactor_id, impl_id, "blocks")
+
+            # Mark task as TDD-applied
+            manager.update_task(
+                task.id,
+                is_tdd_applied=True,
+                validation_criteria="All child tasks must be completed (status: closed).",
+            )
+            applied_count += 1
+
+        except Exception as e:
+            click.echo(f"  Error: {e}", err=True)
+
+    click.echo(f"\nDone: {applied_count} transformed, {skipped_count} skipped")
+
+
 @click.command("expand")
 @click.argument("task_refs", nargs=-1, required=True, metavar="TASKS...")
 @click.option("--context", "-c", help="Additional context for expansion")

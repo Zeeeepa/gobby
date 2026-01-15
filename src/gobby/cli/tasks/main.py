@@ -15,6 +15,7 @@ from gobby.cli.tasks._utils import (
     get_task_manager,
 )
 from gobby.cli.tasks.ai import (
+    apply_tdd_cmd,
     complexity_cmd,
     enrich_cmd,
     expand_all_cmd,
@@ -71,6 +72,7 @@ tasks.add_command(validate_task_cmd)
 tasks.add_command(generate_criteria_cmd)
 tasks.add_command(enrich_cmd)
 tasks.add_command(expand_task_cmd)
+tasks.add_command(apply_tdd_cmd)
 tasks.add_command(complexity_cmd)
 tasks.add_command(expand_all_cmd)
 tasks.add_command(import_spec_cmd)
