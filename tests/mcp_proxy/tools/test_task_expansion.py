@@ -3895,3 +3895,60 @@ class TestParseSpecTool:
 
         assert "error" in result
         assert "not found" in result["error"].lower()
+
+    @pytest.mark.asyncio
+    async def test_parse_spec_sets_reference_doc_on_tasks(
+        self, mock_task_manager, mock_task_expander
+    ):
+        """Test that parse_spec sets reference_doc on created tasks."""
+        if not IMPORT_SUCCEEDED:
+            pytest.skip("Module not extracted yet")
+
+        import tempfile
+
+        with (
+            patch("gobby.mcp_proxy.tools.task_expansion.TaskDependencyManager"),
+            patch("gobby.mcp_proxy.tools.task_expansion.LocalProjectManager"),
+            patch("gobby.mcp_proxy.tools.task_expansion.get_project_context") as mock_ctx,
+            patch("gobby.mcp_proxy.tools.task_expansion.initialize_project") as mock_init,
+        ):
+            mock_ctx.return_value = {"id": "p1"}
+            mock_init.return_value = MagicMock(project_id="p1")
+
+            registry = create_expansion_registry(
+                task_manager=mock_task_manager,
+                task_expander=mock_task_expander,
+            )
+
+            # Create spec with structure
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+                f.write("# Spec\n\n## Phase 1\n\n- [ ] Task A\n")
+                spec_path = f.name
+
+            try:
+                mock_task_manager.create_task.return_value = Task(
+                    id="epic-1", title="Spec", project_id="p1",
+                    status="open", priority=2, task_type="epic",
+                    created_at="now", updated_at="now",
+                )
+
+                await registry.call(
+                    "parse_spec", {"spec_path": spec_path}
+                )
+
+                # Verify create_task was called with reference_doc set to spec_path
+                create_calls = mock_task_manager.create_task.call_args_list
+                assert len(create_calls) > 0, "create_task should be called"
+
+                # At least one call should have reference_doc set
+                reference_doc_set = any(
+                    call.kwargs.get("reference_doc") == spec_path
+                    for call in create_calls
+                )
+                assert reference_doc_set, (
+                    f"At least one task should have reference_doc={spec_path}, "
+                    f"got calls: {create_calls}"
+                )
+            finally:
+                import os
+                os.unlink(spec_path)
