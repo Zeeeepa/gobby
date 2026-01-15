@@ -121,6 +121,31 @@ class TestInstallSharedContent:
         assert "audit.py" in result["plugins"]
         assert "README.md" not in result["plugins"]
 
+    def test_install_shared_docs(self, temp_dir: Path):
+        """Test installing shared docs to .gobby/docs/."""
+        install_dir = temp_dir / "install"
+        shared_dir = install_dir / "shared"
+        docs_dir = shared_dir / "docs"
+        docs_dir.mkdir(parents=True)
+
+        # Create sample doc files
+        (docs_dir / "spec-planning.md").write_text("# Spec Planning Guide")
+        (docs_dir / "workflow-guide.md").write_text("# Workflow Guide")
+
+        cli_path = temp_dir / ".claude"
+        project_path = temp_dir / "project"
+        cli_path.mkdir(parents=True)
+        project_path.mkdir(parents=True)
+
+        with patch("gobby.cli.installers.shared.get_install_dir") as mock_install_dir:
+            mock_install_dir.return_value = install_dir
+            result = install_shared_content(cli_path, project_path)
+
+        assert "spec-planning.md" in result["docs"]
+        assert "workflow-guide.md" in result["docs"]
+        assert (project_path / ".gobby" / "docs" / "spec-planning.md").exists()
+        assert (project_path / ".gobby" / "docs" / "workflow-guide.md").exists()
+
     def test_install_shared_content_all_types(self, temp_dir: Path):
         """Test installing all content types at once."""
         install_dir = temp_dir / "install"
@@ -135,6 +160,11 @@ class TestInstallSharedContent:
         plugins_dir = shared_dir / "plugins"
         plugins_dir.mkdir(parents=True)
         (plugins_dir / "plugin1.py").write_text("# Plugin 1")
+
+        # Create docs
+        docs_dir = shared_dir / "docs"
+        docs_dir.mkdir(parents=True)
+        (docs_dir / "guide.md").write_text("# Guide")
 
         cli_path = temp_dir / ".claude"
         project_path = temp_dir / "project"
@@ -152,6 +182,7 @@ class TestInstallSharedContent:
 
         assert result["workflows"] == ["workflow1.yaml"]
         assert result["plugins"] == ["plugin1.py"]
+        assert result["docs"] == ["guide.md"]
 
 
 class TestInstallCliContent:
