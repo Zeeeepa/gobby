@@ -152,11 +152,14 @@ class TestMemorySyncConfigDefaults:
 
     def test_default_instantiation(self) -> None:
         """Test MemorySyncConfig creates with all defaults."""
+        from pathlib import Path
+
         from gobby.config.persistence import MemorySyncConfig
 
         config = MemorySyncConfig()
         assert config.enabled is True
         assert config.export_debounce == 5.0
+        assert config.export_path == Path(".gobby/memories.jsonl")
 
 
 class TestMemorySyncConfigCustom:
@@ -175,6 +178,15 @@ class TestMemorySyncConfigCustom:
 
         config = MemorySyncConfig(export_debounce=10.0)
         assert config.export_debounce == 10.0
+
+    def test_custom_export_path(self) -> None:
+        """Test setting custom export path."""
+        from pathlib import Path
+
+        from gobby.config.persistence import MemorySyncConfig
+
+        config = MemorySyncConfig(export_path=Path("/custom/memories.jsonl"))
+        assert config.export_path == Path("/custom/memories.jsonl")
 
 
 class TestMemorySyncConfigValidation:

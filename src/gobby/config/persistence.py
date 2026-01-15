@@ -8,6 +8,8 @@ Contains storage and sync-related Pydantic config models:
 Extracted from app.py using Strangler Fig pattern for code decomposition.
 """
 
+from pathlib import Path
+
 from pydantic import BaseModel, Field, field_validator
 
 __all__ = [
@@ -102,6 +104,10 @@ class MemorySyncConfig(BaseModel):
     export_debounce: float = Field(
         default=5.0,
         description="Seconds to wait before exporting after a change",
+    )
+    export_path: Path = Field(
+        default=Path(".gobby/memories.jsonl"),
+        description="Path to the memories export file (relative to project root or absolute)",
     )
 
     @field_validator("export_debounce")

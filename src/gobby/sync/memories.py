@@ -25,12 +25,11 @@ class MemorySyncManager:
         db: DatabaseProtocol,
         memory_manager: MemoryManager | None,
         config: MemorySyncConfig,
-        export_path: str = ".gobby/memories.jsonl",
     ):
         self.db = db
         self.memory_manager = memory_manager
         self.config = config
-        self.export_path = Path(export_path)
+        self.export_path = config.export_path
 
         # Debounce state
         self._export_task: asyncio.Task[None] | None = None
