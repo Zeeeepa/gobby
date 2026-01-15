@@ -227,6 +227,145 @@ class TaskEnricher:
 
         return max(base_count, 1)
 
+    # Validation criteria templates by category
+    VALIDATION_TEMPLATES: dict[str, str] = {
+        "test": (
+            "## Deliverable\n"
+            "- [ ] Tests are written and passing\n\n"
+            "## Functional Requirements\n"
+            "- [ ] Test coverage meets project standards\n"
+            "- [ ] All edge cases are covered\n"
+            "- [ ] Tests are well-documented\n\n"
+            "## Verification\n"
+            "- [ ] All tests pass\n"
+            "- [ ] No regressions introduced"
+        ),
+        "code": (
+            "## Deliverable\n"
+            "- [ ] Implementation is complete and functional\n\n"
+            "## Functional Requirements\n"
+            "- [ ] Code follows project conventions\n"
+            "- [ ] Error handling is implemented\n"
+            "- [ ] Edge cases are handled\n\n"
+            "## Verification\n"
+            "- [ ] Existing tests pass\n"
+            "- [ ] New tests added if applicable\n"
+            "- [ ] Code review approved"
+        ),
+        "document": (
+            "## Deliverable\n"
+            "- [ ] Documentation is written and complete\n\n"
+            "## Functional Requirements\n"
+            "- [ ] Documentation is clear and accurate\n"
+            "- [ ] Examples are provided where helpful\n"
+            "- [ ] Formatting follows project standards\n\n"
+            "## Verification\n"
+            "- [ ] Documentation reviewed for accuracy\n"
+            "- [ ] Links and references are valid"
+        ),
+        "research": (
+            "## Deliverable\n"
+            "- [ ] Research findings documented\n\n"
+            "## Functional Requirements\n"
+            "- [ ] Analysis is thorough and well-reasoned\n"
+            "- [ ] Recommendations are actionable\n\n"
+            "## Verification\n"
+            "- [ ] Findings reviewed by stakeholders"
+        ),
+        "config": (
+            "## Deliverable\n"
+            "- [ ] Configuration is complete and working\n\n"
+            "## Functional Requirements\n"
+            "- [ ] Configuration is documented\n"
+            "- [ ] Environment-specific values are handled\n\n"
+            "## Verification\n"
+            "- [ ] Configuration tested in target environment\n"
+            "- [ ] No sensitive values exposed"
+        ),
+        "manual": (
+            "## Deliverable\n"
+            "- [ ] Manual task completed\n\n"
+            "## Verification\n"
+            "- [ ] Results documented\n"
+            "- [ ] Stakeholders notified"
+        ),
+    }
+
+    def _generate_validation_criteria(
+        self,
+        title: str,
+        description: str | None,
+        category: str,
+        complexity: int,
+        code_context: str | None,
+    ) -> str:
+        """Generate validation criteria based on task analysis.
+
+        Args:
+            title: Task title
+            description: Task description
+            category: Task category
+            complexity: Complexity score (1-3)
+            code_context: Optional code context
+
+        Returns:
+            Validation criteria string
+        """
+        # Start with base template for category
+        base_template = self.VALIDATION_TEMPLATES.get(category, self.VALIDATION_TEMPLATES["code"])
+        criteria_parts = [base_template]
+
+        # Add task-specific criteria based on title/description
+        text = f"{title} {description or ''}".lower()
+
+        # Add specific criteria based on detected patterns
+        specific_criteria = []
+
+        # API-related tasks
+        if "api" in text or "endpoint" in text:
+            specific_criteria.append("- [ ] API endpoint responds correctly")
+            specific_criteria.append("- [ ] Response format matches specification")
+
+        # Authentication-related tasks
+        if "auth" in text or "login" in text or "authentication" in text:
+            specific_criteria.append("- [ ] Security best practices followed")
+            specific_criteria.append("- [ ] Authentication flow tested end-to-end")
+
+        # Database-related tasks
+        if "database" in text or "migration" in text or "schema" in text:
+            specific_criteria.append("- [ ] Database migrations applied successfully")
+            specific_criteria.append("- [ ] Data integrity maintained")
+
+        # Performance-related tasks
+        if "performance" in text or "optimize" in text or "speed" in text:
+            specific_criteria.append("- [ ] Performance benchmarks met")
+            specific_criteria.append("- [ ] No performance regressions")
+
+        # Add specific criteria if any found
+        if specific_criteria:
+            criteria_parts.append("\n## Task-Specific Requirements")
+            criteria_parts.extend(specific_criteria)
+
+        # For complex tasks, add additional review criteria
+        if complexity >= 3:
+            criteria_parts.append("\n## High Complexity Review")
+            criteria_parts.append("- [ ] Architecture reviewed")
+            criteria_parts.append("- [ ] Security implications considered")
+            criteria_parts.append("- [ ] Performance impact assessed")
+
+        # Include code context summary if provided
+        if code_context:
+            functions = re.findall(r"def\s+(\w+)", code_context)
+            classes = re.findall(r"class\s+(\w+)", code_context)
+            if functions or classes:
+                criteria_parts.append("\n## Code Context")
+                if classes:
+                    criteria_parts.append(f"- [ ] Changes to {', '.join(classes[:3])} classes reviewed")
+                if functions:
+                    criteria_parts.append(f"- [ ] Changes to {', '.join(functions[:3])} functions tested")
+
+        return "\n".join(criteria_parts)
+
     def _generate_research_findings(
         self,
         title: str,
@@ -352,6 +491,17 @@ class TaskEnricher:
                 category=category,
             )
 
+        # Generate validation criteria if enabled
+        validation_criteria = None
+        if generate_validation:
+            validation_criteria = self._generate_validation_criteria(
+                title=title,
+                description=description,
+                category=category,
+                complexity=complexity,
+                code_context=code_context,
+            )
+
         # Track MCP tools used (placeholder for future implementation)
         mcp_tools_used = None
         if enable_mcp_tools:
@@ -363,6 +513,6 @@ class TaskEnricher:
             complexity_score=complexity,
             research_findings=research_findings,
             suggested_subtask_count=subtask_count,
-            validation_criteria=None,  # Will be implemented in a separate task
+            validation_criteria=validation_criteria,
             mcp_tools_used=mcp_tools_used,
         )
