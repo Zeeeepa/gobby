@@ -16,10 +16,6 @@ variables:
   tdd_mode: true
 
 triggers:
-  on_prompt_submit:
-    - action: synthesize_title
-      when: "session.title == None"
-
   on_stop:
     # Commit enforcement - block stop if task has uncommitted changes
     # Skip in plan mode (set via gobby-workflows.set_variable when entering plan mode)
@@ -82,6 +78,10 @@ triggers:
         3. `call_tool(server_name, tool_name, arguments)` - Execute
 
   on_before_agent:
+    # Title synthesis on first prompt
+    - action: synthesize_title
+      when: "session.title == None"
+
     # Memory recall - inject memories relevant to the user's prompt
     - action: memory_recall_relevant
       limit: 5
