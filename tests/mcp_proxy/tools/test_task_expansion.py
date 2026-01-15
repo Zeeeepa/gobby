@@ -2227,3 +2227,253 @@ Some description text.
                 )
 
                 assert result["tasks_created"] == 2
+
+
+# ============================================================================
+# Single-Level Expansion Tests
+# ============================================================================
+
+
+class TestSingleLevelExpansion:
+    """Tests verifying expand_task is single-level only (no recursive expansion).
+
+    The MCP tool should only create direct children of the parent task.
+    Recursive/cascade expansion is handled by the CLI, not the MCP layer.
+    """
+
+    @pytest.mark.asyncio
+    async def test_expand_task_only_creates_direct_children(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that expand_task only creates one level of subtasks."""
+        parent_task = Task(
+            id="parent",
+            title="Build authentication system",
+            description="Complete auth with login, registration, password reset",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = parent_task
+        mock_task_manager.list_tasks.return_value = []
+
+        # Expander returns 3 subtask IDs (simulating direct children)
+        mock_task_expander.expand_task.return_value = {
+            "subtask_ids": ["sub1", "sub2", "sub3"],
+        }
+
+        # Mock created subtasks
+        created_subtasks = [
+            Task(
+                id=f"sub{i}",
+                title=f"Subtask {i}",
+                project_id="p1",
+                status="open",
+                priority=2,
+                task_type="task",
+                created_at="now",
+                updated_at="now",
+            )
+            for i in range(1, 4)
+        ]
+
+        def get_task_side_effect(tid):
+            if tid == "parent":
+                return parent_task
+            return next((t for t in created_subtasks if t.id == tid), None)
+
+        mock_task_manager.get_task.side_effect = get_task_side_effect
+
+        result = await expansion_registry.call("expand_task", {"task_id": "parent"})
+
+        # Verify only one call to expand_task (no recursive calls)
+        assert mock_task_expander.expand_task.call_count == 1
+        assert result["tasks_created"] == 3
+
+    @pytest.mark.asyncio
+    async def test_expand_task_does_not_auto_expand_subtasks(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that expand_task does NOT automatically expand created subtasks."""
+        parent_task = Task(
+            id="parent",
+            title="Complex feature",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            created_at="now",
+            updated_at="now",
+        )
+
+        # First subtask is complex (could theoretically be expanded further)
+        complex_subtask = Task(
+            id="sub1",
+            title="Complex subtask that could be expanded",
+            description="This has multiple parts: A, B, C, D, E that could become sub-subtasks",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            complexity_score=8,  # High complexity
+            created_at="now",
+            updated_at="now",
+        )
+
+        def get_task_side_effect(tid):
+            if tid == "parent":
+                return parent_task
+            if tid == "sub1":
+                return complex_subtask
+            return None
+
+        mock_task_manager.get_task.side_effect = get_task_side_effect
+        mock_task_manager.list_tasks.return_value = []
+        mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1"]}
+
+        result = await expansion_registry.call("expand_task", {"task_id": "parent"})
+
+        # Only ONE call - the parent expansion. Subtasks are NOT auto-expanded.
+        assert mock_task_expander.expand_task.call_count == 1
+
+        # The call should have been for the parent task, not sub1
+        call_kwargs = mock_task_expander.expand_task.call_args.kwargs
+        assert call_kwargs.get("task_id") == "parent"
+
+    @pytest.mark.asyncio
+    async def test_expand_task_returns_immediate_children_only(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test expand_task response only contains immediate children, not grandchildren."""
+        parent_task = Task(
+            id="parent",
+            title="Epic task",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="epic",
+            created_at="now",
+            updated_at="now",
+        )
+
+        child_tasks = [
+            Task(
+                id=f"child{i}",
+                title=f"Child {i}",
+                project_id="p1",
+                status="open",
+                priority=2,
+                task_type="task",
+                created_at="now",
+                updated_at="now",
+            )
+            for i in range(1, 4)
+        ]
+
+        def get_task_side_effect(tid):
+            if tid == "parent":
+                return parent_task
+            return next((t for t in child_tasks if t.id == tid), None)
+
+        mock_task_manager.get_task.side_effect = get_task_side_effect
+        mock_task_manager.list_tasks.return_value = []
+        mock_task_expander.expand_task.return_value = {
+            "subtask_ids": ["child1", "child2", "child3"],
+        }
+
+        result = await expansion_registry.call("expand_task", {"task_id": "parent"})
+
+        # Response should only list the 3 immediate children
+        assert result["tasks_created"] == 3
+        assert len(result["subtasks"]) == 3
+        child_ids = {s["id"] for s in result["subtasks"]}
+        assert child_ids == {"child1", "child2", "child3"}
+
+    @pytest.mark.asyncio
+    async def test_expand_task_is_idempotent_single_level(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that calling expand_task multiple times doesn't create nested levels."""
+        parent_task = Task(
+            id="parent",
+            title="Parent task",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            created_at="now",
+            updated_at="now",
+        )
+
+        def get_task_side_effect(tid):
+            if tid == "parent":
+                return parent_task
+            return None
+
+        mock_task_manager.get_task.side_effect = get_task_side_effect
+        mock_task_manager.list_tasks.return_value = []
+
+        # First expansion creates subtasks
+        mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1", "sub2"]}
+
+        result1 = await expansion_registry.call("expand_task", {"task_id": "parent"})
+        assert result1["tasks_created"] == 2
+
+        # Each call is independent - no accumulation of nested levels
+        mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub3"]}
+        result2 = await expansion_registry.call("expand_task", {"task_id": "parent"})
+        assert result2["tasks_created"] == 1
+
+        # Both calls were for the same parent - no recursive descent
+        assert mock_task_expander.expand_task.call_count == 2
+        for call in mock_task_expander.expand_task.call_args_list:
+            assert call.kwargs.get("task_id") == "parent"
+
+    @pytest.mark.asyncio
+    async def test_expand_task_subtasks_have_correct_parent(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that subtasks are direct children of the expanded task."""
+        parent_task = Task(
+            id="parent",
+            title="Parent task",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            created_at="now",
+            updated_at="now",
+        )
+
+        # Subtasks should be created as direct children
+        subtask = Task(
+            id="sub1",
+            title="Subtask 1",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            parent_task_id="parent",  # Direct child of parent
+            created_at="now",
+            updated_at="now",
+        )
+
+        def get_task_side_effect(tid):
+            if tid == "parent":
+                return parent_task
+            if tid == "sub1":
+                return subtask
+            return None
+
+        mock_task_manager.get_task.side_effect = get_task_side_effect
+        mock_task_manager.list_tasks.return_value = []
+        mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1"]}
+
+        result = await expansion_registry.call("expand_task", {"task_id": "parent"})
+
+        # Verify only immediate children returned
+        assert result["tasks_created"] == 1
+        assert result["subtasks"][0]["id"] == "sub1"
