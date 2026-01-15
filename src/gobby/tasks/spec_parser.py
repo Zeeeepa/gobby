@@ -938,8 +938,8 @@ class TaskHierarchyBuilder:
             root_task_ids.append(epic.id)
             epic_id = epic.id
 
-        # Collect all checkbox items for context
-        all_checkbox_items = list(checkboxes.items)
+        # Collect all checkbox items for context (flattened to include nested items)
+        all_checkbox_items = checkboxes.get_flat_items()
 
         # Process top-level checkboxes
         for item in checkboxes.items:

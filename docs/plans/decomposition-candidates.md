@@ -13,7 +13,7 @@ Based on a scan of the codebase, here are the top candidates for decomposition u
 3.  **Bridge**: Update `task_orchestration.py` to import these functions and register them.
 4.  **Finalize**: Deprecate the massive factory in favor of a declarative registry.
 
-## 2. Runner Up: `src/gobby/storage/tasks.py` (1,732 lines)
+## 2. Runner Up: `src/gobby/storage/tasks.py` (1,833 lines)
 **Type**: "God Class"
 **Current State**: `LocalTaskManager` handles database CRUD, hierarchical sorting, path caching string manipulation, and event listeners.
 **Strangler Fig Approach**:
@@ -32,4 +32,4 @@ Based on a scan of the codebase, here are the top candidates for decomposition u
 ## Other Large Files (>1000 lines)
 - `src/gobby/storage/migrations.py` (1399 lines) - *Skip* (Nature of migrations)
 - `src/gobby/servers/routes/mcp/tools.py` (1337 lines) - Likely routing logic, candidate for splitting by domain.
-- `src/gobby/mcp_proxy/tools/tasks.py` (1335 lines) - Similar to orchestration, likely contains many task-related tools.
+- `src/gobby/mcp_proxy/tools/tasks.py` (1833 lines) - Similar to orchestration, likely contains many task-related tools.

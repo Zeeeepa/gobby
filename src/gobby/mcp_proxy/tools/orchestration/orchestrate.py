@@ -276,6 +276,7 @@ def register_orchestrator(
                     continue
 
                 # Determine worktree path
+                newly_created_worktree = False
                 if existing_wt:
                     worktree = existing_wt
                 elif existing_branch_wt:
@@ -326,9 +327,27 @@ def register_orchestrator(
                         task_id=task.id,
                     )
 
-                    # Copy project.json and install hooks
-                    _copy_project_json_to_worktree(git_manager.repo_path, worktree.worktree_path)
-                    _install_provider_hooks(effective_provider, worktree.worktree_path)
+                    # Copy project.json and install hooks (with cleanup on failure)
+                    try:
+                        _copy_project_json_to_worktree(git_manager.repo_path, worktree.worktree_path)
+                        _install_provider_hooks(effective_provider, worktree.worktree_path)
+                    except Exception as init_error:
+                        # Cleanup: delete DB record and git worktree
+                        worktree_storage.delete(worktree.id)
+                        git_manager.delete_worktree(
+                            worktree_path=worktree_path,
+                            force=True,
+                            delete_branch=True,
+                        )
+                        skipped.append(
+                            {
+                                "task_id": task.id,
+                                "title": task.title,
+                                "reason": f"Worktree initialization failed: {init_error}",
+                            }
+                        )
+                        continue
+                    newly_created_worktree = True
 
                 # Validate workflow
                 if workflow:
@@ -438,6 +457,14 @@ def register_orchestrator(
 
                     if not spawn_result.success:
                         worktree_storage.release(worktree.id)
+                        # Clean up newly created worktree on spawn failure
+                        if newly_created_worktree and git_manager is not None:
+                            worktree_storage.delete(worktree.id)
+                            git_manager.delete_worktree(
+                                worktree_path=worktree.worktree_path,
+                                force=True,
+                                delete_branch=True,
+                            )
                         skipped.append(
                             {
                                 "task_id": task.id,
@@ -483,6 +510,14 @@ def register_orchestrator(
 
                     if not embedded_result.success:
                         worktree_storage.release(worktree.id)
+                        # Clean up newly created worktree on spawn failure
+                        if newly_created_worktree and git_manager is not None:
+                            worktree_storage.delete(worktree.id)
+                            git_manager.delete_worktree(
+                                worktree_path=worktree.worktree_path,
+                                force=True,
+                                delete_branch=True,
+                            )
                         skipped.append(
                             {
                                 "task_id": task.id,
@@ -526,6 +561,14 @@ def register_orchestrator(
 
                     if not headless_result.success:
                         worktree_storage.release(worktree.id)
+                        # Clean up newly created worktree on spawn failure
+                        if newly_created_worktree and git_manager is not None:
+                            worktree_storage.delete(worktree.id)
+                            git_manager.delete_worktree(
+                                worktree_path=worktree.worktree_path,
+                                force=True,
+                                delete_branch=True,
+                            )
                         skipped.append(
                             {
                                 "task_id": task.id,
@@ -595,7 +638,7 @@ def register_orchestrator(
             "Spawn agents in worktrees for ready subtasks under a parent task. "
             "Used by auto-orchestrator workflow for parallel execution. "
             "Supports role-based provider assignment: explicitly passed params > workflow variables > defaults. "
-            "Workflow variables: coding_provider, coding_model, terminal, max_concurrent."
+            "Workflow variables: coding_provider, coding_model, terminal."
         ),
         input_schema={
             "type": "object",

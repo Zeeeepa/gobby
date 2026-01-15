@@ -576,16 +576,22 @@ def cascade_progress(
             error = iterator._pending_error
             iterator._pending_error = None
             task = iterator._current_task
+            # Capture any exception from the iterator body to preserve as __cause__
+            body_exception = sys.exc_info()[1]
             if on_error is not None and task is not None:
                 # Call on_error callback for pending error, preserving both exceptions if callback fails
                 try:
                     on_error(task, error)
                     # Error handled via callback, don't re-raise
                 except Exception as callback_exc:
-                    # Chain exceptions: original error + callback failure
+                    # Chain exceptions: pending error from body exception (if any) or callback failure
+                    if body_exception is not None:
+                        raise error from body_exception
                     raise error from callback_exc
             else:
-                # No on_error callback - re-raise the pending error without masking prior exceptions
+                # No on_error callback - re-raise the pending error chained to body exception if present
+                if body_exception is not None:
+                    raise error from body_exception
                 raise error from None
 
 

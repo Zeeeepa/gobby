@@ -135,7 +135,6 @@ def register_monitor(
                 "project_path": {
                     "type": "string",
                     "description": "Path to project directory",
-                    "default": None,
                 },
             },
             "required": ["parent_task_id"],

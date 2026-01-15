@@ -218,12 +218,12 @@ def register_cleanup(
                         # Also delete the database record
                         worktree_storage.delete(worktree_id)
                     else:
-                        # Worktree deletion failed, but it's already marked as merged
+                        # Worktree deletion failed - report actual merge status
                         failed.append(
                             {
                                 **agent_info,
                                 "failure_reason": f"Worktree deletion failed: {delete_result.message}",
-                                "worktree_status": "merged",  # Still merged
+                                "worktree_status": "merged" if merge_succeeded else agent_info.get("worktree_status", "unmerged"),
                             }
                         )
                         continue

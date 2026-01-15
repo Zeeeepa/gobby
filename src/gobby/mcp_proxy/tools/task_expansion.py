@@ -1316,7 +1316,7 @@ def create_expansion_registry(
                 formatted_path = path.with_suffix(".formatted.md")
                 formatted_path.write_text(spec_content, encoding="utf-8")
             except Exception as e:
-                return {"error": f"LLM formatting failed: {e}"}
+                return {"error": f"LLM formatting or file write failed: {e}"}
 
         # Get project context
         ctx = get_project_context()

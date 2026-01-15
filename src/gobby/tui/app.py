@@ -90,7 +90,7 @@ class GobbyApp(App):
             log_panel.log_info("Sessions loaded")
         else:
             log_panel.log_error("Failed to connect to daemon")
-            log_panel.log_info("Make sure gobby daemon is running: gobby start")
+            log_panel.log_info("Make sure gobby daemon is running: uv run gobby start --verbose")
 
         # Get git branch for footer (run off event loop to avoid blocking)
         footer = self.query_one(StatusFooter)

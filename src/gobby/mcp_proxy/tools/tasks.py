@@ -852,7 +852,7 @@ def create_task_registry(
         # Get git commit SHA (best-effort, dynamic short format for consistency)
         from gobby.utils.git import run_git_command
 
-        commit_sha = run_git_command(["git", "rev-parse", "--short", "HEAD"], cwd=cwd)
+        current_commit_sha = run_git_command(["git", "rev-parse", "--short", "HEAD"], cwd=cwd)
 
         # Determine target status: route to review if task requires user review OR override was used
         # This ensures tasks with HITL flag or skipped validation go through human review
@@ -895,7 +895,7 @@ def create_task_registry(
             resolved_id,
             reason=reason,
             closed_in_session_id=session_id,
-            closed_commit_sha=commit_sha,
+            closed_commit_sha=current_commit_sha,
             validation_override_reason=override_justification if store_override else None,
         )
 

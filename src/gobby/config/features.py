@@ -87,7 +87,7 @@ class TaskDescriptionConfig(BaseModel):
         description="LLM provider to use for description generation",
     )
     model: str = Field(
-        default="claude-haiku-4-5",
+        default="claude-haiku-4-5-20251001",
         description="Model to use for description generation (fast/cheap recommended)",
     )
     min_structured_length: int = Field(
