@@ -145,6 +145,7 @@ def create_expansion_registry(
         enable_code_context: bool = True,
         generate_validation: bool | None = None,
         session_id: str | None = None,
+        enrich_if_missing: bool = True,
     ) -> dict[str, Any]:
         """
         Expand a task into subtasks using tool-based expansion.
@@ -160,6 +161,8 @@ def create_expansion_registry(
             generate_validation: Whether to auto-generate validation_criteria for subtasks.
                 Defaults to config setting (gobby_tasks.validation.auto_generate_on_expand).
             session_id: Session ID to resolve TDD mode from workflow state.
+            enrich_if_missing: Auto-run enrichment if task has no expansion_context.
+                Defaults to True, ensuring expansion always has enrichment data.
 
         Returns:
             Dictionary with subtask_ids, tool_calls count, and agent text
@@ -180,6 +183,44 @@ def create_expansion_registry(
         task = task_manager.get_task(resolved_task_id)
         if not task:
             raise ValueError(f"Task not found: {task_id}")
+
+        # Auto-enrich if task has no expansion_context and enrich_if_missing=True
+        auto_enriched = False
+        if enrich_if_missing and not task.expansion_context and task_enricher:
+            try:
+                enrichment_result = await task_enricher.enrich(
+                    task_id=task.id,
+                    title=task.title,
+                    description=task.description,
+                    enable_code_research=enable_code_context,
+                    enable_web_research=enable_web_research,
+                    enable_mcp_tools=False,
+                    generate_validation=True,
+                )
+
+                # Store enrichment result in expansion_context
+                expansion_context_json = json.dumps(enrichment_result.to_dict())
+
+                # Update task with enrichment results
+                update_kwargs: dict[str, Any] = {
+                    "is_enriched": True,
+                    "expansion_context": expansion_context_json,
+                }
+                if enrichment_result.category:
+                    update_kwargs["category"] = enrichment_result.category
+                if enrichment_result.complexity_score:
+                    update_kwargs["complexity_score"] = enrichment_result.complexity_score
+                if enrichment_result.validation_criteria:
+                    update_kwargs["validation_criteria"] = enrichment_result.validation_criteria
+
+                task_manager.update_task(task.id, **update_kwargs)
+
+                # Refresh task to get updated expansion_context
+                task = task_manager.get_task(resolved_task_id)
+                auto_enriched = True
+            except Exception:
+                # If enrichment fails, continue with expansion without enrichment
+                pass
 
         # Resolve TDD mode from workflow state if resolver provided
         tdd_mode = resolve_tdd_mode(session_id) if resolve_tdd_mode else None
@@ -267,6 +308,8 @@ def create_expansion_registry(
             "tasks_created": len(subtask_ids),
             "subtasks": created_subtasks,  # Brief: [{id, title}, ...]
         }
+        if auto_enriched:
+            response["auto_enriched"] = True
         if validation_generated > 0:
             response["validation_criteria_generated"] = validation_generated
         if validation_skipped_reason:

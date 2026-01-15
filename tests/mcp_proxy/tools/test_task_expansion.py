@@ -31,6 +31,13 @@ except ImportError:
 from gobby.storage.tasks import LocalTaskManager, Task
 from gobby.tasks.expansion import TaskExpander
 
+# Import TaskEnricher for mocking
+try:
+    from gobby.tasks.enrich import EnrichmentResult, TaskEnricher
+except ImportError:
+    TaskEnricher = None
+    EnrichmentResult = None
+
 # Skip all tests if module doesn't exist yet (TDD red phase)
 pytestmark = pytest.mark.skipif(
     not IMPORT_SUCCEEDED,
@@ -62,6 +69,24 @@ def mock_task_validator():
     validator = AsyncMock()
     validator.generate_criteria = AsyncMock(return_value="- [ ] Check A\n- [ ] Check B")
     return validator
+
+
+@pytest.fixture
+def mock_task_enricher():
+    """Create a mock task enricher for auto-enrichment tests."""
+    if TaskEnricher is None:
+        pytest.skip("TaskEnricher not available")
+    enricher = AsyncMock(spec=TaskEnricher)
+    # Default enrichment result
+    enricher.enrich.return_value = EnrichmentResult(
+        task_id="parent",
+        category="code",
+        complexity_score=2,
+        research_findings="Auto-enrichment findings from mock",
+        suggested_subtask_count=3,
+        validation_criteria="- [ ] Tests pass\n- [ ] Code reviewed",
+    )
+    return enricher
 
 
 @pytest.fixture
@@ -113,6 +138,24 @@ def expansion_registry_with_validator(mock_task_manager, mock_task_expander, moc
             task_expander=mock_task_expander,
             task_validator=mock_task_validator,
             auto_generate_on_expand=True,
+        )
+        yield registry
+
+
+@pytest.fixture
+def expansion_registry_with_enricher(mock_task_manager, mock_task_expander, mock_task_enricher):
+    """Create an expansion registry with task_enricher for auto-enrichment tests."""
+    if not IMPORT_SUCCEEDED:
+        pytest.skip("Module not extracted yet")
+
+    with (
+        patch("gobby.mcp_proxy.tools.task_expansion.TaskDependencyManager"),
+        patch("gobby.mcp_proxy.tools.task_expansion.LocalProjectManager"),
+    ):
+        registry = create_expansion_registry(
+            task_manager=mock_task_manager,
+            task_expander=mock_task_expander,
+            task_enricher=mock_task_enricher,
         )
         yield registry
 
@@ -2729,7 +2772,7 @@ class TestEnrichIfMissingParameter:
 
     @pytest.mark.asyncio
     async def test_expand_task_auto_enriches_when_missing(
-        self, mock_task_manager, mock_task_expander, expansion_registry
+        self, mock_task_manager, mock_task_expander, mock_task_enricher, expansion_registry_with_enricher
     ):
         """Test that expand_task auto-enriches when enrich_if_missing=True (default)."""
         # Unenriched task
@@ -2751,13 +2794,14 @@ class TestEnrichIfMissingParameter:
         mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1"]}
 
         # Call without explicit enrich_if_missing (default is True)
-        result = await expansion_registry.call("expand_task", {"task_id": "parent"})
+        result = await expansion_registry_with_enricher.call("expand_task", {"task_id": "parent"})
 
-        # Should have enriched the task first (will fail until implemented)
-        # The enrichment should have been called
+        # Should have enriched the task first
         assert result.get("auto_enriched") is True, (
             "Expected auto_enriched=True when task was not enriched"
         )
+        # Verify enricher was called
+        mock_task_enricher.enrich.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_expand_task_skips_enrichment_when_disabled(
@@ -2833,9 +2877,14 @@ class TestEnrichIfMissingParameter:
 
     @pytest.mark.asyncio
     async def test_expand_task_uses_enrichment_result_in_expansion(
-        self, mock_task_manager, mock_task_expander, expansion_registry
+        self, mock_task_manager, mock_task_expander, mock_task_enricher, expansion_registry_with_enricher
     ):
         """Test that auto-enrichment result is used in the expansion context."""
+        import json
+
+        # Track enrichment state
+        state = {"enriched": False}
+
         # Unenriched task
         unenriched_task = Task(
             id="parent",
@@ -2850,18 +2899,43 @@ class TestEnrichIfMissingParameter:
             created_at="now",
             updated_at="now",
         )
-        mock_task_manager.get_task.return_value = unenriched_task
+        # After enrichment, task has expansion_context
+        enriched_task = Task(
+            id="parent",
+            title="Implement auth",
+            description="Add authentication",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            is_enriched=True,
+            expansion_context=json.dumps({
+                "task_id": "parent",
+                "research_findings": "Auto-enrichment findings from mock",
+            }),
+            created_at="now",
+            updated_at="now",
+        )
+
+        def get_task_fn(task_id):
+            return enriched_task if state["enriched"] else unenriched_task
+
+        def update_task_fn(task_id, **kwargs):
+            if kwargs.get("is_enriched"):
+                state["enriched"] = True
+
+        mock_task_manager.get_task.side_effect = get_task_fn
+        mock_task_manager.update_task.side_effect = update_task_fn
         mock_task_manager.list_tasks.return_value = []
         mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1"]}
 
         # Call with enrich_if_missing=True (default)
-        result = await expansion_registry.call("expand_task", {"task_id": "parent"})
+        result = await expansion_registry_with_enricher.call("expand_task", {"task_id": "parent"})
 
         # Verify expander received enrichment context (from auto-enrichment)
         call_kwargs = mock_task_expander.expand_task.call_args.kwargs
         context = call_kwargs.get("context") or ""
 
-        # When auto-enriched, the expansion should include enrichment data
-        # This will fail until implementation connects enrichment to expansion
-        if result.get("auto_enriched"):
-            assert context, "Context should contain enrichment data after auto-enrich"
+        # Auto-enriched should be True and context should have enrichment data
+        assert result.get("auto_enriched") is True
+        assert "Auto-enrichment findings from mock" in context
