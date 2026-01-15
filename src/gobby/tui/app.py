@@ -9,7 +9,6 @@ from textual.reactive import reactive
 from gobby.tui.client import DaemonClient
 from gobby.tui.views.sessions import SessionsView
 from gobby.tui.widgets.command_input import CommandInput
-from gobby.tui.widgets.filter_tabs import FilterTabs
 from gobby.tui.widgets.footer import StatusFooter
 from gobby.tui.widgets.header import GobbyHeader
 from gobby.tui.widgets.log_panel import LogPanel
@@ -58,7 +57,6 @@ class GobbyApp(App):
     def compose(self) -> ComposeResult:
         """Compose the application layout."""
         yield GobbyHeader(connected=False)
-        yield FilterTabs()
         yield SessionsView(client=self.client, id="sessions-view")
         yield LogPanel()
         yield CommandInput()
@@ -105,7 +103,7 @@ class GobbyApp(App):
         except Exception:
             pass
 
-    def on_filter_tabs_filter_changed(self, event: FilterTabs.FilterChanged) -> None:
+    def on_gobby_header_filter_changed(self, event: GobbyHeader.FilterChanged) -> None:
         """Handle filter tab changes.
 
         Args:

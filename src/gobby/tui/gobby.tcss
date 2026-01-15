@@ -14,11 +14,11 @@ Screen {
 
 /* Header styling */
 GobbyHeader {
-    height: 12;
+    height: 11;
     dock: top;
     background: #161616;
     border-bottom: solid #333333;
-    padding: 3 2 1 2;
+    padding: 1 2 0 2;
 }
 
 GobbyHeader Horizontal {
