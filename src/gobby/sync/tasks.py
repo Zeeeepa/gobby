@@ -70,14 +70,8 @@ class TaskSyncManager:
             # Determine target path
             target_path = self._get_export_path(project_id)
 
-            # Filter tasks by project_id if provided (and not stealth mode which might use global)
-            # Actually, export_to_jsonl historically dumped ALL tasks if limit is high.
-            # But for project-scoped sync, we should probably filter?
-            # Existing behavior: self.task_manager.list_tasks(limit=100000) gets ALL tasks.
-            # If we are syncing to a specific project repo, we should ONLY export tasks for that project unless global.
-            # However, to be safe and backward compatible, let's keep list_tasks behavior but passed project_id if we have it?
-            # Wait, if we pass project_id to list_tasks, we only get that project's tasks.
-            # That is correct for syncing to that project's .gobby/tasks.jsonl.
+            # Filter tasks by project_id if provided
+            # This ensures we only export tasks for the specific project
 
             tasks = self.task_manager.list_tasks(limit=100000, project_id=project_id)
 

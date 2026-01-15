@@ -8,7 +8,7 @@ This package contains the task management commands, split into logical modules:
 - deps: Dependency management subgroup
 - hooks: Git hooks management subgroup
 - labels: Label management subgroup
-- main: Entry point and misc commands (sync, compact, import, stealth, doctor, clean)
+- main: Entry point and misc commands (sync, compact, import, doctor, clean)
 """
 
 from gobby.cli.tasks._utils import (

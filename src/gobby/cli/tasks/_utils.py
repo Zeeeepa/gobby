@@ -7,7 +7,6 @@ import logging
 import sys
 from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import click
@@ -51,21 +50,7 @@ def get_task_manager() -> LocalTaskManager:
 def get_sync_manager() -> TaskSyncManager:
     """Get initialized sync manager."""
     manager = get_task_manager()
-
-    # Check for stealth mode in project config
-    project_ctx = get_project_context()
-    export_path = ".gobby/tasks.jsonl"
-
-    if project_ctx and project_ctx.get("tasks_stealth"):
-        # Use home directory storage for stealth mode
-        project_id = project_ctx.get("id")
-        if project_id:
-            home = Path.home()
-            stealth_dir = home / ".gobby" / "stealth_tasks"
-            stealth_dir.mkdir(parents=True, exist_ok=True)
-            export_path = str(stealth_dir / f"{project_id}.jsonl")
-
-    return TaskSyncManager(manager, export_path=export_path)
+    return TaskSyncManager(manager, export_path=".gobby/tasks.jsonl")
 
 
 def normalize_status(status: str) -> str:

@@ -3,7 +3,7 @@ Persistence configuration module.
 
 Contains storage and sync-related Pydantic config models:
 - MemoryConfig: Memory system settings (injection, decay, search)
-- MemorySyncConfig: Memory file sync settings (stealth mode, debounce)
+- MemorySyncConfig: Memory file sync settings (debounce, export path)
 
 Extracted from app.py using Strangler Fig pattern for code decomposition.
 """
