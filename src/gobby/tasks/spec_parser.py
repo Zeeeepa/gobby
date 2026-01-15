@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from gobby.config.app import DaemonConfig
+    from gobby.llm.service import LLMService
     from gobby.storage.tasks import LocalTaskManager
     from gobby.tasks.criteria import CriteriaGenerator
     from gobby.tasks.expansion import TaskExpander
@@ -666,6 +668,8 @@ class TaskHierarchyBuilder:
         parent_labels: list[str] | None = None,
         criteria_generator: CriteriaGenerator | None = None,
         tdd_mode: bool = False,
+        llm_service: LLMService | None = None,
+        config: DaemonConfig | None = None,
     ) -> None:
         """Initialize the builder.
 
@@ -677,6 +681,8 @@ class TaskHierarchyBuilder:
             parent_labels: Optional labels from parent task (for pattern detection in LLM expansion)
             criteria_generator: Optional CriteriaGenerator for validation criteria
             tdd_mode: If True, create test→implement pairs for coding tasks
+            llm_service: Optional LLMService for generating task descriptions
+            config: Optional DaemonConfig with task_description settings
         """
         self.task_manager = task_manager
         self.project_id = project_id
@@ -685,6 +691,8 @@ class TaskHierarchyBuilder:
         self.parent_labels = parent_labels or []
         self.criteria_generator = criteria_generator
         self.tdd_mode = tdd_mode
+        self.llm_service = llm_service
+        self.config = config
         # Lazy-load dependency manager when needed
         self._dep_manager: Any = None
 
