@@ -1227,3 +1227,104 @@ def test_full_migration_sequence_end_to_end(tmp_path):
     # Verify final schema version
     version = get_current_version(db)
     assert version == 55, "Should be at schema version 55"
+
+
+# =============================================================================
+# TDD Expansion Restructure: test_strategy to category rename
+# =============================================================================
+
+
+def test_category_column_exists_after_migration(tmp_path):
+    """Test that the 'category' column exists in the tasks table after migration.
+
+    This replaces the old 'test_strategy' column with a more semantic name.
+    The category field represents the task's classification (e.g., 'unit', 'integration',
+    'e2e', 'manual') rather than just a testing strategy.
+    """
+    db_path = tmp_path / "category_migration.db"
+    db = LocalDatabase(db_path)
+
+    # Run all migrations
+    run_migrations(db)
+
+    # Check that category column exists in tasks table
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
+    assert row is not None
+    sql_lower = row["sql"].lower()
+    assert "category" in sql_lower, "category column not found in tasks table"
+
+
+def test_test_strategy_column_removed_after_migration(tmp_path):
+    """Test that the 'test_strategy' column no longer exists after migration.
+
+    The migration renames test_strategy to category, so test_strategy should
+    not appear in the schema.
+    """
+    db_path = tmp_path / "test_strategy_removed.db"
+    db = LocalDatabase(db_path)
+
+    # Run all migrations
+    run_migrations(db)
+
+    # Check that test_strategy column does NOT exist in tasks table
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
+    assert row is not None
+    sql_lower = row["sql"].lower()
+    # test_strategy should not appear in the schema (it's been renamed to category)
+    assert "test_strategy" not in sql_lower, (
+        "test_strategy column should not exist after migration to category"
+    )
+
+
+def test_category_column_accepts_values(tmp_path):
+    """Test that the category column accepts valid values."""
+    db_path = tmp_path / "category_values.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create project
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+
+    # Insert task with category
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, category, created_at, updated_at)
+           VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-1", "test-project", "Test Task", "unit"),
+    )
+
+    # Verify category stored correctly
+    row = db.fetchone("SELECT category FROM tasks WHERE id = ?", ("task-1",))
+    assert row is not None
+    assert row["category"] == "unit"
+
+
+def test_category_column_allows_null(tmp_path):
+    """Test that the category column allows NULL values."""
+    db_path = tmp_path / "category_null.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create project
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+
+    # Insert task without category (NULL)
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-1", "test-project", "Test Task"),
+    )
+
+    # Verify task was created with NULL category
+    row = db.fetchone("SELECT category FROM tasks WHERE id = ?", ("task-1",))
+    assert row is not None
+    assert row["category"] is None
