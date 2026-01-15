@@ -164,7 +164,7 @@ class TestResolveTddMode:
 class TestTaskHierarchyBuilderTddMode:
     """Test TaskHierarchyBuilder creates test→implementation pairs when tdd_mode enabled."""
 
-    def test_build_from_checkboxes_creates_tdd_pairs_when_enabled(
+    async def test_build_from_checkboxes_creates_tdd_pairs_when_enabled(
         self,
         task_manager: LocalTaskManager,
         dep_manager: TaskDependencyManager,
@@ -203,7 +203,7 @@ class TestTaskHierarchyBuilderTddMode:
             checked_count=0,
         )
 
-        result = builder.build_from_checkboxes(checkboxes)
+        result = await builder.build_from_checkboxes(checkboxes)
 
         # Should have test + implementation pairs for each checkbox
         # TDD mode uses "Write tests for:" prefix
@@ -229,7 +229,7 @@ class TestTaskHierarchyBuilderTddMode:
             if matching_tests:
                 assert matching_tests[0].id in blocked_by_ids
 
-    def test_build_from_checkboxes_no_tdd_pairs_when_disabled(
+    async def test_build_from_checkboxes_no_tdd_pairs_when_disabled(
         self,
         task_manager: LocalTaskManager,
         dep_manager: TaskDependencyManager,
@@ -268,7 +268,7 @@ class TestTaskHierarchyBuilderTddMode:
             checked_count=0,
         )
 
-        result = builder.build_from_checkboxes(checkboxes)
+        result = await builder.build_from_checkboxes(checkboxes)
 
         # Should NOT have test tasks
         test_tasks = [t for t in result.tasks if t.title.startswith("Write tests for:")]
