@@ -394,14 +394,14 @@ def _generate_criteria_for_all(manager: LocalTaskManager) -> None:
     help="Enable MCP tools for research",
 )
 @click.option("--force", "-f", is_flag=True, help="Re-enrich already enriched tasks")
-@click.option("--project", "-p", "project_name", help="Project name or ID")
+@click.option("--project", "-p", "_project_name", help="Project name or ID (reserved for future use)")
 def enrich_cmd(
     task_refs: tuple[str, ...],
     cascade: bool,
     web_research: bool,
     mcp_tools: bool,
     force: bool,
-    project_name: str | None,
+    _project_name: str | None,
 ) -> None:
     """Enrich tasks with additional context and metadata.
 
@@ -455,7 +455,7 @@ def enrich_cmd(
             return
 
         llm_service = LLMService(config)
-        enricher = TaskEnricher(config.gobby_tasks.enrichment, llm_service)
+        enricher = TaskEnricher(config=config.gobby_tasks.enrichment, llm_service=llm_service)
 
     except Exception as e:
         click.echo(f"Error initializing enricher: {e}", err=True)
@@ -527,12 +527,12 @@ def enrich_cmd(
 @click.argument("task_refs", nargs=-1, required=True, metavar="TASKS...")
 @click.option("--cascade", "-c", is_flag=True, help="Also apply TDD to subtasks")
 @click.option("--force", "-f", is_flag=True, help="Reapply TDD even if already applied")
-@click.option("--project", "-p", "project_name", help="Project name or ID")
+@click.option("--project", "-p", "_project_name", help="Project name or ID (reserved for future use)")
 def apply_tdd_cmd(
     task_refs: tuple[str, ...],
     cascade: bool,
     force: bool,
-    project_name: str | None,
+    _project_name: str | None,
 ) -> None:
     """Transform tasks into TDD triplets (test, implement, refactor).
 
@@ -1217,11 +1217,11 @@ def import_spec_cmd(file: str, spec_type: str, parent_task_id: str | None) -> No
 @click.command("parse-spec")
 @click.argument("spec_path", type=click.Path())
 @click.option("--parent", "parent_ref", help="Parent task reference: #N, UUID, or path")
-@click.option("--project", "-p", "project_name", help="Project name")
+@click.option("--project", "-p", "_project_name", help="Project name (reserved for future use)")
 def parse_spec_cmd(
     spec_path: str,
     parent_ref: str | None,
-    project_name: str | None,
+    _project_name: str | None,
 ) -> None:
     """Parse a spec file and create tasks from checkboxes.
 

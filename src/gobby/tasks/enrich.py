@@ -144,9 +144,19 @@ class TaskEnricher:
         "extend",
     ]
 
-    def __init__(self) -> None:
-        """Initialize the task enricher."""
-        pass
+    def __init__(
+        self,
+        config: Any = None,
+        llm_service: Any = None,
+    ) -> None:
+        """Initialize the task enricher.
+
+        Args:
+            config: Optional enrichment configuration settings.
+            llm_service: Optional LLM service for enhanced enrichment (reserved for future use).
+        """
+        self.config = config
+        self.llm_service = llm_service
 
     def _categorize_task(self, title: str, description: str | None) -> str:
         """Categorize task based on title and description keywords.

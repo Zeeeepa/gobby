@@ -140,5 +140,7 @@ class TestApplyTddProjectFlag:
 
             result = runner.invoke(tasks, ["apply-tdd", "#42", "--project", "myproject"])
 
-            # The --project option should be recognized
-            assert result.exit_code == 0 or "--project" not in result.output
+            # The --project option should be recognized and command should succeed
+            assert result.exit_code == 0, f"Command failed: {result.output}"
+            # Verify no unknown option error for --project
+            assert "Error: No such option" not in result.output

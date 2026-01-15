@@ -268,11 +268,26 @@ class TestExpandTaskTool:
 
         # Verify context was passed to expander (may be wrapped in structure)
         mock_task_expander.expand_task.assert_called_once()
-        call_kwargs = mock_task_expander.expand_task.call_args.kwargs
-        context = call_kwargs.get("context") or ""
+        call_args = mock_task_expander.expand_task.call_args
+        # Check both positional and keyword arguments for context
+        context = None
+        if call_args.kwargs and "context" in call_args.kwargs:
+            context = call_args.kwargs["context"]
+        elif call_args.args:
+            # Check positional args (context might be passed positionally)
+            for arg in call_args.args:
+                if isinstance(arg, str) and "FastAPI" in arg:
+                    context = arg
+                    break
+                elif isinstance(arg, dict) and "context" in arg:
+                    context = arg.get("context")
+                    break
         # Coerce context to string since it may be a dict/list
-        context_str = str(context) if not isinstance(context, str) else context
-        assert "This is a Python project using FastAPI" in context_str
+        context_str = str(context) if context and not isinstance(context, str) else (context or "")
+        assert "This is a Python project using FastAPI" in context_str, (
+            f"Expected context to contain 'This is a Python project using FastAPI', "
+            f"got: {context_str!r}"
+        )
 
     @pytest.mark.asyncio
     async def test_expand_task_handles_error(

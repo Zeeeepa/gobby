@@ -521,32 +521,35 @@ def create_handoff(
 
             if not prompt_template:
                 click.echo(
-                    "Error: No prompt template configured. "
+                    "Warning: No prompt template configured. "
                     "Set 'session_summary.prompt' in ~/.gobby/config.yaml",
                     err=True,
                 )
-                return
+                # Only fail if --full was explicitly requested without --compact
+                if full_summary and not compact:
+                    return
+                # Otherwise, skip full generation but continue with compact
+            else:
+                # Prepare context for LLM
+                last_turns = transcript_parser.extract_turns_since_clear(turns, max_turns=50)
+                last_messages = transcript_parser.extract_last_messages(turns, num_pairs=2)
 
-            # Prepare context for LLM
-            last_turns = transcript_parser.extract_turns_since_clear(turns, max_turns=50)
-            last_messages = transcript_parser.extract_last_messages(turns, num_pairs=2)
+                context = {
+                    "transcript_summary": _format_turns_for_llm(last_turns),
+                    "last_messages": last_messages,
+                    "git_status": handoff_ctx.git_status or "",
+                    "file_changes": "",
+                    "external_id": session.id[:12],
+                    "session_id": session.id,
+                    "session_source": session.source,
+                }
 
-            context = {
-                "transcript_summary": _format_turns_for_llm(last_turns),
-                "last_messages": last_messages,
-                "git_status": handoff_ctx.git_status or "",
-                "file_changes": "",
-                "external_id": session.id[:12],
-                "session_id": session.id,
-                "session_source": session.source,
-            }
+                import anyio
 
-            import anyio
+                async def _generate() -> str:
+                    return await provider.generate_summary(context, prompt_template=prompt_template)
 
-            async def _generate() -> str:
-                return await provider.generate_summary(context, prompt_template=prompt_template)
-
-            full_markdown = anyio.run(_generate)
+                full_markdown = anyio.run(_generate)
 
         except Exception as e:
             click.echo(f"Warning: Failed to generate full summary: {e}", err=True)

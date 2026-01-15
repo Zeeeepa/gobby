@@ -194,5 +194,7 @@ class TestExpandForce:
 
             result = runner.invoke(tasks, ["expand", "#42", "--force"])
 
-            # The --force option should be recognized
-            assert result.exit_code == 0 or "--force" not in result.output
+            # The --force option should be recognized and command should succeed
+            assert result.exit_code == 0, f"Command failed: {result.output}"
+            # Verify no unknown option error for --force
+            assert "Error: No such option" not in result.output

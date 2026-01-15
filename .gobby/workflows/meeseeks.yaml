@@ -88,6 +88,13 @@ steps:
       - Bash
       - NotebookEdit
 
+    on_mcp_success:
+      - server: gobby-tasks
+        tool: update_task
+        action: set_variable
+        variable: task_claimed
+        value: true
+
     transitions:
       - to: search_memory
         when: "variables.get('task_claimed', False)"

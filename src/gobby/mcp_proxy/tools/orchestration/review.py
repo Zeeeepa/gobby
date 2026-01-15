@@ -569,7 +569,11 @@ def register_reviewer(
             if "crashed" in failure_reason.lower() or "exited" in failure_reason.lower():
                 # Potentially retriable - reopen task
                 if task_id:
-                    task = task_manager.get_task(task_id)
+                    try:
+                        task = task_manager.get_task(task_id)
+                    except ValueError:
+                        # Task was deleted concurrently - skip
+                        task = None
                     if task and task.status == "in_progress":
                         # Reopen for retry
                         try:
@@ -607,7 +611,7 @@ def register_reviewer(
                 # Update failed_agents
                 state.variables["failed_agents"] = still_failed
                 # Track escalated agents
-                existing_escalated = state.variables.get("escalated_agents", [])
+                existing_escalated = list(state.variables.get("escalated_agents", []))
                 existing_escalated.extend(escalated)
                 state.variables["escalated_agents"] = existing_escalated
 

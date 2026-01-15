@@ -131,6 +131,7 @@ def register_cleanup(
 
             try:
                 # Step 1: Merge branch to base (if enabled)
+                merge_succeeded = False
                 if merge_to_base:
                     merge_result = _merge_branch_to_base(
                         git_manager=git_manager,
@@ -139,6 +140,7 @@ def register_cleanup(
                     )
 
                     if merge_result["success"]:
+                        merge_succeeded = True
                         merged.append(
                             {
                                 "worktree_id": worktree_id,
@@ -158,8 +160,9 @@ def register_cleanup(
                         )
                         continue
 
-                # Step 2: Mark worktree as merged
-                worktree_storage.mark_merged(worktree_id)
+                # Step 2: Mark worktree as merged (only if merge actually occurred)
+                if merge_succeeded:
+                    worktree_storage.mark_merged(worktree_id)
 
                 # Step 3: Delete git worktree (if enabled)
                 if delete_worktrees:

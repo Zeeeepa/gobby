@@ -405,8 +405,7 @@ def register_orchestrator(
                 # Claim worktree for child session
                 worktree_storage.claim(worktree.id, child_session.id)
 
-                # Mark task as in_progress
-                task_manager.update_task(task.id, status="in_progress")
+                # Note: Task status is updated to in_progress only after successful spawn
 
                 # Spawn in terminal
                 if mode == "terminal":
@@ -436,6 +435,9 @@ def register_orchestrator(
                             }
                         )
                         continue
+
+                    # Mark task as in_progress only after successful spawn
+                    task_manager.update_task(task.id, status="in_progress")
 
                     spawned.append(
                         {
@@ -478,6 +480,9 @@ def register_orchestrator(
                         )
                         continue
 
+                    # Mark task as in_progress only after successful spawn
+                    task_manager.update_task(task.id, status="in_progress")
+
                     spawned.append(
                         {
                             "task_id": task.id,
@@ -516,6 +521,9 @@ def register_orchestrator(
                             }
                         )
                         continue
+
+                    # Mark task as in_progress only after successful spawn
+                    task_manager.update_task(task.id, status="in_progress")
 
                     spawned.append(
                         {

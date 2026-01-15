@@ -436,10 +436,10 @@ def _build_spawn_validation_prompt(
     else:
         criteria_section = "No specific criteria provided. Evaluate for general correctness."
 
-    # Build test strategy section
+    # Build category section
     category_section = ""
     if category:
-        category_section = f"\n\n## Test Strategy\n{category}"
+        category_section = f"\n\n## Task Category\n{category}"
 
     # Build priority files section
     priority_section = ""

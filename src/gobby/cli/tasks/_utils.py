@@ -477,6 +477,7 @@ class _CascadeIterator:
         self._stop = False
         self._current_task: Task | None = None
         self._pending_error: Exception | None = None
+        self._completed_count = 0
 
     def __iter__(self) -> "_CascadeIterator":
         return self
@@ -511,12 +512,13 @@ class _CascadeIterator:
         if len(title) > max_title_len:
             title = title[: max_title_len - 3] + "..."
 
-        # Print progress line
-        progress_str = f"[{self._index}/{self._total}] {task_ref}: {title}"
+        # Print progress line with label
+        progress_str = f"{self._label} [{self._index}/{self._total}] {task_ref}: {title}"
         click.echo(progress_str)
 
         def update() -> None:
-            pass  # Progress already shown
+            """Mark the current task as completed."""
+            self._completed_count += 1
 
         return task, update
 
@@ -577,8 +579,12 @@ def cascade_progress(
             iterator._pending_error = None
             task = iterator._current_task
             if on_error is not None and task is not None:
+                # Call on_error callback for pending error
                 on_error(task, error)
-            # Don't re-raise - error has been handled via callback
+                # Error handled via callback, don't re-raise
+            else:
+                # No on_error callback - re-raise the pending error
+                raise error
 
 
 def parse_task_refs(refs: tuple[str, ...]) -> list[str]:

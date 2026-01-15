@@ -161,9 +161,11 @@ class TestEnrichTaskTool:
             {"task_id": "t1"},
         )
 
-        assert "task_id" in result
-        assert result.get("success") is True or "error" not in result
-        mock_task_enricher.enrich.assert_called_once()
+        # Verify exact expected contract
+        assert result["task_id"] == "t1", f"Expected task_id 't1', got: {result.get('task_id')}"
+        assert result.get("success") is True, f"Expected success=True, got: {result.get('success')}"
+        assert "error" not in result, f"Unexpected error in result: {result.get('error')}"
+        mock_task_enricher.enrich.assert_called_once_with(task)
 
     @pytest.mark.asyncio
     async def test_enrich_task_batch_support(
@@ -681,6 +683,7 @@ class TestEnrichTaskSchema:
 # ============================================================================
 
 
+@pytest.mark.integration
 class TestEnrichTaskIntegration:
     """Integration tests for enrich_task with TaskEnricher."""
 
