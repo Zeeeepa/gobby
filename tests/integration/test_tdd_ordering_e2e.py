@@ -281,7 +281,7 @@ class TestTDDReadyTaskOrdering:
 class TestTDDCheckboxProcessing:
     """Test TDD triplets created from checkboxes."""
 
-    def test_checkbox_creates_triplet(self, task_manager, dep_manager):
+    async def test_checkbox_creates_triplet(self, task_manager, dep_manager):
         """Processing a checkbox in TDD mode creates a triplet."""
         builder = TaskHierarchyBuilder(
             task_manager=task_manager,
@@ -298,7 +298,7 @@ class TestTDDCheckboxProcessing:
         )
 
         created_tasks = []
-        builder._process_checkbox(
+        await builder._process_checkbox(
             checkbox=checkbox,
             parent_task_id=None,
             created_tasks=created_tasks,
@@ -314,7 +314,7 @@ class TestTDDCheckboxProcessing:
 class TestTDDHeadingProcessing:
     """Test TDD triplets created from headings."""
 
-    def test_h4_heading_creates_triplet(self, task_manager, dep_manager):
+    async def test_h4_heading_creates_triplet(self, task_manager, dep_manager):
         """Processing an H4 heading in TDD mode creates a triplet."""
         builder = TaskHierarchyBuilder(
             task_manager=task_manager,
@@ -331,7 +331,7 @@ class TestTDDHeadingProcessing:
         )
 
         created_tasks = []
-        builder._process_heading(
+        await builder._process_heading(
             heading=heading,
             parent_task_id=None,
             all_checkboxes=[],
@@ -344,7 +344,7 @@ class TestTDDHeadingProcessing:
         assert created_tasks[1].title == "Implement: Add middleware"
         assert created_tasks[2].title == "Refactor: Add middleware"
 
-    def test_epic_heading_no_triplet(self, task_manager, dep_manager):
+    async def test_epic_heading_no_triplet(self, task_manager, dep_manager):
         """H2/H3 headings (epics) don't create triplets."""
         builder = TaskHierarchyBuilder(
             task_manager=task_manager,
@@ -361,7 +361,7 @@ class TestTDDHeadingProcessing:
         )
 
         created_tasks = []
-        builder._process_heading(
+        await builder._process_heading(
             heading=heading,
             parent_task_id=None,
             all_checkboxes=[],
