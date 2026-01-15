@@ -386,3 +386,102 @@ class TestIntegrationResolveTaskId:
         # #999 doesn't exist
         result = resolve_task_id(manager, "#999", project_id=project_id)
         assert result is None
+
+
+class TestParseTaskRefs:
+    """Tests for parse_task_refs helper function.
+
+    parse_task_refs parses task references from various CLI input formats
+    into a normalized list of task references.
+
+    Supported formats:
+    - Single reference: "42", "#42", "abc123"
+    - Comma-separated: "#42,#43,#44" or "42,43,44"
+    - Space-separated: "#42 #43 #44" (as tuple from Click)
+    - Mixed: "#42,#43 #44" -> ["#42", "#43", "#44"]
+    """
+
+    def test_parse_single_numeric_ref(self):
+        """Test parsing a single numeric reference."""
+        from gobby.cli.tasks._utils import parse_task_refs
+
+        result = parse_task_refs(("42",))
+        assert result == ["#42"]
+
+    def test_parse_single_hash_ref(self):
+        """Test parsing a single #N reference."""
+        from gobby.cli.tasks._utils import parse_task_refs
+
+        result = parse_task_refs(("#42",))
+        assert result == ["#42"]
+
+    def test_parse_single_uuid_ref(self):
+        """Test parsing a single UUID reference (passthrough)."""
+        from gobby.cli.tasks._utils import parse_task_refs
+
+        result = parse_task_refs(("abc123-def",))
+        assert result == ["abc123-def"]
+
+    def test_parse_comma_separated_refs(self):
+        """Test parsing comma-separated references."""
+        from gobby.cli.tasks._utils import parse_task_refs
+
+        result = parse_task_refs(("#42,#43,#44",))
+        assert result == ["#42", "#43", "#44"]
+
+    def test_parse_comma_separated_numeric(self):
+        """Test parsing comma-separated numeric references."""
+        from gobby.cli.tasks._utils import parse_task_refs
+
+        result = parse_task_refs(("42,43,44",))
+        assert result == ["#42", "#43", "#44"]
+
+    def test_parse_space_separated_refs(self):
+        """Test parsing space-separated references (Click tuple)."""
+        from gobby.cli.tasks._utils import parse_task_refs
+
+        result = parse_task_refs(("#42", "#43", "#44"))
+        assert result == ["#42", "#43", "#44"]
+
+    def test_parse_mixed_comma_and_space(self):
+        """Test parsing mixed comma and space-separated refs."""
+        from gobby.cli.tasks._utils import parse_task_refs
+
+        result = parse_task_refs(("#42,#43", "#44"))
+        assert result == ["#42", "#43", "#44"]
+
+    def test_parse_empty_input(self):
+        """Test parsing empty input returns empty list."""
+        from gobby.cli.tasks._utils import parse_task_refs
+
+        result = parse_task_refs(())
+        assert result == []
+
+    def test_parse_whitespace_handling(self):
+        """Test that whitespace around refs is stripped."""
+        from gobby.cli.tasks._utils import parse_task_refs
+
+        result = parse_task_refs((" #42 , #43 ",))
+        assert result == ["#42", "#43"]
+
+    def test_parse_mixed_formats_in_single_arg(self):
+        """Test parsing mixed numeric and hash formats."""
+        from gobby.cli.tasks._utils import parse_task_refs
+
+        result = parse_task_refs(("42,#43,44",))
+        assert result == ["#42", "#43", "#44"]
+
+    def test_parse_preserves_uuid_refs(self):
+        """Test that UUID-like refs are preserved without modification."""
+        from gobby.cli.tasks._utils import parse_task_refs
+
+        uuid_ref = "abc123-def456-ghi789"
+        result = parse_task_refs((uuid_ref,))
+        assert result == [uuid_ref]
+
+    def test_parse_filters_empty_refs(self):
+        """Test that empty refs from extra commas are filtered."""
+        from gobby.cli.tasks._utils import parse_task_refs
+
+        result = parse_task_refs(("#42,,#43,",))
+        assert result == ["#42", "#43"]
