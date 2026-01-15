@@ -1193,6 +1193,110 @@ def import_spec_cmd(file: str, spec_type: str, parent_task_id: str | None) -> No
             click.echo(f"  + {subtask.id[:12]}: {subtask.title[:50]}")
 
 
+@click.command("parse-spec")
+@click.argument("spec_path", type=click.Path())
+@click.option("--parent", "parent_ref", help="Parent task reference: #N, UUID, or path")
+@click.option("--project", "-p", "project_name", help="Project name")
+def parse_spec_cmd(
+    spec_path: str,
+    parent_ref: str | None,
+    project_name: str | None,
+) -> None:
+    """Parse a spec file and create tasks from checkboxes.
+
+    Reads a markdown file and creates tasks from checkbox items:
+    - [ ] Task title
+    - [x] Completed task (skipped)
+
+    Examples:
+        gobby tasks parse-spec spec.md
+        gobby tasks parse-spec spec.md --parent #42
+        gobby tasks parse-spec spec.md --project myproject
+    """
+    import re
+    from pathlib import Path
+
+    from gobby.utils.project_context import get_project_context
+
+    # Check file exists
+    path = Path(spec_path)
+    if not path.exists():
+        click.echo(f"Error: File not found: {spec_path}", err=True)
+        return
+
+    # Read spec file
+    try:
+        spec_content = path.read_text(encoding="utf-8")
+    except Exception as e:
+        click.echo(f"Error reading file: {e}", err=True)
+        return
+
+    manager = get_task_manager()
+
+    # Resolve parent task if provided
+    parent_task_id: str | None = None
+    if parent_ref:
+        parent_task = resolve_task_id(manager, parent_ref)
+        if not parent_task:
+            return  # Error already printed
+        parent_task_id = parent_task.id
+
+    # Determine project ID
+    project_id: str | None = None
+    if project_name:
+        # Look up project by name
+        ctx = get_project_context()
+        if ctx and ctx.get("name") == project_name:
+            project_id = ctx.get("id")
+        else:
+            click.echo(f"Warning: Project '{project_name}' not found, using current project", err=True)
+
+    if not project_id:
+        ctx = get_project_context()
+        project_id = ctx.get("id") if ctx else None
+
+    if not project_id:
+        click.echo("Error: No project context available.", err=True)
+        return
+
+    # Parse checkboxes from spec
+    checkbox_pattern = re.compile(r"^\s*-\s*\[\s*([xX ])\s*\]\s*(.+)$", re.MULTILINE)
+    matches = checkbox_pattern.findall(spec_content)
+
+    if not matches:
+        click.echo("No checkbox items found in spec file.")
+        return
+
+    created_count = 0
+    skipped_count = 0
+
+    for checked, title in matches:
+        title = title.strip()
+        if not title:
+            continue
+
+        # Skip already checked items
+        if checked.lower() == "x":
+            click.echo(f"  Skipping (completed): {title[:50]}")
+            skipped_count += 1
+            continue
+
+        try:
+            task = manager.create_task(
+                title=title,
+                project_id=project_id,
+                parent_task_id=parent_task_id,
+                task_type="task",
+            )
+            task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+            click.echo(f"  Created {task_ref}: {title[:50]}")
+            created_count += 1
+        except Exception as e:
+            click.echo(f"  Error creating task '{title[:30]}': {e}", err=True)
+
+    click.echo(f"\nCreated {created_count} tasks, skipped {skipped_count} completed items.")
+
+
 @click.command("suggest")
 @click.option("--type", "-t", "task_type", help="Filter by task type")
 @click.option("--no-prefer-subtasks", is_flag=True, help="Don't prefer leaf tasks over parents")

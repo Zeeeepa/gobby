@@ -22,6 +22,7 @@ from gobby.cli.tasks.ai import (
     expand_task_cmd,
     generate_criteria_cmd,
     import_spec_cmd,
+    parse_spec_cmd,
     suggest_cmd,
     validate_task_cmd,
 )
@@ -76,6 +77,7 @@ tasks.add_command(apply_tdd_cmd)
 tasks.add_command(complexity_cmd)
 tasks.add_command(expand_all_cmd)
 tasks.add_command(import_spec_cmd)
+tasks.add_command(parse_spec_cmd)
 tasks.add_command(suggest_cmd)
 
 
