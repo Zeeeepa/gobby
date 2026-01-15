@@ -28,6 +28,7 @@ from gobby.config.features import (
     MetricsConfig,
     ProjectVerificationConfig,
     RecommendToolsConfig,
+    TaskDescriptionConfig,
     ToolSummarizerConfig,
 )
 
@@ -70,6 +71,7 @@ __all__ = [
     "MetricsConfig",
     "ProjectVerificationConfig",
     "RecommendToolsConfig",
+    "TaskDescriptionConfig",
     "ToolSummarizerConfig",
     # From gobby.config.llm_providers
     "LLMProviderConfig",
@@ -253,6 +255,10 @@ class DaemonConfig(BaseModel):
         default_factory=ToolSummarizerConfig,
         description="Tool description summarization configuration",
     )
+    task_description: TaskDescriptionConfig = Field(
+        default_factory=TaskDescriptionConfig,
+        description="LLM-based task description generation configuration",
+    )
     import_mcp_server: ImportMCPServerConfig = Field(
         default_factory=ImportMCPServerConfig,
         description="MCP server import configuration",
@@ -297,6 +303,10 @@ class DaemonConfig(BaseModel):
     def get_tool_summarizer_config(self) -> ToolSummarizerConfig:
         """Get tool_summarizer configuration."""
         return self.tool_summarizer
+
+    def get_task_description_config(self) -> TaskDescriptionConfig:
+        """Get task_description configuration."""
+        return self.task_description
 
     def get_import_mcp_server_config(self) -> ImportMCPServerConfig:
         """Get import_mcp_server configuration."""

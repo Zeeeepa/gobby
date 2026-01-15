@@ -7,6 +7,7 @@ Contains MCP proxy and tool feature Pydantic config models:
 - ImportMCPServerConfig: MCP server import settings
 - MetricsConfig: Metrics endpoint settings
 - ProjectVerificationConfig: Project verification command settings
+- TaskDescriptionConfig: LLM-based task description generation settings
 
 Extracted from app.py using Strangler Fig pattern for code decomposition.
 """
@@ -21,6 +22,7 @@ __all__ = [
     "ProjectVerificationConfig",
     "HookStageConfig",
     "HooksConfig",
+    "TaskDescriptionConfig",
     "DEFAULT_IMPORT_MCP_SERVER_PROMPT",
 ]
 
@@ -67,6 +69,56 @@ Description (1 sentence, try to keep under 100 characters):""",
         default="You write concise technical descriptions.",
         description="System prompt for server description generation",
     )
+
+
+class TaskDescriptionConfig(BaseModel):
+    """Task description generation configuration.
+
+    Controls LLM-based description generation for tasks created from specs.
+    Used when structured extraction yields minimal results.
+    """
+
+    enabled: bool = Field(
+        default=True,
+        description="Enable LLM-based task description generation",
+    )
+    provider: str = Field(
+        default="claude",
+        description="LLM provider to use for description generation",
+    )
+    model: str = Field(
+        default="claude-haiku-4-5",
+        description="Model to use for description generation (fast/cheap recommended)",
+    )
+    min_structured_length: int = Field(
+        default=50,
+        description="Minimum length of structured extraction before LLM fallback triggers",
+    )
+    prompt: str = Field(
+        default="""Generate a concise task description for this task from a spec document.
+
+Task title: {task_title}
+Section: {section_title}
+Section content: {section_content}
+Existing context: {existing_context}
+
+Write a 1-2 sentence description focusing on the goal and deliverable.
+Do not add quotes, extra formatting, or implementation details.""",
+        description="Prompt template for task description generation "
+        "(use {task_title}, {section_title}, {section_content}, {existing_context} placeholders)",
+    )
+    system_prompt: str = Field(
+        default="You are a technical writer creating concise task descriptions for developers.",
+        description="System prompt for task description generation",
+    )
+
+    @field_validator("min_structured_length")
+    @classmethod
+    def validate_min_structured_length(cls, v: int) -> int:
+        """Validate min_structured_length is positive."""
+        if v < 0:
+            raise ValueError("min_structured_length must be non-negative")
+        return v
 
 
 class RecommendToolsConfig(BaseModel):
