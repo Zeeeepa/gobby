@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from gobby.mcp_proxy.tools.internal import InternalToolRegistry
 from gobby.storage.projects import LocalProjectManager
 from gobby.storage.task_dependencies import TaskDependencyManager
-from gobby.storage.tasks import LocalTaskManager, TaskNotFoundError
+from gobby.storage.tasks import LocalTaskManager, Task, TaskNotFoundError
 from gobby.tasks.criteria import CriteriaGenerator
 from gobby.tasks.spec_parser import (
     CheckboxExtractor,
@@ -79,7 +79,7 @@ def create_expansion_registry(
         project = project_manager.get(project_id)
         return project.repo_path if project else None
 
-    def _build_expansion_context(task: Any, user_context: str | None) -> str | None:
+    def _build_expansion_context(task: Task, user_context: str | None) -> str | None:
         """
         Build context for expansion by merging stored enrichment data with user context.
 
