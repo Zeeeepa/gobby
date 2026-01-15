@@ -509,8 +509,6 @@ def extract_task_ids_from_message(message: str) -> list[str]:
     - Implements/Fixes/Closes/Refs #N
     - Multiple references: #1, #2, #3
 
-    Note: The gt-* format is deprecated and no longer recognized.
-
     Args:
         message: Commit message to parse.
 
