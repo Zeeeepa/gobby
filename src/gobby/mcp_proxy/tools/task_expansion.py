@@ -282,12 +282,11 @@ def create_expansion_registry(
             subtask = task_manager.get_task(sid)
             if subtask:
                 subtask_info: dict[str, Any] = {
-                    "id": subtask.id,
+                    "ref": f"#{subtask.seq_num}" if subtask.seq_num else subtask.id[:8],
                     "title": subtask.title,
+                    "seq_num": subtask.seq_num,
+                    "id": subtask.id,
                 }
-                if subtask.seq_num is not None:
-                    subtask_info["seq_num"] = subtask.seq_num
-                    subtask_info["ref"] = f"#{subtask.seq_num}"
                 created_subtasks.append(subtask_info)
 
         # Auto-generate validation criteria for each subtask (when enabled)
@@ -735,7 +734,12 @@ def create_expansion_registry(
         for sid in subtask_ids:
             subtask = task_manager.get_task(sid)
             if subtask:
-                subtasks.append({"id": subtask.id, "title": subtask.title})
+                subtasks.append({
+                    "ref": f"#{subtask.seq_num}" if subtask.seq_num else subtask.id[:8],
+                    "title": subtask.title,
+                    "seq_num": subtask.seq_num,
+                    "id": subtask.id,
+                })
 
         # Build phase_groups from parallel_groups (for worktree orchestration)
         # Only available in structured mode where hierarchy_result exists
@@ -863,14 +867,19 @@ def create_expansion_registry(
         for sid in subtask_ids:
             subtask = task_manager.get_task(sid)
             if subtask:
-                subtasks.append({"id": subtask.id, "title": subtask.title})
+                subtasks.append({
+                    "ref": f"#{subtask.seq_num}" if subtask.seq_num else subtask.id[:8],
+                    "title": subtask.title,
+                    "seq_num": subtask.seq_num,
+                    "id": subtask.id,
+                })
 
         # Return concise response (use get_task for full details)
         return {
             "parent_task_id": prompt_task.id,
             "parent_task_title": prompt_task.title,
             "tasks_created": len(subtask_ids),
-            "subtasks": subtasks,  # Brief: [{id, title}, ...]
+            "subtasks": subtasks,  # Brief: [{ref, title, id}, ...]
         }
 
     # Default size limit for task descriptions (prevents wasted LLM calls)
@@ -1154,10 +1163,12 @@ def create_expansion_registry(
                 priority=task.priority,
             )
             triplet_ids.append(subtask.id)
-            subtask_info: dict[str, Any] = {"id": subtask.id, "title": subtask.title}
-            if subtask.seq_num is not None:
-                subtask_info["seq_num"] = subtask.seq_num
-                subtask_info["ref"] = f"#{subtask.seq_num}"
+            subtask_info: dict[str, Any] = {
+                "ref": f"#{subtask.seq_num}" if subtask.seq_num else subtask.id[:8],
+                "title": subtask.title,
+                "seq_num": subtask.seq_num,
+                "id": subtask.id,
+            }
             created_tasks.append(subtask_info)
 
         # Wire dependencies: each step blocked by previous
@@ -1286,10 +1297,12 @@ def create_expansion_registry(
         for sid in subtask_ids:
             subtask = task_manager.get_task(sid)
             if subtask:
-                subtask_info: dict[str, Any] = {"id": subtask.id, "title": subtask.title}
-                if subtask.seq_num is not None:
-                    subtask_info["seq_num"] = subtask.seq_num
-                    subtask_info["ref"] = f"#{subtask.seq_num}"
+                subtask_info: dict[str, Any] = {
+                    "ref": f"#{subtask.seq_num}" if subtask.seq_num else subtask.id[:8],
+                    "title": subtask.title,
+                    "seq_num": subtask.seq_num,
+                    "id": subtask.id,
+                }
                 subtasks.append(subtask_info)
 
         # Build phase_groups from parallel_groups (for worktree orchestration)

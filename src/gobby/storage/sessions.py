@@ -108,7 +108,7 @@ class Session:
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
-            "id": self.id,
+            "ref": f"@{self.seq_num}" if self.seq_num else self.id[:8],
             "external_id": self.external_id,
             "machine_id": self.machine_id,
             "source": self.source,
@@ -136,6 +136,7 @@ class Session:
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "seq_num": self.seq_num,
+            "id": self.id,  # UUID at end for backwards compat
         }
 
 
