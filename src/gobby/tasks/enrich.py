@@ -62,6 +62,10 @@ class TaskEnricher:
         description: str | None = None,
         code_context: str | None = None,
         project_context: str | None = None,
+        enable_code_research: bool = True,
+        enable_web_research: bool = False,
+        enable_mcp_tools: bool = False,
+        generate_validation: bool = True,
     ) -> EnrichmentResult:
         """Enrich a task with additional context and metadata.
 
@@ -71,6 +75,10 @@ class TaskEnricher:
             description: Optional existing description
             code_context: Relevant code snippets or references
             project_context: Information about the codebase
+            enable_code_research: Enable code context gathering (default: True)
+            enable_web_research: Enable web research for external context (default: False)
+            enable_mcp_tools: Enable MCP tools for additional research (default: False)
+            generate_validation: Generate validation criteria (default: True)
 
         Returns:
             EnrichmentResult with enhanced task information

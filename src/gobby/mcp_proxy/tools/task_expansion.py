@@ -7,6 +7,7 @@ Provides tools for expanding tasks into subtasks using AI or structured parsing:
 - expand_from_spec: Create tasks from spec file
 - expand_from_prompt: Create tasks from user prompt
 - analyze_complexity: Analyze task complexity
+- enrich_task: Enrich tasks with additional context and metadata
 
 Extracted from tasks.py using Strangler Fig pattern for code decomposition.
 """
@@ -29,6 +30,7 @@ from gobby.utils.project_context import get_project_context, get_verification_co
 from gobby.utils.project_init import initialize_project
 
 if TYPE_CHECKING:
+    from gobby.tasks.enrich import TaskEnricher
     from gobby.tasks.expansion import TaskExpander
     from gobby.tasks.validation import TaskValidator
 
@@ -39,6 +41,7 @@ def create_expansion_registry(
     task_manager: LocalTaskManager,
     task_expander: "TaskExpander | None" = None,
     task_validator: "TaskValidator | None" = None,
+    task_enricher: "TaskEnricher | None" = None,
     auto_generate_on_expand: bool = True,
     resolve_tdd_mode: Callable[[str | None], bool] | None = None,
 ) -> InternalToolRegistry:
@@ -49,6 +52,7 @@ def create_expansion_registry(
         task_manager: LocalTaskManager instance
         task_expander: TaskExpander instance (optional, required for AI expansion)
         task_validator: TaskValidator instance (optional, for auto-generating criteria)
+        task_enricher: TaskEnricher instance (optional, for task enrichment)
         auto_generate_on_expand: Whether to auto-generate validation criteria on expand
         resolve_tdd_mode: Callable to resolve TDD mode from session_id (optional)
 
@@ -650,6 +654,175 @@ def create_expansion_registry(
             "parent_task_title": prompt_task.title,
             "tasks_created": len(subtask_ids),
             "subtasks": subtasks,  # Brief: [{id, title}, ...]
+        }
+
+    @registry.tool(
+        name="enrich_task",
+        description="Enrich task(s) with additional context, research findings, and metadata.",
+    )
+    async def enrich_task(
+        task_id: str | None = None,
+        task_ids: list[str] | None = None,
+        enable_code_research: bool = True,
+        enable_web_research: bool = False,
+        enable_mcp_tools: bool = False,
+        generate_validation: bool = True,
+        force: bool = False,
+        session_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Enrich task(s) with additional context and metadata.
+
+        Uses AI and optional research tools to gather context about tasks and
+        enhance their descriptions with implementation guidance, acceptance
+        criteria, and complexity estimates.
+
+        Args:
+            task_id: Single task ID to enrich (mutually exclusive with task_ids)
+            task_ids: List of task IDs for batch enrichment
+            enable_code_research: Enable code context gathering (default: True)
+            enable_web_research: Enable web research for external context (default: False)
+            enable_mcp_tools: Enable MCP tools for additional research (default: False)
+            generate_validation: Generate validation criteria (default: True)
+            force: Re-enrich even if task is already enriched (default: False)
+            session_id: Optional session ID for context
+
+        Returns:
+            Enrichment result(s) with category, complexity, and findings
+        """
+        if not task_enricher:
+            raise RuntimeError("Task enrichment is not enabled or not configured")
+
+        # Determine which tasks to enrich
+        target_ids: list[str] = []
+        if task_ids:
+            target_ids = list(task_ids)
+        elif task_id:
+            target_ids = [task_id]
+        else:
+            return {"error": "Either task_id or task_ids must be provided"}
+
+        # Process single task
+        if len(target_ids) == 1:
+            single_task_id = target_ids[0]
+            try:
+                resolved_id = resolve_task_id_for_mcp(task_manager, single_task_id)
+            except (TaskNotFoundError, ValueError) as e:
+                return {"error": f"Invalid task_id: {e}"}
+
+            task = task_manager.get_task(resolved_id)
+            if not task:
+                return {"error": f"Task not found: {single_task_id}"}
+
+            # Skip if already enriched (unless force=True)
+            if task.is_enriched and not force:
+                return {
+                    "task_id": task.id,
+                    "skipped": True,
+                    "already_enriched": True,
+                    "message": "Task is already enriched. Use force=True to re-enrich.",
+                }
+
+            try:
+                result = await task_enricher.enrich(
+                    task_id=task.id,
+                    title=task.title,
+                    description=task.description,
+                    enable_code_research=enable_code_research,
+                    enable_web_research=enable_web_research,
+                    enable_mcp_tools=enable_mcp_tools,
+                    generate_validation=generate_validation,
+                )
+
+                # Update task with enrichment results
+                update_kwargs: dict[str, Any] = {"is_enriched": True}
+                if result.category:
+                    update_kwargs["category"] = result.category
+                if result.complexity_score:
+                    update_kwargs["complexity_score"] = result.complexity_score
+                if result.validation_criteria and generate_validation:
+                    update_kwargs["validation_criteria"] = result.validation_criteria
+
+                task_manager.update_task(task.id, **update_kwargs)
+
+                # Return enrichment result
+                return {
+                    "task_id": task.id,
+                    "category": result.category,
+                    "complexity_score": result.complexity_score,
+                    "research_findings": result.research_findings,
+                    "suggested_subtask_count": result.suggested_subtask_count,
+                    "validation_criteria": result.validation_criteria,
+                    "mcp_tools_used": result.mcp_tools_used,
+                }
+            except Exception as e:
+                return {"error": f"Enrichment failed: {e}", "task_id": task.id}
+
+        # Process batch
+        results: list[dict[str, Any]] = []
+        for tid in target_ids:
+            try:
+                resolved_id = resolve_task_id_for_mcp(task_manager, tid)
+            except (TaskNotFoundError, ValueError) as e:
+                results.append({"task_id": tid, "error": f"Invalid task_id: {e}"})
+                continue
+
+            task = task_manager.get_task(resolved_id)
+            if not task:
+                results.append({"task_id": tid, "error": "Task not found"})
+                continue
+
+            # Skip if already enriched (unless force=True)
+            if task.is_enriched and not force:
+                results.append({
+                    "task_id": task.id,
+                    "skipped": True,
+                    "already_enriched": True,
+                })
+                continue
+
+            try:
+                result = await task_enricher.enrich(
+                    task_id=task.id,
+                    title=task.title,
+                    description=task.description,
+                    enable_code_research=enable_code_research,
+                    enable_web_research=enable_web_research,
+                    enable_mcp_tools=enable_mcp_tools,
+                    generate_validation=generate_validation,
+                )
+
+                # Update task with enrichment results
+                update_kwargs = {"is_enriched": True}
+                if result.category:
+                    update_kwargs["category"] = result.category
+                if result.complexity_score:
+                    update_kwargs["complexity_score"] = result.complexity_score
+                if result.validation_criteria and generate_validation:
+                    update_kwargs["validation_criteria"] = result.validation_criteria
+
+                task_manager.update_task(task.id, **update_kwargs)
+
+                results.append({
+                    "task_id": task.id,
+                    "category": result.category,
+                    "complexity_score": result.complexity_score,
+                    "research_findings": result.research_findings,
+                })
+            except Exception as e:
+                results.append({"task_id": task.id, "error": f"Enrichment failed: {e}"})
+
+        # Summarize batch results
+        successful = [r for r in results if "error" not in r and not r.get("skipped")]
+        skipped = [r for r in results if r.get("skipped")]
+        failed = [r for r in results if "error" in r]
+
+        return {
+            "results": results,
+            "enriched_count": len(successful),
+            "skipped_count": len(skipped),
+            "failed_count": len(failed),
+            "total": len(target_ids),
         }
 
     return registry

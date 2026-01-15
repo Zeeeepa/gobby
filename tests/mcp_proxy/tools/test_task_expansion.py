@@ -1873,7 +1873,9 @@ class TestExpansionEdgeCases:
             )
 
             # Should still work, just won't generate criteria
-            assert len(registry.list_tools()) == 5
+            # 6 tools: expand_task, analyze_complexity, expand_all,
+            # expand_from_spec, expand_from_prompt, enrich_task
+            assert len(registry.list_tools()) == 6
 
     @pytest.mark.asyncio
     async def test_expand_from_spec_extracts_title_from_first_heading(
