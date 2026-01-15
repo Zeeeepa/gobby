@@ -81,7 +81,7 @@ def register_orchestrator(
             - error: Optional error message
         """
         # Validate mode parameter
-        valid_modes = {"terminal", "headless", "embedded", "auto"}
+        valid_modes = {"terminal", "headless", "embedded"}
         if mode not in valid_modes:
             return {
                 "success": False,

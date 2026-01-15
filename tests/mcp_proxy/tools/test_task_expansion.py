@@ -2767,11 +2767,13 @@ class TestExpansionContextUsage:
         # Complexity info from enrichment should be passed as context
         call_kwargs = mock_task_expander.expand_task.call_args.kwargs
         context = call_kwargs.get("context") or ""
+        # Coerce context to string since it may be a dict/list
+        context_str = str(context) if context and not isinstance(context, str) else (context or "")
 
         # Enrichment complexity info should be in context
-        assert context, "Context should contain enrichment data for complex tasks"
-        assert "complexity" in context.lower() or "subtask" in context.lower(), (
-            f"Expected complexity info in context, got: {context}"
+        assert context_str, "Context should contain enrichment data for complex tasks"
+        assert "complexity" in context_str.lower() or "subtask" in context_str.lower(), (
+            f"Expected complexity info in context, got: {context_str}"
         )
 
     @pytest.mark.asyncio

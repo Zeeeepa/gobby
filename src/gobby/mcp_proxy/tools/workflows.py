@@ -830,8 +830,8 @@ elif [ "$TERM_PROGRAM" = "Apple_Terminal" ]; then
     # Terminal.app - use AppleScript
     osascript -e 'tell application "Terminal" to close front window'
 elif [ "$TERM_PROGRAM" = "ghostty" ]; then
-    # Ghostty - send quit signal
-    kill -s "$SIGNAL" "$$"
+    # Ghostty - send quit signal to parent shell
+    kill -s "$SIGNAL" "$PPID"
 elif [ -n "$KITTY_WINDOW_ID" ]; then
     # Kitty terminal
     kitty @ close-window --self
@@ -839,8 +839,8 @@ elif [ -n "$WEZTERM_PANE" ]; then
     # WezTerm
     wezterm cli kill-pane
 else
-    # Generic fallback - exit the shell
-    kill -s "$SIGNAL" "$$"
+    # Generic fallback - exit the script
+    exit 0
 fi
 '''
 

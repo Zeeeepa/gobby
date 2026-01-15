@@ -77,13 +77,16 @@ class TaskExpander:
         context: str | None = None,
         enable_web_research: bool = False,
         enable_code_context: bool = True,
-        tdd_mode: bool | None = None,
     ) -> dict[str, Any]:
         """
         Expand a task into subtasks using structured JSON output.
 
         The LLM returns a JSON object with subtask specifications, which are
         then parsed and created as tasks with proper dependency wiring.
+
+        Note: This creates plain subtasks only. To apply TDD structure
+        (test/implement/refactor triplets), use the apply_tdd command
+        separately after expansion.
 
         Args:
             task_id: ID of the task to expand
@@ -92,7 +95,6 @@ class TaskExpander:
             context: Additional context for expansion
             enable_web_research: Whether to enable web research (default: False)
             enable_code_context: Whether to enable code context gathering (default: True)
-            tdd_mode: Override TDD mode setting. If None, uses config default.
 
         Returns:
             Dictionary with:
@@ -121,7 +123,6 @@ class TaskExpander:
                     context=context,
                     enable_web_research=enable_web_research,
                     enable_code_context=enable_code_context,
-                    tdd_mode=tdd_mode,
                 )
         except TimeoutError:
             error_msg = (
@@ -144,7 +145,6 @@ class TaskExpander:
         context: str | None = None,
         enable_web_research: bool = False,
         enable_code_context: bool = True,
-        tdd_mode: bool | None = None,
     ) -> dict[str, Any]:
         """Internal implementation of expand_task (called within timeout context)."""
         # Gather enhanced context
@@ -195,15 +195,11 @@ class TaskExpander:
             # Get provider and generate text response
             provider = self.llm_service.get_provider(self.config.provider)
 
-            # Disable TDD mode for epics - epics are container tasks whose
-            # closing condition is "all children closed", not test verification.
-            # Use passed tdd_mode if provided, otherwise fall back to config.
-            effective_tdd = tdd_mode if tdd_mode is not None else self.config.tdd_mode
-            tdd_for_prompt = effective_tdd and task_obj.task_type != "epic"
-
+            # Note: TDD transformation is applied separately via apply_tdd command.
+            # The expand_task only creates plain subtasks.
             response = await provider.generate_text(
                 prompt=prompt,
-                system_prompt=self.prompt_builder.get_system_prompt(tdd_mode=tdd_for_prompt),
+                system_prompt=self.prompt_builder.get_system_prompt(),
                 model=self.config.model,
             )
 
@@ -223,13 +219,13 @@ class TaskExpander:
                 }
 
             # Create tasks with dependency wiring and precise criteria
+            # Note: TDD transformation is done separately via apply_tdd command
             subtask_ids = await self._create_subtasks(
                 parent_task_id=task_id,
                 project_id=task_obj.project_id,
                 subtask_specs=subtask_specs,
                 expansion_context=expansion_ctx,
                 parent_labels=task_obj.labels or [],
-                tdd_mode=tdd_for_prompt,
             )
 
             # Save expansion context to the parent task for audit/reuse
@@ -310,14 +306,15 @@ class TaskExpander:
         subtask_specs: list[SubtaskSpec],
         expansion_context: ExpansionContext | None = None,
         parent_labels: list[str] | None = None,
-        tdd_mode: bool = False,
     ) -> list[str]:
         """
         Create tasks from parsed subtask specifications.
 
         Handles dependency wiring by mapping depends_on indices to task IDs.
         Generates precise validation criteria using expansion context.
-        Implements TDD fallback: converts single tasks to triplets if tests are missing.
+
+        Note: TDD transformation is NOT done here. Use apply_tdd separately
+        to transform code tasks into test/implement/refactor triplets.
 
         Args:
             parent_task_id: ID of the parent task
@@ -325,7 +322,6 @@ class TaskExpander:
             subtask_specs: List of parsed subtask specifications
             expansion_context: Context gathered during expansion (for criteria generation)
             parent_labels: Labels from the parent task (for pattern detection)
-            tdd_mode: Whether TDD mode is enabled
 
         Returns:
             List of created task IDs
@@ -333,191 +329,61 @@ class TaskExpander:
         created_ids: list[str] = []
         dep_manager = TaskDependencyManager(self.task_manager.db)
 
-        # Map subtask_spec index to the "final" task ID (Refactor or single task)
-        # This ensures dependents waiting on spec[i] wait on the completion of the entire triplet
+        # Map subtask_spec index to task ID for dependency wiring
         spec_index_to_id: dict[int, str] = {}
 
-        # Track overall created index for depends_on calculation within created_ids list
-        # We can't use simple indexing anymore because 1 spec might = 3 tasks
-
-        # Non-coding task prefixes - narrow exclusion for tasks that shouldn't be TDD triplets
-        NON_CODING_PREFIXES = (
-            "document",
-            "research",
-            "design",
-            "plan",
-            "review",
-            "write docs",
-            "update docs",
-        )
-
-        # TDD triplet title prefixes - if title already looks like a TDD task, don't re-expand
-        # This handles legacy prompts or manually created test/impl/refactor tasks
-        TDD_TITLE_PREFIXES = (
-            "write tests for",
-            "implement:",
-            "refactor:",
-        )
-
         for i, spec in enumerate(subtask_specs):
-            # Determine if this task should be expanded into a TDD triplet.
-            # With the simplified prompt, the LLM outputs feature names (not test/impl/refactor titles),
-            # and we create triplets deterministically based on task_type.
-            is_coding_type = spec.task_type in ("task", "feature", "bug", "chore")
-            is_non_coding_title = any(spec.title.lower().startswith(p) for p in NON_CODING_PREFIXES)
-            # Skip expansion if title already looks like a TDD triplet task (legacy/manual)
-            is_already_tdd_title = any(spec.title.lower().startswith(p) for p in TDD_TITLE_PREFIXES)
-            # Check if this task depends on a test task (legacy test→impl pairs)
-            has_test_dependency = False
-            if spec.depends_on:
-                for dep_idx in spec.depends_on:
-                    if 0 <= dep_idx < len(subtask_specs):
-                        dep_title = subtask_specs[dep_idx].title.lower()
-                        if any(dep_title.startswith(p) for p in TDD_TITLE_PREFIXES):
-                            has_test_dependency = True
-                            break
-            should_expand_triplet = (
-                tdd_mode
-                and is_coding_type
-                and not is_non_coding_title
-                and not is_already_tdd_title
-                and not has_test_dependency
+            # Build description with category if present
+            description = spec.description or ""
+            if spec.category:
+                if description:
+                    description += f"\n\n**Category:** {spec.category}"
+                else:
+                    description = f"**Category:** {spec.category}"
+
+            # Generate precise validation criteria if context is available
+            if expansion_context:
+                precise_criteria = await self._generate_precise_criteria(
+                    spec=spec,
+                    context=expansion_context,
+                    parent_labels=parent_labels or [],
+                )
+                if precise_criteria:
+                    if description:
+                        description += f"\n\n{precise_criteria}"
+                    else:
+                        description = precise_criteria
+
+            # Create the task
+            task = self.task_manager.create_task(
+                title=spec.title,
+                description=description if description else None,
+                project_id=project_id,
+                priority=spec.priority,
+                task_type=spec.task_type,
+                parent_task_id=parent_task_id,
+                category=spec.category,
             )
 
-            if should_expand_triplet:
-                logger.info(f"Applying TDD fallback (triplet) for: {spec.title}")
-                # Create Triplet
+            created_ids.append(task.id)
+            logger.debug(f"Created subtask {task.id}: {spec.title}")
 
-                # 1. Test Task (Red)
-                test_title = f"Write tests for: {spec.title}"
-                test_desc = f"Write failing tests for: {spec.title}\n\nTest strategy: Tests should fail initially (red phase)"
+            spec_index_to_id[i] = task.id
 
-                test_task = self.task_manager.create_task(
-                    title=test_title,
-                    description=test_desc,
-                    project_id=project_id,
-                    priority=spec.priority,
-                    task_type="task",
-                    parent_task_id=parent_task_id,
-                )
-                created_ids.append(test_task.id)
-
-                # Wire dependencies from original spec to Test task
-                if spec.depends_on:
-                    for dep_idx in spec.depends_on:
-                        if dep_idx in spec_index_to_id:
-                            blocker_id = spec_index_to_id[dep_idx]
-                            try:
-                                dep_manager.add_dependency(test_task.id, blocker_id, "blocks")
-                            except Exception as e:
-                                logger.warning(f"Failed to add dependency: {e}")
-
-                # 2. Impl Task (Green)
-                impl_title = f"Implement: {spec.title}"
-                impl_desc = spec.description or ""
-                if impl_desc:
-                    impl_desc += "\n\n"
-                impl_desc += (
-                    "Test strategy: All tests from previous subtask should pass (green phase)"
-                )
-
-                # Generate criteria for implementation
-                if expansion_context:
-                    extra_criteria = await self._generate_precise_criteria(
-                        spec=spec,
-                        context=expansion_context,
-                        parent_labels=parent_labels or [],
-                    )
-                    if extra_criteria:
-                        impl_desc += f"\n\n{extra_criteria}"
-
-                impl_task = self.task_manager.create_task(
-                    title=impl_title,
-                    description=impl_desc,
-                    project_id=project_id,
-                    priority=spec.priority,
-                    task_type="task",
-                    parent_task_id=parent_task_id,
-                    category=spec.category,
-                )
-                created_ids.append(impl_task.id)
-
-                # Impl depends on Test
-                dep_manager.add_dependency(impl_task.id, test_task.id, "blocks")
-
-                # 3. Refactor Task (Blue)
-                refactor_title = f"Refactor: {spec.title}"
-                refactor_desc = f"Refactor the implementation of: {spec.title}\n\nTest strategy: All tests must continue to pass after refactoring"
-
-                refactor_task = self.task_manager.create_task(
-                    title=refactor_title,
-                    description=refactor_desc,
-                    project_id=project_id,
-                    priority=spec.priority,
-                    task_type="task",
-                    parent_task_id=parent_task_id,
-                )
-                created_ids.append(refactor_task.id)
-
-                # Refactor depends on Impl
-                dep_manager.add_dependency(refactor_task.id, impl_task.id, "blocks")
-
-                # Map original index to Refactor task
-                spec_index_to_id[i] = refactor_task.id
-
-            else:
-                # Normal creation
-                # Build description with category if present
-                description = spec.description or ""
-                if spec.category:
-                    if description:
-                        description += f"\n\n**Category:** {spec.category}"
+            # Add dependencies
+            if spec.depends_on:
+                for dep_idx in spec.depends_on:
+                    if dep_idx in spec_index_to_id:
+                        blocker_id = spec_index_to_id[dep_idx]
+                        try:
+                            dep_manager.add_dependency(task.id, blocker_id, "blocks")
+                            logger.debug(f"Added dependency: {task.id} blocked by {blocker_id}")
+                        except Exception as e:
+                            logger.warning(f"Failed to add dependency: {e}")
                     else:
-                        description = f"**Category:** {spec.category}"
-
-                # Generate precise validation criteria if context is available
-                if expansion_context:
-                    precise_criteria = await self._generate_precise_criteria(
-                        spec=spec,
-                        context=expansion_context,
-                        parent_labels=parent_labels or [],
-                    )
-                    if precise_criteria:
-                        if description:
-                            description += f"\n\n{precise_criteria}"
-                        else:
-                            description = precise_criteria
-
-                # Create the task
-                task = self.task_manager.create_task(
-                    title=spec.title,
-                    description=description if description else None,
-                    project_id=project_id,
-                    priority=spec.priority,
-                    task_type=spec.task_type,
-                    parent_task_id=parent_task_id,
-                    category=spec.category,
-                )
-
-                created_ids.append(task.id)
-                logger.debug(f"Created subtask {task.id}: {spec.title}")
-
-                spec_index_to_id[i] = task.id
-
-                # Add dependencies
-                if spec.depends_on:
-                    for dep_idx in spec.depends_on:
-                        if dep_idx in spec_index_to_id:
-                            blocker_id = spec_index_to_id[dep_idx]
-                            try:
-                                dep_manager.add_dependency(task.id, blocker_id, "blocks")
-                                logger.debug(f"Added dependency: {task.id} blocked by {blocker_id}")
-                            except Exception as e:
-                                logger.warning(f"Failed to add dependency: {e}")
-                        else:
-                            logger.warning(
-                                f"Subtask {i} references invalid or forward index {dep_idx}, skipping dependency"
-                            )
+                        logger.warning(
+                            f"Subtask {i} references invalid or forward index {dep_idx}, skipping dependency"
+                        )
 
         return created_ids
 

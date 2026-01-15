@@ -545,7 +545,13 @@ def delete_task(task_id: str, cascade: bool) -> None:
     if not resolved:
         return
 
-    manager.delete_task(resolved.id, cascade=cascade)
+    try:
+        manager.delete_task(resolved.id, cascade=cascade)
+    except ValueError as e:
+        msg = str(e)
+        if "has children" in msg and "cascade=True" in msg:
+            msg = f"Task {task_id} has children. Use --cascade to delete with all subtasks."
+        raise click.ClickException(msg)
     click.echo(f"Deleted task {resolved.id}")
 
 

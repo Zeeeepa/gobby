@@ -37,7 +37,8 @@ def is_task_complete(task: Any) -> bool:
     """
     if task.status == "closed":
         return True
-    if task.status == "review" and not task.requires_user_review:
+    requires_user_review = getattr(task, "requires_user_review", False)
+    if task.status == "review" and not requires_user_review:
         return True
     return False
 

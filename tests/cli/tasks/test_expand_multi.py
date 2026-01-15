@@ -117,25 +117,26 @@ class TestExpandCascade:
             assert result.exit_code == 0, f"Expected exit code 0, got {result.exit_code}. Output: {result.output}"
 
             # Verify expander was called for both parent and child tasks (cascade processing)
-            # With cascade, expand_task should be called for parent (#42) and its child
-            assert mock_expander.expand_task.call_count >= 1, (
-                f"Expected at least 1 call to expand_task, got {mock_expander.expand_task.call_count}"
+            # With cascade, expand_task must be called at least twice (parent and child)
+            assert mock_expander.expand_task.call_count >= 2, (
+                f"Expected at least 2 calls to expand_task (parent + child), got {mock_expander.expand_task.call_count}"
             )
 
-            # Verify list_tasks was called to get child tasks for cascade
+            # Verify list_tasks was called with parent task ID to get child tasks for cascade
             mock_manager.list_tasks.assert_called()
-
-            # Verify child task is processed in cascade mode - check output mentions child
-            # or expander was called multiple times
-            child_processed = (
-                "Child Task" in result.output
-                or "child-123" in result.output
-                or "#43" in result.output
-                or mock_expander.expand_task.call_count >= 2
+            list_tasks_call_args = str(mock_manager.list_tasks.call_args)
+            assert "#42" in list_tasks_call_args or "parent-42" in list_tasks_call_args, (
+                f"Expected list_tasks to be called with parent task ID, got: {list_tasks_call_args}"
             )
-            assert child_processed, (
-                f"Expected child task to be processed in cascade mode. "
-                f"Call count: {mock_expander.expand_task.call_count}, Output: {result.output}"
+
+            # Verify expand_task was called for child task
+            child_expanded = any(
+                call for call in mock_expander.expand_task.call_args_list
+                if "child-123" in str(call) or "#43" in str(call)
+            )
+            assert child_expanded, (
+                f"Expected expand_task to be called for child task. "
+                f"Call args: {mock_expander.expand_task.call_args_list}"
             )
 
 

@@ -603,30 +603,72 @@ def apply_tdd_cmd(
         click.echo(f"Applying TDD to {task_ref}: {task.title[:40]}...")
 
         try:
-            # Create TDD triplet
-            triplet_ids: list[str] = []
-            for prefix in TDD_PREFIXES:
-                subtask = manager.create_task(
-                    title=f"{prefix} {task.title}",
-                    project_id=task.project_id,
-                    parent_task_id=task.id,
-                    task_type="task",
-                    priority=task.priority,
-                )
-                triplet_ids.append(subtask.id)
-                sub_ref = f"#{subtask.seq_num}" if subtask.seq_num else subtask.id[:8]
-                click.echo(f"  Created {sub_ref}: {subtask.title[:50]}")
+            # Save parent's original validation criteria for the implement task
+            original_criteria = task.validation_criteria
 
-            # Wire dependencies
-            test_id, impl_id, refactor_id = triplet_ids
-            dep_manager.add_dependency(impl_id, test_id, "blocks")
-            dep_manager.add_dependency(refactor_id, impl_id, "blocks")
+            # TDD validation criteria per phase (from task-expansion-v2 spec)
+            TDD_CRITERIA_RED = """## Deliverable
+- [ ] Tests written that define expected behavior
+- [ ] Tests fail when run (no implementation yet)
+- [ ] Test coverage addresses acceptance criteria from parent task
+"""
+            TDD_CRITERIA_BLUE = """## Deliverable
+- [ ] All tests continue to pass
+- [ ] Code refactored for clarity and maintainability
+- [ ] No new functionality added (refactor only)
+"""
+            TDD_PARENT_CRITERIA = """## Deliverable
+- [ ] All child tasks completed
+"""
 
-            # Mark task as TDD-applied
+            # 1. Test Task (Red phase)
+            test_task = manager.create_task(
+                title=f"[TEST] {task.title}",
+                description=f"Write failing tests for: {task.title}\n\nThis is the RED phase of TDD.",
+                project_id=task.project_id,
+                parent_task_id=task.id,
+                task_type="task",
+                priority=task.priority,
+                validation_criteria=TDD_CRITERIA_RED,
+            )
+            test_ref = f"#{test_task.seq_num}" if test_task.seq_num else test_task.id[:8]
+            click.echo(f"  Created {test_ref}: {test_task.title[:50]}")
+
+            # 2. Implement Task (Green phase) - inherits parent's original criteria
+            impl_task = manager.create_task(
+                title=f"[IMPL] {task.title}",
+                description="Implement the feature to make tests pass.\n\nThis is the GREEN phase of TDD.",
+                project_id=task.project_id,
+                parent_task_id=task.id,
+                task_type="task",
+                priority=task.priority,
+                validation_criteria=original_criteria,
+            )
+            impl_ref = f"#{impl_task.seq_num}" if impl_task.seq_num else impl_task.id[:8]
+            click.echo(f"  Created {impl_ref}: {impl_task.title[:50]}")
+
+            # 3. Refactor Task (Blue phase)
+            refactor_task = manager.create_task(
+                title=f"[REFACTOR] {task.title}",
+                description="Refactor the implementation while keeping tests passing.\n\nThis is the BLUE phase of TDD.",
+                project_id=task.project_id,
+                parent_task_id=task.id,
+                task_type="task",
+                priority=task.priority,
+                validation_criteria=TDD_CRITERIA_BLUE,
+            )
+            refactor_ref = f"#{refactor_task.seq_num}" if refactor_task.seq_num else refactor_task.id[:8]
+            click.echo(f"  Created {refactor_ref}: {refactor_task.title[:50]}")
+
+            # Wire dependencies: Test -> Implement -> Refactor
+            dep_manager.add_dependency(impl_task.id, test_task.id, "blocks")
+            dep_manager.add_dependency(refactor_task.id, impl_task.id, "blocks")
+
+            # Mark parent task as TDD-applied and update its validation criteria
             manager.update_task(
                 task.id,
                 is_tdd_applied=True,
-                validation_criteria="All child tasks must be completed (status: closed).",
+                validation_criteria=TDD_PARENT_CRITERIA,
             )
             applied_count += 1
 
@@ -1255,25 +1297,28 @@ def import_spec_cmd(file: str, spec_type: str, parent_task_id: str | None) -> No
 @click.argument("spec_path", type=click.Path())
 @click.option("--parent", "parent_ref", help="Parent task reference: #N, UUID, or path")
 @click.option("--project", "-p", "_project_name", help="Project name (reserved for future use)")
+@click.option("--llm", "use_llm", is_flag=True, help="Use LLM to convert document to spec format first")
 def parse_spec_cmd(
     spec_path: str,
     parent_ref: str | None,
     _project_name: str | None,
+    use_llm: bool,
 ) -> None:
     """Parse a spec file and create tasks from checkboxes.
 
-    Reads a markdown file and creates tasks from checkbox items:
-    - [ ] Task title
-    - [x] Completed task (skipped)
+    Reads a markdown file and creates tasks from checkbox items.
+    Supports multiple checkbox formats: - [ ], * [ ], 1. [ ]
+
+    Use --llm to auto-convert any document format to parseable spec format.
 
     Examples:
         gobby tasks parse-spec spec.md
         gobby tasks parse-spec spec.md --parent #42
-        gobby tasks parse-spec spec.md --project myproject
+        gobby tasks parse-spec spec.md --llm
     """
-    import re
     from pathlib import Path
 
+    from gobby.tasks.spec_parser import CheckboxExtractor
     from gobby.utils.project_context import get_project_context
 
     # Check file exists
@@ -1319,40 +1364,56 @@ def parse_spec_cmd(
         click.echo("Error: No project context available.", err=True)
         return
 
-    # Parse checkboxes from spec
-    checkbox_pattern = re.compile(r"^\s*-\s*\[\s*([xX ])\s*\]\s*(.+)$", re.MULTILINE)
-    matches = checkbox_pattern.findall(spec_content)
+    # Handle LLM formatting if requested
+    if use_llm:
+        from gobby.tasks.spec_parser import format_spec_with_llm
 
-    if not matches:
+        click.echo("Formatting document with LLM...")
+        formatted_path = path.with_suffix(".formatted.md")
+        try:
+            formatted_content = format_spec_with_llm(spec_content)
+            formatted_path.write_text(formatted_content, encoding="utf-8")
+            click.echo(f"Formatted spec saved to: {formatted_path}")
+            spec_content = formatted_content
+        except Exception as e:
+            click.echo(f"Error formatting with LLM: {e}", err=True)
+            click.echo("Falling back to original content...")
+
+    # Parse checkboxes from spec using shared extractor
+    extractor = CheckboxExtractor(track_headings=True, build_hierarchy=False)
+    result = extractor.extract(spec_content)
+
+    if result.total_count == 0:
         click.echo("No checkbox items found in spec file.")
+        if not use_llm:
+            click.echo("Tip: Use --llm to auto-convert document to spec format.")
         return
 
     created_count = 0
     skipped_count = 0
 
-    for checked, title in matches:
-        title = title.strip()
-        if not title:
+    for item in result.items:
+        if not item.text:
             continue
 
         # Skip already checked items
-        if checked.lower() == "x":
-            click.echo(f"  Skipping (completed): {title[:50]}")
+        if item.checked:
+            click.echo(f"  Skipping (completed): {item.text[:50]}")
             skipped_count += 1
             continue
 
         try:
             task = manager.create_task(
-                title=title,
+                title=item.text,
                 project_id=project_id,
                 parent_task_id=parent_task_id,
                 task_type="task",
             )
             task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
-            click.echo(f"  Created {task_ref}: {title[:50]}")
+            click.echo(f"  Created {task_ref}: {item.text[:50]}")
             created_count += 1
         except Exception as e:
-            click.echo(f"  Error creating task '{title[:30]}': {e}", err=True)
+            click.echo(f"  Error creating task '{item.text[:30]}': {e}", err=True)
 
     click.echo(f"\nCreated {created_count} tasks, skipped {skipped_count} completed items.")
 

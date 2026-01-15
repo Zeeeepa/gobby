@@ -1569,3 +1569,100 @@ class TaskHierarchyBuilder:
                     heading_level=heading_level,
                 )
             )
+
+
+# =============================================================================
+# LLM-based Spec Formatting
+# =============================================================================
+
+
+async def format_spec_with_llm_async(content: str) -> str:
+    """Convert any document to normalized spec format using LLM (async version).
+
+    Takes arbitrary markdown/text content and converts it to the standard
+    gobby spec format with:
+    - Proper heading structure (## Phase N: Name)
+    - Dash-style checkboxes (- [ ] task)
+    - Grouped phases with goals
+
+    Args:
+        content: Raw document content to format
+
+    Returns:
+        Formatted spec content ready for parsing
+
+    Raises:
+        RuntimeError: If LLM service is unavailable
+    """
+    from pathlib import Path
+
+    from gobby.config.app import load_config
+    from gobby.llm.service import LLMService
+
+    # Load the Jinja template as format reference
+    # Resolve from repository root to find docs/templates
+    base = Path(__file__).resolve().parents[3]
+    template_path = base / "docs" / "templates" / "spec-template.md.j2"
+    if not template_path.exists():
+        # Fall back to regular template
+        template_path = base / "docs" / "templates" / "spec-template.md"
+
+    if template_path.exists():
+        template_content = template_path.read_text(encoding="utf-8")
+    else:
+        # Minimal inline template
+        template_content = """## Phase N: Phase Name
+
+**Goal**: Description of what this phase accomplishes.
+
+**Tasks:**
+- [ ] Task description
+- [ ] Another task"""
+
+    prompt = f"""Convert the following document to a structured spec format.
+
+RULES:
+1. Use ## headings for phases (## Phase 1: Name)
+2. Use **Goal**: under each phase to describe the objective
+3. Convert ALL task items to dash checkboxes: - [ ] task
+4. Group related tasks under their phases
+5. Preserve all task content - do not omit any tasks
+6. Remove code blocks, configuration examples, and non-actionable content
+7. Keep only actionable task items
+
+TARGET FORMAT:
+{template_content}
+
+DOCUMENT TO CONVERT:
+{content}
+
+OUTPUT (formatted spec only, no explanation):"""
+
+    config = load_config()
+    service = LLMService(config)
+    provider = service.get_default_provider()
+    result = await provider.generate_text(
+        prompt=prompt,
+        system_prompt="You are a technical writer converting documents to structured spec format. Output only the formatted spec, no explanations.",
+    )
+    return result.strip()
+
+
+def format_spec_with_llm(content: str) -> str:
+    """Convert any document to normalized spec format using LLM (sync wrapper).
+
+    For use in synchronous contexts (CLI). For async contexts, use
+    format_spec_with_llm_async directly.
+    """
+    import asyncio
+
+    try:
+        # Check if we're already in an event loop
+        loop = asyncio.get_running_loop()
+        # We're in an async context, can't use asyncio.run
+        raise RuntimeError("Use format_spec_with_llm_async in async contexts")
+    except RuntimeError as e:
+        if "no running event loop" in str(e):
+            # Not in an event loop, safe to use asyncio.run
+            return asyncio.run(format_spec_with_llm_async(content))
+        raise

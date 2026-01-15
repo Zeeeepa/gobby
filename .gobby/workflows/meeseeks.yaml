@@ -266,6 +266,7 @@ steps:
 
     on_mcp_success:
       - server: gobby-sessions
+        tool: update_session
         action: set_variable
         variable: session_update_completed
         value: true
