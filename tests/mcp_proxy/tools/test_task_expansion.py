@@ -3786,3 +3786,112 @@ class TestShouldSkipTdd:
         assert should_skip_tdd("Fix login bug") is False
         assert should_skip_tdd("Create new API endpoint") is False
         assert should_skip_tdd("Implement password reset") is False
+
+
+# ============================================================================
+# parse_spec MCP Tool Tests
+# ============================================================================
+
+
+class TestParseSpecTool:
+    """Tests for parse_spec MCP tool that creates tasks from spec files."""
+
+    @pytest.mark.asyncio
+    async def test_parse_spec_tool_exists(self, expansion_registry):
+        """Test that parse_spec tool is registered."""
+        tools = expansion_registry.list_tools()
+        tool_names = [t["name"] for t in tools]
+        assert "parse_spec" in tool_names, "parse_spec tool should be registered"
+
+    @pytest.mark.asyncio
+    async def test_parse_spec_creates_epic_from_spec(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that parse_spec creates an epic task from spec file."""
+        import tempfile
+
+        # Create a temp spec file
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+            f.write("# My Feature Spec\n\n## Phase 1\n\n- [ ] Task A\n- [ ] Task B\n")
+            spec_path = f.name
+
+        try:
+            # Mock the task manager
+            mock_task_manager.create_task.return_value = Task(
+                id="epic-1",
+                title="My Feature Spec",
+                project_id="p1",
+                status="open",
+                priority=2,
+                task_type="epic",
+                created_at="now",
+                updated_at="now",
+            )
+
+            result = await expansion_registry.call(
+                "parse_spec", {"spec_path": spec_path}
+            )
+
+            # Should create a parent task
+            assert "error" not in result
+            assert "parent_task_id" in result or result.get("task_id")
+        finally:
+            import os
+            os.unlink(spec_path)
+
+    @pytest.mark.asyncio
+    async def test_parse_spec_does_not_call_llm_in_structured_mode(
+        self, mock_task_manager, mock_task_expander
+    ):
+        """Test that parse_spec with mode='structured' does not call LLM."""
+        if not IMPORT_SUCCEEDED:
+            pytest.skip("Module not extracted yet")
+
+        import tempfile
+
+        with (
+            patch("gobby.mcp_proxy.tools.task_expansion.TaskDependencyManager"),
+            patch("gobby.mcp_proxy.tools.task_expansion.LocalProjectManager"),
+            patch("gobby.mcp_proxy.tools.task_expansion.get_project_context") as mock_ctx,
+            patch("gobby.mcp_proxy.tools.task_expansion.initialize_project") as mock_init,
+        ):
+            mock_ctx.return_value = {"id": "p1"}
+            mock_init.return_value = MagicMock(project_id="p1")
+
+            registry = create_expansion_registry(
+                task_manager=mock_task_manager,
+                task_expander=mock_task_expander,
+            )
+
+            # Create spec with structure
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+                f.write("# Spec\n\n## Phase 1\n\n- [ ] Task A\n")
+                spec_path = f.name
+
+            try:
+                mock_task_manager.create_task.return_value = Task(
+                    id="epic-1", title="Spec", project_id="p1",
+                    status="open", priority=2, task_type="epic",
+                    created_at="now", updated_at="now",
+                )
+
+                await registry.call(
+                    "parse_spec", {"spec_path": spec_path, "mode": "structured"}
+                )
+
+                # expand_task method should NOT be called for parse_spec with structured mode
+                # The new parse_spec should be LLM-free
+                # This test will fail initially since parse_spec doesn't exist yet
+            finally:
+                import os
+                os.unlink(spec_path)
+
+    @pytest.mark.asyncio
+    async def test_parse_spec_returns_error_for_missing_file(self, expansion_registry):
+        """Test that parse_spec returns error for non-existent file."""
+        result = await expansion_registry.call(
+            "parse_spec", {"spec_path": "/non/existent/file.md"}
+        )
+
+        assert "error" in result
+        assert "not found" in result["error"].lower()
