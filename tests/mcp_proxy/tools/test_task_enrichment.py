@@ -71,10 +71,10 @@ def mock_task_enricher():
     if not ENRICH_IMPORT_SUCCEEDED:
         pytest.skip("enrich module not available")
 
-    async def enrich_side_effect(task_id: str, **kwargs):
-        """Return EnrichmentResult with the provided task_id."""
+    async def enrich_side_effect(task: Task, **kwargs):
+        """Return EnrichmentResult with the task's id."""
         return EnrichmentResult(
-            task_id=task_id,
+            task_id=task.id,
             domain_category="code",
             complexity_level=2,
             research_findings="Found relevant patterns",
@@ -165,7 +165,10 @@ class TestEnrichTaskTool:
         assert result["task_id"] == "t1", f"Expected task_id 't1', got: {result.get('task_id')}"
         assert result.get("success") is True, f"Expected success=True, got: {result.get('success')}"
         assert "error" not in result, f"Unexpected error in result: {result.get('error')}"
-        mock_task_enricher.enrich.assert_called_once_with(task)
+        # Verify enrich was called once with the task as first positional arg
+        mock_task_enricher.enrich.assert_called_once()
+        call_args = mock_task_enricher.enrich.call_args
+        assert call_args.args[0] == task, f"Expected first arg to be task, got: {call_args.args[0]}"
 
     @pytest.mark.asyncio
     async def test_enrich_task_batch_support(

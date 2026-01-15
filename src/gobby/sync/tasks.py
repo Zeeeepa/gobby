@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     pass
 from gobby.storage.tasks import LocalTaskManager
+from gobby.utils.git import normalize_commit_sha
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,41 @@ class TaskSyncManager:
 
         return self.export_path
 
+    def _normalize_commits(self, commits: list[str] | None, repo_path: Path) -> list[str]:
+        """
+        Normalize commit SHAs to canonical short form and deduplicate.
+
+        Uses git rev-parse --short to normalize all SHAs to the same format,
+        ensuring that mixed short/full SHA entries resolve to unique values.
+
+        Args:
+            commits: List of commit SHAs (may be mixed short/full)
+            repo_path: Path to git repository for SHA resolution
+
+        Returns:
+            Sorted list of unique normalized short SHAs
+        """
+        if not commits:
+            return []
+
+        seen: set[str] = set()
+        normalized: list[str] = []
+
+        for sha in commits:
+            # Normalize to canonical short form (7+ chars, unique in repo)
+            short_sha = normalize_commit_sha(sha, cwd=repo_path)
+            if short_sha and short_sha not in seen:
+                seen.add(short_sha)
+                normalized.append(short_sha)
+            elif not short_sha:
+                # If normalization fails, keep original SHA but still dedupe
+                # This handles cases where git history may be unavailable
+                if sha not in seen:
+                    seen.add(sha)
+                    normalized.append(sha)
+
+        return sorted(normalized)
+
     def export_to_jsonl(self, project_id: str | None = None) -> None:
         """
         Export tasks and their dependencies to a JSONL file.
@@ -101,8 +137,8 @@ class TaskSyncManager:
                     "project_id": task.project_id,
                     "parent_id": task.parent_task_id,
                     "deps_on": sorted(deps_map.get(task.id, [])),  # Sort deps for stability
-                    # Commit linking
-                    "commits": sorted(task.commits) if task.commits else [],
+                    # Commit linking - normalize to full 40-char SHAs and deduplicate
+                    "commits": self._normalize_commits(task.commits, target_path.parent),
                     # Validation history (for tracking validation state across syncs)
                     "validation": (
                         {

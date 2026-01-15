@@ -337,7 +337,7 @@ def register_reviewer(
                     "description": "Parent session ID for context (required)",
                 },
                 "project_path": {
-                    "type": "string",
+                    "type": ["string", "null"],
                     "description": "Path to project directory",
                     "default": None,
                 },
@@ -403,11 +403,22 @@ def register_reviewer(
             }
 
         workflow_vars = state.variables
-        completed_agents = workflow_vars.get("completed_agents", [])
-        failed_agents = workflow_vars.get("failed_agents", [])
+
+        # Defensive type coercion - ensure lists of dicts, handle None/wrong types
+        def _safe_list_of_dicts(val: Any) -> list[dict[str, Any]]:
+            """Coerce value to list of dicts, filtering out non-dict entries."""
+            if not val:
+                return []
+            if not isinstance(val, list):
+                return []
+            return [x for x in val if isinstance(x, dict)]
+
+        completed_agents = _safe_list_of_dicts(workflow_vars.get("completed_agents"))
+        failed_agents = _safe_list_of_dicts(workflow_vars.get("failed_agents"))
         # Create a fresh list for newly reviewed agents to avoid aliasing the stored list
         newly_reviewed: list[dict[str, Any]] = []
-        review_agents_spawned = list(workflow_vars.get("review_agents_spawned", []))
+        # Shallow copy to avoid aliasing
+        review_agents_spawned = list(_safe_list_of_dicts(workflow_vars.get("review_agents_spawned")))
 
         # Resolve review provider from workflow vars or parameters
         effective_review_provider = (
@@ -654,12 +665,12 @@ def register_reviewer(
                     "default": True,
                 },
                 "review_provider": {
-                    "type": "string",
+                    "type": ["string", "null"],
                     "description": "LLM provider for reviews (uses workflow variable if not set)",
                     "default": None,
                 },
                 "review_model": {
-                    "type": "string",
+                    "type": ["string", "null"],
                     "description": "Model for reviews (uses workflow variable if not set)",
                     "default": None,
                 },
@@ -674,7 +685,7 @@ def register_reviewer(
                     "default": "terminal",
                 },
                 "project_path": {
-                    "type": "string",
+                    "type": ["string", "null"],
                     "description": "Path to project directory",
                     "default": None,
                 },

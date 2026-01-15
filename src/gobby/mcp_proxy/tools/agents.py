@@ -56,6 +56,7 @@ def create_agents_registry(
     get_session_context: Any | None = None,
     running_registry: RunningAgentRegistry | None = None,
     tool_proxy_getter: Callable[[], ToolProxyService | None] | None = None,
+    workflow_state_manager: Any | None = None,
 ) -> InternalToolRegistry:
     """
     Create an agent tool registry with all agent-related tools.
@@ -70,6 +71,8 @@ def create_agents_registry(
         tool_proxy_getter: Optional callable that returns ToolProxyService for
             routing tool calls in in-process agents. If not provided, tool calls
             will fail with "tool not available".
+        workflow_state_manager: Optional WorkflowStateManager for stopping workflows
+            when agents are killed. If not provided, workflow stop will be skipped.
 
     Returns:
         InternalToolRegistry with all agent tools registered.
@@ -941,16 +944,14 @@ def create_agents_registry(
 
             # Optionally end the workflow to prevent restart
             if stop and session_id:
-                try:
-                    from gobby.storage.database import LocalDatabase
-                    from gobby.workflows.state_manager import WorkflowStateManager
-
-                    db = LocalDatabase()
-                    state_mgr = WorkflowStateManager(db)
-                    state_mgr.delete_state(session_id)
-                    result["workflow_stopped"] = True
-                except Exception as e:
-                    result["workflow_stop_error"] = str(e)
+                if workflow_state_manager is not None:
+                    try:
+                        workflow_state_manager.delete_state(session_id)
+                        result["workflow_stopped"] = True
+                    except Exception as e:
+                        result["workflow_stop_error"] = str(e)
+                else:
+                    result["workflow_stop_error"] = "WorkflowStateManager not configured"
 
         return result
 

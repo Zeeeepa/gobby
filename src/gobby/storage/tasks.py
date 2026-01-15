@@ -1780,7 +1780,7 @@ class LocalTaskManager:
             task_type: Task type
             assignee: Optional assignee
             labels: Optional labels list
-            category: Testing strategy
+            category: Task domain category
             complexity_score: Complexity score
             estimated_subtasks: Estimated number of subtasks
             expansion_context: Additional context for expansion

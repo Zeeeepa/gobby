@@ -816,7 +816,7 @@ DELAY_MS="${2:-0}"
 
 # Apply delay if specified
 if [ "$DELAY_MS" -gt 0 ]; then
-    sleep $(echo "scale=3; $DELAY_MS/1000" | bc)
+    sleep $(awk "BEGIN {printf \"%.3f\", $DELAY_MS/1000}")
 fi
 
 # Detect terminal type and close appropriately

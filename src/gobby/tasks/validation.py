@@ -480,7 +480,7 @@ class TaskValidator:
             changes_summary: Summary of changes made (files, diffs, etc.)
             validation_criteria: Specific criteria to validate against (optional)
             context_files: List of files to read for context (optional)
-            category: Testing strategy for the task (e.g., 'manual', 'automated')
+            category: Task domain category (e.g., 'manual', 'code', 'test')
 
         Returns:
             ValidationResult with status and feedback

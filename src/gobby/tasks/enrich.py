@@ -17,7 +17,7 @@ class EnrichmentResult:
     Attributes:
         task_id: The ID of the enriched task
         domain_category: Task domain category (code, document, research, config, test, manual).
-            Named 'domain_category' to distinguish from Task.category which denotes testing strategy.
+            Named 'domain_category' to distinguish from Task.category which denotes task domain.
         complexity_level: Estimated complexity level (1=low, 2=medium, 3=high).
             Named 'complexity_level' to align with the discrete level semantics; note that
             Task.complexity_score uses a 1-10 scale, so consumers should be aware of the
@@ -52,8 +52,13 @@ class EnrichmentResult:
 class TaskEnricher:
     """Service for enriching tasks with additional context and metadata.
 
-    Uses LLM calls and MCP tools to gather information and enhance task
-    descriptions with implementation guidance.
+    Currently uses local heuristics (keyword matching, complexity estimation)
+    to categorize tasks and generate validation criteria. LLM and MCP tool
+    integration are available via feature flags (enable_web_research,
+    enable_mcp_tools) but are disabled by default.
+
+    TODO: Implement LLM-based enrichment when enable_web_research=True
+    TODO: Implement MCP tool calls when enable_mcp_tools=True
     """
 
     # Category keywords for classification

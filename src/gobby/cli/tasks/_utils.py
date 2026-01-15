@@ -566,11 +566,9 @@ def cascade_progress(
     except Exception as e:
         # Handle error on current task
         if on_error is not None and iterator._current_task is not None:
-            # Call on_error callback - suppress exception regardless of return value
-            # Return value only determines whether to continue processing
+            # Call on_error callback for logging, but always re-raise
+            # The on_error return value is only used in next-iteration logic
             on_error(iterator._current_task, e)
-            # Exception is always suppressed when on_error is provided
-            return
         raise
     finally:
         # Handle any pending error from final iteration (report_error called on last task)

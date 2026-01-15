@@ -285,7 +285,7 @@ def create_task_registry(
             parent_task_id: Optional parent task ID
             blocks: List of task IDs that this new task blocks
             labels: List of labels
-            category: Testing strategy for this task
+            category: Task domain category (test, code, document, research, config, manual)
             validation_criteria: Acceptance criteria for validating completion.
 
         Returns:
@@ -1259,8 +1259,10 @@ def create_task_registry(
             return {"error": str(e)}
         task = task_manager.get_task(resolved_id)
         sessions = session_task_manager.get_task_sessions(resolved_id)
+        # Handle case where task is not found (shouldn't happen after resolve, but be defensive)
+        ref = f"#{task.seq_num}" if task and task.seq_num else resolved_id[:8]
         return {
-            "ref": f"#{task.seq_num}" if task.seq_num else resolved_id[:8],
+            "ref": ref,
             "task_id": resolved_id,
             "sessions": sessions,
         }

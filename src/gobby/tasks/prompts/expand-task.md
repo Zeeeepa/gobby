@@ -13,7 +13,7 @@ You MUST respond with a JSON object containing a "subtasks" array. Each subtask 
 | description | string | No | Detailed description including implementation notes |
 | priority | integer | No | 1=High, 2=Medium (default), 3=Low |
 | task_type | string | No | "task" (default), "bug", "feature", "epic" |
-| category | string | No | Testing strategy for the subtask (e.g., "manual", "unit", "integration", "e2e") |
+| category | string | No | Task domain: "test", "code", "document", "research", "config", or "manual" |
 | validation_criteria | string | No | How to verify this subtask is complete |
 | depends_on | array[int] | No | Indices (0-based) of subtasks this one depends on |
 
