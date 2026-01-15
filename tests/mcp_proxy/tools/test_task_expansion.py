@@ -2722,3 +2722,146 @@ class TestExpansionContextUsage:
         # Should work normally
         result = await expansion_registry.call("expand_task", {"task_id": "parent"})
         assert result["tasks_created"] == 1
+
+
+class TestEnrichIfMissingParameter:
+    """Tests for the enrich_if_missing parameter in expand_task."""
+
+    @pytest.mark.asyncio
+    async def test_expand_task_auto_enriches_when_missing(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that expand_task auto-enriches when enrich_if_missing=True (default)."""
+        # Unenriched task
+        unenriched_task = Task(
+            id="parent",
+            title="Implement feature",
+            description="Add new feature to the app",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            is_enriched=False,
+            expansion_context=None,
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = unenriched_task
+        mock_task_manager.list_tasks.return_value = []
+        mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1"]}
+
+        # Call without explicit enrich_if_missing (default is True)
+        result = await expansion_registry.call("expand_task", {"task_id": "parent"})
+
+        # Should have enriched the task first (will fail until implemented)
+        # The enrichment should have been called
+        assert result.get("auto_enriched") is True, (
+            "Expected auto_enriched=True when task was not enriched"
+        )
+
+    @pytest.mark.asyncio
+    async def test_expand_task_skips_enrichment_when_disabled(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that expand_task skips enrichment when enrich_if_missing=False."""
+        # Unenriched task
+        unenriched_task = Task(
+            id="parent",
+            title="Implement feature",
+            description="Add new feature to the app",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            is_enriched=False,
+            expansion_context=None,
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = unenriched_task
+        mock_task_manager.list_tasks.return_value = []
+        mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1"]}
+
+        # Call with enrich_if_missing=False
+        result = await expansion_registry.call(
+            "expand_task", {"task_id": "parent", "enrich_if_missing": False}
+        )
+
+        # Should NOT have auto-enriched
+        assert result.get("auto_enriched") is not True, (
+            "Should not auto-enrich when enrich_if_missing=False"
+        )
+        # Should still expand successfully
+        assert result["tasks_created"] == 1
+
+    @pytest.mark.asyncio
+    async def test_expand_task_skips_enrichment_when_already_enriched(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that expand_task skips enrichment when task already has expansion_context."""
+        import json
+
+        enrichment_data = {
+            "task_id": "parent",
+            "research_findings": "Already enriched",
+        }
+        already_enriched_task = Task(
+            id="parent",
+            title="Implement feature",
+            description="Add new feature",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            is_enriched=True,
+            expansion_context=json.dumps(enrichment_data),
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = already_enriched_task
+        mock_task_manager.list_tasks.return_value = []
+        mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1"]}
+
+        # Call with default enrich_if_missing=True
+        result = await expansion_registry.call("expand_task", {"task_id": "parent"})
+
+        # Should NOT have auto-enriched (already has context)
+        assert result.get("auto_enriched") is not True, (
+            "Should not auto-enrich when task already has expansion_context"
+        )
+        assert result["tasks_created"] == 1
+
+    @pytest.mark.asyncio
+    async def test_expand_task_uses_enrichment_result_in_expansion(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that auto-enrichment result is used in the expansion context."""
+        # Unenriched task
+        unenriched_task = Task(
+            id="parent",
+            title="Implement auth",
+            description="Add authentication",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            is_enriched=False,
+            expansion_context=None,
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = unenriched_task
+        mock_task_manager.list_tasks.return_value = []
+        mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1"]}
+
+        # Call with enrich_if_missing=True (default)
+        result = await expansion_registry.call("expand_task", {"task_id": "parent"})
+
+        # Verify expander received enrichment context (from auto-enrichment)
+        call_kwargs = mock_task_expander.expand_task.call_args.kwargs
+        context = call_kwargs.get("context") or ""
+
+        # When auto-enriched, the expansion should include enrichment data
+        # This will fail until implementation connects enrichment to expansion
+        if result.get("auto_enriched"):
+            assert context, "Context should contain enrichment data after auto-enrich"
