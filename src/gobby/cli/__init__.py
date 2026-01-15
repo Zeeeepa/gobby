@@ -21,6 +21,7 @@ from .merge import merge
 from .projects import projects
 from .sessions import sessions
 from .tasks import tasks
+from .tui import ui
 from .workflows import workflows
 from .worktrees import worktrees
 
@@ -63,3 +64,4 @@ cli.add_command(linear)
 cli.add_command(hooks)
 cli.add_command(plugins)
 cli.add_command(webhooks)
+cli.add_command(ui)

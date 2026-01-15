@@ -1,0 +1,213 @@
+/* Gobby TUI Stylesheet
+ * Design tokens from /docs/design/design-system.md
+ */
+
+/* Base screen styling */
+Screen {
+    background: #0C0C0C;
+}
+
+/* Global text colors */
+* {
+    color: #FAFAFA;
+}
+
+/* Header styling */
+GobbyHeader {
+    height: 7;
+    dock: top;
+    background: #161616;
+    border-bottom: solid #333333;
+    padding: 0 2;
+}
+
+GobbyHeader Horizontal {
+    height: auto;
+    align: left top;
+}
+
+GobbyHeader #logo {
+    width: auto;
+}
+
+GobbyHeader .status-container {
+    width: 1fr;
+    align: right middle;
+    height: auto;
+    padding-top: 1;
+}
+
+GobbyHeader .version {
+    color: #666666;
+    padding-right: 2;
+}
+
+GobbyHeader .view-label {
+    color: #666666;
+    dock: bottom;
+    padding: 0 0 0 2;
+}
+
+/* Filter tabs */
+FilterTabs {
+    height: 3;
+    dock: top;
+    background: #0C0C0C;
+    padding: 0 2;
+}
+
+FilterTabs Horizontal {
+    height: 100%;
+    align: left middle;
+}
+
+FilterTabs Button {
+    min-width: 10;
+    margin: 0 1 0 0;
+    background: #161616;
+    border: none;
+    height: 1;
+}
+
+FilterTabs Button:hover {
+    background: #252525;
+}
+
+FilterTabs Button.selected {
+    background: #6CBF47;
+    color: #0C0C0C;
+    text-style: bold;
+}
+
+FilterTabs Button.selected:hover {
+    background: #7DCF58;
+}
+
+/* Sessions DataTable */
+SessionsView {
+    height: 1fr;
+    border: solid #333333;
+    margin: 0 1;
+}
+
+SessionsView > .datatable--header {
+    background: #161616;
+    text-style: bold;
+    color: #FAFAFA;
+}
+
+SessionsView > .datatable--cursor {
+    background: #6CBF47 30%;
+}
+
+SessionsView > .datatable--hover {
+    background: #252525;
+}
+
+SessionsView > .datatable--even-row {
+    background: #0C0C0C;
+}
+
+SessionsView > .datatable--odd-row {
+    background: #111111;
+}
+
+/* Log panel */
+LogPanel {
+    height: 8;
+    dock: bottom;
+    background: #161616;
+    border-top: solid #333333;
+    padding: 0 1;
+}
+
+/* Command input */
+CommandInput {
+    height: 3;
+    dock: bottom;
+    background: #0C0C0C;
+    border-top: solid #333333;
+    padding: 0 1;
+}
+
+CommandInput Horizontal {
+    height: 100%;
+    align: left middle;
+}
+
+CommandInput .prompt {
+    color: #6CBF47;
+    text-style: bold;
+    width: auto;
+    padding-right: 1;
+}
+
+CommandInput Input {
+    width: 1fr;
+    background: #0C0C0C;
+    border: none;
+    padding: 0;
+}
+
+CommandInput Input:focus {
+    border: none;
+}
+
+CommandInput Input.-placeholder {
+    color: #666666;
+}
+
+/* Status footer */
+StatusFooter {
+    height: 1;
+    dock: bottom;
+    background: #161616;
+    padding: 0 1;
+}
+
+StatusFooter Horizontal {
+    width: 100%;
+    height: 100%;
+    align: left middle;
+}
+
+StatusFooter .mode {
+    color: #6CBF47;
+    text-style: bold;
+    width: auto;
+    padding-right: 2;
+}
+
+StatusFooter .branch {
+    color: #3498DB;
+    width: auto;
+    padding-right: 2;
+}
+
+StatusFooter .spacer {
+    width: 1fr;
+}
+
+StatusFooter .percentage {
+    color: #666666;
+    width: auto;
+}
+
+/* Provider badge colors (for reference in views) */
+/* Claude: #D97706 (orange) */
+/* Gemini: #4285F4 (blue) */
+/* Codex: #00A67E (green) */
+
+/* Status colors (for reference in views) */
+/* open: #A0A0A0 */
+/* in_progress: #3498DB */
+/* blocked: #E74C3C */
+/* closed: #6CBF47 */
+/* failed: #E74C3C */
+
+/* Task type colors (for future views) */
+/* bug: #E74C3C */
+/* feature: #9B59B6 */
+/* task: #3498DB */
+/* epic: #4ECDC4 */
+/* chore: #666666 */
