@@ -394,12 +394,14 @@ def _generate_criteria_for_all(manager: LocalTaskManager) -> None:
     help="Enable MCP tools for research",
 )
 @click.option("--force", "-f", is_flag=True, help="Re-enrich already enriched tasks")
+@click.option("--project", "-p", "project_name", help="Project name or ID")
 def enrich_cmd(
     task_refs: tuple[str, ...],
     cascade: bool,
     web_research: bool,
     mcp_tools: bool,
     force: bool,
+    project_name: str | None,
 ) -> None:
     """Enrich tasks with additional context and metadata.
 
@@ -521,10 +523,12 @@ def enrich_cmd(
 @click.argument("task_refs", nargs=-1, required=True, metavar="TASKS...")
 @click.option("--cascade", "-c", is_flag=True, help="Also apply TDD to subtasks")
 @click.option("--force", "-f", is_flag=True, help="Reapply TDD even if already applied")
+@click.option("--project", "-p", "project_name", help="Project name or ID")
 def apply_tdd_cmd(
     task_refs: tuple[str, ...],
     cascade: bool,
     force: bool,
+    project_name: str | None,
 ) -> None:
     """Transform tasks into TDD triplets (test, implement, refactor).
 
@@ -647,6 +651,7 @@ def apply_tdd_cmd(
     help="Enable/disable auto-enrichment before expansion",
 )
 @click.option("--force", "-f", is_flag=True, help="Re-expand already expanded tasks")
+@click.option("--project", "-p", "project_name", help="Project name or ID")
 def expand_task_cmd(
     task_refs: tuple[str, ...],
     context: str | None,
@@ -655,6 +660,7 @@ def expand_task_cmd(
     cascade: bool,
     enrich: bool,
     force: bool,
+    project_name: str | None,
 ) -> None:
     """Expand tasks into subtasks using AI.
 
