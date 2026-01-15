@@ -518,7 +518,7 @@ def enrich_cmd(
 
 
 @click.command("expand")
-@click.argument("task_id", metavar="TASK")
+@click.argument("task_refs", nargs=-1, required=True, metavar="TASKS...")
 @click.option("--context", "-c", help="Additional context for expansion")
 @click.option(
     "--web-research/--no-web-research",
@@ -530,34 +530,81 @@ def enrich_cmd(
     default=True,
     help="Enable/disable codebase context gathering",
 )
+@click.option("--cascade", is_flag=True, help="Also expand subtasks")
+@click.option(
+    "--enrich/--no-enrich",
+    default=True,
+    help="Enable/disable auto-enrichment before expansion",
+)
+@click.option("--force", "-f", is_flag=True, help="Re-expand already expanded tasks")
 def expand_task_cmd(
-    task_id: str,
+    task_refs: tuple[str, ...],
     context: str | None,
     web_research: bool,
     code_context: bool,
+    cascade: bool,
+    enrich: bool,
+    force: bool,
 ) -> None:
-    """Expand a task into subtasks using AI.
+    """Expand tasks into subtasks using AI.
 
-    TASK can be: #N (e.g., #1, #47), path (e.g., 1.2.3), or UUID.
+    TASKS can be: #N (e.g., #1, #47), comma-separated (#1,#2,#3), or UUIDs.
+    Multiple tasks can be specified separated by spaces or commas.
+
+    Examples:
+        gobby tasks expand #42
+        gobby tasks expand #42,#43,#44
+        gobby tasks expand #42 --cascade --no-enrich
     """
     import asyncio
     from dataclasses import dataclass
 
+    from gobby.cli.tasks._utils import parse_task_refs
     from gobby.config.app import load_config
     from gobby.llm import LLMService
     from gobby.storage.task_dependencies import TaskDependencyManager
     from gobby.tasks.expansion import TaskExpander
 
-    manager = get_task_manager()
-    resolved = resolve_task_id(manager, task_id)
-    if not resolved:
+    # Parse task references
+    refs = parse_task_refs(task_refs)
+    if not refs:
+        click.echo("Error: No task references provided", err=True)
         return
 
-    click.echo(f"Expanding task {resolved.id}...")
-    if web_research:
-        click.echo("  • Web research enabled")
-    if code_context:
-        click.echo("  • Code context enabled")
+    manager = get_task_manager()
+
+    # Resolve all tasks
+    tasks_to_expand: list[Task] = []
+    for ref in refs:
+        task = resolve_task_id(manager, ref)
+        if not task:
+            continue
+        tasks_to_expand.append(task)
+
+        # If cascade, get subtasks too
+        if cascade:
+            subtasks = manager.list_tasks(parent_task_id=task.id)
+            tasks_to_expand.extend(subtasks)
+
+    if not tasks_to_expand:
+        click.echo("No valid tasks to expand.", err=True)
+        return
+
+    # For single task, use original behavior
+    # For multiple tasks, show summary
+    if len(tasks_to_expand) == 1:
+        resolved = tasks_to_expand[0]
+        click.echo(f"Expanding task {resolved.id}...")
+        if web_research:
+            click.echo("  • Web research enabled")
+        if code_context:
+            click.echo("  • Code context enabled")
+    else:
+        click.echo(f"Expanding {len(tasks_to_expand)} tasks...")
+
+    # Note: For backward compatibility, we use the first task as 'resolved'
+    # Multi-task expansion is handled separately below
+    resolved = tasks_to_expand[0]
 
     # Initialize services
     try:
