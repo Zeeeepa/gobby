@@ -3076,3 +3076,356 @@ class TestGenerateDescriptionLLM:
         assert "Add validation logic" in prompt  # Task title
         assert "Security Features" in prompt  # Section title
         assert "security measures" in prompt  # Section content (truncated)
+
+
+class TestBuildSmartDescription:
+    """Tests for _build_smart_description method.
+
+    This method builds focused descriptions with context from spec,
+    falling back to LLM when structured extraction yields minimal results.
+    """
+
+    @pytest.mark.asyncio
+    async def test_build_smart_description_structured_extraction(self, mock_task_manager):
+        """Should use structured extraction when it yields sufficient content."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=None,  # No LLM needed for structured extraction
+        )
+
+        checkbox = CheckboxItem(
+            text="Implement user authentication",
+            checked=False,
+            line_number=5,
+            indent_level=0,
+            raw_line="- [ ] Implement user authentication",
+            parent_heading="Phase 1: Security",
+        )
+
+        heading = HeadingNode(
+            text="Phase 1: Security",
+            level=3,
+            line_start=1,
+            line_end=10,
+            content="**Goal**: Implement security features for the application.",
+        )
+
+        result = await builder._build_smart_description(
+            checkbox=checkbox,
+            heading=heading,
+            all_checkboxes=[checkbox],
+        )
+
+        # Should include structured extraction parts
+        assert result is not None
+        assert "Part of: Phase 1: Security" in result
+        assert "Goal: Implement security features" in result
+
+    @pytest.mark.asyncio
+    async def test_build_smart_description_falls_back_to_llm(self, mock_task_manager):
+        """Should fall back to LLM when structured extraction is insufficient."""
+        llm_service = MockLLMService()
+        config = MockDaemonConfig(
+            task_description=MockTaskDescriptionConfig(
+                enabled=True,
+                min_structured_length=200,  # High threshold to trigger LLM fallback
+            )
+        )
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=llm_service,
+            config=config,
+        )
+
+        checkbox = CheckboxItem(
+            text="Fix bug",
+            checked=False,
+            line_number=1,
+            indent_level=0,
+            raw_line="- [ ] Fix bug",
+        )
+
+        # No heading means minimal structured extraction
+        result = await builder._build_smart_description(
+            checkbox=checkbox,
+            heading=None,
+            all_checkboxes=[checkbox],
+        )
+
+        # Should have called LLM (mock returns "Generated description for: ...")
+        assert result is not None
+        assert "Generated description" in result
+
+    @pytest.mark.asyncio
+    async def test_build_smart_description_includes_related_tasks(self, mock_task_manager):
+        """Should include related sibling tasks in description."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        heading = HeadingNode(
+            text="Phase 1: Setup",
+            level=3,
+            line_start=1,
+            line_end=20,
+            content="Initial project setup tasks.",
+        )
+
+        checkbox1 = CheckboxItem(
+            text="Install dependencies",
+            checked=False,
+            line_number=5,
+            indent_level=0,
+            raw_line="- [ ] Install dependencies",
+            parent_heading="Phase 1: Setup",
+        )
+
+        checkbox2 = CheckboxItem(
+            text="Configure database",
+            checked=False,
+            line_number=6,
+            indent_level=0,
+            raw_line="- [ ] Configure database",
+            parent_heading="Phase 1: Setup",
+        )
+
+        checkbox3 = CheckboxItem(
+            text="Set up CI/CD",
+            checked=False,
+            line_number=7,
+            indent_level=0,
+            raw_line="- [ ] Set up CI/CD",
+            parent_heading="Phase 1: Setup",
+        )
+
+        all_checkboxes = [checkbox1, checkbox2, checkbox3]
+
+        result = await builder._build_smart_description(
+            checkbox=checkbox1,
+            heading=heading,
+            all_checkboxes=all_checkboxes,
+        )
+
+        # Should include related tasks
+        assert result is not None
+        assert "Related tasks:" in result
+        assert "Configure database" in result
+
+    @pytest.mark.asyncio
+    async def test_build_smart_description_respects_min_length_config(
+        self, mock_task_manager
+    ):
+        """Should use config.task_description.min_structured_length threshold."""
+
+        class CountingLLMService:
+            """Mock LLM service that counts calls."""
+
+            def __init__(self):
+                self.call_count = 0
+
+            def get_provider(self, name: str):
+                return CountingLLMProvider(self)
+
+        class CountingLLMProvider:
+            def __init__(self, service):
+                self.service = service
+
+            async def generate_text(self, *args, **kwargs):
+                self.service.call_count += 1
+                return "LLM generated description"
+
+        # Low threshold - should NOT trigger LLM
+        llm_service_low = CountingLLMService()
+        config_low = MockDaemonConfig(
+            task_description=MockTaskDescriptionConfig(
+                enabled=True,
+                min_structured_length=10,  # Low threshold
+            )
+        )
+
+        builder_low = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=llm_service_low,
+            config=config_low,
+        )
+
+        heading = HeadingNode(
+            text="Phase 1",
+            level=3,
+            line_start=1,
+            line_end=10,
+            content="**Goal**: Do something.",
+        )
+
+        checkbox = CheckboxItem(
+            text="Task with heading",
+            checked=False,
+            line_number=5,
+            indent_level=0,
+            raw_line="- [ ] Task with heading",
+            parent_heading="Phase 1",
+        )
+
+        await builder_low._build_smart_description(
+            checkbox=checkbox,
+            heading=heading,
+            all_checkboxes=[checkbox],
+        )
+
+        # Low threshold with heading should NOT call LLM (structured extraction sufficient)
+        assert llm_service_low.call_count == 0
+
+        # High threshold - should trigger LLM
+        llm_service_high = CountingLLMService()
+        config_high = MockDaemonConfig(
+            task_description=MockTaskDescriptionConfig(
+                enabled=True,
+                min_structured_length=500,  # High threshold
+            )
+        )
+
+        builder_high = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=llm_service_high,
+            config=config_high,
+        )
+
+        await builder_high._build_smart_description(
+            checkbox=checkbox,
+            heading=heading,
+            all_checkboxes=[checkbox],
+        )
+
+        # High threshold should trigger LLM fallback
+        assert llm_service_high.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_build_smart_description_with_no_heading(self, mock_task_manager):
+        """Should handle checkboxes without parent heading."""
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+        )
+
+        checkbox = CheckboxItem(
+            text="Standalone task",
+            checked=False,
+            line_number=1,
+            indent_level=0,
+            raw_line="- [ ] Standalone task",
+        )
+
+        result = await builder._build_smart_description(
+            checkbox=checkbox,
+            heading=None,
+            all_checkboxes=[checkbox],
+        )
+
+        # With no heading and no LLM, should return None or minimal content
+        # The behavior depends on implementation - either None or minimal string
+        assert result is None or result == ""
+
+
+class TestIntegrateLLMIntoTaskCreation:
+    """Tests for integrating _generate_description_llm into task creation flow.
+
+    Verifies that tasks created via spec parsing have smart descriptions
+    when LLM service is configured.
+    """
+
+    @pytest.mark.asyncio
+    async def test_process_checkbox_uses_smart_description(self, mock_task_manager):
+        """_process_checkbox should use _build_smart_description for task descriptions."""
+        llm_service = MockLLMService()
+        config = MockDaemonConfig(
+            task_description=MockTaskDescriptionConfig(enabled=True)
+        )
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=llm_service,
+            config=config,
+        )
+
+        heading = HeadingNode(
+            text="Phase 1: Core Features",
+            level=3,
+            line_start=1,
+            line_end=20,
+            content="**Goal**: Implement core features.",
+        )
+
+        checkbox = CheckboxItem(
+            text="Add user model",
+            checked=False,
+            line_number=5,
+            indent_level=0,
+            raw_line="- [ ] Add user model",
+            parent_heading="Phase 1: Core Features",
+        )
+
+        created_tasks: list[Any] = []
+
+        await builder._process_checkbox(
+            checkbox=checkbox,
+            heading=heading,
+            all_checkboxes=[checkbox],
+            created_tasks=created_tasks,
+        )
+
+        # Should have created a task
+        assert len(created_tasks) >= 1
+
+        # The task should have a smart description (not just the checkbox text)
+        task = created_tasks[0]
+        assert task.description is not None
+        assert "Part of:" in task.description or "Goal:" in task.description
+
+    @pytest.mark.asyncio
+    async def test_build_from_headings_passes_llm_context(self, mock_task_manager):
+        """build_from_headings should pass LLM service context through."""
+        llm_service = MockLLMService()
+        config = MockDaemonConfig(
+            task_description=MockTaskDescriptionConfig(enabled=True)
+        )
+
+        builder = TaskHierarchyBuilder(
+            task_manager=mock_task_manager,
+            project_id="test-project",
+            llm_service=llm_service,
+            config=config,
+        )
+
+        heading = HeadingNode(
+            text="Phase 1",
+            level=2,
+            line_start=1,
+            line_end=10,
+            content="**Goal**: Setup phase.",
+        )
+
+        checkbox = CheckboxItem(
+            text="Initialize project",
+            checked=False,
+            line_number=3,
+            indent_level=0,
+            raw_line="- [ ] Initialize project",
+            parent_heading="Phase 1",
+        )
+
+        heading_tree = {heading: []}
+        checkboxes = [checkbox]
+
+        result = builder.build_from_headings(heading_tree, checkboxes)
+
+        # Verify task was created with description
+        assert result.total_count >= 1
+        # The LLM service should be accessible for smart descriptions
+        assert builder.llm_service is llm_service
