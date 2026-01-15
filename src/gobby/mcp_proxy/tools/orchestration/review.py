@@ -574,7 +574,7 @@ def register_reviewer(
 
         for agent_info in failed_agents:
             task_id = agent_info.get("task_id")
-            failure_reason = agent_info.get("failure_reason", "Unknown")
+            failure_reason = agent_info.get("failure_reason") or "Unknown"
 
             # Check if this is a retriable failure
             if "crashed" in failure_reason.lower() or "exited" in failure_reason.lower():

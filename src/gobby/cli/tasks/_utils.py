@@ -577,12 +577,16 @@ def cascade_progress(
             iterator._pending_error = None
             task = iterator._current_task
             if on_error is not None and task is not None:
-                # Call on_error callback for pending error
-                on_error(task, error)
-                # Error handled via callback, don't re-raise
+                # Call on_error callback for pending error, preserving both exceptions if callback fails
+                try:
+                    on_error(task, error)
+                    # Error handled via callback, don't re-raise
+                except Exception as callback_exc:
+                    # Chain exceptions: original error + callback failure
+                    raise error from callback_exc
             else:
-                # No on_error callback - re-raise the pending error
-                raise error
+                # No on_error callback - re-raise the pending error without masking prior exceptions
+                raise error from None
 
 
 def parse_task_refs(refs: tuple[str, ...]) -> list[str]:

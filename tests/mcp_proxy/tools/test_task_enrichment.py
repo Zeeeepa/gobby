@@ -71,10 +71,12 @@ def mock_task_enricher():
     if not ENRICH_IMPORT_SUCCEEDED:
         pytest.skip("enrich module not available")
 
-    async def enrich_side_effect(task: Task, **kwargs):
-        """Return EnrichmentResult with the task's id."""
+    async def enrich_side_effect(**kwargs):
+        """Return EnrichmentResult with the task's id from kwargs."""
+        # The actual code passes task_id as a keyword argument
+        task_id = kwargs.get("task_id", "unknown")
         return EnrichmentResult(
-            task_id=task.id,
+            task_id=task_id,
             domain_category="code",
             complexity_level=2,
             research_findings="Found relevant patterns",
@@ -165,10 +167,10 @@ class TestEnrichTaskTool:
         assert result["task_id"] == "t1", f"Expected task_id 't1', got: {result.get('task_id')}"
         assert result.get("success") is True, f"Expected success=True, got: {result.get('success')}"
         assert "error" not in result, f"Unexpected error in result: {result.get('error')}"
-        # Verify enrich was called once with the task as first positional arg
+        # Verify enrich was called once with the task_id as kwarg
         mock_task_enricher.enrich.assert_called_once()
-        call_args = mock_task_enricher.enrich.call_args
-        assert call_args.args[0] == task, f"Expected first arg to be task, got: {call_args.args[0]}"
+        call_kwargs = mock_task_enricher.enrich.call_args.kwargs
+        assert call_kwargs.get("task_id") == task.id, f"Expected task_id '{task.id}', got: {call_kwargs.get('task_id')}"
 
     @pytest.mark.asyncio
     async def test_enrich_task_batch_support(
@@ -546,11 +548,13 @@ class TestEnrichTaskTool:
         # Make enricher fail on second task
         call_count = [0]
 
-        async def enrich_side_effect(*args, **kwargs):
+        async def enrich_side_effect(**kwargs):
             call_count[0] += 1
             if call_count[0] == 2:
                 raise Exception("Enrichment failed for t2")
-            return EnrichmentResult(task_id=kwargs.get("task_id", "t1"))
+            # Get task_id from kwargs (actual code passes it as keyword argument)
+            task_id = kwargs.get("task_id", "unknown")
+            return EnrichmentResult(task_id=task_id)
 
         mock_task_enricher.enrich.side_effect = enrich_side_effect
 

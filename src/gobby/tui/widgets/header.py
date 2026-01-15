@@ -117,9 +117,10 @@ class GobbyHeader(Static):
             yield Static(GOBBY_LOGO_MAIN, id="logo")
             with Horizontal(classes="status-container"):
                 yield Static(f"[dim]v{self.version}[/]", classes="version")
-                status_class = "status-connected" if self._connected else "status-disconnected"
+                # Use actual Rich color codes instead of CSS class names
+                status_style = "#6CBF47" if self._connected else "#E74C3C"
                 status_text = "CONNECTED" if self._connected else "DISCONNECTED"
-                yield Static(f"[{status_class}]{status_text}[/]", id="daemon-status")
+                yield Static(f"[{status_style}]{status_text}[/]", id="daemon-status")
         with Horizontal(classes="filter-row"):
             yield Static(f"[dim]VIEW:[/] [bold]{self.view_name}[/]  ", classes="view-label")
             for filter_name in self.filters:

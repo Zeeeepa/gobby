@@ -397,6 +397,9 @@ def create_expansion_registry(
             )
 
         # Batch mode - process tasks in parallel
+        # At this point, task_ids is guaranteed to be a non-empty list (validated above)
+        assert task_ids is not None  # Type narrowing for mypy
+
         async def expand_one(tid: str) -> dict[str, Any]:
             return await _expand_single_task(
                 single_task_id=tid,
@@ -408,8 +411,19 @@ def create_expansion_registry(
                 enrich_if_missing=enrich_if_missing,
             )
 
-        results = await asyncio.gather(*[expand_one(tid) for tid in task_ids])
-        return {"results": list(results)}
+        raw_results = await asyncio.gather(
+            *[expand_one(tid) for tid in task_ids], return_exceptions=True
+        )
+        # Convert exceptions to error dicts to preserve per-task success/error information
+        processed_results: list[dict[str, Any]] = []
+        for i, result in enumerate(raw_results):
+            if isinstance(result, BaseException):
+                processed_results.append(
+                    {"error": str(result), "task_id": task_ids[i], "success": False}
+                )
+            else:
+                processed_results.append(result)
+        return {"results": processed_results}
 
     @registry.tool(
         name="analyze_complexity",
@@ -1002,7 +1016,7 @@ def create_expansion_registry(
                 }
                 if result.domain_category:
                     update_kwargs["category"] = result.domain_category
-                if result.complexity_level:
+                if result.complexity_level is not None:
                     update_kwargs["complexity_score"] = result.complexity_level
                 if result.validation_criteria and generate_validation:
                     update_kwargs["validation_criteria"] = result.validation_criteria
@@ -1012,6 +1026,7 @@ def create_expansion_registry(
                 # Return enrichment result (using EnrichmentResult field names)
                 return {
                     "task_id": task.id,
+                    "success": True,
                     "domain_category": result.domain_category,
                     "complexity_level": result.complexity_level,
                     "research_findings": result.research_findings,
@@ -1073,7 +1088,7 @@ def create_expansion_registry(
                 }
                 if result.domain_category:
                     update_kwargs["category"] = result.domain_category
-                if result.complexity_level:
+                if result.complexity_level is not None:
                     update_kwargs["complexity_score"] = result.complexity_level
                 if result.validation_criteria and generate_validation:
                     update_kwargs["validation_criteria"] = result.validation_criteria
@@ -1082,6 +1097,7 @@ def create_expansion_registry(
 
                 results.append({
                     "task_id": task.id,
+                    "success": True,
                     "domain_category": result.domain_category,
                     "complexity_level": result.complexity_level,
                     "research_findings": result.research_findings,
@@ -1195,26 +1211,29 @@ def create_expansion_registry(
 
     @registry.tool(
         name="parse_spec",
-        description="Parse a spec file and create tasks from markdown structure (no LLM).",
+        description="Parse a spec file and create tasks from markdown structure. Use format_with_llm=true to auto-convert documents.",
     )
     async def parse_spec(
         spec_path: str,
         parent_task_id: str | None = None,
+        format_with_llm: bool = False,
     ) -> dict[str, Any]:
         """
         Parse a specification file and create tasks from its structure.
 
-        This is a fast, deterministic parser that creates tasks from markdown
-        structure (headings and checkboxes) WITHOUT calling any LLM. For
-        AI-powered expansion, use expand_from_spec instead.
+        This parser creates tasks from markdown structure (headings and checkboxes).
+        Use format_with_llm=true to auto-convert any document format to spec format first.
 
         Args:
             spec_path: Path to the specification file (markdown)
             parent_task_id: Optional parent task to nest created tasks under
+            format_with_llm: If true, use LLM to convert document to spec format first
 
         Returns:
             Dictionary with parent task and created subtasks
         """
+        from gobby.tasks.spec_parser import format_spec_with_llm_async
+
         # Read the spec file
         path = Path(spec_path).expanduser().resolve()
         if not path.exists():
@@ -1226,6 +1245,16 @@ def create_expansion_registry(
             spec_content = path.read_text(encoding="utf-8")
         except Exception as e:
             return {"error": f"Failed to read spec file: {e}"}
+
+        # Format with LLM if requested
+        formatted_path = None
+        if format_with_llm:
+            try:
+                spec_content = await format_spec_with_llm_async(spec_content)
+                formatted_path = path.with_suffix(".formatted.md")
+                formatted_path.write_text(spec_content, encoding="utf-8")
+            except Exception as e:
+                return {"error": f"LLM formatting failed: {e}"}
 
         # Get project context
         ctx = get_project_context()
@@ -1320,7 +1349,7 @@ def create_expansion_registry(
                     "is_parallelizable": group.is_parallelizable(),
                 })
 
-        return {
+        result = {
             "parent_task_id": spec_task.id,
             "parent_task_title": spec_task.title,
             "tasks_created": len(subtask_ids),
@@ -1328,5 +1357,8 @@ def create_expansion_registry(
             "mode": "structured",
             "phase_groups": phase_groups,
         }
+        if formatted_path:
+            result["formatted_path"] = str(formatted_path)
+        return result
 
     return registry

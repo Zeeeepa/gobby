@@ -97,7 +97,7 @@ SessionsView > .datatable--header {
 }
 
 SessionsView > .datatable--cursor {
-    background: #6CBF47 30%;
+    background: #6CBF474D;
 }
 
 SessionsView > .datatable--hover {

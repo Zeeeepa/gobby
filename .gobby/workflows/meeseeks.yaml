@@ -24,6 +24,8 @@ variables:
   task_category: null         # "code", "test", "docs", or null
   session_id_acquired: false
   mcp_calls: {}               # Tracked automatically by engine
+  summary_file_written: false      # Set when Write tool completes summary file
+  session_update_completed: false  # Set when gobby-sessions update completes
 
 steps:
   # ─────────────────────────────────────────────────────────────
@@ -256,9 +258,21 @@ steps:
       - Edit
       - NotebookEdit
 
+    on_tool_success:
+      - tool: Write
+        action: set_variable
+        variable: summary_file_written
+        value: true
+
+    on_mcp_success:
+      - server: gobby-sessions
+        action: set_variable
+        variable: session_update_completed
+        value: true
+
     transitions:
       - to: shutdown
-        when: "step_action_count >= 2"  # Summary file + session update
+        when: "variables.get('summary_file_written', False) and variables.get('session_update_completed', False)"
 
   # ─────────────────────────────────────────────────────────────
   # Step 8: Shutdown

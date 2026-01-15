@@ -179,7 +179,8 @@ class DaemonClient:
             event: The event dict with 'type' key
         """
         event_type = event.get("type", "unknown")
-        handlers = self._event_handlers.get(event_type, [])
+        # Create a copy to avoid mutating the internal handler lists
+        handlers = list(self._event_handlers.get(event_type, []))
         handlers.extend(self._event_handlers.get("*", []))  # Wildcard handlers
 
         for handler in handlers:

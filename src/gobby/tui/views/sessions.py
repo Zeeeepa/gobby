@@ -59,7 +59,7 @@ class SessionsView(DataTable):
 
     def __init__(
         self,
-        client: "DaemonClient | None" = None,
+        client: DaemonClient | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize sessions view.
@@ -132,9 +132,6 @@ class SessionsView(DataTable):
         Returns:
             Formatted status string with Rich markup
         """
-        source = session.get("source", "unknown")
-        provider_color = PROVIDER_COLORS.get(source.lower(), PROVIDER_COLORS["unknown"])
-
         # Determine status
         status = session.get("status", "unknown")
         if status == "active":
@@ -147,9 +144,6 @@ class SessionsView(DataTable):
         else:
             status_text = status.upper()
             status_color = STATUS_COLORS.get(status, "#666666")
-
-        # Format provider name for display
-        provider_display = source.replace("_", " ").replace("-", " ").title()
 
         return f"[{status_color}]{status_text}[/]"
 

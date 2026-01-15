@@ -130,9 +130,30 @@ def register_cleanup(
             worktree_path = worktree.worktree_path
 
             try:
+                # Track if at least one successful operation occurred
+                operation_succeeded = False
+
                 # Step 1: Merge branch to base (if enabled)
                 merge_succeeded = False
                 if merge_to_base:
+                    # Validate required fields for merge
+                    if not branch:
+                        failed.append(
+                            {
+                                **agent_info,
+                                "failure_reason": "Missing branch name for merge operation",
+                            }
+                        )
+                        continue
+                    if not worktree.base_branch:
+                        failed.append(
+                            {
+                                **agent_info,
+                                "failure_reason": "Missing base_branch for merge operation",
+                            }
+                        )
+                        continue
+
                     merge_result = _merge_branch_to_base(
                         git_manager=git_manager,
                         branch_name=branch,
@@ -141,6 +162,7 @@ def register_cleanup(
 
                     if merge_result["success"]:
                         merge_succeeded = True
+                        operation_succeeded = True
                         merged.append(
                             {
                                 "worktree_id": worktree_id,
@@ -166,6 +188,16 @@ def register_cleanup(
 
                 # Step 3: Delete git worktree (if enabled)
                 if delete_worktrees:
+                    # Validate required fields for deletion
+                    if not worktree_path:
+                        failed.append(
+                            {
+                                **agent_info,
+                                "failure_reason": "Missing worktree_path for delete operation",
+                            }
+                        )
+                        continue
+
                     delete_result = git_manager.delete_worktree(
                         worktree_path=worktree_path,
                         force=force,
@@ -173,6 +205,7 @@ def register_cleanup(
                     )
 
                     if delete_result.success:
+                        operation_succeeded = True
                         deleted.append(
                             {
                                 "worktree_id": worktree_id,
@@ -195,7 +228,9 @@ def register_cleanup(
                         )
                         continue
 
-                cleaned_agents.append(agent_info)
+                # Only mark as cleaned if at least one operation succeeded
+                if operation_succeeded:
+                    cleaned_agents.append(agent_info)
 
             except Exception as e:
                 logger.exception(f"Error cleaning up worktree {worktree_id}")
@@ -270,6 +305,20 @@ def register_cleanup(
             return {
                 "success": False,
                 "error": "Git manager not configured",
+            }
+
+        # Validate older_than_hours
+        try:
+            older_than_hours = int(older_than_hours)
+        except (TypeError, ValueError):
+            return {
+                "success": False,
+                "error": "older_than_hours must be an integer",
+            }
+        if older_than_hours < 0:
+            return {
+                "success": False,
+                "error": "older_than_hours must be non-negative",
             }
 
         # Resolve project ID

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
+import subprocess
+
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.reactive import reactive
@@ -12,6 +16,8 @@ from gobby.tui.widgets.command_input import CommandInput
 from gobby.tui.widgets.footer import StatusFooter
 from gobby.tui.widgets.header import GobbyHeader
 from gobby.tui.widgets.log_panel import LogPanel
+
+logger = logging.getLogger(__name__)
 
 
 class GobbyApp(App):
@@ -86,12 +92,11 @@ class GobbyApp(App):
             log_panel.log_error("Failed to connect to daemon")
             log_panel.log_info("Make sure gobby daemon is running: gobby start")
 
-        # Get git branch for footer
+        # Get git branch for footer (run off event loop to avoid blocking)
         footer = self.query_one(StatusFooter)
         try:
-            import subprocess
-
-            result = subprocess.run(
+            result = await asyncio.to_thread(
+                subprocess.run,
                 ["git", "rev-parse", "--abbrev-ref", "HEAD"],
                 capture_output=True,
                 text=True,
@@ -100,8 +105,8 @@ class GobbyApp(App):
             if result.returncode == 0:
                 branch = result.stdout.strip()
                 footer.set_branch(branch)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to get git branch: {e}")
 
     def on_gobby_header_filter_changed(self, event: GobbyHeader.FilterChanged) -> None:
         """Handle filter tab changes.
@@ -115,7 +120,7 @@ class GobbyApp(App):
         log_panel = self.query_one(LogPanel)
         log_panel.log_info(f"Filter changed to: {event.filter_value}")
 
-    def on_command_input_command_submitted(
+    async def on_command_input_command_submitted(
         self, event: CommandInput.CommandSubmitted
     ) -> None:
         """Handle command submission.
@@ -129,7 +134,7 @@ class GobbyApp(App):
         if command in ("q", "quit", "exit"):
             self.exit()
         elif command in ("r", "refresh"):
-            self.action_refresh()
+            await self.action_refresh()
         elif command in ("h", "help", "?"):
             log_panel.log_info("Commands: quit, refresh, help")
             log_panel.log_info("Keys: q=quit, r=refresh, j/k=navigate, ?=help")

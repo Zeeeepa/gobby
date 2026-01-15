@@ -467,13 +467,13 @@ class TaskExpander:
 
             else:
                 # Normal creation
-                # Build description with test strategy if present
+                # Build description with category if present
                 description = spec.description or ""
                 if spec.category:
                     if description:
-                        description += f"\n\n**Test Strategy:** {spec.category}"
+                        description += f"\n\n**Category:** {spec.category}"
                     else:
-                        description = f"**Test Strategy:** {spec.category}"
+                        description = f"**Category:** {spec.category}"
 
                 # Generate precise validation criteria if context is available
                 if expansion_context:
