@@ -651,6 +651,7 @@ def create_expansion_registry(
         )
 
         subtask_ids: list[str] = []
+        hierarchy_result = None  # Set in structured mode, used for phase_groups
 
         if effective_mode == "structured":
             # Create criteria generator for structured expansion
@@ -736,14 +737,30 @@ def create_expansion_registry(
             if subtask:
                 subtasks.append({"id": subtask.id, "title": subtask.title})
 
+        # Build phase_groups from parallel_groups (for worktree orchestration)
+        # Only available in structured mode where hierarchy_result exists
+        phase_groups: list[dict[str, Any]] = []
+        if hierarchy_result and hierarchy_result.parallel_groups:
+            for group in hierarchy_result.parallel_groups:
+                phase_groups.append({
+                    "task_ids": group.task_ids,
+                    "parent_task_id": group.parent_task_id,
+                    "heading_level": group.heading_level,
+                    "is_parallelizable": group.is_parallelizable(),
+                })
+
         # Return concise response (use get_task for full details)
-        return {
+        response: dict[str, Any] = {
             "parent_task_id": spec_task.id,
             "parent_task_title": spec_task.title,
             "tasks_created": len(subtask_ids),
             "subtasks": subtasks,  # Brief: [{id, title}, ...]
             "mode_used": effective_mode,
         }
+        # Only include phase_groups if available (structured mode)
+        if phase_groups:
+            response["phase_groups"] = phase_groups
+        return response
 
     @registry.tool(
         name="expand_from_prompt",
