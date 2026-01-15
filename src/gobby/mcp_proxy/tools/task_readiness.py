@@ -36,24 +36,24 @@ def get_current_project_id() -> str | None:
 
 def _get_ready_descendants(
     task_manager: "LocalTaskManager",
-    parent_id: str,
+    parent_task_id: str,
     task_type: str | None = None,
     project_id: str | None = None,
 ) -> list[Any]:
     """
     Get all ready tasks that are descendants of the given parent task.
 
-    Traverses the task hierarchy to find all tasks under parent_id,
+    Traverses the task hierarchy to find all tasks under parent_task_id,
     then filters to only those that are ready (open with no blockers).
 
     Args:
         task_manager: LocalTaskManager instance
-        parent_id: ID of the ancestor task to filter by
+        parent_task_id: ID of the ancestor task to filter by
         task_type: Optional task type filter
         project_id: Optional project ID filter
 
     Returns:
-        List of ready Task objects that are descendants of parent_id
+        List of ready Task objects that are descendants of parent_task_id
     """
     # Get all ready tasks first
     all_ready = task_manager.list_ready_tasks(
@@ -67,7 +67,7 @@ def _get_ready_descendants(
 
     # Build a set of all descendant IDs by traversing the hierarchy
     descendant_ids = set()
-    to_check = [parent_id]
+    to_check = [parent_task_id]
 
     while to_check:
         current_id = to_check.pop()
@@ -341,7 +341,7 @@ def create_readiness_registry(
     def suggest_next_task(
         task_type: str | None = None,
         prefer_subtasks: bool = True,
-        parent_id: str | None = None,
+        parent_task_id: str | None = None,
         session_id: str | None = None,
     ) -> dict[str, Any]:
         """
@@ -357,10 +357,10 @@ def create_readiness_registry(
         Args:
             task_type: Filter by task type (optional)
             prefer_subtasks: Prefer leaf tasks over parent tasks (default: True)
-            parent_id: Filter to descendants of this task (optional).
+            parent_task_id: Filter to descendants of this task (optional).
                       When set, only tasks under this parent hierarchy are considered.
                       Use this to scope suggestions to a specific epic/feature.
-            session_id: Your session ID (optional). If provided and parent_id is not set,
+            session_id: Your session ID (optional). If provided and parent_task_id is not set,
                        checks workflow state for session_task variable and auto-scopes
                        suggestions to that task's hierarchy.
 
@@ -370,25 +370,27 @@ def create_readiness_registry(
         # Filter by current project
         project_id = get_current_project_id()
 
-        # Auto-scope to session_task if session_id is provided and parent_id is not set
-        if session_id and not parent_id:
+        # Auto-scope to session_task if session_id is provided and parent_task_id is not set
+        if session_id and not parent_task_id:
             workflow_state = workflow_state_manager.get_state(session_id)
             if workflow_state:
                 session_task = workflow_state.variables.get("session_task")
                 if session_task and session_task != "*":
-                    # session_task is set, use it as parent_id for scoping
-                    parent_id = session_task
+                    # session_task is set, use it as parent_task_id for scoping
+                    parent_task_id = session_task
 
-        # Resolve parent_id if it's a reference format
-        if parent_id:
+        # Resolve parent_task_id if it's a reference format
+        if parent_task_id:
             try:
-                parent_id = resolve_task_id_for_mcp(task_manager, parent_id, project_id)
+                parent_task_id = resolve_task_id_for_mcp(task_manager, parent_task_id, project_id)
             except (TaskNotFoundError, ValueError) as e:
-                return {"error": f"Invalid parent_id: {e}", "suggestion": None}
+                return {"error": f"Invalid parent_task_id: {e}", "suggestion": None}
 
-        # If parent_id is set, get all descendants of that task
-        if parent_id:
-            ready_tasks = _get_ready_descendants(task_manager, parent_id, task_type, project_id)
+        # If parent_task_id is set, get all descendants of that task
+        if parent_task_id:
+            ready_tasks = _get_ready_descendants(
+                task_manager, parent_task_id, task_type, project_id
+            )
         else:
             ready_tasks = task_manager.list_ready_tasks(
                 task_type=task_type, limit=50, project_id=project_id
@@ -484,7 +486,7 @@ def create_readiness_registry(
     registry.register(
         name="suggest_next_task",
         description="Suggest the best next task to work on based on priority, readiness, and complexity. "
-        "Use parent_id to scope suggestions to a specific epic/feature hierarchy. "
+        "Use parent_task_id to scope suggestions to a specific epic/feature hierarchy. "
         "Pass session_id to auto-scope based on workflow's session_task variable.",
         input_schema={
             "type": "object",
@@ -499,7 +501,7 @@ def create_readiness_registry(
                     "description": "Prefer leaf tasks over parent tasks (default: True)",
                     "default": True,
                 },
-                "parent_id": {
+                "parent_task_id": {
                     "type": "string",
                     "description": "Filter to descendants of this task (#N, N, path, or UUID). "
                     "When set, only tasks under this parent hierarchy are considered. "
@@ -508,7 +510,7 @@ def create_readiness_registry(
                 },
                 "session_id": {
                     "type": "string",
-                    "description": "Your session ID (optional). If provided and parent_id is not set, "
+                    "description": "Your session ID (optional). If provided and parent_task_id is not set, "
                     "auto-scopes suggestions based on workflow's session_task variable.",
                     "default": None,
                 },

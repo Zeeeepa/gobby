@@ -80,7 +80,7 @@ class TestOrchestrateReadyTasks:
 
         # _get_ready_descendants mock
         with patch(
-            "gobby.mcp_proxy.tools.task_orchestration._get_ready_descendants",
+            "gobby.mcp_proxy.tools.orchestration.orchestrate._get_ready_descendants",
             return_value=[subtask1],
         ):
             with patch("gobby.mcp_proxy.tools.tasks.resolve_task_id_for_mcp", return_value="T1"):
@@ -135,7 +135,7 @@ class TestOrchestrateReadyTasks:
                         patch("gobby.mcp_proxy.tools.worktrees._copy_project_json_to_worktree"),
                         patch("gobby.mcp_proxy.tools.worktrees._install_provider_hooks"),
                         patch(
-                            "gobby.mcp_proxy.tools.task_orchestration.get_current_project_id",
+                            "gobby.mcp_proxy.tools.orchestration.orchestrate.get_current_project_id",
                             return_value="test-project",
                         ),
                     ):
@@ -174,13 +174,14 @@ class TestOrchestrateReadyTasks:
         ]
 
         with patch(
-            "gobby.mcp_proxy.tools.task_orchestration._get_ready_descendants", return_value=tasks
+            "gobby.mcp_proxy.tools.orchestration.orchestrate._get_ready_descendants",
+            return_value=tasks,
         ):
             with patch(
                 "gobby.mcp_proxy.tools.tasks.resolve_task_id_for_mcp", return_value="T-Parent"
             ):
                 with patch(
-                    "gobby.mcp_proxy.tools.task_orchestration.get_current_project_id",
+                    "gobby.mcp_proxy.tools.orchestration.orchestrate.get_current_project_id",
                     return_value="test-project",
                 ):
                     # Mock 2 already running
@@ -262,7 +263,7 @@ class TestGetOrchestrationStatus:
 
         with patch("gobby.mcp_proxy.tools.tasks.resolve_task_id_for_mcp", return_value="P1"):
             with patch(
-                "gobby.mcp_proxy.tools.task_orchestration.get_current_project_id",
+                "gobby.mcp_proxy.tools.orchestration.monitor.get_current_project_id",
                 return_value="test-project",
             ):
                 # Mock worktree for S2

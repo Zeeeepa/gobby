@@ -423,11 +423,11 @@ class TestReadinessEdgeCases:
         assert task_manager.list_blocked_tasks.call_args.kwargs["limit"] == 20
 
 
-class TestSuggestNextTaskWithParentId:
-    """Tests for suggest_next_task with parent_id filtering."""
+class TestSuggestNextTaskWithParentTaskId:
+    """Tests for suggest_next_task with parent filter."""
 
-    def test_suggest_next_task_with_parent_id(self, mock_readiness_registry):
-        """Test suggest_next_task filters to descendants when parent_id is set."""
+    def test_suggest_next_task_with_parent_task_id(self, mock_readiness_registry):
+        """suggest_next_task respects parent_task_id filter."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
         task_manager = MagicMock()
@@ -471,14 +471,14 @@ class TestSuggestNextTaskWithParentId:
         registry = create_readiness_registry(task_manager=task_manager)
         suggest = registry.get_tool("suggest_next_task")
 
-        result = suggest(parent_id="epic-1")
+        result = suggest(parent_task_id="epic-1")
 
         # Should only suggest child task, not other-1
         assert result["suggestion"] is not None
         assert result["suggestion"]["id"] == "child-1"
 
-    def test_suggest_next_task_with_parent_id_no_descendants(self, mock_readiness_registry):
-        """Test suggest_next_task returns no suggestion when no descendants are ready."""
+    def test_suggest_next_task_with_parent_task_id_no_descendants(self, mock_readiness_registry):
+        """suggest_next_task returns nothing if parent filters returns no ready tasks."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
 
         task_manager = MagicMock()
@@ -494,7 +494,7 @@ class TestSuggestNextTaskWithParentId:
         registry = create_readiness_registry(task_manager=task_manager)
         suggest = registry.get_tool("suggest_next_task")
 
-        result = suggest(parent_id="epic-1")
+        result = suggest(parent_task_id="epic-1")
 
         assert result["suggestion"] is None
         assert "No ready tasks" in result["reason"]
@@ -560,15 +560,14 @@ class TestSuggestNextTaskWithSessionId:
         suggest = registry.get_tool("suggest_next_task")
 
         result = suggest(session_id="test-session-123")
-
         # Should only suggest child task due to session_task scoping
         assert result["suggestion"] is not None
         assert result["suggestion"]["id"] == "child-1"
 
-    def test_suggest_next_task_session_id_ignored_if_parent_id_set(
+    def test_suggest_next_task_session_id_ignored_if_parent_task_id_set(
         self, mock_readiness_registry, monkeypatch
     ):
-        """Test session_id auto-scoping is skipped when parent_id is explicitly set."""
+        """If parent_task_id is explicit, session context is ignored."""
         from gobby.mcp_proxy.tools.task_readiness import create_readiness_registry
         from gobby.workflows.definitions import WorkflowState
 
@@ -611,7 +610,7 @@ class TestSuggestNextTaskWithSessionId:
         suggest = registry.get_tool("suggest_next_task")
 
         # parent_id takes precedence over session_id
-        result = suggest(session_id="test-session", parent_id="explicit-parent")
+        result = suggest(session_id="test-session", parent_task_id="explicit-parent")
 
         assert result["suggestion"] is not None
         assert result["suggestion"]["id"] == "child-of-explicit"
