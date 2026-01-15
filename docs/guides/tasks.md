@@ -133,8 +133,8 @@ call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={
 3. Generate JWT tokens""",
     "session_id": "<your_session_id>"  # Required
 })
-# Note: Auto-decomposition is disabled. Use expand_task() to break down complex tasks
-# Result: parent task + 3 subtasks with sequential dependencies
++# Result: single task with multi-step description preserved
++# Use expand_task(task_id) to break down into subtasks if needed
 ```
 
 ### Detection Patterns
