@@ -3876,12 +3876,12 @@ class TestParseSpecTool:
                 )
 
                 await registry.call(
-                    "parse_spec", {"spec_path": spec_path, "mode": "structured"}
+                    "parse_spec", {"spec_path": spec_path}
                 )
 
-                # expand_task method should NOT be called for parse_spec with structured mode
-                # The new parse_spec should be LLM-free
-                # This test will fail initially since parse_spec doesn't exist yet
+                # expand_task method should NOT be called for parse_spec
+                # parse_spec is always structured mode, never calls LLM
+                mock_task_expander.expand_task.assert_not_called()
             finally:
                 import os
                 os.unlink(spec_path)

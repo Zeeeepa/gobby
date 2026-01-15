@@ -1158,4 +1158,123 @@ def create_expansion_registry(
             "subtasks": created_tasks,
         }
 
+    @registry.tool(
+        name="parse_spec",
+        description="Parse a spec file and create tasks from markdown structure (no LLM).",
+    )
+    async def parse_spec(
+        spec_path: str,
+        parent_task_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Parse a specification file and create tasks from its structure.
+
+        This is a fast, deterministic parser that creates tasks from markdown
+        structure (headings and checkboxes) WITHOUT calling any LLM. For
+        AI-powered expansion, use expand_from_spec instead.
+
+        Args:
+            spec_path: Path to the specification file (markdown)
+            parent_task_id: Optional parent task to nest created tasks under
+
+        Returns:
+            Dictionary with parent task and created subtasks
+        """
+        # Read the spec file
+        path = Path(spec_path).expanduser().resolve()
+        if not path.exists():
+            return {"error": f"Spec file not found: {spec_path}"}
+        if not path.is_file():
+            return {"error": f"Path is not a file: {spec_path}"}
+
+        try:
+            spec_content = path.read_text(encoding="utf-8")
+        except Exception as e:
+            return {"error": f"Failed to read spec file: {e}"}
+
+        # Get project context
+        ctx = get_project_context()
+        if ctx and ctx.get("id"):
+            project_id = ctx["id"]
+        else:
+            init_result = initialize_project()
+            project_id = init_result.project_id
+
+        # Extract title from spec (first heading or first line)
+        lines = spec_content.strip().split("\n")
+        title = "Specification Tasks"
+        for line in lines:
+            line = line.strip()
+            if line.startswith("#"):
+                title = line.lstrip("#").strip()
+                break
+            elif line:
+                title = line[:80] + ("..." if len(line) > 80 else "")
+                break
+
+        # Parse markdown structure
+        heading_parser = MarkdownStructureParser()
+        checkbox_extractor = CheckboxExtractor(track_headings=True, build_hierarchy=True)
+
+        headings = heading_parser.parse(spec_content)
+        checkboxes = checkbox_extractor.extract(spec_content)
+
+        has_structure = bool(headings) or checkboxes.total_count > 0
+
+        if not has_structure:
+            return {
+                "error": "No structure found in spec (no headings or checkboxes). "
+                "Use expand_from_spec for AI-powered parsing.",
+            }
+
+        # Create parent epic task for the spec
+        spec_task = task_manager.create_task(
+            project_id=project_id,
+            title=title,
+            description=spec_content,
+            parent_task_id=parent_task_id,
+            task_type="epic",
+        )
+
+        subtask_ids: list[str] = []
+
+        # Use structured parsing (NO LLM)
+        builder = TaskHierarchyBuilder(
+            task_manager=task_manager,
+            project_id=project_id,
+            parent_task_id=spec_task.id,
+            criteria_generator=None,  # No criteria generation in parse_spec
+            tdd_mode=False,  # No TDD in parse_spec
+        )
+
+        if headings:
+            # Build from headings (async but no LLM calls when task_expander=None)
+            hierarchy_result = await builder.build_from_headings(
+                headings=headings,
+                checkboxes=checkboxes if checkboxes.total_count > 0 else None,
+            )
+            subtask_ids = hierarchy_result.task_ids
+        elif checkboxes.total_count > 0:
+            hierarchy_result = builder.build_from_checkboxes(checkboxes)
+            subtask_ids = hierarchy_result.task_ids
+
+        # Fetch created subtasks (brief format)
+        subtasks = []
+        for sid in subtask_ids:
+            subtask = task_manager.get_task(sid)
+            if subtask:
+                subtask_info: dict[str, Any] = {"id": subtask.id, "title": subtask.title}
+                if subtask.seq_num is not None:
+                    subtask_info["seq_num"] = subtask.seq_num
+                    subtask_info["ref"] = f"#{subtask.seq_num}"
+                subtasks.append(subtask_info)
+
+        return {
+            "parent_task_id": spec_task.id,
+            "parent_task_title": spec_task.title,
+            "tasks_created": len(subtask_ids),
+            "subtasks": subtasks,
+            "mode": "structured",
+        }
+
     return registry
