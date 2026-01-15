@@ -2,9 +2,7 @@
 Task management commands - entry point and misc utilities.
 """
 
-import json
 import logging
-from pathlib import Path
 from typing import Any
 
 import click
@@ -21,7 +19,6 @@ from gobby.cli.tasks.ai import (
     expand_all_cmd,
     expand_task_cmd,
     generate_criteria_cmd,
-    import_spec_cmd,
     parse_spec_cmd,
     suggest_cmd,
     validate_task_cmd,
@@ -43,7 +40,6 @@ from gobby.cli.tasks.crud import (
 )
 from gobby.cli.tasks.deps import dep_cmd
 from gobby.cli.tasks.labels import label_cmd
-from gobby.utils.project_context import get_project_context
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +72,6 @@ tasks.add_command(expand_task_cmd)
 tasks.add_command(apply_tdd_cmd)
 tasks.add_command(complexity_cmd)
 tasks.add_command(expand_all_cmd)
-tasks.add_command(import_spec_cmd)
 tasks.add_command(parse_spec_cmd)
 tasks.add_command(suggest_cmd)
 

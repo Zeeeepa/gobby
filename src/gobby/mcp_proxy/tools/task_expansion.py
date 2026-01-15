@@ -1095,18 +1095,18 @@ def create_expansion_registry(
 
                 # Update task with enrichment results
                 # Map EnrichmentResult fields to Task model fields
-                update_kwargs: dict[str, Any] = {
+                batch_update_kwargs: dict[str, Any] = {
                     "is_enriched": True,
                     "expansion_context": expansion_context,
                 }
                 if result.domain_category:
-                    update_kwargs["category"] = result.domain_category
+                    batch_update_kwargs["category"] = result.domain_category
                 if result.complexity_level is not None:
-                    update_kwargs["complexity_score"] = result.complexity_level
+                    batch_update_kwargs["complexity_score"] = result.complexity_level
                 if result.validation_criteria and generate_validation:
-                    update_kwargs["validation_criteria"] = result.validation_criteria
+                    batch_update_kwargs["validation_criteria"] = result.validation_criteria
 
-                task_manager.update_task(task.id, **update_kwargs)
+                task_manager.update_task(task.id, **batch_update_kwargs)
 
                 results.append({
                     "task_id": task.id,
@@ -1182,9 +1182,6 @@ def create_expansion_registry(
                 "task_id": task.id,
             }
 
-        # Save parent's original validation criteria for the implement task
-        original_criteria = task.validation_criteria
-
         # Create TDD triplet: Test -> Implement -> Refactor
         # Each phase has specific validation criteria per the spec
         created_tasks: list[dict[str, Any]] = []
@@ -1208,7 +1205,7 @@ def create_expansion_registry(
         })
 
         # 2. Implement Task (Green phase) - make tests pass
-        # Inherits parent's original validation criteria
+        # Dynamically generate criteria (same as regular subtasks after expansion)
         impl_task = task_manager.create_task(
             title=f"Implement: {task.title}",
             description="Implement the feature to make tests pass.\n\nThis is the GREEN phase of TDD.",
@@ -1216,8 +1213,21 @@ def create_expansion_registry(
             parent_task_id=task.id,
             task_type="task",
             priority=task.priority,
-            validation_criteria=original_criteria,  # Inherit from parent
+            # validation_criteria generated below
         )
+
+        # Generate validation criteria for implementation task (like regular subtasks)
+        if task_validator:
+            try:
+                impl_criteria = await task_validator.generate_criteria(
+                    title=impl_task.title,
+                    description=impl_task.description,
+                )
+                if impl_criteria:
+                    task_manager.update_task(impl_task.id, validation_criteria=impl_criteria)
+            except Exception:
+                pass  # Leave without criteria if generation fails
+
         created_tasks.append({
             "ref": f"#{impl_task.seq_num}" if impl_task.seq_num else impl_task.id[:8],
             "title": impl_task.title,

@@ -549,11 +549,31 @@ def apply_tdd_cmd(
         gobby tasks apply-tdd #42,#43
         gobby tasks apply-tdd #42 --cascade
     """
+    import asyncio
+
     from gobby.cli.tasks._utils import parse_task_refs
+    from gobby.config.app import load_config
+    from gobby.llm import LLMService
     from gobby.storage.task_dependencies import TaskDependencyManager
+    from gobby.tasks.validation import TaskValidator
 
     # TDD prefixes (same as in MCP tool)
     TDD_PREFIXES = ("[TEST]", "[IMPL]", "[REFACTOR]")
+
+    # TDD validation criteria per phase (from task-expansion-v2 spec)
+    TDD_CRITERIA_RED = """## Deliverable
+- [ ] Tests written that define expected behavior
+- [ ] Tests fail when run (no implementation yet)
+- [ ] Test coverage addresses acceptance criteria from parent task
+"""
+    TDD_CRITERIA_BLUE = """## Deliverable
+- [ ] All tests continue to pass
+- [ ] Code refactored for clarity and maintainability
+- [ ] No new functionality added (refactor only)
+"""
+    TDD_PARENT_CRITERIA = """## Deliverable
+- [ ] All child tasks completed
+"""
 
     # Parse task references
     refs = parse_task_refs(task_refs)
@@ -563,6 +583,15 @@ def apply_tdd_cmd(
 
     manager = get_task_manager()
     dep_manager = TaskDependencyManager(manager.db)
+
+    # Initialize validator for dynamic criteria generation
+    validator: TaskValidator | None = None
+    try:
+        config = load_config()
+        llm_service = LLMService(config)
+        validator = TaskValidator(config.gobby_tasks.validation, llm_service)
+    except Exception as e:
+        click.echo(f"Warning: Could not initialize validator: {e}", err=True)
 
     # Resolve all tasks
     tasks_to_transform: list[Task] = []
@@ -580,6 +609,72 @@ def apply_tdd_cmd(
     if not tasks_to_transform:
         click.echo("No valid tasks to transform.", err=True)
         return
+
+    async def apply_tdd_to_task(task: Task) -> tuple[bool, str | None]:
+        """Apply TDD transformation to a single task."""
+        # 1. Test Task (Red phase)
+        test_task = manager.create_task(
+            title=f"[TEST] {task.title}",
+            description=f"Write failing tests for: {task.title}\n\nThis is the RED phase of TDD.",
+            project_id=task.project_id,
+            parent_task_id=task.id,
+            task_type="task",
+            priority=task.priority,
+            validation_criteria=TDD_CRITERIA_RED,
+        )
+        test_ref = f"#{test_task.seq_num}" if test_task.seq_num else test_task.id[:8]
+        click.echo(f"  Created {test_ref}: {test_task.title[:50]}")
+
+        # 2. Implement Task (Green phase) - dynamically generate criteria
+        impl_task = manager.create_task(
+            title=f"[IMPL] {task.title}",
+            description="Implement the feature to make tests pass.\n\nThis is the GREEN phase of TDD.",
+            project_id=task.project_id,
+            parent_task_id=task.id,
+            task_type="task",
+            priority=task.priority,
+            # validation_criteria generated below
+        )
+
+        # Generate validation criteria for implementation task (like regular subtasks)
+        if validator:
+            try:
+                impl_criteria = await validator.generate_criteria(
+                    title=impl_task.title,
+                    description=impl_task.description,
+                )
+                if impl_criteria:
+                    manager.update_task(impl_task.id, validation_criteria=impl_criteria)
+            except Exception:
+                pass  # Leave without criteria if generation fails
+
+        impl_ref = f"#{impl_task.seq_num}" if impl_task.seq_num else impl_task.id[:8]
+        click.echo(f"  Created {impl_ref}: {impl_task.title[:50]}")
+
+        # 3. Refactor Task (Blue phase)
+        refactor_task = manager.create_task(
+            title=f"[REFACTOR] {task.title}",
+            description="Refactor the implementation while keeping tests passing.\n\nThis is the BLUE phase of TDD.",
+            project_id=task.project_id,
+            parent_task_id=task.id,
+            task_type="task",
+            priority=task.priority,
+            validation_criteria=TDD_CRITERIA_BLUE,
+        )
+        refactor_ref = f"#{refactor_task.seq_num}" if refactor_task.seq_num else refactor_task.id[:8]
+        click.echo(f"  Created {refactor_ref}: {refactor_task.title[:50]}")
+
+        # Wire dependencies: Test -> Implement -> Refactor
+        dep_manager.add_dependency(impl_task.id, test_task.id, "blocks")
+        dep_manager.add_dependency(refactor_task.id, impl_task.id, "blocks")
+
+        # Mark parent task as TDD-applied and update its validation criteria
+        manager.update_task(
+            task.id,
+            is_tdd_applied=True,
+            validation_criteria=TDD_PARENT_CRITERIA,
+        )
+        return True, None
 
     # Apply TDD to each task
     applied_count = 0
@@ -603,75 +698,12 @@ def apply_tdd_cmd(
         click.echo(f"Applying TDD to {task_ref}: {task.title[:40]}...")
 
         try:
-            # Save parent's original validation criteria for the implement task
-            original_criteria = task.validation_criteria
-
-            # TDD validation criteria per phase (from task-expansion-v2 spec)
-            TDD_CRITERIA_RED = """## Deliverable
-- [ ] Tests written that define expected behavior
-- [ ] Tests fail when run (no implementation yet)
-- [ ] Test coverage addresses acceptance criteria from parent task
-"""
-            TDD_CRITERIA_BLUE = """## Deliverable
-- [ ] All tests continue to pass
-- [ ] Code refactored for clarity and maintainability
-- [ ] No new functionality added (refactor only)
-"""
-            TDD_PARENT_CRITERIA = """## Deliverable
-- [ ] All child tasks completed
-"""
-
-            # 1. Test Task (Red phase)
-            test_task = manager.create_task(
-                title=f"[TEST] {task.title}",
-                description=f"Write failing tests for: {task.title}\n\nThis is the RED phase of TDD.",
-                project_id=task.project_id,
-                parent_task_id=task.id,
-                task_type="task",
-                priority=task.priority,
-                validation_criteria=TDD_CRITERIA_RED,
-            )
-            test_ref = f"#{test_task.seq_num}" if test_task.seq_num else test_task.id[:8]
-            click.echo(f"  Created {test_ref}: {test_task.title[:50]}")
-
-            # 2. Implement Task (Green phase) - inherits parent's original criteria
-            impl_task = manager.create_task(
-                title=f"[IMPL] {task.title}",
-                description="Implement the feature to make tests pass.\n\nThis is the GREEN phase of TDD.",
-                project_id=task.project_id,
-                parent_task_id=task.id,
-                task_type="task",
-                priority=task.priority,
-                validation_criteria=original_criteria,
-            )
-            impl_ref = f"#{impl_task.seq_num}" if impl_task.seq_num else impl_task.id[:8]
-            click.echo(f"  Created {impl_ref}: {impl_task.title[:50]}")
-
-            # 3. Refactor Task (Blue phase)
-            refactor_task = manager.create_task(
-                title=f"[REFACTOR] {task.title}",
-                description="Refactor the implementation while keeping tests passing.\n\nThis is the BLUE phase of TDD.",
-                project_id=task.project_id,
-                parent_task_id=task.id,
-                task_type="task",
-                priority=task.priority,
-                validation_criteria=TDD_CRITERIA_BLUE,
-            )
-            refactor_ref = f"#{refactor_task.seq_num}" if refactor_task.seq_num else refactor_task.id[:8]
-            click.echo(f"  Created {refactor_ref}: {refactor_task.title[:50]}")
-
-            # Wire dependencies: Test -> Implement -> Refactor
-            dep_manager.add_dependency(impl_task.id, test_task.id, "blocks")
-            dep_manager.add_dependency(refactor_task.id, impl_task.id, "blocks")
-
-            # Mark parent task as TDD-applied and update its validation criteria
-            manager.update_task(
-                task.id,
-                is_tdd_applied=True,
-                validation_criteria=TDD_PARENT_CRITERIA,
-            )
-            applied_count += 1
-
+            success, error = asyncio.run(apply_tdd_to_task(task))
+            if success:
+                applied_count += 1
+            else:
+                click.echo(f"  Error: {error}", err=True)
+                error_count += 1
         except Exception as e:
             click.echo(f"  Error: {e}", err=True)
             error_count += 1
@@ -1160,139 +1192,6 @@ def expand_all_cmd(
     click.echo(f"\nExpanded {success_count}/{len(results)} tasks successfully.")
 
 
-@click.command("import-spec")
-@click.argument("file", type=click.Path(exists=True))
-@click.option(
-    "--type",
-    "spec_type",
-    type=click.Choice(["prd", "user_story", "bug_report", "rfc", "generic"]),
-    default="generic",
-    help="Type of specification document",
-)
-@click.option(
-    "--parent",
-    "parent_task_id",
-    help="Parent task reference: #N, N (seq_num), path (1.2.3), or UUID",
-)
-def import_spec_cmd(file: str, spec_type: str, parent_task_id: str | None) -> None:
-    """Create tasks from a specification document."""
-    import asyncio
-
-    from gobby.config.app import load_config
-    from gobby.llm import LLMService
-    from gobby.storage.task_dependencies import TaskDependencyManager
-    from gobby.tasks.expansion import TaskExpander
-    from gobby.utils.project_context import get_project_context
-    from gobby.utils.project_init import initialize_project
-
-    manager = get_task_manager()
-
-    # Resolve parent_task_id if provided
-    resolved_parent_task_id: str | None = None
-    if parent_task_id:
-        resolved_parent = resolve_task_id(manager, parent_task_id)
-        if not resolved_parent:
-            return  # resolve_task_id already printed the error
-        resolved_parent_task_id = resolved_parent.id
-
-    # Read spec file
-    try:
-        with open(file, encoding="utf-8") as f:
-            spec_content = f.read()
-    except Exception as e:
-        click.echo(f"Error reading file: {e}", err=True)
-        return
-
-    if not spec_content.strip():
-        click.echo("Error: Spec file is empty.", err=True)
-        return
-
-    # Get project context
-    ctx = get_project_context()
-    if ctx and ctx.get("id"):
-        project_id = ctx["id"]
-    else:
-        init_result = initialize_project()
-        project_id = init_result.project_id
-
-    # Extract title from spec
-    lines = spec_content.strip().split("\n")
-    title = f"{spec_type.upper()} Tasks"
-    for line in lines:
-        line = line.strip()
-        if line.startswith("#"):
-            title = line.lstrip("#").strip()
-            break
-        elif line:
-            title = line[:80] + ("..." if len(line) > 80 else "")
-            break
-
-    click.echo(f"Importing spec: {title}")
-    click.echo(f"Type: {spec_type}")
-
-    # Initialize services
-    try:
-        config = load_config()
-        if not config.gobby_tasks.expansion.enabled:
-            click.echo("Error: Task expansion is disabled in config.", err=True)
-            return
-
-        llm_service = LLMService(config)
-        expander = TaskExpander(
-            config.gobby_tasks.expansion, llm_service, manager, mcp_manager=None
-        )
-    except Exception as e:
-        click.echo(f"Error initializing services: {e}", err=True)
-        return
-
-    # Create parent task for spec
-    spec_task = manager.create_task(
-        project_id=project_id,
-        title=title,
-        description=spec_content,
-        parent_task_id=resolved_parent_task_id,
-        task_type="epic",
-    )
-    click.echo(f"Created epic: {spec_task.id}")
-
-    # Expand into subtasks
-    async def expand_spec() -> dict[str, Any]:
-        context = f"Parse this {spec_type} specification and create actionable tasks. Each task should be specific and implementable."
-        return await expander.expand_task(
-            task_id=spec_task.id,
-            title=spec_task.title,
-            description=spec_content,
-            context=context,
-            enable_web_research=False,
-            enable_code_context=False,
-        )
-
-    click.echo("Expanding into subtasks...")
-    result = asyncio.run(expand_spec())
-
-    if "error" in result:
-        click.echo(f"Error during expansion: {result['error']}", err=True)
-        return
-
-    subtask_ids = result.get("subtask_ids", [])
-
-    # Wire parent dependencies
-    dep_manager = TaskDependencyManager(manager.db)
-    for subtask_id in subtask_ids:
-        try:
-            dep_manager.add_dependency(
-                task_id=spec_task.id, depends_on=subtask_id, dep_type="blocks"
-            )
-        except ValueError:
-            pass
-
-    click.echo(f"\nCreated {len(subtask_ids)} tasks from specification.")
-    for sid in subtask_ids:
-        subtask = manager.get_task(sid)
-        if subtask:
-            click.echo(f"  + {subtask.id[:12]}: {subtask.title[:50]}")
-
-
 @click.command("parse-spec")
 @click.argument("spec_path", type=click.Path())
 @click.option("--parent", "parent_ref", help="Parent task reference: #N, UUID, or path")
@@ -1389,6 +1288,30 @@ def parse_spec_cmd(
             click.echo("Tip: Use --llm to auto-convert document to spec format.")
         return
 
+    # Extract title from spec (first heading or filename)
+    lines = spec_content.strip().split("\n")
+    title = path.stem.replace("-", " ").replace("_", " ").title()
+    for line in lines:
+        line = line.strip()
+        if line.startswith("#"):
+            title = line.lstrip("#").strip()
+            break
+        elif line:
+            title = line[:80] + ("..." if len(line) > 80 else "")
+            break
+
+    # Create parent epic for the spec
+    spec_task = manager.create_task(
+        project_id=project_id,
+        title=title,
+        description=f"Tasks parsed from: {spec_path}",
+        parent_task_id=parent_task_id,
+        task_type="epic",
+        reference_doc=str(path),
+    )
+    spec_ref = f"#{spec_task.seq_num}" if spec_task.seq_num else spec_task.id[:8]
+    click.echo(f"Created epic {spec_ref}: {title}")
+
     created_count = 0
     skipped_count = 0
 
@@ -1406,7 +1329,7 @@ def parse_spec_cmd(
             task = manager.create_task(
                 title=item.text,
                 project_id=project_id,
-                parent_task_id=parent_task_id,
+                parent_task_id=spec_task.id,  # Use spec epic as parent
                 task_type="task",
             )
             task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
