@@ -1019,11 +1019,20 @@ def create_task_registry(
         except (TaskNotFoundError, ValueError) as e:
             return {"error": str(e)}
 
+        # Get task before deleting to capture seq_num for ref
+        task = task_manager.get_task(resolved_id)
+        if not task:
+            return {"error": f"Task {task_id} not found"}
+        ref = f"#{task.seq_num}" if task.seq_num else resolved_id[:8]
+
         deleted = task_manager.delete_task(resolved_id, cascade=cascade)
         if not deleted:
             return {"error": f"Task {task_id} not found"}
 
-        return {"deleted_task_id": resolved_id}
+        return {
+            "ref": ref,
+            "deleted_task_id": resolved_id,  # UUID at end
+        }
 
     registry.register(
         name="delete_task",

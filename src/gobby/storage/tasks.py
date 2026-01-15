@@ -177,7 +177,7 @@ class Task:
     def to_dict(self) -> dict[str, Any]:
         """Convert Task to dictionary."""
         return {
-            "id": self.id,
+            "ref": f"#{self.seq_num}" if self.seq_num else self.id[:8],
             "project_id": self.project_id,
             "title": self.title,
             "status": self.status,
@@ -222,6 +222,7 @@ class Task:
             "is_enriched": self.is_enriched,
             "is_expanded": self.is_expanded,
             "is_tdd_applied": self.is_tdd_applied,
+            "id": self.id,  # UUID at end for backwards compat
         }
 
     def to_brief(self) -> dict[str, Any]:
