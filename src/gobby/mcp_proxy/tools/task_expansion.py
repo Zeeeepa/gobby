@@ -36,10 +36,56 @@ if TYPE_CHECKING:
     from gobby.tasks.expansion import TaskExpander
     from gobby.tasks.validation import TaskValidator
 
-__all__ = ["create_expansion_registry"]
+__all__ = ["create_expansion_registry", "should_skip_tdd", "TDD_PREFIXES", "TDD_SKIP_PATTERNS"]
 
 # TDD triplet prefixes - used for both skip detection and triplet creation
 TDD_PREFIXES = ("Write tests for:", "Implement:", "Refactor:")
+
+# Patterns for tasks that should skip TDD transformation (case-insensitive)
+TDD_SKIP_PATTERNS = (
+    # TDD prefixes (already in triplet form)
+    r"^Write tests for:",
+    r"^Implement:",
+    r"^Refactor:",
+    # Deletion tasks (simple operations, no tests needed)
+    r"^Delete\b",
+    r"^Remove\b",
+    # Documentation updates
+    r"^Update.*README",
+    r"^Update.*documentation",
+    r"^Update.*docs\b",
+    # Config file updates
+    r"^Update.*\.toml\b",
+    r"^Update.*\.yaml\b",
+    r"^Update.*\.yml\b",
+    r"^Update.*\.json\b",
+    r"^Update.*\.env\b",
+    r"^Update.*config",
+)
+
+
+def should_skip_tdd(title: str) -> bool:
+    """
+    Check if a task should skip TDD transformation based on its title.
+
+    Tasks are skipped if they match any TDD_SKIP_PATTERNS:
+    - Already TDD triplet tasks (Write tests for:, Implement:, Refactor:)
+    - Deletion tasks (Delete X, Remove Y)
+    - Documentation updates (Update README, Update docs)
+    - Config file updates (Update pyproject.toml, Update .env)
+
+    Args:
+        title: The task title to check
+
+    Returns:
+        True if the task should skip TDD transformation, False otherwise
+    """
+    import re
+
+    for pattern in TDD_SKIP_PATTERNS:
+        if re.search(pattern, title, re.IGNORECASE):
+            return True
+    return False
 
 
 def create_expansion_registry(
