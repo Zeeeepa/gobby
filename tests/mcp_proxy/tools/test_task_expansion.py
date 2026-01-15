@@ -3492,3 +3492,140 @@ class TestApplyTddTool:
             for call in update_calls
         )
         assert is_tdd_applied_set, "is_tdd_applied=True should be set after transformation"
+
+
+# ============================================================================
+# TDD Triplet Dependencies Tests
+# ============================================================================
+
+
+class TestTddTripletDependencies:
+    """Tests for TDD triplet creation with proper dependencies."""
+
+    @pytest.fixture
+    def mock_dep_manager(self):
+        """Create a mock dependency manager."""
+        from gobby.storage.task_dependencies import TaskDependencyManager
+        return MagicMock(spec=TaskDependencyManager)
+
+    @pytest.fixture
+    def expansion_registry_with_deps(self, mock_task_manager, mock_task_expander, mock_dep_manager):
+        """Create an expansion registry with dependency manager."""
+        if not IMPORT_SUCCEEDED:
+            pytest.skip("Module not extracted yet")
+
+        with (
+            patch("gobby.mcp_proxy.tools.task_expansion.TaskDependencyManager", return_value=mock_dep_manager),
+            patch("gobby.mcp_proxy.tools.task_expansion.LocalProjectManager"),
+        ):
+            registry = create_expansion_registry(
+                task_manager=mock_task_manager,
+                task_expander=mock_task_expander,
+            )
+            # Store mock for assertions
+            registry._mock_dep_manager = mock_dep_manager
+            yield registry
+
+    @pytest.mark.asyncio
+    async def test_apply_tdd_creates_dependencies_impl_blocked_by_test(
+        self, mock_task_manager, mock_task_expander, expansion_registry_with_deps
+    ):
+        """Test that Implement task is blocked by Test task."""
+        parent_task = Task(
+            id="parent-1",
+            title="Add user authentication",
+            description="Implement login functionality",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+            is_tdd_applied=False,
+        )
+        mock_task_manager.get_task.return_value = parent_task
+
+        # Track created task IDs
+        test_task = Task(id="test-1", title="Write tests for: Add user authentication",
+                         project_id="p1", status="open", priority=2, task_type="task",
+                         created_at="now", updated_at="now", seq_num=101)
+        impl_task = Task(id="impl-1", title="Implement: Add user authentication",
+                         project_id="p1", status="open", priority=2, task_type="task",
+                         created_at="now", updated_at="now", seq_num=102)
+        refactor_task = Task(id="refactor-1", title="Refactor: Add user authentication",
+                             project_id="p1", status="open", priority=2, task_type="task",
+                             created_at="now", updated_at="now", seq_num=103)
+
+        mock_task_manager.create_task.side_effect = [test_task, impl_task, refactor_task]
+
+        result = await expansion_registry_with_deps.call(
+            "apply_tdd", {"task_id": "parent-1"}
+        )
+
+        # Should succeed
+        assert "error" not in result
+        assert result["tasks_created"] == 3
+
+        # Verify dependency was created: impl blocked by test
+        dep_manager = expansion_registry_with_deps._mock_dep_manager
+        add_dep_calls = dep_manager.add_dependency.call_args_list
+
+        # Should have 2 dependencies: impl->test, refactor->impl
+        assert len(add_dep_calls) >= 2, "Should create at least 2 dependencies"
+
+        # Check impl blocked by test
+        impl_blocked_by_test = any(
+            call.args == ("impl-1", "test-1") or
+            call.kwargs.get("task_id") == "impl-1" and call.kwargs.get("depends_on") == "test-1"
+            for call in add_dep_calls
+        )
+        assert impl_blocked_by_test, "Implement should be blocked by Test"
+
+    @pytest.mark.asyncio
+    async def test_apply_tdd_creates_dependencies_refactor_blocked_by_impl(
+        self, mock_task_manager, mock_task_expander, expansion_registry_with_deps
+    ):
+        """Test that Refactor task is blocked by Implement task."""
+        parent_task = Task(
+            id="parent-1",
+            title="Add user authentication",
+            description="Implement login functionality",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+            is_tdd_applied=False,
+        )
+        mock_task_manager.get_task.return_value = parent_task
+
+        test_task = Task(id="test-1", title="Write tests for: Add user authentication",
+                         project_id="p1", status="open", priority=2, task_type="task",
+                         created_at="now", updated_at="now", seq_num=101)
+        impl_task = Task(id="impl-1", title="Implement: Add user authentication",
+                         project_id="p1", status="open", priority=2, task_type="task",
+                         created_at="now", updated_at="now", seq_num=102)
+        refactor_task = Task(id="refactor-1", title="Refactor: Add user authentication",
+                             project_id="p1", status="open", priority=2, task_type="task",
+                             created_at="now", updated_at="now", seq_num=103)
+
+        mock_task_manager.create_task.side_effect = [test_task, impl_task, refactor_task]
+
+        result = await expansion_registry_with_deps.call(
+            "apply_tdd", {"task_id": "parent-1"}
+        )
+
+        # Should succeed
+        assert "error" not in result
+
+        # Verify dependency: refactor blocked by impl
+        dep_manager = expansion_registry_with_deps._mock_dep_manager
+        add_dep_calls = dep_manager.add_dependency.call_args_list
+
+        refactor_blocked_by_impl = any(
+            call.args == ("refactor-1", "impl-1") or
+            call.kwargs.get("task_id") == "refactor-1" and call.kwargs.get("depends_on") == "impl-1"
+            for call in add_dep_calls
+        )
+        assert refactor_blocked_by_impl, "Refactor should be blocked by Implement"
