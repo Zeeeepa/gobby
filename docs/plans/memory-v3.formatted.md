@@ -1,3 +1,5 @@
+# Memory System V3
+
 ## Phase 1: Protocol & SQLite Refactor
 
 **Goal**: Extract protocol, refactor current implementation, maintain 100% compatibility.

@@ -847,7 +847,7 @@ def expand_task_cmd(
                 }
                 if enrichment_result.domain_category:
                     enrich_kwargs["category"] = enrichment_result.domain_category
-                if enrichment_result.complexity_level:
+                if enrichment_result.complexity_level is not None:
                     enrich_kwargs["complexity_score"] = enrichment_result.complexity_level
                 if enrichment_result.validation_criteria:
                     enrich_kwargs["validation_criteria"] = enrichment_result.validation_criteria
@@ -1215,9 +1215,14 @@ def parse_spec_cmd(
         gobby tasks parse-spec spec.md --parent #42
         gobby tasks parse-spec spec.md --llm
     """
+    import asyncio
     from pathlib import Path
 
-    from gobby.tasks.spec_parser import CheckboxExtractor
+    from gobby.tasks.spec_parser import (
+        CheckboxExtractor,
+        MarkdownStructureParser,
+        TaskHierarchyBuilder,
+    )
     from gobby.utils.project_context import get_project_context
 
     # Check file exists
@@ -1278,25 +1283,30 @@ def parse_spec_cmd(
             click.echo(f"Error formatting with LLM: {e}", err=True)
             click.echo("Falling back to original content...")
 
-    # Parse checkboxes from spec using shared extractor
-    extractor = CheckboxExtractor(track_headings=True, build_hierarchy=False)
-    result = extractor.extract(spec_content)
+    # Parse markdown structure (headings and checkboxes)
+    heading_parser = MarkdownStructureParser()
+    checkbox_extractor = CheckboxExtractor(track_headings=True, build_hierarchy=True)
 
-    if result.total_count == 0:
-        click.echo("No checkbox items found in spec file.")
+    headings = heading_parser.parse(spec_content)
+    checkboxes = checkbox_extractor.extract(spec_content)
+
+    has_structure = bool(headings) or checkboxes.total_count > 0
+
+    if not has_structure:
+        click.echo("No structure found in spec (no headings or checkboxes).")
         if not use_llm:
             click.echo("Tip: Use --llm to auto-convert document to spec format.")
         return
 
-    # Extract title from spec (first heading or filename)
+    # Extract title from spec (# Title heading or filename)
     lines = spec_content.strip().split("\n")
     title = path.stem.replace("-", " ").replace("_", " ").title()
     for line in lines:
         line = line.strip()
-        if line.startswith("#"):
-            title = line.lstrip("#").strip()
+        if line.startswith("# ") and not line.startswith("##"):
+            title = line[2:].strip()
             break
-        elif line:
+        elif line and not line.startswith("#"):
             title = line[:80] + ("..." if len(line) > 80 else "")
             break
 
@@ -1312,33 +1322,40 @@ def parse_spec_cmd(
     spec_ref = f"#{spec_task.seq_num}" if spec_task.seq_num else spec_task.id[:8]
     click.echo(f"Created epic {spec_ref}: {title}")
 
-    created_count = 0
-    skipped_count = 0
+    # Use TaskHierarchyBuilder to create proper hierarchy (matching MCP tool)
+    builder = TaskHierarchyBuilder(
+        task_manager=manager,
+        project_id=project_id,
+        parent_task_id=spec_task.id,
+        reference_doc=str(path),
+    )
 
-    for item in result.items:
-        if not item.text:
-            continue
-
-        # Skip already checked items
-        if item.checked:
-            click.echo(f"  Skipping (completed): {item.text[:50]}")
-            skipped_count += 1
-            continue
-
-        try:
-            task = manager.create_task(
-                title=item.text,
-                project_id=project_id,
-                parent_task_id=spec_task.id,  # Use spec epic as parent
-                task_type="task",
+    # build_from_headings is async
+    if headings:
+        hierarchy_result = asyncio.run(
+            builder.build_from_headings(
+                headings=headings,
+                checkboxes=checkboxes if checkboxes.total_count > 0 else None,
             )
-            task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
-            click.echo(f"  Created {task_ref}: {item.text[:50]}")
-            created_count += 1
-        except Exception as e:
-            click.echo(f"  Error creating task '{item.text[:30]}': {e}", err=True)
+        )
+    elif checkboxes.total_count > 0:
+        hierarchy_result = asyncio.run(builder.build_from_checkboxes(checkboxes))
+    else:
+        hierarchy_result = None
 
-    click.echo(f"\nCreated {created_count} tasks, skipped {skipped_count} completed items.")
+    if hierarchy_result:
+        # Print created tasks summary
+        for task_info in hierarchy_result.tasks:
+            task = manager.get_task(task_info.id)
+            if task:
+                task_ref = f"#{task.seq_num}" if task.seq_num else task.id[:8]
+                indent = "  " if task_info.parent_task_id == spec_task.id else "    "
+                type_label = f"[{task_info.task_type}]" if task_info.task_type == "epic" else ""
+                click.echo(f"{indent}Created {task_ref}: {type_label} {task_info.title[:50]}")
+
+        click.echo(f"\nCreated {hierarchy_result.total_count} tasks under {spec_ref}.")
+    else:
+        click.echo("No tasks created.")
 
 
 @click.command("suggest")
