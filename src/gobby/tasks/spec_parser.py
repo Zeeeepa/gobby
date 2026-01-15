@@ -759,6 +759,66 @@ class TaskHierarchyBuilder:
         except Exception:
             return existing_context  # Graceful degradation on LLM failure
 
+    async def _build_smart_description(
+        self,
+        checkbox: CheckboxItem,
+        heading: HeadingNode | None,
+        all_checkboxes: list[CheckboxItem],
+    ) -> str | None:
+        """Build focused description with context from spec.
+
+        Tries structured extraction first, falls back to LLM if minimal.
+
+        Args:
+            checkbox: The checkbox item to build description for
+            heading: Optional parent heading node
+            all_checkboxes: All checkboxes for finding related tasks
+
+        Returns:
+            Description string or None if no content available
+        """
+        parts: list[str] = []
+
+        # Structured extraction from heading
+        if heading:
+            parts.append(f"Part of: {heading.text}")
+
+            # Extract goal if present
+            if heading.content:
+                goal_match = re.search(
+                    r"\*\*Goal\*\*:?\s*(.+?)(?:\n\n|\*\*|$)",
+                    heading.content,
+                    re.DOTALL,
+                )
+                if goal_match:
+                    parts.append(f"Goal: {goal_match.group(1).strip()}")
+
+        # Related tasks (siblings under same heading)
+        if heading:
+            siblings = [
+                cb
+                for cb in all_checkboxes
+                if getattr(cb, "parent_heading", None) == heading.text and cb != checkbox
+            ]
+            if siblings:
+                related = ", ".join(cb.text[:40] for cb in siblings[:3])
+                parts.append(f"Related tasks: {related}")
+
+        description = "\n\n".join(parts) if parts else None
+
+        # LLM fallback if structured extraction yielded minimal results
+        task_config = (
+            getattr(self.config, "task_description", None) if self.config else None
+        )
+        min_length = getattr(task_config, "min_structured_length", 50) if task_config else 50
+
+        if not description or len(description) < min_length:
+            description = await self._generate_description_llm(
+                checkbox, heading, description
+            )
+
+        return description
+
     def _get_checkboxes_for_heading(
         self,
         heading: HeadingNode,
