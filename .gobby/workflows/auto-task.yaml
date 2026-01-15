@@ -1,32 +1,79 @@
 name: auto-task
 description: |
-  Autonomous task execution workflow with proper state machine semantics.
-  Activates with a session_task and stays active until the task tree is complete.
+  Autonomous task execution workflow with research-first enforcement.
+  Requires context7 documentation lookup before allowing code modifications.
+  Research gate resets when the active task changes.
 
   Key features:
-  - Explicit state machine with work/complete steps
-  - Clear entry/exit points (activate with task, exit when complete)
-  - Opt-in activation (must be explicitly started)
+  - Research step blocks Edit/Write until documentation is consulted
+  - Research requirement resets per-task (when claimed_task_id changes)
+  - Explicit state machine with research/work/complete steps
   - Proper loop that stays in 'work' until task_tree_complete()
 
   Usage:
     1. Create/claim a task via gobby-tasks
     2. Activate this workflow with session_task set to the task ID
-    3. Work autonomously until all subtasks are closed
-    4. Workflow exits when task tree is complete
+    3. Research phase: use context7 to look up relevant docs
+    4. Work autonomously until all subtasks are closed
+    5. Workflow exits when task tree is complete
 
-  This replaces the stop-blocking pattern in session-lifecycle.yaml with
-  proper state machine semantics.
 version: "1.0"
 type: step
 
 # Session-scoped variables (set on activation)
 variables:
   session_task: null  # Task ID(s) to complete before exit
+  researched_task_id: null  # Track which task has been researched
   # Failsafe: force allow stop after N blocked attempts (resets on user prompt)
   premature_stop_max_attempts: 3
 
 steps:
+  - name: research
+    description: "Research via context7 before implementation"
+
+    on_enter:
+      - action: inject_message
+        content: |
+          Research phase for task: {{ variables.claimed_task_id }}
+
+          Before writing code, use context7 to look up relevant documentation.
+          Example: call_tool("context7", "resolve-library-id", {"libraryName": "fastapi"})
+          Then: call_tool("context7", "get-library-docs", {"context7CompatibleLibraryID": "/fastapi/fastapi", "topic": "dependency injection"})
+
+          After researching, you'll transition to implementation.
+
+    allowed_tools:
+      - Read
+      - Glob
+      - Grep
+      - Task
+      - call_tool
+      - mcp__gobby__call_tool
+      - mcp__gobby__list_tools
+      - mcp__gobby__get_tool_schema
+      - mcp__gobby__list_mcp_servers
+      - mcp__gobby__recommend_tools
+      - mcp__gobby__search_tools
+      - TodoWrite
+      - AskUserQuestion
+      - WebSearch
+      - WebFetch
+
+    blocked_tools:
+      - Edit
+      - Write
+      - NotebookEdit
+      - Bash
+
+    transitions:
+      - to: work
+        when: "step_action_count >= 2"
+
+    on_exit:
+      - action: set_variable
+        name: researched_task_id
+        value: "{{ variables.claimed_task_id }}"
+
   - name: work
     description: "Work on assigned task until complete"
 
@@ -41,11 +88,14 @@ steps:
           Use suggest_next_task() to find available work.
           When all subtasks are closed, the task will be marked complete.
 
-    # No tool restrictions - full autonomy
+    # Full tool access for implementation
     allowed_tools: all
 
-    # Auto-transition to complete when task tree is done
     transitions:
+      # Return to research if task changed
+      - to: research
+        when: "variables.claimed_task_id and variables.claimed_task_id != variables.researched_task_id"
+      # Complete when task tree done
       - to: complete
         when: "task_tree_complete(variables.session_task)"
 
