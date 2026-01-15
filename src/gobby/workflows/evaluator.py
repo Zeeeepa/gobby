@@ -251,6 +251,34 @@ class ConditionEvaluator:
                 # Provide a no-op that returns False when no stop_registry
                 allowed_globals["has_stop_signal"] = lambda session_id: False
 
+            # Add MCP call tracking helper (for meeseeks workflow gates)
+            def _mcp_called(server: str, tool: str | None = None) -> bool:
+                """Check if MCP tool was called successfully.
+
+                Used in workflow conditions like:
+                    when: "mcp_called('gobby-memory', 'recall')"
+                    when: "mcp_called('context7')"  # Any tool on server
+
+                Args:
+                    server: MCP server name (e.g., "gobby-memory", "context7")
+                    tool: Optional specific tool name (e.g., "recall", "remember")
+
+                Returns:
+                    True if the server (and optionally tool) was called.
+                """
+                variables = context.get("variables", {})
+                if isinstance(variables, dict):
+                    mcp_calls = variables.get("mcp_calls", {})
+                else:
+                    # SimpleNamespace from workflow engine
+                    mcp_calls = getattr(variables, "mcp_calls", {})
+
+                if tool:
+                    return tool in mcp_calls.get(server, [])
+                return bool(mcp_calls.get(server))
+
+            allowed_globals["mcp_called"] = _mcp_called
+
             # nosec B307 - eval used with restricted allowed_globals for workflow conditions
             return bool(eval(condition, allowed_globals, context))
         except Exception as e:

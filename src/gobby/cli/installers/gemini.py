@@ -161,8 +161,46 @@ def install_gemini(project_path: Path) -> dict[str, Any]:
         # MCP config failure is non-fatal, just log it
         logger.warning(f"Failed to configure MCP server: {mcp_result['error']}")
 
+    # Install agent scripts (used by meeseeks workflow)
+    scripts_installed = _install_agent_scripts(install_dir)
+    result["scripts_installed"] = scripts_installed
+
     result["success"] = True
     return result
+
+
+def _install_agent_scripts(install_dir: Path) -> list[str]:
+    """Install shared agent scripts to ~/.gobby/scripts/.
+
+    Installs scripts like agent_shutdown.sh used by workflows.
+
+    Args:
+        install_dir: Path to the install source directory
+
+    Returns:
+        List of installed script names
+    """
+    scripts_installed: list[str] = []
+    source_scripts_dir = install_dir / "shared" / "scripts"
+    target_scripts_dir = Path.home() / ".gobby" / "scripts"
+
+    if not source_scripts_dir.exists():
+        logger.debug(f"No scripts directory found at {source_scripts_dir}")
+        return scripts_installed
+
+    # Ensure target directory exists
+    target_scripts_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy all scripts
+    for script_file in source_scripts_dir.glob("*.sh"):
+        target_file = target_scripts_dir / script_file.name
+        copy2(script_file, target_file)
+        # Make executable
+        target_file.chmod(0o755)
+        scripts_installed.append(script_file.name)
+        logger.debug(f"Installed script: {script_file.name}")
+
+    return scripts_installed
 
 
 def uninstall_gemini(project_path: Path) -> dict[str, Any]:

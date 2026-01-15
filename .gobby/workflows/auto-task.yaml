@@ -88,6 +88,25 @@ steps:
           Use suggest_next_task() to find available work.
           When all subtasks are closed, the task will be marked complete.
 
+      # FUTURE: Uncomment to enable meeseeks spawning for subtasks
+      # - action: inject_message
+      #   content: |
+      #     Consider spawning meeseeks agents for subtasks:
+      #
+      #     mcp__gobby__call_tool(
+      #       server_name="gobby-agents",
+      #       tool_name="start_agent",
+      #       arguments={
+      #         "prompt": "Complete task: {task_title}",
+      #         "workflow": "meeseeks",
+      #         "mode": "terminal",
+      #         "default_variables": {
+      #           "assigned_task_id": "{task_id}",
+      #           "task_category": "code"
+      #         }
+      #       }
+      #     )
+
     # Full tool access for implementation
     allowed_tools: all
 

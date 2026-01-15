@@ -252,6 +252,9 @@ class WorkflowEngine:
             # Detect Claude Code plan mode entry/exit
             self._detect_plan_mode(event, state)
 
+            # Track all MCP proxy calls for workflow conditions
+            self._detect_mcp_call(event, state)
+
             self.state_manager.save_state(state)  # Persist updates
 
         return HookResponse(decision="allow")
@@ -1336,3 +1339,53 @@ class WorkflowEngine:
         elif tool_name == "ExitPlanMode":
             state.variables["plan_mode"] = False
             logger.info(f"Session {state.session_id}: plan_mode=False (exited plan mode)")
+
+    def _detect_mcp_call(self, event: HookEvent, state: WorkflowState) -> None:
+        """Track MCP tool calls by server/tool for workflow conditions.
+
+        Sets state.variables["mcp_calls"] = {
+            "gobby-memory": ["recall", "remember"],
+            "context7": ["get-library-docs"],
+            ...
+        }
+
+        This enables workflow conditions like:
+            when: "mcp_called('gobby-memory', 'recall')"
+
+        Args:
+            event: The AFTER_TOOL hook event
+            state: Current workflow state (modified in place)
+        """
+        if not event.data:
+            return
+
+        tool_name = event.data.get("tool_name", "")
+        tool_input = event.data.get("tool_input", {}) or {}
+        tool_output = event.data.get("tool_output", {}) or {}
+
+        # Check for MCP proxy call
+        if tool_name not in ("call_tool", "mcp__gobby__call_tool"):
+            return
+
+        server_name = tool_input.get("server_name", "")
+        inner_tool = tool_input.get("tool_name", "")
+
+        if not server_name or not inner_tool:
+            return
+
+        # Check if call succeeded (skip tracking failed calls)
+        if isinstance(tool_output, dict):
+            if tool_output.get("error") or tool_output.get("status") == "error":
+                return
+            result = tool_output.get("result", {})
+            if isinstance(result, dict) and result.get("error"):
+                return
+
+        # Track the call
+        mcp_calls = state.variables.setdefault("mcp_calls", {})
+        server_calls = mcp_calls.setdefault(server_name, [])
+        if inner_tool not in server_calls:
+            server_calls.append(inner_tool)
+            logger.debug(
+                f"Session {state.session_id}: MCP call tracked {server_name}/{inner_tool}"
+            )
