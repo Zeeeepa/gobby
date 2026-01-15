@@ -3956,3 +3956,78 @@ class TestParseSpecTool:
             finally:
                 import os
                 os.unlink(spec_path)
+
+    @pytest.mark.asyncio
+    async def test_parse_spec_returns_phase_groups(
+        self, mock_task_manager, mock_task_expander
+    ):
+        """Test that parse_spec returns parallel phase groups from the spec."""
+        if not IMPORT_SUCCEEDED:
+            pytest.skip("Module not extracted yet")
+
+        import tempfile
+
+        with (
+            patch("gobby.mcp_proxy.tools.task_expansion.TaskDependencyManager"),
+            patch("gobby.mcp_proxy.tools.task_expansion.LocalProjectManager"),
+            patch("gobby.mcp_proxy.tools.task_expansion.get_project_context") as mock_ctx,
+            patch("gobby.mcp_proxy.tools.task_expansion.initialize_project") as mock_init,
+        ):
+            mock_ctx.return_value = {"id": "p1"}
+            mock_init.return_value = MagicMock(project_id="p1")
+
+            registry = create_expansion_registry(
+                task_manager=mock_task_manager,
+                task_expander=mock_task_expander,
+            )
+
+            # Create spec with multiple phases that should be parallelizable
+            spec_content = """# Project Spec
+
+## Phase 1: Setup
+
+- [ ] Create database schema
+- [ ] Setup authentication
+
+## Phase 2: Implementation
+
+- [ ] Build API endpoints
+- [ ] Implement frontend
+"""
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False) as f:
+                f.write(spec_content)
+                spec_path = f.name
+
+            try:
+                # Each create_task call returns a unique task
+                task_counter = [0]
+                def create_task_side_effect(**kwargs):
+                    task_counter[0] += 1
+                    return Task(
+                        id=f"task-{task_counter[0]}",
+                        title=kwargs.get("title", f"Task {task_counter[0]}"),
+                        project_id="p1",
+                        status="open",
+                        priority=2,
+                        task_type=kwargs.get("task_type", "task"),
+                        created_at="now",
+                        updated_at="now",
+                    )
+                mock_task_manager.create_task.side_effect = create_task_side_effect
+                mock_task_manager.get_task.side_effect = lambda tid: Task(
+                    id=tid, title=f"Task {tid}", project_id="p1",
+                    status="open", priority=2, task_type="task",
+                    created_at="now", updated_at="now",
+                )
+
+                result = await registry.call(
+                    "parse_spec", {"spec_path": spec_path}
+                )
+
+                # Verify parse_spec returns phase_groups in response
+                assert "phase_groups" in result, (
+                    f"parse_spec should return phase_groups, got keys: {result.keys()}"
+                )
+            finally:
+                import os
+                os.unlink(spec_path)
