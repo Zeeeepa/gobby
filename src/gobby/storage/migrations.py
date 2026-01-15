@@ -357,6 +357,9 @@ CREATE TABLE tasks (
     path_cache TEXT,
     agent_name TEXT,
     reference_doc TEXT,
+    is_enriched INTEGER DEFAULT 0,
+    is_expanded INTEGER DEFAULT 0,
+    is_tdd_applied INTEGER DEFAULT 0,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -600,6 +603,28 @@ def _migrate_add_reference_doc(db: LocalDatabase) -> None:
         logger.debug("reference_doc column already exists, skipping")
 
 
+def _migrate_add_boolean_columns(db: LocalDatabase) -> None:
+    """Add is_enriched, is_expanded, is_tdd_applied columns to tasks table."""
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
+    if not row:
+        return
+
+    sql_lower = row["sql"].lower()
+
+    # Add each column if it doesn't exist
+    if "is_enriched" not in sql_lower:
+        db.execute("ALTER TABLE tasks ADD COLUMN is_enriched INTEGER DEFAULT 0")
+        logger.info("Added is_enriched column to tasks table")
+
+    if "is_expanded" not in sql_lower:
+        db.execute("ALTER TABLE tasks ADD COLUMN is_expanded INTEGER DEFAULT 0")
+        logger.info("Added is_expanded column to tasks table")
+
+    if "is_tdd_applied" not in sql_lower:
+        db.execute("ALTER TABLE tasks ADD COLUMN is_tdd_applied INTEGER DEFAULT 0")
+        logger.info("Added is_tdd_applied column to tasks table")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # TDD Expansion Restructure: Rename test_strategy to category
     (61, "Rename test_strategy to category", _migrate_test_strategy_to_category),
@@ -607,6 +632,8 @@ MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     (62, "Add agent_name column to tasks", _migrate_add_agent_name),
     # TDD Expansion Restructure: Add reference_doc column
     (63, "Add reference_doc column to tasks", _migrate_add_reference_doc),
+    # TDD Expansion Restructure: Add boolean columns for idempotent operations
+    (64, "Add boolean columns to tasks", _migrate_add_boolean_columns),
 ]
 
 
