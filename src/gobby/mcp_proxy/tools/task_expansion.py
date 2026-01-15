@@ -256,9 +256,10 @@ def create_expansion_registry(
                         except Exception:
                             pass
 
-        # Update parent task validation criteria
+        # Update parent task: set is_expanded and validation criteria
         task_manager.update_task(
             task.id,
+            is_expanded=True,
             validation_criteria="All child tasks must be completed (status: closed).",
         )
 
@@ -267,6 +268,7 @@ def create_expansion_registry(
             "task_id": task.id,
             "tasks_created": len(subtask_ids),
             "subtasks": created_subtasks,
+            "is_expanded": True,
         }
         if auto_enriched:
             response["auto_enriched"] = True
