@@ -447,7 +447,8 @@ def generate_default_config(config_file: str) -> None:
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Use Pydantic model defaults as source of truth
-    default_config = DaemonConfig().model_dump(mode="python", exclude_none=True)
+    # mode="json" ensures Path objects are converted to strings for YAML serialization
+    default_config = DaemonConfig().model_dump(mode="json", exclude_none=True)
 
     with open(config_path, "w") as f:
         yaml.safe_dump(default_config, f, default_flow_style=False, sort_keys=False)
@@ -539,7 +540,8 @@ def save_config(config: DaemonConfig, config_file: str | None = None) -> None:
     config_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Convert config to dict, excluding None values to keep file clean
-    config_dict = config.model_dump(mode="python", exclude_none=True)
+    # mode="json" ensures Path objects are converted to strings for YAML serialization
+    config_dict = config.model_dump(mode="json", exclude_none=True)
 
     # Write to YAML file
     with open(config_path, "w") as f:
