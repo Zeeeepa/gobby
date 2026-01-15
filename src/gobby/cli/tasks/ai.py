@@ -1359,7 +1359,7 @@ def suggest_cmd(task_type: str | None, no_prefer_subtasks: bool, json_format: bo
         if task.complexity_score and task.complexity_score <= 5:
             score += 15
 
-        # Bonus for tasks with test strategy defined
+        # Bonus for tasks with category defined
         if task.category:
             score += 10
 
@@ -1377,7 +1377,7 @@ def suggest_cmd(task_type: str | None, no_prefer_subtasks: bool, json_format: bo
     if best_task.complexity_score and best_task.complexity_score <= 5:
         reasons.append("manageable complexity")
     if best_task.category:
-        reasons.append("has test strategy")
+        reasons.append(f"has category ({best_task.category})")
 
     reason_str = f"Selected because: {', '.join(reasons) if reasons else 'best available option'}"
 

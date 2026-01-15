@@ -443,7 +443,7 @@ def create_readiness_registry(
             if task.complexity_score and task.complexity_score <= 5:
                 score += 15  # Prefer lower complexity tasks
 
-            # Bonus for tasks with test strategy defined
+            # Bonus for tasks with category defined
             if task.category:
                 score += 10
 
@@ -469,7 +469,7 @@ def create_readiness_registry(
         if best_task.complexity_score and best_task.complexity_score <= 5:
             reasons.append("manageable complexity")
         if best_task.category:
-            reasons.append("has test strategy")
+            reasons.append(f"has category ({best_task.category})")
         if best_proximity > 0:
             reasons.append("same branch as current work")
 

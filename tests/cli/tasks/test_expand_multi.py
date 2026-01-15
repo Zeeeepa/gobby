@@ -161,8 +161,8 @@ class TestExpandNoEnrich:
 
             result = runner.invoke(tasks, ["expand", "#42", "--no-enrich"])
 
-            # The --no-enrich option should be recognized
-            assert result.exit_code == 0 or "--no-enrich" not in result.output
+            # The --no-enrich option should be recognized and succeed
+            assert result.exit_code == 0
 
 
 class TestExpandForce:

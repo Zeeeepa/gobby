@@ -71,10 +71,10 @@ def mock_task_enricher():
     if not ENRICH_IMPORT_SUCCEEDED:
         pytest.skip("enrich module not available")
 
-    enricher = AsyncMock(spec=TaskEnricher)
-    enricher.enrich = AsyncMock(
-        return_value=EnrichmentResult(
-            task_id="test-task",
+    async def enrich_side_effect(task_id: str, **kwargs):
+        """Return EnrichmentResult with the provided task_id."""
+        return EnrichmentResult(
+            task_id=task_id,
             category="code",
             complexity_score=2,
             research_findings="Found relevant patterns",
@@ -82,7 +82,9 @@ def mock_task_enricher():
             validation_criteria="Tests pass, code review approved",
             mcp_tools_used=["context7", "grep"],
         )
-    )
+
+    enricher = AsyncMock(spec=TaskEnricher)
+    enricher.enrich = AsyncMock(side_effect=enrich_side_effect)
     return enricher
 
 

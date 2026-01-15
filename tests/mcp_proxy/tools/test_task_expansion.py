@@ -3613,9 +3613,20 @@ class TestTddTripletDependencies:
             # Should have 2 dependencies: impl->test, refactor->impl
             assert len(add_dep_calls) >= 2, f"Should create at least 2 dependencies, got {add_dep_calls}"
 
-            # Check impl blocked by test
+            # Check impl blocked by test (handle both positional and keyword args)
+            def matches_dependency(call, from_id, to_id, relation):
+                """Check if call matches expected dependency args (positional or keyword)."""
+                if call.args == (from_id, to_id, relation):
+                    return True
+                kwargs = call.kwargs
+                return (
+                    kwargs.get("from_task_id") == from_id
+                    and kwargs.get("to_task_id") == to_id
+                    and kwargs.get("relation") == relation
+                )
+
             impl_blocked_by_test = any(
-                call.args == ("impl-1", "test-1", "blocks")
+                matches_dependency(call, "impl-1", "test-1", "blocks")
                 for call in add_dep_calls
             )
             assert impl_blocked_by_test, f"Implement should be blocked by Test, got {add_dep_calls}"
@@ -3670,11 +3681,22 @@ class TestTddTripletDependencies:
             # Should succeed
             assert "error" not in result
 
-            # Verify dependency: refactor blocked by impl
+            # Verify dependency: refactor blocked by impl (handle both positional and keyword args)
             add_dep_calls = mock_dep_manager.add_dependency.call_args_list
 
+            def matches_dependency(call, from_id, to_id, relation):
+                """Check if call matches expected dependency args (positional or keyword)."""
+                if call.args == (from_id, to_id, relation):
+                    return True
+                kwargs = call.kwargs
+                return (
+                    kwargs.get("from_task_id") == from_id
+                    and kwargs.get("to_task_id") == to_id
+                    and kwargs.get("relation") == relation
+                )
+
             refactor_blocked_by_impl = any(
-                call.args == ("refactor-1", "impl-1", "blocks")
+                matches_dependency(call, "refactor-1", "impl-1", "blocks")
                 for call in add_dep_calls
             )
             assert refactor_blocked_by_impl, f"Refactor should be blocked by Implement, got {add_dep_calls}"
