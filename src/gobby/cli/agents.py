@@ -6,7 +6,8 @@ Commands for managing subagent runs:
 - list: List agent runs for a session
 - show: Show details for an agent run
 - status: Check status of a running agent
-- cancel: Cancel a running agent
+- stop: Stop a running agent (marks cancelled in DB, does not kill process)
+- kill: Kill a running agent process (SIGTERM/SIGKILL)
 """
 
 import json
@@ -358,11 +359,11 @@ def agent_status(run_ref: str) -> None:
             click.echo(f"   Error: {run.error}")
 
 
-@agents.command("cancel")
+@agents.command("stop")
 @click.argument("run_ref")
-@click.confirmation_option(prompt="Are you sure you want to cancel this agent run?")
-def cancel_agent(run_ref: str) -> None:
-    """Cancel a running agent (UUID or prefix)."""
+@click.confirmation_option(prompt="Are you sure you want to stop this agent run?")
+def stop_agent(run_ref: str) -> None:
+    """Stop a running agent (marks as cancelled, does not kill process)."""
     run_id = resolve_agent_run_id(run_ref)
     manager = get_agent_run_manager()
     run = manager.get(run_id)
@@ -372,12 +373,73 @@ def cancel_agent(run_ref: str) -> None:
         return
 
     if run.status not in ("pending", "running"):
-        click.echo(f"Cannot cancel agent in status: {run.status}", err=True)
+        click.echo(f"Cannot stop agent in status: {run.status}", err=True)
         return
 
     manager = get_agent_run_manager()
     manager.cancel(run.id)
-    click.echo(f"Cancelled agent run: {run.id}")
+    click.echo(f"Stopped agent run: {run.id}")
+
+
+@agents.command("kill")
+@click.argument("run_ref")
+@click.option("--force", "-f", is_flag=True, help="Use SIGKILL immediately")
+@click.option("--stop", "-s", is_flag=True, help="Also end workflow (prevents restart)")
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation")
+def kill_agent(run_ref: str, force: bool, stop: bool, yes: bool) -> None:
+    """Kill a running agent process.
+
+    Sends SIGTERM (or SIGKILL with -f) to terminate the agent process.
+    Without --stop: workflow may restart the agent in a new terminal.
+    With --stop: also ends the workflow (prevents restart).
+
+    \b
+    Examples:
+        gobby agents kill abc123 -y        # Kill with SIGTERM
+        gobby agents kill abc123 -f -y     # Force kill with SIGKILL
+        gobby agents kill abc123 -s -y     # Kill and end workflow
+        gobby agents kill abc123 -fs -y    # Force kill and end workflow
+    """
+    from gobby.utils.daemon_client import DaemonClient
+
+    run_id = resolve_agent_run_id(run_ref)
+
+    if not yes:
+        msg = "Force kill" if force else "Kill"
+        if stop:
+            msg += " and end workflow for"
+        else:
+            msg += " agent"
+        if not click.confirm(f"{msg} {run_id[:12]}?"):
+            return
+
+    # Call daemon MCP tool
+    client = DaemonClient()
+    try:
+        result = client.call_mcp_tool(
+            server_name="gobby-agents",
+            tool_name="kill_agent",
+            arguments={
+                "run_id": run_id,
+                "force": force,
+                "stop": stop,
+            },
+        )
+    except Exception as e:
+        click.echo(f"Error: {e}", err=True)
+        return
+
+    if result.get("success"):
+        msg = result.get("message", f"Killed agent {run_id}")
+        click.echo(msg)
+        if result.get("found_via") == "pgrep":
+            click.echo(f"  (found via pgrep, PID {result.get('pid')})")
+        if result.get("already_dead"):
+            click.echo("  (process was already terminated)")
+        if result.get("workflow_stopped"):
+            click.echo("  (workflow ended)")
+    else:
+        click.echo(f"Failed: {result.get('error')}", err=True)
 
 
 @agents.command("stats")

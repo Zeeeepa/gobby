@@ -5,7 +5,8 @@ This file tests the agent-related MCP tools:
 - start_agent: Spawn a subagent
 - get_agent_result: Get agent run result
 - list_agents: List agent runs for a session
-- cancel_agent: Cancel a running agent
+- stop_agent: Stop a running agent (DB only)
+- kill_agent: Kill a running agent process
 - can_spawn_agent: Check if spawning is allowed
 - list_running_agents: List in-memory running agents
 - get_running_agent: Get running agent state
@@ -43,7 +44,8 @@ class TestCreateAgentsRegistry:
             "start_agent",
             "get_agent_result",
             "list_agents",
-            "cancel_agent",
+            "stop_agent",
+            "kill_agent",
             "can_spawn_agent",
             "list_running_agents",
             "get_running_agent",
@@ -666,12 +668,12 @@ class TestListAgents:
         runner.list_runs.assert_called_once_with("sess-123", status=None, limit=50)
 
 
-class TestCancelAgent:
-    """Tests for cancel_agent MCP tool."""
+class TestStopAgent:
+    """Tests for stop_agent MCP tool."""
 
     @pytest.mark.asyncio
-    async def test_successful_cancellation(self):
-        """Test successful agent cancellation."""
+    async def test_successful_stop(self):
+        """Test successful agent stop."""
         runner = MagicMock()
         runner.cancel_run.return_value = True
 
@@ -686,12 +688,12 @@ class TestCancelAgent:
         )
 
         registry = create_agents_registry(runner, running_registry=running_registry)
-        cancel_agent = registry._tools["cancel_agent"].func
+        stop_agent = registry._tools["stop_agent"].func
 
-        result = await cancel_agent(run_id="run-123")
+        result = await stop_agent(run_id="run-123")
 
         assert result["success"] is True
-        assert "cancelled" in result["message"]
+        assert "stopped" in result["message"]
 
         # Verify removed from registry
         assert running_registry.get("run-123") is None
@@ -704,16 +706,16 @@ class TestCancelAgent:
         runner.get_run.return_value = None
 
         registry = create_agents_registry(runner)
-        cancel_agent = registry._tools["cancel_agent"].func
+        stop_agent = registry._tools["stop_agent"].func
 
-        result = await cancel_agent(run_id="non-existent")
+        result = await stop_agent(run_id="non-existent")
 
         assert result["success"] is False
         assert "not found" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_cannot_cancel_completed_run(self):
-        """Test error when trying to cancel non-running agent."""
+    async def test_cannot_stop_completed_run(self):
+        """Test error when trying to stop non-running agent."""
         mock_run = MagicMock()
         mock_run.status = "success"
 
@@ -722,12 +724,12 @@ class TestCancelAgent:
         runner.get_run.return_value = mock_run
 
         registry = create_agents_registry(runner)
-        cancel_agent = registry._tools["cancel_agent"].func
+        stop_agent = registry._tools["stop_agent"].func
 
-        result = await cancel_agent(run_id="run-123")
+        result = await stop_agent(run_id="run-123")
 
         assert result["success"] is False
-        assert "Cannot cancel" in result["error"]
+        assert "Cannot stop" in result["error"]
         assert "success" in result["error"]
 
 

@@ -221,6 +221,144 @@ class RunningAgentRegistry:
             )
         return agent
 
+    def kill(
+        self,
+        run_id: str,
+        signal_name: str = "TERM",
+        timeout: float = 5.0,
+    ) -> dict[str, Any]:
+        """
+        Kill a running agent process.
+
+        Strategy varies by mode:
+        - headless: Direct signal to tracked PID
+        - terminal: Check terminal_context for PID, fallback to pgrep
+        - embedded: Close PTY fd + signal
+        - in_process: Cancel asyncio task
+
+        Args:
+            run_id: Agent run ID
+            signal_name: Signal without SIG prefix (TERM, KILL)
+            timeout: Seconds before escalating TERM → KILL
+
+        Returns:
+            Dict with success status and details
+        """
+        import os
+        import signal
+        import subprocess
+        import time
+
+        agent = self.get(run_id)
+        if not agent:
+            return {"success": False, "error": "Agent not found in registry"}
+
+        # Handle in_process mode (asyncio.Task)
+        if agent.mode == "in_process" and agent.task:
+            agent.task.cancel()
+            self.remove(run_id, status="cancelled")
+            return {"success": True, "message": "Cancelled in-process task"}
+
+        # For terminal mode, find PID via multiple strategies
+        target_pid = agent.pid
+        found_via = "registry"
+
+        if agent.mode == "terminal" and agent.session_id:
+            # Strategy 1: Check session's terminal_context (Claude hooks)
+            try:
+                from gobby.storage.database import LocalDatabase
+                from gobby.storage.sessions import LocalSessionManager
+
+                db = LocalDatabase()
+                session_mgr = LocalSessionManager(db)
+                session = session_mgr.get(agent.session_id)
+                if session and session.terminal_context:
+                    ctx_pid = session.terminal_context.get("parent_pid")
+                    if ctx_pid:
+                        target_pid = int(ctx_pid)
+                        found_via = "terminal_context"
+                        self._logger.info(f"Found PID from session terminal_context: {target_pid}")
+            except Exception as e:
+                self._logger.debug(f"terminal_context lookup failed: {e}")
+
+            # Strategy 2: pgrep fallback (for Codex/Gemini without hooks)
+            if found_via == "registry" or not target_pid:
+                try:
+                    result = subprocess.run(
+                        ["pgrep", "-f", f"Your Gobby session_id is: {agent.session_id}"],
+                        capture_output=True,
+                        text=True,
+                        timeout=5.0,
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        pids = result.stdout.strip().split("\n")
+                        target_pid = int(pids[0])
+                        found_via = "pgrep"
+                        self._logger.info(f"Found PID via pgrep: {target_pid}")
+                except Exception as e:
+                    self._logger.warning(f"pgrep fallback failed: {e}")
+
+        if not target_pid:
+            return {"success": False, "error": "No target PID found"}
+
+        # Check if process is alive
+        try:
+            os.kill(target_pid, 0)
+        except ProcessLookupError:
+            self.remove(run_id, status="completed")
+            return {
+                "success": True,
+                "message": f"Process {target_pid} already dead",
+                "already_dead": True,
+            }
+        except PermissionError:
+            return {"success": False, "error": f"No permission to signal PID {target_pid}"}
+
+        # Close PTY if embedded mode
+        if agent.master_fd is not None:
+            try:
+                os.close(agent.master_fd)
+            except OSError:
+                pass
+
+        # Send signal
+        sig = getattr(signal, f"SIG{signal_name}", signal.SIGTERM)
+        try:
+            os.kill(target_pid, sig)
+        except ProcessLookupError:
+            self.remove(run_id, status="completed")
+            return {
+                "success": True,
+                "message": "Process died during signal",
+                "already_dead": True,
+            }
+
+        # Wait for termination with optional SIGKILL escalation
+        if signal_name == "TERM" and timeout > 0:
+            deadline = time.time() + timeout
+            while time.time() < deadline:
+                try:
+                    os.kill(target_pid, 0)
+                    time.sleep(0.1)
+                except ProcessLookupError:
+                    break
+            else:
+                # Still alive - escalate to SIGKILL
+                try:
+                    os.kill(target_pid, signal.SIGKILL)
+                    self._logger.info(f"Escalated to SIGKILL for PID {target_pid}")
+                except ProcessLookupError:
+                    pass
+
+        self.remove(run_id, status="killed")
+        return {
+            "success": True,
+            "message": f"Sent SIG{signal_name} to PID {target_pid}",
+            "pid": target_pid,
+            "signal": signal_name,
+            "found_via": found_via,
+        }
+
     def get_by_session(self, session_id: str) -> RunningAgent | None:
         """
         Get a running agent by its child session ID.
