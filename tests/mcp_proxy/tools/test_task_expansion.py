@@ -3054,3 +3054,145 @@ class TestBatchParallelExpansion:
         # Should return error about mutual exclusion
         assert "error" in result
         assert "mutually exclusive" in result["error"].lower() or "one of" in result["error"].lower()
+
+
+# ============================================================================
+# IsExpanded Flag Tests
+# ============================================================================
+
+
+class TestIsExpandedFlag:
+    """Tests for is_expanded flag being set after task expansion."""
+
+    @pytest.mark.asyncio
+    async def test_expand_task_sets_is_expanded_true(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that expand_task sets is_expanded=True on parent task after expansion."""
+        parent_task = Task(
+            id="parent-1",
+            title="Implement feature",
+            description="A feature to implement",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            created_at="now",
+            updated_at="now",
+            is_expanded=False,
+        )
+        mock_task_manager.get_task.return_value = parent_task
+        mock_task_manager.list_tasks.return_value = []
+
+        # Mock expander returns subtask_ids
+        mock_task_expander.expand_task.return_value = {
+            "subtask_ids": ["sub-1", "sub-2"],
+        }
+
+        result = await expansion_registry.call(
+            "expand_task", {"task_id": "parent-1"}
+        )
+
+        # Should succeed
+        assert "error" not in result
+        assert result["tasks_created"] == 2
+
+        # Verify is_expanded=True was set via update_task
+        update_calls = mock_task_manager.update_task.call_args_list
+        is_expanded_set = any(
+            call.kwargs.get("is_expanded") is True or
+            (len(call.args) > 1 and call.args[1:] and any(a is True for a in call.args))
+            for call in update_calls
+        )
+        assert is_expanded_set, "is_expanded=True should be set after expansion"
+
+    @pytest.mark.asyncio
+    async def test_expand_task_batch_sets_is_expanded_true_for_all(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that batch expand_task sets is_expanded=True on all parent tasks."""
+        task1 = Task(
+            id="t1",
+            title="Feature A",
+            description="First feature",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            created_at="now",
+            updated_at="now",
+            is_expanded=False,
+        )
+        task2 = Task(
+            id="t2",
+            title="Feature B",
+            description="Second feature",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            created_at="now",
+            updated_at="now",
+            is_expanded=False,
+        )
+
+        def get_task_side_effect(tid):
+            return {"t1": task1, "t2": task2}.get(tid)
+
+        mock_task_manager.get_task.side_effect = get_task_side_effect
+        mock_task_manager.list_tasks.return_value = []
+
+        # Mock expander returns subtask_ids for each task
+        mock_task_expander.expand_task.return_value = {
+            "subtask_ids": ["sub-1"],
+        }
+
+        result = await expansion_registry.call(
+            "expand_task", {"task_ids": ["t1", "t2"]}
+        )
+
+        # Should succeed for both
+        assert "results" in result
+        assert len(result["results"]) == 2
+
+        # Verify is_expanded=True was set for both tasks
+        update_calls = mock_task_manager.update_task.call_args_list
+        tasks_with_is_expanded = set()
+        for call in update_calls:
+            task_id = call.args[0] if call.args else None
+            if call.kwargs.get("is_expanded") is True:
+                tasks_with_is_expanded.add(task_id)
+        assert "t1" in tasks_with_is_expanded, "is_expanded should be set for t1"
+        assert "t2" in tasks_with_is_expanded, "is_expanded should be set for t2"
+
+    @pytest.mark.asyncio
+    async def test_expand_task_returns_is_expanded_in_response(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that expand_task returns is_expanded=True in response."""
+        parent_task = Task(
+            id="parent-1",
+            title="Implement feature",
+            description="A feature to implement",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            created_at="now",
+            updated_at="now",
+            is_expanded=False,
+        )
+        mock_task_manager.get_task.return_value = parent_task
+        mock_task_manager.list_tasks.return_value = []
+
+        mock_task_expander.expand_task.return_value = {
+            "subtask_ids": ["sub-1"],
+        }
+
+        result = await expansion_registry.call(
+            "expand_task", {"task_id": "parent-1"}
+        )
+
+        # Response should include is_expanded=True
+        assert "error" not in result
+        assert result.get("is_expanded") is True, "Response should include is_expanded=True"
