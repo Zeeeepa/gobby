@@ -108,7 +108,7 @@ class Session:
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
-            "ref": f"@{self.seq_num}" if self.seq_num else self.id[:8],
+            "ref": f"#{self.seq_num}" if self.seq_num else self.id[:8],
             "external_id": self.external_id,
             "machine_id": self.machine_id,
             "source": self.source,
