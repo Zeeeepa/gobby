@@ -1022,4 +1022,91 @@ def create_expansion_registry(
             "total": len(target_ids),
         }
 
+    @registry.tool(
+        name="apply_tdd",
+        description="Transform a task into TDD triplet (test, implement, refactor).",
+    )
+    async def apply_tdd(
+        task_id: str,
+    ) -> dict[str, Any]:
+        """
+        Transform a task into TDD triplet (test, implement, refactor).
+
+        Creates three subtasks for the given task:
+        1. Write tests for: <title>
+        2. Implement: <title>
+        3. Refactor: <title>
+
+        Skips tasks that already have is_tdd_applied=True or tasks with
+        titles starting with TDD prefixes.
+
+        Args:
+            task_id: Task reference: #N, N (seq_num), path (1.2.3), or UUID
+
+        Returns:
+            Dictionary with tasks_created count and subtasks list
+        """
+        # Resolve task reference (resolve_task_id_for_mcp is imported at module level)
+        try:
+            resolved_task_id = resolve_task_id_for_mcp(task_manager, task_id)
+        except (TaskNotFoundError, ValueError) as e:
+            return {"error": f"Invalid task_id: {e}"}
+
+        task = task_manager.get_task(resolved_task_id)
+        if not task:
+            return {"error": f"Task not found: {task_id}"}
+
+        # Skip if already TDD-applied
+        if task.is_tdd_applied:
+            return {
+                "skipped": True,
+                "reason": "TDD already applied to this task",
+                "task_id": task.id,
+            }
+
+        # Skip if title already has TDD prefix
+        tdd_prefixes = ("Write tests for:", "Implement:", "Refactor:")
+        if task.title.startswith(tdd_prefixes):
+            return {
+                "skipped": True,
+                "reason": "Task title already has TDD prefix",
+                "task_id": task.id,
+            }
+
+        # Get project_id from task
+        project_id = task.project_id
+
+        # Create TDD triplet
+        created_tasks = []
+        for prefix in ("Write tests for:", "Implement:", "Refactor:"):
+            subtask_title = f"{prefix} {task.title}"
+            subtask = task_manager.create_task(
+                title=subtask_title,
+                project_id=project_id,
+                parent_task_id=task.id,
+                task_type="task",
+                priority=task.priority,
+            )
+            subtask_info: dict[str, Any] = {
+                "id": subtask.id,
+                "title": subtask.title,
+            }
+            if subtask.seq_num is not None:
+                subtask_info["seq_num"] = subtask.seq_num
+                subtask_info["ref"] = f"#{subtask.seq_num}"
+            created_tasks.append(subtask_info)
+
+        # Mark task as TDD-applied and update validation criteria
+        task_manager.update_task(
+            task.id,
+            is_tdd_applied=True,
+            validation_criteria="All child tasks must be completed (status: closed).",
+        )
+
+        return {
+            "task_id": task.id,
+            "tasks_created": len(created_tasks),
+            "subtasks": created_tasks,
+        }
+
     return registry
