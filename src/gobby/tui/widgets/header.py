@@ -27,11 +27,11 @@ class GobbyHeader(Static):
 
     DEFAULT_CSS = """
     GobbyHeader {
-        height: 10;
+        height: 12;
         dock: top;
         background: #161616;
         border-bottom: solid #333333;
-        padding: 2 2 1 2;
+        padding: 3 2 1 2;
     }
 
     GobbyHeader .logo-container {
