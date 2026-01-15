@@ -31,7 +31,7 @@ class GobbyHeader(Static):
         dock: top;
         background: #161616;
         border-bottom: solid #333333;
-        padding: 2 2 1 2;
+        padding: 0 1;
     }
 
     GobbyHeader .logo-container {
