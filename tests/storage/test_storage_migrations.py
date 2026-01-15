@@ -1418,3 +1418,84 @@ def test_agent_name_column_allows_null(tmp_path):
     row = db.fetchone("SELECT agent_name FROM tasks WHERE id = ?", ("task-1",))
     assert row is not None
     assert row["agent_name"] is None
+
+
+# =============================================================================
+# TDD Expansion Restructure: reference_doc column addition
+# =============================================================================
+
+
+def test_reference_doc_column_exists_after_migration(tmp_path):
+    """Test that the 'reference_doc' column exists in the tasks table after migration.
+
+    The reference_doc field stores the path to the source specification document
+    for traceability, linking tasks back to their origin in PRDs or design docs.
+    """
+    db_path = tmp_path / "reference_doc_migration.db"
+    db = LocalDatabase(db_path)
+
+    # Run all migrations
+    run_migrations(db)
+
+    # Check that reference_doc column exists in tasks table
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
+    assert row is not None
+    sql_lower = row["sql"].lower()
+    assert "reference_doc" in sql_lower, "reference_doc column not found in tasks table"
+
+
+def test_reference_doc_column_accepts_values(tmp_path):
+    """Test that the reference_doc column accepts valid TEXT values."""
+    db_path = tmp_path / "reference_doc_values.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create project
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+
+    # Insert task with reference_doc
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, reference_doc, created_at, updated_at)
+           VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-1", "test-project", "Test Task", "docs/specs/auth-design.md"),
+    )
+
+    # Verify the reference_doc was stored correctly
+    row = db.fetchone("SELECT reference_doc FROM tasks WHERE id = ?", ("task-1",))
+    assert row is not None
+    assert row["reference_doc"] == "docs/specs/auth-design.md"
+
+
+def test_reference_doc_column_allows_null(tmp_path):
+    """Test that the reference_doc column allows NULL values.
+
+    Most tasks won't have a reference document, so NULL should be allowed.
+    """
+    db_path = tmp_path / "reference_doc_null.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create project
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+
+    # Insert task without reference_doc (NULL)
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-1", "test-project", "Test Task"),
+    )
+
+    # Verify task was created with NULL reference_doc
+    row = db.fetchone("SELECT reference_doc FROM tasks WHERE id = ?", ("task-1",))
+    assert row is not None
+    assert row["reference_doc"] is None
