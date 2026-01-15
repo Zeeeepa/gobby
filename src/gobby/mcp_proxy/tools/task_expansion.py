@@ -1076,8 +1076,12 @@ def create_expansion_registry(
         # Get project_id from task
         project_id = task.project_id
 
-        # Create TDD triplet
+        # Create TDD triplet with dependencies
+        # Order: Test -> Implement -> Refactor
+        # Dependencies: Impl blocked by Test, Refactor blocked by Impl
         created_tasks = []
+        task_ids: dict[str, str] = {}  # prefix -> task_id mapping
+
         for prefix in ("Write tests for:", "Implement:", "Refactor:"):
             subtask_title = f"{prefix} {task.title}"
             subtask = task_manager.create_task(
@@ -1087,6 +1091,7 @@ def create_expansion_registry(
                 task_type="task",
                 priority=task.priority,
             )
+            task_ids[prefix] = subtask.id
             subtask_info: dict[str, Any] = {
                 "id": subtask.id,
                 "title": subtask.title,
@@ -1095,6 +1100,14 @@ def create_expansion_registry(
                 subtask_info["seq_num"] = subtask.seq_num
                 subtask_info["ref"] = f"#{subtask.seq_num}"
             created_tasks.append(subtask_info)
+
+        # Create dependencies: Implement blocked by Test, Refactor blocked by Implement
+        test_id = task_ids["Write tests for:"]
+        impl_id = task_ids["Implement:"]
+        refactor_id = task_ids["Refactor:"]
+
+        dep_manager.add_dependency(impl_id, test_id, "blocks")
+        dep_manager.add_dependency(refactor_id, impl_id, "blocks")
 
         # Mark task as TDD-applied and update validation criteria
         task_manager.update_task(
