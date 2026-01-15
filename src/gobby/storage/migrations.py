@@ -356,6 +356,7 @@ CREATE TABLE tasks (
     seq_num INTEGER,
     path_cache TEXT,
     agent_name TEXT,
+    reference_doc TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -588,11 +589,24 @@ def _migrate_add_agent_name(db: LocalDatabase) -> None:
         logger.debug("agent_name column already exists, skipping")
 
 
+def _migrate_add_reference_doc(db: LocalDatabase) -> None:
+    """Add reference_doc column to tasks table for spec traceability."""
+    # Check if reference_doc column already exists (fresh database)
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
+    if row and "reference_doc" not in row["sql"].lower():
+        db.execute("ALTER TABLE tasks ADD COLUMN reference_doc TEXT")
+        logger.info("Added reference_doc column to tasks table")
+    else:
+        logger.debug("reference_doc column already exists, skipping")
+
+
 MIGRATIONS: list[tuple[int, str, MigrationAction]] = [
     # TDD Expansion Restructure: Rename test_strategy to category
     (61, "Rename test_strategy to category", _migrate_test_strategy_to_category),
     # TDD Expansion Restructure: Add agent_name column
     (62, "Add agent_name column to tasks", _migrate_add_agent_name),
+    # TDD Expansion Restructure: Add reference_doc column
+    (63, "Add reference_doc column to tasks", _migrate_add_reference_doc),
 ]
 
 
