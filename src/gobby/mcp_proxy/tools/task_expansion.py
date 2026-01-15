@@ -12,6 +12,7 @@ Provides tools for expanding tasks into subtasks using AI or structured parsing:
 Extracted from tasks.py using Strangler Fig pattern for code decomposition.
 """
 
+import asyncio
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -310,8 +311,6 @@ def create_expansion_registry(
         Returns:
             Dictionary with subtask_ids for single task, or results list for batch mode
         """
-        import asyncio
-
         # Use config default if not specified
         should_generate_validation = (
             generate_validation if generate_validation is not None else auto_generate_on_expand
