@@ -1499,3 +1499,98 @@ def test_reference_doc_column_allows_null(tmp_path):
     row = db.fetchone("SELECT reference_doc FROM tasks WHERE id = ?", ("task-1",))
     assert row is not None
     assert row["reference_doc"] is None
+
+
+# =============================================================================
+# TDD Expansion Restructure: boolean columns (is_enriched, is_expanded, is_tdd_applied)
+# =============================================================================
+
+
+def test_boolean_columns_exist_after_migration(tmp_path):
+    """Test that the boolean columns exist in the tasks table after migration.
+
+    These flags enable idempotent batch operations:
+    - is_enriched: context has been added
+    - is_expanded: subtasks have been created
+    - is_tdd_applied: TDD pairs have been generated
+    """
+    db_path = tmp_path / "boolean_columns_migration.db"
+    db = LocalDatabase(db_path)
+
+    # Run all migrations
+    run_migrations(db)
+
+    # Check that all boolean columns exist in tasks table
+    row = db.fetchone("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
+    assert row is not None
+    sql_lower = row["sql"].lower()
+    assert "is_enriched" in sql_lower, "is_enriched column not found in tasks table"
+    assert "is_expanded" in sql_lower, "is_expanded column not found in tasks table"
+    assert "is_tdd_applied" in sql_lower, "is_tdd_applied column not found in tasks table"
+
+
+def test_boolean_columns_accept_values(tmp_path):
+    """Test that the boolean columns accept INTEGER values (0/1)."""
+    db_path = tmp_path / "boolean_columns_values.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create project
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+
+    # Insert task with boolean values set to true (1)
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, is_enriched, is_expanded, is_tdd_applied, created_at, updated_at)
+           VALUES (?, ?, ?, 1, 1, 1, datetime('now'), datetime('now'))""",
+        ("task-1", "test-project", "Test Task"),
+    )
+
+    # Verify the boolean values were stored correctly
+    row = db.fetchone(
+        "SELECT is_enriched, is_expanded, is_tdd_applied FROM tasks WHERE id = ?",
+        ("task-1",),
+    )
+    assert row is not None
+    assert row["is_enriched"] == 1
+    assert row["is_expanded"] == 1
+    assert row["is_tdd_applied"] == 1
+
+
+def test_boolean_columns_default_to_zero(tmp_path):
+    """Test that the boolean columns default to 0 (false).
+
+    New tasks should have all processing flags set to false by default.
+    """
+    db_path = tmp_path / "boolean_columns_default.db"
+    db = LocalDatabase(db_path)
+
+    run_migrations(db)
+
+    # Create project
+    db.execute(
+        "INSERT INTO projects (id, name, created_at, updated_at) "
+        "VALUES (?, ?, datetime('now'), datetime('now'))",
+        ("test-project", "Test Project"),
+    )
+
+    # Insert task without specifying boolean values
+    db.execute(
+        """INSERT INTO tasks (id, project_id, title, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now'), datetime('now'))""",
+        ("task-1", "test-project", "Test Task"),
+    )
+
+    # Verify task was created with default values of 0
+    row = db.fetchone(
+        "SELECT is_enriched, is_expanded, is_tdd_applied FROM tasks WHERE id = ?",
+        ("task-1",),
+    )
+    assert row is not None
+    assert row["is_enriched"] == 0
+    assert row["is_expanded"] == 0
+    assert row["is_tdd_applied"] == 0
