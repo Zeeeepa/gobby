@@ -894,7 +894,7 @@ def create_task_registry(
 
     registry.register(
         name="close_task",
-        description="Close a task. Requires commits to be linked (use link_commit or include [task_id] in commit message). Parent tasks require all children closed. Leaf tasks validate with LLM. Validation auto-skipped for: duplicate, already_implemented, wont_fix, obsolete.",
+        description="Close a task. Commits should use [#N] format (e.g., git commit -m '[#42] feat: add feature'). Requires commits to be linked (auto-detected from commit message or use link_commit). Parent tasks require all children closed. Leaf tasks validate with LLM. Validation auto-skipped for: duplicate, already_implemented, wont_fix, obsolete.",
         input_schema={
             "type": "object",
             "properties": {
@@ -1214,8 +1214,13 @@ def create_task_registry(
             resolved_id = resolve_task_id_for_mcp(task_manager, task_id)
         except (TaskNotFoundError, ValueError) as e:
             return {"error": str(e)}
+        task = task_manager.get_task(resolved_id)
         sessions = session_task_manager.get_task_sessions(resolved_id)
-        return {"task_id": resolved_id, "sessions": sessions}
+        return {
+            "ref": f"#{task.seq_num}" if task.seq_num else resolved_id[:8],
+            "task_id": resolved_id,
+            "sessions": sessions,
+        }
 
     registry.register(
         name="get_task_sessions",

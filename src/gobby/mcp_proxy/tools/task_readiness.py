@@ -474,11 +474,11 @@ def create_readiness_registry(
             reasons.append("same branch as current work")
 
         return {
-            "suggestion": best_task.to_dict(),
+            "suggestion": best_task.to_brief(),
             "score": best_score,
             "reason": f"Selected because: {', '.join(reasons) if reasons else 'best available option'}",
             "alternatives": [
-                {"task_id": t.id, "title": t.title, "score": s}
+                {"ref": t.to_brief()["ref"], "title": t.title, "score": s}
                 for t, s, _, _ in scored[1:4]  # Show top 3 alternatives
             ],
         }

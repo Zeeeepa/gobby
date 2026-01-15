@@ -236,7 +236,6 @@ class Task:
         """
         return {
             "ref": f"#{self.seq_num}" if self.seq_num else self.id[:8],
-            "id": self.id,
             "title": self.title,
             "status": self.status,
             "priority": self.priority,
@@ -246,6 +245,7 @@ class Task:
             "updated_at": self.updated_at,
             "seq_num": self.seq_num,
             "path_cache": self.path_cache,
+            "id": self.id,  # UUID at end for backwards compat
         }
 
 
