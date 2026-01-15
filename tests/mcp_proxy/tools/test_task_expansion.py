@@ -3361,3 +3361,134 @@ class TestSeqNumsInResponse:
         assert "error" not in result
         assert result.get("parent_seq_num") == 100, "Response should include parent_seq_num"
         assert result.get("parent_ref") == "#100", "Response should include parent_ref"
+
+
+# ============================================================================
+# apply_tdd Tool Tests
+# ============================================================================
+
+
+class TestApplyTddTool:
+    """Tests for apply_tdd MCP tool that transforms tasks into TDD triplets."""
+
+    @pytest.mark.asyncio
+    async def test_apply_tdd_tool_exists(self, expansion_registry):
+        """Test that apply_tdd tool is registered."""
+        tools = expansion_registry.list_tools()
+        tool_names = [t["name"] for t in tools]
+        assert "apply_tdd" in tool_names, "apply_tdd tool should be registered"
+
+    @pytest.mark.asyncio
+    async def test_apply_tdd_creates_triplet(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that apply_tdd creates test, implement, refactor triplet."""
+        parent_task = Task(
+            id="parent-1",
+            title="Add user authentication",
+            description="Implement login functionality",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+            is_tdd_applied=False,
+        )
+        mock_task_manager.get_task.return_value = parent_task
+        mock_task_manager.create_task.side_effect = [
+            Task(id="test-1", title="Write tests for: Add user authentication",
+                 project_id="p1", status="open", priority=2, task_type="task",
+                 created_at="now", updated_at="now", seq_num=101),
+            Task(id="impl-1", title="Implement: Add user authentication",
+                 project_id="p1", status="open", priority=2, task_type="task",
+                 created_at="now", updated_at="now", seq_num=102),
+            Task(id="refactor-1", title="Refactor: Add user authentication",
+                 project_id="p1", status="open", priority=2, task_type="task",
+                 created_at="now", updated_at="now", seq_num=103),
+        ]
+
+        result = await expansion_registry.call(
+            "apply_tdd", {"task_id": "parent-1"}
+        )
+
+        # Should create 3 subtasks
+        assert "error" not in result
+        assert result.get("tasks_created") == 3
+
+        # Verify subtask titles follow TDD pattern
+        subtask_titles = [s.get("title") for s in result.get("subtasks", [])]
+        assert any("Write tests for:" in t for t in subtask_titles if t)
+        assert any("Implement:" in t for t in subtask_titles if t)
+        assert any("Refactor:" in t for t in subtask_titles if t)
+
+    @pytest.mark.asyncio
+    async def test_apply_tdd_skips_already_applied(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that apply_tdd skips tasks with is_tdd_applied=True."""
+        parent_task = Task(
+            id="parent-1",
+            title="Add user authentication",
+            description="Implement login functionality",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+            is_tdd_applied=True,  # Already applied
+        )
+        mock_task_manager.get_task.return_value = parent_task
+
+        result = await expansion_registry.call(
+            "apply_tdd", {"task_id": "parent-1"}
+        )
+
+        # Should skip and return message
+        assert result.get("skipped") is True or "already applied" in str(result).lower()
+
+    @pytest.mark.asyncio
+    async def test_apply_tdd_sets_is_tdd_applied(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that apply_tdd sets is_tdd_applied=True after transformation."""
+        parent_task = Task(
+            id="parent-1",
+            title="Add user authentication",
+            description="Implement login functionality",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            created_at="now",
+            updated_at="now",
+            is_tdd_applied=False,
+        )
+        mock_task_manager.get_task.return_value = parent_task
+        mock_task_manager.create_task.side_effect = [
+            Task(id="test-1", title="Write tests for: Add user authentication",
+                 project_id="p1", status="open", priority=2, task_type="task",
+                 created_at="now", updated_at="now", seq_num=101),
+            Task(id="impl-1", title="Implement: Add user authentication",
+                 project_id="p1", status="open", priority=2, task_type="task",
+                 created_at="now", updated_at="now", seq_num=102),
+            Task(id="refactor-1", title="Refactor: Add user authentication",
+                 project_id="p1", status="open", priority=2, task_type="task",
+                 created_at="now", updated_at="now", seq_num=103),
+        ]
+
+        result = await expansion_registry.call(
+            "apply_tdd", {"task_id": "parent-1"}
+        )
+
+        # Should succeed
+        assert "error" not in result
+
+        # Verify is_tdd_applied=True was set via update_task
+        update_calls = mock_task_manager.update_task.call_args_list
+        is_tdd_applied_set = any(
+            call.kwargs.get("is_tdd_applied") is True
+            for call in update_calls
+        )
+        assert is_tdd_applied_set, "is_tdd_applied=True should be set after transformation"
