@@ -103,6 +103,7 @@ async def synthesize_title(
     transcript_processor: Any,
     template_engine: Any,
     template: str | None = None,
+    prompt: str | None = None,
 ) -> dict[str, Any] | None:
     """Synthesize and set a session title.
 
@@ -113,50 +114,59 @@ async def synthesize_title(
         transcript_processor: Transcript processor instance
         template_engine: Template engine for rendering
         template: Optional prompt template
+        prompt: Optional user prompt to generate title from (preferred over transcript)
 
     Returns:
         Dict with title_synthesized or error
     """
-    if not llm_service or not transcript_processor:
-        return {"error": "Missing services"}
+    if not llm_service:
+        return {"error": "Missing LLM service"}
 
     current_session = session_manager.get(session_id)
     if not current_session:
         return {"error": "Session not found"}
 
-    transcript_path = getattr(current_session, "jsonl_path", None)
-    if not transcript_path:
-        return {"error": "No transcript path"}
-
     try:
-        # Read enough turns to get context
-        turns = []
-        path = Path(transcript_path)
-        if path.exists():
-            with open(path) as f:
-                for i, line in enumerate(f):
-                    if i > 20:
-                        break
-                    if line.strip():
-                        turns.append(json.loads(line))
-
-        if not turns:
-            return {"error": "Empty transcript"}
-
-        formatted_turns = format_turns_for_llm(turns)
-
-        if not template:
-            template = (
-                "Create a short, concise title (3-6 words) for this coding session "
-                "based on the transcript.\n\nTranscript:\n{{ transcript }}"
+        # If prompt provided directly, use it (preferred path)
+        if prompt:
+            llm_prompt = (
+                "Create a short title (3-5 words) for this coding session based on "
+                "the user's first message. Output ONLY the title, no quotes or explanation.\n\n"
+                f"User message: {prompt}"
             )
+        else:
+            # Fall back to reading transcript
+            transcript_path = getattr(current_session, "jsonl_path", None)
+            if not transcript_path:
+                return {"error": "No transcript path and no prompt provided"}
 
-        prompt = template_engine.render(template, {"transcript": formatted_turns})
+            turns = []
+            path = Path(transcript_path)
+            if path.exists():
+                with open(path) as f:
+                    for i, line in enumerate(f):
+                        if i > 20:
+                            break
+                        if line.strip():
+                            turns.append(json.loads(line))
+
+            if not turns:
+                return {"error": "Empty transcript"}
+
+            formatted_turns = format_turns_for_llm(turns)
+
+            if not template:
+                template = (
+                    "Create a short, concise title (3-5 words) for this coding session "
+                    "based on the transcript.\n\nTranscript:\n{{ transcript }}"
+                )
+
+            llm_prompt = template_engine.render(template, {"transcript": formatted_turns})
 
         provider = llm_service.get_default_provider()
-        title = await provider.generate_text(prompt)
+        title = await provider.generate_text(llm_prompt)
 
-        # clean title (remove quotes, etc)
+        # Clean title (remove quotes, etc)
         title = title.strip().strip('"').strip("'")
 
         session_manager.update_title(session_id, title)

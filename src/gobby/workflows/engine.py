@@ -733,6 +733,11 @@ class WorkflowEngine:
         injected_context: list[str] = []
         system_message: str | None = None
 
+        # Fetch session for condition evaluation (enables session.title checks)
+        session = None
+        if self.action_executor.session_manager:
+            session = self.action_executor.session_manager.get(session_id)
+
         for trigger in triggers:
             # Check 'when' condition if present
             when_condition = trigger.get("when")
@@ -742,6 +747,7 @@ class WorkflowEngine:
                     "workflow_state": state,
                     "handoff": context_data,
                     "variables": state.variables,
+                    "session": session,
                 }
                 eval_ctx.update(context_data)
                 eval_result = self.evaluator.evaluate(when_condition, eval_ctx)

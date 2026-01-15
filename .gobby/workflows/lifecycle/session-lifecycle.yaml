@@ -16,6 +16,10 @@ variables:
   tdd_mode: true
 
 triggers:
+  on_prompt_submit:
+    - action: synthesize_title
+      when: "session.title == None"
+
   on_stop:
     # Commit enforcement - block stop if task has uncommitted changes
     # Skip in plan mode (set via gobby-workflows.set_variable when entering plan mode)
@@ -154,6 +158,12 @@ triggers:
     # Extract structured context before compaction
     # Saves formatted markdown to session.compact_markdown
     - action: extract_handoff_context
+    
+    # Memory sync - export to JSONL for Git persistence
+    - action: memory_sync_export
+
+    # Task sync - export to JSONL for Git persistence
+    - action: task_sync_export
 
     # Generate LLM summary with cumulative compression
     # Each compact builds on previous summary, weighting recent work higher

@@ -279,6 +279,9 @@ class ConditionEvaluator:
                 "int": int,
                 "list": list,
                 "dict": dict,
+                "None": None,
+                "True": True,
+                "False": False,
             }
 
             # Add plugin conditions as callable functions

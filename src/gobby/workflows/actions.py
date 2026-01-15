@@ -361,6 +361,11 @@ class ActionExecutor:
         self, context: ActionContext, **kwargs: Any
     ) -> dict[str, Any] | None:
         """Synthesize and set a session title."""
+        # Extract prompt from event data (UserPromptSubmit hook)
+        prompt = None
+        if context.event_data:
+            prompt = context.event_data.get("prompt")
+
         return await synthesize_title(
             session_manager=context.session_manager,
             session_id=context.session_id,
@@ -368,6 +373,7 @@ class ActionExecutor:
             transcript_processor=context.transcript_processor,
             template_engine=context.template_engine,
             template=kwargs.get("template"),
+            prompt=prompt,
         )
 
     async def _handle_write_todos(
