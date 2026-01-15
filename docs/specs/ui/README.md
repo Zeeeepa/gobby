@@ -9,7 +9,7 @@ These spec documents are designed for use with `expand_from_spec` to create task
 call_tool("gobby-tasks", "expand_from_spec", {"spec_path": "docs/specs/ui/phase-0-tui.md"})
 
 # Or create all phases as epics under a parent
-parent = call_tool("gobby-tasks", "create_task", {"title": "Gobby UI Implementation", "task_type": "epic"})
+parent = call_tool("gobby-tasks", "create_task", {"title": "Gobby UI Implementation", "task_type": "epic", "session_id": "<your_session_id>"})
 for phase in range(8):
     call_tool("gobby-tasks", "expand_from_spec", {
         "spec_path": f"docs/specs/ui/phase-{phase}-*.md",

@@ -71,7 +71,7 @@ Use `get_tool_schema` to look up parameter details for any tool.
 
 ```python
 # 1. Create task (task_type: task, bug, feature, epic)
-call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title": "My task", "task_type": "feature"})
+call_tool(server_name="gobby-tasks", tool_name="create_task", arguments={"title": "My task", "task_type": "feature", "session_id": "<your_session_id>"})
 
 # 2. Set to in_progress BEFORE editing
 call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_id": "gt-xxx", "status": "in_progress"})
@@ -80,7 +80,7 @@ call_tool(server_name="gobby-tasks", tool_name="update_task", arguments={"task_i
 ### Task Workflow
 
 1. **Start of session**: `list_ready_tasks` or `suggest_next_task`
-2. **New work**: `create_task(title, description)`
+2. **New work**: `create_task(title, description, session_id)` - session_id required
 3. **Complex work**: `expand_task` or `expand_from_spec` for subtasks
 4. **Track progress**: `update_task(status="in_progress")`
 5. **Complete work**: Commit with `[task-id]` in message, then `close_task(commit_sha="...")`

@@ -252,7 +252,7 @@ call_tool(server_name="gobby-tasks", tool_name="close_task", arguments={
    - `list_ready_tasks()` - List all tasks ready to work on
 
 2. **Create new work**:
-   - `create_task(title, description, task_type, priority)`
+   - `create_task(title, description, task_type, priority, session_id)` - session_id required
    - Task types: `task`, `bug`, `feature`, `epic`
 
 3. **Complex tasks** (multi-step work):
@@ -400,7 +400,8 @@ call_tool("gobby-tasks", "create_task", {
     "title": "Add user authentication",
     "validation": {
         "criteria": "Tests pass, no linting errors, auth flow works end-to-end"
-    }
+    },
+    "session_id": "<your_session_id>"  # Required
 })
 
 # Later, when closing, validation runs automatically
@@ -770,7 +771,8 @@ def test_integration() -> None:
 # 1. Create parent task
 parent = call_tool("gobby-tasks", "create_task", {
     "title": "Implement user authentication",
-    "task_type": "feature"
+    "task_type": "feature",
+    "session_id": "<your_session_id>"  # Required
 })
 
 # 2. Expand into subtasks (auto-creates TDD pairs)

@@ -68,7 +68,7 @@ Returns complete inputSchema with all parameters.
 mcp__gobby__call_tool(
     server_name="gobby-tasks",
     tool_name="create_task",
-    arguments={"title": "Implement feature X"}
+    arguments={"title": "Implement feature X", "session_id": "<your_session_id>"}
 )
 ```
 
@@ -112,7 +112,8 @@ mcp__gobby__call_tool(
         "description": "Users getting 401 on valid credentials",
         "priority": 1,           # 1=High, 2=Medium, 3=Low
         "task_type": "bug",      # task, bug, feature, epic
-        "labels": ["auth", "urgent"]
+        "labels": ["auth", "urgent"],
+        "session_id": "<your_session_id>"  # Required
     }
 )
 ```
@@ -212,7 +213,8 @@ mcp__gobby__call_tool(
     tool_name="create_task",
     arguments={
         "title": "Set up database",
-        "blocks": ["gt-api-task", "gt-auth-task"]  # This task blocks these
+        "blocks": ["gt-api-task", "gt-auth-task"],  # This task blocks these
+        "session_id": "<your_session_id>"  # Required
     }
 )
 ```

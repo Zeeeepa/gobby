@@ -1363,7 +1363,7 @@ class TestWorkflowFilteredHandler:
         )
 
         # Allowed tool should succeed
-        result = await handler("create_task", {"title": "Test"})
+        result = await handler("create_task", {"title": "Test", "session_id": "sess-test"})
         assert result.success is True
 
         # Not allowed tool should fail

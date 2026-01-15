@@ -91,7 +91,7 @@ You are operating within a Gobby-enabled environment. You **must** use the `gobb
 2. **Define Work:**
     * **Get Schema:** `mcp_get_tool_schema(server="gobby-tasks", tool="create_task")`
         * *Constraint:* You MUST fetch the schema for a specific tool **at least once** in the current session before calling it.
-    * **Create Task:** `mcp_call_tool(server="gobby-tasks", tool="create_task", arguments={"title": "..."})`
+    * **Create Task:** `mcp_call_tool(server="gobby-tasks", tool="create_task", arguments={"title": "...", "session_id": "<your_session_id>"})`
 
 3. **Link Session:**
     * `mcp_call_tool(server="gobby-tasks", tool="link_task_to_session", {})`

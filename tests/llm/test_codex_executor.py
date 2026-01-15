@@ -195,7 +195,7 @@ class TestCodexExecutorApiKeyMode:
         mock_tool_call = MagicMock()
         mock_tool_call.id = "call_123"
         mock_tool_call.function.name = "create_task"
-        mock_tool_call.function.arguments = '{"title": "New Task"}'
+        mock_tool_call.function.arguments = '{"title": "New Task", "session_id": "test-session"}'
 
         mock_message1 = MagicMock()
         mock_message1.content = None
@@ -253,8 +253,8 @@ class TestCodexExecutorApiKeyMode:
         assert result.output == "Created task successfully"
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0].tool_name == "create_task"
-        assert result.tool_calls[0].arguments == {"title": "New Task"}
-        tool_handler.assert_called_once_with("create_task", {"title": "New Task"})
+        assert result.tool_calls[0].arguments == {"title": "New Task", "session_id": "test-session"}
+        tool_handler.assert_called_once_with("create_task", {"title": "New Task", "session_id": "test-session"})
 
     @pytest.mark.asyncio
     async def test_run_timeout(self, executor_with_mock_client, sample_tools):
