@@ -844,7 +844,7 @@ class TaskHierarchyBuilder:
             and cb.depth == 0
         ]
 
-    def build_from_headings(
+    async def build_from_headings(
         self,
         headings: list[HeadingNode],
         checkboxes: ExtractedCheckboxes | None = None,
@@ -870,7 +870,7 @@ class TaskHierarchyBuilder:
 
         # Process each heading tree recursively
         for heading in headings:
-            task_ids = self._process_heading(
+            task_ids = await self._process_heading(
                 heading=heading,
                 parent_task_id=self.parent_task_id,
                 all_checkboxes=all_checkboxes,
@@ -888,7 +888,7 @@ class TaskHierarchyBuilder:
             parallel_groups=parallel_groups,
         )
 
-    def build_from_checkboxes(
+    async def build_from_checkboxes(
         self,
         checkboxes: ExtractedCheckboxes,
         heading_text: str | None = None,
@@ -921,12 +921,17 @@ class TaskHierarchyBuilder:
             root_task_ids.append(epic.id)
             epic_id = epic.id
 
+        # Collect all checkbox items for context
+        all_checkbox_items = list(checkboxes.items)
+
         # Process top-level checkboxes
         for item in checkboxes.items:
-            task_ids = self._process_checkbox(
+            task_ids = await self._process_checkbox(
                 checkbox=item,
                 parent_task_id=epic_id,
                 created_tasks=created_tasks,
+                current_heading=None,
+                all_checkboxes=all_checkbox_items,
             )
             if not heading_text:
                 root_task_ids.extend(task_ids)
@@ -937,7 +942,7 @@ class TaskHierarchyBuilder:
             total_count=len(created_tasks),
         )
 
-    def _process_heading(
+    async def _process_heading(
         self,
         heading: HeadingNode,
         parent_task_id: str | None,
@@ -986,15 +991,17 @@ class TaskHierarchyBuilder:
 
         # Process checkboxes under this heading (scoped by line range)
         for checkbox in self._get_checkboxes_for_heading(heading, all_checkboxes):
-            self._process_checkbox(
+            await self._process_checkbox(
                 checkbox=checkbox,
                 parent_task_id=task.id,
                 created_tasks=created_tasks,
+                current_heading=heading,
+                all_checkboxes=all_checkboxes,
             )
 
         # Process child headings
         for child in heading.children:
-            self._process_heading(
+            await self._process_heading(
                 heading=child,
                 parent_task_id=task.id,
                 all_checkboxes=all_checkboxes,
@@ -1003,11 +1010,13 @@ class TaskHierarchyBuilder:
 
         return created_at_level
 
-    def _process_checkbox(
+    async def _process_checkbox(
         self,
         checkbox: CheckboxItem,
         parent_task_id: str | None,
         created_tasks: list[CreatedTask],
+        current_heading: HeadingNode | None = None,
+        all_checkboxes: list[CheckboxItem] | None = None,
     ) -> list[str]:
         """Process a checkbox item and its children recursively.
 
@@ -1015,6 +1024,8 @@ class TaskHierarchyBuilder:
             checkbox: CheckboxItem to process
             parent_task_id: ID of parent task (if any)
             created_tasks: List to append created tasks to
+            current_heading: The heading this checkbox belongs to (for context)
+            all_checkboxes: All checkboxes in the document (for related task context)
 
         Returns:
             List of task IDs created at this level
@@ -1024,12 +1035,19 @@ class TaskHierarchyBuilder:
         # Determine status based on checkbox state
         status = "closed" if checkbox.checked else "open"
 
+        # Build smart description with context from heading and related tasks
+        description = await self._build_smart_description(
+            checkbox=checkbox,
+            heading=current_heading,
+            all_checkboxes=all_checkboxes or [],
+        )
+
         # In TDD mode, create test→implement pairs for open tasks
         if self.tdd_mode and status == "open":
             tasks = self._create_tdd_triplet(
                 title=checkbox.text,
                 parent_task_id=parent_task_id,
-                description=None,
+                description=description,
             )
             created_tasks.extend(tasks)
             created_at_level.extend(t.id for t in tasks)
@@ -1041,7 +1059,7 @@ class TaskHierarchyBuilder:
                 title=checkbox.text,
                 task_type="task",
                 parent_task_id=parent_task_id,
-                description=None,
+                description=description,
                 status=status,
             )
             created_tasks.append(task)
@@ -1050,10 +1068,12 @@ class TaskHierarchyBuilder:
 
         # Process nested checkboxes as child tasks
         for child in checkbox.children:
-            self._process_checkbox(
+            await self._process_checkbox(
                 checkbox=child,
                 parent_task_id=impl_task.id,
                 created_tasks=created_tasks,
+                current_heading=current_heading,
+                all_checkboxes=all_checkboxes,
             )
 
         return created_at_level
@@ -1306,10 +1326,12 @@ class TaskHierarchyBuilder:
         if has_checkboxes:
             # Use checkboxes directly under this heading (scoped by line range)
             for checkbox in self._get_checkboxes_for_heading(heading, all_checkboxes):
-                self._process_checkbox(
+                await self._process_checkbox(
                     checkbox=checkbox,
                     parent_task_id=task.id,
                     created_tasks=created_tasks,
+                    current_heading=heading,
+                    all_checkboxes=all_checkboxes,
                 )
 
             # Process child headings recursively

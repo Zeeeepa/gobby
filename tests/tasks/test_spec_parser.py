@@ -1,5 +1,7 @@
 """Tests for the markdown spec parser."""
 
+import uuid
+
 import pytest
 
 from gobby.tasks.spec_parser import (
@@ -1130,13 +1132,15 @@ class TestTaskHierarchyBuilderInit:
 class TestBuildFromHeadings:
     """Tests for TaskHierarchyBuilder.build_from_headings()."""
 
-    def test_build_empty_headings(self, hierarchy_builder):
-        result = hierarchy_builder.build_from_headings([])
+    @pytest.mark.asyncio
+    async def test_build_empty_headings(self, hierarchy_builder):
+        result = await hierarchy_builder.build_from_headings([])
         assert result.total_count == 0
         assert result.root_task_ids == []
         assert result.tasks == []
 
-    def test_build_single_h2_heading(self, hierarchy_builder, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_build_single_h2_heading(self, hierarchy_builder, mock_task_manager):
         headings = [
             HeadingNode(
                 text="Overview",
@@ -1146,7 +1150,7 @@ class TestBuildFromHeadings:
                 content="Some content",
             )
         ]
-        result = hierarchy_builder.build_from_headings(headings)
+        result = await hierarchy_builder.build_from_headings(headings)
 
         assert result.total_count == 1
         assert len(result.root_task_ids) == 1
@@ -1155,7 +1159,8 @@ class TestBuildFromHeadings:
         assert mock_task_manager.tasks[0].task_type == "epic"
         assert mock_task_manager.tasks[0].title == "Overview"
 
-    def test_build_h2_with_h3_children(self, hierarchy_builder, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_build_h2_with_h3_children(self, hierarchy_builder, mock_task_manager):
         child1 = HeadingNode(text="Task 1", level=3, line_start=5, line_end=10)
         child2 = HeadingNode(text="Task 2", level=3, line_start=11, line_end=15)
         parent = HeadingNode(
@@ -1166,7 +1171,7 @@ class TestBuildFromHeadings:
             children=[child1, child2],
         )
 
-        result = hierarchy_builder.build_from_headings([parent])
+        result = await hierarchy_builder.build_from_headings([parent])
 
         assert result.total_count == 3
         assert len(result.root_task_ids) == 1
@@ -1184,7 +1189,8 @@ class TestBuildFromHeadings:
         assert tasks[2].title == "Task 2"
         assert tasks[2].parent_task_id == tasks[0].id
 
-    def test_build_h4_becomes_task(self, hierarchy_builder, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_build_h4_becomes_task(self, hierarchy_builder, mock_task_manager):
         subtask = HeadingNode(text="Subtask A", level=4, line_start=5, line_end=10)
         phase = HeadingNode(
             text="Phase 1",
@@ -1194,7 +1200,7 @@ class TestBuildFromHeadings:
             children=[subtask],
         )
 
-        result = hierarchy_builder.build_from_headings([phase])
+        result = await hierarchy_builder.build_from_headings([phase])
 
         assert result.total_count == 2
         tasks = mock_task_manager.tasks
@@ -1205,18 +1211,20 @@ class TestBuildFromHeadings:
         assert tasks[1].task_type == "task"
         assert tasks[1].parent_task_id == tasks[0].id
 
-    def test_build_multiple_root_headings(self, hierarchy_builder, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_build_multiple_root_headings(self, hierarchy_builder, mock_task_manager):
         h1 = HeadingNode(text="Phase 1", level=2, line_start=1, line_end=5)
         h2 = HeadingNode(text="Phase 2", level=2, line_start=6, line_end=10)
         h3 = HeadingNode(text="Phase 3", level=2, line_start=11, line_end=15)
 
-        result = hierarchy_builder.build_from_headings([h1, h2, h3])
+        result = await hierarchy_builder.build_from_headings([h1, h2, h3])
 
         assert result.total_count == 3
         assert len(result.root_task_ids) == 3
         assert all(t.parent_task_id is None for t in mock_task_manager.tasks)
 
-    def test_build_with_parent_task_id(self, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_build_with_parent_task_id(self, mock_task_manager):
         builder = TaskHierarchyBuilder(
             task_manager=mock_task_manager,
             project_id="test-project",
@@ -1224,12 +1232,13 @@ class TestBuildFromHeadings:
         )
         heading = HeadingNode(text="Child Phase", level=2, line_start=1, line_end=5)
 
-        result = builder.build_from_headings([heading])
+        result = await builder.build_from_headings([heading])
 
         assert result.total_count == 1
         assert mock_task_manager.tasks[0].parent_task_id == "gt-epic-parent"
 
-    def test_build_with_checkboxes_integration(
+    @pytest.mark.asyncio
+    async def test_build_with_checkboxes_integration(
         self, hierarchy_builder, mock_task_manager
     ):
         """Test that checkboxes are integrated under their parent headings."""
@@ -1249,7 +1258,7 @@ class TestBuildFromHeadings:
             checked_count=0,
         )
 
-        result = hierarchy_builder.build_from_headings([heading], checkboxes)
+        result = await hierarchy_builder.build_from_headings([heading], checkboxes)
 
         # Should create 2 tasks: epic for heading + task for checkbox
         assert result.total_count == 2
@@ -1266,34 +1275,37 @@ class TestBuildFromHeadings:
 class TestBuildFromCheckboxes:
     """Tests for TaskHierarchyBuilder.build_from_checkboxes()."""
 
-    def test_build_empty_checkboxes(self, hierarchy_builder):
+    @pytest.mark.asyncio
+    async def test_build_empty_checkboxes(self, hierarchy_builder):
         checkboxes = ExtractedCheckboxes(items=[], total_count=0, checked_count=0)
-        result = hierarchy_builder.build_from_checkboxes(checkboxes)
+        result = await hierarchy_builder.build_from_checkboxes(checkboxes)
 
         assert result.total_count == 0
         assert result.root_task_ids == []
 
-    def test_build_simple_checkboxes(self, hierarchy_builder, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_build_simple_checkboxes(self, hierarchy_builder, mock_task_manager):
         items = [
             CheckboxItem("Task 1", False, 0, 0, "- [ ] Task 1"),
             CheckboxItem("Task 2", False, 1, 0, "- [ ] Task 2"),
         ]
         checkboxes = ExtractedCheckboxes(items=items, total_count=2, checked_count=0)
 
-        result = hierarchy_builder.build_from_checkboxes(checkboxes)
+        result = await hierarchy_builder.build_from_checkboxes(checkboxes)
 
         assert result.total_count == 2
         assert len(result.root_task_ids) == 2
         assert mock_task_manager.tasks[0].title == "Task 1"
         assert mock_task_manager.tasks[1].title == "Task 2"
 
-    def test_build_checkboxes_with_heading_creates_epic(
+    @pytest.mark.asyncio
+    async def test_build_checkboxes_with_heading_creates_epic(
         self, hierarchy_builder, mock_task_manager
     ):
         items = [CheckboxItem("Task 1", False, 0, 0, "- [ ] Task 1")]
         checkboxes = ExtractedCheckboxes(items=items, total_count=1, checked_count=0)
 
-        result = hierarchy_builder.build_from_checkboxes(
+        result = await hierarchy_builder.build_from_checkboxes(
             checkboxes, heading_text="My Epic"
         )
 
@@ -1306,7 +1318,8 @@ class TestBuildFromCheckboxes:
         assert tasks[1].title == "Task 1"
         assert tasks[1].parent_task_id == tasks[0].id
 
-    def test_build_nested_checkboxes(self, hierarchy_builder, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_build_nested_checkboxes(self, hierarchy_builder, mock_task_manager):
         child = CheckboxItem("Child Task", False, 1, 2, "  - [ ] Child Task")
         parent_item = CheckboxItem(
             "Parent Task", False, 0, 0, "- [ ] Parent Task", children=[child]
@@ -1315,7 +1328,7 @@ class TestBuildFromCheckboxes:
             items=[parent_item], total_count=2, checked_count=0
         )
 
-        result = hierarchy_builder.build_from_checkboxes(checkboxes)
+        result = await hierarchy_builder.build_from_checkboxes(checkboxes)
 
         assert result.total_count == 2
 
@@ -1324,13 +1337,14 @@ class TestBuildFromCheckboxes:
         assert tasks[1].title == "Child Task"
         assert tasks[1].parent_task_id == tasks[0].id
 
-    def test_build_checked_checkbox_creates_closed_task(
+    @pytest.mark.asyncio
+    async def test_build_checked_checkbox_creates_closed_task(
         self, hierarchy_builder, mock_task_manager
     ):
         item = CheckboxItem("Done Task", True, 0, 0, "- [x] Done Task")
         checkboxes = ExtractedCheckboxes(items=[item], total_count=1, checked_count=1)
 
-        result = hierarchy_builder.build_from_checkboxes(checkboxes)
+        result = await hierarchy_builder.build_from_checkboxes(checkboxes)
 
         assert result.total_count == 1
         # Task should have been updated to closed status
@@ -1341,7 +1355,8 @@ class TestBuildFromCheckboxes:
 class TestTaskHierarchyBuilderIntegration:
     """Integration tests combining parsers with hierarchy builder."""
 
-    def test_full_pipeline_heading_to_tasks(self, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_full_pipeline_heading_to_tasks(self, mock_task_manager):
         """Parse markdown and build tasks in one flow."""
         content = """## Phase 1: Setup
 
@@ -1368,7 +1383,7 @@ First implementation step.
             task_manager=mock_task_manager,
             project_id="test-project",
         )
-        result = builder.build_from_headings(headings)
+        result = await builder.build_from_headings(headings)
 
         # Should create: Phase 1 (epic), Task 1.1 (epic), Task 1.2 (epic), Phase 2 (epic), Subtask 2.1 (task)
         assert result.total_count == 5
@@ -1379,7 +1394,8 @@ First implementation step.
         assert task_types.count("epic") == 4  # All level 2-3
         assert task_types.count("task") == 1  # Only level 4
 
-    def test_full_pipeline_checkbox_to_tasks(self, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_full_pipeline_checkbox_to_tasks(self, mock_task_manager):
         """Parse checkboxes and build tasks in one flow."""
         content = """## Implementation Tasks
 
@@ -1396,7 +1412,7 @@ First implementation step.
             task_manager=mock_task_manager,
             project_id="test-project",
         )
-        result = builder.build_from_checkboxes(checkboxes)
+        result = await builder.build_from_checkboxes(checkboxes)
 
         # Should create: Write unit tests, Test parser, Test builder, Setup CI/CD, Deploy to staging
         assert result.total_count == 5
@@ -1411,7 +1427,8 @@ First implementation step.
         # Setup CI/CD should have status update to closed
         assert any(u.get("status") == "closed" for u in mock_task_manager.updates)
 
-    def test_full_pipeline_headings_with_checkboxes(self, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_full_pipeline_headings_with_checkboxes(self, mock_task_manager):
         """Parse headings and checkboxes together."""
         content = """## Phase 1: Foundation
 
@@ -1444,7 +1461,7 @@ First implementation step.
             task_manager=mock_task_manager,
             project_id="test-project",
         )
-        result = builder.build_from_headings(headings, checkboxes)
+        result = await builder.build_from_headings(headings, checkboxes)
 
         # Headings: Phase 1, Setup Tasks, Implementation, Phase 2 (4 epics)
         # Checkboxes: 6 tasks under their respective headings
@@ -1968,7 +1985,8 @@ class TestHierarchyBuildResultParallelGroups:
 class TestParallelismDetection:
     """Tests for TaskHierarchyBuilder parallelism detection."""
 
-    def test_sibling_phases_detected_as_parallel(self, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_sibling_phases_detected_as_parallel(self, mock_task_manager):
         """Sibling phases at the same level are detected as parallelizable."""
         content = """## Phase 1: Foundation
 
@@ -1989,7 +2007,7 @@ Write tests.
             task_manager=mock_task_manager,
             project_id="test-project",
         )
-        result = builder.build_from_headings(headings)
+        result = await builder.build_from_headings(headings)
 
         # Should detect the 3 sibling phases as a parallel group
         assert len(result.parallel_groups) == 1
@@ -1999,7 +2017,8 @@ Write tests.
         assert group.parent_task_id is None  # Top-level
         assert group.heading_level == 2
 
-    def test_nested_siblings_detected_at_each_level(self, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_nested_siblings_detected_at_each_level(self, mock_task_manager):
         """Sibling headings at each level are detected as parallel groups."""
         content = """## Phase 1: Core
 
@@ -2026,7 +2045,7 @@ Test the system.
             task_manager=mock_task_manager,
             project_id="test-project",
         )
-        result = builder.build_from_headings(headings)
+        result = await builder.build_from_headings(headings)
 
         # Should have 2 parallel groups:
         # 1. Top-level: Phase 1, Phase 2
@@ -2041,7 +2060,8 @@ Test the system.
         assert nested_level.size == 3  # Task 1.1, 1.2, 1.3
         assert nested_level.parent_task_id is not None  # Parent is Phase 1
 
-    def test_single_heading_not_parallelizable(self, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_single_heading_not_parallelizable(self, mock_task_manager):
         """Single heading does not create parallelizable group."""
         content = """## Single Phase
 
@@ -2054,14 +2074,15 @@ Just one phase.
             task_manager=mock_task_manager,
             project_id="test-project",
         )
-        result = builder.build_from_headings(headings)
+        result = await builder.build_from_headings(headings)
 
         # Group exists but is not parallelizable
         assert len(result.parallel_groups) == 1
         assert result.parallel_groups[0].is_parallelizable() is False
         assert len(result.parallelizable_groups) == 0
 
-    def test_deep_nesting_parallel_groups(self, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_deep_nesting_parallel_groups(self, mock_task_manager):
         """Parallel groups detected at all levels of nesting."""
         content = """## Epic 1
 
@@ -2090,7 +2111,7 @@ Epic 2 content.
             task_manager=mock_task_manager,
             project_id="test-project",
         )
-        result = builder.build_from_headings(headings)
+        result = await builder.build_from_headings(headings)
 
         # Should have 3 parallel groups:
         # 1. Top-level (h2): Epic 1, Epic 2
@@ -2111,7 +2132,8 @@ Epic 2 content.
         assert len(h4_groups) == 1
         assert h4_groups[0].size == 2  # Task A, Task B
 
-    def test_parallel_groups_have_correct_parent_ids(self, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_parallel_groups_have_correct_parent_ids(self, mock_task_manager):
         """Parallel groups correctly reference their parent task IDs."""
         content = """## Parent Phase
 
@@ -2130,7 +2152,7 @@ Child 2 content.
             task_manager=mock_task_manager,
             project_id="test-project",
         )
-        result = builder.build_from_headings(headings)
+        result = await builder.build_from_headings(headings)
 
         # Find the child group (h3)
         child_group = [g for g in result.parallel_groups if g.heading_level == 3][0]
@@ -2139,7 +2161,8 @@ Child 2 content.
         parent_task = next(t for t in result.tasks if t.title == "Parent Phase")
         assert child_group.parent_task_id == parent_task.id
 
-    def test_no_cross_dependencies_between_siblings(self, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_no_cross_dependencies_between_siblings(self, mock_task_manager):
         """Sibling tasks have no dependencies on each other (implicit in structure)."""
         content = """## Phase A
 
@@ -2160,7 +2183,7 @@ Content C.
             task_manager=mock_task_manager,
             project_id="test-project",
         )
-        result = builder.build_from_headings(headings)
+        result = await builder.build_from_headings(headings)
 
         # All tasks at root level have no parent (independent)
         for task in result.tasks:
@@ -2170,17 +2193,19 @@ Content C.
         assert len(result.parallelizable_groups) == 1
         assert result.parallelizable_groups[0].size == 3
 
-    def test_empty_headings_no_parallel_groups(self, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_empty_headings_no_parallel_groups(self, mock_task_manager):
         """Empty heading list produces no parallel groups."""
         builder = TaskHierarchyBuilder(
             task_manager=mock_task_manager,
             project_id="test-project",
         )
-        result = builder.build_from_headings([])
+        result = await builder.build_from_headings([])
 
         assert len(result.parallel_groups) == 0
 
-    def test_with_parent_task_id_sets_group_parent(self, mock_task_manager):
+    @pytest.mark.asyncio
+    async def test_with_parent_task_id_sets_group_parent(self, mock_task_manager):
         """Builder with parent_task_id sets it on top-level group."""
         content = """## Sub-Phase 1
 
@@ -2198,7 +2223,7 @@ Content 2.
             project_id="test-project",
             parent_task_id="gt-external-parent",
         )
-        result = builder.build_from_headings(headings)
+        result = await builder.build_from_headings(headings)
 
         # Top-level group should have the external parent
         top_group = result.parallel_groups[0]
@@ -2361,7 +2386,8 @@ class TestTDDMode:
         assert dep2["depends_on"] == tasks[1].id
         assert dep2["dep_type"] == "blocks"
 
-    def test_checkbox_in_tdd_mode_creates_triplet(
+    @pytest.mark.asyncio
+    async def test_checkbox_in_tdd_mode_creates_triplet(
         self, mock_task_manager_with_db, monkeypatch
     ):
         """Checkboxes in TDD mode create test->implement->refactor triplets."""
@@ -2384,7 +2410,7 @@ class TestTDDMode:
         )
 
         created_tasks: list[CreatedTask] = []
-        builder._process_checkbox(
+        await builder._process_checkbox(
             checkbox=checkbox,
             parent_task_id="gt-parent",
             created_tasks=created_tasks,
@@ -2396,7 +2422,8 @@ class TestTDDMode:
         assert created_tasks[1].title == "Implement: Add user validation"
         assert created_tasks[2].title == "Refactor: Add user validation"
 
-    def test_checked_checkbox_no_tdd_pair(self, mock_task_manager_with_db, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_checked_checkbox_no_tdd_pair(self, mock_task_manager_with_db, monkeypatch):
         """Checked checkboxes (closed tasks) do NOT create TDD pairs."""
         builder = TaskHierarchyBuilder(
             task_manager=mock_task_manager_with_db,
@@ -2417,7 +2444,7 @@ class TestTDDMode:
         )
 
         created_tasks: list[CreatedTask] = []
-        builder._process_checkbox(
+        await builder._process_checkbox(
             checkbox=checkbox,
             parent_task_id="gt-parent",
             created_tasks=created_tasks,
@@ -2428,7 +2455,8 @@ class TestTDDMode:
         assert created_tasks[0].title == "Already done task"
         assert created_tasks[0].status == "closed"
 
-    def test_h4_heading_in_tdd_mode_creates_triplet(
+    @pytest.mark.asyncio
+    async def test_h4_heading_in_tdd_mode_creates_triplet(
         self, mock_task_manager_with_db, monkeypatch
     ):
         """H4 headings (task type) in TDD mode create test→implement->refactor triplets."""
@@ -2452,7 +2480,7 @@ class TestTDDMode:
         )
 
         created_tasks: list[CreatedTask] = []
-        builder._process_heading(
+        await builder._process_heading(
             heading=heading,
             parent_task_id="gt-parent",
             all_checkboxes=[],
@@ -2467,7 +2495,8 @@ class TestTDDMode:
         assert created_tasks[1].title == "Implement: Add authentication middleware"
         assert created_tasks[2].title == "Refactor: Add authentication middleware"
 
-    def test_h2_heading_no_tdd_pair(self, mock_task_manager_with_db, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_h2_heading_no_tdd_pair(self, mock_task_manager_with_db, monkeypatch):
         """H2 headings (epic type) do NOT create TDD pairs even in TDD mode."""
         builder = TaskHierarchyBuilder(
             task_manager=mock_task_manager_with_db,
@@ -2489,7 +2518,7 @@ class TestTDDMode:
         )
 
         created_tasks: list[CreatedTask] = []
-        builder._process_heading(
+        await builder._process_heading(
             heading=heading,
             parent_task_id=None,
             all_checkboxes=[],
@@ -2501,7 +2530,8 @@ class TestTDDMode:
         assert created_tasks[0].title == "Phase 1: Foundation"
         assert created_tasks[0].task_type == "epic"
 
-    def test_h3_heading_no_tdd_pair(self, mock_task_manager_with_db, monkeypatch):
+    @pytest.mark.asyncio
+    async def test_h3_heading_no_tdd_pair(self, mock_task_manager_with_db, monkeypatch):
         """H3 headings (epic type) do NOT create TDD pairs even in TDD mode."""
         builder = TaskHierarchyBuilder(
             task_manager=mock_task_manager_with_db,
@@ -2523,7 +2553,7 @@ class TestTDDMode:
         )
 
         created_tasks: list[CreatedTask] = []
-        builder._process_heading(
+        await builder._process_heading(
             heading=heading,
             parent_task_id="gt-parent",
             all_checkboxes=[],
@@ -3646,6 +3676,10 @@ class TestProcessCheckboxCallsSmartDescription:
             tdd_mode=True,  # TDD mode creates triplets
         )
 
+        # Mock the dependency manager for TDD mode
+        mock_dep_manager = MockDependencyManager()
+        monkeypatch.setattr(builder, "_dep_manager", mock_dep_manager)
+
         heading = HeadingNode(
             text="Phase 2: Features",
             level=3,
@@ -3677,10 +3711,19 @@ class TestProcessCheckboxCallsSmartDescription:
         # TDD mode creates 3 tasks (test, impl, refactor)
         assert len(created_tasks) == 3
 
-        # All triplet tasks should have received description with context
+        # All tasks should have descriptions (not None)
         for desc in create_task_descriptions:
             assert desc is not None, "TDD triplet tasks should receive descriptions"
-            assert "Part of: Phase 2: Features" in desc
+
+        # The implementation task (index 1) should contain the smart description context
+        # Test and Refactor tasks have hardcoded descriptions in _create_tdd_triplet
+        impl_description = create_task_descriptions[1]
+        assert "Part of: Phase 2: Features" in impl_description, (
+            f"Implementation task should contain heading context. Got: {impl_description}"
+        )
+        assert "Goal: Add new features" in impl_description, (
+            f"Implementation task should contain goal. Got: {impl_description}"
+        )
 
     @pytest.mark.asyncio
     async def test_process_checkbox_without_heading(
