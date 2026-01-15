@@ -2477,3 +2477,247 @@ class TestSingleLevelExpansion:
         # Verify only immediate children returned
         assert result["tasks_created"] == 1
         assert result["subtasks"][0]["id"] == "sub1"
+
+
+# ============================================================================
+# Expansion Context Usage Tests
+# ============================================================================
+
+
+class TestExpansionContextUsage:
+    """Tests for using stored expansion_context from prior enrich_task calls.
+
+    When a task has been enriched (is_enriched=True, expansion_context populated),
+    expand_task should read and use this data to inform expansion decisions.
+    """
+
+    @pytest.mark.asyncio
+    async def test_expand_task_uses_stored_expansion_context(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that expand_task reads and uses stored expansion_context."""
+        import json
+
+        # Task that was previously enriched
+        enrichment_data = {
+            "task_id": "parent",
+            "category": "code",
+            "complexity_score": 3,
+            "research_findings": "Found relevant auth patterns in auth_service.py",
+            "suggested_subtask_count": 5,
+            "validation_criteria": "- [ ] Tests pass\n- [ ] Auth flow works end-to-end",
+            "mcp_tools_used": ["context7"],
+        }
+
+        enriched_task = Task(
+            id="parent",
+            title="Implement authentication",
+            description="Add user login functionality",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            is_enriched=True,
+            expansion_context=json.dumps(enrichment_data),
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = enriched_task
+        mock_task_manager.list_tasks.return_value = []
+        mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1"]}
+
+        await expansion_registry.call("expand_task", {"task_id": "parent"})
+
+        # Verify expand_task was called (enriched tasks should still expand)
+        mock_task_expander.expand_task.assert_called_once()
+
+        # Verify enrichment data was passed as context
+        call_kwargs = mock_task_expander.expand_task.call_args.kwargs
+        context = call_kwargs.get("context") or ""
+
+        # Research findings should be included in context
+        assert context, "Context should not be empty when task has enrichment data"
+        assert "auth patterns" in context.lower() or "auth_service.py" in context
+
+        # Validation criteria from enrichment should be included
+        assert "Tests pass" in context or "Auth flow" in context
+
+    @pytest.mark.asyncio
+    async def test_expand_task_passes_enrichment_context_to_expander(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that enrichment research findings are passed as context."""
+        import json
+
+        enrichment_data = {
+            "task_id": "parent",
+            "category": "code",
+            "complexity_score": 2,
+            "research_findings": "Auth module uses JWT tokens. Session handling in session.py.",
+            "suggested_subtask_count": 3,
+        }
+
+        enriched_task = Task(
+            id="parent",
+            title="Fix auth bug",
+            description="Fix login issues",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="bug",
+            is_enriched=True,
+            expansion_context=json.dumps(enrichment_data),
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = enriched_task
+        mock_task_manager.list_tasks.return_value = []
+        mock_task_expander.expand_task.return_value = {"subtask_ids": []}
+
+        # Call with additional context
+        await expansion_registry.call(
+            "expand_task",
+            {"task_id": "parent", "context": "Additional user context"},
+        )
+
+        # Verify context was passed to expander including enrichment research
+        call_kwargs = mock_task_expander.expand_task.call_args.kwargs
+        context = call_kwargs.get("context") or ""
+
+        # User context should be included
+        assert "Additional user context" in context
+
+        # Enrichment research findings should ALSO be included in the context
+        assert "Auth module uses JWT tokens" in context, (
+            f"Expected enrichment research in context, got: {context}"
+        )
+        assert "Session handling in session.py" in context
+
+    @pytest.mark.asyncio
+    async def test_expand_task_works_without_expansion_context(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that expand_task works normally when task has no expansion_context."""
+        # Task without enrichment
+        unenriched_task = Task(
+            id="parent",
+            title="Simple task",
+            description="Do something",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            is_enriched=False,
+            expansion_context=None,
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = unenriched_task
+        mock_task_manager.list_tasks.return_value = []
+        mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1"]}
+
+        result = await expansion_registry.call("expand_task", {"task_id": "parent"})
+
+        # Should work normally
+        assert result["tasks_created"] == 1
+        mock_task_expander.expand_task.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_expand_task_handles_invalid_expansion_context_json(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that expand_task handles malformed expansion_context gracefully."""
+        # Task with invalid JSON in expansion_context
+        task_with_bad_context = Task(
+            id="parent",
+            title="Task with bad context",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            is_enriched=True,
+            expansion_context="not valid json {{{",
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task_with_bad_context
+        mock_task_manager.list_tasks.return_value = []
+        mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1"]}
+
+        # Should not crash - fallback to normal expansion
+        result = await expansion_registry.call("expand_task", {"task_id": "parent"})
+
+        # Should still work
+        assert result["tasks_created"] == 1
+
+    @pytest.mark.asyncio
+    async def test_expand_task_uses_complexity_from_enrichment(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that complexity_score from enrichment influences expansion."""
+        import json
+
+        # High complexity task
+        enrichment_data = {
+            "task_id": "parent",
+            "complexity_score": 3,  # High complexity
+            "suggested_subtask_count": 7,
+        }
+
+        complex_task = Task(
+            id="parent",
+            title="Complex refactoring",
+            description="Major overhaul",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="feature",
+            is_enriched=True,
+            complexity_score=3,  # Also stored on task
+            expansion_context=json.dumps(enrichment_data),
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = complex_task
+        mock_task_manager.list_tasks.return_value = []
+        mock_task_expander.expand_task.return_value = {"subtask_ids": ["s1", "s2", "s3"]}
+
+        result = await expansion_registry.call("expand_task", {"task_id": "parent"})
+
+        # Expansion should complete normally
+        assert result["tasks_created"] == 3
+
+        # Complexity info from enrichment should be passed as context
+        call_kwargs = mock_task_expander.expand_task.call_args.kwargs
+        context = call_kwargs.get("context") or ""
+
+        # Enrichment complexity info should be in context
+        assert context, "Context should contain enrichment data for complex tasks"
+        assert "complexity" in context.lower() or "subtask" in context.lower(), (
+            f"Expected complexity info in context, got: {context}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_expand_task_with_empty_expansion_context(
+        self, mock_task_manager, mock_task_expander, expansion_registry
+    ):
+        """Test that expand_task handles empty expansion_context string."""
+        task_with_empty_context = Task(
+            id="parent",
+            title="Task",
+            project_id="p1",
+            status="open",
+            priority=2,
+            task_type="task",
+            is_enriched=True,
+            expansion_context="",  # Empty string
+            created_at="now",
+            updated_at="now",
+        )
+        mock_task_manager.get_task.return_value = task_with_empty_context
+        mock_task_manager.list_tasks.return_value = []
+        mock_task_expander.expand_task.return_value = {"subtask_ids": ["sub1"]}
+
+        # Should work normally
+        result = await expansion_registry.call("expand_task", {"task_id": "parent"})
+        assert result["tasks_created"] == 1
