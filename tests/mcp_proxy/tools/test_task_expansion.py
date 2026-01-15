@@ -3672,3 +3672,117 @@ class TestTddTripletDependencies:
                 for call in add_dep_calls
             )
             assert refactor_blocked_by_impl, f"Refactor should be blocked by Implement, got {add_dep_calls}"
+
+
+# ============================================================================
+# should_skip_tdd() Function Tests
+# ============================================================================
+
+
+class TestShouldSkipTdd:
+    """Tests for should_skip_tdd() function with TDD_SKIP_PATTERNS."""
+
+    def test_should_skip_tdd_function_exists(self):
+        """Test that should_skip_tdd function is importable."""
+        if not IMPORT_SUCCEEDED:
+            pytest.skip("Module not extracted yet")
+
+        try:
+            from gobby.mcp_proxy.tools.task_expansion import should_skip_tdd
+            assert callable(should_skip_tdd), "should_skip_tdd should be callable"
+        except ImportError:
+            pytest.fail("should_skip_tdd function not yet implemented")
+
+    def test_should_skip_tdd_skips_tdd_prefix_write_tests(self):
+        """Test that tasks with 'Write tests for:' prefix are skipped."""
+        if not IMPORT_SUCCEEDED:
+            pytest.skip("Module not extracted yet")
+
+        try:
+            from gobby.mcp_proxy.tools.task_expansion import should_skip_tdd
+        except ImportError:
+            pytest.skip("should_skip_tdd not yet implemented")
+
+        assert should_skip_tdd("Write tests for: User authentication") is True
+
+    def test_should_skip_tdd_skips_tdd_prefix_implement(self):
+        """Test that tasks with 'Implement:' prefix are skipped."""
+        if not IMPORT_SUCCEEDED:
+            pytest.skip("Module not extracted yet")
+
+        try:
+            from gobby.mcp_proxy.tools.task_expansion import should_skip_tdd
+        except ImportError:
+            pytest.skip("should_skip_tdd not yet implemented")
+
+        assert should_skip_tdd("Implement: User authentication") is True
+
+    def test_should_skip_tdd_skips_tdd_prefix_refactor(self):
+        """Test that tasks with 'Refactor:' prefix are skipped."""
+        if not IMPORT_SUCCEEDED:
+            pytest.skip("Module not extracted yet")
+
+        try:
+            from gobby.mcp_proxy.tools.task_expansion import should_skip_tdd
+        except ImportError:
+            pytest.skip("should_skip_tdd not yet implemented")
+
+        assert should_skip_tdd("Refactor: User authentication") is True
+
+    def test_should_skip_tdd_skips_deletion_tasks(self):
+        """Test that tasks with deletion verbs are skipped."""
+        if not IMPORT_SUCCEEDED:
+            pytest.skip("Module not extracted yet")
+
+        try:
+            from gobby.mcp_proxy.tools.task_expansion import should_skip_tdd
+        except ImportError:
+            pytest.skip("should_skip_tdd not yet implemented")
+
+        # Delete tasks
+        assert should_skip_tdd("Delete old user data") is True
+        assert should_skip_tdd("Remove deprecated API endpoint") is True
+
+    def test_should_skip_tdd_skips_doc_updates(self):
+        """Test that documentation update tasks are skipped."""
+        if not IMPORT_SUCCEEDED:
+            pytest.skip("Module not extracted yet")
+
+        try:
+            from gobby.mcp_proxy.tools.task_expansion import should_skip_tdd
+        except ImportError:
+            pytest.skip("should_skip_tdd not yet implemented")
+
+        # Doc updates
+        assert should_skip_tdd("Update README with installation instructions") is True
+        assert should_skip_tdd("Update API documentation") is True
+
+    def test_should_skip_tdd_skips_config_updates(self):
+        """Test that config file update tasks are skipped."""
+        if not IMPORT_SUCCEEDED:
+            pytest.skip("Module not extracted yet")
+
+        try:
+            from gobby.mcp_proxy.tools.task_expansion import should_skip_tdd
+        except ImportError:
+            pytest.skip("should_skip_tdd not yet implemented")
+
+        # Config updates
+        assert should_skip_tdd("Update pyproject.toml dependencies") is True
+        assert should_skip_tdd("Update .env configuration") is True
+
+    def test_should_skip_tdd_does_not_skip_regular_tasks(self):
+        """Test that regular feature/bug tasks are not skipped."""
+        if not IMPORT_SUCCEEDED:
+            pytest.skip("Module not extracted yet")
+
+        try:
+            from gobby.mcp_proxy.tools.task_expansion import should_skip_tdd
+        except ImportError:
+            pytest.skip("should_skip_tdd not yet implemented")
+
+        # Regular implementation tasks should NOT be skipped
+        assert should_skip_tdd("Add user authentication") is False
+        assert should_skip_tdd("Fix login bug") is False
+        assert should_skip_tdd("Create new API endpoint") is False
+        assert should_skip_tdd("Implement password reset") is False
